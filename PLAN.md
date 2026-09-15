@@ -443,7 +443,7 @@ All tasks are TODO. Later tasks are expanded with exact commands, fixtures, and 
 
 #### DUR-001 — Repository and reproducible toolchain
 
-- **Status:** TODO.
+- **Status:** IN_PROGRESS.
 - **Dependencies:** None.
 - **Goal:** A clean checkout supports Go/Python development and starts the real local dependencies.
 - **Scope:** Agent/review files; pinned toolchains/images; dependency locks; configuration examples; Compose; migrations entry point; setup guide.

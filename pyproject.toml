@@ -1,0 +1,35 @@
+[project]
+name = "durable-agent-execution-engine"
+version = "0.1.0.dev0"
+description = "Python activity-worker foundation for the durable execution engine"
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "mypy>=2.3.1,<2.4",
+  "pytest>=9,<10",
+  "ruff>=0.16.7,<0.17",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+addopts = "-ra"
+pythonpath = ["python"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "SIM", "UP"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "python"
+packages = ["workers", "incident_agent"]

@@ -1,0 +1,193 @@
+name: durable-agent-engine
+
+services:
+  postgres:
+    image: postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
+      POSTGRES_INITDB_ARGS: --data-checksums --auth-host=scram-sha-256
+    command:
+      - postgres
+      - -c
+      - fsync=on
+      - -c
+      - synchronous_commit=on
+      - -c
+      - full_page_writes=on
+    ports:
+      - ${POSTGRES_PORT:-5432}:5432
+    volumes:
+      - postgres-data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+    restart: unless-stopped
+
+  kafka:
+    image: apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_LISTENERS: CONTROLLER://:9093,INTERNAL://:19092,EXTERNAL://:9092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:19092,EXTERNAL://localhost:${KAFKA_PORT:-9092}
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,INTERNAL:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_NUM_PARTITIONS: 8
+      KAFKA_LOG_DIRS: /var/lib/kafka/data
+      KAFKA_DELETE_TOPIC_ENABLE: "true"
+    ports:
+      - ${KAFKA_PORT:-9092}:9092
+    volumes:
+      - kafka-data:/var/lib/kafka/data
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list >/dev/null 2>&1"]
+      interval: 5s
+      timeout: 5s
+      retries: 24
+      start_period: 15s
+    restart: unless-stopped
+
+  kafka-init:
+    image: apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837
+    depends_on:
+      kafka:
+        condition: service_healthy
+    command:
+      - /bin/bash
+      - -ec
+      - |
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic durable-agent.tasks.v1 --partitions 8 --replication-factor 1
+        /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic durable-agent.events.v1 --partitions 8 --replication-factor 1
+    restart: "no"
+
+  runtime-a:
+    build:
+      context: ../..
+      dockerfile: deploy/local/Dockerfile.runtime
+    environment:
+      RUNTIME_ADDR: :8080
+      RUNTIME_ROLE: scheduler-a
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    ports:
+      - ${RUNTIME_A_PORT:-8080}:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/runtime", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  runtime-b:
+    build:
+      context: ../..
+      dockerfile: deploy/local/Dockerfile.runtime
+    environment:
+      RUNTIME_ADDR: :8080
+      RUNTIME_ROLE: scheduler-b
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    ports:
+      - ${RUNTIME_B_PORT:-8081}:8080
+    depends_on:
+      postgres:
+        condition: service_healthy
+      kafka-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "/runtime", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  worker-a:
+    build:
+      context: ../..
+      dockerfile: deploy/local/Dockerfile.worker
+    environment:
+      WORKER_ADDR: 0.0.0.0:8081
+      WORKER_ID: worker-a
+      CONTROL_API_URL: http://runtime-a:8080
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    ports:
+      - ${WORKER_A_PORT:-8181}:8081
+    depends_on:
+      runtime-a:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "workers", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  worker-b:
+    build:
+      context: ../..
+      dockerfile: deploy/local/Dockerfile.worker
+    environment:
+      WORKER_ADDR: 0.0.0.0:8081
+      WORKER_ID: worker-b
+      CONTROL_API_URL: http://runtime-b:8080
+      KAFKA_BOOTSTRAP_SERVERS: kafka:19092
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    ports:
+      - ${WORKER_B_PORT:-8182}:8081
+    depends_on:
+      runtime-b:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-m", "workers", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: unless-stopped
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6
+    command: ["--config=/etc/otelcol-contrib/config.yaml"]
+    volumes:
+      - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+    ports:
+      - ${OTEL_GRPC_PORT:-4317}:4317
+      - ${OTEL_HTTP_PORT:-4318}:4318
+      - ${OTEL_HEALTH_PORT:-13133}:13133
+    restart: unless-stopped
+
+  prometheus:
+    image: prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - ${PROMETHEUS_PORT:-9090}:9090
+    restart: unless-stopped
+
+volumes:
+  postgres-data:
+  kafka-data:
+  prometheus-data:
