@@ -427,6 +427,44 @@ Next implementation evidence must include a response-drop-after-commit retry,
 same-key/same-payload idempotency, conflicting-payload rejection without
 mutation, and ordered status/history reads against throwaway PostgreSQL.
 
+## 2026-09-17 - DUR-006 implementation handoff
+
+- Base commit: `adf5934` (DUR-005 closeout); implementation target: `d8083d2`.
+- Task status: READY_FOR_REVIEW; DUR-006 is handed to Claude for review.
+
+Implemented the first versioned client API. Submission canonicalizes JSON
+payloads and computes the SHA-256 identity used by the repository; retries with
+the same namespace, submission key, and payload return the existing workflow
+after a response loss, while a changed payload returns a precise conflict.
+Status and ordered transition-history queries are exposed with bounded cursors
+and stale-revision checks. The runtime connects to PostgreSQL when
+`DATABASE_URL` is configured and still supports the foundation health-only mode
+without it. The API documents a no-automatic-pruning retention policy and the
+exact-retry policy for uncertain client outcomes.
+
+Validation:
+
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS; all shared Go/Python checks,
+  Go race tests, 9 DUR-005 repository subtests, the DUR-006 API integration
+  test, and service smoke checks passed.
+- API integration: response discarded after commit then retried; one workflow,
+  one creation history row, and one outbox row remained. Payload conflict,
+  not-found, stale revision, ordered history, cursor, and retention behavior
+  passed.
+- `docker build -f deploy/local/Dockerfile.runtime -t
+  durable-agent-runtime:dur006-check .`: PASS.
+- `git diff --check`: PASS before the handoff-only documentation edit.
+
+Remaining gaps: PostgreSQL-unavailable behavior, lock/statement timeouts,
+clean bootstrap/restart smoke, hard-kill durability, remote CI, automatic
+retention/deletion, and the complete engine/scheduler/Kafka path are not claimed
+by DUR-006. Review should use `adf5934` as its base and `d8083d2` as its target.
+
+Interview explanation: the API separates a lost client response from a lost
+database commit. The database remains authoritative, and an exact retry either
+finds the committed workflow or receives an explicit payload conflict; status
+and history then let the client resolve the uncertain outcome without guessing.
+
 ## 2026-09-16 - M0 final acceptance
 
 - Base commit: `d722cf7`; final code/contract target: `b993d71`.

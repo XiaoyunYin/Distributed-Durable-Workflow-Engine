@@ -54,7 +54,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Skipped checks and reasons: No remote CI is configured (`git remote -v` is empty). Model/paid-provider checks are intentionally not part of M0. Final Linux I/O/performance studies are deferred by the plan. `pwsh` was unavailable, so Windows PowerShell was used. The existing `.pytest_cache` and elevated pytest temp ACLs emitted host warnings; fresh task-local paths were used for passing validation.
 - Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude round-4 verification is complete with `NO_BLOCKING_FINDINGS`; R016 remains a nonblocking P3 contract follow-up for the first DUR-005 contract touch. M0 is accepted, but this handoff makes no runtime-engine correctness claim.
 
-## Codex handoff
+## Codex handoff — DUR-005 closeout
 
 - Task: DUR-005 — Schema and state repository
 - Task status: DONE
@@ -71,6 +71,23 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - `git diff --check`: PASS before handoff documentation changes.
 - Skipped checks and reasons: No clean bootstrap or restart-smoke run was performed because those workflows recreate the user’s running containers. No remote CI exists. Full workflow-engine, scheduler, Kafka-relay, hard-kill durability, and paid/model behavior remain outside DUR-005.
 - Known limitations: This task implements the durable state repository and its PostgreSQL transaction boundaries, not the complete engine. The service evidence uses the existing single-node local topology. The integration suite uses generated `dur005-*` identities and does not claim production retention, failover, or exactly-once behavior. R028's fan-out cancellation follow-up is recorded under DUR-007 in PLAN.md.
+
+## Codex handoff
+
+- Task: DUR-006 — Submission and query APIs
+- Task status: READY_FOR_REVIEW
+- Handoff basis: COMMITTED
+- Base commit: `adf5934`
+- Target commit: `d8083d2`
+- Scope and implementation summary: Added the versioned HTTP/JSON submission and query API over the durable repository. `POST /v1/workflows` canonicalizes and hashes payloads, computes the frozen partition, and preserves namespace/submission-key idempotency. `GET /v1/workflows/{workflow_id}` exposes status with an optional stale-revision precondition, and the history endpoint provides bounded ordered pages. The API maps payload conflicts, not-found, stale revision, stale claim, and stale attempt errors to explicit HTTP responses. Runtime processes open PostgreSQL when `DATABASE_URL` is configured; health-only local behavior remains available without it. The DUR-006 retention policy is no automatic pruning; the ambiguous-client policy is exact-key/payload retry.
+- Checks run and results:
+  - `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go formatting/vet/tests/build, Go race tests, Ruff, strict mypy, 12 Python tests, migration checks, all 9 DUR-005 PostgreSQL subtests, the DUR-006 API integration test, and live PostgreSQL/Kafka/runtime/telemetry smoke checks passed.
+  - `go test ./...`: PASS with API unit tests and non-service integration tests skipped as designed.
+  - Focused `go test ./internal/api -run '^TestWorkflowAPIResponseLossHistoryAndRetention$' -count=1 -v`: PASS against the development PostgreSQL service.
+  - `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur006-check .`: PASS; the runtime image compiled with the API and PostgreSQL wiring.
+  - `git diff --check`: PASS before handoff documentation changes.
+- Skipped checks and reasons: No clean bootstrap or restart-smoke run was performed because those workflows recreate the user's running containers. No remote CI exists. PostgreSQL-unavailable behavior, lock/statement timeouts, hard-kill durability, and production retention/failover remain untested or outside this task.
+- Known limitations: This task exposes submission/status/history only; it does not implement the interpreter, scheduler loop, fan-out, Kafka relay, or effect service. History is retained without automatic pruning in this API. The service evidence uses the existing single-node local topology and makes no exactly-once claim.
 
 ## Claude review rounds
 
