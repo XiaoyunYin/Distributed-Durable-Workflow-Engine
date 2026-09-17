@@ -184,3 +184,35 @@ Interview explanation: the contract now separates evidence receipt from
 authority to advance durable workflow state. That makes fencing, lock order,
 and cancellation/approval races explicit before the first engine schema is
 implemented.
+
+## 2026-09-16 - M0 round-4 timeout-contract fixes
+
+- Base commit: `eb32162`; target implementation commit: `b993d71`.
+- Task status: READY_FOR_REVIEW; R013-R015 are addressed and M0 remains pending Claude round-4 verification.
+
+Advanced the contract to `dur-002.v4` to make timeout handling depend on both
+claim state and the immutable activity effect class. Unclaimed dispatchable
+work is redispatched with the same attempt identity. Claimed pure activity may
+be replaced; claimed cooperating effects may be replaced only with the same
+effect key and grant scope; claimed non-cooperating effects become
+outcome-unknown and enter `RECONCILIATION_REQUIRED` without an automatic
+replacement. The permission table now separates approver/client intent from
+lease-owner application, and the worker revision wording no longer rejects a
+valid result solely because of an unrelated revision change. The handoff now
+reports 12 Python tests and round-3 verification status.
+
+Validation:
+
+- `scripts/ci.ps1 -WithRace`: PASS; formatting, lint, strict mypy, 12 Python tests, and Go race tests passed.
+- `git diff --check`: PASS.
+- Known host pytest cache ACL warning remained non-fatal; task-local roots were used and removed afterward.
+
+Remaining gaps: clean bootstrap and restart smoke were not rerun in this pass
+because the reviewer’s shared-container constraint still applies. M0 makes no
+runtime-engine or paid/model evidence claim. Claude round-4 verification is
+pending.
+
+Interview explanation: timeout is not evidence that an external action did not
+happen. The v4 contract makes retry safety an explicit property of both claim
+state and effect cooperation, preventing an uncertain irreversible action from
+being automatically repeated.

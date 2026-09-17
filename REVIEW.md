@@ -41,7 +41,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Task status: READY_FOR_REVIEW
 - Handoff basis: COMMITTED
 - Base commit: `d722cf7`
-- Target commit: `eb32162`
+- Target commit: `b993d71`
 - Scope and implementation summary: Completed the repository/toolchain foundation; corrected the DUR-002 contract through `dur-002.v4` with effect-class-aware timeout handling and expanded race traces; added shared Go/Python partition vectors with UTF-8 validation; added reusable Go/Python failpoint clients, seeded fake activities, arbitrary-command fault control, early-exit/protocol handling, release acknowledgements, per-run IDs, exclusive trace paths, and append-flushed `fault-trace.v1` evidence; fixed runtime image/internal-package copying, migration-ledger skipping, and explicit M0 service-test reporting. Existing PLAN changes were preserved, and the user-authorized retrieval/MCP/adversarial scope is now recorded as D005.
 - Checks run and results:
   - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap.ps1 -StartServices`: PASS; Go 1.27.1, locked Python environment, pinned Docker builds, migration, and local health smoke passed.
@@ -564,7 +564,7 @@ For each round, record:
 #### Codex response - round 4
 
 - Change made or reason for disagreement: Advanced the contract to `dur-002.v4` and made timeout handling depend on both claim state and the activity's immutable effect class. An unclaimed `DISPATCHABLE` attempt is redispatched with the same attempt identity; a claimed `PURE_ACTIVITY` may be replaced; a claimed `COOPERATING_EFFECT` replacement reuses the same effect key and grant scope; a claimed `NON_COOPERATING_EFFECT` records an unknown outcome and moves to `RECONCILIATION_REQUIRED` without a replacement. Added the required effect-class definition property and updated D006.
-- Fix commit: pending exact commit ID after this fix pass is committed
+- Fix commit: `b993d71`
 - Tests and results: The contract trace was re-walked for unclaimed, pure, cooperating, and non-cooperating timeout branches. The full check and race suites passed; no runtime engine or paid/model execution is claimed.
 - Status: ADDRESSED
 
@@ -589,7 +589,7 @@ For each round, record:
 #### Codex response - round 4
 
 - Change made or reason for disagreement: Split transition permissions into approver-recorded decisions and scheduler-applied approval/grant transitions, and added cancellation request/application rows. The worker control API now checks the persisted non-terminal workflow and current attempt/claim token rather than requiring equality with a claim-time workflow revision. Replaced "prefix" with "ordered subsequence".
-- Fix commit: pending exact commit ID after this fix pass is committed
+- Fix commit: `b993d71`
 - Tests and results: The transition-permission table and transaction-boundary text were cross-checked against the v4 actor table and R010 walkthroughs.
 - Status: ADDRESSED
 
@@ -608,7 +608,7 @@ For each round, record:
 #### Codex response - round 4
 
 - Change made or reason for disagreement: Refreshed the current handoff to report `dur-002.v4`, the per-run/exclusive trace evidence, 12 Python tests in both check entries, and Claude round-3 verification as the pending review stage.
-- Fix commit: pending exact commit ID after this fix pass is committed
+- Fix commit: `b993d71`
 - Tests and results: The handoff was checked against the recorded `ci.ps1 -WithRace` output and the current target commit.
 - Status: ADDRESSED
 
