@@ -35,3 +35,29 @@ failover, host-level availability, or final Linux I/O performance.
 The alternative of mocks or embedded substitutes was rejected because the plan
 requires real PostgreSQL and Kafka. A multi-node broker/database deployment is
 unnecessary for the foundation task and would imply guarantees not yet tested.
+
+## D003 - Versioned stable partition mapping
+
+- Date: 2026-09-16
+- Status: accepted for DUR-002
+
+Use `sha256-u64-be-v1`: SHA-256 of the UTF-8 workflow ID, read as an unsigned
+big-endian 64-bit integer from the first eight digest bytes, reduced modulo 16.
+The map version and partition count are part of the durable workflow identity
+contract. Go and Python keep independent implementations and tests so a
+runtime-specific hash cannot silently change ownership after a restart.
+
+## D004 - Named-boundary fault control and shared checks
+
+- Date: 2026-09-16
+- Status: accepted for M0
+
+Fault fixtures report named boundaries over a process pipe and block until the
+controller sends an explicit release or kills the target. The controller uses
+event waits with bounded timeouts; it does not infer a boundary from sleeps.
+Trace records use `fault-trace.v1` and carry the seed and sequence number.
+
+`scripts/ci.ps1` composes the existing checks and exposes race and real-service
+checks as explicit switches. Paid/model checks remain outside the foundation
+entry point. This is a local/shared validation contract; no remote CI service
+is claimed when the repository has no configured remote.

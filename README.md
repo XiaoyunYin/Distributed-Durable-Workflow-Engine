@@ -1,8 +1,10 @@
 # Distributed Durable Execution Engine
 
-This repository is at the DUR-001 foundation stage. It provides a reproducible
-Go/Python development environment and a real local PostgreSQL/Kafka topology;
-it does **not** yet implement or claim durable workflow correctness.
+This repository is at the M0 foundation stage (DUR-001 through DUR-004). It
+provides a reproducible Go/Python development environment, frozen foundation
+contracts, deterministic named-boundary fault fixtures, and a real local
+PostgreSQL/Kafka topology; it does **not** yet implement or claim durable
+workflow correctness.
 
 ## Local topology
 
@@ -72,6 +74,9 @@ Use it only when a clean reset is intended.
 pytest checks. `scripts/smoke.ps1` verifies real service health and pinned
 PostgreSQL durability settings. `scripts/restart-smoke.ps1` proves PostgreSQL
 and Kafka development volumes retain explicit markers across container recreation.
+`scripts/ci.ps1` is the shared validation entry point; use `-WithRace` for Go
+race checks and `-WithServices` for real dependency checks. No model or paid
+provider calls are made by these checks.
 
 See [docs/RUNBOOK.md](docs/RUNBOOK.md) for operations and
 [docs/BUILD_LOG.md](docs/BUILD_LOG.md) for evidence and known gaps.

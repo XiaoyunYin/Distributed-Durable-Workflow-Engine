@@ -50,3 +50,44 @@ Interview explanation: this task separates repeatable infrastructure evidence
 from future engine claims. Pinning versions and testing retained volumes makes
 later crash/recovery failures attributable to code and protocol changes instead
 of an undocumented local setup.
+
+## 2026-09-16 - M0 foundation completion pass
+
+- Base commit: `198fd4b` (DUR-001 scaffold); target commit: pending.
+- Task status: READY_FOR_REVIEW after the implementation commit.
+
+Completed the remaining M0 foundation work. `docs/CONTRACTS.md` freezes actor
+authority, identity separation, transaction boundaries, transition permissions,
+the required race traces, and the declared failure-model limits. The stable
+workflow partition map is versioned as `sha256-u64-be-v1` with 16 partitions;
+Go and Python independently implement and test the same canonical vectors.
+
+Added an event-driven DUR-003 fault fixture. A target reports a named boundary
+and waits for an explicit release command; the controller can release or kill
+only after that event, writes `fault-trace.v1` JSONL evidence, and records a
+bounded timeout when the boundary is not reported. Tests cover release, kill,
+timeout, and same-seed trace stability.
+
+Added `scripts/ci.ps1` as the shared validation entry point. Go race checks and
+real PostgreSQL/Kafka smoke checks are explicit opt-ins; model and paid-provider
+checks are not invoked. This keeps unavailable or intentionally out-of-scope
+checks visible instead of treating them as passes.
+
+Validation on 2026-09-16:
+
+- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap.ps1 -StartServices`: PASS. Go 1.27.1, locked uv environment, Docker image builds, migration, and service smoke checks completed.
+- `scripts/check.ps1` with repository-local `GOCACHE`, `UV_CACHE_DIR`, `TEMP`, `TMP`, and `PYTEST_ADDOPTS`: PASS. Go vet/test/build, Ruff, strict mypy, and 7 pytest tests passed.
+- `scripts/restart-smoke.ps1`: PASS. PostgreSQL marker row and Kafka marker topic survived forced container recreation.
+- `python -m faults.control --seed 23 --boundary after-effect --action release`: PASS.
+- Timeout CLI run with `--skip-boundary --timeout-seconds 0.1`: expected non-zero timeout result and trace recorded.
+
+The first post-change check attempts exposed pre-existing host cache/temporary
+directory collisions under the user's profile; those runs were not counted as
+project failures. Validation was repeated with task-local cache locations. The
+pytest cache warning for the existing `.pytest_cache` ACL remained non-fatal.
+No durable-execution correctness or performance result is claimed by M0.
+
+Interview explanation: freeze the protocol before adding concurrency, then
+make crash tests wait on named observed boundaries. The controller proves that
+the fault was injected at the intended point; the later engine checker can
+consume the same versioned trace without guessing from elapsed time.

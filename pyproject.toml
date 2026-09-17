@@ -32,4 +32,4 @@ select = ["B", "E", "F", "I", "SIM", "UP"]
 python_version = "3.12"
 strict = true
 mypy_path = "python"
-packages = ["workers", "incident_agent"]
+packages = ["workers", "incident_agent", "durable_contracts", "faults"]

@@ -25,6 +25,20 @@ containers and the network but retains named volumes. Resume with
 For a dependency-only container recreation and persistence check, run
 `pwsh ./scripts/restart-smoke.ps1`.
 
+## Shared validation and fault fixtures
+
+Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1`
+for the default local checks. Add `-WithRace` for Go race checks and
+`-WithServices` when PostgreSQL and Kafka are running. The named-boundary
+fixture can be exercised with:
+
+```powershell
+uv run python -m faults.control --seed 23 --boundary after-effect --action release
+```
+
+Use `--skip-boundary --timeout-seconds 0.1` to verify the explicit timeout
+trace. These foundation checks do not call a model or paid provider.
+
 ## Reset warning
 
 Adding `--volumes` to `docker compose down` erases PostgreSQL, Kafka, and

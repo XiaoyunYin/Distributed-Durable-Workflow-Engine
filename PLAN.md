@@ -1,8 +1,9 @@
 # Distributed Durable Execution Engine — Agent Workflow Runtime — PLAN.md
 
-**Stack:** Go, Python, PostgreSQL, Apache Kafka, Docker Compose, OpenTelemetry, Prometheus.
+**Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** Planning. Every task is TODO. No correctness, performance, or agent-quality result is claimed.
+**Status:** M0 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
 
@@ -23,8 +24,9 @@ The central demonstration is a crash at an inconvenient boundary: a tool applies
 - PostgreSQL is authoritative for workflows, attempts, checkpoints, timers, approvals, and pending dispatch.
 - Retries, idempotency keys, scheduler fencing, worker-attempt validation, checkpoint recovery, and cancellation have explicit contracts.
 - A deterministic fault harness controls crash boundaries and checks durable state against an independent effect ledger.
-- An incident agent gathers logs, metrics, and runbooks; proposes a diagnosis and action; waits for approval; applies an allowlisted sandbox action; verifies the outcome.
-- Measurements cover recovery time, workflow throughput, duplicate/lost effects, checkpoint overhead, and agent success.
+- An incident agent uses schema-constrained MCP tools to query logs and metrics and retrieves runbook/postmortem evidence through a pre-registered retrieval layer that can run PostgreSQL full-text, pgvector dense, or hybrid ranking over the same frozen corpus; it proposes a diagnosis and action, waits for approval, applies an allowlisted sandbox action, and verifies the outcome.
+- Applied-AI evidence includes a separate retrieval benchmark with at least 40 development queries and 120 held-out queries, difficult distractors and no-answer cases, a matched end-to-end comparison of retrieval strategies, a defenses-on versus plain-evidence adversarial ablation, deterministic fake-secret/PII redaction checks, and model-behavior monitoring.
+- Measurements cover recovery time, workflow throughput, duplicate/lost effects, checkpoint overhead, retrieval/tool quality, guardrail behavior, agent success, and attributable model/tool cost.
 
 ### Scope protection
 
@@ -44,12 +46,14 @@ This is an educational runtime with documented operating limits. Do not claim pr
 | RQ4: Incident-agent continuity | Persisted tool/model results and approval state allow an interrupted investigation to resume without losing committed evidence, skipping approval, or repeating protected effects. | A deterministic interrupted run diverges from its uninterrupted committed outcome, or live-model recovery materially degrades safe end-to-end success under the frozen evaluation. |
 | RQ5: Safeguard cost | History, per-transition lease validation, and transactional outbox machinery impose measurable persistence/coordination cost; negative controls may be faster but must expose the specific auditability, safety, or bounded-dispatch property that the corresponding safeguard provides. | The full profile has no measurable overhead in the tested regime, or a disabled safeguard does not produce the expected loss of auditability, stale-owner safety, or dispatch-latency bound under its matched test. |
 | RQ6: What does Kafka buy beyond PostgreSQL wake-up? | Decompose dispatch into three designs that begin from the same committed outbox record and end at the same worker claim API: periodic PostgreSQL polling plus direct worker notification; `LISTEN/NOTIFY`-woken direct notification with no broker; and the production `LISTEN/NOTIFY`-woken outbox relay -> Kafka -> workers path. Arm 1->2 isolates the wake mechanism; arm 2->3 isolates the incremental transport. | If notification-driven direct dispatch matches or beats Kafka on local latency/overhead, conclude that Kafka is not a latency optimization at the tested scale; describe any remaining Kafka rationale as architectural unless separately measured. If Kafka materially improves a measured property, name that property and keep the claim within the tested topology. |
+| RQ7: Retrieval strategy versus diagnosis quality | Use a separate development query set to choose chunking, top-k, hybrid-fusion constants, query normalization, and evidence-sufficiency rules, then freeze them before the held-out retrieval study. Compare PostgreSQL full-text ranking, pgvector dense retrieval, and hybrid rank fusion over the same frozen corpus. Keyword and dense arms use development-selected score thresholds; hybrid does **not** threshold its reciprocal-rank-fusion score, and instead passes sufficiency only when at least one constituent arm passes its own frozen threshold. The hypothesis is that hybrid retrieval improves evidence recovery on mixed lexical/semantic queries without adding enough distractors to hurt end-to-end diagnosis; the study must also identify workloads where keyword or dense retrieval is preferable. | No meaningful held-out ranking or delivered-evidence difference, worse distractor/no-answer behavior or latency, or no corresponding diagnosis improvement limits the claim. If another arm wins, report that result rather than rewriting the hypothesis. |
+| RQ8: Defense profile versus injection-associated agent behavior | On a frozen adversarial study, compare (A) provenance-aware evidence envelopes + explicit untrusted-data instructions against (B) plain concatenated evidence, while keeping redaction, schema validation, tool authorization, retrieval, model configuration, structured-output validation, and approval enforcement identical. For each profile, estimate baseline sampling variability with a clean-versus-clean replicate before interpreting clean-versus-injected proposal changes. The hypothesis is that the defended profile lowers **excess proposal-change rate above its own clean-clean baseline**, without relying on the approval gate to hide model-behavior failures. | No meaningful reduction versus the plain-evidence control after accounting for clean-clean proposal flips, an unauthorized tool/action attempt, or any seeded canary appearing outside the declared source-store boundary invalidates or limits the guardrail claim. Approval enforcement and redaction remain fixed runtime/security guarantees rather than ablated variables. |
 
 Scheduler scaling is a supporting performance study, not a central thesis. More schedulers may stop helping when PostgreSQL, a hot logical partition, Kafka, or workers become the bottleneck.
 
 **Primary evidence:** named failure traces, independently checked state transitions, effect-ledger reconciliation, measured recovery distributions, and matched safeguard ablations.
 
-**Supporting evidence:** throughput and latency at matched workload/worker capacity, three-arm dispatch-path measurements, persistence overhead, and a frozen agent evaluation set. No target improvement percentage is promised.
+**Supporting evidence:** throughput and latency at matched workload/worker capacity, three-arm dispatch-path measurements, persistence overhead, a frozen retrieval benchmark with separate development and held-out query sets, matched end-to-end retrieval-arm results including the document-dependent incident subset, defenses-on versus plain-evidence adversarial ablations, and a frozen agent evaluation set. No target improvement percentage is promised.
 
 ## 3. Execution model and architecture
 
@@ -94,9 +98,17 @@ CLI / workload generator / human approval client
                        Go worker-control API
                       claim / heartbeat / result
                                 |
-                   tools / LLM / sandbox effect service
+                   incident agent / LLM activities
+                                |
+                      schema-constrained MCP tools
+                    /              |               \
+             logs/metrics   document retrieval   sandbox effect service
+                              /       |       \
+                         FTS       pgvector     hybrid
+                                   |
+                          runbooks/postmortems
 
-OpenTelemetry + Prometheus <- all components
+OpenTelemetry + Prometheus <- all components -> Grafana
 Fault controller + invariant checker -> traces and independent evidence
 ```
 
@@ -114,6 +126,11 @@ The Go binary may expose separate API, scheduler, relay, and ingestor roles. Kee
 - Limit request sizes, activity input/output sizes, outstanding workflows, worker concurrency, outbox batches, connection pools, and retry budgets.
 - Use HTTP/JSON for control APIs and a Python client initially. gRPC, a graphical editor, and a general SDK ecosystem are deferred.
 - CPU-only correctness and load tests come first. A live LLM is unnecessary for engine development.
+- Agent tools use MCP as an interoperability boundary, but MCP never grants workflow authority: the durable engine still owns retries, persistence, approvals, and effect authorization.
+- Enable pgvector and PostgreSQL full-text search in the existing PostgreSQL development service for the same versioned runbook/postmortem chunks. Do not add a separate vector database unless a later measured requirement justifies it.
+- Use one pinned local embedding model for the dense path. Record model name, revision/hash, embedding dimension, normalization, and local cache/reproduction instructions; the default reproducible demo must not require a paid embedding API.
+- Keep logs and metrics as structured/query tools rather than embedding them by default. Retrieval experiments are reserved for document-like evidence where lexical and semantic search are both plausible.
+- The retrieval arm is an experiment configuration, not an agent choice: the agent calls the same `search_runbooks` MCP method while the server applies the frozen keyword, dense, or hybrid strategy.
 
 ## 4. Guarantees and failure model
 
@@ -321,7 +338,7 @@ The core safety claim is that no new remediation is dispatched without a matchin
 
 ### Demonstration environment
 
-Create synthetic services and a versioned incident corpus with structured logs, time-series metric snapshots, runbooks, and hidden ground truth.
+Create synthetic services and a versioned incident corpus with structured logs, time-series metric snapshots, runbooks/postmortems, and hidden ground truth.
 
 Use five incident families:
 
@@ -331,31 +348,48 @@ Use five incident families:
 4. disk-pressure scenario;
 5. benign/transient symptoms or insufficient evidence requiring restraint.
 
-Provide 30 cases: 10 development cases and 20 held-out evaluation cases, balanced by family. Freeze the held-out inputs and scoring rules before tuning final prompts. Ground-truth labels must not be exposed through tool responses.
+Provide 30 end-to-end incident cases: 10 development cases and 20 held-out evaluation cases, balanced by family. Freeze the held-out inputs and scoring rules before tuning final prompts. Ground-truth labels must not be exposed through tool responses.
 
-Before freezing the held-out set, perform a difficulty audit. Cases must contain plausible distractor evidence; some must require combining more than one source or using the bounded second investigation round; restraint cases must share superficial symptoms with actionable families. Reject fixtures whose answer is directly exposed by one log line, metric label, filename, or runbook sentence. Record the audit rather than using a high success rate as proof that the corpus is meaningful.
+Build a separate retrieval benchmark so document-search conclusions do not rest on the small incident set. Use at least 40 labeled development queries plus at least 120 labeled held-out queries over at least 60 versioned runbooks/postmortems and at least 300 chunks. Both splits include exact-identifier queries, paraphrases, multi-clue queries, no-answer queries, and stale/wrong-service near-duplicate documents; at least 25% of each split must be no-answer queries, and at least 30% must include a plausible near-duplicate distractor whose wording overlaps strongly but whose service/version/evidence label is wrong. Use only the development split to choose chunking, top-k, hybrid-fusion constants, query normalization, and evidence-sufficiency settings. For PostgreSQL full-text and dense pgvector retrieval, choose one score threshold per arm that maximizes balanced accuracy for answerable-versus-no-answer classification on the development split; break ties by lower no-answer false-positive rate, then higher **delivered Recall@K**. For hybrid reciprocal-rank fusion, do not threshold the fused score because rank-only fusion is not an absolute relevance signal: the hybrid arm passes sufficiency iff at least one constituent arm's frozen keyword/dense threshold passes, otherwise it returns `INSUFFICIENT_EVIDENCE`. Freeze the corpus version, labels, chunking, retrieval settings, constituent thresholds, and hybrid sufficiency rule before any held-out query is scored.
 
-Use local tool services for logs/metrics/runbooks. Adding hosted observability connectors, a vector database, or a separate search platform is not required.
+Before freezing the end-to-end incident set, perform a difficulty audit. Cases must contain plausible distractor evidence; some must require combining more than one source or using the bounded second investigation round; restraint cases must share superficial symptoms with actionable families. Reject fixtures whose answer is directly exposed by one log line, metric label, filename, or runbook sentence. Record the audit rather than using a high success rate as proof that the corpus is meaningful.
+
+Expose the local evidence/actions through a small schema-constrained MCP surface:
+
+- `query_logs` for bounded structured log queries;
+- `query_metrics` for bounded metric-window queries;
+- `search_runbooks` for document retrieval over the frozen runbook/postmortem corpus;
+- one allowlisted remediation/status interface backed by the existing approval/effect contracts.
+
+`search_runbooks` supports three server-selected experiment profiles over identical chunks and fixed top-k: (A) PostgreSQL full-text ranking, (B) dense cosine retrieval with pgvector, and (C) hybrid reciprocal-rank fusion combining the two ranked lists. Keyword and dense each use a development-selected absolute-score sufficiency threshold under the frozen objective; a constituent arm that fails its threshold is considered insufficient. Hybrid does **not** threshold the fused RRF score. Its frozen sufficiency rule is: deliver the hybrid top-k list iff the keyword arm or dense arm passes its own frozen threshold for that query; if neither passes, return `INSUFFICIENT_EVIDENCE`. This keeps no-answer detection grounded in the underlying relevance signals instead of rank positions. Freeze tokenization/query normalization, dense similarity, rank-fusion rule/constants, top-k, constituent threshold-selection objective/values, and the hybrid OR-sufficiency rule before held-out evaluation. The model is not told which arm is active.
+
+Runbook/postmortem chunks use stable document/chunk IDs. The dense path uses one pinned local embedding model, cached for offline reproduction; record the model name, revision/hash, embedding dimension, normalization, chunking policy, pgvector settings, and corpus version. Retrieval returns ranked evidence IDs plus source/version metadata; the final diagnosis may cite only evidence actually returned by tools. Mark each held-out incident before evaluation as document-dependent or document-independent according to the frozen rubric: a document-dependent case requires at least one labeled runbook/postmortem evidence ID to satisfy the diagnosis rubric. End-to-end retrieval-arm results must be reported both across all held-out incidents and separately on this document-dependent subset.
+
+Logs and metrics remain structured tools rather than being vectorized by default. The document-retrieval study is the project's RAG subsystem; adding Pinecone, Weaviate, a hosted observability connector, or a separate search platform is not required.
+
+Create clean/adversarial evidence fixtures for agent-side guardrail evaluation. Inject instruction-like text into logs or runbooks without changing the underlying incident ground truth, and seed synthetic canary secrets/PII into source fixtures. The adversarial study uses the 20 held-out incident cases under one pinned model/prompt/tool configuration and one retrieval arm chosen only from development evidence. For each incident and each defense profile, run three independent live-model executions from the same initial durable state: `clean-A`, `clean-B`, and `injected`, for **20 cases × 2 defense profiles × 3 runs = 120 executions**. Keep redaction at the retrieval/MCP response boundary, MCP schemas, tool authorization, structured output validation, retrieval, and approval enforcement identical in both profiles; vary only (A) provenance-aware evidence envelopes + explicit untrusted-data instructions versus (B) plain concatenated evidence. Define a remediation proposal's canonical signature as `(action_type, target_resource_id, canonical_argument_hash)`, using an explicit `NO_PROPOSAL` sentinel when the agent abstains. A material proposal flip occurs when two runs differ on that canonical signature. For each profile, report the `clean-A`↔`clean-B` baseline flip rate and the `clean-A`↔`injected` change rate, then report **excess injection-associated proposal change = injected change rate − clean-clean baseline flip rate**. Diagnosis-only changes are reported separately. This is a bounded estimate of injection-associated behavior, not proof that every excess flip was causally induced by the injected text.
+
+Treat the raw runbook/postmortem corpus—including its PostgreSQL full-text and pgvector chunk/index tables—as an explicit **source-store boundary**, even when it shares the same PostgreSQL server as workflow state. Put it in a dedicated schema/database role such as `source_corpus`; raw canaries may exist there because they are test inputs. **Redaction is a fixed guarantee, not part of the defense ablation:** both defended and plain-evidence profiles apply the same redaction at the retrieval/MCP response boundary before evidence can enter workflow payloads, rendered prompts, persisted model/tool records, or telemetry. The leakage scanner runs on both profiles and excludes only the declared raw source files and `source_corpus` tables; every downstream surface is scanned. Do not describe same-server placement as physical isolation.
 
 ### Workflow
 
 1. Accept incident and persist its inputs.
-2. Gather bounded logs, metrics, and relevant runbook excerpts.
-3. Persist a structured diagnosis, cited evidence IDs, uncertainty, and proposed next step.
+2. Use bounded MCP tool calls to query logs/metrics and retrieve top-k runbook/postmortem evidence through the experiment-selected keyword, dense, or hybrid retrieval arm.
+3. Persist a structured diagnosis, cited retrieved evidence IDs, uncertainty, and proposed next step; unsupported citations are invalid.
 4. Permit a bounded additional investigation round when evidence is insufficient.
 5. Either conclude without remediation or create the exact approval proposal.
 6. Wait for an authorized human decision.
 7. Execute the approved sandbox operation through the effect contract.
 8. Verify service state and persist a final incident report.
 
-Record tool/model versions, prompts or retrievable prompt hashes, inputs, outputs, token usage where available, latency, call counts, and effect/approval references. Keep credentials outside workflow payloads.
+Record tool/model/embedding versions, prompts or retrievable prompt hashes, MCP method/schema versions, retrieval arm, retrieval queries, returned evidence IDs/scores, inputs, outputs, token usage where available, latency, call counts, proposal/abstention outcomes, and effect/approval references. Keep credentials outside workflow payloads.
 
-Treat logs and runbooks as untrusted data. A document saying to ignore instructions or approve an action has no authority. Tools use allowlisted operations and validated arguments; the model does not receive unrestricted shell access.
+Treat logs, metrics, retrieved runbooks/postmortems, and MCP tool text as untrusted data. A document or tool result saying to ignore instructions or approve an action has no authority. MCP methods are allowlisted, arguments are schema-validated, retrieved evidence is provenance-tagged, configured fake-secret/PII canaries are redacted before persistence/prompting/telemetry, and the model does not receive unrestricted shell access. Approval enforcement is evaluated separately from whether adversarial content changes the model's diagnosis or proposal.
 
 ### Deterministic mode and live-model mode
 
-- **Deterministic mode:** scripted or recorded, versioned activity outputs for engine tests and repeatable recovery comparisons. Label these as fixtures.
-- **Live-model mode:** one pinned available model configuration through a provider adapter, enabled only with credentials and an approved spending limit.
+- **Deterministic mode:** retrieval and MCP tool implementations still run live against the frozen local corpus/services. Recorded/scripted model outputs (including recorded tool-call decisions or retrieval query text where needed) may drive the workflow, but `search_runbooks` must execute the selected retrieval algorithm rather than replay stored retrieval results. Use deterministic PostgreSQL full-text ranking and exact dense similarity over the frozen embeddings/index for repeatable correctness checks; label recorded model outputs as fixtures.
+- **Live-model mode:** one pinned available model configuration through a provider adapter, enabled only with credentials and an approved spending limit. Retrieval still uses the same frozen corpus and one preselected experiment arm per run.
 - Persist nondeterministic outputs as activity results. Temperature settings are not a guarantee of reproducibility.
 - A live run that crashes after a committed model result must reuse that result. A crash before the commit can incur another call.
 - Do not connect Project 1 by default. A later integration can use its HTTP endpoint without changing the engine's correctness claims.
@@ -368,11 +402,11 @@ Deliver a CLI walkthrough and readable execution timeline. A custom web applicat
 
 **Core Engine MVP:** two schedulers and worker processes, PostgreSQL ownership/state, Kafka task/event paths, retries/checkpoints, fenced recovery, cooperating and non-cooperating effect demonstrations, approval gates, the engine-only F01-F11 correctness campaign, and a small throughput smoke report. This release does not depend on the incident agent.
 
-**Portfolio MVP:** Core Engine MVP plus the deterministic incident workflow, observability/timeline, agent-specific F12 checks, and a human-approval walkthrough.
+**Portfolio MVP:** Core Engine MVP plus the deterministic incident workflow, real MCP log/metric/retrieval paths, PostgreSQL full-text and pgvector retrieval over a frozen corpus with stable evidence IDs, the separate retrieval development/held-out benchmark harness, frozen evidence-sufficiency policies, programmatic citation/provenance scoring, defenses-on versus plain-evidence adversarial checks, source-boundary redaction/leakage scanning, model-behavior observability/dashboard, agent-specific F12 checks, and a human-approval walkthrough.
 
 Both MVP levels must exercise real local PostgreSQL and Kafka. Mock-only tests or a happy-path demo do not satisfy them.
 
-**Full v1:** Portfolio MVP plus frozen throughput, safeguard-cost, dispatch-path decomposition, lease, and checkpoint studies; the bounded live-model incident evaluation; a reproducible report; and interview evidence.
+**Full v1:** Portfolio MVP plus frozen throughput, safeguard-cost, dispatch-path decomposition, lease, and checkpoint studies; the pre-registered keyword-vs-dense-vs-hybrid held-out retrieval comparison after development-only tuning; the bounded live-model incident comparison across retrieval arms with document-dependent subset reporting; the frozen defenses-on versus plain-evidence adversarial ablation; a reproducible report; and interview evidence.
 
 A required study not run is **not evaluated**. A study that ran but cannot settle its question is **inconclusive**. A release missing full-v1 requirements remains the highest completed MVP/partial release unless the user explicitly revises scope.
 
@@ -397,7 +431,7 @@ A required study not run is **not evaluated**. A study that ran but cannot settl
 | 3 | Kafka task/event transport and database reconciliation |
 | 4 | Retries/checkpoints, effects, approvals |
 | 5 | Engine-only correctness campaign and Core Engine MVP |
-| 6 | Incident demo, agent-specific correctness, Portfolio MVP |
+| 6 | Incident demo, MCP/retrieval paths, retrieval benchmark, agent guardrails/observability, Portfolio MVP |
 | 7 | Throughput, safeguard-cost, dispatch-path, lease, checkpoint, and live-agent studies |
 | 8 | Final report, clean reproduction, portfolio release |
 
@@ -437,50 +471,53 @@ Large artifacts can live outside Git with checksums and retrieval instructions. 
 
 ## 12. Milestones and tasks
 
-All tasks are TODO. Later tasks are expanded with exact commands, fixtures, and evidence paths immediately before implementation. Add named subtasks when a task exceeds one focused implementation/review cycle; retain its parent ID.
+M0 tasks are being completed in dependency order. Later tasks remain TODO and
+will be expanded with exact commands, fixtures, and evidence paths immediately
+before implementation. Add named subtasks when a task exceeds one focused
+implementation/review cycle; retain its parent ID.
 
 ### M0 — Foundation
 
 #### DUR-001 — Repository and reproducible toolchain
 
-- **Status:** IN_PROGRESS.
+- **Status:** READY_FOR_REVIEW.
 - **Dependencies:** None.
 - **Goal:** A clean checkout supports Go/Python development and starts the real local dependencies.
 - **Scope:** Agent/review files; pinned toolchains/images; dependency locks; configuration examples; Compose; migrations entry point; setup guide.
 - **Layout:** `cmd/runtime/`, `internal/`, `api/`, `migrations/`, `python/workers/`, `python/incident_agent/`, `tests/integration/`, `tests/faults/`, `deploy/local/`, `docs/`, `experiments/`.
 - **Acceptance:** Go builds; Python installs reproducibly; PostgreSQL/Kafka health checks pass; credentials stay out of version control; stop/start behavior is documented.
 - **Validation:** Clean bootstrap, build/import checks, durable dependency restart smoke checks. No directory-layout tests.
-- **Evidence:** Versions, commands, results, first build-log entry.
+- **Evidence:** Versions, commands, results, and `docs/BUILD_LOG.md` entries for bootstrap, service smoke, and retained-volume restart smoke.
 
 #### DUR-002 — Contracts and invariant catalogue
 
-- **Status:** TODO.
+- **Status:** READY_FOR_REVIEW.
 - **Dependencies:** DUR-001.
 - **Goal:** Define exactly what each actor can change before implementing concurrency and freeze the workflow-to-partition mapping contract required by M2.
 - **Scope:** Workflow/attempt state diagrams; identity scopes; transition permissions; lease and worker-fencing boundaries; acknowledgment rules; failure model; versioned stable workflow-to-partition hash algorithm; partition-map version; canonical test vectors.
 - **Acceptance:** Walk through submission retry, ownership handoff, worker timeout/result race, outbox duplicate, ambiguous effect, and approval/cancellation race with one explicit outcome per ordering. The workflow-to-partition algorithm, map version, and test vectors are explicit, deterministic across supported Go/Python implementations, and frozen before partition ownership work begins.
 - **Validation:** Paper traces include transaction boundaries and the location of every durable record; contradictions become blocking findings. Run the frozen partition-map test vectors across every implementation that computes or verifies the mapping and reject runtime/language hashes whose outputs are not part of the declared contract.
-- **Evidence:** Contracts, protocol diagrams, partition-map specification/test vectors, cross-implementation vector results, and initial decision records.
+- **Evidence:** `docs/CONTRACTS.md`, `docs/partition-map-v1.md`, Go/Python vector tests, and decision `D003`.
 
 #### DUR-003 — Fixtures and test-control interface
 
-- **Status:** TODO.
+- **Status:** READY_FOR_REVIEW.
 - **Dependencies:** DUR-002.
 - **Goal:** Make failures reproducible before the engine grows.
 - **Scope:** Seeded workflow fixtures, fake activities, named barrier/failpoint API, controller process, trace schema.
 - **Acceptance:** The controller can pause, release, and kill a target after a reported boundary without relying on arbitrary sleep durations.
 - **Validation:** Repeat one controlled crash with the same seed; confirm the trace identifies the intended boundary and reports a timeout if never reached.
-- **Evidence:** Example fault schedule and raw trace.
+- **Evidence:** `python/faults/`, `tests/test_fault_control.py`, `fault-trace.v1` JSONL output, and decision `D004`.
 
 #### DUR-004 — Shared validation and CI
 
-- **Status:** TODO.
+- **Status:** READY_FOR_REVIEW.
 - **Dependencies:** DUR-001, DUR-003.
 - **Goal:** Local and CI checks use the same entry points.
 - **Scope:** Format/lint/build; Go unit and relevant race checks; Python checks; real database/Kafka integration; small fault smoke suite.
 - **Acceptance:** Failed checks propagate; paid/model tests are opt-in; unimplemented or unavailable checks are explicit.
 - **Validation:** Execute existing commands and demonstrate failure reporting. Remote CI is pending until a remote exists.
-- **Evidence:** Commands and CI results where available.
+- **Evidence:** `scripts/check.ps1`, `scripts/ci.ps1`, explicit `-WithRace`/`-WithServices` switches, and the 2026-09-16 build-log validation record. No remote CI is claimed without a configured remote.
 
 ### M1 — Durable workflow core
 
@@ -556,12 +593,12 @@ All tasks are TODO. Later tasks are expanded with exact commands, fixtures, and 
 
 | Task | Scope and acceptance |
 |---|---|
-| DUR-019 — Incident fixtures and tool adapters | Versioned logs/metrics/runbooks, ground truth, read-only tools, schema validation, prompt-injection fixtures, and the difficulty audit from section 9. Tools expose only authorized synthetic data. |
-| DUR-020 — Durable investigation workflow | Evidence collection, bounded model/tool steps, persisted diagnosis, approval wait, sandbox action, verification, final report. Deterministic mode works end-to-end; live mode is budget-gated. |
-| DUR-021B — Incident timeline and agent observability | Depends on DUR-021A. Extend the engine telemetry foundation with incident/model/tool/approval spans and a readable workflow timeline. One incident execution can be reconstructed without inferring success from logs alone. |
-| DUR-033 — Agent-specific correctness and continuity | Depends on DUR-019, DUR-020, DUR-022, and the relevant M4 effect/approval contracts. Execute F12 plus deterministic interrupted/uninterrupted continuity checks using frozen recorded/scripted activity outputs. A committed deterministic investigation interrupted after a declared boundary must resume to the same durable report and action/no-action decision as its matched uninterrupted run, or the case fails. The equality assertion is only over the durable report content and final action/no-action decision (plus explicitly declared committed semantic outputs); transition history, attempt count, retry records, timestamps, and timing are expected to differ after interruption and are not required to match. |
+| DUR-019 — Incident fixtures, MCP tools, and retrieval benchmark | Versioned logs/metrics/runbooks/postmortems, end-to-end ground truth, schema-constrained MCP methods, clean/prompt-injection fixtures, synthetic secret/PII canaries, a declared `source_corpus` boundary, PostgreSQL FTS + pgvector schema/index, one pinned local embedding model, stable chunk/evidence IDs, and the difficulty audit from section 9. Build at least 40 labeled development queries plus 120 held-out queries over at least 60 documents/300 chunks, including no-answer and near-duplicate distractors. Use only development queries to choose chunking, top-k, hybrid constants, keyword/dense sufficiency thresholds, and the frozen hybrid OR-sufficiency rule under the pre-registered objective; freeze all settings before held-out scoring. Implement keyword, dense, and hybrid retrieval behind the same `search_runbooks` method and expose both pre-gate rankings and post-gate delivered evidence for evaluation. |
+| DUR-020 — Durable investigation workflow | Evidence collection through bounded MCP calls, experiment-selected document retrieval, bounded model/tool steps, cited-evidence validation, persisted diagnosis/abstention/proposal, approval wait, sandbox action, verification, final report. Tool outputs are provenance-tagged and synthetic secrets/PII are redacted before workflow persistence, prompts, or telemetry. Deterministic mode executes real local retrieval/tool paths; live mode is budget-gated. |
+| DUR-021B — Incident timeline, model-behavior metrics, and dashboard | Depends on DUR-021A. Extend the engine telemetry foundation with incident/model/retrieval/MCP-tool/approval spans, retrieval arm/evidence IDs/scores, token/cost accounting, and a readable workflow timeline. Export bounded-cardinality Prometheus metrics and a Grafana dashboard for abstention rate, invalid/denied tool-call rate, citation-provenance violations, approver rejection rate, model/tool latency, and cost per incident. Do not use incident IDs, prompts, or evidence text as metric labels. One incident execution can be reconstructed from retrieval query through tool calls and final effect without inferring success from logs alone. |
+| DUR-033 — Agent-specific correctness, security, and continuity | Depends on DUR-019, DUR-020, DUR-022, and the relevant M4 effect/approval contracts. Execute F12 plus deterministic interrupted/uninterrupted continuity checks using frozen recorded/scripted model outputs while running real retrieval/tool paths. Add programmatic citation provenance/evidence-label checks, canonical proposal-signature comparison, and a canary scanner over workflow payloads, rendered model prompts, persisted model/tool records, MCP/retrieval responses, and exported spans. Raw source files plus declared `source_corpus` tables are the only excluded surfaces; redaction is applied and scanned in **both** adversarial defense profiles, and any seeded secret/PII elsewhere is a failure. Approval authority, redaction, and injection-associated model behavior are reported as separate properties. |
 
-**Exit:** Portfolio MVP evidence is complete: a human can inspect, approve, interrupt, and resume a synthetic incident investigation, and agent-specific safety/continuity cases are independently checked.
+**Exit:** Portfolio MVP evidence is complete: a human can inspect, approve, interrupt, and resume a synthetic incident investigation; keyword/dense/hybrid retrieval and MCP tool paths are reproducible; the separate retrieval benchmark, programmatic citation checks, adversarial-evidence checks, canary redaction scan, and model-behavior dashboard run from a clean setup; and agent-specific safety/continuity cases are independently checked.
 
 ### M7 — Controlled measurements
 
@@ -575,7 +612,7 @@ All tasks are TODO. Later tasks are expanded with exact commands, fixtures, and 
 | DUR-035 — Three-arm dispatch-path decomposition | Depends on DUR-036. Implement and compare three testable paths that consume the same committed task-outbox record and end at the same worker claim API: (A) periodic PostgreSQL polling plus direct worker notification; (B) `LISTEN/NOTIFY`-woken direct notification with no broker; and (C) the production `LISTEN/NOTIFY`-woken outbox relay -> Kafka -> workers path. Use two frozen polling intervals so the default study stays at four configurations / twelve measured runs. Freeze fallback-poll intervals and the direct-dispatch worker-selection rule. Measure outbox-ready-to-claim delay, PostgreSQL load, direct-dispatch overhead, Kafka/broker overhead, backlog behavior, and terminal correctness. Interpret A->B as wake-mechanism effect and B->C as incremental transport effect. |
 | DUR-027 — Lease tradeoff study | Depends on DUR-036. Compare matched lease settings under crashes/pauses; measure takeover, useful recovery, renewal traffic, false takeovers, and lock contention. |
 | DUR-028 — Checkpoint tradeoff study | Depends on DUR-036. Compare frozen checkpoint intervals on one pure chunked workload; measure persistence overhead, repeated computation, correctness, and recovery. |
-| DUR-029 — Live agent evaluation | Freeze held-out rubric and run the bounded live-model study; deterministic continuity is already a correctness obligation in DUR-033. Separate model quality, runtime recovery, approvals, and unknown effects. |
+| DUR-029 — Retrieval strategy, live-agent, and adversarial evaluation | Freeze the retrieval and incident protocols before held-out results. Tune only on the retrieval development split, then run the 120+ held-out query keyword-vs-dense-vs-hybrid study with frozen top-k, fusion, keyword/dense sufficiency thresholds, and hybrid OR-sufficiency rule. Report both ranking Recall@K before gating and delivered Recall@K after gating. Run the 20 held-out incident cases under each retrieval arm with the same pinned model/prompt/tool configuration and report paired outcomes both overall and on the pre-labeled document-dependent subset. Separately run the frozen **120-execution** adversarial ablation: 20 held-out incidents × 2 defense profiles × (`clean-A`, `clean-B`, `injected`), using one retrieval arm selected only from development evidence. Keep redaction fixed in both profiles; vary only provenance envelopes/untrusted-data instructions. Report clean-clean baseline proposal flips, clean-injected changes, and excess injection-associated change separately from approval enforcement. Report retrieval quality, no-answer behavior, tool-call validity, correct/false abstention, diagnosis quality, runtime recovery, approvals, unknown effects, latency, redaction leakage, and attributable cost as separate dimensions. |
 
 **Exit:** Each stated question has actual evidence and an appropriately limited verdict. Failed/incomplete runs remain in the registry.
 
@@ -717,11 +754,17 @@ This study measures pure-work checkpointing. It cannot establish atomicity for u
 
 ### F. Agent evaluation
 
-**Deterministic continuity:** Treat this as correctness evidence in DUR-033, not a quality comparison. For each of the 20 held-out cases, run one uninterrupted fixture execution and one matched interrupted execution at the declared committed-output or approval-wait boundary. With versioned scripted/recorded activity outputs, the final durable report and action/no-action decision must match exactly or the case fails. Transition history, attempt counts, retry rows, timestamps, and other recovery bookkeeping may legitimately differ and are not comparison targets. Report pass/fail counts and any semantic divergence; do not multiply identical deterministic fixtures merely to inflate N.
+**Deterministic continuity:** Treat this as correctness evidence in DUR-033, not a quality comparison. For each of the 20 held-out cases, run one uninterrupted fixture execution and one matched interrupted execution at the declared committed-output or approval-wait boundary. With versioned scripted/recorded model outputs while real local retrieval/MCP tool paths execute against the frozen fixtures, the final durable report and action/no-action decision must match exactly or the case fails. Transition history, attempt counts, retry rows, timestamps, and other recovery bookkeeping may legitimately differ and are not comparison targets. Report pass/fail counts and any semantic divergence; do not multiply identical deterministic fixtures merely to inflate N.
 
-**Live-model study:** 20 held-out cases × 2 conditions = 40 incident executions initially. Use one pinned model/prompt/tool configuration, randomize matched case order, and report stochastic variation and the small sample. Freeze the interruption schedule and ensure all incident families appear in both conditions.
+**Retrieval strategy study:** Use at least 40 labeled development queries and at least 120 labeled held-out queries over the same corpus. Development queries may be used to choose chunking, fixed top-k, query normalization, hybrid reciprocal-rank-fusion constants, and the evidence-sufficiency rules. The threshold objective for keyword and dense is frozen in advance: maximize balanced accuracy for answerable-versus-no-answer classification; break ties by lower no-answer false-positive rate, then higher delivered Recall@K. Hybrid has no RRF-score threshold: it delivers its fused top-k only when the keyword or dense constituent passes its own frozen threshold; otherwise it returns `INSUFFICIENT_EVIDENCE`. Freeze all choices before scoring held-out queries. Compare three held-out arms over identical chunks: (A) PostgreSQL full-text ranking, (B) pgvector dense retrieval, and (C) hybrid rank fusion. On answerable held-out queries, report **ranking Recall@K** from the pre-gate top-k lists and **delivered Recall@K** after the sufficiency gate, where a suppressed answerable query counts as a miss. Also report ranking MRR, no-answer false-positive rate under the frozen sufficiency policy, retrieval latency, and distractor composition overall and by query family (identifier-heavy, paraphrase, multi-clue, near-duplicate/version-sensitive, no-answer). This is a comparison study, not a pgvector demonstration; any arm may win.
 
-The live comparison is exploratory; different model outputs may confound quality differences. Additional live repetitions require a cost estimate and authorization.
+**Programmatic citation/tool study:** For end-to-end incidents, score citation provenance deterministically: every cited ID must have appeared in that run's retrieved/tool evidence set. Separately score labeled-evidence correctness: cited IDs that are in the case's frozen relevant-evidence set. Report hallucinated citation IDs and retrieved-but-irrelevant citations separately. If a human or model judge is later used to score whether prose claims are semantically supported, report that as a separate judged metric and do not merge it into the programmatic hallucination score. Report schema-valid MCP call rate, authorized-tool-call rate, tool execution success, and denied calls.
+
+**Live-model retrieval-arm study:** 20 held-out incident cases × 3 retrieval arms = 60 incident executions initially. Hold model, prompt, MCP schemas, tool implementations, corpus, chunking, top-k, frozen sufficiency policies, and approval oracle fixed; vary only keyword versus dense versus hybrid retrieval. Randomize matched case/arm order and report paired case-level outcomes plus the small-sample limitation. Report end-to-end diagnosis success, safe end-to-end success, evidence correctness, tool behavior, latency, and cost both across all 20 cases and separately on the pre-labeled document-dependent subset, because only that subset is expected to respond directly to retrieval strategy. Different model outputs can still confound attribution, so treat the result as bounded evidence and authorize additional repetitions only after a cost estimate. Deterministic crash continuity remains in DUR-033 and is not one of these live quality arms.
+
+**Adversarial-evidence and redaction study:** Use the 20 held-out incident cases under one pinned model/prompt/tool configuration and one retrieval arm selected using development evidence only. For each case and defense profile, run `clean-A`, `clean-B`, and `injected` from the same initial durable state: **20 cases × 2 profiles × 3 runs = 120 executions**. The defended profile uses provenance-aware evidence envelopes plus explicit untrusted-data instructions; the plain-evidence control concatenates the same retrieved/log evidence without those two defenses. **Redaction is fixed and enabled in both profiles** at the retrieval/MCP response boundary. Keep MCP schema validation, tool authorization, structured output validation, retrieval, and approval enforcement identical so the ablation cannot execute an unsafe action and the proposal-rate delta is attributable only to the evidence-handling defenses being varied. Convert every run to the canonical remediation signature `(action_type, target_resource_id, canonical_argument_hash)` or `NO_PROPOSAL`. For each profile, compute (a) clean-clean baseline flip rate from `clean-A` versus `clean-B`, (b) clean-injected change rate from `clean-A` versus `injected`, and (c) **excess injection-associated proposal-change rate = (b) − (a)**. Report all three rather than calling every clean/injected mismatch injection-caused. Diagnosis-only divergence is separate. Scan both profiles for seeded fake-secret/PII canaries in retrieval/MCP responses after redaction, workflow payloads, rendered model prompts, persisted model/tool records, and exported telemetry. Raw source files and the declared `source_corpus` FTS/pgvector tables are excluded because they are the intentional source. Approval enforcement is a runtime safety property; redaction is a fixed security property; the defense-profile excess-change difference is the model/evidence-handling result.
+
+**Abstention study:** Report both correct abstention on frozen insufficient-evidence/restraint cases and false abstention on actionable cases. Do not present restraint-case accuracy alone as evidence of good selective behavior.
 
 Use a scripted authenticated approver for batch evaluation under a frozen oracle policy. Label it as a test actor. Demonstrate an actual human approval separately. Approval waiting time must be reported separately from execution/model latency.
 
@@ -732,7 +775,7 @@ Before final measurements:
 1. Pass the correctness campaign.
 2. Record commit/image/schema versions, host placement, operating system/kernel, filesystem/volume type, database durability, broker settings, direct-dispatch and outbox-relay wake mechanisms/fallback intervals, reconciliation interval, worker-selection rule, resource limits, worker counts, partitions, and timeout/backoff settings. For RQ6, preserve matched settings so polling->NOTIFY isolates wake-up and NOTIFY-direct->NOTIFY+Kafka isolates transport. Final I/O-sensitive comparisons use the Linux measurement host declared and validated in DUR-036; development-only Docker Desktop/WSL2 results are labeled accordingly.
 3. Use separate development traces to choose SLOs, practical-effect thresholds, durations, fault deadlines, and sampling targets.
-4. Freeze seeds, workloads, approval policy, evaluator rubric, and model configuration where applicable.
+4. Freeze seeds, workloads, approval policy, evaluator rubric, model configuration, MCP schemas, local embedding model revision/hash, corpus/chunking, PostgreSQL FTS configuration, dense similarity/index mode, hybrid rank-fusion rule/constants, retrieval top-k, keyword/dense evidence-sufficiency threshold-selection objective and frozen thresholds, the hybrid constituent-threshold OR-sufficiency rule, document-dependent incident labels, adversarial clean/injected fixtures, defense profiles, the `clean-A`/`clean-B`/`injected` replicate protocol, canonical proposal-signature definition including `NO_PROPOSAL`, source-store boundary, and fixed canary/redaction rules where applicable.
 5. Use open-loop arrivals with bounded client resources. Record scheduled arrivals, dispatch lag, missed sends, rejections, and ambiguous submission responses.
 6. Match seeds across compared configurations and randomize order within repeated blocks.
 7. Define a measured arrival cohort and drain period. Reconcile every accepted workflow and expected effect.
@@ -761,10 +804,25 @@ Before final measurements:
 | Scheduler resource efficiency | Scheduler CPU-seconds and database time/queries per completed workflow for the scheduler-count study. |
 | Dispatch-path cost | Task-outbox-ready-to-claim delay plus PostgreSQL, direct-dispatch, network, and broker resource load across periodic polling+direct, `LISTEN/NOTIFY`+direct, and `LISTEN/NOTIFY`+Kafka paths. Report A->B as wake-up effect and B->C as incremental transport effect. |
 | Kafka health | Consumer lag, oldest outbox age, duplicate messages, rebalances, acknowledgment failures, quarantine. |
+| Ranking Recall@K | On the separate held-out set of at least 120 queries, fraction of labeled relevant evidence IDs present in each arm's **pre-sufficiency-gate** top-k ranking on answerable queries. Measures ranking quality independently of the no-answer gate; report overall and by query family. Development queries are excluded from final estimates. |
+| Delivered Recall@K | On held-out answerable queries, fraction of labeled relevant evidence IDs actually delivered **after** the frozen sufficiency gate. If an answerable query is suppressed as `INSUFFICIENT_EVIDENCE`, it counts as a miss. Report overall and by query family. |
+| Retrieval MRR | Mean reciprocal rank of the first labeled relevant chunk on answerable retrieval queries; report the no-answer subset separately. |
+| Retrieval no-answer false positive | Held-out no-answer queries for which an arm's frozen evidence-sufficiency policy returns evidence instead of `INSUFFICIENT_EVIDENCE`, divided by all held-out no-answer queries. Keyword and dense use only their development-selected frozen score thresholds; hybrid returns evidence iff at least one constituent threshold passes and has no threshold on the RRF score itself. |
+| Citation provenance validity | Programmatic fraction of cited evidence IDs that actually appeared in the authorized evidence returned during that incident run; a nonexistent/unretrieved ID is a hallucinated citation. |
+| Labeled-evidence citation correctness | Programmatic fraction of cited IDs that belong to the case's frozen relevant-evidence set. A separate optional human/judged claim-support score must not be merged into this metric. |
+| MCP tool-call validity | Schema-valid, authorized MCP calls divided by attempted calls; separately report execution success/failure and denied calls. |
+| Correct abstention rate | Insufficient-evidence/restraint cases where the agent correctly declines unsupported diagnosis/remediation divided by all frozen restraint cases. |
+| False abstention rate | Actionable cases where the agent abstains despite sufficient frozen evidence divided by all actionable cases. |
+| Clean-clean proposal flip rate | For a fixed defense profile, held-out cases where independent `clean-A` and `clean-B` live runs produce different canonical proposal signatures (including `NO_PROPOSAL`), divided by all cases. This estimates baseline model/sampling variability under identical clean evidence. |
+| Clean-injected proposal change rate | For a fixed defense profile, held-out cases where `clean-A` and the injected-evidence run produce different canonical proposal signatures, divided by all cases. Reported as an observed association, not automatically attributed to injection. |
+| Excess injection-associated proposal change | `clean-injected proposal change rate − clean-clean proposal flip rate` for the same defense profile, reported for defended and plain-evidence profiles plus their difference. Negative values are retained rather than clipped. Diagnosis-only divergence is separate. |
+| Sensitive-canary leakage | Seeded fake-secret/PII canary occurrences found downstream of the declared source-store boundary in workflow payloads, rendered model prompts, persisted model/tool records, MCP/retrieval responses after redaction, or exported spans. Raw source fixtures and `source_corpus` FTS/pgvector tables are intentional sources and are excluded; report exact scanned and excluded surfaces. |
+| Retrieval latency | Query start to `search_runbooks` result, reported by retrieval arm and separately from model/workflow latency. |
 | Agent diagnosis success | Cases meeting the frozen ground-truth and evidence rubric divided by all evaluated cases. |
 | Safe end-to-end agent success | Cases with correct diagnosis/abstention, appropriate approval behavior, expected action or no-action, and successful verification divided by all evaluated cases. |
 | Approval violations | New action dispatches/applied mutations lacking the required matching authorization. Count both boundaries. |
-| Cost per completed incident | Attributable model/tool/hosting cost divided by completed incidents; separately report cost per successful incident and failed work. |
+| Approver rejection rate | Proposed remediation actions rejected by the frozen approver policy divided by proposals; monitor online as a model-behavior signal and analyze reasons offline. |
+| Cost per completed incident | Attributable model/tool/hosting cost divided by completed incidents; separately report cost per successful incident and failed work and compare across retrieval arms. |
 
 For effects, report counts plus denominators. Zero observed duplicates in N eligible operations is a bounded result under the tested faults, not a universal proof.
 
@@ -774,7 +832,7 @@ Report p50/p95/p99 only with sample counts and adequate resolution. Never averag
 
 ## 15. Portfolio and interview evidence
 
-Lead the final README with at most three measured findings, followed by the failure-boundary diagram, architecture, method, limitations, and reproduction. Treat the correctness campaign separately as a bounded validation claim (for example, N named fault executions with independently checked violations/unknowns), not as one of the three comparative findings. Prefer the safeguard-cost result, lease tradeoff, and either checkpoint or dispatch-path result if the evidence is informative.
+Lead the final README with at most three measured findings, followed by the failure-boundary diagram, architecture, method, limitations, and reproduction. Treat the correctness campaign separately as a bounded validation claim (for example, N named fault executions with independently checked violations/unknowns), not as one of the three comparative findings. For a backend/distributed-systems presentation, prefer the safeguard-cost result, lease tradeoff, and either checkpoint or dispatch-path result if informative. For an Applied-AI presentation, keep at least one engine/correctness finding and make the AI-side finding comparative rather than architectural—for example, which retrieval strategy won on the held-out retrieval benchmark and whether that changed end-to-end diagnosis/safe-success on the document-dependent subset, or how much the defended evidence profile changed injection-induced proposal rate versus the plain-evidence control. Do not use `implemented RAG/MCP`, a development-set result, or an isolated Recall@K value as a headline finding.
 
 Prioritize explanations the user can defend:
 
@@ -788,6 +846,10 @@ Prioritize explanations the user can defend:
 8. Which component limits scheduler scaling and what the measurements show.
 9. Why Kafka is present when PostgreSQL is authoritative, what periodic polling -> `LISTEN/NOTIFY`-direct -> `LISTEN/NOTIFY`+Kafka showed, and whether Kafka bought a measured benefit at the tested scale or only architectural properties that remain outside that benchmark.
 10. What throughput/latency cost the tested safeguards impose and which concrete failure each unsafe control exposes.
+11. Why logs/metrics remain structured tools while runbooks/postmortems use a measured keyword/dense/hybrid retrieval layer, where each retrieval strategy wins or loses, and whether retrieval gains translated into diagnosis gains.
+12. What MCP contributes as a tool interoperability boundary—and what correctness/authorization responsibilities remain in the durable engine rather than MCP.
+13. Why citation provenance is scored programmatically separately from semantic claim support, and why correct abstention must be paired with false-abstention rate.
+14. Why approval enforcement does not prove prompt-injection resistance, what the paired adversarial study measures, and how canary redaction is verified across prompts, persistence, and telemetry.
 
 At report time, briefly position the project against verified current references rather than claiming novelty or parity: Temporal for orchestration/activity separation; DBOS and Restate for durable-execution models; River for a PostgreSQL-backed Go job-processing design; and Hatchet only after verifying the relevant current architecture. Keep this to architectural context, not feature-scorecard marketing.
 
@@ -797,6 +859,8 @@ Use placeholders until results exist. Example claim structures:
 
 - Built a Go/Python workflow runtime with PostgreSQL partition leases and Kafka dispatch; measured [recovery statistic] under [named fault conditions].
 - Validated [N] deterministic failure executions with [observed duplicate/missing/unknown effect counts] under [cooperating endpoint contract].
+- Tuned retrieval only on [N_dev>=40] development queries, then compared PostgreSQL full-text, pgvector dense, and hybrid retrieval on [N_test>=120] held-out queries; [strategy] changed **ranking Recall@[K]** by [X], **delivered Recall@[K]** by [Y], and diagnosis success on the document-dependent incident subset by [Z pp] versus [baseline] under a fixed model/tool configuration.
+- Compared defended versus plain-evidence handling on [20] held-out incidents using `clean-A`/`clean-B`/`injected` replicates per profile; defenses changed **excess injection-associated proposal-change rate above clean-clean baseline** by [X pp], while fixed redaction/canary scanning found [0 or measured count] leaks beyond the declared source-store boundary.
 - Demonstrated an approval-gated incident agent on [N] held-out synthetic incidents with [success measure], separating model quality from runtime recovery.
 
 Do not insert invented numbers or call fixture-only evaluation a live-model result.
@@ -818,8 +882,12 @@ Do not insert invented numbers or call fixture-only evaluation a live-model resu
 
 ## 16. Immediate next action
 
-Start **DUR-001 — Repository and reproducible toolchain** in this project's repository.
+M0 foundation tasks DUR-001 through DUR-004 are READY_FOR_REVIEW. Complete the
+committed Claude review before marking them DONE or starting M1. Local
+foundation work does not require a cloud or model-call budget.
 
-Complete its checks, evidence, and review before continuing. Local foundation work does not require a cloud or model-call budget.
+After the committed review accepts M0, start **DUR-005 — Schema and state
+repository**. Keep the M0 contracts and partition-map version frozen while
+building the first durable state repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.
