@@ -62,6 +62,34 @@ checks as explicit switches. Paid/model checks remain outside the foundation
 entry point. This is a local/shared validation contract; no remote CI service
 is claimed when the repository has no configured remote.
 
+## D005 - Retrieval, MCP, and adversarial-scope expansion
+
+- Date: 2026-09-16
+- Status: accepted by the user for the portfolio plan; paid/model execution still requires separate approval
+
+The user confirmed authorship and authorization of the protected PLAN.md scope
+changes that were present before the M0 implementation pass. This includes the
+new research questions RQ7 (retrieval strategy) and RQ8 (defense profile and
+injection), the MCP, PostgreSQL full-text-search, pgvector, and Grafana scope,
+the separate retrieval benchmark with at least 40 development and at least 120
+held-out queries, the corresponding Portfolio MVP and Full v1 release criteria,
+and the DUR-029 live-model and adversarial studies. The revised execution
+counts are 60 matched live retrieval-arm executions and 120 adversarial
+executions (20 incidents x 2 defense profiles x 3 fixtures).
+
+This decision records planned scope and release criteria; it does not claim
+that any retrieval, model, MCP, or adversarial evidence already exists. It also
+does not authorize paid-provider execution or set a spending cap. Before
+DUR-029, the model configuration, cost estimate, and explicit paid-run cap
+must be approved and recorded separately.
+
+Alternatives considered were deferring RQ7/RQ8 to a later milestone, retaining
+the earlier 40-execution live study, or limiting the portfolio plan to the
+durable-engine incident path without retrieval/MCP and adversarial comparisons.
+The broader comparison scope was retained because the user authorized it as
+part of the intended portfolio evidence, while keeping execution and spending
+approval separate from the plan change.
+
 ## D006 - DUR-002 contract correction after round-1 review
 
 - Date: 2026-09-16

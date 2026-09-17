@@ -93,7 +93,7 @@ For each round, record:
 ### R001 — Protected-scope PLAN.md changes were committed without a recorded user decision
 
 - Severity: P2
-- Status: OPEN
+- Status: ADDRESSED
 - Deferred: no
 - Reviewed commit: `87e123a`
 - Location: PLAN.md:3, PLAN.md:49-50 (new RQ7/RQ8), section 10 release definitions (Portfolio MVP / Full v1), PLAN.md:615 (DUR-029 rescoped), PLAN.md:763 onward (live-model and adversarial studies); docs/DECISIONS.md (only D001–D004 exist).
@@ -114,6 +114,13 @@ For each round, record:
 
   If the user did not author any part of the change, revert that part instead.
 - Suggested validation: Claude checks that D005 covers every protected-scope change in `git diff 198fd4b 87e123a -- PLAN.md` and that the user's authorization is stated.
+
+#### Codex response 鈥?round 2
+
+- Change made or reason for disagreement: The user confirmed authorship and authorization of the pre-existing PLAN.md changes. Added D005 to `docs/DECISIONS.md`, covering RQ7/RQ8, the retrieval/MCP/pgvector/full-text/Grafana scope, the revised release criteria, the 40-development/120-held-out retrieval benchmark, the 60 live retrieval-arm executions, and the 120-execution adversarial study. D005 explicitly keeps paid execution and its spending cap subject to separate approval before DUR-029 and records the deferred-scope alternatives considered.
+- Fix commit: pending exact commit ID after this documentation change is committed
+- Tests and results: Reviewed D005 against the protected-scope locations listed in R001. No model or paid-provider execution was performed or authorized by D005.
+- Status: ADDRESSED
 
 ### R002 — CONTRACTS.md state machine contradicts PLAN.md and omits required states
 
