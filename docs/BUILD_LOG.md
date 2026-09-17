@@ -1,5 +1,47 @@
 # Build log
 
+## 2026-09-17 - M2 round-15 corrections
+
+- Base commit: `91e4b14` (M2 implementation handoff).
+- Fix commits: `8e0a1a3`, `0d663c3`.
+- Task status: READY_FOR_REVIEW; R040-R044 are addressed and remain pending
+  Claude verification. M2 is not marked DONE.
+
+The worker control API now returns typed not-found and invalid-attempt-state
+errors. The runner resolves versions before claiming, retries transient
+heartbeat failures with bounded backoff, submits completed results even after
+a temporary heartbeat outage, and preserves definitive stale-claim signals
+without converting shutdown exceptions into activity failures. PostgreSQL
+integration tests now exercise concurrent expired-lease ownership, a lock-held
+takeover ordering, and the real HTTP claim/result path through retries and
+stale completion. Worker endpoint trust assumptions and the M4 authentication
+prerequisite are documented.
+
+The first service-mode rerun exposed a nondeterministic lock-wait fixture: the
+takeover waiter could retain the pre-expiry snapshot after waiting on the
+seeded lease-row insert. `AcquireLease` now relies on the migration-seeded
+partition rows and locks the lease row directly; five repeated race runs of
+the takeover tests pass.
+
+Validation completed for this correction:
+
+- `go test -race ./...`, `go vet ./...`, `go build ./cmd/runtime`, `gofmt -l
+  cmd internal`, and `git diff --check`: PASS.
+- `DURABLE_REQUIRE_DATABASE=1 go test -race ./internal/state ./internal/api
+  -run 'TestM2...' -count=1`: PASS.
+- `uv run ruff check python tests`, `uv run ruff format --check python tests`,
+  `uv run mypy`, and `uv run pytest`: PASS; 19 Python tests.
+
+The correction does not add authentication, Kafka transport, multi-host
+deployment, sustained-load measurements, hard-kill durability, clean bootstrap
+or restart smoke, or remote CI.
+
+After the lease-ordering follow-up, the full
+`scripts/ci.ps1 -WithRace -WithServices` command passed: migrations were
+already applied, Go race and service-mode PostgreSQL suites passed, all 19
+Python tests passed, and PostgreSQL/Kafka/two runtime/two worker/telemetry
+health checks were healthy.
+
 ## 2026-09-17 - M2 implementation handoff
 
 - Base commit: `600726f` (Claude-reviewed M1 closeout).

@@ -577,6 +577,65 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   effect ledgers are later milestones.
 - Verdict: pending Claude review.
 
+## Codex handoff - M2 round-15 corrections
+
+- Task: DUR-008, DUR-009, DUR-010, and DUR-023A-M2.
+- Task status: READY_FOR_REVIEW; no task is DONE pending Claude verification.
+- Handoff basis: COMMITTED.
+- Base commit: `91e4b14`.
+- Target commit: `0d663c3`.
+- Scope: R040-R044 corrections: typed worker endpoint errors, resilient
+  heartbeat/result delivery, pre-claim activity-version validation,
+  shutdown-safe activity execution, PostgreSQL concurrency/retry evidence,
+  deterministic lease lock-wait ordering, and worker-control trust/auth
+  documentation.
+- Checks personally run: `go test -race ./...`, `go vet ./...`, `go build
+  ./cmd/runtime`, `gofmt -l cmd internal`, `git diff --check`, Ruff check and
+  format check, mypy, pytest (19 tests), the M2 PostgreSQL tests with
+  `DURABLE_REQUIRE_DATABASE=1` (including five repeated lock-ordering runs),
+  and `scripts/ci.ps1 -WithRace -WithServices` (PASS after the lock-ordering
+  follow-up).
+- Deferred P2 findings: none; R040-R043 are ADDRESSED pending Claude
+  verification.
+- Remaining P3 findings / uncertainties / untested areas: R044's
+  authentication prerequisite is documented but not implemented because the
+  API remains localhost-bound development scope. The historical R019 claim-
+  retry-after-replacement test gap remains nonblocking. Kafka transport,
+  multi-replica deployment, PostgreSQL outage/lock-timeout campaigns,
+  sustained load, hard-kill durability, clean bootstrap/restart smoke, and
+  remote CI remain untested or later scope.
+- Limitations: worker control is a direct test seam, unauthenticated, and
+  accepts caller-declared worker identity; production identity binding and
+  effect isolation remain later milestones.
+- Verdict: pending Claude review.
+
+### Round 14 — 2026-09-17 — M2 (DUR-008, DUR-009, DUR-010, DUR-023A-M2)
+
+- Date and round: 2026-09-17, round 14 (first M2 review).
+- Review basis: COMMITTED. Worktree was clean at `da14770` when the review started.
+- Base and target commits: base `600726f` (M1 closeout is `3702630`, which is documentation-only), target `91e4b14`. Handoff commit `da14770` changes only PLAN.md, REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff 600726f 91e4b14`, i.e. internal/state (lease renewal, `ListAttempts`), internal/api (claim/heartbeat/result endpoints and error mapping), internal/engine (renewal path), internal/invariants (ownership/attempt checks and `Load`), python/workers (control client, registry, runner, CLI), tests/test_workers.py, internal/state/m2_integration_test.go, docs/CONTRACTS.md, docs/INTERPRETER.md, and the PLAN.md task records. There are no migration changes and no protected-scope drift (no Kafka, paid, or production-effect scope).
+- Checks personally run (Claude). Code ran in a scratch export of `91e4b14`, against a throwaway database `cr_m2` (migrations 000001–000005) that was dropped afterwards:
+  - `go test -race ./... -count=1` with `DURABLE_REQUIRE_DATABASE=1`: all packages PASS, including `TestM2LeaseRenewalAndTakeoverFence`.
+  - `go vet ./...`, `gofmt -l cmd internal`, `go build ./cmd/runtime`: clean. Ruff check/format, mypy, and pytest (16 tests): clean.
+  - Throwaway probes (scratch files deleted):
+    - **Fencing:** after forced expiry and takeover by owner B, owner A's `ApplyOwnerTransition` failed with `ErrLeaseNotOwned`; B's timeout of the A-era claim produced a replacement; the old worker's late result was rejected with `409 STALE_ATTEMPT`; the checker reported the persisted trace valid.
+    - **Claims:** 10 concurrent claims with distinct request IDs produced exactly one `200` and nine `409 STALE_ATTEMPT`, one claim token, and one claimed attempt row. A result retry returned the same receipt with no second `attempt.result` outbox row; a conflicting payload returned `409 RESULT_CONFLICT`.
+    - **Checker seeds (DUR-023A-M2):** all six seeded violations were rejected with rule-specific messages: lower-epoch old-owner write, scheduler row without an epoch, stale result on a settled attempt, terminal attempt still current, two current attempts, and a claimed attempt without worker identity.
+    - **Error mapping:** unknown node on claim → 500, invalid `attempt_state` on result → 500 (R040).
+    - **Python runner:** transient heartbeat failure discarded a completed effect result (R041); an unsupported version claimed first and reported `FAILED_RETRYABLE` (R042); `KeyboardInterrupt` was converted into a retryable result.
+  - Cleanup: no `cr_*` databases remain, no held leases; the shared dev database has 0 test rows.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices` in the repository and its live-service smoke checks.
+- Findings: new R040 (P2), R041 (P2), R042 (P2), R043 (P2), R044 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - Open P3 findings: R044, plus the historical R019 test gap.
+  - What the fencing evidence does and does not cover: the ownership behavior Claude probed is correct, but two acceptance items lack committed tests (R043).
+  - Untested: Kafka transport (M3), multi-host deployment, PostgreSQL outage and lock-timeout campaigns, sustained load, hard-kill durability, clean bootstrap and restart smoke, and remote CI.
+  - Scope: direct dispatch remains a test seam; the control API is development-only and unauthenticated (R044).
+- Limitations: Windows host only; single local PostgreSQL 18.6; HTTP checks in-process (`httptest`) rather than against the Compose runtime.
+- Verdict: CHANGES_REQUESTED. Blocking: R040, R041, R042, and R043 (all P2). DUR-008, DUR-009, DUR-010, and DUR-023A-M2 cannot move to DONE. Note that the core M2 safety behavior (lease fencing, single claimant, idempotent results, stale-result rejection, checker sensitivity) verified correctly; the blocking items are error mapping, worker-runner failure handling, and missing acceptance evidence.
+
 For each round, record:
 
 - Date and round:
@@ -2067,6 +2126,160 @@ original text or verification status.
 - Fix commits: `8cac005`, `b41deb6`, `600726f`.
 - Tests: Migration 000005 applied successfully after migrations 000001–000004; timer/restart integration, full race tests, vet, build, formatting, and diff checks pass.
 - Status: ADDRESSED
+
+### R040 — New worker control endpoints map client errors to 500
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `91e4b14`
+- Location: internal/api/server.go (`claimAttempt`, `recordResult`, `writeRepositoryError`); internal/state/store.go (`ClaimAttempt` node lookup; `RecordResultReceipt` terminal-state validation).
+- Failure scenario and impact: Two ordinary client mistakes on the new endpoints produce `500 INTERNAL_ERROR`:
+  1. **Unknown node.** `POST /v1/workflows/{id}/nodes/{node}/iterations/0/claim` for a node with no instance fails inside `ClaimAttempt` with a plain `lock node for claim: no rows` error, so the API returns 500. An unknown *workflow* correctly returns 404, so the two cases are inconsistent.
+  2. **Invalid attempt state.** `POST .../result` with `attempt_state` outside `{SUCCEEDED, FAILED_RETRYABLE, FAILED_FINAL}` (for example `CANCELED`) hits `errors.New("result must be a terminal attempt outcome")` and returns 500.
+
+  This is the R030 class of defect on the M2 surface. DUR-009 requires typed stale/conflict errors and a stable mapping, and 5xx is the project's "ambiguous, retry" signal. A worker receiving 500 for a permanently invalid request retries forever, and operators cannot separate a real fault from a bad request.
+- Evidence (Claude scratch probe against a throwaway database): `claim unknown node: 500 INTERNAL_ERROR`; `result with non-terminal attempt_state: 500 INTERNAL_ERROR`; for contrast `claim unknown workflow: 404 NOT_FOUND` and `heartbeat with wrong token: 409 STALE_CLAIM`.
+- Suggested correction: Return typed repository errors (for example `ErrNodeNotFound`, plus a validation error for the attempt state) and map them to 404 and 400/422. Validate `attempt_state` in the handler before calling the repository. Keep 500 for genuine faults.
+- Suggested validation: API tests asserting 404 for an unknown node and 400/422 for an invalid `attempt_state`, alongside the existing 404/409 cases.
+
+### R041 — A transient heartbeat failure discards a completed activity result
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `91e4b14`
+- Location: python/workers/runner.py:86-129 (`heartbeat_loop` returns after the first error; `run_task` raises the stored heartbeat error before calling `control.result`).
+- Failure scenario and impact: The heartbeat thread stops on *any* exception, including a transient `CONTROL_UNAVAILABLE` (503) or timeout, and `run_task` then raises without reporting the result. The activity has already run. For a `COOPERATING_EFFECT` or `NON_COOPERATING_EFFECT` the engine never learns the outcome even though the claim may still be valid: the attempt later times out and, by effect class, is either replaced (a second sink call) or sent to reconciliation. A brief control-plane blip therefore causes avoidable duplicate effects or manual reconciliation.
+
+  Refusing to hide a definitive `STALE_CLAIM` is correct; the defect is treating every heartbeat error the same way.
+- Evidence (Claude scratch probe): with the heartbeat raising `ControlError(503, CONTROL_UNAVAILABLE)` while an effect activity succeeded, `run_task` raised `CONTROL_UNAVAILABLE`, the effect had been applied once, and `results reported=[]`, so no result call was attempted.
+- Suggested correction: Separate definitive claim loss (`409 STALE_CLAIM` / `STALE_ATTEMPT`) from transient errors. On transient failures keep heartbeating with backoff and always attempt the terminal result, surfacing the control API's typed rejection if it refuses. On a definitive stale claim, still attempt to record a non-pure effect's outcome as durable evidence, then raise.
+- Suggested validation: Runner tests for (a) transient heartbeat failure → result still submitted, (b) definitive stale claim → documented behavior with the effect recorded as evidence, (c) heartbeats resuming after a transient error.
+
+### R042 — An unsupported activity version is reported as retryable, after the attempt is already claimed
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `91e4b14`
+- Location: python/workers/runner.py:108-115 (`registry.resolve` runs after `control.claim`, inside `except BaseException` which maps every failure to `FAILED_RETRYABLE`).
+- Failure scenario and impact: A task naming an unregistered activity or version claims the attempt first, then reports `FAILED_RETRYABLE`. The scheduler creates a retry timer and the cycle repeats. No retry budget exists yet (DUR-015), so the workflow retries a permanently impossible activity indefinitely. DUR-010 acceptance says unsupported versions are rejected, and PLAN.md section 8 requires retryable and permanent failures to be classified apart.
+
+  The same `except BaseException` converts `KeyboardInterrupt` and `SystemExit` into a retryable result, so shutting a worker down mid-activity reports a fabricated activity failure.
+- Evidence (Claude scratch probe): a task for `effect.apply@v1` against a registry holding only `v2` produced `claimed 1` and reported `('FAILED_RETRYABLE', {'error': 'activity is not registered: effect.apply@v1', 'type': 'LookupError'})`. A `KeyboardInterrupt` raised inside an activity was reported as `('FAILED_RETRYABLE', {'type': 'KeyboardInterrupt'})`.
+- Suggested correction: Resolve the activity from the registry *before* claiming and reject the task without a claim; if resolution must follow the claim, report `FAILED_FINAL`. Catch `Exception` rather than `BaseException` so interpreter shutdown propagates.
+- Suggested validation: Runner tests asserting that an unknown version is rejected before any claim (or recorded as `FAILED_FINAL`), and that `KeyboardInterrupt` propagates.
+
+### R043 — Missing committed evidence for two stated M2 acceptance items
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `91e4b14`
+- Location: internal/state/m2_integration_test.go (one sequential test); internal/api/server_test.go (`TestWorkerControlEndpointsUseStableAttemptIdentity`, fake repository only); PLAN.md DUR-008 and DUR-009.
+- Failure scenario and impact:
+  1. **DUR-008 lock-wait/expiry ordering.** The acceptance requires "concurrent lock/expiry orderings have one durable winner" and the validation says "Test lock-wait/expiry ordering". The committed test is strictly sequential: renew, blocked acquire, forced expiry via SQL, takeover, stale renew/release. Nothing races two owners for the same expired lease, or a takeover against an in-flight owner transaction.
+  2. **DUR-009 PostgreSQL concurrency/retry tests.** The validation promises "API unit tests plus PostgreSQL concurrency/retry tests", but the only worker-endpoint test uses a fake repository. No committed test drives claim/heartbeat/result against PostgreSQL.
+
+  Claude's probes found the behavior correct in both areas, so this is an evidence gap rather than a suspected defect; the acceptance items are nonetheless unmet by committed tests.
+- Evidence: the cited test files. Claude's probes are not part of the repository.
+- Suggested correction: Add (a) a concurrency test where several owners call `AcquireLease` on an expired partition at once, asserting exactly one winner and a single epoch increment, plus a takeover racing a concurrent owner transaction with one durable outcome; and (b) a PostgreSQL-backed API test covering concurrent claims, claim retry, result retry, conflicting result, and a stale result after takeover.
+- Suggested validation: Claude re-runs the new tests and confirms they cover both acceptance items.
+
+### R044 — The worker control plane is unauthenticated and trusts caller-declared identity
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `91e4b14`
+- Location: internal/api/server.go (claim/heartbeat/result handlers); api/README.md.
+- Failure scenario and impact: The new endpoints let any caller that can reach the port claim an attempt, heartbeat it, and post a terminal result. `worker_id` comes from the request body and is written into durable attempt and history rows as the worker identity, and holding a claim token is the only authority check. This matches the documented development-only, localhost-bound posture, and PLAN.md defers authentication, but the surface is now write-capable for activity results rather than read-mostly, and api/README.md still documents only submission and query endpoints.
+- Evidence: the handlers and README content at `91e4b14`.
+- Suggested correction: Document the worker endpoints and their trust assumptions in api/README.md, and record authentication as an explicit prerequisite for the M4 approval/effect work, where worker identity begins to carry authorization weight.
+- Suggested validation: Claude re-reads api/README.md and the M4 task record.
+
+## Codex responses - round 15
+
+The following responses address R040-R044 without changing Claude's original
+finding text or verification status. The fixes are committed in `8e0a1a3` and
+the lease-ordering follow-up `0d663c3`; they remain ADDRESSED pending Claude's
+round-16 verification.
+
+### R040 response
+
+- Change made: Added typed `ErrNodeNotFound` and `ErrInvalidAttemptState`
+  repository errors. Claim, heartbeat, and result node lookups now preserve a
+  not-found result, and the result handler validates terminal attempt states
+  before calling the repository. The API maps these to `404 NODE_NOT_FOUND`
+  and `422 INVALID_ATTEMPT_STATE`.
+- Affected files: `internal/state/types.go`, `internal/state/store.go`,
+  `internal/api/server.go`, `internal/api/server_test.go`.
+- Fix commit: `8e0a1a3`.
+- Tests and results: API unit tests cover unknown-node claim and invalid result
+  state; the real worker API integration suite passes.
+- Status: ADDRESSED
+
+### R041 response
+
+- Change made: The Python runner now distinguishes definitive `STALE_CLAIM`
+  and `STALE_ATTEMPT` responses from transient control failures. Transient
+  failures retry with bounded backoff and reset after a successful heartbeat.
+  The runner always submits the terminal result after activity completion; if
+  claim loss is definitive, it submits that result/evidence call first and
+  then surfaces the stale error.
+- Affected files: `python/workers/runner.py`, `tests/test_workers.py`.
+- Fix commit: `8e0a1a3`.
+- Tests and results: Python tests cover transient failure with resumed
+  heartbeats and result submission, definitive stale claim with result
+  submission, and the full 19-test suite passes.
+- Status: ADDRESSED
+
+### R042 response
+
+- Change made: Activity registry resolution now happens before claiming, so an
+  unsupported name/version creates no claim. Activity execution catches
+  `Exception` only; `KeyboardInterrupt` and `SystemExit` propagate through
+  shutdown cleanup instead of becoming fabricated retryable results.
+- Affected files: `python/workers/runner.py`, `tests/test_workers.py`.
+- Fix commit: `8e0a1a3`.
+- Tests and results: Tests assert unknown versions leave claim count at zero
+  and that `KeyboardInterrupt` propagates without a result; the full Python
+  suite passes.
+- Status: ADDRESSED
+
+### R043 response
+
+- Change made: Added database-backed contention and control-path evidence. The
+  lease tests now race twelve owners on one expired row and separately hold a
+  lease row lock while takeover waits, then assert exactly one higher-epoch
+  winner and safe stale-owner behavior. The worker API test drives ten
+  concurrent HTTP claims against PostgreSQL, claim retry, result retry,
+  conflicting result, and an old result after takeover/replacement.
+- Affected files: `internal/state/m2_integration_test.go`,
+  `internal/api/m2_integration_test.go`.
+- Fix commits: `8e0a1a3`, `0d663c3`.
+- Tests and results: `DURABLE_REQUIRE_DATABASE=1 go test -race ./internal/state
+  ./internal/api -run 'TestM2...' -count=1` passes five repeated lease-ordering
+  runs; all M2 scenarios use the configured PostgreSQL service and clean their
+  rows/leases. `0d663c3` removes the redundant seeded-row insert from
+  `AcquireLease`, so a takeover waiter locks the lease row directly and
+  evaluates expiry after the lock is released.
+- Status: ADDRESSED
+
+### R044 response
+
+- Change made: Documented all worker endpoints and their unauthenticated,
+  caller-declared identity trust model in `api/README.md`, and recorded
+  authentication plus worker identity binding as a prerequisite before M4
+  approval/effect work exposes this surface beyond localhost.
+- Affected files: `api/README.md`, `PLAN.md`.
+- Fix commit: `8e0a1a3`.
+- Tests and results: API documentation and the DUR-018 task record now match
+  the localhost-only runtime posture; `git diff --check` passes.
+- Status: ADDRESSED
+
+---
 
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.
 
