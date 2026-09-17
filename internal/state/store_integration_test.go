@@ -965,6 +965,12 @@ func TestPostgresStateRepository(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
+			var nodeRevisionBefore int64
+			if err := store.pool.QueryRow(ctx, `
+				SELECT revision FROM engine.node_instances
+				WHERE workflow_id = $1 AND node_id = 'root' AND iteration = 0`, workflow.WorkflowID).Scan(&nodeRevisionBefore); err != nil {
+				t.Fatal(err)
+			}
 			if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
 				Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 				WorkflowID: workflow.WorkflowID, ExpectedRevision: 3, NewState: StateCanceled,
@@ -982,6 +988,15 @@ func TestPostgresStateRepository(t *testing.T) {
 			}
 			if canceled.State != StateCanceled || canceled.Revision != 4 {
 				t.Fatalf("canceled workflow = %+v", canceled)
+			}
+			var nodeRevisionAfter int64
+			if err := store.pool.QueryRow(ctx, `
+				SELECT revision FROM engine.node_instances
+				WHERE workflow_id = $1 AND node_id = 'root' AND iteration = 0`, workflow.WorkflowID).Scan(&nodeRevisionAfter); err != nil {
+				t.Fatal(err)
+			}
+			if nodeRevisionAfter != nodeRevisionBefore+1 {
+				t.Fatalf("canceled node revision = %d, before = %d", nodeRevisionAfter, nodeRevisionBefore)
 			}
 			settled, err := store.GetAttempt(ctx, workflow.WorkflowID, "root", 0, attempt.AttemptNumber)
 			expectedDisposition := "NONE"
