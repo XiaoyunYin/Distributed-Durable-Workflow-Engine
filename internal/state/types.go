@@ -30,6 +30,7 @@ var (
 	ErrResultNotConsumable    = errors.New("attempt has no unconsumed terminal result")
 	ErrEvidenceConflict       = errors.New("late evidence conflicts with the durable evidence")
 	ErrEffectIdentityMismatch = errors.New("retry effect identity does not match the first attempt")
+	ErrWorkflowNotFound       = errors.New("workflow not found")
 )
 
 const (
@@ -264,6 +265,9 @@ type TransitionRecord struct {
 	ActorKind      string
 	ActorID        string
 	SchedulerEpoch *int64
+	NodeID         *string
+	Iteration      *int
+	AttemptNumber  *int64
 	OldState       *WorkflowState
 	NewState       WorkflowState
 	Reason         string

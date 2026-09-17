@@ -185,12 +185,16 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 }
 
 func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (Workflow, error) {
-	return scanWorkflow(s.pool.QueryRow(ctx, `
+	workflow, err := scanWorkflow(s.pool.QueryRow(ctx, `
 		SELECT workflow_id, namespace, submission_key, submission_payload_hash,
 			definition_id, definition_version, partition_id, state, revision,
 			created_at, updated_at
 		FROM engine.workflow_executions
 		WHERE workflow_id = $1`, workflowID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return Workflow{}, fmt.Errorf("%w: %s", ErrWorkflowNotFound, workflowID)
+	}
+	return workflow, err
 }
 
 func (s *Store) GetAttempt(ctx context.Context, workflowID, nodeID string, iteration int, attemptNumber int64) (Attempt, error) {
@@ -240,6 +244,50 @@ func (s *Store) HistoryCount(ctx context.Context, workflowID string) (int, error
 	err := s.pool.QueryRow(ctx, `
 		SELECT count(*) FROM engine.transition_history WHERE workflow_id = $1`, workflowID).Scan(&count)
 	return count, err
+}
+
+func (s *Store) ListHistory(ctx context.Context, workflowID string, afterRevision int64, limit int) ([]TransitionRecord, error) {
+	if afterRevision < 0 {
+		return nil, errors.New("history revision cursor must not be negative")
+	}
+	if limit <= 0 || limit > 1000 {
+		return nil, errors.New("history limit must be between 1 and 1000")
+	}
+	if _, err := s.GetWorkflow(ctx, workflowID); err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT transition_id::text, workflow_id, revision, actor_kind, actor_id,
+			scheduler_epoch, node_id, iteration, attempt_number, old_state,
+			new_state, reason, created_at
+		FROM engine.transition_history
+		WHERE workflow_id = $1 AND revision > $2
+		ORDER BY revision ASC
+		LIMIT $3`, workflowID, afterRevision, limit)
+	if err != nil {
+		return nil, fmt.Errorf("query workflow history: %w", err)
+	}
+	defer rows.Close()
+	history := make([]TransitionRecord, 0, limit)
+	for rows.Next() {
+		var record TransitionRecord
+		var oldState *string
+		if err := rows.Scan(&record.TransitionID, &record.WorkflowID, &record.Revision,
+			&record.ActorKind, &record.ActorID, &record.SchedulerEpoch, &record.NodeID,
+			&record.Iteration, &record.AttemptNumber, &oldState, &record.NewState,
+			&record.Reason, &record.CreatedAt); err != nil {
+			return nil, fmt.Errorf("scan workflow history: %w", err)
+		}
+		if oldState != nil {
+			value := WorkflowState(*oldState)
+			record.OldState = &value
+		}
+		history = append(history, record)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("read workflow history: %w", err)
+	}
+	return history, nil
 }
 
 func scanWorkflow(row pgx.Row) (Workflow, error) {

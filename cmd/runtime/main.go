@@ -13,6 +13,9 @@ import (
 	"strconv"
 	"syscall"
 	"time"
+
+	"durable-agent-execution-engine/internal/api"
+	"durable-agent-execution-engine/internal/state"
 )
 
 const version = "0.1.0-dev"
@@ -37,9 +40,23 @@ func main() {
 	_ = serve.Parse(os.Args[1:])
 
 	role := envOrDefault("RUNTIME_ROLE", "runtime")
+	handler := newHandler(role)
+	var store *state.Store
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		databaseContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		var err error
+		store, err = state.NewFromURL(databaseContext, databaseURL)
+		cancel()
+		if err != nil {
+			slog.Error("runtime database initialization failed", "error", err)
+			os.Exit(1)
+		}
+		defer store.Close()
+		handler = newHandlerWithStore(role, store)
+	}
 	server := &http.Server{
 		Addr:              *addr,
-		Handler:           newHandler(role),
+		Handler:           handler,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
 		WriteTimeout:      10 * time.Second,
@@ -66,6 +83,10 @@ func main() {
 }
 
 func newHandler(role string) http.Handler {
+	return newHandlerWithStore(role, nil)
+}
+
+func newHandlerWithStore(role string, store *state.Store) http.Handler {
 	mux := http.NewServeMux()
 	health := func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -83,6 +104,9 @@ func newHandler(role string) http.Handler {
 		_, _ = fmt.Fprintln(w, "# TYPE durable_runtime_up gauge")
 		_, _ = fmt.Fprintf(w, "durable_runtime_up{role=%s} 1\n", strconv.Quote(role))
 	})
+	if store != nil {
+		mux.Handle("/v1/", api.NewServer(store).Handler())
+	}
 	return mux
 }
 
