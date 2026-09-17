@@ -1,5 +1,39 @@
 # Build log
 
+## 2026-09-17 - DUR-007/DUR-023A round-13 corrections
+
+- Base commit: `6bc0e2f` (verified DUR-006 closeout).
+- Fix commits: `8cac005`, `b41deb6`.
+- Status: READY_FOR_REVIEW; Claude verification is pending. DUR-007 and
+  DUR-023A remain out of DONE.
+
+Round-13 corrections make the interpreter recover durable `WAITING_ACTIVITY`
+and `SUCCEEDED` phases after an intra-node crash, fence `Run` on the lease
+acquisition result, and renew/release only the engine's own lease. Repository
+graph advancement now validates the stored immutable graph, accepted activity
+results, declared successors, join dependencies, graph entry, and terminal
+sibling convergence. Explicit graph timers use a new persisted
+`timer_fired` marker. The independent checker now loads real PostgreSQL
+history, submissions, and accepted node results; its seeded tests assert each
+violation independently.
+
+Validation recorded for this correction:
+
+- `scripts/migrate.ps1`: PASS; migration 000005 applied after 000001-000004.
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS; shared Go/Python checks,
+  migrations 000001-000005, DUR-005 through DUR-007 PostgreSQL tests, and
+  live dependency smoke checks all passed.
+- `DURABLE_REQUIRE_DATABASE=1 go test -race ./...`: PASS, including crash
+  recovery, lease fencing, overlapping branch results, cancellation races, and
+  checker loading from persisted rows.
+- `go vet ./...`, `go build ./cmd/runtime`, `gofmt`, and `git diff --check`:
+  PASS.
+- `docker build -f deploy/local/Dockerfile.runtime -t
+  durable-agent-runtime:dur007-r13-check .`: PASS.
+- Remaining review-only gaps: clean bootstrap/restart smoke, hard-kill
+  durability, sustained-load/timeout studies, and remote CI were not claimed
+  by this correction.
+
 ## 2026-09-17 - DUR-007 and DUR-023A implementation
 
 - Base commit: `6bc0e2f` (verified DUR-006 closeout).

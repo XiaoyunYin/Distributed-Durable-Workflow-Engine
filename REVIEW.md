@@ -423,6 +423,71 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Limitations: Windows host only; single local PostgreSQL 18.6; HTTP checks on loopback only.
 - Verdict: NO_BLOCKING_FINDINGS for DUR-006 at committed target `a37661d` with base `adf5934`. This is a COMMITTED, non-provisional review. The remaining non-blocking items are R028 (P3) and the R019 test gap. With the acceptance criteria and evidence already recorded, Codex may move DUR-006 to DONE under PLAN.md section 11.
 
+### Round 12 — 2026-09-17 — M1 (DUR-007 interpreter and DUR-023A checker)
+
+- Date and round: 2026-09-17, round 12 (first M1 review).
+- Review basis: COMMITTED. Worktree was clean at `b74c8a3` when the review started.
+- Base and target commits: base `6bc0e2f`, target `de0c5f2`. Commit `21e7b8d` (between base and target) changes only PLAN.md and docs/BUILD_LOG.md; handoff commit `b74c8a3` changes only PLAN.md, REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff 6bc0e2f de0c5f2`, i.e.:
+  - internal/engine (engine.go and tests);
+  - internal/invariants (checker and tests);
+  - internal/state (graph.go, and the store.go/types.go changes);
+  - migration 000004;
+  - docs/INTERPRETER.md and the docs/CONTRACTS.md `WAITING_TIMER` row;
+  - scripts/ci.ps1;
+  - the PLAN.md DUR-007/DUR-023A sections.
+
+  No protected-scope drift: no Kafka, paid, or production-effect scope was added.
+- Checks personally run (Claude). Code ran in a scratch export of `de0c5f2`, against a throwaway database `cr_m1` (migrations 000001–000004, with 000004 applied twice) that was dropped afterwards:
+  - Migration 000004: idempotent; the `timers` purpose check allows `RETRY_BACKOFF`/`WORKFLOW_TIMER`.
+  - Committed `TestPostgresStateRepository`, `TestWorkflowAPI…`, `TestM1*`, `TestCheck*`, and `TestParseGraph*` with `-race` and `DURABLE_REQUIRE_DATABASE=1`: PASS. `go vet`, `gofmt -l`, `go test -race ./...`, and `go build ./cmd/runtime`: clean.
+  - Throwaway probes (scratch files deleted; trigger-based crash injection on the scratch database only):
+    - intra-node crash at three boundaries, then restart (R034);
+    - foreign-lease engine run (R035);
+    - `AdvanceGraph` misuse, activity-output steering, entry bypass, and success with a live sibling branch (R036);
+    - checker sensitivity (R037).
+  - Cleanup: no `cr_*` databases remain; the shared dev database has 0 `dur00*` rows and migrations 1–4.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices` in the repository, and the runtime Docker build (Claude built the binary natively).
+- Findings:
+  - New: R034 (P1), R035 (P1), R036 (P2), R037 (P2), R038 (P2), R039 (P3).
+  - R028: settlement implemented; the race test and diagram update are still missing, so it stays OPEN (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - Open P3 findings: R028 and R039. The R019 test gap is still open.
+  - Untested: behavior under sustained load, lock/statement timeouts, hard-kill durability, clean bootstrap and restart smoke, and remote CI.
+- Limitations: Windows host only; single local PostgreSQL 18.6. The crash injection used outbox-insert failures as a stand-in for a process crash between commits (a real kill would leave the same durable state, because each repository call is its own transaction).
+- Verdict: CHANGES_REQUESTED. Blocking: R034 and R035 (P1); R036, R037, and R038 (P2). DUR-007 and DUR-023A cannot move to DONE.
+
+### Round 13 - 2026-09-17 - M1 correction handoff
+
+- Task status: READY_FOR_REVIEW for DUR-007 and DUR-023A; Claude verification is pending. Neither task is DONE.
+- Review basis: COMMITTED.
+- Handoff basis: committed correction target `b41deb6`, with base `6bc0e2f`.
+- Scope: R034-R039 and the DUR-007 R028 test/contract follow-up. No Kafka,
+  paid/model, production-effect, or protected-scope changes.
+- Changes: crash-resume reconciliation for durable node phases; lease
+  acquisition fencing and renewal; repository graph/entry/result/terminal
+  validation; persisted graph-timer state; independent checker loading and
+  stronger seeded tests; overlapping branch-result, crash-boundary, lease,
+  and cancellation-race integration coverage; fan-out/attempt contract
+  diagram update.
+- Checks run: `scripts/ci.ps1 -WithRace -WithServices` (including migration
+  checks, 12 Python tests, Go race tests, DUR-005 through DUR-007 PostgreSQL
+  tests, and live service smoke); `DURABLE_REQUIRE_DATABASE=1 go test -race
+  ./...`; `go vet ./...`; `go build ./cmd/runtime`; `gofmt`; `git diff
+  --check`; and `docker build -f deploy/local/Dockerfile.runtime -t
+  durable-agent-runtime:dur007-r13-check .`. All passed.
+- Skipped checks and reasons: clean bootstrap/restart smoke, hard-kill
+  durability, sustained-load and timeout studies, and remote CI remain
+  untested or unavailable.
+- Known limitations: Windows host, one local PostgreSQL service, development
+  test driver only, no Kafka relay or production effect service. The crash
+  injector models a process stop immediately after a committed repository
+  transaction.
+- Findings addressed, not verified: R034, R035, R036, R037, R038, R039, and
+  the M1 portion of R028. Claude should verify target `b41deb6` against
+  `6bc0e2f`.
+
 For each round, record:
 
 - Date and round:
@@ -1417,6 +1482,12 @@ For each round, record:
 - Evidence and remaining concerns: Item 2 is resolved: the cancellation branch now bumps the node revision (store.go:460-463), and `333a555` asserts it. Item 3 is resolved: the retry identity rule now covers `NON_COOPERATING_EFFECT` (store.go:710), and the committed test asserts both mismatch rejection and inheritance. Item 1 (settling all fan-out nodes on cancellation) is explicitly left to DUR-007. That is acceptable for a P3 because current workflows have a single active node and every API fences on terminal workflow state, but the follow-up currently lives only in REVIEW.md and the build log. Add it to the DUR-007 scope/acceptance in PLAN.md when DUR-007 is expanded, so it is not lost. Minor new nit: three lines of the attempt diagram in docs/CONTRACTS.md (around lines 117-119) gained an extra leading space and no longer align. The finding stays OPEN as a non-blocking P3 until the DUR-007 follow-up is recorded and closed.
 - Status: OPEN
 
+#### Claude verification – round 12 (M1 progress check)
+
+- Verification commit: `b74c8a3` (target `de0c5f2`)
+- Evidence and remaining concerns: `CancelWorkflow` (internal/state/graph.go:177-299) takes locks lease → workflow → all nodes → each current attempt, settles every non-terminal node, and records `OUTCOME_UNKNOWN` for claimed non-pure attempts. `TestM1FanoutCancellationPreservesEffectEvidence` passes and shows late evidence retained for the non-cooperating branch. That covers the settlement requirement. Two parts of the PLAN.md follow-up are still missing: the *bounded fan-out cancellation race* test (the committed test is sequential) and the attempt-diagram update in docs/CONTRACTS.md. See R038 item 5.
+- Status: OPEN
+
 ### R029 — The submission idempotency hash ignores what the workflow will actually run
 
 - Severity: P2
@@ -1671,7 +1742,189 @@ For each round, record:
   Minor note (no action needed): the message-substring checks are heuristic and could classify an unrelated error containing those phrases as 503. Such a response is still a retryable-with-same-key outcome, so it is safe.
 - Status: VERIFIED
 
+### R034 — The interpreter cannot resume after a crash inside a node; the workflow stalls permanently
+
+- Severity: P1
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `de0c5f2`
+- Location: internal/engine/engine.go:224-267 (the run loop only acts on `RUNNABLE` nodes; everything else counts as "blocked"), 353-435 (`runActivity` spans five separately committed repository calls: `ApplyOwnerTransition` → `CreateAttempt` → `ClaimAttempt` → `RecordResultReceipt` → `ConsumeResult` → `AdvanceGraph`); docs/INTERPRETER.md ("The interpreter may be stopped after any committed repository operation and a fresh instance can continue").
+- Failure scenario and impact: A scheduler crash between two of those commits leaves durable state that no code path picks up again:
+  - **After scheduling, before the attempt exists:** workflow and node `WAITING_ACTIVITY`, with no attempt.
+  - **After the result is recorded, before it is consumed:** the node is `WAITING_ACTIVITY`, and its current attempt holds an unconsumed terminal result.
+  - **After `ConsumeResult`, before `AdvanceGraph`:** the node is `SUCCEEDED` and the workflow `RUNNABLE`, but no downstream node exists.
+
+  A fresh engine sees no `RUNNABLE` node and returns `Blocked` forever. The workflow never reaches a terminal state, and nothing reports it as stuck. This is the central M1 exit criterion ("a database-backed graph can resume from committed state") and the project's headline scenario (a crash at an inconvenient boundary). The committed restart test restarts only at node boundaries, after the retry timer is persisted, so it cannot catch this.
+- Evidence (Claude scratch repro, throwaway database, linear graph `root → second → done`; a trigger made one outbox insert fail, simulating a crash right before that commit):
+  - `attempt.dispatch` → after the crash `wf=WAITING_ACTIVITY root:WAITING_ACTIVITY(cur=-)`; restart → `blocked=true`, no progress, activity never ran;
+  - `workflow.result_consumed` → after the crash `root:WAITING_ACTIVITY(cur=1)`; restart → `blocked=true`;
+  - `graph.advanced` → after the crash `wf=RUNNABLE root:SUCCEEDED`; restart → `blocked=true`, and `second` is never created.
+- Suggested correction: Make the run loop a recovery-driven reconciler over *all* non-terminal node states, not only `RUNNABLE`. For each state, decide the next idempotent step from durable data alone:
+  - `WAITING_ACTIVITY` with no current attempt → create the attempt;
+  - a `DISPATCHABLE`/`CLAIMED` attempt → dispatch it, or apply timeout handling;
+  - an unconsumed terminal attempt → `ConsumeResult`;
+  - a `SUCCEEDED`/`FAILED` node whose successors do not exist → `AdvanceGraph`, which then needs an "advanced" marker or a check that successors already exist.
+
+  Where practical, combine consume-and-advance into one repository transaction to remove a boundary. Treat the Kafka path as the intended dispatch, but make the test driver recoverable from the same state.
+- Suggested validation: A fault test that injects a crash at every commit boundary of `runActivity`, fan-out, join, and timer, then restarts with a fresh engine and asserts that the workflow reaches its terminal state. Each activity must be invoked at most once per durable attempt (and no more than the retry policy allows), and the independent checker (R037) must pass on the persisted history.
+
+### R035 — The engine uses another owner's lease and then releases it
+
+- Severity: P1
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `de0c5f2`
+- Location: internal/engine/engine.go:213-219 (`lease, _, err := e.Store.AcquireLease(...)` ignores `acquired`; the deferred `ReleaseLease` uses the returned lease).
+- Failure scenario and impact: When another scheduler holds the partition, `AcquireLease` returns *that owner's* lease with `acquired=false`. The engine discards the flag and builds its `LeaseRef` from the returned lease, i.e. from the other owner's ID and epoch. `lockLease` then accepts every transition, because the reference matches the current owner. Two schedulers therefore act as the same owner, and the M1 claim of "lease-fenced graph advancement" does not hold for the interpreter. When `Run` returns, the deferred `ReleaseLease` clears the *other* owner's lease, leaving that owner running with no lease until its next write fails. Nothing in the committed tests covers a competing owner (every test sets `e.OwnerID = lease.OwnerID`). This is exactly the ownership boundary M2 builds on.
+- Evidence (Claude scratch repro): owner X held partition 0. An engine with a different `OwnerID` Y ran the workflow to `SUCCEEDED` (both activities executed), and afterwards `partition_leases.owner_id` was `NULL`, i.e. X's lease had been released by Y.
+- Suggested correction: Return an error (or a "not owner" result) when `acquired` is false. Build the `LeaseRef` only from the engine's own owner ID and the returned epoch, and release only a lease the engine itself acquired. Renew the lease during long runs, or stop before expiry.
+- Suggested validation: An integration test in which owner X holds the lease and engine Y runs: Y makes no progress and returns a not-owner result, and X's lease is unchanged. Also a test where Y's lease expires mid-run and its next transition fails with `ErrLeaseNotOwned`.
+
+### R036 — Graph transitions are not validated against the definition
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `de0c5f2`
+- Location: internal/state/graph.go:305-430 (`AdvanceGraph`); internal/state/store.go `ConsumeResult` and `CreateWorkflow` (the `graphDeclaresNode` check); internal/engine/engine.go:460-483 (`nextInputsForResult`).
+- Failure scenario and impact: The repository is meant to be the layer that makes invalid transitions fail (DUR-005 acceptance; R020/R021 precedent), and later milestones route untrusted tool/model output through this interpreter. Today, the following are all accepted:
+  1. **Result-less completion.** `AdvanceGraph` accepts a `RUNNABLE` source node of *any* kind and marks it `SUCCEEDED`. A never-run activity node is completed with no accepted result (the R020 guarantee is bypassed; the committed "branch race" test does exactly this).
+  2. **Arbitrary successors.** `AdvanceGraph` creates arbitrary `Next` nodes that are not declared in the definition, can advance *from* an undeclared node, and can set the workflow to `SUCCEEDED`. It never checks join dependencies or that the `Next` nodes are the source node's declared successors.
+  3. **Success with live branches.** `ConsumeResult` (and `AdvanceGraph`) can set the workflow to `SUCCEEDED` while a sibling branch still holds a live claimed attempt and the join has never run. The terminal outcome is then decided before all branches settle.
+  4. **Output steering.** An activity's result payload `{"next": X}` is accepted if X is any declared node, not only one of that activity's `next` options. Output can therefore route execution into an unrelated node, including a non-cooperating effect.
+  5. **Entry bypass.** `CreateWorkflow` accepts any declared node as `initial_node_id`, even when the graph declares a different `entry`, so a submitter can skip nodes (for example a future approval or validation node).
+- Evidence (Claude scratch repros, throwaway database):
+  - item 1: `AdvanceGraph` from the never-run activity `root` to `not-in-graph` → `err=<nil>`, `root:SUCCEEDED` with an empty `accepted_result`, and a `not-in-graph:RUNNABLE` node created;
+  - item 2: then advancing from `not-in-graph` with `FinalWorkflowState=SUCCEEDED` → `err=<nil>`, workflow `SUCCEEDED`;
+  - item 3: fan-out with `right` (non-cooperating) claimed; `ConsumeResult(left, SUCCEEDED)` → `err=<nil>`, workflow `SUCCEEDED`, `right` still `CLAIMED/current`, join still `RUNNABLE`;
+  - item 4: `root` (next `a`/`b`) returned `{"next":"danger"}` → the engine ran `danger` (declared `NON_COOPERATING_EFFECT`), and the workflow ended `SUCCEEDED`;
+  - item 5: `initial_node_id=act` with graph `entry=gate` → created.
+- Suggested correction: Move graph validation into the repository transaction, using the stored immutable graph:
+  - a source activity requires a consumed accepted result;
+  - `Next` must equal the declared successors, or be one declared choice for a multi-choice activity;
+  - a join requires all dependencies to be `SUCCEEDED`;
+  - a terminal workflow state requires every other node to be terminal (or the workflow to use cancellation semantics);
+  - `CreateWorkflow` requires `initial_node_id == entry` (or drop the field and use `entry`).
+
+  Validate activity branch choices against that node's declared options only. Consider a shared graph-parsing package so the repository and the interpreter do not diverge.
+- Suggested validation: Repository integration tests showing that each of the five cases is rejected with no partial state, and an interpreter test showing that an out-of-set branch choice fails the node instead of routing.
+
+### R037 — The DUR-023A checker misses most seeded violations and never checks persisted evidence
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `de0c5f2`
+- Location: internal/invariants/checker.go:47-62; internal/invariants/checker_test.go:20-27; internal/engine (no checker use).
+- Failure scenario and impact: DUR-023A acceptance requires seeded invalid traces to fail and the checker to derive verdicts from persisted evidence. As implemented, the checker has four gaps:
+  1. **Terminal-to-terminal passes.** `SUCCEEDED → CANCELED` is accepted, because the next state is also terminal. This is the "one accepted terminal outcome" invariant.
+  2. **Any revision after terminal passes.** For example `SUCCEEDED → SUCCEEDED` at a new revision.
+  3. **History may start anywhere.** A history starting at revision 5 is accepted; the first revision is not required to be 1 (creation).
+  4. **No state continuity.** A record's `OldState` is not checked against the previous `NewState`, so a record claiming `WAITING_TIMER → SUCCEEDED` after a `RUNNABLE` record passes.
+
+  The `HistoryRecord` type also has no workflow ID, so multi-workflow traces cannot be checked. The committed negative test seeds all violations into one trace and asserts only `len(violations) >= 4`, which cannot show that each rule fires on its own. Finally, no committed test loads real PostgreSQL history, submissions, or node results into the checker. The checker therefore gives no evidence about the M1 integration runs, and it would not have flagged R034–R036.
+- Evidence (Claude scratch run of `invariants.Check`): "terminal to different terminal", "history starts at revision 5", "old_state discontinuity", and "revision change after terminal" all returned `valid=true`. Only a terminal → non-terminal trace was flagged.
+- Suggested correction:
+  - Enforce a first revision of 1, contiguity, `OldState == previous NewState`, and no records after the first terminal record (worker evidence is not workflow history).
+  - Key everything by workflow.
+  - Add a small loader that reads `transition_history`, `workflow_executions`, and `node_instances.accepted_result` for given workflow IDs, and run the checker at the end of each M1 integration test.
+  - Write one table-driven negative test per rule, each asserting the specific violation.
+- Suggested validation: A table-driven test (valid trace plus one case per rule) and M1 integration tests that assert `invariants.Check(load(workflowID)).Valid`.
+
+### R038 — M1 acceptance evidence does not exercise the stated scenarios
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `de0c5f2`
+- Location: internal/engine/engine_integration_test.go; internal/engine/engine.go (serial branch execution); PLAN.md DUR-007 acceptance/validation; the REVIEW.md handoff ("fan-out/join races … passed").
+- Failure scenario and impact: The handoff claims restart safety, fan-out/join races, and cancellation races. The committed tests show less:
+  1. **Restart is only exercised at a node boundary.** R034 shows that intra-node restarts fail.
+  2. **The "concurrent final branch completion" test is not a real race of branch completions.** It races two `AdvanceGraph` calls from branch nodes that never ran an activity. It proves only the revision check and the join-row uniqueness, not "concurrent final branch completion produces one downstream action and one terminal outcome" through results.
+  3. **Branches never overlap.** The engine runs branches strictly one after another, so overlapping branches, which is what a workflow-level single state has to handle, are never exercised. R036 item 3 shows the repository accepts a premature terminal state when they do overlap.
+  4. **Missing scenarios.** Duplicate delivery, and the "fault/recovery campaigns" listed in DUR-007 validation, are absent.
+  5. **The R028 follow-up is incomplete.** PLAN.md required a *bounded fan-out cancellation race* test and an attempt-diagram update in the same contract revision; the committed cancellation test is sequential, and CONTRACTS.md changed only the `WAITING_TIMER` row.
+- Evidence: the committed test code; Claude's R034/R036 repros.
+- Suggested correction: Add tests that overlap branch attempts (claim both, complete them concurrently through `RecordResultReceipt`/`ConsumeResult`/`AdvanceGraph`), race cancellation against branch completion, inject duplicate result and advance deliveries, and cover the crash-boundary campaign from R034. Update the attempt/fan-out diagram in docs/CONTRACTS.md. Make the handoff claims match what the tests exercise.
+- Suggested validation: Claude re-runs the new tests and checks that the claims are traceable to them.
+
+### R039 — Smaller M1 gaps
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `de0c5f2`
+- Location: internal/state/graph.go:143-150; internal/engine/engine.go:87-92, 315-326, 509-516; internal/state/graph.go:378-404.
+- Failure scenario and impact:
+  1. **Timer fire detection overloads `retry_count`.** `ScheduleTimer` increments `retry_count` for a `WORKFLOW_TIMER`, and the engine uses `RetryCount == 0` to mean "timer not yet scheduled". That conflates retry accounting with timer state, and breaks if a timer node is ever retried or re-entered.
+  2. **Random entry.** `ParseGraph` picks a *random* entry (Go map iteration) when `entry` is absent, so the parsed entry is nondeterministic.
+  3. **Misleading `Created` list.** `AdvanceGraph` reports every `Next` node as `Created` even when `ON CONFLICT DO NOTHING` skipped the insert.
+  4. **Dead code.** `sortNodes` is unused.
+- Evidence: the cited code.
+- Suggested correction: Store explicit timer state (the node's timer ID or a timer-fired flag), require `entry` (or pick deterministically), return only inserted nodes, and remove the dead code.
+- Suggested validation: Claude re-checks.
+
 ---
+
+## Codex responses - round 13
+
+The following responses address the round-13 findings without changing their
+original text or verification status.
+
+### R028 response
+
+- Change made: The DUR-007 cancellation path settles every active node and preserves `OUTCOME_UNKNOWN` for claimed effect attempts. The missing bounded race test is committed, and the contract diagram now shows fan-out branch settlement and the no-advancement terminal fence.
+- Fix commits: `8cac005`, `b41deb6`.
+- Tests: `TestM1FanoutCancellationRace` passes in the PostgreSQL `-race` suite for three bounded rounds; `go test -race ./...` passes.
+- Status: ADDRESSED
+
+### R034 response
+
+- Change made: `Run` now reconciles durable `WAITING_ACTIVITY` and `SUCCEEDED` node phases before scheduling new work. It resumes missing attempts, redispatches durable dispatchable attempts, consumes recorded terminal results, and advances committed succeeded nodes only when their declared successors are absent.
+- Affected files: `internal/engine/engine.go`, `internal/state/store.go`, `internal/engine/engine_integration_test.go`.
+- Fix commits: `8cac005`, `b41deb6`.
+- Tests: `TestM1CrashResumeWithinNode` injects failures after scheduling, after result recording, and after result consumption; each fresh-engine recovery reaches `SUCCEEDED` with one activity call. `go test -race ./...` passes.
+- Status: ADDRESSED
+
+### R035 response
+
+- Change made: `Run` now requires `AcquireLease` to report ownership, renews during each step, and releases only the lease reference it acquired. A competing owner returns `ErrLeaseNotOwned` without progress.
+- Affected files: `internal/engine/engine.go`, `internal/engine/engine_integration_test.go`.
+- Fix commits: `8cac005`, `b41deb6`.
+- Tests: `TestM1RunRequiresPartitionLease` confirms the held owner and epoch remain unchanged; the full PostgreSQL race suite passes.
+- Status: ADDRESSED
+
+### R036 response
+
+- Change made: The repository parses the immutable stored graph inside `AdvanceGraph`, requires an accepted result for activity completion, checks declared successors and join dependencies, rejects undeclared source/successor nodes, requires all siblings to be terminal before a terminal workflow decision, and requires workflow creation to start at the graph entry. The interpreter validates multi-successor activity output against that activity's own successor set.
+- Affected files: `internal/state/graph.go`, `internal/state/store.go`, `internal/engine/engine.go`.
+- Fix commits: `8cac005`, `b41deb6`.
+- Tests: PostgreSQL graph execution, joined branches, result consumption, terminal convergence, and persisted invariant-trace checks pass under `go test -race ./...`.
+- Status: ADDRESSED
+
+### R037 response
+
+- Change made: The checker now keys history by workflow, requires revision 1 creation, contiguous revisions, old/new state continuity, legal non-terminal transitions, terminal monotonicity, unique accepted results, and stable submission identity. `invariants.Load` reads real workflow history, submissions, and accepted node results without reusing production transition validators.
+- Affected files: `internal/invariants/checker.go`, `internal/invariants/checker_test.go`, `internal/engine/engine_integration_test.go`.
+- Fix commits: `8cac005`, `b41deb6`.
+- Tests: The table-driven checker test isolates each seeded violation and asserts its rule-specific message. M1 integration tests call `Load` and `Check` on committed PostgreSQL rows; `go test -race ./...` passes.
+- Status: ADDRESSED
+
+### R038 response
+
+- Change made: Acceptance evidence now includes three intra-node crash boundaries, real overlapping branch attempts whose results are recorded concurrently and consumed with revision fencing, a bounded cancellation/result race, live-database invariant checks, and the contract fan-out/attempt diagram update. Existing DUR-005 result-retry coverage remains the duplicate-delivery evidence for the repository boundary.
+- Affected files: `internal/engine/engine_integration_test.go`, `docs/CONTRACTS.md`.
+- Fix commits: `8cac005`, `b41deb6`.
+- Tests: PostgreSQL `go test -race ./...`, `go vet ./...`, `go build ./cmd/runtime`, `gofmt`, and `git diff --check` pass.
+- Status: ADDRESSED
+
+### R039 response
+
+- Change made: Explicit graph timers now use persisted `timer_fired`, while retry backoff continues to use retry metadata. Multi-node graphs without an entry are rejected instead of selecting a map iteration result; `AdvanceGraph.Created` contains only inserted rows; and the unused node sorter was removed.
+- Affected files: `migrations/000005_dur007_timer_state.up.sql`, `internal/state/graph.go`, `internal/engine/engine.go`.
+- Fix commits: `8cac005`, `b41deb6`.
+- Tests: Migration 000005 applied successfully after migrations 000001–000004; timer/restart integration, full race tests, vet, build, formatting, and diff checks pass.
+- Status: ADDRESSED
 
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.
 
