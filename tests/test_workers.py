@@ -13,6 +13,8 @@ from workers.runner import ActivityRunner, ActivityTask
 class FakeControl:
     def __init__(self) -> None:
         self.heartbeats = 0
+        self.claims = 0
+        self.heartbeat_failures: list[ControlError] = []
         self.results: list[dict[str, Any]] = []
         self._lock = threading.Lock()
 
@@ -25,6 +27,8 @@ class FakeControl:
         request_id: str,
         attempt_lease_ms: int = 60_000,
     ) -> Claim:
+        with self._lock:
+            self.claims += 1
         return Claim(1, f"token-{request_id}", "PURE_ACTIVITY", "deadline")
 
     def heartbeat(
@@ -36,6 +40,8 @@ class FakeControl:
         claim_token: str,
         extension_ms: int = 60_000,
     ) -> str:
+        if self.heartbeat_failures:
+            raise self.heartbeat_failures.pop(0)
         with self._lock:
             self.heartbeats += 1
         return "deadline"
@@ -120,9 +126,38 @@ def test_runner_does_not_hide_lost_claim() -> None:
     registry = ActivityRegistry()
     registry.register("fixture", "v1", lambda value: time.sleep(0.02) or value)
 
-    def fail_heartbeat(*args: Any, **kwargs: Any) -> str:
-        raise ControlError(409, "STALE_CLAIM", "claim is stale")
-
-    control.heartbeat = fail_heartbeat  # type: ignore[method-assign]
+    control.heartbeat_failures = [ControlError(409, "STALE_CLAIM", "claim is stale")]
     with pytest.raises(ControlError, match="STALE_CLAIM"):
         ActivityRunner(control, registry, heartbeat_interval=0.001).run_task(task("lost"))
+    assert len(control.results) == 1
+
+
+def test_runner_submits_after_transient_heartbeat_failure() -> None:
+    control = FakeControl()
+    control.heartbeat_failures = [ControlError(503, "CONTROL_UNAVAILABLE", "temporary outage")]
+    registry = ActivityRegistry()
+    registry.register("fixture", "v1", lambda value: time.sleep(0.1) or value)
+    result = ActivityRunner(control, registry, heartbeat_interval=0.005).run_task(task("transient"))
+    assert result["attempt_state"] == "SUCCEEDED"
+    assert control.heartbeats > 0
+    assert len(control.results) == 1
+
+
+def test_runner_resolves_version_before_claim() -> None:
+    control = FakeControl()
+    with pytest.raises(LookupError, match="not registered"):
+        ActivityRunner(control, ActivityRegistry()).run_task(task("unknown"))
+    assert control.claims == 0
+
+
+def test_runner_does_not_convert_shutdown_into_activity_failure() -> None:
+    control = FakeControl()
+    registry = ActivityRegistry()
+
+    def shutdown(_value: Any) -> Any:
+        raise KeyboardInterrupt()
+
+    registry.register("fixture", "v1", shutdown)
+    with pytest.raises(KeyboardInterrupt):
+        ActivityRunner(control, registry).run_task(task("shutdown"))
+    assert control.results == []

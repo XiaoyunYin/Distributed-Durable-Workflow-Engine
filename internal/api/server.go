@@ -194,6 +194,10 @@ func (s *Server) recordResult(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "attempt_number and claim_token are required", nil)
 		return
 	}
+	if request.AttemptState != state.AttemptSucceeded && request.AttemptState != state.AttemptFailedRetryable && request.AttemptState != state.AttemptFailedFinal {
+		writeRepositoryError(w, state.ErrInvalidAttemptState)
+		return
+	}
 	receipt, err := repository.RecordResultReceipt(r.Context(), state.ResultInput{
 		WorkflowID: workflowID, NodeID: nodeID, Iteration: iteration,
 		AttemptNumber: request.AttemptNumber, ClaimToken: request.ClaimToken,
@@ -600,6 +604,10 @@ func writeRepositoryError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "WORKFLOW_ID_CONFLICT", "workflow_id is already used by another submission", nil)
 	case errors.Is(err, state.ErrWorkflowNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "workflow was not found", nil)
+	case errors.Is(err, state.ErrNodeNotFound):
+		writeError(w, http.StatusNotFound, "NODE_NOT_FOUND", "workflow node was not found", nil)
+	case errors.Is(err, state.ErrInvalidAttemptState):
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_ATTEMPT_STATE", "attempt state must be a terminal worker outcome", nil)
 	case errors.Is(err, state.ErrRevisionConflict):
 		writeError(w, http.StatusConflict, "STALE_REVISION", "the requested workflow state is stale", nil)
 	case errors.Is(err, state.ErrStaleClaim):

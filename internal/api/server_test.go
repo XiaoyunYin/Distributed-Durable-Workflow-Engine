@@ -294,4 +294,17 @@ func TestWorkerControlEndpointsUseStableAttemptIdentity(t *testing.T) {
 	if recorder.Code != http.StatusOK || fake.lastResult.AttemptNumber != 3 || fake.lastResult.ClaimToken != "claim-token" {
 		t.Fatalf("result response = %d %s input=%+v", recorder.Code, recorder.Body.String(), fake.lastResult)
 	}
+
+	fake.claimErr = state.ErrNodeNotFound
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, base+"claim", strings.NewReader(`{"worker_id":"worker-1","request_id":"request-2"}`)))
+	if recorder.Code != http.StatusNotFound || !strings.Contains(recorder.Body.String(), "NODE_NOT_FOUND") {
+		t.Fatalf("unknown node claim = %d %s", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, base+"result", strings.NewReader(`{"attempt_number":3,"claim_token":"claim-token","attempt_state":"CLAIMED","payload":{}}`)))
+	if recorder.Code != http.StatusUnprocessableEntity || !strings.Contains(recorder.Body.String(), "INVALID_ATTEMPT_STATE") {
+		t.Fatalf("invalid result state = %d %s", recorder.Code, recorder.Body.String())
+	}
 }

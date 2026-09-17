@@ -7,7 +7,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Protocol
 
-from workers.control import Claim, ControlClient
+from workers.control import Claim, ControlClient, ControlError
 from workers.registry import ActivityRegistry
 
 
@@ -75,6 +75,9 @@ class ActivityRunner:
         self.heartbeat_interval = heartbeat_interval
 
     def run_task(self, task: ActivityTask) -> dict[str, Any]:
+        # Resolve before claiming. A configuration error must not create a
+        # claimed attempt that can only ever be retried.
+        activity = self.registry.resolve(task.activity_name, task.activity_version)
         claim = self.control.claim(
             task.workflow_id,
             task.node_id,
@@ -84,10 +87,11 @@ class ActivityRunner:
             task.attempt_lease_ms,
         )
         stop = threading.Event()
-        heartbeat_errors: list[BaseException] = []
+        definitive_heartbeat_errors: list[ControlError] = []
 
         def heartbeat_loop() -> None:
-            while not stop.wait(self.heartbeat_interval):
+            delay = self.heartbeat_interval
+            while not stop.wait(delay):
                 try:
                     self.control.heartbeat(
                         task.workflow_id,
@@ -97,18 +101,26 @@ class ActivityRunner:
                         claim.claim_token,
                         task.attempt_lease_ms,
                     )
-                except BaseException as error:  # preserve stale-claim evidence for the caller
-                    heartbeat_errors.append(error)
-                    return
+                    delay = self.heartbeat_interval
+                except Exception as error:
+                    if isinstance(error, ControlError) and error.code in {
+                        "STALE_CLAIM",
+                        "STALE_ATTEMPT",
+                    }:
+                        definitive_heartbeat_errors.append(error)
+                        return
+                    # A transient control outage must not discard work that
+                    # has already run. Retry with bounded backoff and still
+                    # submit the terminal result after the activity returns.
+                    delay = min(max(self.heartbeat_interval, delay * 2), 60.0)
 
         heartbeat_thread = threading.Thread(
             target=heartbeat_loop, name="activity-heartbeat", daemon=True
         )
         heartbeat_thread.start()
         try:
-            activity = self.registry.resolve(task.activity_name, task.activity_version)
             payload = activity(task.input)
-        except BaseException as error:
+        except Exception as error:
             payload = {"error": str(error), "type": type(error).__name__}
             attempt_state = "FAILED_RETRYABLE"
         else:
@@ -116,9 +128,7 @@ class ActivityRunner:
         finally:
             stop.set()
             heartbeat_thread.join(timeout=max(1.0, self.heartbeat_interval))
-        if heartbeat_errors:
-            raise heartbeat_errors[0]
-        return self.control.result(
+        receipt = self.control.result(
             task.workflow_id,
             task.node_id,
             task.iteration,
@@ -127,6 +137,12 @@ class ActivityRunner:
             attempt_state,
             payload,
         )
+        if definitive_heartbeat_errors:
+            # The result/evidence call above is always attempted first. The
+            # stale claim remains visible to the caller after that durable
+            # handoff, while successful evidence is never hidden.
+            raise definitive_heartbeat_errors[0]
+        return receipt
 
     def run_many(self, tasks: list[ActivityTask]) -> list[dict[str, Any]]:
         with ThreadPoolExecutor(

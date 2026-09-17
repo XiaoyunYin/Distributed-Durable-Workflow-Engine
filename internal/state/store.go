@@ -1045,6 +1045,9 @@ func (s *Store) ClaimAttempt(ctx context.Context, input ClaimInput) (ClaimResult
 		FROM engine.node_instances
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
 		FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&attemptNumber); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ClaimResult{}, ErrNodeNotFound
+		}
 		return ClaimResult{}, fmt.Errorf("lock node for claim: %w", err)
 	}
 	var token string
@@ -1116,6 +1119,9 @@ func (s *Store) HeartbeatAttempt(ctx context.Context, input HeartbeatInput) (tim
 		FROM engine.node_instances
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
 		FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&currentAttempt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return time.Time{}, ErrNodeNotFound
+		}
 		return time.Time{}, fmt.Errorf("lock node for heartbeat: %w", err)
 	}
 	if currentAttempt != input.AttemptNumber {
@@ -1154,7 +1160,7 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 		return ResultReceipt{}, errors.New("result identity is required")
 	}
 	if input.AttemptState != AttemptSucceeded && input.AttemptState != AttemptFailedRetryable && input.AttemptState != AttemptFailedFinal {
-		return ResultReceipt{}, errors.New("result must be a terminal attempt outcome")
+		return ResultReceipt{}, fmt.Errorf("%w: result must be a terminal attempt outcome", ErrInvalidAttemptState)
 	}
 	if input.EventType == "" {
 		input.EventType = "attempt.result"
@@ -1185,6 +1191,9 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 		FROM engine.node_instances
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
 		FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&nodeCurrentAttempt); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ResultReceipt{}, ErrNodeNotFound
+		}
 		return ResultReceipt{}, fmt.Errorf("lock node for result: %w", err)
 	}
 	var current bool

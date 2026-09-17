@@ -16,6 +16,22 @@ the API directly to an untrusted network.
 - `GET /v1/workflows/{workflow_id}/history` returns ordered transition history.
   `after_revision` is a cursor and `limit` is 1–1000 (default 100).
 
+The worker control seam is:
+
+- `POST /v1/workflows/{workflow_id}/nodes/{node_id}/iterations/{iteration}/claim`
+  with `worker_id`, `request_id`, and optional `attempt_lease_ms`.
+- `POST .../heartbeat` with `attempt_number`, `claim_token`, and optional
+  `extension_ms`.
+- `POST .../result` with `attempt_number`, `claim_token`, `attempt_state`, and
+  `payload`; it returns the durable result receipt. Claim retries reuse
+  `request_id`; result retries reuse the attempt number and token.
+
+These endpoints are the direct M2 control seam, not the M3 Kafka transport.
+They are unauthenticated and accept caller-declared `worker_id` because this
+is a localhost-bound development API only. Authentication and identity
+binding are prerequisites for the M4 approval/effect work; do not expose this
+write-capable API to an untrusted network before that work lands.
+
 If a response is lost after commit, retry the same execution-defining
 submission and idempotency key. The API returns the existing workflow with
 `created: false`. A changed execution-defining field returns `409
