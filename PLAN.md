@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 READY_FOR_REVIEW; DUR-009 READY_FOR_REVIEW; DUR-010 READY_FOR_REVIEW; DUR-023A-M2 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -591,7 +591,7 @@ contract revision.
 
 #### DUR-008 — Partition leases and scheduler fencing
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** M1 DONE; review base is the M1 closeout target `600726f`.
 - **Goal:** Make partition ownership a reusable, explicitly tested scheduler
   boundary for two concurrent scheduler instances.
@@ -613,7 +613,7 @@ contract revision.
 
 #### DUR-009 — Claim and result APIs
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-008; review base is the M1 closeout target `600726f`.
 - **Goal:** Expose the reviewed worker claim/result repository operations
   through an idempotent control API without granting workers scheduler
@@ -636,7 +636,7 @@ contract revision.
 
 #### DUR-010 — Python activity runner
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-009; review base is the M1 closeout target `600726f`.
 - **Goal:** Provide a bounded, version-aware worker process seam that uses the
   durable claim protocol and can be restarted without inventing local state.
@@ -657,7 +657,7 @@ contract revision.
 
 #### DUR-023A-M2 — Independent ownership/attempt extension
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-023A skeleton and DUR-008/DUR-009; review base is the
   M1 closeout target `600726f`.
 - **Goal:** Extend the independent checker to detect stale scheduler and worker
@@ -1026,8 +1026,10 @@ Claude's committed round-8 verdict. DUR-006 is DONE at reviewed code target
 `a37661d` with base `adf5934`; R029-R033 are VERIFIED. M1 is DONE at reviewed
 code target `600726f` with base `6bc0e2f`; Claude's committed round-13 verdict
 is `NO_BLOCKING_FINDINGS`, R034-R039 and R028 are VERIFIED, and the remaining
-R019 test gap is nonblocking. Start DUR-008 against `600726f` using the scope,
-acceptance, validation, evidence, and limitations recorded in its section.
+R019 test gap is nonblocking. M2 is now DONE at reviewed code target
+`0d663c3` with base `600726f`; Claude's committed round-15 verdict is
+`NO_BLOCKING_FINDINGS`, and R040-R044 are VERIFIED. DUR-011 is the next task;
+its start record must use the M2 closeout commit as the exact review base.
 Keep the M0 contracts and partition-map version frozen while extending the
 durable state repository.
 

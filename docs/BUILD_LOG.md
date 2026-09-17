@@ -1,5 +1,37 @@
 # Build log
 
+## 2026-09-17 - M2 closeout
+
+- Review base: `600726f` (M1 closeout).
+- Reviewed code target: `0d663c3`.
+- Task status: DONE for DUR-008, DUR-009, DUR-010, and DUR-023A-M2.
+- Review: Claude's committed, non-provisional round-15 verdict is
+  `NO_BLOCKING_FINDINGS`; R040-R044 are VERIFIED. The historical R019 claim
+  retry-after-replacement test gap remains nonblocking.
+
+The M2 implementation is accepted without changing the reviewed code target.
+It provides lease fencing and deterministic takeover ordering, atomic worker
+claim/heartbeat/result controls, a version-aware bounded Python runner, and an
+independent ownership/attempt checker. The worker control seam remains
+development-only and unauthenticated; authentication and worker identity
+binding are recorded as a prerequisite for later M4 approval/effect work.
+
+Claude's validation, recorded in REVIEW.md, includes the full Go race suite,
+`go vet`, `gofmt`, the runtime build, Ruff, mypy, 19 Python tests, PostgreSQL
+lease contention and worker-API integration probes, and checker validation on
+live persisted data. The earlier M2 review also covered fencing, claim/result
+idempotency, stale-result rejection, and seeded checker violations.
+
+Remaining M2 limits are Kafka transport and duplicate dispatch, multi-host
+deployment, database-outage and lock-timeout campaigns, sustained load,
+hard-kill durability, clean bootstrap/restart smoke, and remote CI. These are
+not M2 acceptance failures and remain visible in REVIEW.md.
+
+Interview explanation: M2 separates scheduler authority from worker progress.
+Leases and epochs fence owners, attempt tokens fence workers, receipts make
+retries safe, and the independent checker tests the persisted evidence rather
+than reusing transition code.
+
 ## 2026-09-17 - M2 round-15 corrections
 
 - Base commit: `91e4b14` (M2 implementation handoff).
