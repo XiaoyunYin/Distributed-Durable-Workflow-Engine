@@ -3,7 +3,8 @@
 ## 2026-09-17 - DUR-007 and DUR-023A implementation
 
 - Base commit: `6bc0e2f` (verified DUR-006 closeout).
-- Implementation status: complete; the review handoff is a separate commit.
+- Implementation commit: `de0c5f2`.
+- Implementation status: complete; the review handoff is recorded in `REVIEW.md`.
 
 Implemented the M1 durable graph core. `internal/engine` parses versioned
 activity, timer, fan-out, join, success, and failure nodes and drives only the

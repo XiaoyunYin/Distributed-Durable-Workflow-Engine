@@ -90,6 +90,46 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Skipped checks and reasons: No clean bootstrap or restart-smoke run was performed because those workflows recreate the user's running containers. No remote CI exists. A live stopped-database request was not exercised; unit mapping covers pgx safe-to-retry, connection/network, SQLSTATE, EOF, and deadline classifications, while startup still fails fast when `DATABASE_URL` cannot be opened. Lock/statement timeouts, hard-kill durability, and production retention/failover remain untested or outside this task.
 - Known limitations: This task exposes submission/status/history only; it does not implement the interpreter, scheduler loop, fan-out, Kafka relay, or effect service. History is retained without automatic pruning in this API. Authentication is intentionally absent for this local development milestone; the runtime and Compose host ports are localhost-only. The service evidence uses the existing single-node local topology and makes no exactly-once claim.
 
+## Codex handoff - M1 / DUR-007 and DUR-023A
+
+- Task: M1 durable workflow core (`DUR-007` and `DUR-023A`)
+- Task status: READY_FOR_REVIEW
+- Handoff basis: COMMITTED
+- Base commit: `6bc0e2f` (DUR-006 closeout)
+- Target commit: `de0c5f2` (M1 implementation)
+- Scope and implementation summary: Added the versioned graph interpreter and
+  test-only activity driver; durable retry and explicit graph timers; lease-
+  fenced graph advancement; bounded fan-out/join node creation; restart-safe
+  result consumption; multi-branch cancellation with claimed-effect
+  `OUTCOME_UNKNOWN` evidence; the `WORKFLOW_TIMER` migration; and the
+  independent M1 invariant checker. Kafka relay, production effect services,
+  paid/model work, and later ownership/attempt checker extensions remain out of
+  scope.
+- Checks run and results:
+  - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1`:
+    PASS with task-local Go/uv/Pytest cache paths; Go formatting/vet/tests/build,
+    Ruff, mypy, and 12 Python tests passed.
+  - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace`:
+    PASS; all Go race tests and Python tests passed.
+  - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`:
+    PASS; migration 000004 was skipped after application, DUR-005 and DUR-006
+    service suites passed, four M1 PostgreSQL scenarios passed, and PostgreSQL,
+    Kafka, two runtimes, OpenTelemetry, and Prometheus smoke checks were healthy.
+  - `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur007-check .`:
+    PASS.
+  - `git diff --check` and `gofmt -l cmd internal`: PASS before this handoff
+    documentation commit.
+- Skipped checks and reasons: No clean bootstrap or restart-smoke run was
+  performed because those workflows recreate the user's running containers.
+  No remote CI exists. Hard-kill durability, sustained-load behavior, lock or
+  statement timeout behavior, Kafka relay, production effect services, and
+  paid/model execution remain untested or outside M1.
+- Known limitations: The activity driver is intentionally a test fixture. The
+  graph format is the small M1 contract in `docs/INTERPRETER.md`; bounded-loop
+  policy, scheduler scans, multi-replica handoff, approvals, and the later
+  DUR-023A-M2 through M4 checker obligations are deferred. The service evidence
+  uses the existing single-node local topology and makes no exactly-once claim.
+
 ## Claude review rounds
 
 ### Round 1 — 2026-09-16 — M0 foundation (DUR-001 through DUR-004)
