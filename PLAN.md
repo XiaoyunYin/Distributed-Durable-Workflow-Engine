@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 IN_PROGRESS; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -556,6 +556,17 @@ after the terminal workflow decision. Add a bounded fan-out cancellation race
 to DUR-007's acceptance tests and update the attempt diagram in the same
 contract revision.
 
+#### DUR-007 — Interpreter, timers, and joins
+
+- **Status:** IN_PROGRESS.
+- **Dependencies:** M0, DUR-005, and completed DUR-006; review base is the DUR-006 closeout commit `6bc0e2f`.
+- **Goal:** Execute a small versioned workflow graph from durable state, resume across process restarts, and create each downstream action once while timers and bounded fan-out/join branches converge safely.
+- **Scope:** Implement the interpreter over the reviewed repository transitions; persist accepted node results; support durable retry timers and bounded fan-out/join; restart between nodes; race final branch completions; and exercise a test-only activity driver until Kafka integration. Include the DUR-005 R028 follow-up: cancellation settles every active fan-out node/attempt, preserves `OUTCOME_UNKNOWN` for claimed effects, retains late reports as evidence without progress, and prevents post-terminal branch advancement. Do not add Kafka relay, paid/model work, or final production effect services here.
+- **Acceptance:** A versioned graph advances from a submitted workflow through persisted results to downstream work; restart between every node does not duplicate progress; retry timers are durable and enforced; fan-out creates bounded branches once and joins them once; concurrent final branch completion produces one downstream action and one terminal outcome; cancellation settles all active branches and preserves uncertain claimed effects; invariant checks derive their verdicts independently from persisted evidence.
+- **Validation:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`; focused Go interpreter/repository tests with `go test -race ./...`; PostgreSQL integration tests covering restart, timers, fan-out/join, duplicate delivery, cancellation races, and final-branch races; fault/recovery campaigns; `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur007-check .`; `git diff --check`.
+- **Evidence:** interpreter and transition code, test-only activity fixtures, integration/fault tests, the independent M1 invariant checker work, `docs/CONTRACTS.md`, `docs/BUILD_LOG.md`, and the committed `REVIEW.md` handoff. Review must use `6bc0e2f` as the exact base and the implementation must be committed before `READY_FOR_REVIEW`.
+- **Remaining limitations:** No Kafka relay, production activity/effect service, paid/model evaluation, clean-machine bootstrap, hard-kill durability, or remote CI claim unless separately tested and recorded.
+
 ### M2 — Multi-replica ownership and worker attempts
 
 **Dependencies:** M1.
@@ -915,8 +926,9 @@ foundation work does not require a cloud or model-call budget.
 DUR-005 is DONE at reviewed code target `333a555` with base `79ba118` and
 Claude's committed round-8 verdict. DUR-006 is DONE at reviewed code target
 `a37661d` with base `adf5934`; R029-R033 are VERIFIED and R028 remains the
-recorded DUR-007 fan-out follow-up. Keep the M0 contracts and partition-map
-version frozen while extending the durable state repository. The next task is
-DUR-007; add its detailed scope and validation record before implementation.
+recorded DUR-007 fan-out follow-up. DUR-007 is now IN_PROGRESS against
+closeout base `6bc0e2f`; its scope, acceptance, validation, and limitations are
+recorded above. Keep the M0 contracts and partition-map version frozen while
+extending the durable state repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

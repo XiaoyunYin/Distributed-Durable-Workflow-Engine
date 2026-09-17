@@ -1,5 +1,21 @@
 # Build log
 
+## 2026-09-17 - DUR-007 start
+
+- Base commit: `6bc0e2f` (DUR-006 closeout).
+- Task status: IN_PROGRESS; no DUR-007 implementation commit yet.
+
+Opened the interpreter/timer/fan-out/join task against the verified DUR-006
+closeout. PLAN.md records the existing M1 scope, acceptance scenarios,
+validation commands, evidence paths, and limitations before implementation.
+The DUR-005 R028 cancellation follow-up is included explicitly: every active
+fan-out branch must settle on cancellation, claimed effects retain
+`OUTCOME_UNKNOWN`, late reports remain evidence-only, and no branch may advance
+after the terminal decision.
+
+No code or contract implementation changed in this start record. The review
+for DUR-007 must use `6bc0e2f` as its exact base.
+
 ## 2026-09-17 - DUR-006 closeout
 
 - Review base: `adf5934`; final code target: `a37661d`.
