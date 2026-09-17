@@ -36,7 +36,7 @@ func main() {
 	}
 
 	serve := flag.NewFlagSet("serve", flag.ExitOnError)
-	addr := serve.String("addr", envOrDefault("RUNTIME_ADDR", ":8080"), "HTTP listen address")
+	addr := serve.String("addr", envOrDefault("RUNTIME_ADDR", "127.0.0.1:8080"), "HTTP listen address")
 	_ = serve.Parse(os.Args[1:])
 
 	role := envOrDefault("RUNTIME_ROLE", "runtime")

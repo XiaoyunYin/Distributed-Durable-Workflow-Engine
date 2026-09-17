@@ -45,25 +45,35 @@ func TestWorkflowAPIResponseLossHistoryAndRetention(t *testing.T) {
 
 	workflowID := "dur006-" + state.NewID()
 	submissionKey := "submission-" + state.NewID()
-	requestBody := func(payload string) []byte {
+	requestBodyWith := func(id, key, definition string, version int, node string, initialInput json.RawMessage, payload string) []byte {
 		request, err := json.Marshal(map[string]any{
-			"workflow_id": workflowID, "namespace": namespace, "submission_key": submissionKey,
-			"payload": json.RawMessage(payload), "definition_id": definitionID,
-			"definition_version": 1, "initial_node_id": "root",
+			"workflow_id": id, "namespace": namespace, "submission_key": key,
+			"payload": json.RawMessage(payload), "definition_id": definition,
+			"definition_version": version, "initial_node_id": node,
+			"initial_input": initialInput,
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
 		return request
 	}
+	requestBody := func(payload string) []byte {
+		return requestBodyWith(workflowID, submissionKey, definitionID, 1, "root", json.RawMessage(`{}`), payload)
+	}
 	handler := NewServer(store).Handler()
+	httpServer := httptest.NewServer(handler)
+	defer httpServer.Close()
 
-	// Discarding this response models a client losing the response after the
-	// database transaction committed. The retry uses the same idempotency key.
-	first := httptest.NewRecorder()
-	handler.ServeHTTP(first, httptest.NewRequest(http.MethodPost, "/v1/workflows", bytes.NewReader(requestBody(`{"b":2,"a":1}`))))
-	if first.Code != http.StatusCreated {
-		t.Fatalf("first submission status = %d: %s", first.Code, first.Body.String())
+	// A real HTTP transport receives the response headers, closes the response
+	// body, and reports a client-side connection loss. The server has already
+	// committed the transaction, so the retry must resolve the same workflow.
+	dropClient := &http.Client{Transport: responseDropTransport{base: http.DefaultTransport}}
+	firstRequest, err := http.NewRequest(http.MethodPost, httpServer.URL+"/v1/workflows", bytes.NewReader(requestBody(`{"b":2,"a":1}`)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := dropClient.Do(firstRequest); err == nil {
+		t.Fatal("response-loss transport unexpectedly returned success")
 	}
 	second := httptest.NewRecorder()
 	handler.ServeHTTP(second, httptest.NewRequest(http.MethodPost, "/v1/workflows", bytes.NewReader(requestBody(`{"a":1,"b":2}`))))
@@ -127,6 +137,35 @@ func TestWorkflowAPIResponseLossHistoryAndRetention(t *testing.T) {
 	if conflict.Code != http.StatusConflict || !strings.Contains(conflict.Body.String(), "PAYLOAD_CONFLICT") {
 		t.Fatalf("payload conflict = %d: %s", conflict.Code, conflict.Body.String())
 	}
+	meaningConflict := httptest.NewRecorder()
+	handler.ServeHTTP(meaningConflict, httptest.NewRequest(http.MethodPost, "/v1/workflows", bytes.NewReader(requestBodyWith(workflowID, submissionKey, definitionID, 1, "root", json.RawMessage(`{"amount":9999}`), `{"a":1,"b":2}`))))
+	if meaningConflict.Code != http.StatusConflict || !strings.Contains(meaningConflict.Body.String(), "PAYLOAD_CONFLICT") {
+		t.Fatalf("execution-meaning conflict = %d: %s", meaningConflict.Code, meaningConflict.Body.String())
+	}
+
+	unknownDefinition := httptest.NewRecorder()
+	handler.ServeHTTP(unknownDefinition, httptest.NewRequest(http.MethodPost, "/v1/workflows", bytes.NewReader(requestBodyWith("dur006-"+state.NewID(), "unknown-definition-"+state.NewID(), "missing-definition", 1, "root", json.RawMessage(`{}`), `{}`))))
+	if unknownDefinition.Code != http.StatusNotFound || !strings.Contains(unknownDefinition.Body.String(), "DEFINITION_NOT_FOUND") {
+		t.Fatalf("unknown definition = %d: %s", unknownDefinition.Code, unknownDefinition.Body.String())
+	}
+
+	unknownNode := httptest.NewRecorder()
+	handler.ServeHTTP(unknownNode, httptest.NewRequest(http.MethodPost, "/v1/workflows", bytes.NewReader(requestBodyWith("dur006-"+state.NewID(), "unknown-node-"+state.NewID(), definitionID, 1, "missing", json.RawMessage(`{}`), `{}`))))
+	if unknownNode.Code != http.StatusUnprocessableEntity || !strings.Contains(unknownNode.Body.String(), "UNKNOWN_INITIAL_NODE") {
+		t.Fatalf("unknown node = %d: %s", unknownNode.Code, unknownNode.Body.String())
+	}
+
+	workflowIDConflict := httptest.NewRecorder()
+	handler.ServeHTTP(workflowIDConflict, httptest.NewRequest(http.MethodPost, "/v1/workflows", bytes.NewReader(requestBodyWith(workflowID, "different-submission-"+state.NewID(), definitionID, 1, "root", json.RawMessage(`{}`), `{}`))))
+	if workflowIDConflict.Code != http.StatusConflict || !strings.Contains(workflowIDConflict.Body.String(), "WORKFLOW_ID_CONFLICT") {
+		t.Fatalf("workflow ID conflict = %d: %s", workflowIDConflict.Code, workflowIDConflict.Body.String())
+	}
+
+	duplicateKeys := httptest.NewRecorder()
+	handler.ServeHTTP(duplicateKeys, httptest.NewRequest(http.MethodPost, "/v1/workflows", strings.NewReader(`{"submission_key":"duplicate-keys","payload":{"a":1,"a":2},"definition_id":"`+definitionID+`","definition_version":1,"initial_node_id":"root"}`)))
+	if duplicateKeys.Code != http.StatusBadRequest || !strings.Contains(duplicateKeys.Body.String(), "INVALID_REQUEST") {
+		t.Fatalf("duplicate keys = %d: %s", duplicateKeys.Code, duplicateKeys.Body.String())
+	}
 	var workflowCount, outboxCount, historyCount int
 	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM engine.workflow_executions WHERE namespace = $1`, namespace).Scan(&workflowCount); err != nil {
 		t.Fatal(err)
@@ -146,6 +185,24 @@ func TestWorkflowAPIResponseLossHistoryAndRetention(t *testing.T) {
 	if missing.Code != http.StatusNotFound || !strings.Contains(missing.Body.String(), "NOT_FOUND") {
 		t.Fatalf("missing workflow = %d: %s", missing.Code, missing.Body.String())
 	}
+	unknownRoute := httptest.NewRecorder()
+	handler.ServeHTTP(unknownRoute, httptest.NewRequest(http.MethodGet, "/v1/not-a-route", nil))
+	if unknownRoute.Code != http.StatusNotFound || !strings.Contains(unknownRoute.Body.String(), `"code":"NOT_FOUND"`) {
+		t.Fatalf("unknown route = %d: %s", unknownRoute.Code, unknownRoute.Body.String())
+	}
+}
+
+type responseDropTransport struct {
+	base http.RoundTripper
+}
+
+func (t responseDropTransport) RoundTrip(request *http.Request) (*http.Response, error) {
+	response, err := t.base.RoundTrip(request)
+	if err != nil {
+		return nil, err
+	}
+	_ = response.Body.Close()
+	return nil, fmt.Errorf("simulated response connection loss")
 }
 
 func apiIntegrationDatabaseURL(t *testing.T) string {

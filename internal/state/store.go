@@ -12,6 +12,7 @@ import (
 
 	"durable-agent-execution-engine/internal/partition"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -109,9 +110,6 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 	if err != nil {
 		return CreateWorkflowResult{}, err
 	}
-	if int16(computedPartition) != input.PartitionID {
-		return CreateWorkflowResult{}, fmt.Errorf("%w: got %d, want %d", ErrPartitionMismatch, input.PartitionID, computedPartition)
-	}
 	if input.ActorID == "" {
 		input.ActorID = "client"
 	}
@@ -124,6 +122,70 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var workflow Workflow
+	// Resolve an existing idempotency record before validating the definition.
+	// This preserves the stable conflict response for a retry whose execution
+	// meaning changed, even if the changed definition is not present.
+	err = tx.QueryRow(ctx, `
+		SELECT workflow_id, namespace, submission_key, submission_payload_hash,
+			definition_id, definition_version, partition_id, state, revision,
+			created_at, updated_at
+		FROM engine.workflow_executions
+		WHERE namespace = $1 AND submission_key = $2
+		FOR UPDATE`, input.Namespace, input.SubmissionKey).Scan(
+		&workflow.WorkflowID, &workflow.Namespace, &workflow.SubmissionKey,
+		&workflow.PayloadHash, &workflow.DefinitionID, &workflow.DefinitionVersion,
+		&workflow.PartitionID, &workflow.State, &workflow.Revision,
+		&workflow.CreatedAt, &workflow.UpdatedAt)
+	if err == nil {
+		if workflow.PayloadHash != input.SubmissionPayloadHash {
+			return CreateWorkflowResult{}, ErrSubmissionConflict
+		}
+		if err := tx.Commit(ctx); err != nil {
+			return CreateWorkflowResult{}, err
+		}
+		return CreateWorkflowResult{Workflow: workflow, Created: false}, nil
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return CreateWorkflowResult{}, fmt.Errorf("read existing workflow by submission: %w", err)
+	}
+
+	// A workflow ID is independently unique. Check it before the insert so a
+	// client mistake is not exposed as a database 500.
+	var existingNamespace, existingSubmissionKey string
+	err = tx.QueryRow(ctx, `
+		SELECT namespace, submission_key
+		FROM engine.workflow_executions
+		WHERE workflow_id = $1
+		FOR UPDATE`, input.WorkflowID).Scan(&existingNamespace, &existingSubmissionKey)
+	if err == nil {
+		return CreateWorkflowResult{}, ErrWorkflowIDConflict
+	}
+	if !errors.Is(err, pgx.ErrNoRows) {
+		return CreateWorkflowResult{}, fmt.Errorf("read existing workflow ID: %w", err)
+	}
+
+	// The repository, not the HTTP caller, is the authority for the initial
+	// node's declared effect class. This also turns FK/invalid-node mistakes
+	// into typed client errors before creating any durable rows.
+	var effectClass *string
+	err = tx.QueryRow(ctx, `
+		SELECT effect_classes ->> $3
+		FROM engine.workflow_definitions
+		WHERE definition_id = $1 AND version = $2`,
+		input.DefinitionID, input.DefinitionVersion, input.InitialNodeID).Scan(&effectClass)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return CreateWorkflowResult{}, ErrDefinitionNotFound
+	}
+	if err != nil {
+		return CreateWorkflowResult{}, fmt.Errorf("read workflow definition: %w", err)
+	}
+	if effectClass == nil || *effectClass == "" {
+		return CreateWorkflowResult{}, ErrUnknownNode
+	}
+	if int16(computedPartition) != input.PartitionID {
+		return CreateWorkflowResult{}, fmt.Errorf("%w: got %d, want %d", ErrPartitionMismatch, input.PartitionID, computedPartition)
+	}
+
 	err = tx.QueryRow(ctx, `
 		INSERT INTO engine.workflow_executions
 			(workflow_id, namespace, submission_key, submission_payload_hash,
@@ -162,6 +224,10 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 		return CreateWorkflowResult{Workflow: workflow, Created: false}, nil
 	}
 	if err != nil {
+		var constraintErr *pgconn.PgError
+		if errors.As(err, &constraintErr) && constraintErr.Code == "23505" {
+			return CreateWorkflowResult{}, ErrWorkflowIDConflict
+		}
 		return CreateWorkflowResult{}, fmt.Errorf("insert workflow: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `

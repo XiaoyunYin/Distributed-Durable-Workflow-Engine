@@ -31,6 +31,9 @@ var (
 	ErrEvidenceConflict       = errors.New("late evidence conflicts with the durable evidence")
 	ErrEffectIdentityMismatch = errors.New("retry effect identity does not match the first attempt")
 	ErrWorkflowNotFound       = errors.New("workflow not found")
+	ErrDefinitionNotFound     = errors.New("workflow definition not found")
+	ErrUnknownNode            = errors.New("initial node is not declared by the workflow definition")
+	ErrWorkflowIDConflict     = errors.New("workflow ID is already used by another submission")
 )
 
 const (

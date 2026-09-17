@@ -117,6 +117,81 @@ func TestQueryNotFoundAndStaleRevisionMapping(t *testing.T) {
 	}
 }
 
+func TestSubmissionFingerprintAndJSONRules(t *testing.T) {
+	base := submitWorkflowRequest{
+		DefinitionID: "definition-1", DefinitionVersion: 1, InitialNodeID: "root",
+		InitialInput: json.RawMessage(`{"amount":10}`), Payload: json.RawMessage(`{"a":1}`),
+	}
+	hash, err := canonicalSubmissionHash(base, base.InitialInput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for name, mutate := range map[string]func(*submitWorkflowRequest){
+		"definition": func(request *submitWorkflowRequest) { request.DefinitionID = "definition-2" },
+		"version":    func(request *submitWorkflowRequest) { request.DefinitionVersion = 2 },
+		"node":       func(request *submitWorkflowRequest) { request.InitialNodeID = "other" },
+		"input":      func(request *submitWorkflowRequest) { request.InitialInput = json.RawMessage(`{"amount":9999}`) },
+		"payload":    func(request *submitWorkflowRequest) { request.Payload = json.RawMessage(`{"a":2}`) },
+	} {
+		t.Run(name, func(t *testing.T) {
+			request := base
+			mutate(&request)
+			changed, err := canonicalSubmissionHash(request, request.InitialInput)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if changed == hash {
+				t.Fatalf("changed execution request kept hash %q", hash)
+			}
+		})
+	}
+	if _, err := canonicalPayloadHash(json.RawMessage(`{"a":1,"a":2}`)); err == nil {
+		t.Fatal("duplicate JSON keys were accepted")
+	}
+	one, err := canonicalPayloadHash(json.RawMessage(`1`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	onePointZero, err := canonicalPayloadHash(json.RawMessage(`1.0`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if one == onePointZero {
+		t.Fatal("JSON number spellings were collapsed")
+	}
+}
+
+func TestRepositoryClientErrorMappingsAndUnknownRoutes(t *testing.T) {
+	requestBody := `{"submission_key":"submission-1","payload":{},"definition_id":"definition-1","definition_version":1,"initial_node_id":"root"}`
+	cases := []struct {
+		name   string
+		err    error
+		status int
+		code   string
+	}{
+		{name: "definition", err: state.ErrDefinitionNotFound, status: http.StatusNotFound, code: "DEFINITION_NOT_FOUND"},
+		{name: "node", err: state.ErrUnknownNode, status: http.StatusUnprocessableEntity, code: "UNKNOWN_INITIAL_NODE"},
+		{name: "workflow ID", err: state.ErrWorkflowIDConflict, status: http.StatusConflict, code: "WORKFLOW_ID_CONFLICT"},
+		{name: "database", err: context.DeadlineExceeded, status: http.StatusServiceUnavailable, code: "DATABASE_UNAVAILABLE"},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			fake := &fakeRepository{createErr: testCase.err}
+			recorder := httptest.NewRecorder()
+			NewServer(fake).Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/v1/workflows", strings.NewReader(requestBody)))
+			if recorder.Code != testCase.status || !strings.Contains(recorder.Body.String(), testCase.code) {
+				t.Fatalf("response = %d %s", recorder.Code, recorder.Body.String())
+			}
+		})
+	}
+
+	recorder := httptest.NewRecorder()
+	NewServer(&fakeRepository{}).Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v1/unknown", nil))
+	if recorder.Code != http.StatusNotFound || !strings.Contains(recorder.Body.String(), `"code":"NOT_FOUND"`) {
+		t.Fatalf("unknown route response = %d %s", recorder.Code, recorder.Body.String())
+	}
+}
+
 func TestHistoryResponsePaging(t *testing.T) {
 	fake := &fakeRepository{
 		workflow: state.Workflow{WorkflowID: "workflow-1", Revision: 2},

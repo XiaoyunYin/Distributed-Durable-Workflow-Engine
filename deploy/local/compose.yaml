@@ -76,13 +76,13 @@ services:
       context: ../..
       dockerfile: deploy/local/Dockerfile.runtime
     environment:
-      RUNTIME_ADDR: :8080
+      RUNTIME_ADDR: 0.0.0.0:8080
       RUNTIME_ROLE: scheduler-a
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
-      - ${RUNTIME_A_PORT:-8080}:8080
+      - 127.0.0.1:${RUNTIME_A_PORT:-8080}:8080
     depends_on:
       postgres:
         condition: service_healthy
@@ -100,13 +100,13 @@ services:
       context: ../..
       dockerfile: deploy/local/Dockerfile.runtime
     environment:
-      RUNTIME_ADDR: :8080
+      RUNTIME_ADDR: 0.0.0.0:8080
       RUNTIME_ROLE: scheduler-b
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     ports:
-      - ${RUNTIME_B_PORT:-8081}:8080
+      - 127.0.0.1:${RUNTIME_B_PORT:-8081}:8080
     depends_on:
       postgres:
         condition: service_healthy

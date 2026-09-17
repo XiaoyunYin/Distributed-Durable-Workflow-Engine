@@ -15,6 +15,7 @@ import (
 
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const (
@@ -41,6 +42,9 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/workflows", s.createWorkflow)
 	mux.HandleFunc("GET /v1/workflows/{workflowID}", s.getWorkflow)
 	mux.HandleFunc("GET /v1/workflows/{workflowID}/history", s.getHistory)
+	mux.HandleFunc("/v1/", func(w http.ResponseWriter, _ *http.Request) {
+		writeError(w, http.StatusNotFound, "NOT_FOUND", "route was not found", nil)
+	})
 	return mux
 }
 
@@ -126,17 +130,13 @@ func (s *Server) createWorkflow(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "submission_key, definition_id, positive definition_version, and initial_node_id are required", nil)
 		return
 	}
-	payloadHash, err := canonicalPayloadHash(request.Payload)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "payload must be valid JSON", nil)
-		return
-	}
 	initialInput := request.InitialInput
 	if len(initialInput) == 0 {
 		initialInput = json.RawMessage(`{}`)
 	}
-	if !json.Valid(initialInput) {
-		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "initial_input must be valid JSON", nil)
+	payloadHash, err := canonicalSubmissionHash(request, initialInput)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
 	}
 	partitionID, err := partition.ID(request.WorkflowID)
@@ -247,26 +247,129 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 	return nil
 }
 
-func canonicalPayloadHash(raw json.RawMessage) (string, error) {
-	if len(raw) == 0 {
-		return "", errors.New("payload is required")
-	}
-	decoder := json.NewDecoder(bytes.NewReader(raw))
-	decoder.UseNumber()
-	var value any
-	if err := decoder.Decode(&value); err != nil {
+func canonicalSubmissionHash(request submitWorkflowRequest, initialInput json.RawMessage) (string, error) {
+	canonicalInitialInput, err := canonicalJSON(initialInput, "initial_input")
+	if err != nil {
 		return "", err
 	}
-	var extra any
-	if err := decoder.Decode(&extra); err != io.EOF {
-		return "", errors.New("payload must contain one JSON value")
+	canonicalPayload, err := canonicalJSON(request.Payload, "payload")
+	if err != nil {
+		return "", err
 	}
-	canonical, err := json.Marshal(value)
+	fingerprint := struct {
+		DefinitionID      string          `json:"definition_id"`
+		DefinitionVersion int             `json:"definition_version"`
+		InitialNodeID     string          `json:"initial_node_id"`
+		InitialInput      json.RawMessage `json:"initial_input"`
+		Payload           json.RawMessage `json:"payload"`
+	}{
+		DefinitionID: request.DefinitionID, DefinitionVersion: request.DefinitionVersion,
+		InitialNodeID: request.InitialNodeID, InitialInput: canonicalInitialInput,
+		Payload: canonicalPayload,
+	}
+	canonical, err := json.Marshal(fingerprint)
 	if err != nil {
 		return "", err
 	}
 	sum := sha256.Sum256(canonical)
 	return hex.EncodeToString(sum[:]), nil
+}
+
+// canonicalPayloadHash is retained for focused tests and callers that need to
+// describe JSON canonicalization independently of submission identity.
+func canonicalPayloadHash(raw json.RawMessage) (string, error) {
+	canonical, err := canonicalJSON(raw, "payload")
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(canonical)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func canonicalJSON(raw json.RawMessage, field string) ([]byte, error) {
+	if len(raw) == 0 {
+		if field == "payload" {
+			return nil, errors.New("payload is required")
+		}
+		return nil, fmt.Errorf("%s must be valid JSON", field)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := validateJSONValue(decoder); err != nil {
+		return nil, fmt.Errorf("%s must be valid JSON without duplicate object keys: %w", field, err)
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		if err == nil {
+			return nil, fmt.Errorf("%s must contain one JSON value", field)
+		}
+		return nil, fmt.Errorf("%s must contain one JSON value: %w", field, err)
+	}
+	decoder = json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return nil, err
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil {
+		return nil, err
+	}
+	return canonical, nil
+}
+
+func validateJSONValue(decoder *json.Decoder) error {
+	token, err := decoder.Token()
+	if err != nil {
+		return err
+	}
+	delimiter, isDelimiter := token.(json.Delim)
+	if !isDelimiter {
+		return nil
+	}
+	switch delimiter {
+	case '{':
+		seen := map[string]struct{}{}
+		for decoder.More() {
+			keyToken, err := decoder.Token()
+			if err != nil {
+				return err
+			}
+			key, ok := keyToken.(string)
+			if !ok {
+				return errors.New("object key is not a string")
+			}
+			if _, exists := seen[key]; exists {
+				return fmt.Errorf("duplicate object key %q", key)
+			}
+			seen[key] = struct{}{}
+			if err := validateJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		end, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if end != json.Delim('}') {
+			return errors.New("object did not terminate")
+		}
+	case '[':
+		for decoder.More() {
+			if err := validateJSONValue(decoder); err != nil {
+				return err
+			}
+		}
+		end, err := decoder.Token()
+		if err != nil {
+			return err
+		}
+		if end != json.Delim(']') {
+			return errors.New("array did not terminate")
+		}
+	default:
+		return fmt.Errorf("unexpected JSON delimiter %q", delimiter)
+	}
+	return nil
 }
 
 func parseNonNegativeQuery(r *http.Request, name string, fallback int) (int, error) {
@@ -305,6 +408,12 @@ func writeRepositoryError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, state.ErrSubmissionConflict):
 		writeError(w, http.StatusConflict, "PAYLOAD_CONFLICT", "submission key already has a different payload", nil)
+	case errors.Is(err, state.ErrDefinitionNotFound):
+		writeError(w, http.StatusNotFound, "DEFINITION_NOT_FOUND", "workflow definition was not found", nil)
+	case errors.Is(err, state.ErrUnknownNode):
+		writeError(w, http.StatusUnprocessableEntity, "UNKNOWN_INITIAL_NODE", "initial node is not declared by the workflow definition", nil)
+	case errors.Is(err, state.ErrWorkflowIDConflict):
+		writeError(w, http.StatusConflict, "WORKFLOW_ID_CONFLICT", "workflow_id is already used by another submission", nil)
 	case errors.Is(err, state.ErrWorkflowNotFound):
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "workflow was not found", nil)
 	case errors.Is(err, state.ErrRevisionConflict):
@@ -313,9 +422,16 @@ func writeRepositoryError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "STALE_CLAIM", "the claim is stale", nil)
 	case errors.Is(err, state.ErrAttemptNotCurrent):
 		writeError(w, http.StatusConflict, "STALE_ATTEMPT", "the attempt is no longer current", nil)
+	case isDatabaseUnavailable(err):
+		writeError(w, http.StatusServiceUnavailable, "DATABASE_UNAVAILABLE", "database is unavailable", nil)
 	default:
 		writeError(w, http.StatusInternalServerError, "INTERNAL_ERROR", "internal server error", nil)
 	}
+}
+
+func isDatabaseUnavailable(err error) bool {
+	var connectErr *pgconn.ConnectError
+	return errors.As(err, &connectErr) || errors.Is(err, context.DeadlineExceeded)
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string, currentRevision *int64) {
