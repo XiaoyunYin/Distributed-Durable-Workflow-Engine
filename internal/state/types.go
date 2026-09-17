@@ -15,12 +15,25 @@ import (
 )
 
 var (
-	ErrSubmissionConflict = errors.New("submission key has a different payload")
-	ErrLeaseNotOwned      = errors.New("scheduler lease is not owned or has expired")
-	ErrRevisionConflict   = errors.New("workflow revision conflict")
-	ErrInvalidTransition  = errors.New("invalid workflow transition")
-	ErrAttemptNotCurrent  = errors.New("attempt is not current or claim is invalid")
-	ErrNotTimedOut        = errors.New("attempt is not a timed-out non-cooperating attempt")
+	ErrSubmissionConflict   = errors.New("submission key has a different payload")
+	ErrLeaseNotOwned        = errors.New("scheduler lease is not owned or has expired")
+	ErrRevisionConflict     = errors.New("workflow revision conflict")
+	ErrInvalidTransition    = errors.New("invalid workflow transition")
+	ErrAttemptNotCurrent    = errors.New("attempt is not current or claim is invalid")
+	ErrNotTimedOut          = errors.New("attempt is not a timed-out non-cooperating attempt")
+	ErrStaleClaim           = errors.New("claim is stale")
+	ErrClaimRequestConflict = errors.New("worker request ID belongs to another attempt")
+	ErrResultConflict       = errors.New("result conflicts with the durable receipt")
+	ErrEffectClassMismatch  = errors.New("attempt effect class does not match its definition")
+	ErrMissingEffectClass   = errors.New("activity definition has no effect class")
+	ErrPartitionMismatch    = errors.New("workflow partition does not match the frozen partition map")
+	ErrResultNotConsumable  = errors.New("attempt has no unconsumed terminal result")
+	ErrEvidenceConflict     = errors.New("late evidence conflicts with the durable evidence")
+)
+
+const (
+	DefaultDispatchLease = time.Minute
+	DefaultAttemptLease  = time.Minute
 )
 
 type WorkflowState string
@@ -72,6 +85,7 @@ type DefinitionInput struct {
 	DefinitionHash   string
 	Graph            json.RawMessage
 	ActivityVersions json.RawMessage
+	EffectClasses    json.RawMessage
 }
 
 type CreateWorkflowInput struct {
@@ -128,14 +142,17 @@ type OwnerTransitionInput struct {
 }
 
 type AttemptInput struct {
-	Lease             LeaseRef
-	WorkflowID        string
-	NodeID            string
-	Iteration         int
-	ExpectedRevision  int64
-	EffectClass       EffectClass
-	LogicalEffectKey  string
-	GrantScopeHash    string
+	Lease            LeaseRef
+	WorkflowID       string
+	NodeID           string
+	Iteration        int
+	ExpectedRevision int64
+	EffectClass      EffectClass
+	LogicalEffectKey string
+	GrantScopeHash   string
+	// HeartbeatDeadline is the initial dispatch deadline. ClaimAttempt replaces
+	// it with a fresh worker lease; timeout redispatches and replacements also
+	// arm a fresh dispatch deadline.
 	HeartbeatDeadline time.Time
 	ActorID           string
 }
@@ -158,17 +175,28 @@ type Attempt struct {
 }
 
 type ClaimInput struct {
-	WorkflowID string
-	NodeID     string
-	Iteration  int
-	WorkerID   string
-	RequestID  string
+	WorkflowID   string
+	NodeID       string
+	Iteration    int
+	WorkerID     string
+	RequestID    string
+	AttemptLease time.Duration
 }
 
 type ClaimResult struct {
+	AttemptNumber     int64
+	ClaimToken        string
+	EffectClass       EffectClass
+	HeartbeatDeadline time.Time
+}
+
+type HeartbeatInput struct {
+	WorkflowID    string
+	NodeID        string
+	Iteration     int
 	AttemptNumber int64
 	ClaimToken    string
-	EffectClass   EffectClass
+	Extension     time.Duration
 }
 
 type ResultInput struct {
@@ -190,6 +218,16 @@ const (
 	ResultRecordedAsEvidence ResultDisposition = "RECORDED_AS_EVIDENCE"
 )
 
+type ResultReceipt struct {
+	Disposition   ResultDisposition
+	WorkflowID    string
+	NodeID        string
+	Iteration     int
+	AttemptNumber int64
+	AttemptState  AttemptState
+	Payload       json.RawMessage
+}
+
 type TimeoutInput struct {
 	Lease            LeaseRef
 	WorkflowID       string
@@ -198,6 +236,7 @@ type TimeoutInput struct {
 	AttemptNumber    int64
 	ExpectedRevision int64
 	ActorID          string
+	DispatchLease    time.Duration
 }
 
 type TimeoutResult struct {
@@ -243,6 +282,24 @@ type LateEvidence struct {
 type CreateWorkflowResult struct {
 	Workflow Workflow
 	Created  bool
+}
+
+type ConsumeResultInput struct {
+	Lease            LeaseRef
+	WorkflowID       string
+	NodeID           string
+	Iteration        int
+	AttemptNumber    int64
+	ExpectedRevision int64
+	NewWorkflowState WorkflowState
+	RetryDueAt       *time.Time
+	ActorID          string
+}
+
+type ConsumeResult struct {
+	Workflow     Workflow
+	NodeState    WorkflowState
+	AttemptState AttemptState
 }
 
 func New(pool *pgxpool.Pool) *Store {

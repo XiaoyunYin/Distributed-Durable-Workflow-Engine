@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 IN_PROGRESS; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -173,7 +173,7 @@ During database unavailability, reject new durable acceptance and new worker cla
 
 | Entity | Required information |
 |---|---|
-| Workflow definition | Immutable version/hash, graph, supported activity versions, limits. |
+| Workflow definition | Immutable version/hash, graph, supported activity versions, per-activity effect classes, limits. |
 | Workflow execution | ID, namespace, submission key/hash, definition version, logical partition, state, revision, timestamps. |
 | Node instance | Stable workflow/node/iteration identity, dependencies, inputs, accepted result, retry and deadline state. |
 | Activity attempt | Monotonic attempt number, dispatch state, worker claim token/identity, heartbeat deadline, terminal outcome. |
@@ -524,7 +524,7 @@ implementation/review cycle; retain its parent ID.
 
 **Dependencies:** M0.
 
-**DUR-005 status:** READY_FOR_REVIEW.
+**DUR-005 status:** IN_PROGRESS.
 
 | Task | Scope and acceptance |
 |---|---|
