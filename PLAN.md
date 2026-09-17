@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -537,14 +537,14 @@ implementation/review cycle; retain its parent ID.
 
 #### DUR-006 — Submission and query APIs
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** M0 and completed DUR-005; review base is closeout commit `adf5934`.
 - **Goal:** Expose durable submission and read paths so a client can retry an ambiguous create response and observe one workflow, its current status, and its ordered history.
 - **Scope:** Submission idempotency and execution-meaning conflicts; status and history queries; stable response/error mapping; response-drop-after-commit behavior; retention and ambiguous-client-outcome policy. Do not add scheduler, fan-out, Kafka relay, or paid/model scope here.
 - **Acceptance:** The same namespace/submission key and execution-defining submission (`definition_id`, `definition_version`, `initial_node_id`, `initial_input`, and `payload`) returns the same workflow without duplicate durable creation; a changed execution-defining field is rejected without mutation; status/history queries reflect committed revisions in order; a real HTTP response loss followed by retry returns one workflow; retention and the unresolved client outcome policy are documented and tested.
 - **Validation:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`; focused Go API/state tests with `go test -race ./...`; the API integration suite against the configured local PostgreSQL service, including repeated concurrent identical fixed-ID retries; `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur006-r11-check .`; `docker compose --env-file .env -f deploy/local/compose.yaml config --quiet`; `git diff --check`.
 - **Evidence:** `api/`, `cmd/runtime/`, the DUR-006 integration/API tests, `docs/BUILD_LOG.md`, and the committed `REVIEW.md` handoff at target `a37661d`. Base is `adf5934`; the exact commands and remaining gaps are recorded in the handoff.
-- **Review:** Use closeout commit `adf5934` as the exact review base; commit the DUR-006 implementation before `READY_FOR_REVIEW`. Claude must review the final code target with a committed, non-provisional verdict.
+- **Review:** Base was closeout commit `adf5934`; Claude's committed round-11 review covers final code target `a37661d` and has no blocking findings. The closeout is recorded in `REVIEW.md` and this build log.
 - **Remaining limitations:** No remote CI, clean-machine bootstrap, hard-kill durability, or production retention/failover claim unless newly tested and recorded.
 
 #### DUR-007 follow-up from DUR-005 R028
@@ -913,9 +913,10 @@ contract wording follow-up for the first DUR-005 contract touch. Local
 foundation work does not require a cloud or model-call budget.
 
 DUR-005 is DONE at reviewed code target `333a555` with base `79ba118` and
-Claude's committed round-8 verdict. DUR-006 is implemented and handed off at
-`d8083d2` with base `adf5934`; await Claude's committed review before marking
-it DONE. Keep the M0 contracts and partition-map version frozen while extending
-the durable state repository.
+Claude's committed round-8 verdict. DUR-006 is DONE at reviewed code target
+`a37661d` with base `adf5934`; R029-R033 are VERIFIED and R028 remains the
+recorded DUR-007 fan-out follow-up. Keep the M0 contracts and partition-map
+version frozen while extending the durable state repository. The next task is
+DUR-007; add its detailed scope and validation record before implementation.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

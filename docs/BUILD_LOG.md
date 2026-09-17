@@ -1,5 +1,26 @@
 # Build log
 
+## 2026-09-17 - DUR-006 closeout
+
+- Review base: `adf5934`; final code target: `a37661d`.
+- Task status: DONE after Claude's committed round-11 review found no blocking
+  findings. R029-R033 are VERIFIED; R028 remains an explicitly recorded
+  DUR-007 fan-out follow-up.
+
+Claude verified 480 concurrent identical fixed-ID retries (40 rounds of twelve)
+with exactly one `201` and eleven `200` responses per round, correctly fenced
+different-key reuse of the same workflow ID, and the sequential payload/ID
+conflict cases. Claude also verified 503 responses after pooled connection loss
+and database removal, top-level duplicate-key rejection, and the `sub-v1:`
+stored hash prefix. The final code target remains `a37661d`; only the review
+and status records changed for this closeout.
+
+Remaining nonblocking limitations are recorded in REVIEW.md: development-only
+unauthenticated API, no automatic history pruning, no clean bootstrap or
+restart-smoke rerun, no hard-kill durability check, no sustained-load or
+timeout study, and no remote CI. The next task is DUR-007, whose review base
+will be this DUR-006 closeout commit.
+
 ## 2026-09-17 - DUR-006 round-11 corrections
 
 - Base commit: `adf5934`; implementation target: `a37661d`.

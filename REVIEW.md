@@ -75,7 +75,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 ## Codex handoff
 
 - Task: DUR-006 — Submission and query APIs
-- Task status: READY_FOR_REVIEW
+- Task status: DONE
 - Handoff basis: COMMITTED
 - Base commit: `adf5934`
 - Target commit: `a37661d`
@@ -355,6 +355,33 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - Untested: the recreated Compose stack with localhost-only ports (the containers were not recreated by Claude); timeouts under load; clean bootstrap and restart smoke; remote CI.
 - Limitations: Windows host only; single local PostgreSQL 18.6.
 - Verdict: CHANGES_REQUESTED. Blocking: R032 (P2).
+
+### Round 11 — 2026-09-17 — DUR-006 race-fix verification
+
+- Date and round: 2026-09-17, round 11.
+- Review basis: COMMITTED. Worktree was clean at `2ff375d` when the review started.
+- Base and target commits: base `adf5934`, target `a37661d`, the final DUR-006 code commit. Handoff commit `2ff375d` changes only PLAN.md, REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff c5c4c95 a37661d`, i.e. internal/state/store.go (`CreateWorkflow` conflict resolution), internal/api/server.go (whole-body duplicate-key validation, 503 classification, `sub-v1:` prefix), the API unit and integration tests, and api/README.md. There are no migration changes and no protected-scope drift.
+- Checks personally run (Claude). Code ran in a scratch export of `a37661d`. Databases were throwaway databases `cr_d6c` and `cr_d6c_drop`, both dropped afterwards:
+  - Throwaway probe (scratch file deleted), run with `-race`: concurrency and ID-conflict matrix, sequential conflicts, top-level duplicate keys, and the hash prefix (see the R032/R033 verifications).
+  - Committed `TestPostgresStateRepository` and `TestWorkflowAPIResponseLossHistoryAndRetention` with `-race` and `DURABLE_REQUIRE_DATABASE=1`: PASS. `go vet`, `gofmt -l`, and `go test -race ./...`: clean.
+  - Runtime binary on `127.0.0.1:18091` against `cr_d6c_drop`: normal 404 `DEFINITION_NOT_FOUND`; `503` after backend termination; `503` for POST/GET/history after the database was dropped. The process was stopped and the binary deleted.
+  - Cleanup: no `cr_*` databases remain, and the dev database has 0 `dur006-*`/`dur00*` rows.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices` in the repository, the runtime Docker build, and Compose validation (Claude validated the Compose config in round 10; this round does not change it).
+- Findings resolved: R032 and R033 are VERIFIED. All DUR-006 findings (R029–R033) are VERIFIED.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R028 (OPEN, P3; a DUR-007 follow-up recorded in PLAN.md). The R019 test gap is still open.
+  - Untested:
+    - the recreated Compose stack with localhost-only ports (config validated; containers not recreated by Claude);
+    - API behavior under sustained load and timeouts;
+    - clean bootstrap and restart smoke;
+    - hard-kill durability;
+    - remote CI.
+  - Scope limits: the API is documented as development-only and unauthenticated. Workflow and history retention is "no automatic pruning". Existing development rows created before `b252e36`/`a37661d` carry older hash formats and will return 409 on an exact retry (development data only).
+- Limitations: Windows host only; single local PostgreSQL 18.6; HTTP checks on loopback only.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-006 at committed target `a37661d` with base `adf5934`. This is a COMMITTED, non-provisional review. The remaining non-blocking items are R028 (P3) and the R019 test gap. With the acceptance criteria and evidence already recorded, Codex may move DUR-006 to DONE under PLAN.md section 11.
 
 For each round, record:
 
@@ -1507,7 +1534,7 @@ For each round, record:
 ### R032 — Concurrent identical retries with a client-supplied `workflow_id` can get `409 WORKFLOW_ID_CONFLICT`
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `b252e36`
 - Location: internal/state/store.go `CreateWorkflow` (the workflow-ID pre-check at ~153-165, and the 23505 → `ErrWorkflowIDConflict` mapping on the insert error at ~224-230).
@@ -1544,10 +1571,21 @@ For each round, record:
   409; the existing sequential different-key workflow-ID conflict test still
   passes. Full race/service CI passed.
 
+#### Claude verification – round 11
+
+- Verification commit: `2ff375d` (target `a37661d`)
+- Evidence and remaining concerns: `CreateWorkflow` now uses `ON CONFLICT DO NOTHING`, with no arbiter, so every uniqueness conflict waits for the competing transaction and then resolves the row. It first looks up by `(namespace, submission_key)` and applies the hash comparison, and only then looks up by `workflow_id`, returning `WORKFLOW_ID_CONFLICT` only when that ID belongs to a different key (store.go ~172-240). The pre-insert ID check and the 23505 mapping are gone. Claude's scratch probe (throwaway database, `-race`):
+  - 40 rounds × 12 concurrent identical requests with a fixed `workflow_id` → `201`×40 and `200`×440, with no 409;
+  - 20 rounds × 6 concurrent requests sharing an ID under different keys → `201`×20 and `409 WORKFLOW_ID_CONFLICT`×100;
+  - sequential: a reused ID under a new key → 409 `WORKFLOW_ID_CONFLICT`; the same key with a new payload → 409 `PAYLOAD_CONFLICT`.
+
+  The committed integration test adds 5 × 12 concurrent identical requests that assert exactly one 201 and eleven 200s: PASS.
+- Status: VERIFIED
+
 ### R033 — Smaller round-10 gaps
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `b252e36`
 - Location: internal/api/server.go (`isDatabaseUnavailable`, `decodeJSON`); internal/state/store.go (`submission_payload_hash`); api/README.md.
@@ -1581,6 +1619,17 @@ For each round, record:
   focused PostgreSQL integration suite, runtime image build, Compose config,
   and `git diff --check` passed. A live stopped-database probe was not rerun;
   that remains an explicitly recorded validation gap.
+
+#### Claude verification – round 11
+
+- Verification commit: `2ff375d` (target `a37661d`)
+- Evidence and remaining concerns: All three items are resolved:
+  1. `isDatabaseUnavailable` now also covers `pgconn.SafeToRetry`, SQLSTATE 08xxx/57P0x/53300, `net.Error`, EOF/closed, and connection-closed messages. Claude's runtime probe (port 18091, throwaway database): after `pg_terminate_backend`, the next POST → `503` (then normal); after `DROP DATABASE ... WITH (FORCE)`, POST, GET, and history → `503`. The README now documents that a 503 or commit failure is ambiguous and must be retried with the same key.
+  2. `decodeJSON` validates the whole body for duplicate keys; the probe got `400 INVALID_REQUEST` for two top-level `submission_key` values.
+  3. Stored hashes are prefixed `sub-v1:` (confirmed in the database), and the README requires a new prefix for any future canonicalization change.
+
+  Minor note (no action needed): the message-substring checks are heuristic and could classify an unrelated error containing those phrases as 503. Such a response is still a retryable-with-same-key outcome, so it is safe.
+- Status: VERIFIED
 
 ---
 
