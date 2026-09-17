@@ -78,11 +78,23 @@ class FaultController:
         self._server: socket.socket | None = None
         self._connection: socket.socket | None = None
         self._token = secrets.token_hex(16)
+        self._run_id = secrets.token_hex(16)
+
+    def _prepare_trace(self) -> None:
+        if self.trace_path is None:
+            return
+        self.trace_path.parent.mkdir(parents=True, exist_ok=True)
+        # A trace path names one run. Refuse reuse so a campaign cannot
+        # silently concatenate two runs with independent sequence numbers.
+        with self.trace_path.open("x", encoding="utf-8", newline="\n") as handle:
+            handle.flush()
+            os.fsync(handle.fileno())
 
     def _record(self, event: str, **fields: object) -> None:
         with self._trace_lock:
             record: dict[str, object] = {
                 "schema_version": TRACE_SCHEMA_VERSION,
+                "run_id": self._run_id,
                 "sequence": len(self._trace) + 1,
                 "event": event,
                 "seed": self.seed,
@@ -105,6 +117,7 @@ class FaultController:
     ) -> None:
         if self._process is not None:
             raise RuntimeError("controller already started")
+        self._prepare_trace()
 
         server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)

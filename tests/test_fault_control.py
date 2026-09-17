@@ -2,6 +2,7 @@ import json
 import sys
 from pathlib import Path
 
+import pytest
 from faults.control import FaultController
 
 
@@ -53,6 +54,16 @@ def test_release_is_gated_by_named_boundary_and_acknowledged(tmp_path: Path) -> 
     assert events.index("process_exited") > events.index("released")
     records = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
     assert [record["sequence"] for record in records] == list(range(1, len(records) + 1))
+    assert len({record["run_id"] for record in records}) == 1
+
+
+def test_trace_path_is_exclusive_and_run_id_is_present(tmp_path: Path) -> None:
+    trace_path = tmp_path / "one-run.jsonl"
+    _run_release(23, trace_path)
+
+    second = FaultController(seed=24, boundary="after-effect", trace_path=trace_path)
+    with pytest.raises(FileExistsError):
+        second.start()
 
 
 def test_kill_crash_repeats_with_same_seed_and_changes_with_new_seed() -> None:

@@ -55,7 +55,9 @@ runtime-specific hash cannot silently change ownership after a restart.
 Fault fixtures report named boundaries over a process pipe and block until the
 controller sends an explicit release or kills the target. The controller uses
 event waits with bounded timeouts; it does not infer a boundary from sleeps.
-Trace records use `fault-trace.v1` and carry the seed and sequence number.
+Trace records use `fault-trace.v1` and carry the run ID, seed, and sequence
+number. A trace path is exclusive to one controller run so evidence from
+separate executions cannot be silently concatenated.
 
 `scripts/ci.ps1` composes the existing checks and exposes race and real-service
 checks as explicit switches. Paid/model checks remain outside the foundation
@@ -102,3 +104,9 @@ attempt lifecycle, and expand all race traces with transaction boundaries and
 durable-record locations. This is a clarification of the guarantees already
 specified in PLAN.md, not a relaxation or expansion of them. The contract
 version advances from `dur-002.v1` to `dur-002.v2` before schema work begins.
+
+R010/R012 amendment: the corrected contract advances to `dur-002.v3` before
+DUR-005. Worker result receipts and client/approver intent records do not apply
+workflow transitions; the lease-owning scheduler does. All scheduler writes
+use the lease-first lock order, and `WAITING_TIMER` means retry/backoff expiry
+only, not a general-purpose explicit timer.

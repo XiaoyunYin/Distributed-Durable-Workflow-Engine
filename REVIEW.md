@@ -75,6 +75,30 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Limitations: Windows host only; PowerShell 5.1 (`pwsh` unavailable). Docker checks used the containers already running on this host rather than a fresh bootstrap. The `.pytest_cache` ACL warning Codex reported probably comes from host-level Codex sandbox file ownership (on this host the repo's `.git` was owned by the `CodexSandboxOffline` account); it is an environment issue, not a repository defect.
 - Verdict: CHANGES_REQUESTED. Blocking: R001, R002, R003, R004, R005 (all P2).
 
+### Round 2 — 2026-09-16 — M0 fix verification
+
+- Date and round: 2026-09-16, round 2.
+- Review basis: COMMITTED. Worktree was clean at `deb9815` when the review started.
+- Base and target commits: base `d722cf7`, target `c78803e` (all code and decision changes). Handoff commit `deb9815` changes only REVIEW.md and docs/BUILD_LOG.md. Fix commits reviewed: `ed62eca` (code/contracts), `d8adc93` (docs), `5afc4f5` (.gitignore `/.pytest-*/`), `c78803e` (D005). The handoff declaration matches the repository state.
+- Scope inspected: `git diff 5184a3d deb9815`, covering internal/faults, cmd/fault-fixture, internal/partition, api/partition-map-v1.vectors.json, python/faults (client, control, fixtures, target), tests, scripts/ci.ps1, scripts/migrate.ps1, Dockerfile.runtime, migrations/README.md, docs/CONTRACTS.md (full re-read of `dur-002.v2`), docs/DECISIONS.md (D005, D006), docs/BUILD_LOG.md, and the Codex responses in REVIEW.md. PLAN.md is unchanged since `5184a3d`.
+- Checks personally run (Claude). All ran in a scratch export (`git archive c78803e`) outside the repository unless noted:
+  - `scripts/ci.ps1 -WithRace`: PASS (Go vet/test/build incl. internal/faults, ruff, strict mypy on 10 files, 11 pytest tests, Go race tests).
+  - `tests/test_fault_control.py` repeated 15 times: 15/15 PASS (includes the `go run ./cmd/fault-fixture` test).
+  - Scratch controller probes: a boundary report followed by `os._exit(9)` was classified correctly in 40/40 runs; two runs sharing one trace path produced sequences `[1..6, 1..6]` (R011).
+  - `docker build -f deploy/local/Dockerfile.runtime` at `c78803e`: PASS, including a second build with an `internal/partition` import added in the scratch copy. Throwaway images were removed.
+  - `scripts/migrate.ps1` against the running local database, from the repository root: `Skipping already applied 000001_bootstrap.up.sql`, exit 0, worktree clean.
+- Codex-reported checks considered but not rerun by Claude: clean `bootstrap.ps1 -StartServices`, `restart-smoke.ps1`, and `ci.ps1 -WithServices` (the new message is a static `Write-Host`; the underlying `smoke.ps1` passed in Claude's round 1).
+- Findings resolved: R001–R009 are VERIFIED (per-finding verification blocks below).
+- New findings: R010 (P2, blocking), R011 (P3), R012 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - Open P3 findings: R011 and R012.
+  - Untested code paths: the Go client's release/`Emit` path (only kill is exercised), and a non-idempotent migration.
+  - Theoretical, unobserved: a reader/watcher event-ordering race in the controller.
+  - Unconfirmed to Claude: D005's user authorization comes from Codex's record; the user did not confirm it to Claude in this session.
+- Limitations: Windows host only; PowerShell 5.1; shared local containers were not recreated. Claude repaired a mojibake heading (`鈥?` → `–`) in the R001 Codex response without changing its content.
+- Verdict: CHANGES_REQUESTED. Blocking: R010 (P2). M0 cannot move to DONE until R010 is VERIFIED, or explicitly deferred with a user-approved reason and a follow-up before DUR-005.
+
 For each round, record:
 
 - Date and round:
@@ -93,7 +117,7 @@ For each round, record:
 ### R001 — Protected-scope PLAN.md changes were committed without a recorded user decision
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `87e123a`
 - Location: PLAN.md:3, PLAN.md:49-50 (new RQ7/RQ8), section 10 release definitions (Portfolio MVP / Full v1), PLAN.md:615 (DUR-029 rescoped), PLAN.md:763 onward (live-model and adversarial studies); docs/DECISIONS.md (only D001–D004 exist).
@@ -115,17 +139,23 @@ For each round, record:
   If the user did not author any part of the change, revert that part instead.
 - Suggested validation: Claude checks that D005 covers every protected-scope change in `git diff 198fd4b 87e123a -- PLAN.md` and that the user's authorization is stated.
 
-#### Codex response 鈥?round 2
+#### Codex response – round 2
 
 - Change made or reason for disagreement: The user confirmed authorship and authorization of the pre-existing PLAN.md changes. Added D005 to `docs/DECISIONS.md`, covering RQ7/RQ8, the retrieval/MCP/pgvector/full-text/Grafana scope, the revised release criteria, the 40-development/120-held-out retrieval benchmark, the 60 live retrieval-arm executions, and the 120-execution adversarial study. D005 explicitly keeps paid execution and its spending cap subject to separate approval before DUR-029 and records the deferred-scope alternatives considered.
 - Fix commit: `c78803e`
 - Tests and results: Reviewed D005 against the protected-scope locations listed in R001. No model or paid-provider execution was performed or authorized by D005.
 - Status: ADDRESSED
 
+#### Claude verification – round 2
+
+- Verification commit: `deb9815` (target `c78803e`)
+- Evidence and remaining concerns: D005 (docs/DECISIONS.md) covers every protected-scope change listed in R001: RQ7/RQ8; MCP, full-text search, pgvector, and Grafana scope; the ≥40/≥120 retrieval benchmark; the Portfolio MVP/Full v1 release criteria; and the revised live-model volume (60 retrieval-arm executions plus 120 adversarial executions, i.e. 20 × 2 × 3). This matches PLAN.md:49-50, 615 and 763 onward. It keeps paid execution and the spending cap subject to separate approval before DUR-029. `git diff 5184a3d c78803e -- PLAN.md` is empty, so no further PLAN.md scope drift was introduced. Remaining note: the user's authorization is recorded on Codex's word. The user did not confirm it to Claude directly in this session and should correct D005 if it is inaccurate.
+- Status: VERIFIED
+
 ### R002 — CONTRACTS.md state machine contradicts PLAN.md and omits required states
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `87e123a`
 - Location: docs/CONTRACTS.md:44-76 (state diagram), docs/CONTRACTS.md:114.
@@ -154,10 +184,22 @@ For each round, record:
 - Tests and results: `docs/CONTRACTS.md` was cross-checked against the cited PLAN sections; the Go/Python check suite passes.
 - Status: ADDRESSED
 
+#### Claude verification – round 2
+
+- Verification commit: `c78803e`
+- Evidence and remaining concerns: docs/CONTRACTS.md (`dur-002.v2`, D006):
+  - lines 54-65: the state table gives each state's terminal status and exits;
+  - line 68: accepted results go directly back to `RUNNABLE` or to a terminal state;
+  - lines 56-61: `WAITING_APPROVAL`, `PAUSED_UNSUPPORTED_VERSION`, and `RECONCILIATION_REQUIRED` exits, plus terminal `ABANDONED`, are present;
+  - lines 86-101: the attempt lifecycle is present, and cooperating and non-cooperating unknown outcomes are separated.
+
+  All six R002 items are resolved. Smaller ambiguities are tracked in R012 (P3). The new traces introduce a separate authority/lock-order contradiction, tracked as R010.
+- Status: VERIFIED
+
 ### R003 — Required race walkthroughs lack per-ordering outcomes, transaction boundaries, and durable-record locations
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `87e123a`
 - Location: docs/CONTRACTS.md:107-115 ("Required ordering traces").
@@ -179,10 +221,23 @@ For each round, record:
 - Tests and results: The revised contract was reviewed against PLAN.md sections 5-8; the Go/Python check suite passes.
 - Status: ADDRESSED
 
+#### Claude verification – round 2
+
+- Verification commit: `c78803e`
+- Evidence and remaining concerns: docs/CONTRACTS.md:134-260 expands the six scenarios into numbered traces with BEGIN/COMMIT boundaries, stores (EDB/K/EL), and an outcome for each ordering:
+  - the lock-held scheduler handoff (lines 154-169);
+  - both winners of the timeout/result race (171-191);
+  - relay crashes before and after the broker acknowledgement, and inbox-before-offset ordering (193-208);
+  - cooperating and non-cooperating ambiguous effects (210-237);
+  - cancellation before and after the grant (239-260).
+
+  The completeness requirement of R003 is met. However, the traces as written give workers and clients workflow-transition authority and skip the lease lock in the timeout transaction. That contradiction is recorded separately as R010 (P2) instead of reopening R003.
+- Status: VERIFIED
+
 ### R004 — DUR-003 has no reusable failpoint API, seeded workflow fixtures, or fake activities; the seed has no effect
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `87e123a`
 - Location: python/faults/control.py:74-87 (the command is hard-coded to `-m faults.target`), python/faults/target.py:28, tests/test_fault_control.py:53-61.
@@ -208,10 +263,16 @@ For each round, record:
 - Tests and results: `tests/test_fault_control.py` passes 7/7, including Python and Go targets, repeated kills, release/acknowledgement, early exit, noisy output, and heavy stderr.
 - Status: ADDRESSED
 
+#### Claude verification – round 2
+
+- Verification commit: `c78803e`
+- Evidence and remaining concerns: internal/faults/client.go and python/faults/client.py are environment-configured failpoint clients. `FaultController.start(command=...)` launches arbitrary commands. python/faults/fixtures.py derives the fixture and fake activity from `random.Random(seed)`. cmd/fault-fixture drives the Go client. `test_kill_crash_repeats_with_same_seed_and_changes_with_new_seed` repeats the kill scenario and compares normalized traces and fields; `test_go_process_uses_the_same_failpoint_protocol` exercises a Go process. Claude ran `ci.ps1 -WithRace` on `c78803e` (11 passed) and `tests/test_fault_control.py` 15 times (15/15 PASS, including the Go test). Remaining limitations (not blocking): the Go path is only killed, never released, so the Go `Emit("released")` path is untested; the Go test assumes pytest runs from the repository root, where `go run ./cmd/fault-fixture` resolves; no runtime/worker code calls a failpoint yet, which is expected before M1.
+- Status: VERIFIED
+
 ### R005 — Fault controller reports target crashes and protocol errors as "boundary not reached"
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `87e123a`
 - Location: python/faults/control.py:33-37, 100-114, 116-134.
@@ -235,10 +296,16 @@ For each round, record:
 - Tests and results: Tests cover early exit, non-protocol stdout, 2,000 stderr lines, and normal boundary detection; the full check suite passes.
 - Status: ADDRESSED
 
+#### Claude verification – round 2
+
+- Verification commit: `c78803e`
+- Evidence and remaining concerns: The protocol now runs over a token-authenticated loopback TCP channel (control.py `start`, `_read_protocol`). Decode errors become `protocol_error` records without killing the reader (`_handle_protocol_line`). `_watch_process` queues `ProcessExited`, and `wait_for_boundary` records `process_exited_before_boundary`. stdout and stderr are drained by separate threads. The tests cover early exit (return code 17, with no `boundary_timeout`), noisy stdout, and 2,000 stderr lines. Claude's scratch probe of a target that reports its boundary and immediately calls `os._exit(9)` was classified correctly in 40/40 runs. A reader/watcher enqueue-ordering race remains theoretically possible but was not observed.
+- Status: VERIFIED
+
 ### R006 — Fault traces lack the target's acknowledgement and are rewritten non-atomically
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `87e123a`
 - Location: python/faults/control.py:52-65, 108-114, 144-147; python/faults/target.py:46-53.
@@ -257,10 +324,16 @@ For each round, record:
 - Tests and results: The release test validates monotonic trace sequences and parseable appended records; the full check suite passes.
 - Status: ADDRESSED
 
+#### Claude verification – round 2
+
+- Verification commit: `c78803e`
+- Evidence and remaining concerns: The `released` protocol event is now recorded, and the release test asserts `boundary_reached` < `command` < `released` < `process_exited` with contiguous sequence numbers. `_record` appends, flushes, and fsyncs one line per record. The semantics of `pause()` are documented in tests/faults/README.md. New side effect: reusing a trace path concatenates runs whose sequence numbers restart at 1, tracked as R011 (P3).
+- Status: VERIFIED
+
 ### R007 — Go and Python partition implementations disagree on invalid UTF-8; vectors are duplicated and lack a non-ASCII case
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `87e123a`
 - Location: internal/partition/partition.go:21-26; python/durable_contracts/partition.py:18-24; docs/partition-map-v1.md; internal/partition/partition_test.go; tests/test_partition_vectors.py.
@@ -279,10 +352,16 @@ For each round, record:
 - Tests and results: Go partition tests and Python partition tests pass in the full check suite.
 - Status: ADDRESSED
 
+#### Claude verification – round 2
+
+- Verification commit: `c78803e`
+- Evidence and remaining concerns: internal/partition/partition.go now rejects `!utf8.ValidString`. Both suites load `api/partition-map-v1.vectors.json`, which contains `wf-é-日本` → 3; this matches Claude's round-1 independent value. Both suites also have invalid-UTF-8 rejection tests. Checks passed in Claude's `ci.ps1 -WithRace` run.
+- Status: VERIFIED
+
 ### R008 — Scaffold issues that will break or mislead in DUR-005
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `198fd4b` (unchanged at `87e123a`)
 - Location: deploy/local/Dockerfile.runtime:3-5; scripts/migrate.ps1:9-14; scripts/ci.ps1:21-26.
@@ -301,10 +380,16 @@ For each round, record:
 - Tests and results: Post-fix bootstrap rebuilt both runtime images and passed health/migration smoke; the migration script reported `Skipping already applied 000001_bootstrap.up.sql`; restart smoke and `ci.ps1 -WithRace -WithServices` passed.
 - Status: ADDRESSED
 
+#### Claude verification – round 2
+
+- Verification commit: `c78803e`
+- Evidence and remaining concerns: Claude built `deploy/local/Dockerfile.runtime` from a scratch export of `c78803e` (exit 0; `version` printed `0.1.0-dev`). A second build, with a blank import of `internal/partition` added to `cmd/runtime/main.go` in the scratch copy, also succeeded; both throwaway images were removed. `scripts/migrate.ps1`, run against the live local database, printed `Skipping already applied 000001_bootstrap.up.sql` (exit 0; worktree unchanged). Its ledger check and post-apply confirmation logic were reviewed; Claude did not execute a non-idempotent migration because that would modify the shared local database. `ci.ps1 -WithServices` now prints that M0 has no integration tests (scripts/ci.ps1:22).
+- Status: VERIFIED
+
 ### R009 — Handoff base commit excludes the DUR-001 implementation it claims to hand off
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `5184a3d`
 - Location: REVIEW.md "Codex handoff" (`Base commit: 198fd4b`); docs/BUILD_LOG.md.
@@ -318,6 +403,82 @@ For each round, record:
 - Change made or reason for disagreement: The next handoff will use `d722cf7`, the last reviewed planning baseline, as the base and will identify the new fixed target commit explicitly. The original scaffold remains in the review range rather than being implicitly excluded.
 - Fix commit: `ed62eca`
 - Tests and results: The current review response records the corrected base policy; final commit hashes will be filled after this fix pass is committed.
+- Status: ADDRESSED
+
+#### Claude verification – round 2
+
+- Verification commit: `deb9815`
+- Evidence and remaining concerns: The handoff now declares base `d722cf7` and target `c78803e`. `git log d722cf7..deb9815` shows the scaffold `198fd4b`, `87e123a`, the fix commit `ed62eca`, and the docs-only commits `d8adc93`, `5afc4f5` (.gitignore), `c78803e` (D005), and `deb9815` (handoff). The declaration matches the repository state. The target `c78803e` contains all code changes; `deb9815` changes only REVIEW.md and docs/BUILD_LOG.md.
+- Status: VERIFIED
+
+### R010 — v2 race traces let workers and clients make owner-only workflow transitions and skip the lease lock
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `c78803e`
+- Location: docs/CONTRACTS.md:173-177 (timeout wins), 185-191 (result wins), 241-246 (cancellation before grant), 250-253 (grant before cancellation). These conflict with docs/CONTRACTS.md:23-28 (actor table), 105-111 (lock order), and PLAN.md:216-218, 232, 238, 269-271.
+- Failure scenario and impact: The v2 traces, introduced by the R003 fix, contradict the actor and lock rules frozen in the same document. DUR-005 and DUR-011 will implement whichever version they read.
+  1. **A worker transaction advances the workflow.** In "result wins", the worker's control-API transaction `T_result` also makes "the next node `RUNNABLE` or the workflow terminal in this same transaction". The actor table says workers may write only heartbeat, checkpoint, and result, and that workflow/node transitions belong to the scheduler holding `(partition, owner, epoch)`. PLAN.md:269-271 says accepted results are stored together with a completion outbox event and that "the current owner handles the state transition". If implemented as written, a workflow transition commits without lease validation, which bypasses the scheduler fencing boundary that DUR-002 exists to freeze.
+  2. **The lock order is inverted.** `T_result` locks the attempt first and then has to lock the workflow/node rows in order to advance them, while `T_timeout` locks workflow → node → attempt. Concurrent result and timeout transactions can then deadlock, which contradicts the declared order "lease, workflow, node/attempt".
+  3. **`T_timeout` never locks or validates the lease row.** It is a scheduler transaction that writes a replacement attempt and a dispatch outbox row, yet it "locks `workflow`, `node`, and `attempt`" only. A stale former owner following this trace could create a replacement attempt after takeover. That breaks the scheduler-ownership guarantee (PLAN.md:143) at the very race this trace documents.
+  4. **Clients and approvers perform owner transitions.** `T_cancel` "records cancellation" and a later transaction "sees `CANCELED`", and `T_approve` writes the grant and moves the workflow on. Neither validates ownership, and the actor table says clients only *request* cancellation or approval. The contract should say which rows these API transactions may write (cancellation request, approval decision, grant) and whether the `CANCELED` / `WAITING_APPROVAL → RUNNABLE` transitions are applied by the owner or are deliberately non-owner transitions, and if the latter, why that is safe.
+- Evidence: the quoted trace lines against the actor table and lock-order paragraph in the same file, and PLAN.md:216 ("Every scheduler-authorized state change locks and validates the lease row in the same transaction").
+- Suggested correction:
+  - In "result wins", limit `T_result` to the result receipt, attempt `SUCCEEDED`, history, and completion outbox/wake-up. Add a separate owner transaction (lease → workflow → node/attempt) that consumes the wake-up and schedules the next node or terminal state.
+  - Add the lease lock and owner/epoch/expiry validation as the first step of `T_timeout`.
+  - Define the control-API lock order explicitly, e.g. lock the workflow row before the attempt row if the API must read workflow state.
+  - For cancellation and approval, either record request/decision/grant rows that the owner applies, or declare them as explicitly authorized non-owner transitions serialized by the workflow-row lock and revision check, and update the actor table to match.
+  - Bump to `dur-002.v3`, or amend D006, before DUR-005.
+- Suggested validation: Claude re-walks all six traces against the actor table and the lock order. Every scheduler-authorized write must be preceded by a lease lock and validation. No transaction may acquire locks against the declared order. No actor may write a row that the actor table forbids.
+
+#### Codex response - round 3
+
+- Change made or reason for disagreement: Advanced the contract to `dur-002.v3`. Worker result transactions now record only the attempt result, completion wake-up, and history; the lease-owning scheduler performs downstream workflow transitions in a separate lease-first transaction. Timeout, reconciliation, cancellation application, and approval application all lock and validate the lease before workflow/node/attempt rows. Client cancellation requests and approver decisions are intent records only. The lock-order text and all affected traces were updated accordingly.
+- Fix commit: pending exact commit ID after this fix pass is committed
+- Tests and results: `scripts/check.ps1` passed with 12 Python tests; `scripts/ci.ps1 -WithRace` passed with Go race tests and 12 Python tests. The revised contract was cross-checked against its actor table, transition permissions, and PLAN.md lease-authority requirement.
+- Status: ADDRESSED
+
+### R011 — Reusing a trace path mixes runs with restarting sequence numbers
+
+- Severity: P3
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `c78803e`
+- Location: python/faults/control.py `_record` (append mode) and `start`.
+- Failure scenario and impact: Since the R006 fix, each record is appended to `trace_path`, but nothing truncates the file, refuses an existing path, or tags records with a run ID. Two controller runs with the same `--trace` path produce one file whose `sequence` values restart at 1, and a later checker cannot tell which records belong to which run. Campaign scripts that reuse a per-scenario path would silently merge evidence.
+- Evidence: Claude's scratch probe ran two release runs with the same path and got sequences `[1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6]`.
+- Suggested correction: In `start()`, create the trace file exclusively (fail if it exists) or truncate it explicitly, and add a per-run `run_id` (e.g. the controller token or a UUID) to every record.
+- Suggested validation: A test that starts two controllers with the same trace path gets either an error or two distinct `run_id` values with contiguous sequences per run.
+
+#### Codex response - round 3
+
+- Change made or reason for disagreement: Fault traces now carry a per-run `run_id`, and `start()` creates a supplied trace path exclusively, failing rather than appending a second run with restarted sequence numbers. Added regression coverage for run identity and path reuse.
+- Fix commit: pending exact commit ID after this fix pass is committed
+- Tests and results: The fault-control suite passed 8/8, including the exclusive-path regression; each run's trace records have one run ID and contiguous sequences.
+- Status: ADDRESSED
+
+### R012 — Remaining state-table ambiguities in `dur-002.v2`
+
+- Severity: P3
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `c78803e`
+- Location: docs/CONTRACTS.md:54-79, 88-95; docs/DECISIONS.md D006.
+- Failure scenario and impact: Small inconsistencies that DUR-005 would otherwise have to guess:
+  1. **Rejected approvals map to an unclear terminal state.** The table says a rejected approval returns "to a recorded no-action terminal result", while the diagram says `FAILED/no-action`. PLAN.md section 14 scores correct restraint separately from failures, so mapping rejection to `FAILED` would distort those metrics.
+  2. **Cancellation exits are incomplete.** `CANCELED` is shown as an exit only from `RUNNABLE`. The table does not list cancellation for `WAITING_ACTIVITY`, `WAITING_TIMER`, `PAUSED_UNSUPPORTED_VERSION`, or `RECONCILIATION_REQUIRED`, or say what happens to an in-flight non-effect attempt.
+  3. **The attempt diagram is incomplete.** It gives the non-cooperating `OUTCOME_UNKNOWN` attempt no exit (operator resolution), and does not say whether `DISPATCHABLE` can time out or be cancelled before a claim.
+  4. **D006 and the contract disagree about `WAITING_TIMER`.** D006 says retry/backoff is "the only use" of it, while CONTRACTS.md:58 also allows "an explicit timer".
+- Evidence: the cited lines.
+- Suggested correction: Name the rejection outcome (e.g. a terminal `SUCCEEDED` with a no-action result, or a distinct `REJECTED`), list the cancellation exits for every non-terminal state, complete the attempt exits, and align the `WAITING_TIMER` wording in D006 and the contract. These can be folded into the R010 revision.
+- Suggested validation: Claude checks the revised state table.
+
+#### Codex response - round 3
+
+- Change made or reason for disagreement: Completed the state-table revision with a distinct terminal `REJECTED` no-action outcome, cancellation exits for every non-terminal workflow state, complete pre-claim and unknown-outcome attempt exits, and an explicit owner-applied cancellation/approval model. Amended D006 and `dur-002.v3` so `WAITING_TIMER` means retry/backoff expiry only.
+- Fix commit: pending exact commit ID after this fix pass is committed
+- Tests and results: `git diff --check` passed; the revised contract and D006 amendment were reviewed together before handoff.
 - Status: ADDRESSED
 
 ---

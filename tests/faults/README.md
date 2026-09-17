@@ -8,7 +8,8 @@ reports a named boundary, blocks until an explicit release or kill command,
 and writes a versioned JSONL trace. `pause()` records that the target remains
 held at the already-reported barrier; it does not send a second blocking
 command. stdout/stderr are separate drained logs,
-and early process exit is distinct from a boundary timeout.
+and early process exit is distinct from a boundary timeout. Every record has a
+per-run ID and sequence number; a supplied trace path must be new for that run.
 
 Run it with the normal suite:
 
