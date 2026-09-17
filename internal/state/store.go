@@ -12,7 +12,6 @@ import (
 
 	"durable-agent-execution-engine/internal/partition"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -149,21 +148,6 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 		return CreateWorkflowResult{}, fmt.Errorf("read existing workflow by submission: %w", err)
 	}
 
-	// A workflow ID is independently unique. Check it before the insert so a
-	// client mistake is not exposed as a database 500.
-	var existingNamespace, existingSubmissionKey string
-	err = tx.QueryRow(ctx, `
-		SELECT namespace, submission_key
-		FROM engine.workflow_executions
-		WHERE workflow_id = $1
-		FOR UPDATE`, input.WorkflowID).Scan(&existingNamespace, &existingSubmissionKey)
-	if err == nil {
-		return CreateWorkflowResult{}, ErrWorkflowIDConflict
-	}
-	if !errors.Is(err, pgx.ErrNoRows) {
-		return CreateWorkflowResult{}, fmt.Errorf("read existing workflow ID: %w", err)
-	}
-
 	// The repository, not the HTTP caller, is the authority for the initial
 	// node's declared effect class. This also turns FK/invalid-node mistakes
 	// into typed client errors before creating any durable rows.
@@ -191,7 +175,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 			(workflow_id, namespace, submission_key, submission_payload_hash,
 			 definition_id, definition_version, partition_id, state, revision)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
-		ON CONFLICT (namespace, submission_key) DO NOTHING
+		ON CONFLICT DO NOTHING
 		RETURNING workflow_id, namespace, submission_key, submission_payload_hash,
 			definition_id, definition_version, partition_id, state, revision,
 			created_at, updated_at`,
@@ -202,7 +186,12 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 		&workflow.PartitionID, &workflow.State, &workflow.Revision,
 		&workflow.CreatedAt, &workflow.UpdatedAt)
 	if errors.Is(err, pgx.ErrNoRows) {
-		if err := tx.QueryRow(ctx, `
+		// Any uniqueness conflict can mean either the idempotency key or the
+		// client-supplied workflow ID. Resolve the durable row after the
+		// statement rather than treating every 23505 as a client error. This
+		// is the race-safe retry path when two identical requests insert at
+		// the same time.
+		err := tx.QueryRow(ctx, `
 			SELECT workflow_id, namespace, submission_key, submission_payload_hash,
 				definition_id, definition_version, partition_id, state, revision,
 				created_at, updated_at
@@ -212,8 +201,34 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 			&workflow.WorkflowID, &workflow.Namespace, &workflow.SubmissionKey,
 			&workflow.PayloadHash, &workflow.DefinitionID, &workflow.DefinitionVersion,
 			&workflow.PartitionID, &workflow.State, &workflow.Revision,
+			&workflow.CreatedAt, &workflow.UpdatedAt)
+		if err == nil {
+			if workflow.PayloadHash != input.SubmissionPayloadHash {
+				return CreateWorkflowResult{}, ErrSubmissionConflict
+			}
+			if err := tx.Commit(ctx); err != nil {
+				return CreateWorkflowResult{}, err
+			}
+			return CreateWorkflowResult{Workflow: workflow, Created: false}, nil
+		}
+		if !errors.Is(err, pgx.ErrNoRows) {
+			return CreateWorkflowResult{}, fmt.Errorf("read existing workflow by submission: %w", err)
+		}
+		if err := tx.QueryRow(ctx, `
+			SELECT workflow_id, namespace, submission_key, submission_payload_hash,
+				definition_id, definition_version, partition_id, state, revision,
+				created_at, updated_at
+			FROM engine.workflow_executions
+			WHERE workflow_id = $1
+			FOR UPDATE`, input.WorkflowID).Scan(
+			&workflow.WorkflowID, &workflow.Namespace, &workflow.SubmissionKey,
+			&workflow.PayloadHash, &workflow.DefinitionID, &workflow.DefinitionVersion,
+			&workflow.PartitionID, &workflow.State, &workflow.Revision,
 			&workflow.CreatedAt, &workflow.UpdatedAt); err != nil {
-			return CreateWorkflowResult{}, fmt.Errorf("read existing workflow: %w", err)
+			return CreateWorkflowResult{}, fmt.Errorf("resolve conflicting workflow: %w", err)
+		}
+		if workflow.Namespace != input.Namespace || workflow.SubmissionKey != input.SubmissionKey {
+			return CreateWorkflowResult{}, ErrWorkflowIDConflict
 		}
 		if workflow.PayloadHash != input.SubmissionPayloadHash {
 			return CreateWorkflowResult{}, ErrSubmissionConflict
@@ -224,10 +239,6 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 		return CreateWorkflowResult{Workflow: workflow, Created: false}, nil
 	}
 	if err != nil {
-		var constraintErr *pgconn.PgError
-		if errors.As(err, &constraintErr) && constraintErr.Code == "23505" {
-			return CreateWorkflowResult{}, ErrWorkflowIDConflict
-		}
 		return CreateWorkflowResult{}, fmt.Errorf("insert workflow: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `

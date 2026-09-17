@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -178,6 +179,38 @@ func TestWorkflowAPIResponseLossHistoryAndRetention(t *testing.T) {
 	}
 	if workflowCount != 1 || outboxCount != 1 || historyCount != 1 {
 		t.Fatalf("idempotency counts = workflows %d outbox %d history %d", workflowCount, outboxCount, historyCount)
+	}
+
+	for round := 0; round < 5; round++ {
+		concurrentWorkflowID := "dur006-" + state.NewID()
+		concurrentKey := "concurrent-submission-" + state.NewID()
+		statuses := make(chan int, 12)
+		var waitGroup sync.WaitGroup
+		for requestNumber := 0; requestNumber < 12; requestNumber++ {
+			waitGroup.Add(1)
+			go func() {
+				defer waitGroup.Done()
+				recorder := httptest.NewRecorder()
+				handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/v1/workflows", bytes.NewReader(requestBodyWith(concurrentWorkflowID, concurrentKey, definitionID, 1, "root", json.RawMessage(`{}`), `{}`))))
+				statuses <- recorder.Code
+			}()
+		}
+		waitGroup.Wait()
+		close(statuses)
+		createdCount, retryCount := 0, 0
+		for statusCode := range statuses {
+			switch statusCode {
+			case http.StatusCreated:
+				createdCount++
+			case http.StatusOK:
+				retryCount++
+			default:
+				t.Fatalf("concurrent identical request status = %d", statusCode)
+			}
+		}
+		if createdCount != 1 || retryCount != 11 {
+			t.Fatalf("concurrent identical requests = %d created, %d retries", createdCount, retryCount)
+		}
 	}
 
 	missing := httptest.NewRecorder()

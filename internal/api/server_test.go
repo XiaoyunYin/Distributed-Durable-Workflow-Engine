@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/state"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type fakeRepository struct {
@@ -60,6 +62,9 @@ func TestSubmissionErrorMappingAndCanonicalPayloadHash(t *testing.T) {
 	}
 	if fake.lastCreate.SubmissionPayloadHash == "" {
 		t.Fatal("payload hash was not computed")
+	}
+	if !strings.HasPrefix(fake.lastCreate.SubmissionPayloadHash, submissionHashV1) {
+		t.Fatalf("submission hash = %q, want %q prefix", fake.lastCreate.SubmissionPayloadHash, submissionHashV1)
 	}
 
 	fake.createErr = nil
@@ -189,6 +194,19 @@ func TestRepositoryClientErrorMappingsAndUnknownRoutes(t *testing.T) {
 	NewServer(&fakeRepository{}).Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodGet, "/v1/unknown", nil))
 	if recorder.Code != http.StatusNotFound || !strings.Contains(recorder.Body.String(), `"code":"NOT_FOUND"`) {
 		t.Fatalf("unknown route response = %d %s", recorder.Code, recorder.Body.String())
+	}
+
+	duplicateTopLevel := httptest.NewRecorder()
+	NewServer(&fakeRepository{}).Handler().ServeHTTP(duplicateTopLevel, httptest.NewRequest(http.MethodPost, "/v1/workflows", strings.NewReader(`{"submission_key":"one","submission_key":"two","payload":{},"definition_id":"definition-1","definition_version":1,"initial_node_id":"root"}`)))
+	if duplicateTopLevel.Code != http.StatusBadRequest || !strings.Contains(duplicateTopLevel.Body.String(), "duplicate object key") {
+		t.Fatalf("top-level duplicate keys = %d %s", duplicateTopLevel.Code, duplicateTopLevel.Body.String())
+	}
+
+	if !isDatabaseUnavailable(&pgconn.PgError{Code: "57P01"}) {
+		t.Fatal("PostgreSQL admin shutdown was not classified as unavailable")
+	}
+	if !isDatabaseUnavailable(&net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset by peer")}) {
+		t.Fatal("network connection loss was not classified as unavailable")
 	}
 }
 

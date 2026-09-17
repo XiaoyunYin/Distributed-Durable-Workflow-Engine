@@ -27,7 +27,13 @@ Database connection failures return `503 DATABASE_UNAVAILABLE`.
 
 JSON object keys must be unique; duplicate keys are rejected. Canonicalization
 sorts object keys, while JSON number spellings remain distinct (`1` and `1.0`)
-because the decoder preserves their lexical form.
+because the decoder preserves their lexical form. The stored hash is prefixed
+`sub-v1:`; a future canonicalization change must use a new version prefix.
+
+A `503 DATABASE_UNAVAILABLE` response means the request did not receive a
+definitive database outcome. A connection or commit failure can be ambiguous,
+so retry the same execution-defining submission and idempotency key rather than
+creating a new workflow identity.
 
 The DUR-006 retention policy is conservative: workflow and transition-history
 rows are not automatically pruned by this API, and history remains queryable

@@ -9,8 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"durable-agent-execution-engine/internal/partition"
@@ -21,6 +23,7 @@ import (
 const (
 	defaultHistoryLimit = 100
 	maxRequestBytes     = 2 << 20
+	submissionHashV1    = "sub-v1:"
 )
 
 type Repository interface {
@@ -229,7 +232,17 @@ func (s *Server) getHistory(w http.ResponseWriter, r *http.Request) {
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
-	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, maxRequestBytes))
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxRequestBytes))
+	if err != nil {
+		return fmt.Errorf("invalid request body: %w", err)
+	}
+	if len(bytes.TrimSpace(body)) == 0 {
+		return errors.New("request body is required")
+	}
+	if err := validateJSONDocument(body); err != nil {
+		return fmt.Errorf("invalid JSON: %w", err)
+	}
+	decoder := json.NewDecoder(bytes.NewReader(body))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(target); err != nil {
 		if errors.Is(err, io.EOF) {
@@ -243,6 +256,21 @@ func decodeJSON(w http.ResponseWriter, r *http.Request, target any) error {
 			return errors.New("request body must contain one JSON value")
 		}
 		return fmt.Errorf("invalid trailing JSON: %w", err)
+	}
+	return nil
+}
+
+func validateJSONDocument(raw []byte) error {
+	decoder := json.NewDecoder(bytes.NewReader(raw))
+	decoder.UseNumber()
+	if err := validateJSONValue(decoder); err != nil {
+		return fmt.Errorf("JSON must be valid without duplicate object keys: %w", err)
+	}
+	if _, err := decoder.Token(); err != io.EOF {
+		if err == nil {
+			return errors.New("JSON must contain one value")
+		}
+		return fmt.Errorf("JSON must contain one value: %w", err)
 	}
 	return nil
 }
@@ -272,7 +300,7 @@ func canonicalSubmissionHash(request submitWorkflowRequest, initialInput json.Ra
 		return "", err
 	}
 	sum := sha256.Sum256(canonical)
-	return hex.EncodeToString(sum[:]), nil
+	return submissionHashV1 + hex.EncodeToString(sum[:]), nil
 }
 
 // canonicalPayloadHash is retained for focused tests and callers that need to
@@ -431,7 +459,31 @@ func writeRepositoryError(w http.ResponseWriter, err error) {
 
 func isDatabaseUnavailable(err error) bool {
 	var connectErr *pgconn.ConnectError
-	return errors.As(err, &connectErr) || errors.Is(err, context.DeadlineExceeded)
+	if errors.As(err, &connectErr) || errors.Is(err, context.DeadlineExceeded) {
+		return true
+	}
+	if pgconn.SafeToRetry(err) {
+		return true
+	}
+	var pgError *pgconn.PgError
+	if errors.As(err, &pgError) {
+		code := pgError.SQLState()
+		if strings.HasPrefix(code, "08") || strings.HasPrefix(code, "57P0") || code == "53300" {
+			return true
+		}
+	}
+	var networkError net.Error
+	if errors.As(err, &networkError) {
+		return true
+	}
+	if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) {
+		return true
+	}
+	message := strings.ToLower(err.Error())
+	return strings.Contains(message, "connection is closed") ||
+		strings.Contains(message, "connection closed unexpectedly") ||
+		strings.Contains(message, "broken pipe") ||
+		strings.Contains(message, "connection reset by peer")
 }
 
 func writeError(w http.ResponseWriter, status int, code, message string, currentRevision *int64) {
