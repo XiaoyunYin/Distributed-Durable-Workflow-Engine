@@ -350,7 +350,9 @@ func createM3TransportWorkflow(t *testing.T, ctx context.Context, store *state.S
 	ownerID := state.NewID()
 	var lease state.Lease
 	var acquired bool
-	for partitionID := int16(0); partitionID < 16; partitionID++ {
+	// Keep M3 fixtures away from the foundation/M1 integration fixtures, which
+	// intentionally exercise partition 0 in parallel service CI.
+	for partitionID := int16(8); partitionID < 16; partitionID++ {
 		var err error
 		lease, acquired, err = store.AcquireLease(ctx, partitionID, ownerID, time.Minute)
 		if err != nil {
