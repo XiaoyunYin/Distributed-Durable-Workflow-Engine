@@ -764,9 +764,33 @@ func TestPostgresStateRepository(t *testing.T) {
 		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: retryWorkflow.WorkflowID, ExpectedRevision: 5, NewState: StateRunnable,
+			ActorID: "scheduler-test", Reason: "EARLY_RETRY_TIMER", NodeID: "root",
+		}); !errors.Is(err, ErrInvalidTransition) {
+			t.Fatalf("early retry timer transition error = %v", err)
+		}
+		if _, err := store.pool.Exec(ctx, `
+			UPDATE engine.timers
+			SET due_at = clock_timestamp() - interval '1 second'
+			WHERE workflow_id = $1 AND node_id = 'root' AND iteration = 0
+				AND purpose = 'RETRY_BACKOFF' AND consumed_at IS NULL`, retryWorkflow.WorkflowID); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: retryWorkflow.WorkflowID, ExpectedRevision: 5, NewState: StateRunnable,
 			ActorID: "scheduler-test", Reason: "RETRY_TIMER_DUE", NodeID: "root",
 		}); err != nil {
 			t.Fatal(err)
+		}
+		var consumedAt *time.Time
+		if err := store.pool.QueryRow(ctx, `
+			SELECT consumed_at FROM engine.timers
+			WHERE workflow_id = $1 AND node_id = 'root' AND iteration = 0
+				AND purpose = 'RETRY_BACKOFF'`, retryWorkflow.WorkflowID).Scan(&consumedAt); err != nil {
+			t.Fatal(err)
+		}
+		if consumedAt == nil {
+			t.Fatal("due retry timer was not consumed")
 		}
 		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
@@ -782,6 +806,163 @@ func TestPostgresStateRepository(t *testing.T) {
 		})
 		if err != nil || replacement.AttemptNumber != 2 {
 			t.Fatalf("retry replacement = %+v, err=%v", replacement, err)
+		}
+
+		cooperatingRetryWorkflow, cooperatingRetryAttempt := prepare(t, EffectCooperating, "effect-stable")
+		cooperatingRetryClaim, err := store.ClaimAttempt(ctx, ClaimInput{
+			WorkflowID: cooperatingRetryWorkflow.WorkflowID, NodeID: "root", WorkerID: "worker-cooperating-retry",
+			RequestID: "request-cooperating-retry-" + cooperatingRetryWorkflow.WorkflowID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.RecordResultReceipt(ctx, ResultInput{
+			WorkflowID: cooperatingRetryWorkflow.WorkflowID, NodeID: "root", AttemptNumber: cooperatingRetryAttempt.AttemptNumber,
+			ClaimToken: cooperatingRetryClaim.ClaimToken, AttemptState: AttemptFailedRetryable, Payload: []byte(`{"retry":true}`),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		cooperatingDue := time.Now().Add(-time.Second)
+		if _, err := store.ConsumeResult(ctx, ConsumeResultInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: cooperatingRetryWorkflow.WorkflowID, NodeID: "root", AttemptNumber: cooperatingRetryAttempt.AttemptNumber,
+			ExpectedRevision: 4, NewWorkflowState: StateWaitingTimer, RetryDueAt: &cooperatingDue, ActorID: "scheduler-test",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: cooperatingRetryWorkflow.WorkflowID, ExpectedRevision: 5, NewState: StateRunnable,
+			ActorID: "scheduler-test", Reason: "RETRY_TIMER_DUE", NodeID: "root",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: cooperatingRetryWorkflow.WorkflowID, ExpectedRevision: 6, NewState: StateWaitingActivity,
+			ActorID: "scheduler-test", Reason: "SCHEDULE_RETRY", NodeID: "root",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		_, err = store.CreateAttempt(ctx, AttemptInput{
+			Lease:            LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID:       cooperatingRetryWorkflow.WorkflowID,
+			NodeID:           "root",
+			ExpectedRevision: 7,
+			EffectClass:      EffectCooperating,
+			LogicalEffectKey: "effect-new",
+			GrantScopeHash:   "grant-new",
+			ActorID:          "scheduler-test",
+		})
+		if !errors.Is(err, ErrEffectIdentityMismatch) {
+			t.Fatalf("cooperating retry identity error = %v", err)
+		}
+		unchangedRetry, err := store.GetWorkflow(ctx, cooperatingRetryWorkflow.WorkflowID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if unchangedRetry.Revision != 7 {
+			t.Fatalf("cooperating retry mismatch partially committed: %+v", unchangedRetry)
+		}
+		cooperatingReplacement, err := store.CreateAttempt(ctx, AttemptInput{
+			Lease:            LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID:       cooperatingRetryWorkflow.WorkflowID,
+			NodeID:           "root",
+			ExpectedRevision: 7,
+			EffectClass:      EffectCooperating,
+			ActorID:          "scheduler-test",
+		})
+		if err != nil || cooperatingReplacement.LogicalEffectKey != "effect-stable" || cooperatingReplacement.GrantScopeHash != "grant-1" {
+			t.Fatalf("cooperating retry inheritance = %+v, err=%v", cooperatingReplacement, err)
+		}
+	})
+
+	t.Run("cancellation settles attempts and fences later work", func(t *testing.T) {
+		cancelAndCheck := func(t *testing.T, class EffectClass) {
+			t.Helper()
+			workflow, attempt := prepare(t, class, "cancel-effect")
+			claim, err := store.ClaimAttempt(ctx, ClaimInput{
+				WorkflowID: workflow.WorkflowID, NodeID: "root", WorkerID: "cancel-worker-" + string(class),
+				RequestID: "cancel-request-" + workflow.WorkflowID,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
+				Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+				WorkflowID: workflow.WorkflowID, ExpectedRevision: 3, NewState: StateCanceled,
+				ActorID: "scheduler-test", Reason: "CANCEL_WORKFLOW", NodeID: "root",
+			}); err != nil {
+				t.Fatal(err)
+			}
+			canceled, err := store.GetWorkflow(ctx, workflow.WorkflowID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var outboxBefore int
+			if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM engine.outbox WHERE workflow_id = $1`, workflow.WorkflowID).Scan(&outboxBefore); err != nil {
+				t.Fatal(err)
+			}
+			if canceled.State != StateCanceled || canceled.Revision != 4 {
+				t.Fatalf("canceled workflow = %+v", canceled)
+			}
+			settled, err := store.GetAttempt(ctx, workflow.WorkflowID, "root", 0, attempt.AttemptNumber)
+			if err != nil || settled.State != AttemptCanceled || settled.IsCurrent {
+				t.Fatalf("canceled attempt = %+v, err=%v", settled, err)
+			}
+			if _, err := store.HeartbeatAttempt(ctx, HeartbeatInput{
+				WorkflowID: workflow.WorkflowID, NodeID: "root", AttemptNumber: attempt.AttemptNumber,
+				ClaimToken: claim.ClaimToken,
+			}); !errors.Is(err, ErrStaleClaim) {
+				t.Fatalf("canceled heartbeat error = %v", err)
+			}
+			if _, err := store.TimeoutAttempt(ctx, TimeoutInput{
+				Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+				WorkflowID: workflow.WorkflowID, NodeID: "root", AttemptNumber: attempt.AttemptNumber,
+				ExpectedRevision: canceled.Revision, ActorID: "scheduler-test",
+			}); !errors.Is(err, ErrAttemptNotCurrent) {
+				t.Fatalf("canceled timeout error = %v", err)
+			}
+			if _, err := store.RecordResultReceipt(ctx, ResultInput{
+				WorkflowID: workflow.WorkflowID, NodeID: "root", AttemptNumber: attempt.AttemptNumber,
+				ClaimToken: claim.ClaimToken, AttemptState: AttemptSucceeded, Payload: []byte(`{"late":true}`),
+			}); !errors.Is(err, ErrAttemptNotCurrent) {
+				t.Fatalf("canceled result error = %v", err)
+			}
+			unchanged, err := store.GetWorkflow(ctx, workflow.WorkflowID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var outboxAfter int
+			if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM engine.outbox WHERE workflow_id = $1`, workflow.WorkflowID).Scan(&outboxAfter); err != nil {
+				t.Fatal(err)
+			}
+			if unchanged.State != StateCanceled || unchanged.Revision != canceled.Revision || outboxAfter != outboxBefore {
+				t.Fatalf("canceled workflow changed after stale operations: workflow=%+v outbox=%d before=%d", unchanged, outboxAfter, outboxBefore)
+			}
+		}
+
+		cancelAndCheck(t, EffectPure)
+		cancelAndCheck(t, EffectCooperating)
+		cancelAndCheck(t, EffectNonCooperating)
+
+		unclaimedWorkflow, unclaimedAttempt := prepareAt(t, EffectPure, "", time.Now().Add(time.Minute))
+		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: unclaimedWorkflow.WorkflowID, ExpectedRevision: 3, NewState: StateCanceled,
+			ActorID: "scheduler-test", Reason: "CANCEL_UNCLAIMED", NodeID: "root",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		unclaimedSettled, err := store.GetAttempt(ctx, unclaimedWorkflow.WorkflowID, "root", 0, unclaimedAttempt.AttemptNumber)
+		if err != nil || unclaimedSettled.State != AttemptCanceled || unclaimedSettled.IsCurrent {
+			t.Fatalf("unclaimed canceled attempt = %+v, err=%v", unclaimedSettled, err)
+		}
+		if _, err := store.ClaimAttempt(ctx, ClaimInput{
+			WorkflowID: unclaimedWorkflow.WorkflowID, NodeID: "root", WorkerID: "late-worker",
+			RequestID: "late-claim-" + unclaimedWorkflow.WorkflowID,
+		}); err == nil {
+			t.Fatal("claim succeeded for a canceled workflow")
 		}
 	})
 

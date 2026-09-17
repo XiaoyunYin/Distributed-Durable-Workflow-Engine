@@ -24,11 +24,21 @@ BEGIN
     END LOOP;
 END $$;
 
-ALTER TABLE engine.attempt_result_evidence
-    ADD CONSTRAINT attempt_result_evidence_attempt_fk
-    FOREIGN KEY (workflow_id, node_id, iteration, attempt_number)
-    REFERENCES engine.activity_attempts (workflow_id, node_id, iteration, attempt_number)
-    ON DELETE CASCADE;
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conrelid = 'engine.attempt_result_evidence'::regclass
+          AND conname = 'attempt_result_evidence_attempt_fk'
+    ) THEN
+        ALTER TABLE engine.attempt_result_evidence
+            ADD CONSTRAINT attempt_result_evidence_attempt_fk
+            FOREIGN KEY (workflow_id, node_id, iteration, attempt_number)
+            REFERENCES engine.activity_attempts (workflow_id, node_id, iteration, attempt_number)
+            ON DELETE CASCADE;
+    END IF;
+END $$;
 
 INSERT INTO engine.schema_migrations (version) VALUES (3)
 ON CONFLICT (version) DO NOTHING;

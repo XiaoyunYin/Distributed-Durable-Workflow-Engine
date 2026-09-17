@@ -6,7 +6,6 @@ CREATE TABLE IF NOT EXISTS engine.workflow_definitions (
     definition_hash text NOT NULL,
     graph jsonb NOT NULL,
     activity_versions jsonb NOT NULL DEFAULT '{}'::jsonb,
-    effect_classes jsonb NOT NULL DEFAULT '{}'::jsonb,
     created_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     PRIMARY KEY (definition_id, version)
 );

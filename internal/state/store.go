@@ -371,15 +371,57 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 	if !legalTransition(state, input.NewState) {
 		return fmt.Errorf("%w: %s -> %s", ErrInvalidTransition, state, input.NewState)
 	}
+	var currentAttemptNumber *int64
 	if input.NodeID != "" {
-		var ignored string
 		if err := tx.QueryRow(ctx, `
-			SELECT node_id
+			SELECT current_attempt_number
 			FROM engine.node_instances
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
-			FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&ignored); err != nil {
+			FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&currentAttemptNumber); err != nil {
 			return fmt.Errorf("lock node: %w", err)
 		}
+	}
+	if input.NewState == StateCanceled && state == StateWaitingActivity {
+		if input.NodeID == "" {
+			return errors.New("cancellation of active work requires a node")
+		}
+		if currentAttemptNumber != nil {
+			if input.AttemptNumber != nil && *input.AttemptNumber != *currentAttemptNumber {
+				return ErrAttemptNotCurrent
+			}
+			attemptNumber := *currentAttemptNumber
+			input.AttemptNumber = &attemptNumber
+		}
+	}
+	var retryTimerID *string
+	if state == StateWaitingTimer && input.NewState == StateRunnable {
+		if input.NodeID == "" {
+			return fmt.Errorf("%w: retry timer requires a node", ErrInvalidTransition)
+		}
+		var timerID string
+		var dueAt time.Time
+		var consumedAt *time.Time
+		if err := tx.QueryRow(ctx, `
+			SELECT timer_id::text, due_at, consumed_at
+			FROM engine.timers
+			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
+				AND purpose = 'RETRY_BACKOFF' AND consumed_at IS NULL
+			ORDER BY due_at ASC
+			LIMIT 1
+			FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&timerID, &dueAt, &consumedAt); err != nil {
+			if errors.Is(err, pgx.ErrNoRows) {
+				return fmt.Errorf("%w: no pending retry timer", ErrInvalidTransition)
+			}
+			return fmt.Errorf("lock retry timer: %w", err)
+		}
+		var databaseNow time.Time
+		if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&databaseNow); err != nil {
+			return fmt.Errorf("read timer clock: %w", err)
+		}
+		if dueAt.After(databaseNow) {
+			return fmt.Errorf("%w: retry timer is not due", ErrInvalidTransition)
+		}
+		retryTimerID = &timerID
 	}
 	if input.AttemptNumber != nil {
 		var ignored int64
@@ -402,13 +444,37 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 		WHERE workflow_id = $1`, input.WorkflowID, input.NewState, newRevision); err != nil {
 		return fmt.Errorf("update workflow transition: %w", err)
 	}
-	if nodeState != nil {
+	if input.NewState == StateCanceled && state == StateWaitingActivity && currentAttemptNumber != nil {
+		if _, err := tx.Exec(ctx, `
+			UPDATE engine.activity_attempts
+			SET state = 'CANCELED', is_current = false, outcome_disposition = 'NONE',
+				updated_at = clock_timestamp()
+			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3 AND attempt_number = $4
+				AND is_current`, input.WorkflowID, input.NodeID, input.Iteration, *currentAttemptNumber); err != nil {
+			return fmt.Errorf("settle canceled attempt: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE engine.node_instances
+			SET state = $4, current_attempt_number = NULL, updated_at = clock_timestamp()
+			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
+			input.WorkflowID, input.NodeID, input.Iteration, StateCanceled); err != nil {
+			return fmt.Errorf("settle canceled node: %w", err)
+		}
+	} else if nodeState != nil {
 		if _, err := tx.Exec(ctx, `
 			UPDATE engine.node_instances
 			SET state = $4, revision = revision + 1, updated_at = clock_timestamp()
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
 			input.WorkflowID, input.NodeID, input.Iteration, *nodeState); err != nil {
 			return fmt.Errorf("update node transition: %w", err)
+		}
+	}
+	if retryTimerID != nil {
+		if _, err := tx.Exec(ctx, `
+			UPDATE engine.timers
+			SET consumed_at = clock_timestamp()
+			WHERE timer_id = $1 AND consumed_at IS NULL`, *retryTimerID); err != nil {
+			return fmt.Errorf("consume retry timer: %w", err)
 		}
 	}
 	if err := insertHistory(ctx, tx, input.WorkflowID, newRevision, "scheduler", input.ActorID,
@@ -636,15 +702,31 @@ func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt,
 	if input.EffectClass != authoritativeClass {
 		return Attempt{}, fmt.Errorf("%w: got %s, want %s", ErrEffectClassMismatch, input.EffectClass, authoritativeClass)
 	}
-	if authoritativeClass == EffectCooperating && input.LogicalEffectKey == "" {
-		var previousKey *string
-		if err := tx.QueryRow(ctx, `
-			SELECT logical_effect_key
+	if authoritativeClass == EffectCooperating {
+		var firstKey *string
+		var firstGrantScope *string
+		err := tx.QueryRow(ctx, `
+			SELECT logical_effect_key, grant_scope_hash
 			FROM engine.activity_attempts
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
-			ORDER BY attempt_number DESC
-			LIMIT 1`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&previousKey); err == nil && previousKey != nil {
-			input.LogicalEffectKey = *previousKey
+			ORDER BY attempt_number ASC
+			LIMIT 1`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&firstKey, &firstGrantScope)
+		if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return Attempt{}, fmt.Errorf("read first effect identity: %w", err)
+		}
+		if err == nil {
+			if input.LogicalEffectKey != "" && (firstKey == nil || input.LogicalEffectKey != *firstKey) {
+				return Attempt{}, ErrEffectIdentityMismatch
+			}
+			if firstKey != nil {
+				input.LogicalEffectKey = *firstKey
+			}
+			if input.GrantScopeHash != "" && (firstGrantScope == nil || input.GrantScopeHash != *firstGrantScope) {
+				return Attempt{}, ErrEffectIdentityMismatch
+			}
+			if firstGrantScope != nil {
+				input.GrantScopeHash = *firstGrantScope
+			}
 		}
 	}
 	if authoritativeClass == EffectCooperating && input.LogicalEffectKey == "" {
@@ -940,6 +1022,9 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 			NodeID: input.NodeID, Iteration: input.Iteration, AttemptNumber: input.AttemptNumber,
 			AttemptState: state, Payload: json.RawMessage(storedResult)}, nil
 	}
+	if isTerminalWorkflowState(workflowState) {
+		return ResultReceipt{}, ErrAttemptNotCurrent
+	}
 	if state == AttemptTimedOut && effectClass == EffectNonCooperating {
 		reconciliationRef := input.ReconciliationRef
 		if reconciliationRef == "" {
@@ -1023,6 +1108,9 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 	}
 	if partitionID != input.Lease.PartitionID {
 		return TimeoutResult{}, fmt.Errorf("workflow partition %d does not match lease %d", partitionID, input.Lease.PartitionID)
+	}
+	if isTerminalWorkflowState(workflowState) {
+		return TimeoutResult{}, ErrAttemptNotCurrent
 	}
 	if revision != input.ExpectedRevision {
 		return TimeoutResult{}, fmt.Errorf("%w: expected %d, got %d", ErrRevisionConflict, input.ExpectedRevision, revision)
@@ -1252,6 +1340,11 @@ func durationSeconds(value time.Duration) float64 {
 
 func isTerminalAttempt(state AttemptState) bool {
 	return state == AttemptSucceeded || state == AttemptFailedRetryable || state == AttemptFailedFinal
+}
+
+func isTerminalWorkflowState(state WorkflowState) bool {
+	return state == StateSucceeded || state == StateFailed || state == StateRejected ||
+		state == StateCanceled || state == StateAbandoned
 }
 
 func jsonEqual(left, right []byte) bool {
