@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 IN_PROGRESS; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -524,7 +524,7 @@ implementation/review cycle; retain its parent ID.
 
 **Dependencies:** M0.
 
-**DUR-005 status:** IN_PROGRESS.
+**DUR-005 status:** READY_FOR_REVIEW.
 
 | Task | Scope and acceptance |
 |---|---|
@@ -891,7 +891,7 @@ review at base `d722cf7` and target `b993d71` returned
 contract wording follow-up for the first DUR-005 contract touch. Local
 foundation work does not require a cloud or model-call budget.
 
-DUR-005 is implemented and handed off at `1698747` with base `79ba118`.
+DUR-005 is implemented and handed off at `49e4844` with base `79ba118`.
 Await Claude's committed review; after acceptance, mark DUR-005 DONE and
 start **DUR-006 — Submission and query APIs**. Keep the M0 contracts and
 partition-map version frozen while extending the durable state repository.

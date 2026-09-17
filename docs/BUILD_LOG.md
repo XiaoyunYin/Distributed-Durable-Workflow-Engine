@@ -256,6 +256,49 @@ the interpreter exists. The key design choice is that owner-authorized writes
 lock and fence the lease before workflow/node/attempt rows, while uncertain
 non-cooperating effects stop in reconciliation and preserve late evidence.
 
+## 2026-09-17 - DUR-005 review-fix pass
+
+- Base commit: `79ba118`; implementation commits: `f5fe570`, `49e4844`.
+- Task status: READY_FOR_REVIEW; DUR-005 is handed off to Claude at `49e4844`.
+
+Addressed round-1 DUR-005 findings R017-R023. Claim, redispatch, and replacement
+deadlines are re-armed; result and claim retries are durable and scoped; the
+lease owner consumes results before advancing nodes or creating retry timers;
+partition and effect-class metadata are validated at the repository boundary;
+service-mode database checks fail loudly when PostgreSQL is unavailable; and
+test cleanup is compatible with retained late evidence. Workflow creation and
+worker result history/outbox records are now durable, same-owner lease renewal
+preserves its epoch, and late evidence retries are idempotent. The integration
+suite also injects outbox failures to prove `CreateAttempt` and `TimeoutAttempt`
+roll back all intermediate writes.
+
+Validation:
+
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS; formatting, vet, Go tests and
+  race tests, build, Ruff, strict mypy, 12 Python tests, numbered migration
+  checks, eight PostgreSQL integration subtests, and PostgreSQL/Kafka/telemetry
+  smoke checks passed. The integration suite includes 20 rounds each of
+  concurrent claims and result-versus-timeout races.
+- Required-database mode with a wrong PostgreSQL password failed instead of
+  skipping. The default non-service integration invocation explicitly skipped.
+- A post-run query found zero `dur005-*` workflows, definitions, or evidence
+  rows; the live evidence foreign key is `ON DELETE CASCADE`.
+- `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur005-check .`: PASS.
+- `git diff --check`: PASS before the handoff-only documentation edit.
+
+Remaining gaps: clean bootstrap and restart smoke were not rerun because they
+recreate the user's running containers; no remote CI exists; and DUR-005 still
+does not implement the complete scheduler, interpreter, Kafka relay, effect
+service, or hard-kill durability study. The database tests use generated local
+identities and do not claim production retention, failover, or exactly-once
+behavior.
+
+Interview explanation: the repository now makes the safety boundary explicit
+at both sides of an uncertain activity. The worker can record exactly one
+durable receipt, while only the lease owner can consume it and advance the
+workflow; timeout branches are selected from immutable effect metadata, so a
+non-cooperating unknown effect cannot be automatically repeated.
+
 ## 2026-09-16 - M0 final acceptance
 
 - Base commit: `d722cf7`; final code/contract target: `b993d71`.

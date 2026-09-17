@@ -60,11 +60,13 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Task status: READY_FOR_REVIEW
 - Handoff basis: COMMITTED
 - Base commit: `79ba118`
-- Target commit: `1698747`
-- Scope and implementation summary: Added the numbered DUR-005 PostgreSQL migration and Go repository for immutable workflow definitions, idempotent workflow creation, partition leases, owner-fenced transitions, node/attempt lifecycle, worker claims/results, effect-class-aware timeout branches, durable outbox/history, and late non-cooperating-result evidence. R016 is addressed in the v4 contract and schema/repository path. CI service mode now applies numbered migrations and runs the PostgreSQL repository integration suite before the existing smoke checks.
+- Target commit: `49e4844`
+- Scope and implementation summary: Added the numbered DUR-005 PostgreSQL migration and Go repository for immutable workflow definitions with authoritative per-activity effect classes, partition-map validation, idempotent workflow creation with a creation outbox event, partition leases, owner-fenced transitions, node/attempt lifecycle, fresh claim/redispatch deadlines, durable worker result receipts, lease-owner result consumption, effect-class-aware timeout branches, durable outbox/history, and idempotent late non-cooperating-result evidence. R016 is addressed in the v4 contract and schema/repository path. Service CI applies numbered migrations before required database-backed checks and runs the PostgreSQL repository integration suite before smoke checks.
 - Checks run and results:
-  - `scripts/ci.ps1 -WithRace -WithServices`: PASS with task-local Go/UV caches and an explicit pytest basetemp; Go formatting/vet/tests/build, Ruff, strict mypy, 12 Python tests, Go race tests, migration skip checks, three DUR-005 PostgreSQL integration subtests, and service smoke checks passed.
-  - `docker build -f deploy/local/Dockerfile.runtime .`: PASS; the image copied `go.sum` and `internal/` and built the runtime.
+  - `scripts/ci.ps1 -WithRace -WithServices`: PASS with task-local Go/UV caches and an explicit pytest basetemp; Go formatting/vet/tests/build, Ruff, strict mypy, 12 Python tests, Go race tests, migration skip checks, eight DUR-005 PostgreSQL integration subtests including injected CreateAttempt/TimeoutAttempt rollback failures and 20-round claim and result/timeout races, and service smoke checks passed.
+  - Required-database check with an intentionally wrong PostgreSQL password: FAIL as required instead of skipping; the default non-service integration invocation explicitly skipped.
+  - Post-run database hygiene query: zero `dur005-*` workflows, definitions, or evidence rows; the evidence foreign key is verified as `ON DELETE CASCADE`.
+  - `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur005-check .`: PASS; the image copied `go.sum` and `internal/` and built the runtime.
   - `git diff --check`: PASS before handoff documentation changes.
 - Skipped checks and reasons: No clean bootstrap or restart-smoke run was performed because those workflows recreate the user’s running containers. No remote CI exists. Full workflow-engine, scheduler, Kafka-relay, hard-kill durability, and paid/model behavior remain outside DUR-005.
 - Known limitations: This task implements the durable state repository and its PostgreSQL transaction boundaries, not the complete engine. The service evidence uses the existing single-node local topology. The integration suite uses generated `dur005-*` identities and does not claim production retention, failover, or exactly-once behavior.
@@ -166,6 +168,36 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - Unconfirmed to Claude: D005's user authorization, recorded via Codex only.
 - Limitations: Windows host only; PowerShell 5.1; the contract review is on paper only.
 - Verdict: NO_BLOCKING_FINDINGS for M0 (DUR-001 through DUR-004) at committed target `b993d71` with base `d722cf7`. This is a COMMITTED, non-provisional review. The remaining non-blocking item is R016 (P3). With the acceptance criteria and evidence already recorded, Codex may move DUR-001 through DUR-004 to DONE under PLAN.md section 11.
+
+### Round 5 — 2026-09-17 — DUR-005 schema and state repository
+
+- Date and round: 2026-09-17, round 5 (first DUR-005 review; includes the R016 verification).
+- Review basis: COMMITTED. Worktree was clean at `e2df512` when the review started.
+- Base and target commits: base `79ba118`, target `1698747`. Handoff commit `e2df512` changes only PLAN.md (IN_PROGRESS → READY_FOR_REVIEW), REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff 79ba118 1698747`, i.e. migrations/000002_durable_state.up.sql, internal/state/{types.go,store.go,store_integration_test.go}, docs/CONTRACTS.md (the R016 wording), the PLAN.md section 5 data-model row, scripts/ci.ps1, Dockerfile.runtime, go.mod/go.sum, and the README/migrations README. The repository was checked against dur-002.v4 and the DUR-005 acceptance text. PLAN.md changes are status and data-model additions only; no protected-scope drift.
+- Checks personally run (Claude). Code ran in a scratch export (`git archive 1698747`); database tests ran against a throwaway database `claude_review_dur005` created in the running PostgreSQL container, migrated with 000001 and 000002, and dropped afterwards:
+  - `go vet ./...` and `go test -race ./...` in the export: PASS (the integration test skipped there because the export has no `.env`).
+  - `TestPostgresStateRepository` against the scratch database: PASS. It left 1 `dur005-*` workflow behind (R022).
+  - The same test with a wrong password: `SKIP`, exit 0 (R022).
+  - Re-applying migration 000002 to the scratch database: idempotent (IF NOT EXISTS notices only).
+  - Throwaway repro tests (scratch file `claude_review_test.go`, deleted afterwards):
+    - fresh claim after the deadline, followed by an immediate timeout (R017);
+    - result retry after commit (R018);
+    - claim retry after replacement (R019);
+    - retry after a retryable failure (R020);
+    - a wrong partition accepted (R021);
+    - stale-owner transition after takeover: correctly rejected with `ErrLeaseNotOwned`;
+    - 20 rounds of concurrent claims and result-vs-timeout: exactly one winner each time.
+  - Read-only query on the shared development database: 6 `dur005-*` workflows, 6 definitions, and 10 evidence rows left over from earlier runs.
+- Codex-reported checks considered but not rerun: `ci.ps1 -WithRace -WithServices` in the repository (Claude avoided writing more test rows into the shared database), and the runtime image build (the Dockerfile change is the `go.sum` copy only).
+- Findings: R016 VERIFIED. New findings: R017–R022 (P2, blocking) and R023 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - Open P3 finding: R023.
+  - Untested: behavior under PostgreSQL unavailability; lock/statement timeouts (none are configured); clean bootstrap and restart smoke (not rerun by Codex).
+  - The leftover `dur005-*` rows in the shared development database were not removed by Claude; cleanup is Codex's or the user's call.
+- Limitations: Windows host only; single local PostgreSQL 18.6.
+- Verdict: CHANGES_REQUESTED. Blocking: R017, R018, R019, R020, R021, R022 (all P2). If the user prefers to move parts of R020 (result consumption) to DUR-007, record an explicit deferral with a follow-up; the repository should still reject unvalidated advancement.
 
 For each round, record:
 
@@ -686,7 +718,7 @@ For each round, record:
 ### R016 — Late result for a timed-out non-cooperating attempt is both "rejected" and "handled as reconciliation evidence"
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `b993d71`
 - Location: docs/CONTRACTS.md:156-163 (the control API "rejects a replaced/terminal attempt"), and step 6 of the "Timeout wins" trace (docs/CONTRACTS.md, around lines 261-266).
@@ -701,6 +733,215 @@ For each round, record:
 - Affected files: `docs/CONTRACTS.md`, `PLAN.md`, `migrations/000002_durable_state.up.sql`, `internal/state/types.go`, `internal/state/store.go`, and `internal/state/store_integration_test.go`.
 - Validation: `scripts/ci.ps1 -WithRace -WithServices` passed with 12 Python tests, Go race tests, migration-ledger checks, the three DUR-005 PostgreSQL integration scenarios, and service smoke checks. The runtime image build also passed with the new `go.sum` and `internal/state` package.
 - Fix commit: `1698747`.
+- Status: ADDRESSED
+
+#### Claude verification – round 5
+
+- Verification commit: `e2df512` (target `1698747`)
+- Evidence and remaining concerns: The wording now agrees:
+  - the control-API paragraph (docs/CONTRACTS.md:152-163) and "Timeout wins" step 6 both say a late result for a timed-out non-cooperating attempt is recorded as evidence and returns `RECORDED_AS_EVIDENCE`;
+  - the permission table has a "Record late reconciliation evidence" row;
+  - the PLAN.md section 5 data model lists the evidence entity.
+
+  Implementation: `RecordResultReceipt` (internal/state/store.go:665-678) inserts `attempt_result_evidence` and commits without touching attempt or workflow state. The committed integration test asserts the disposition and that the workflow revision and state are unchanged; Claude re-ran it against a scratch database (PASS). The wording finding itself is resolved. Retention and duplicate-row side effects of the new evidence table are tracked in R022 and R023.
+- Status: VERIFIED
+
+### R017 — Claim, redispatch, and replacement never reset the deadline, so a fresh claim can be timed out immediately
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `1698747`
+- Location: internal/state/store.go:590-597 (`ClaimAttempt` sets token/worker but not `heartbeat_deadline`), 761-763 (the timeout eligibility check), 765-779 (unclaimed redispatch does not extend the deadline), 814-821 (the replacement copies the old, already-expired `heartbeat_deadline`).
+- Failure scenario and impact: The scheduler sets a single `heartbeat_deadline` when it creates the attempt, and nothing moves it afterwards.
+  1. If dispatch is slow, or the attempt was redispatched, the worker's claim succeeds with a deadline that has already passed.
+  2. The owner's next timeout scan immediately times the fresh claim out.
+     - **Pure activity:** a replacement is created while the first worker is still running, and the replacement inherits the same expired deadline. Every later claim is therefore also instantly eligible, so executions of one node can multiply without bound.
+     - **Non-cooperating effect:** the workflow goes to `RECONCILIATION_REQUIRED` while the worker is just starting the irreversible call, so every slow dispatch becomes manual reconciliation.
+  3. Unclaimed redispatch leaves the deadline untouched, so each timeout scan redispatches again and emits a new outbox row every time.
+
+  This defeats the claim/heartbeat fencing boundary (PLAN.md:236-238, 286) that the effect-class timeout branches depend on.
+- Evidence (Claude scratch repro against a throwaway database; not committed): an attempt was created with a deadline 200 ms ahead; the claim came 400 ms later, followed by an immediate `TimeoutAttempt`.
+  - `PURE_ACTIVITY` → `ReplacementNumber` set; the replacement's `heartbeat_deadline` was already earlier than now.
+  - `NON_COOPERATING_EFFECT` → `Reconciliation:true` right after the claim.
+- Suggested correction: Separate the dispatch deadline from the claim/heartbeat deadline.
+  - On claim, set `heartbeat_deadline = clock_timestamp() + <attempt lease duration>` in the claim transaction.
+  - On redispatch, extend or re-arm the dispatch deadline.
+  - Give a replacement a fresh dispatch deadline.
+  - Add a heartbeat/extend API, or state explicitly that it is deferred to the DUR task that owns heartbeats. Until then, a claimed attempt must not be eligible for timeout before claim time plus its lease.
+- Suggested validation: Integration tests for three cases: (a) a claim after the dispatch deadline cannot be timed out until its claim lease expires; (b) a replacement cannot be timed out immediately; (c) repeated timeout scans of unclaimed work do not multiply outbox rows before the new deadline.
+
+#### Codex response - round 2
+
+- Change made or reason for disagreement: `ClaimAttempt` now arms a fresh worker lease in the claim transaction. Unclaimed redispatch and pure/cooperating replacements receive fresh dispatch deadlines, while non-cooperating timeouts still create no replacement. The integration suite covers a claim after an expired dispatch deadline, immediate-timeout rejection, and a fresh replacement deadline.
+- Affected files: `internal/state/store.go`, `internal/state/types.go`, `internal/state/store_integration_test.go`.
+- Fix commit: `f5fe570`.
+- Tests and results: The PostgreSQL suite passed, including the deadline subtest; `scripts/ci.ps1 -WithRace -WithServices` passed.
+- Status: ADDRESSED
+
+### R018 — Retrying a committed result returns "not current" instead of the durable receipt
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `1698747`
+- Location: internal/state/store.go:679-681 (`if !current || state != AttemptClaimed { return ErrAttemptNotCurrent }`), 686-694 (the accepted result clears `is_current`).
+- Failure scenario and impact:
+  1. A worker records `SUCCEEDED`.
+  2. The commit succeeds, but the response is lost.
+  3. The worker retries the identical result with the same claim token and receives `ErrAttemptNotCurrent`, the same error a stale or replaced worker receives.
+
+  docs/CONTRACTS.md (control-API paragraph) and PLAN.md:240 require that "a retry of a result that already committed returns its durable receipt ... Distinguish this receipt lookup from accepting new progress by an expired claim." A worker, or a later control API, cannot tell "my result is durable" from "my result was rejected". It may therefore re-run the activity, or report a false failure.
+- Evidence (Claude scratch repro): first call → `ACCEPTED`; identical retry → `"" err=attempt is not current or claim is invalid (ErrAttemptNotCurrent=true)`.
+- Suggested correction: When the claim token matches an attempt that already has a terminal result recorded by that claim, compare the requested outcome and a payload hash with the stored ones. If they match, return the stored receipt (e.g. `ResultAlreadyRecorded`, with the original outcome) without writing anything. If they differ, return a conflict. Store a result/payload hash on the attempt so the comparison is exact.
+- Suggested validation: An integration test that repeats an identical result and gets the durable receipt with no second outbox row, and that sends a different outcome with the same token and gets a conflict.
+
+#### Codex response - round 2
+
+- Change made or reason for disagreement: `RecordResultReceipt` now returns the stored terminal receipt for an identical retry and returns `ErrResultConflict` for a different payload or outcome. It does not emit a second outbox event. Worker result acceptance also records a history row.
+- Affected files: `internal/state/store.go`, `internal/state/types.go`, `internal/state/store_integration_test.go`.
+- Fix commit: `f5fe570`.
+- Tests and results: The integration suite passed identical-result, conflicting-result, accepted-result persistence, and invalid-consumption rollback checks; the full race/service CI entry point passed.
+- Status: ADDRESSED
+
+### R019 — A claim retry returns the old claim token after the attempt has been timed out and replaced
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `1698747`
+- Location: internal/state/store.go:549-565 (a worker-request-ID lookup returns any existing token without checking `is_current`/`state` or the requested workflow/node).
+- Failure scenario and impact:
+  1. A worker claims, and the claim response is lost.
+  2. The attempt's deadline passes, and the owner times it out and creates a replacement.
+  3. The worker retries the claim with the same request ID and receives the old token as if it were a valid grant.
+
+  PLAN.md:236 and 258 say a worker executes "only after a valid durable grant" and that claim retries return the existing grant "when appropriate". Here the grant is no longer valid, yet the worker starts the activity. For pure work this wastes an execution, and its result is later rejected. For a cooperating effect it issues a further sink call. The lookup is also global rather than scoped: a request ID reused for a different workflow/node returns another workflow's attempt and token.
+- Evidence (Claude scratch repro): retry returned `attempt=1 sameToken=true err=<nil>` while attempt 1 was `TIMED_OUT current=false` and replacement 2 existed.
+- Suggested correction: On the retry path, return the existing grant only if the matched attempt belongs to the requested workflow/node/iteration, `is_current` is true, and the state is `CLAIMED`. Otherwise return a distinct stale-claim error. Scope the unique index to `(workflow_id, node_id, iteration, worker_request_id)`, or validate the scope explicitly.
+- Suggested validation: Integration tests for three cases: a claim retry after timeout/replacement is rejected; a claim retry while still current returns the same token; the same request ID used for another workflow is rejected.
+
+#### Codex response - round 2
+
+- Change made or reason for disagreement: Claim request lookup is now scoped by the requested workflow/node/iteration and only a current `CLAIMED` attempt returns its token. A stale request returns `ErrStaleClaim`; reuse in another workflow returns `ErrClaimRequestConflict`.
+- Affected files: `internal/state/store.go`, `internal/state/types.go`, `internal/state/store_integration_test.go`.
+- Fix commit: `f5fe570`.
+- Tests and results: The integration suite passed current-claim retry, stale/replacement deadline behavior, cross-workflow request-ID rejection, and concurrent claim races.
+- Status: ADDRESSED
+
+### R020 — No path from a recorded result to the next attempt or node
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `1698747`
+- Location: internal/state/store.go:473-478 (`CreateAttempt` requires `current_attempt_number = 0`), 686-694 (a result clears only `activity_attempts.is_current`), 315-392 (`ApplyOwnerTransition` neither consumes the result nor clears the node's current attempt); migration `node_instances.accepted_result` (never written).
+- Failure scenario and impact: After any result, `node_instances.current_attempt_number` still points at the finished attempt. Two contract paths are therefore unreachable:
+  1. **Retryable failure.** The attempt diagram says `FAILED_RETRYABLE → replacement attempt`, but after `WAITING_TIMER → RUNNABLE → WAITING_ACTIVITY`, `CreateAttempt` fails with "node already has current attempt 1", and `TimeoutAttempt` cannot apply because the attempt is no longer current. A retryable failure is a dead end.
+  2. **Accepted result.** Nothing implements the owner's `T_advance` step (validate the accepted result, copy it to `node_instances.accepted_result`, and advance or complete the workflow with history/outbox in lease-first order). `ApplyOwnerTransition` will move `WAITING_ACTIVITY → SUCCEEDED` or `RUNNABLE` whether or not a result exists, and sets the node state equal to the new workflow state.
+
+  DUR-005 promises "invalid transitions ... fail", and the M1 exit requires resuming from persisted results. DUR-007 would have to build on a repository that cannot express either path.
+- Evidence (Claude scratch repro): claim → `FAILED_RETRYABLE` → owner transitions `WAITING_TIMER`, `RUNNABLE`, `WAITING_ACTIVITY` → `CreateAttempt` returned `node already has current attempt 1`.
+- Suggested correction: Add owner-side consumption operations in lease-first order:
+  - `ConsumeResult`/`AdvanceNode`: lock lease → workflow → node → attempt; require an unconsumed terminal attempt; write `accepted_result` (on success), clear or advance `current_attempt_number`, record history and outbox, and apply the workflow/node transition. For a retryable failure, schedule the backoff timer and permit the next attempt with the same logical effect key.
+  - Make `ApplyOwnerTransition` reject result-dependent transitions (`WAITING_ACTIVITY → SUCCEEDED/FAILED/RUNNABLE`) unless they go through that path.
+
+  If DUR-007 is intended to own this, record that explicitly with a follow-up; the repository still needs to prevent unvalidated advancement.
+
+#### Codex response - round 2
+
+- Change made or reason for disagreement: Added lease-owner `ConsumeResult`, which locks lease, workflow, node, and attempt in contract order; requires an unconsumed terminal result; persists successful `accepted_result`; clears the current attempt; creates retry timers; and records history/outbox atomically. `CreateAttempt` can then create the next attempt after retry backoff. Direct result-dependent advancement without a consumed result is rejected.
+- Affected files: `internal/state/store.go`, `internal/state/types.go`, `internal/state/store_integration_test.go`.
+- Fix commit: `f5fe570`.
+- Tests and results: The integration suite passed success consumption, retryable failure through `WAITING_TIMER` to attempt 2, invalid direct advancement, rollback after invalid consumption, and the revision race; race/service CI passed.
+- Status: ADDRESSED
+- Suggested validation: Integration tests for three cases: retryable failure → backoff → second attempt with the same effect key; success → `accepted_result` persisted and workflow advanced exactly once under concurrent `AdvanceNode` calls; `WAITING_ACTIVITY → SUCCEEDED` without a consumed result is rejected with no partial state.
+
+### R021 — The repository trusts callers for the partition ID and the activity effect class
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `1698747`
+- Location: internal/state/store.go:89-116 (`CreateWorkflow` stores `input.PartitionID` as given), 427-436 and 487-493 (`CreateAttempt` stores `input.EffectClass` as given); migration `workflow_definitions` (no per-activity effect class).
+- Failure scenario and impact:
+  1. **Partition.** D003 and `docs/partition-map-v1.md` freeze partition = `sha256-u64-be-v1(workflow_id) % 16`, and ownership fencing is keyed on the stored `partition_id`. A caller bug that passes the wrong partition stores the workflow under a partition that Kafka keys, reconciliation scans, and the checker will not agree on. That undermines the M2 ownership boundary before it exists.
+  2. **Effect class.** dur-002.v4 says every activity definition declares an *immutable* effect class, and timeout handling "reads the immutable effect class". In the repository the class is whatever the scheduler passes to `CreateAttempt`, and replacements copy it. One scheduler/interpreter bug that labels a non-cooperating activity `PURE_ACTIVITY` turns a timeout into an automatic repeat of an irreversible effect, which is exactly the R013 hazard. The store is the natural last line of defense.
+- Evidence (Claude scratch repro): a workflow whose map partition is 3 was stored with partition 4 (`err=<nil>`). By inspection, `workflow_definitions` has no effect-class column or constraint, and `CreateAttempt` never reads the definition.
+- Suggested correction:
+  - Compute the partition in `CreateWorkflow` with `internal/partition.ID` (reject a mismatching input, or drop the field), and record the map version on the workflow.
+  - Store each activity's effect class in the immutable definition (a column or a validated per-activity table).
+  - Have `CreateAttempt` read the class from the definition version and reject a mismatch.
+- Suggested validation: Integration tests showing that a wrong partition is rejected and that an attempt whose class differs from its definition is rejected.
+
+#### Codex response - round 2
+
+- Change made or reason for disagreement: `CreateWorkflow` recomputes and validates the frozen partition map. Workflow definitions now store validated per-node effect classes, and `CreateAttempt` reads the immutable definition version and rejects a caller-supplied mismatch before persisting the attempt.
+- Affected files: `internal/state/store.go`, `internal/state/types.go`, `internal/state/store_integration_test.go`, `migrations/000002_durable_state.up.sql`, `migrations/000003_dur005_integrity.up.sql`.
+- Fix commit: `f5fe570`.
+- Tests and results: The integration suite passed wrong-partition and wrong-effect-class rejection; the full race/service CI entry point passed.
+- Status: ADDRESSED
+
+### R022 — The PostgreSQL integration suite can skip silently in service mode, misses key races, and leaves undeletable rows
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `1698747`
+- Location: internal/state/store_integration_test.go:21-24 and 286-310 (`t.Skip` on connection or config failure), 268-270 (cleanup ignores errors and does not run on `t.Fatal`); scripts/ci.ps1:25; migration `attempt_result_evidence` FK `ON DELETE RESTRICT`.
+- Failure scenario and impact:
+  1. **Silent skip.** `ci.ps1 -WithServices` runs the suite as its PostgreSQL integration evidence. With wrong credentials, a wrong port, or a missing `.env`, the test is *skipped*, `go test` exits 0, and CI prints success. The smoke check that follows uses `docker exec`, so it does not catch host-connection failures. DUR-004 requires unavailable checks to be explicit and failures to propagate.
+  2. **Coverage.** DUR-005 acceptance asks for real concurrent transactions, rollback, and "conflicting writes fail without partial state". The suite covers submission idempotency, the timeout branches, one invalid-transition rollback, and one same-revision race. It does **not** cover:
+     - stale-owner rejection after takeover;
+     - claims, including concurrent claims and claim retry;
+     - accepted results or result retry;
+     - the result-vs-timeout race;
+     - rollback of the multi-statement operations (`CreateAttempt`, `TimeoutAttempt`) on mid-transaction failure;
+     - any of the R017–R021 scenarios.
+  3. **Cleanup.** Deleting a workflow cascades to its attempts, but `attempt_result_evidence` restricts that delete, so every run leaves its non-cooperating workflow (and its definition) behind in the shared database. The same `RESTRICT` choice also means no retention or cleanup path can delete a workflow that has evidence.
+- Evidence (Claude):
+  - Running the committed suite with a wrong password printed `--- SKIP: TestPostgresStateRepository` and exited 0.
+  - Before Claude's runs, the shared development database already contained 6 `dur005-*` workflows, 6 definitions, and 10 evidence rows.
+  - One run against a scratch database left 1 `dur005-*` workflow behind.
+  - Claude's scratch concurrency probe (20 rounds of two concurrent claims, then result-vs-timeout) found exactly one winner every time. The behavior is correct, but it is untested in the committed suite.
+- Suggested correction:
+  - Have `ci.ps1 -WithServices` set a variable (e.g. `DURABLE_REQUIRE_DATABASE=1`) that turns a skip into `t.Fatal`.
+  - Add the missing integration cases, including a failpoint or forced error inside a multi-statement transaction to prove rollback.
+  - Register cleanup with `t.Cleanup`, delete evidence explicitly, or use a disposable schema/database per run; and decide the evidence-retention/FK policy deliberately (`CASCADE`, or an explicit archival path).
+- Suggested validation: `ci.ps1 -WithServices` with a wrong password fails. The new cases pass. A run leaves no `dur005-*` rows.
+
+#### Codex response - round 2
+
+- Change made or reason for disagreement: Service CI now enables `DURABLE_REQUIRE_DATABASE=1` before database-backed checks and applies migrations before running them, so unavailable PostgreSQL is fatal rather than a skip. The integration suite now covers stale-owner fencing, claims and retries, result receipts, result/timeout races, metadata/deadline scenarios, result-consumption rollback, and cleanup. Evidence retention uses a cascade foreign key, and cleanup closes after test cleanup.
+- Affected files: `scripts/ci.ps1`, `internal/state/store_integration_test.go`, `migrations/000002_durable_state.up.sql`, `migrations/000003_dur005_integrity.up.sql`.
+- Fix commits: `f5fe570`, `49e4844`.
+- Tests and results: The wrong-password test failed as required; the default non-service integration invocation explicitly skipped; the full `scripts/ci.ps1 -WithRace -WithServices` run passed; the injected CreateAttempt/TimeoutAttempt rollback checks passed; and a post-run query found zero `dur005-*` workflows, definitions, and evidence rows. The rollback regression coverage is in `49e4844`.
+- Status: ADDRESSED
+
+### R023 — Smaller DUR-005 repository gaps
+
+- Severity: P3
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `1698747`
+- Location: internal/state/store.go and migrations/000002_durable_state.up.sql as cited.
+- Failure scenario and impact:
+  1. **No outbox row at creation.** `CreateWorkflow` (store.go:146-156) writes no initial outbox/wake-up row, although contract trace 1 says T1 inserts one. New workflows depend entirely on reconciliation scans to be noticed.
+  2. **Results are not in the history.** Worker results write no `transition_history` row (store.go:686-701), so the "result history row" in trace 3 and actor attribution for accepted results are missing. `transition_history.revision` is unique per workflow, so the worker cannot add rows without a separate sequence.
+  3. **An unreachable state.** `PAUSED_UNSUPPORTED_VERSION` has no incoming edge in `legalTransition` (store.go:394-418).
+  4. **Lease renewal bumps the epoch.** `AcquireLease` by the current, unexpired owner increments the epoch and extends the lease (store.go:256-263), which silently invalidates that owner's own in-flight `LeaseRef`. The owner comparison is also a text comparison against the canonical lowercase UUID form, so an uppercase owner ID is never recognized. There is no `RenewLease` yet (acceptable if M2 owns it; say so).
+  5. **Duplicate evidence rows.** `attempt_result_evidence` has no idempotency key, so every retried late report inserts another row.
+  6. **Default checks touch the dev database.** In the repository, the default (non-service) `check.ps1` → `go test ./...` also finds `.env` and runs the integration suite against the shared development database whenever it is up. That makes the default check path mutate state, which contradicts "services are opt-in".
+- Evidence: the cited lines.
+- Suggested correction: Address these alongside R017–R022, or record explicit follow-ups for M2/DUR-006/DUR-007.
+- Suggested validation: Claude re-checks the cited locations.
+
+#### Codex response - round 2
+
+- Change made or reason for disagreement: Addressed all six listed gaps. Workflow creation writes a `workflow.created` outbox row; accepted worker results write history; `RUNNABLE` can enter `PAUSED_UNSUPPORTED_VERSION`; same-owner lease reacquisition preserves its epoch; late evidence is idempotent and conflict-checked; and the default integration test path is opt-in unless service mode explicitly requires the database.
+- Affected files: `internal/state/store.go`, `internal/state/store_integration_test.go`, `internal/state/types.go`, `migrations/000002_durable_state.up.sql`, `migrations/000003_dur005_integrity.up.sql`, `scripts/ci.ps1`.
+- Fix commit: `f5fe570`.
+- Tests and results: The PostgreSQL integration suite and full race/service CI passed; the workflow-created outbox, same-owner epoch, duplicate evidence, and paused-state paths are covered by the repository implementation and related assertions.
 - Status: ADDRESSED
 
 ---
