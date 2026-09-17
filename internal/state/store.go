@@ -447,7 +447,11 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 	if input.NewState == StateCanceled && state == StateWaitingActivity && currentAttemptNumber != nil {
 		if _, err := tx.Exec(ctx, `
 			UPDATE engine.activity_attempts
-			SET state = 'CANCELED', is_current = false, outcome_disposition = 'NONE',
+			SET state = 'CANCELED', is_current = false,
+				outcome_disposition = CASE
+					WHEN state = 'CLAIMED' AND effect_class <> 'PURE_ACTIVITY' THEN 'OUTCOME_UNKNOWN'
+					ELSE 'NONE'
+				END,
 				updated_at = clock_timestamp()
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3 AND attempt_number = $4
 				AND is_current`, input.WorkflowID, input.NodeID, input.Iteration, *currentAttemptNumber); err != nil {
@@ -455,7 +459,8 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 		}
 		if _, err := tx.Exec(ctx, `
 			UPDATE engine.node_instances
-			SET state = $4, current_attempt_number = NULL, updated_at = clock_timestamp()
+			SET state = $4, current_attempt_number = NULL, revision = revision + 1,
+				updated_at = clock_timestamp()
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
 			input.WorkflowID, input.NodeID, input.Iteration, StateCanceled); err != nil {
 			return fmt.Errorf("settle canceled node: %w", err)
@@ -702,7 +707,7 @@ func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt,
 	if input.EffectClass != authoritativeClass {
 		return Attempt{}, fmt.Errorf("%w: got %s, want %s", ErrEffectClassMismatch, input.EffectClass, authoritativeClass)
 	}
-	if authoritativeClass == EffectCooperating {
+	if authoritativeClass == EffectCooperating || authoritativeClass == EffectNonCooperating {
 		var firstKey *string
 		var firstGrantScope *string
 		err := tx.QueryRow(ctx, `
@@ -997,15 +1002,16 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 	var current bool
 	var state AttemptState
 	var effectClass EffectClass
+	var outcomeDisposition string
 	var storedResult []byte
 	var workerID *string
 	if err := tx.QueryRow(ctx, `
-		SELECT is_current, state, effect_class, result, worker_id
+		SELECT is_current, state, effect_class, outcome_disposition, result, worker_id
 		FROM engine.activity_attempts
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3 AND attempt_number = $4
 			AND claim_token = $5
 		FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber, input.ClaimToken).Scan(
-		&current, &state, &effectClass, &storedResult, &workerID); err != nil {
+		&current, &state, &effectClass, &outcomeDisposition, &storedResult, &workerID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ResultReceipt{}, ErrAttemptNotCurrent
 		}
@@ -1022,10 +1028,7 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 			NodeID: input.NodeID, Iteration: input.Iteration, AttemptNumber: input.AttemptNumber,
 			AttemptState: state, Payload: json.RawMessage(storedResult)}, nil
 	}
-	if isTerminalWorkflowState(workflowState) {
-		return ResultReceipt{}, ErrAttemptNotCurrent
-	}
-	if state == AttemptTimedOut && effectClass == EffectNonCooperating {
+	if isLateEvidenceAttempt(effectClass, state, outcomeDisposition) {
 		reconciliationRef := input.ReconciliationRef
 		if reconciliationRef == "" {
 			reconciliationRef = defaultReconciliationRef(input)
@@ -1040,6 +1043,9 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 		return ResultReceipt{Disposition: ResultRecordedAsEvidence, WorkflowID: input.WorkflowID,
 			NodeID: input.NodeID, Iteration: input.Iteration, AttemptNumber: input.AttemptNumber,
 			AttemptState: state, Payload: input.Payload}, nil
+	}
+	if isTerminalWorkflowState(workflowState) {
+		return ResultReceipt{}, ErrAttemptNotCurrent
 	}
 	if nodeCurrentAttempt == nil || *nodeCurrentAttempt != input.AttemptNumber || !current || state != AttemptClaimed {
 		return ResultReceipt{}, ErrAttemptNotCurrent
@@ -1252,9 +1258,6 @@ func (s *Store) RecordLateEvidence(ctx context.Context, input LateEvidenceInput)
 		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState); err != nil {
 		return LateEvidence{}, fmt.Errorf("lock workflow for late evidence: %w", err)
 	}
-	if workflowState == StateSucceeded || workflowState == StateFailed || workflowState == StateRejected || workflowState == StateCanceled || workflowState == StateAbandoned {
-		return LateEvidence{}, ErrNotTimedOut
-	}
 	var currentAttempt *int64
 	if err := tx.QueryRow(ctx, `
 		SELECT current_attempt_number
@@ -1262,9 +1265,6 @@ func (s *Store) RecordLateEvidence(ctx context.Context, input LateEvidenceInput)
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
 		FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&currentAttempt); err != nil {
 		return LateEvidence{}, fmt.Errorf("lock node for late evidence: %w", err)
-	}
-	if currentAttempt == nil || *currentAttempt != input.AttemptNumber {
-		return LateEvidence{}, ErrAttemptNotCurrent
 	}
 	var effectClass EffectClass
 	var attemptState AttemptState
@@ -1277,10 +1277,16 @@ func (s *Store) RecordLateEvidence(ctx context.Context, input LateEvidenceInput)
 		FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber).Scan(&effectClass, &attemptState, &disposition, &storedClaimToken); err != nil {
 		return LateEvidence{}, fmt.Errorf("lock timed-out attempt: %w", err)
 	}
-	if effectClass != EffectNonCooperating || attemptState != AttemptTimedOut || disposition != "OUTCOME_UNKNOWN" {
+	if !isLateEvidenceAttempt(effectClass, attemptState, disposition) {
 		return LateEvidence{}, ErrNotTimedOut
 	}
 	if storedClaimToken == nil || input.ClaimToken == "" || *storedClaimToken != input.ClaimToken {
+		return LateEvidence{}, ErrAttemptNotCurrent
+	}
+	if attemptState == AttemptTimedOut && (currentAttempt == nil || *currentAttempt != input.AttemptNumber) {
+		return LateEvidence{}, ErrAttemptNotCurrent
+	}
+	if !isTerminalWorkflowState(workflowState) && currentAttempt == nil {
 		return LateEvidence{}, ErrAttemptNotCurrent
 	}
 	evidenceID, err := insertAttemptEvidence(ctx, tx, input.WorkflowID, input.NodeID, input.Iteration,
@@ -1340,6 +1346,16 @@ func durationSeconds(value time.Duration) float64 {
 
 func isTerminalAttempt(state AttemptState) bool {
 	return state == AttemptSucceeded || state == AttemptFailedRetryable || state == AttemptFailedFinal
+}
+
+func isLateEvidenceAttempt(effectClass EffectClass, attemptState AttemptState, disposition string) bool {
+	if disposition != "OUTCOME_UNKNOWN" {
+		return false
+	}
+	if effectClass == EffectNonCooperating && attemptState == AttemptTimedOut {
+		return true
+	}
+	return effectClass != EffectPure && attemptState == AttemptCanceled
 }
 
 func isTerminalWorkflowState(state WorkflowState) bool {

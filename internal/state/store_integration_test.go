@@ -251,6 +251,30 @@ func TestPostgresStateRepository(t *testing.T) {
 		if err != nil || unchanged.Revision != current.Revision || unchanged.State != StateReconciliationRequired {
 			t.Fatalf("late evidence changed workflow = %+v, err = %v", unchanged, err)
 		}
+		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: nonCooperatingWorkflow.WorkflowID, ExpectedRevision: current.Revision,
+			NewState: StateCanceled, ActorID: "scheduler-test", Reason: "CANCEL_RECONCILIATION",
+			NodeID: "root",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		canceledReconciliation, err := store.GetWorkflow(ctx, nonCooperatingWorkflow.WorkflowID)
+		if err != nil || canceledReconciliation.State != StateCanceled {
+			t.Fatalf("canceled reconciliation workflow = %+v, err = %v", canceledReconciliation, err)
+		}
+		lateAfterCancel, err := store.RecordLateEvidence(ctx, LateEvidenceInput{
+			WorkflowID: nonCooperatingWorkflow.WorkflowID, NodeID: "root", AttemptNumber: nonCooperating.AttemptNumber,
+			ClaimToken: nonCoopClaim.ClaimToken, ReconciliationRef: "reconcile-" + nonCooperatingWorkflow.WorkflowID,
+			Payload: []byte(`{"applied":true}`),
+		})
+		if err != nil || lateAfterCancel.EvidenceID == "" {
+			t.Fatalf("late evidence after reconciliation cancellation = %+v, err = %v", lateAfterCancel, err)
+		}
+		unchangedAfterCancel, err := store.GetWorkflow(ctx, nonCooperatingWorkflow.WorkflowID)
+		if err != nil || unchangedAfterCancel.Revision != canceledReconciliation.Revision || unchangedAfterCancel.State != StateCanceled {
+			t.Fatalf("late evidence reopened canceled reconciliation = %+v, err = %v", unchangedAfterCancel, err)
+		}
 	})
 
 	t.Run("invalid transition rolls back and concurrent revision conflicts", func(t *testing.T) {
@@ -875,6 +899,59 @@ func TestPostgresStateRepository(t *testing.T) {
 		if err != nil || cooperatingReplacement.LogicalEffectKey != "effect-stable" || cooperatingReplacement.GrantScopeHash != "grant-1" {
 			t.Fatalf("cooperating retry inheritance = %+v, err=%v", cooperatingReplacement, err)
 		}
+
+		nonCooperatingRetryWorkflow, nonCooperatingRetryAttempt := prepare(t, EffectNonCooperating, "")
+		nonCooperatingRetryClaim, err := store.ClaimAttempt(ctx, ClaimInput{
+			WorkflowID: nonCooperatingRetryWorkflow.WorkflowID, NodeID: "root", WorkerID: "worker-noncooperating-retry",
+			RequestID: "request-noncooperating-retry-" + nonCooperatingRetryWorkflow.WorkflowID,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.RecordResultReceipt(ctx, ResultInput{
+			WorkflowID: nonCooperatingRetryWorkflow.WorkflowID, NodeID: "root", AttemptNumber: nonCooperatingRetryAttempt.AttemptNumber,
+			ClaimToken: nonCooperatingRetryClaim.ClaimToken, AttemptState: AttemptFailedRetryable, Payload: []byte(`{"retry":true}`),
+		}); err != nil {
+			t.Fatal(err)
+		}
+		nonCooperatingDue := time.Now().Add(-time.Second)
+		if _, err := store.ConsumeResult(ctx, ConsumeResultInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: nonCooperatingRetryWorkflow.WorkflowID, NodeID: "root", AttemptNumber: nonCooperatingRetryAttempt.AttemptNumber,
+			ExpectedRevision: 4, NewWorkflowState: StateWaitingTimer, RetryDueAt: &nonCooperatingDue, ActorID: "scheduler-test",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: nonCooperatingRetryWorkflow.WorkflowID, ExpectedRevision: 5, NewState: StateRunnable,
+			ActorID: "scheduler-test", Reason: "RETRY_TIMER_DUE", NodeID: "root",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: nonCooperatingRetryWorkflow.WorkflowID, ExpectedRevision: 6, NewState: StateWaitingActivity,
+			ActorID: "scheduler-test", Reason: "SCHEDULE_RETRY", NodeID: "root",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		_, err = store.CreateAttempt(ctx, AttemptInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: nonCooperatingRetryWorkflow.WorkflowID, NodeID: "root", ExpectedRevision: 7,
+			EffectClass: EffectNonCooperating, GrantScopeHash: "grant-new", ActorID: "scheduler-test",
+		})
+		if !errors.Is(err, ErrEffectIdentityMismatch) {
+			t.Fatalf("non-cooperating retry grant identity error = %v", err)
+		}
+		nonCooperatingReplacement, err := store.CreateAttempt(ctx, AttemptInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: nonCooperatingRetryWorkflow.WorkflowID, NodeID: "root", ExpectedRevision: 7,
+			EffectClass: EffectNonCooperating, ActorID: "scheduler-test",
+		})
+		if err != nil || nonCooperatingReplacement.GrantScopeHash != "grant-1" {
+			t.Fatalf("non-cooperating retry grant inheritance = %+v, err=%v", nonCooperatingReplacement, err)
+		}
 	})
 
 	t.Run("cancellation settles attempts and fences later work", func(t *testing.T) {
@@ -907,7 +984,11 @@ func TestPostgresStateRepository(t *testing.T) {
 				t.Fatalf("canceled workflow = %+v", canceled)
 			}
 			settled, err := store.GetAttempt(ctx, workflow.WorkflowID, "root", 0, attempt.AttemptNumber)
-			if err != nil || settled.State != AttemptCanceled || settled.IsCurrent {
+			expectedDisposition := "NONE"
+			if class != EffectPure {
+				expectedDisposition = "OUTCOME_UNKNOWN"
+			}
+			if err != nil || settled.State != AttemptCanceled || settled.IsCurrent || settled.OutcomeDisposition != expectedDisposition {
 				t.Fatalf("canceled attempt = %+v, err=%v", settled, err)
 			}
 			if _, err := store.HeartbeatAttempt(ctx, HeartbeatInput{
@@ -923,11 +1004,39 @@ func TestPostgresStateRepository(t *testing.T) {
 			}); !errors.Is(err, ErrAttemptNotCurrent) {
 				t.Fatalf("canceled timeout error = %v", err)
 			}
-			if _, err := store.RecordResultReceipt(ctx, ResultInput{
+			lateReference := "cancel-late-" + workflow.WorkflowID
+			lateReceipt, err := store.RecordResultReceipt(ctx, ResultInput{
 				WorkflowID: workflow.WorkflowID, NodeID: "root", AttemptNumber: attempt.AttemptNumber,
-				ClaimToken: claim.ClaimToken, AttemptState: AttemptSucceeded, Payload: []byte(`{"late":true}`),
-			}); !errors.Is(err, ErrAttemptNotCurrent) {
-				t.Fatalf("canceled result error = %v", err)
+				ClaimToken: claim.ClaimToken, AttemptState: AttemptSucceeded, ReconciliationRef: lateReference,
+				Payload: []byte(`{"late":true}`),
+			})
+			if class == EffectPure {
+				if !errors.Is(err, ErrAttemptNotCurrent) {
+					t.Fatalf("canceled pure result error = %v", err)
+				}
+			} else if err != nil || lateReceipt.Disposition != ResultRecordedAsEvidence {
+				t.Fatalf("canceled effect result evidence = %+v, err = %v", lateReceipt, err)
+			}
+			lateEvidence, err := store.RecordLateEvidence(ctx, LateEvidenceInput{
+				WorkflowID: workflow.WorkflowID, NodeID: "root", AttemptNumber: attempt.AttemptNumber,
+				ClaimToken: claim.ClaimToken, ReconciliationRef: lateReference, Payload: []byte(`{"late":true}`),
+			})
+			if class == EffectPure {
+				if !errors.Is(err, ErrNotTimedOut) {
+					t.Fatalf("canceled pure late evidence error = %v", err)
+				}
+			} else if err != nil || lateEvidence.EvidenceID == "" {
+				t.Fatalf("canceled effect late evidence = %+v, err = %v", lateEvidence, err)
+			}
+			var evidenceCount int
+			if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM engine.attempt_result_evidence WHERE workflow_id = $1`, workflow.WorkflowID).Scan(&evidenceCount); err != nil {
+				t.Fatal(err)
+			}
+			if expectedDisposition == "OUTCOME_UNKNOWN" && evidenceCount != 1 {
+				t.Fatalf("canceled effect evidence count = %d", evidenceCount)
+			}
+			if expectedDisposition == "NONE" && evidenceCount != 0 {
+				t.Fatalf("canceled pure evidence count = %d", evidenceCount)
 			}
 			unchanged, err := store.GetWorkflow(ctx, workflow.WorkflowID)
 			if err != nil {

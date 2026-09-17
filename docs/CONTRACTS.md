@@ -64,7 +64,7 @@ The following are workflow states, not process-local states:
 | State | Terminal? | Meaning and permitted exits |
 | --- | --- | --- |
 | `RUNNABLE` | No | The current lease owner may schedule the next node; exits to `WAITING_ACTIVITY`, `WAITING_APPROVAL`, `WAITING_TIMER`, `CANCELED`, or a terminal state for an empty/complete graph. |
-| `WAITING_ACTIVITY` | No | A current node has dispatchable/claimed work. The worker records only the attempt result; the lease owner later advances to the next node or terminal state. An unclaimed attempt may be redispatched without a new attempt identity. A claimed pure activity may be replaced after timeout; a claimed cooperating effect may be replaced only with the same logical effect key and grant scope; a claimed non-cooperating effect becomes outcome-unknown and exits to `RECONCILIATION_REQUIRED` with no replacement. Cancellation may prevent an unclaimed dispatch or become a best-effort request for an in-flight attempt. Retryable failure exits to `WAITING_TIMER`. |
+| `WAITING_ACTIVITY` | No | A current node has dispatchable/claimed work. The worker records only the attempt result; the lease owner later advances to the next node or terminal state. An unclaimed attempt may be redispatched without a new attempt identity. A claimed pure activity may be replaced after timeout; a claimed cooperating effect may be replaced only with the same logical effect key and grant scope; a claimed non-cooperating effect becomes outcome-unknown and exits to `RECONCILIATION_REQUIRED` with no replacement. Cancellation may prevent an unclaimed dispatch or become a best-effort request for an in-flight attempt: a claimed effect attempt is settled as `CANCELED` with `OUTCOME_UNKNOWN`, and a later report is retained as evidence without progress. Retryable failure exits to `WAITING_TIMER`. |
 | `WAITING_TIMER` | No | A durable retry/backoff expiry is pending; due expiry returns to `RUNNABLE`, or the lease owner applies a cancellation to `CANCELED`. This state is not used for a successful result or a general-purpose business timer. |
 | `WAITING_APPROVAL` | No | Exact proposal is durable and no lock or worker slot is held. An approver records a decision; the lease owner applies approval by creating a dispatch grant and moving to `RUNNABLE`, or applies rejection as `REJECTED`/no-action. Cancellation prevents a grant if the owner applies it first. |
 | `PAUSED_UNSUPPORTED_VERSION` | No | Definition/activity/checkpoint version is unsupported; the lease owner applies an audited version-availability decision to return to `RUNNABLE`, cancellation to `CANCELED`, or operator abandonment to `ABANDONED`. |
@@ -72,7 +72,7 @@ The following are workflow states, not process-local states:
 | `SUCCEEDED` | Yes | Workflow completed with an accepted result. |
 | `FAILED` | Yes | Permanent failure or exhausted retry budget was recorded. |
 | `REJECTED` | Yes | Approval was denied and the workflow completed with a recorded no-action result; this is restraint, not an execution failure. |
-| `CANCELED` | Yes | Cancellation won before a new effect dispatch, or cancellation was accepted as the final workflow outcome; it does not undo an already-applied effect. |
+| `CANCELED` | Yes | Cancellation won before a new effect dispatch, or cancellation was accepted as the final workflow outcome; it does not undo an already-applied effect or imply that an in-flight effect had no outcome. |
 | `ABANDONED` | Yes | An operator recorded that an unresolved outcome will not be resumed. |
 
 ```text
@@ -114,7 +114,9 @@ CREATED --> DISPATCHABLE --> CLAIMED --> SUCCEEDED --owner consumes--> next node
   |              |             |  |                 \-non-cooperating--> OUTCOME_UNKNOWN --> RECONCILIATION_REQUIRED
   |              |             |  +----> OUTCOME_UNKNOWN --> receipt-confirmed result
   |              |             |                         \-> reconciled/abandoned outcome
-  |              |             +------ late progress/result is rejected
+   |              |             +------ late progress/result is rejected
+   |              |             +------ claimed effect cancellation --> CANCELED/OUTCOME_UNKNOWN --> evidence only
+   |              |             +------ claimed pure cancellation --> CANCELED/NONE
   |              +------------------> redispatch same attempt identity
   |              +------------------> CANCELED before claim
   +---------------------------------> CANCELED before dispatch
@@ -135,7 +137,10 @@ without a second applied mutation. A non-cooperating unknown effect moves the
 workflow to `RECONCILIATION_REQUIRED` and is never automatically retried. A
 dispatchable or created attempt may be canceled before claim; a claimed
 in-flight attempt is not forcefully undone and its workflow cancellation is
-best effort. Operator resolution of a non-cooperating unknown attempt records
+best effort. A claimed effect attempt settled by cancellation is recorded as
+`CANCELED`/`OUTCOME_UNKNOWN`; a late report may be recorded as evidence only,
+without changing the terminal workflow or revision. Operator resolution of a
+non-cooperating unknown attempt records
 either an observed/applied outcome for owner advancement or `ABANDONED`; it
 does not silently convert the attempt into a successful receipt.
 
@@ -150,15 +155,17 @@ same engine-PostgreSQL transaction. It never holds that transaction while
 calling a worker, Kafka, a tool, or an approver.
 
 The worker control API locks `workflow` first and then `node/attempt` in an
-engine-PostgreSQL transaction. It validates that the workflow is non-terminal,
-re-reads the current attempt and claim token, and applies the attempt-specific
+engine-PostgreSQL transaction. For progress it validates that the workflow is
+non-terminal, re-reads the current attempt and claim token, and applies the attempt-specific
 deadline policy. It does not reject a valid in-flight result solely because an
 unrelated owner transition changed the workflow revision after the claim; it
 rejects a replaced/terminal attempt, a mismatched claim token, or a policy
-violation. The exception is a timed-out `NON_COOPERATING_EFFECT` attempt whose
-disposition is `OUTCOME_UNKNOWN`: the API inserts an attempt-result-evidence
-row linked to the reconciliation reference and returns `RECORDED_AS_EVIDENCE`,
-not accepted. It does not change the attempt or workflow state. It records a heartbeat,
+violation. A timed-out `NON_COOPERATING_EFFECT` attempt whose disposition is
+`OUTCOME_UNKNOWN`, or a canceled claimed effect attempt with that disposition,
+is an evidence-only exception: the API inserts an attempt-result-evidence row
+linked to the reconciliation reference and returns `RECORDED_AS_EVIDENCE`, not
+accepted. It does not change the attempt or workflow state, revision, or outbox.
+It records a heartbeat,
 checkpoint, or result receipt and, for a terminal result, a completion
 wake-up/outbox row. It never changes the workflow state, creates a replacement
 attempt, or schedules a node. A result retry after commit returns the durable
@@ -186,7 +193,7 @@ commits any workflow transition and outbox row together.
 | Claim attempt | Dispatchable current attempt and stable worker request ID | Already claimed by a different request |
 | Heartbeat/checkpoint | Current claim token and compatible schema | Stale token, attempt, or checkpoint sequence |
 | Accept result | Current claim token and one terminal attempt outcome | Timed out/replaced attempt |
-| Record late reconciliation evidence | Timed-out non-cooperating attempt, unknown disposition, source claim, and evidence payload | Cooperating/pure attempt, known outcome, or missing reconciliation reference |
+| Record late reconciliation evidence | Timed-out non-cooperating attempt or canceled claimed effect attempt, unknown disposition, source claim, and evidence payload | Pure/unclaimed attempt, known outcome, or missing reconciliation reference |
 | Timeout/redispatch attempt | Matching lease, owner/epoch/expiry, attempt state, deadline, and declared effect class | Stale lease, active claim not eligible, or missing effect-class policy |
 | Publish event | Existing outbox row and stable event ID | Missing/unsupported event |
 | Record approval decision | Approver identity, exact proposal hash/target/scope, and validity window | Changed, expired, or unauthorized proposal |
