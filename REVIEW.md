@@ -60,10 +60,10 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Task status: READY_FOR_REVIEW
 - Handoff basis: COMMITTED
 - Base commit: `79ba118`
-- Target commit: `dce5433`
-- Scope and implementation summary: Added cancellation fencing that settles current attempts and prevents timeout/late-result progress on terminal workflows, enforced immutable cooperating-effect identity across retries, enforced retry timer due time and consumption, made the integrity migration manually re-runnable, restored `000002` to its original schema and kept the change in `000003`, and normalized CI script indentation. The earlier DUR-005 repository features remain: authoritative per-activity effect classes, partition-map validation, idempotent workflow creation with a creation outbox event, partition leases, owner-fenced transitions, node/attempt lifecycle, fresh claim/redispatch deadlines, durable worker result receipts, lease-owner result consumption, effect-class-aware timeout branches, durable outbox/history, and idempotent late non-cooperating-result evidence. R016 is addressed in the v4 contract and schema/repository path. Service CI applies numbered migrations before required database-backed checks and runs the PostgreSQL repository integration suite before smoke checks.
+- Target commit: `333a555`
+- Scope and implementation summary: Preserved uncertainty for claimed effect attempts canceled in flight by recording `CANCELED/OUTCOME_UNKNOWN` and retaining late reports as evidence without progress, bumped the canceled node revision, and enforced retry grant-scope identity for non-cooperating effects as well as cooperating effects. The contract and integration tests document and exercise the terminal evidence-only path. The earlier DUR-005 repository features remain: authoritative per-activity effect classes, partition-map validation, idempotent workflow creation with a creation outbox event, partition leases, owner-fenced transitions, node/attempt lifecycle, fresh claim/redispatch deadlines, durable worker result receipts, lease-owner result consumption, effect-class-aware timeout branches, durable outbox/history, and idempotent late non-cooperating-result evidence. R016 is addressed in the v4 contract and schema/repository path. Service CI applies numbered migrations before required database-backed checks and runs the PostgreSQL repository integration suite before smoke checks.
 - Checks run and results:
-  - `scripts/ci.ps1 -WithRace -WithServices`: PASS with task-local Go/UV caches and an explicit pytest basetemp; Go formatting/vet/tests/build, Ruff, strict mypy, 12 Python tests, Go race tests, migration skip checks, nine DUR-005 PostgreSQL integration subtests including cancellation fencing, timer enforcement, cooperating retry identity, injected CreateAttempt/TimeoutAttempt rollback failures, and 20-round claim and result/timeout races, and service smoke checks passed.
+  - `scripts/ci.ps1 -WithRace -WithServices`: PASS with task-local Go/UV caches and an explicit pytest basetemp; Go formatting/vet/tests/build, Ruff, strict mypy, 12 Python tests, Go race tests, migration skip checks, nine DUR-005 PostgreSQL integration subtests including cancellation evidence fencing, timer enforcement, cooperating and non-cooperating retry identity, injected CreateAttempt/TimeoutAttempt rollback failures, and 20-round claim and result/timeout races, and service smoke checks passed.
   - Required-database check with an intentionally wrong PostgreSQL password: FAIL as required instead of skipping; the default non-service integration invocation explicitly skipped.
   - Post-run database hygiene query: zero `dur005-*` workflows, definitions, or evidence rows; the evidence foreign key is verified as `ON DELETE CASCADE`.
   - `000003_dur005_integrity.up.sql` executed twice manually: PASS; schema ledger remained one version-3 row and no duplicate constraint was created.
@@ -225,6 +225,35 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - Untested: behavior during PostgreSQL unavailability; lock/statement timeouts (still none configured); clean bootstrap and restart smoke (not rerun).
 - Limitations: Windows host only; single local PostgreSQL 18.6.
 - Verdict: CHANGES_REQUESTED. Blocking: R024 (P1) and R025 (P2).
+
+### Round 7 — 2026-09-17 — DUR-005 cancellation-fix verification
+
+- Date and round: 2026-09-17, round 7.
+- Review basis: COMMITTED. Worktree was clean at `bce4daa` when the review started.
+- Base and target commits: base `79ba118`, target `dce5433`. Handoff commit `bce4daa` changes only PLAN.md (IN_PROGRESS → READY_FOR_REVIEW), REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff fdc3c4f dce5433`: internal/state/{store.go, types.go, store_integration_test.go}, migrations 000002 (reverted; `git diff 1698747 dce5433 -- 000002` is empty) and 000003, and scripts/ci.ps1. The Codex round-7 responses were read, and history is preserved.
+- Checks personally run (Claude). Code ran in a scratch export of `dce5433`. Databases were two throwaway databases in the running PostgreSQL container, dropped afterwards:
+  - `cr_d5_fresh`: 000001 → 000002 → 000003, then 000003 applied again;
+  - `cr_d5_prev`: 000001 → the edited 000002 and old 000003 from `49e4844` → the new 000003.
+
+  Results:
+  - Schema: both databases converged (versions 1, 2, 3 once each, one cascading evidence FK, `effect_classes` present).
+  - `go test -race ./internal/state -run TestPostgresStateRepository` with `DURABLE_REQUIRE_DATABASE=1` on each database: PASS, all 9 subtests. Afterwards: 0 `dur005-*` workflows, 0 test triggers, and no leases held.
+  - `go vet ./...`, `go test -race ./...` (no database), and `gofmt -l`: clean.
+  - Throwaway repro tests (scratch file `claude_review_r3_test.go`, deleted afterwards):
+    - claimed pure, cooperating, and non-cooperating attempts cancelled, then timeout/heartbeat/result/evidence: fencing correct (R024 resolved); disposition `NONE` and zero evidence rows (R027);
+    - unclaimed cancellation, then a claim: rejected;
+    - audited cancel after a non-cooperating timeout, then a late report: rejected (R027).
+  - Read-only query on the shared dev database: 0 `dur005-*` rows; migrations 1, 2, 3.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices` in the repository (the equivalent suite ran on the scratch databases), and the runtime Docker build (no Dockerfile or `go.mod` change this round).
+- Findings resolved: R024, R025, and R026 are VERIFIED.
+- New findings: R027 (P2, blocking) and R028 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - Open P3 finding: R028. The R019 test gap (stale-claim assertion) is still open.
+  - Untested: PostgreSQL unavailability; lock/statement timeouts (none configured); clean bootstrap and restart smoke (not rerun).
+- Limitations: Windows host only; single local PostgreSQL 18.6.
+- Verdict: CHANGES_REQUESTED. Blocking: R027 (P2).
 
 For each round, record:
 
@@ -1028,7 +1057,7 @@ For each round, record:
 ### R024 — Cancellation leaves the claimed attempt live; timeout then reopens a terminal workflow or dispatches new work
 
 - Severity: P1
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `49e4844`
 - Location:
@@ -1066,10 +1095,16 @@ For each round, record:
 - Tests and results: The nine-subtest PostgreSQL suite and full `scripts/ci.ps1 -WithRace -WithServices` pass. Claimed pure, cooperating, and non-cooperating cancellation, unclaimed cancellation, timeout fencing, heartbeat fencing, and late-result rejection are covered; terminal state, revision, and outbox rows remain unchanged after stale operations.
 - Status: ADDRESSED
 
+#### Claude verification – round 7
+
+- Verification commit: `bce4daa` (target `dce5433`)
+- Evidence and remaining concerns: `ApplyOwnerTransition` cancellation of `WAITING_ACTIVITY` now locks lease → workflow → node → current attempt, marks the current attempt `CANCELED`/not current, and clears the node's current attempt (store.go:374-462). `TimeoutAttempt` and `RecordResultReceipt` reject terminal workflows before any write; identical retries of an already-recorded result still return the receipt. Claude's scratch repro on a fresh 1→2→3 database: for pure, cooperating, and non-cooperating claimed attempts, cancel followed by timeout/heartbeat/result gave the workflow `CANCELED`, revision unchanged (4→4), `attempt.dispatch` rows unchanged (1→1), and all three calls rejected. Unclaimed cancellation → attempt `CANCELED`, and a later claim is rejected. The committed subtest "cancellation settles attempts and fences later work" passes on a fresh database and on a database built with the previous round's migrations. The reopen/redispatch defect is resolved. However, the chosen settlement discards in-flight effect ambiguity; that is recorded separately as R027.
+- Status: VERIFIED
+
 ### R025 — A retry attempt can change the logical effect key and grant scope of a cooperating effect
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `49e4844`
 - Location: internal/state/store.go:639-652 (`CreateAttempt` reuses the previous key only when the caller passes an empty key; a different key, and any grant scope, are accepted).
@@ -1091,10 +1126,16 @@ For each round, record:
 - Tests and results: The result-consumption integration subtest rejects changed key and grant without advancing the revision, then accepts an empty-identity retry with both original values. The full race/service CI pass includes this coverage.
 - Status: ADDRESSED
 
+#### Claude verification – round 7
+
+- Verification commit: `bce4daa` (target `dce5433`)
+- Evidence and remaining concerns: `CreateAttempt` reads the *first* attempt's `logical_effect_key`/`grant_scope_hash` for a cooperating node; empty inputs inherit them and a differing non-empty input returns `ErrEffectIdentityMismatch` (store.go:705-731). The committed subtest asserts the rejection with the revision unchanged, then inheritance on an empty-identity retry: PASS on both scratch databases. Note (P3, R028): the same identity rule is not applied to non-cooperating retries.
+- Status: VERIFIED
+
 ### R026 — Smaller round-6 gaps (timers, migration hygiene)
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `49e4844`
 - Location: internal/state/store.go:551-574 and 528-536; migrations/000002_durable_state.up.sql:9; migrations/000003_dur005_integrity.up.sql:28-32; scripts/ci.ps1.
@@ -1113,6 +1154,81 @@ For each round, record:
 - Affected files: `internal/state/store.go`, `internal/state/store_integration_test.go`, `migrations/000002_durable_state.up.sql`, `migrations/000003_dur005_integrity.up.sql`, `scripts/ci.ps1`.
 - Fix commit: `dce5433`.
 - Tests and results: Early timer expiry is rejected, a due timer is consumed, and the PostgreSQL suite passes. `000003_dur005_integrity.up.sql` was executed twice successfully with one schema-ledger version-3 row; full race/service CI and `git diff --check` pass.
+- Status: ADDRESSED
+
+#### Claude verification – round 7
+
+- Verification commit: `bce4daa` (target `dce5433`)
+- Evidence and remaining concerns: Items resolved:
+  1. `WAITING_TIMER → RUNNABLE` now requires a due, unconsumed `RETRY_BACKOFF` timer (database time) and consumes it in the same transaction (store.go:397-425, 472-479); the committed test covers early rejection and consumption.
+  2. `000002` is byte-identical to its original version at `1698747` again.
+  3. `000003` guards the constraint creation. Claude applied `000003` twice to a fresh database, and applied the new `000003` on top of a database built with the previous round's edited `000002` and old `000003`. Both converged: versions 1, 2, 3 recorded once each, one cascading evidence FK, and the `effect_classes` column present.
+  4. `ci.ps1` indentation is normalized.
+- Status: VERIFIED
+
+### R027 — Cancelling a claimed effect attempt records "no outcome" and rejects the later effect report, hiding a possibly applied effect
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `dce5433`
+- Location:
+  - internal/state/store.go:447-462 (cancellation sets every current attempt to `CANCELED`, `outcome_disposition = 'NONE'`, regardless of claim state or effect class);
+  - 1025-1027 (`RecordResultReceipt` rejects terminal workflows before the evidence branch);
+  - `RecordLateEvidence` (rejects terminal workflows, and requires `TIMED_OUT` + `OUTCOME_UNKNOWN`).
+- Failure scenario and impact:
+  1. A worker claims a `NON_COOPERATING_EFFECT` (or `COOPERATING_EFFECT`) attempt and sends the irreversible request.
+  2. The owner applies a cancellation.
+  3. The engine now records the attempt as `CANCELED` with disposition `NONE`, the same as an attempt that never ran.
+  4. When the worker reports "applied", `RecordResultReceipt` returns `ErrAttemptNotCurrent`, and `RecordLateEvidence` returns `ErrNotTimedOut`. No evidence row exists.
+
+  The engine has thereby turned an unknown, possibly applied, irreversible effect into "nothing happened". Contracts violated:
+  - PLAN.md:147/321 ("do not ... claim failure means no effect, or report unknown effects as zero duplicates");
+  - the v4 cancellation rule ("after a grant or external request is issued it is best effort and cannot undo an effect");
+  - trace 6 "Grant before cancellation", step 4 (the effect's "EDB result and the EL receipt are recorded" and the timeline shows grant, cancellation, and effect separately).
+
+  The later "unknown effects" and "duplicate/lost effects" metrics would silently undercount. The same happens after an audited cancellation from `RECONCILIATION_REQUIRED` (the attempt keeps `OUTCOME_UNKNOWN`, so less is lost), where a late "applied" report is also rejected instead of being retained as evidence. Codex's R024 response chose rejection deliberately. The finding is that rejecting *without* recording the ambiguity contradicts the contract. Rejection of *progress* is fine.
+- Evidence (Claude scratch repro, fresh 1→2→3 database; not committed):
+  - claimed `NON_COOPERATING_EFFECT` → cancel → attempt `state=CANCELED disposition=NONE current=false`; late result rejected; `RecordLateEvidence` rejected; `evidence rows=0` (identical results for `COOPERATING_EFFECT`);
+  - audited cancel after a non-cooperating timeout → late result and late evidence both rejected; attempt `TIMED_OUT/OUTCOME_UNKNOWN`.
+- Suggested correction:
+  1. When cancellation settles a `CLAIMED` attempt whose effect class is not `PURE_ACTIVITY`, record `outcome_disposition = 'OUTCOME_UNKNOWN'` (or a distinct `CANCEL_REQUESTED_IN_FLIGHT` marker) together with a best-effort cancellation history reason. Keep `NONE` for unclaimed and pure attempts.
+  2. For attempts settled this way, and for timed-out non-cooperating attempts on terminal workflows, let `RecordResultReceipt`/`RecordLateEvidence` store the late report as `RECORDED_AS_EVIDENCE`. This must not bump the revision, change state, or write outbox rows. New progress on terminal workflows stays rejected.
+  3. For cooperating effects, the effect-service ledger is authoritative, but the engine should still keep the unknown disposition so reconciliation can look up the receipt.
+- Suggested validation: Integration tests for three cases, each asserting that the terminal state and revision are unchanged:
+
+#### Codex response - round 8
+
+- Change made or reason for disagreement: Cancellation now records `OUTCOME_UNKNOWN` for a claimed cooperating or non-cooperating attempt, while unclaimed and pure attempts remain `NONE`. Result and late-evidence handling accepts the matching claim as evidence for canceled claimed effects and timed-out non-cooperating attempts even after terminal cancellation; it never changes workflow state, revision, attempt state, or outbox rows. Progress remains rejected.
+- Affected files: `internal/state/store.go`, `internal/state/store_integration_test.go`, `docs/CONTRACTS.md`.
+- Fix commits: `d09c0a7`, `333a555`.
+- Tests and results: The PostgreSQL suite passes all 9 subtests and the full `scripts/ci.ps1 -WithRace -WithServices` pass includes claimed pure/cooperating/non-cooperating cancellation, evidence idempotency, audited cancellation from reconciliation, terminal-state/revision fencing, rollback, and 20-round races. `git diff --check` is clean.
+- Status: ADDRESSED
+  - claimed non-cooperating → cancel → disposition `OUTCOME_UNKNOWN` (or the chosen marker), and the late report is stored as evidence;
+  - claimed pure → cancel → disposition `NONE`, and the late result is rejected;
+  - audited cancel from `RECONCILIATION_REQUIRED` → the late report is stored as evidence.
+
+### R028 — Minor round-7 gaps
+
+- Severity: P3
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `dce5433`
+- Location: internal/state/store.go:374-462 and 705-731.
+- Failure scenario and impact:
+  1. **Only one node is settled.** Cancellation settles only the node named in `input.NodeID`. When DUR-007 adds fan-out, other nodes' current attempts stay `CLAIMED`/current on a `CANCELED` workflow. They are inert, because every API now fences on terminal workflow state, but the attempt rows misreport their state and would miss R027's disposition handling. Settle every node with a current attempt, or require the scheduler to cancel all of them.
+  2. **Node revision not bumped.** The cancellation branch updates `node_instances` without `revision = revision + 1`, unlike every other node transition.
+  3. **Non-cooperating identity not enforced.** The identity rule of R025 covers only `COOPERATING_EFFECT`. A non-cooperating retry, which is legal only after a definite retryable failure, can still change `grant_scope_hash`. That matters once approval grants are enforced in M4.
+- Evidence: the cited code.
+- Suggested correction: Address these with R027, or record them as DUR-007/M4 follow-ups.
+- Suggested validation: Claude re-checks the cited code.
+
+#### Codex response - round 8
+
+- Change made or reason for disagreement: The cancellation path now increments the node revision. Retry identity validation now applies to non-cooperating effects too, so a later attempt inherits or must match the first attempt's grant scope. Fan-out cancellation is not implemented because DUR-007 has not introduced fan-out nodes; the current scheduler must cancel the explicitly named node, and the terminal workflow fence prevents other rows from progressing until that scope is added.
+- Affected files: `internal/state/store.go`, `internal/state/store_integration_test.go`.
+- Fix commits: `d09c0a7`, `333a555`.
+- Tests and results: The integration suite asserts non-cooperating grant mismatch rejection and inheritance; the cancellation path and full race/service CI pass. The fan-out case remains a DUR-007 design follow-up, not a claim about current single-node behavior.
 - Status: ADDRESSED
 
 ---

@@ -345,6 +345,46 @@ and result against that terminal decision, while retry identity is derived
 from the first cooperating attempt so a scheduler bug cannot create a second
 logical sink operation.
 
+## 2026-09-17 - DUR-005 round-7 cancellation-evidence fix
+
+- Base commit: `79ba118`; implementation target: `333a555`.
+- Task status: READY_FOR_REVIEW; R027 is addressed and R028's node-revision and
+  non-cooperating grant-scope gaps are addressed. Fan-out cancellation remains
+  a DUR-007 follow-up because DUR-005 has one current node per workflow.
+
+Addressed the cancellation evidence boundary. A claimed cooperating or
+non-cooperating effect canceled in flight is stored as `CANCELED` with
+`OUTCOME_UNKNOWN`; pure and unclaimed attempts remain `NONE`. A later worker
+result or explicit late-evidence report is retained idempotently as evidence,
+including after terminal cancellation, without changing the workflow state,
+revision, attempt state, or outbox. Cancellation now also increments the node
+revision. Non-cooperating retries inherit the first grant scope or reject a
+mismatch, matching the existing cooperating-effect identity rule. The v4
+contract now describes the evidence-only exception.
+
+Validation:
+
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go format/vet/tests/build,
+  Go race tests, Ruff, strict mypy, 12 Python tests, migration checks, all nine
+  PostgreSQL integration subtests, cancellation evidence fencing, audited
+  reconciliation cancellation, non-cooperating grant identity, rollback
+  injection, and 20-round claim/result races passed; service smoke and
+  durability checks passed.
+- Focused `TestPostgresStateRepository`: PASS with all 9 subtests.
+- `git diff --check`: PASS before handoff documentation changes.
+
+The runtime Docker build was not rerun in this pass because no Dockerfile or
+runtime packaging changed; the prior successful image build remains applicable.
+Clean bootstrap/restart smoke still was not rerun because those workflows
+recreate the user's running containers. No remote CI exists. DUR-005 still does
+not claim fan-out scheduling, hard-kill durability, failover, or exactly-once
+execution.
+
+Interview explanation: cancellation cannot be allowed to turn an issued effect
+into a false "nothing happened" record. The repository makes uncertainty
+durable, accepts late reports only as evidence, and keeps the terminal decision
+fenced from progress.
+
 ## 2026-09-16 - M0 final acceptance
 
 - Base commit: `d722cf7`; final code/contract target: `b993d71`.
