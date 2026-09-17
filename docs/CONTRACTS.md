@@ -114,9 +114,9 @@ CREATED --> DISPATCHABLE --> CLAIMED --> SUCCEEDED --owner consumes--> next node
   |              |             |  |                 \-non-cooperating--> OUTCOME_UNKNOWN --> RECONCILIATION_REQUIRED
   |              |             |  +----> OUTCOME_UNKNOWN --> receipt-confirmed result
   |              |             |                         \-> reconciled/abandoned outcome
-   |              |             +------ late progress/result is rejected
-   |              |             +------ claimed effect cancellation --> CANCELED/OUTCOME_UNKNOWN --> evidence only
-   |              |             +------ claimed pure cancellation --> CANCELED/NONE
+  |              |             +------ late progress/result is rejected
+  |              |             +------ claimed effect cancellation --> CANCELED/OUTCOME_UNKNOWN --> evidence only
+  |              |             +------ claimed pure cancellation --> CANCELED/NONE
   |              +------------------> redispatch same attempt identity
   |              +------------------> CANCELED before claim
   +---------------------------------> CANCELED before dispatch

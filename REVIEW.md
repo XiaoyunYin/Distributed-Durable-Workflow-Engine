@@ -57,7 +57,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 ## Codex handoff
 
 - Task: DUR-005 — Schema and state repository
-- Task status: READY_FOR_REVIEW
+- Task status: DONE
 - Handoff basis: COMMITTED
 - Base commit: `79ba118`
 - Target commit: `333a555`
@@ -70,7 +70,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur005-check .`: PASS; the image copied `go.sum` and `internal/` and built the runtime.
   - `git diff --check`: PASS before handoff documentation changes.
 - Skipped checks and reasons: No clean bootstrap or restart-smoke run was performed because those workflows recreate the user’s running containers. No remote CI exists. Full workflow-engine, scheduler, Kafka-relay, hard-kill durability, and paid/model behavior remain outside DUR-005.
-- Known limitations: This task implements the durable state repository and its PostgreSQL transaction boundaries, not the complete engine. The service evidence uses the existing single-node local topology. The integration suite uses generated `dur005-*` identities and does not claim production retention, failover, or exactly-once behavior.
+- Known limitations: This task implements the durable state repository and its PostgreSQL transaction boundaries, not the complete engine. The service evidence uses the existing single-node local topology. The integration suite uses generated `dur005-*` identities and does not claim production retention, failover, or exactly-once behavior. R028's fan-out cancellation follow-up is recorded under DUR-007 in PLAN.md.
 
 ## Claude review rounds
 
@@ -254,6 +254,34 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - Untested: PostgreSQL unavailability; lock/statement timeouts (none configured); clean bootstrap and restart smoke (not rerun).
 - Limitations: Windows host only; single local PostgreSQL 18.6.
 - Verdict: CHANGES_REQUESTED. Blocking: R027 (P2).
+
+### Round 8 — 2026-09-17 — DUR-005 evidence-fix verification
+
+- Date and round: 2026-09-17, round 8.
+- Review basis: COMMITTED. Worktree was clean at `614450c` when the review started.
+- Base and target commits: base `79ba118`, target `333a555`, the final DUR-005 code commit. Fix commits: `d09c0a7` and `333a555`. Handoff commit `614450c` changes only PLAN.md (the "Immediate next action" target hash), REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff bce4daa 333a555`, covering internal/state/store.go, store_integration_test.go, and docs/CONTRACTS.md, plus the handoff documentation. PLAN.md had no protected-scope change, and REVIEW.md history is preserved.
+- Checks personally run (Claude). Code ran in a scratch export of `333a555`, against a throwaway database `cr_d5_r8` (migrations 000001 → 000003) that was dropped afterwards:
+  - Throwaway checks (scratch file `claude_review_r4_test.go`, deleted afterwards): cancellation of claimed pure, cooperating, and non-cooperating attempts, with late result, retry, conflict, wrong token, late evidence, and heartbeat; plus audited cancellation from reconciliation. All behaved as the contract requires (see the R027 verification).
+  - `TestPostgresStateRepository` with `-race` and `DURABLE_REQUIRE_DATABASE=1`, three consecutive runs: PASS each time. Afterwards: 0 `dur005-*` rows, 0 test triggers, and no leases held.
+  - `go vet ./...` and `gofmt -l cmd internal`: clean. `git diff --check bce4daa 614450c`: clean.
+  - Read-only query on the shared dev database: 0 `dur005-*` rows.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices` in the repository, and the runtime Docker build (no Dockerfile, `go.mod`, or migration change since round 6/7).
+- Findings resolved: R027 is VERIFIED. R028 items 2 and 3 are verified.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R028 (OPEN, P3): item 1 is the fan-out cancellation settlement, left to DUR-007. It should be recorded in the DUR-007 scope in PLAN.md. The finding also covers the attempt-diagram indentation nit.
+  - R019 test gap: there is still no committed assertion for the stale-claim-after-replacement path.
+  - Untested:
+    - behavior while PostgreSQL is unavailable;
+    - lock/statement timeouts (none are configured);
+    - clean bootstrap and restart smoke (Codex did not rerun them; the last evidence is from M0 round 2);
+    - hard-kill durability;
+    - remote CI (none exists).
+  - Scope: DUR-005 is a repository layer; no engine, scheduler loop, or Kafka path exercises it yet, so its guarantees are validated only by the integration suite and Claude's scratch probes.
+- Limitations: Windows host only; single local PostgreSQL 18.6. Every Claude database check used throwaway databases rather than the shared development database.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-005 at committed target `333a555` with base `79ba118`. This is a COMMITTED, non-provisional review. R001–R027 are VERIFIED. The remaining non-blocking item is R028 (P3). With the acceptance criteria and evidence already recorded, Codex may move DUR-005 to DONE under PLAN.md section 11.
 
 For each round, record:
 
@@ -1169,7 +1197,7 @@ For each round, record:
 ### R027 — Cancelling a claimed effect attempt records "no outcome" and rejects the later effect report, hiding a possibly applied effect
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `dce5433`
 - Location:
@@ -1208,10 +1236,22 @@ For each round, record:
   - claimed pure → cancel → disposition `NONE`, and the late result is rejected;
   - audited cancel from `RECONCILIATION_REQUIRED` → the late report is stored as evidence.
 
+#### Claude verification – round 8
+
+- Verification commit: `614450c` (target `333a555`)
+- Evidence and remaining concerns: Cancellation now sets `outcome_disposition = OUTCOME_UNKNOWN` for a `CLAIMED` non-pure attempt and `NONE` otherwise (store.go:447-458). `isLateEvidenceAttempt` routes timed-out non-cooperating attempts and cancelled claimed effect attempts to the evidence-only path in both `RecordResultReceipt` (before the terminal-workflow fence) and `RecordLateEvidence`. The contract text and permission table match. Claude's scratch checks (fresh 1→2→3 database, scratch file deleted) cancelled a claimed attempt, then submitted a result, an identical retry, conflicting evidence, a wrong claim token, `RecordLateEvidence`, and a heartbeat:
+  - pure: attempt `CANCELED/NONE`; all calls rejected;
+  - cooperating and non-cooperating: attempt `CANCELED/OUTCOME_UNKNOWN`; result and retry → `RECORDED_AS_EVIDENCE`; conflict → `ErrEvidenceConflict`; wrong token rejected; `RecordLateEvidence` accepted idempotently; heartbeat stale;
+  - all three classes: workflow `CANCELED`, and revision, outbox, and history unchanged (evidence rows 0 → 1 for the effect classes only);
+  - audited cancel from `RECONCILIATION_REQUIRED`, then a late report → `RECORDED_AS_EVIDENCE`, with revision and outbox unchanged.
+
+  The committed suite passed three consecutive `-race` runs with `DURABLE_REQUIRE_DATABASE=1`, and left no `dur005-*` rows, triggers, or held leases.
+- Status: VERIFIED
+
 ### R028 — Minor round-7 gaps
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: OPEN
 - Deferred: no
 - Reviewed commit: `dce5433`
 - Location: internal/state/store.go:374-462 and 705-731.
@@ -1230,6 +1270,12 @@ For each round, record:
 - Fix commits: `d09c0a7`, `333a555`.
 - Tests and results: The integration suite asserts non-cooperating grant mismatch rejection and inheritance; the cancellation path and full race/service CI pass. The fan-out case remains a DUR-007 design follow-up, not a claim about current single-node behavior.
 - Status: ADDRESSED
+
+#### Claude verification – round 8
+
+- Verification commit: `614450c` (target `333a555`)
+- Evidence and remaining concerns: Item 2 is resolved: the cancellation branch now bumps the node revision (store.go:460-463), and `333a555` asserts it. Item 3 is resolved: the retry identity rule now covers `NON_COOPERATING_EFFECT` (store.go:710), and the committed test asserts both mismatch rejection and inheritance. Item 1 (settling all fan-out nodes on cancellation) is explicitly left to DUR-007. That is acceptable for a P3 because current workflows have a single active node and every API fences on terminal workflow state, but the follow-up currently lives only in REVIEW.md and the build log. Add it to the DUR-007 scope/acceptance in PLAN.md when DUR-007 is expanded, so it is not lost. Minor new nit: three lines of the attempt diagram in docs/CONTRACTS.md (around lines 117-119) gained an extra leading space and no longer align. The finding stays OPEN as a non-blocking P3 until the DUR-007 follow-up is recorded and closed.
+- Status: OPEN
 
 ---
 

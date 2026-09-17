@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 IN_PROGRESS; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -524,7 +524,7 @@ implementation/review cycle; retain its parent ID.
 
 **Dependencies:** M0.
 
-**DUR-005 status:** READY_FOR_REVIEW.
+**DUR-005 status:** DONE.
 
 | Task | Scope and acceptance |
 |---|---|
@@ -534,6 +534,27 @@ implementation/review cycle; retain its parent ID.
 | DUR-023A — Independent invariant checker skeleton | Implement an independent trace/state checker before the engine grows. In M1 it checks legal revision sequences, terminal-state monotonicity, unique accepted node results, and submission identity. Seed invalid traces and prove they fail without calling production transition validators. Extend the checker through the named DUR-023A-M2, DUR-023A-M3, and DUR-023A-M4 subtasks in later milestones. Mark DUR-023A complete when the M1 checker contract and seeded-negative tests pass. |
 
 **Exit:** A database-backed graph can resume from committed state, and the independent checker can detect seeded M1 violations. A test-only activity driver is acceptable until Kafka integration; it is not the final dispatch path.
+
+#### DUR-006 — Submission and query APIs
+
+- **Status:** IN_PROGRESS.
+- **Dependencies:** M0 and completed DUR-005; review base is the DUR-005 closeout commit.
+- **Goal:** Expose durable submission and read paths so a client can retry an ambiguous create response and observe one workflow, its current status, and its ordered history.
+- **Scope:** Submission idempotency and payload conflicts; status and history queries; stable response/error mapping; response-drop-after-commit behavior; retention and ambiguous-client-outcome policy. Do not add scheduler, fan-out, Kafka relay, or paid/model scope here.
+- **Acceptance:** Same namespace/submission key and payload returns the same workflow without duplicate durable creation; a different payload is rejected without mutation; status/history queries reflect committed revisions in order; a simulated response loss followed by retry returns one workflow; retention and the unresolved client outcome policy are documented and tested.
+- **Validation:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`; focused Go API/state tests with `go test -race ./...`; integration tests against throwaway PostgreSQL databases; `git diff --check`.
+- **Evidence:** `api/`, `cmd/runtime/`, the DUR-006 integration/API tests, `docs/BUILD_LOG.md`, and a committed `REVIEW.md` handoff. Record the exact base (DUR-005 closeout commit), target, commands, and remaining gaps before review.
+- **Review:** Use the DUR-005 closeout commit as the exact review base; commit the DUR-006 implementation before `READY_FOR_REVIEW`. Claude must review the final code target with a committed, non-provisional verdict.
+- **Remaining limitations:** No remote CI, clean-machine bootstrap, hard-kill durability, or production retention/failover claim unless newly tested and recorded.
+
+#### DUR-007 follow-up from DUR-005 R028
+
+When fan-out is introduced, owner cancellation must settle every active
+node/attempt, preserve `OUTCOME_UNKNOWN` for any claimed effect, retain late
+reports as evidence without progress, and prevent any branch from progressing
+after the terminal workflow decision. Add a bounded fan-out cancellation race
+to DUR-007's acceptance tests and update the attempt diagram in the same
+contract revision.
 
 ### M2 — Multi-replica ownership and worker attempts
 
@@ -891,9 +912,9 @@ review at base `d722cf7` and target `b993d71` returned
 contract wording follow-up for the first DUR-005 contract touch. Local
 foundation work does not require a cloud or model-call budget.
 
-DUR-005 is implemented and handed off at `333a555` with base `79ba118`.
-Await Claude's committed review; after acceptance, mark DUR-005 DONE and
-start **DUR-006 — Submission and query APIs**. Keep the M0 contracts and
+DUR-005 is DONE at reviewed code target `333a555` with base `79ba118` and
+Claude's committed round-8 verdict. Start **DUR-006 — Submission and query
+APIs** from the DUR-005 closeout commit. Keep the M0 contracts and
 partition-map version frozen while extending the durable state repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

@@ -385,6 +385,33 @@ into a false "nothing happened" record. The repository makes uncertainty
 durable, accepts late reports only as evidence, and keeps the terminal decision
 fenced from progress.
 
+## 2026-09-17 - DUR-005 closeout
+
+- Base commit: `79ba118`; final code target: `333a555`; handoff commit:
+  `614450c`.
+- Task status: DONE after Claude's committed, non-provisional round-8 review;
+  verdict `NO_BLOCKING_FINDINGS`. R001-R027 are VERIFIED. R028 remains a
+  non-blocking P3 fan-out follow-up and is now recorded in the DUR-007 scope in
+  PLAN.md.
+
+The final DUR-005 repository implementation is accepted under the frozen v4
+contract. Claude verified cancellation evidence for claimed effect attempts,
+idempotent/conflicting late reports, wrong-token fencing, operator cancellation
+from reconciliation, and three consecutive race-suite runs. The remaining
+untested areas are explicitly preserved in REVIEW.md: PostgreSQL unavailability,
+lock/statement timeouts, clean bootstrap/restart smoke, hard-kill durability,
+and remote CI. DUR-005 makes no claim that a complete engine or scheduler
+exists.
+
+The contract attempt diagram indentation was corrected as part of closeout.
+The next task is DUR-006, whose review must use this closeout commit as its
+base and whose scope/acceptance record is now present in PLAN.md.
+
+Interview explanation: a milestone closes only when the fixed code target,
+acceptance evidence, and independent committed review agree. The repository's
+durability boundary is now a reviewed foundation for the client-facing API
+work, while fan-out cancellation remains explicitly owned by DUR-007.
+
 ## 2026-09-16 - M0 final acceptance
 
 - Base commit: `d722cf7`; final code/contract target: `b993d71`.
