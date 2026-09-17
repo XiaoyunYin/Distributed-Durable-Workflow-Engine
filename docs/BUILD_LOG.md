@@ -1,5 +1,54 @@
 # Build log
 
+## 2026-09-17 - DUR-006 round-11 corrections
+
+- Base commit: `adf5934`; implementation target: `a37661d`.
+- Task status: READY_FOR_REVIEW; R032 is addressed, and the R033 items are
+  addressed in the implementation and documentation.
+
+The create transaction now uses an unqualified `ON CONFLICT DO NOTHING` and
+resolves the conflicting durable row afterward. It first checks the
+namespace/submission key and then the workflow ID, so a concurrent identical
+retry with a client-supplied workflow ID returns the committed workflow rather
+than a false `WORKFLOW_ID_CONFLICT`; a genuinely different key still receives
+the conflict. The integration test runs five rounds of twelve simultaneous
+identical fixed-ID requests and requires exactly one `201` and eleven `200`
+responses in every round.
+
+The request decoder now rejects duplicate keys at the top level as well as in
+`payload` and `initial_input`. Database-unavailable classification covers
+safe-to-retry pgx errors, connection/network failures, PostgreSQL connection
+and shutdown SQLSTATEs, and closed/EOF connections. Submission hashes carry a
+`sub-v1:` prefix, reserving a version boundary for future canonicalization
+changes. The API documentation states that a 503 outcome is ambiguous and
+must be retried with the same execution meaning and idempotency key.
+
+Validation:
+
+- `go test -race ./...`: PASS.
+- `go test -race ./internal/api -run
+  '^TestWorkflowAPIResponseLossHistoryAndRetention$' -count=1 -v`: PASS
+  against the configured development PostgreSQL service, including five
+  rounds of concurrent fixed-ID retries.
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS; formatting, vet, Go tests
+  and race tests, Ruff, strict mypy, 12 Python tests, all 9 DUR-005 database
+  subtests, the DUR-006 PostgreSQL integration suite, and service smoke checks
+  passed.
+- `docker build -f deploy/local/Dockerfile.runtime -t
+  durable-agent-runtime:dur006-r11-check .`: PASS.
+- `docker compose --env-file .env -f deploy/local/compose.yaml config
+  --quiet`: PASS.
+- `git diff --check`: PASS before the handoff documentation edit.
+
+Not rerun: clean bootstrap, restart-smoke, hard-kill durability, remote CI,
+and a live stopped-database probe; helper tests cover connection, SQLSTATE,
+network, and safe-to-retry classifications. No migrations changed.
+
+Interview explanation: uniqueness constraints can race on more than one key.
+The repository treats a no-op insert as an identity-resolution event and reads
+the durable winner before deciding whether the caller is retrying or actually
+conflicting.
+
 ## 2026-09-17 - DUR-006 round-10 corrections
 
 - Base commit: `adf5934`; implementation target: `b252e36`.
