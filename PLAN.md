@@ -538,13 +538,13 @@ implementation/review cycle; retain its parent ID.
 #### DUR-006 — Submission and query APIs
 
 - **Status:** IN_PROGRESS.
-- **Dependencies:** M0 and completed DUR-005; review base is the DUR-005 closeout commit.
+- **Dependencies:** M0 and completed DUR-005; review base is closeout commit `adf5934`.
 - **Goal:** Expose durable submission and read paths so a client can retry an ambiguous create response and observe one workflow, its current status, and its ordered history.
 - **Scope:** Submission idempotency and payload conflicts; status and history queries; stable response/error mapping; response-drop-after-commit behavior; retention and ambiguous-client-outcome policy. Do not add scheduler, fan-out, Kafka relay, or paid/model scope here.
 - **Acceptance:** Same namespace/submission key and payload returns the same workflow without duplicate durable creation; a different payload is rejected without mutation; status/history queries reflect committed revisions in order; a simulated response loss followed by retry returns one workflow; retention and the unresolved client outcome policy are documented and tested.
 - **Validation:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`; focused Go API/state tests with `go test -race ./...`; integration tests against throwaway PostgreSQL databases; `git diff --check`.
-- **Evidence:** `api/`, `cmd/runtime/`, the DUR-006 integration/API tests, `docs/BUILD_LOG.md`, and a committed `REVIEW.md` handoff. Record the exact base (DUR-005 closeout commit), target, commands, and remaining gaps before review.
-- **Review:** Use the DUR-005 closeout commit as the exact review base; commit the DUR-006 implementation before `READY_FOR_REVIEW`. Claude must review the final code target with a committed, non-provisional verdict.
+- **Evidence:** `api/`, `cmd/runtime/`, the DUR-006 integration/API tests, `docs/BUILD_LOG.md`, and a committed `REVIEW.md` handoff. Record base `adf5934`, target, commands, and remaining gaps before review.
+- **Review:** Use closeout commit `adf5934` as the exact review base; commit the DUR-006 implementation before `READY_FOR_REVIEW`. Claude must review the final code target with a committed, non-provisional verdict.
 - **Remaining limitations:** No remote CI, clean-machine bootstrap, hard-kill durability, or production retention/failover claim unless newly tested and recorded.
 
 #### DUR-007 follow-up from DUR-005 R028
@@ -914,7 +914,7 @@ foundation work does not require a cloud or model-call budget.
 
 DUR-005 is DONE at reviewed code target `333a555` with base `79ba118` and
 Claude's committed round-8 verdict. Start **DUR-006 — Submission and query
-APIs** from the DUR-005 closeout commit. Keep the M0 contracts and
+APIs** from DUR-005 closeout commit `adf5934`. Keep the M0 contracts and
 partition-map version frozen while extending the durable state repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

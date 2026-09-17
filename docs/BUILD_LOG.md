@@ -388,7 +388,7 @@ fenced from progress.
 ## 2026-09-17 - DUR-005 closeout
 
 - Base commit: `79ba118`; final code target: `333a555`; handoff commit:
-  `614450c`.
+  `614450c`; closeout commit: `adf5934`.
 - Task status: DONE after Claude's committed, non-provisional round-8 review;
   verdict `NO_BLOCKING_FINDINGS`. R001-R027 are VERIFIED. R028 remains a
   non-blocking P3 fan-out follow-up and is now recorded in the DUR-007 scope in
@@ -411,6 +411,21 @@ Interview explanation: a milestone closes only when the fixed code target,
 acceptance evidence, and independent committed review agree. The repository's
 durability boundary is now a reviewed foundation for the client-facing API
 work, while fan-out cancellation remains explicitly owned by DUR-007.
+
+## 2026-09-17 - DUR-006 start
+
+- Base commit: `adf5934` (DUR-005 closeout).
+- Task status: IN_PROGRESS; no DUR-006 implementation commit yet.
+
+Opened the submission/query API task with its scope, acceptance scenarios,
+validation commands, evidence paths, review base, and limitations recorded in
+PLAN.md. The first implementation pass will expose the durable create/status/
+history behavior already supported by the repository without expanding into
+scheduler, fan-out, Kafka, or paid/model work.
+
+Next implementation evidence must include a response-drop-after-commit retry,
+same-key/same-payload idempotency, conflicting-payload rejection without
+mutation, and ordered status/history reads against throwaway PostgreSQL.
 
 ## 2026-09-16 - M0 final acceptance
 
