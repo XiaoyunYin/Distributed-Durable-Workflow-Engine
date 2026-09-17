@@ -246,6 +246,58 @@ func (s *Store) ListNodes(ctx context.Context, workflowID string) ([]NodeInstanc
 	return nodes, nil
 }
 
+// ListAttempts returns the durable attempt generations for checker and
+// diagnostics. It intentionally exposes a snapshot rather than a mutable
+// production decision object.
+func (s *Store) ListAttempts(ctx context.Context, workflowID string) ([]Attempt, error) {
+	rows, err := s.pool.Query(ctx, `
+		SELECT workflow_id, node_id, iteration, attempt_number, state, effect_class,
+			claim_token::text, worker_id, worker_request_id, heartbeat_deadline,
+			logical_effect_key, grant_scope_hash, outcome_disposition, result, is_current
+		FROM engine.activity_attempts
+		WHERE workflow_id = $1
+		ORDER BY node_id, iteration, attempt_number`, workflowID)
+	if err != nil {
+		return nil, fmt.Errorf("list workflow attempts: %w", err)
+	}
+	defer rows.Close()
+	var attempts []Attempt
+	for rows.Next() {
+		var attempt Attempt
+		var claimToken, workerID, requestID, effectKey, grantScope *string
+		var result []byte
+		if err := rows.Scan(&attempt.WorkflowID, &attempt.NodeID, &attempt.Iteration,
+			&attempt.AttemptNumber, &attempt.State, &attempt.EffectClass, &claimToken,
+			&workerID, &requestID, &attempt.HeartbeatDeadline, &effectKey, &grantScope,
+			&attempt.OutcomeDisposition, &result, &attempt.IsCurrent); err != nil {
+			return nil, fmt.Errorf("scan workflow attempt: %w", err)
+		}
+		if claimToken != nil {
+			attempt.ClaimToken = *claimToken
+		}
+		if workerID != nil {
+			attempt.WorkerID = *workerID
+		}
+		if requestID != nil {
+			attempt.WorkerRequestID = *requestID
+		}
+		if effectKey != nil {
+			attempt.LogicalEffectKey = *effectKey
+		}
+		if grantScope != nil {
+			attempt.GrantScopeHash = *grantScope
+		}
+		if result != nil {
+			attempt.Result = json.RawMessage(result)
+		}
+		attempts = append(attempts, attempt)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate workflow attempts: %w", err)
+	}
+	return attempts, nil
+}
+
 func (s *Store) PendingTimer(ctx context.Context, workflowID, nodeID string, iteration int) (time.Time, string, bool, error) {
 	var dueAt time.Time
 	var purpose string

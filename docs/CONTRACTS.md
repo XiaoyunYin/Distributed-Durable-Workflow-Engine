@@ -187,6 +187,25 @@ This `workflow -> node/attempt` order is an ordered subsequence of the scheduler
 `lease -> workflow -> node/attempt -> subordinate` order, so result and
 timeout transactions cannot acquire those rows in reverse order.
 
+The M2 direct worker control surface is transport-neutral and is also the seam
+used by the Python runner:
+
+```text
+POST /v1/workflows/{workflow}/nodes/{node}/iterations/{iteration}/claim
+  {"worker_id", "request_id", "attempt_lease_ms"}
+POST .../heartbeat
+  {"attempt_number", "claim_token", "extension_ms"}
+POST .../result
+  {"attempt_number", "claim_token", "attempt_state", "payload"}
+```
+
+Claim retries use the same `request_id`; result retries use the same attempt
+number and claim token. A lost claim response is retried with the same request
+ID after restart. A result response lost after commit is retried with the same
+token and returns the durable receipt without a second result event. A stale
+claim is surfaced for scheduler recovery rather than executed outside the
+claim.
+
 A client cancellation request and an approver decision are intent records, not
 workflow transitions. Their API transactions may lock `workflow` to capture
 the observed revision and then insert the request/decision row, but do not

@@ -230,14 +230,12 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (RunResult, error) 
 		maxSteps = 100
 	}
 	for steps := 0; steps < maxSteps; steps++ {
-		var renewed bool
 		var renewedLease state.Lease
-		renewedLease, renewed, err = e.Store.AcquireLease(ctx, wf.PartitionID, ownerID, ttl)
+		renewedLease, err = e.Store.RenewLease(ctx, state.LeaseRef{
+			PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch,
+		}, ttl)
 		if err != nil {
 			return RunResult{}, err
-		}
-		if !renewed {
-			return RunResult{Workflow: wf, Blocked: true}, state.ErrLeaseNotOwned
 		}
 		lease = renewedLease
 		ownedLease = renewedLease

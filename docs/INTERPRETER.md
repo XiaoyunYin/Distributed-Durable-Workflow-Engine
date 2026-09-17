@@ -50,3 +50,17 @@ effect class remains authoritative in the immutable definition metadata.
 
 The activity driver in `internal/engine` is deliberately a test fixture. Kafka
 relay, production effect services, and paid/model execution are later scope.
+
+## M2 worker runner seam
+
+`python/workers/runner.py` is the bounded direct-dispatch runner for M2. It
+resolves only versioned registry entries, claims through the control API,
+heartbeats while an activity is running, and submits one terminal result. Its
+`run_many` method bounds local activity concurrency. It does not own workflow
+transitions or connect to Kafka; the Kafka adapter is M3.
+
+If a process loses a claim response, the request ID and attempt token remain
+the durable retry identity. A restarted process retries the claim with the
+same request ID; the repository returns the committed claim or a stale-claim
+error. A result response lost after commit is retried with the same token and
+returns the durable receipt without a second result event.

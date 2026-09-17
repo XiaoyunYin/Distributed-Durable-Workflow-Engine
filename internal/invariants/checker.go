@@ -12,10 +12,12 @@ import (
 )
 
 type HistoryRecord struct {
-	WorkflowID string
-	Revision   int64
-	OldState   string
-	NewState   string
+	WorkflowID     string
+	Revision       int64
+	ActorKind      string
+	SchedulerEpoch *int64
+	OldState       string
+	NewState       string
 }
 
 type AcceptedResult struct {
@@ -32,10 +34,25 @@ type SubmissionRecord struct {
 	WorkflowID string
 }
 
+type AttemptRecord struct {
+	WorkflowID      string
+	NodeID          string
+	Iteration       int
+	AttemptNumber   int64
+	State           string
+	ClaimToken      string
+	WorkerID        string
+	WorkerRequestID string
+	Outcome         string
+	IsCurrent       bool
+	ResultRecorded  bool
+}
+
 type Trace struct {
 	History     []HistoryRecord
 	Results     []AcceptedResult
 	Submissions []SubmissionRecord
+	Attempts    []AttemptRecord
 }
 
 type Verdict struct {
@@ -63,7 +80,8 @@ func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace,
 				oldState = string(*record.OldState)
 			}
 			trace.History = append(trace.History, HistoryRecord{WorkflowID: workflowID,
-				Revision: record.Revision, OldState: oldState, NewState: string(record.NewState)})
+				Revision: record.Revision, ActorKind: record.ActorKind, SchedulerEpoch: record.SchedulerEpoch,
+				OldState: oldState, NewState: string(record.NewState)})
 		}
 		nodes, err := store.ListNodes(ctx, workflowID)
 		if err != nil {
@@ -74,6 +92,19 @@ func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace,
 				trace.Results = append(trace.Results, AcceptedResult{WorkflowID: workflowID,
 					NodeID: node.NodeID, Iteration: node.Iteration, Accepted: true})
 			}
+		}
+		attempts, err := store.ListAttempts(ctx, workflowID)
+		if err != nil {
+			return Trace{}, err
+		}
+		for _, attempt := range attempts {
+			trace.Attempts = append(trace.Attempts, AttemptRecord{
+				WorkflowID: attempt.WorkflowID, NodeID: attempt.NodeID, Iteration: attempt.Iteration,
+				AttemptNumber: attempt.AttemptNumber, State: string(attempt.State), ClaimToken: attempt.ClaimToken,
+				WorkerID: attempt.WorkerID, WorkerRequestID: attempt.WorkerRequestID,
+				Outcome: attempt.OutcomeDisposition, IsCurrent: attempt.IsCurrent,
+				ResultRecorded: len(attempt.Result) != 0,
+			})
 		}
 		trace.Submissions = append(trace.Submissions, SubmissionRecord{Namespace: workflow.Namespace,
 			Key: workflow.SubmissionKey, Hash: workflow.PayloadHash, WorkflowID: workflowID})
@@ -86,7 +117,76 @@ func Check(trace Trace) Verdict {
 	checkHistory(trace.History, &violations)
 	checkResults(trace.Results, &violations)
 	checkSubmissions(trace.Submissions, &violations)
+	checkOwnershipAndAttempts(trace.History, trace.Attempts, &violations)
 	return Verdict{Valid: len(violations) == 0, Violations: violations}
+}
+
+func checkOwnershipAndAttempts(history []HistoryRecord, attempts []AttemptRecord, violations *[]string) {
+	byWorkflow := make(map[string][]HistoryRecord)
+	for _, record := range history {
+		byWorkflow[record.WorkflowID] = append(byWorkflow[record.WorkflowID], record)
+	}
+	for workflowID, records := range byWorkflow {
+		sort.Slice(records, func(i, j int) bool { return records[i].Revision < records[j].Revision })
+		var previousEpoch int64
+		for _, record := range records {
+			if record.ActorKind == "scheduler" {
+				if record.SchedulerEpoch == nil || *record.SchedulerEpoch <= 0 {
+					*violations = append(*violations, "scheduler history is missing an ownership epoch: "+workflowID)
+				} else if previousEpoch != 0 && *record.SchedulerEpoch < previousEpoch {
+					*violations = append(*violations, "scheduler epoch moved backwards: "+workflowID)
+				} else {
+					previousEpoch = *record.SchedulerEpoch
+				}
+			} else if record.SchedulerEpoch != nil {
+				*violations = append(*violations, "non-scheduler history carries a scheduler epoch: "+workflowID)
+			}
+		}
+	}
+	byNode := make(map[string][]AttemptRecord)
+	for _, attempt := range attempts {
+		if attempt.WorkflowID == "" || attempt.NodeID == "" || attempt.Iteration < 0 || attempt.AttemptNumber <= 0 {
+			*violations = append(*violations, "attempt identity is incomplete")
+			continue
+		}
+		key := fmt.Sprintf("%s\x00%s\x00%d", attempt.WorkflowID, attempt.NodeID, attempt.Iteration)
+		byNode[key] = append(byNode[key], attempt)
+		if attempt.IsCurrent && isTerminalAttempt(attempt.State) {
+			*violations = append(*violations, "terminal attempt remains current: "+key)
+		}
+		if attempt.State == "CLAIMED" && (attempt.ClaimToken == "" || attempt.WorkerID == "" || attempt.WorkerRequestID == "") {
+			*violations = append(*violations, "claimed attempt is missing worker ownership: "+key)
+		}
+		if attempt.ResultRecorded && (attempt.State == "TIMED_OUT" || attempt.State == "REPLACED" || attempt.State == "CANCELED" || attempt.State == "OUTCOME_UNKNOWN") {
+			*violations = append(*violations, "stale worker result recorded on settled attempt: "+key)
+		}
+	}
+	for key, records := range byNode {
+		sort.Slice(records, func(i, j int) bool { return records[i].AttemptNumber < records[j].AttemptNumber })
+		current := 0
+		for index, record := range records {
+			want := int64(index + 1)
+			if record.AttemptNumber != want {
+				*violations = append(*violations, fmt.Sprintf("attempt generation is not contiguous for %s", key))
+				break
+			}
+			if record.IsCurrent {
+				current++
+			}
+		}
+		if current > 1 {
+			*violations = append(*violations, "more than one current attempt: "+key)
+		}
+	}
+}
+
+func isTerminalAttempt(state string) bool {
+	switch state {
+	case "SUCCEEDED", "FAILED_RETRYABLE", "FAILED_FINAL", "TIMED_OUT", "REPLACED", "OUTCOME_UNKNOWN", "CANCELED":
+		return true
+	default:
+		return false
+	}
 }
 
 func checkHistory(history []HistoryRecord, violations *[]string) {

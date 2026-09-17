@@ -25,6 +25,30 @@ type fakeRepository struct {
 	lastCreate   state.CreateWorkflowInput
 }
 
+type fakeWorkerRepository struct {
+	*fakeRepository
+	claimResult  state.ClaimResult
+	claimErr     error
+	heartbeatAt  time.Time
+	heartbeatErr error
+	receipt      state.ResultReceipt
+	receiptErr   error
+	lastResult   state.ResultInput
+}
+
+func (f *fakeWorkerRepository) ClaimAttempt(_ context.Context, _ state.ClaimInput) (state.ClaimResult, error) {
+	return f.claimResult, f.claimErr
+}
+
+func (f *fakeWorkerRepository) HeartbeatAttempt(_ context.Context, _ state.HeartbeatInput) (time.Time, error) {
+	return f.heartbeatAt, f.heartbeatErr
+}
+
+func (f *fakeWorkerRepository) RecordResultReceipt(_ context.Context, input state.ResultInput) (state.ResultReceipt, error) {
+	f.lastResult = input
+	return f.receipt, f.receiptErr
+}
+
 func (f *fakeRepository) CreateWorkflow(_ context.Context, input state.CreateWorkflowInput) (state.CreateWorkflowResult, error) {
 	f.lastCreate = input
 	return f.createResult, f.createErr
@@ -239,5 +263,35 @@ func TestRepositoryErrorMappingDoesNotExposeInternalDetails(t *testing.T) {
 	NewServer(fake).Handler().ServeHTTP(recorder, request)
 	if recorder.Code != http.StatusInternalServerError || strings.Contains(recorder.Body.String(), "database password") {
 		t.Fatalf("internal error response = %d %s", recorder.Code, recorder.Body.String())
+	}
+}
+
+func TestWorkerControlEndpointsUseStableAttemptIdentity(t *testing.T) {
+	fake := &fakeWorkerRepository{
+		fakeRepository: &fakeRepository{},
+		claimResult: state.ClaimResult{AttemptNumber: 3, ClaimToken: "claim-token",
+			EffectClass: state.EffectPure, HeartbeatDeadline: time.Unix(3, 0).UTC()},
+		heartbeatAt: time.Unix(4, 0).UTC(),
+		receipt: state.ResultReceipt{Disposition: state.ResultAccepted, AttemptNumber: 3,
+			AttemptState: state.AttemptSucceeded, Payload: []byte(`{"ok":true}`)},
+	}
+	handler := NewServer(fake).Handler()
+	base := "/v1/workflows/workflow-1/nodes/root/iterations/0/"
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, base+"claim", strings.NewReader(`{"worker_id":"worker-1","request_id":"request-1","attempt_lease_ms":5000}`)))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), `"attempt_number":3`) {
+		t.Fatalf("claim response = %d %s", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, base+"heartbeat", strings.NewReader(`{"attempt_number":3,"claim_token":"claim-token","extension_ms":5000}`)))
+	if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), "heartbeat_deadline") {
+		t.Fatalf("heartbeat response = %d %s", recorder.Code, recorder.Body.String())
+	}
+
+	recorder = httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, base+"result", strings.NewReader(`{"attempt_number":3,"claim_token":"claim-token","attempt_state":"SUCCEEDED","payload":{"ok":true}}`)))
+	if recorder.Code != http.StatusOK || fake.lastResult.AttemptNumber != 3 || fake.lastResult.ClaimToken != "claim-token" {
+		t.Fatalf("result response = %d %s input=%+v", recorder.Code, recorder.Body.String(), fake.lastResult)
 	}
 }

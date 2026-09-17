@@ -32,6 +32,15 @@ type Repository interface {
 	ListHistory(context.Context, string, int64, int) ([]state.TransitionRecord, error)
 }
 
+// WorkerRepository is the narrow control-plane surface used by activity
+// runners. It is separate from Repository so the query API remains easy to
+// fake and so future Kafka transport code can reuse the same durable methods.
+type WorkerRepository interface {
+	ClaimAttempt(context.Context, state.ClaimInput) (state.ClaimResult, error)
+	HeartbeatAttempt(context.Context, state.HeartbeatInput) (time.Time, error)
+	RecordResultReceipt(context.Context, state.ResultInput) (state.ResultReceipt, error)
+}
+
 type Server struct {
 	repository Repository
 }
@@ -45,10 +54,157 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/workflows", s.createWorkflow)
 	mux.HandleFunc("GET /v1/workflows/{workflowID}", s.getWorkflow)
 	mux.HandleFunc("GET /v1/workflows/{workflowID}/history", s.getHistory)
+	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/claim", s.claimAttempt)
+	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/heartbeat", s.heartbeatAttempt)
+	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/result", s.recordResult)
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "route was not found", nil)
 	})
 	return mux
+}
+
+type claimAttemptRequest struct {
+	WorkerID       string `json:"worker_id"`
+	RequestID      string `json:"request_id"`
+	AttemptLeaseMS int64  `json:"attempt_lease_ms,omitempty"`
+}
+
+type heartbeatRequest struct {
+	AttemptNumber int64  `json:"attempt_number"`
+	ClaimToken    string `json:"claim_token"`
+	ExtensionMS   int64  `json:"extension_ms,omitempty"`
+}
+
+type resultRequest struct {
+	AttemptNumber     int64              `json:"attempt_number"`
+	ClaimToken        string             `json:"claim_token"`
+	AttemptState      state.AttemptState `json:"attempt_state"`
+	Payload           json.RawMessage    `json:"payload"`
+	EventType         string             `json:"event_type,omitempty"`
+	ReconciliationRef string             `json:"reconciliation_ref,omitempty"`
+}
+
+type claimAttemptResponse struct {
+	AttemptNumber     int64             `json:"attempt_number"`
+	ClaimToken        string            `json:"claim_token"`
+	EffectClass       state.EffectClass `json:"effect_class"`
+	HeartbeatDeadline time.Time         `json:"heartbeat_deadline"`
+}
+
+type heartbeatResponse struct {
+	HeartbeatDeadline time.Time `json:"heartbeat_deadline"`
+}
+
+func (s *Server) workerRepository(w http.ResponseWriter) (WorkerRepository, bool) {
+	repository, ok := s.repository.(WorkerRepository)
+	if !ok {
+		writeError(w, http.StatusNotImplemented, "WORKER_CONTROL_UNAVAILABLE", "worker control is unavailable", nil)
+	}
+	return repository, ok
+}
+
+func parseAttemptPath(r *http.Request) (string, string, int, bool) {
+	iteration, err := strconv.Atoi(r.PathValue("iteration"))
+	if err != nil || iteration < 0 {
+		return "", "", 0, false
+	}
+	return r.PathValue("workflowID"), r.PathValue("nodeID"), iteration, true
+}
+
+func (s *Server) claimAttempt(w http.ResponseWriter, r *http.Request) {
+	repository, ok := s.workerRepository(w)
+	if !ok {
+		return
+	}
+	workflowID, nodeID, iteration, valid := parseAttemptPath(r)
+	if !valid {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "iteration must be a non-negative integer", nil)
+		return
+	}
+	var request claimAttemptRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
+		return
+	}
+	if request.WorkerID == "" || request.RequestID == "" || request.AttemptLeaseMS < 0 {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "worker_id, request_id, and a non-negative attempt_lease_ms are required", nil)
+		return
+	}
+	claim, err := repository.ClaimAttempt(r.Context(), state.ClaimInput{
+		WorkflowID: workflowID, NodeID: nodeID, Iteration: iteration,
+		WorkerID: request.WorkerID, RequestID: request.RequestID,
+		AttemptLease: time.Duration(request.AttemptLeaseMS) * time.Millisecond,
+	})
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, claimAttemptResponse{AttemptNumber: claim.AttemptNumber,
+		ClaimToken: claim.ClaimToken, EffectClass: claim.EffectClass,
+		HeartbeatDeadline: claim.HeartbeatDeadline})
+}
+
+func (s *Server) heartbeatAttempt(w http.ResponseWriter, r *http.Request) {
+	repository, ok := s.workerRepository(w)
+	if !ok {
+		return
+	}
+	workflowID, nodeID, iteration, valid := parseAttemptPath(r)
+	if !valid {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "iteration must be a non-negative integer", nil)
+		return
+	}
+	var request heartbeatRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
+		return
+	}
+	if request.AttemptNumber <= 0 || request.ClaimToken == "" || request.ExtensionMS < 0 {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "attempt_number, claim_token, and a non-negative extension_ms are required", nil)
+		return
+	}
+	deadline, err := repository.HeartbeatAttempt(r.Context(), state.HeartbeatInput{
+		WorkflowID: workflowID, NodeID: nodeID, Iteration: iteration,
+		AttemptNumber: request.AttemptNumber, ClaimToken: request.ClaimToken,
+		Extension: time.Duration(request.ExtensionMS) * time.Millisecond,
+	})
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, heartbeatResponse{HeartbeatDeadline: deadline})
+}
+
+func (s *Server) recordResult(w http.ResponseWriter, r *http.Request) {
+	repository, ok := s.workerRepository(w)
+	if !ok {
+		return
+	}
+	workflowID, nodeID, iteration, valid := parseAttemptPath(r)
+	if !valid {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "iteration must be a non-negative integer", nil)
+		return
+	}
+	var request resultRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
+		return
+	}
+	if request.AttemptNumber <= 0 || request.ClaimToken == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "attempt_number and claim_token are required", nil)
+		return
+	}
+	receipt, err := repository.RecordResultReceipt(r.Context(), state.ResultInput{
+		WorkflowID: workflowID, NodeID: nodeID, Iteration: iteration,
+		AttemptNumber: request.AttemptNumber, ClaimToken: request.ClaimToken,
+		AttemptState: request.AttemptState, Payload: request.Payload,
+		EventType: request.EventType, ReconciliationRef: request.ReconciliationRef,
+	})
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, receipt)
 }
 
 type submitWorkflowRequest struct {
@@ -450,6 +606,18 @@ func writeRepositoryError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "STALE_CLAIM", "the claim is stale", nil)
 	case errors.Is(err, state.ErrAttemptNotCurrent):
 		writeError(w, http.StatusConflict, "STALE_ATTEMPT", "the attempt is no longer current", nil)
+	case errors.Is(err, state.ErrClaimRequestConflict):
+		writeError(w, http.StatusConflict, "CLAIM_REQUEST_CONFLICT", "request_id belongs to another attempt", nil)
+	case errors.Is(err, state.ErrResultConflict):
+		writeError(w, http.StatusConflict, "RESULT_CONFLICT", "result conflicts with the durable receipt", nil)
+	case errors.Is(err, state.ErrEvidenceConflict):
+		writeError(w, http.StatusConflict, "EVIDENCE_CONFLICT", "evidence conflicts with the durable record", nil)
+	case errors.Is(err, state.ErrLeaseNotOwned):
+		writeError(w, http.StatusConflict, "STALE_LEASE", "scheduler lease is stale or not owned", nil)
+	case errors.Is(err, state.ErrGraphViolation):
+		writeError(w, http.StatusUnprocessableEntity, "GRAPH_VIOLATION", "workflow graph transition is invalid", nil)
+	case errors.Is(err, state.ErrInvalidTransition):
+		writeError(w, http.StatusConflict, "INVALID_TRANSITION", "workflow transition is invalid", nil)
 	case isDatabaseUnavailable(err):
 		writeError(w, http.StatusServiceUnavailable, "DATABASE_UNAVAILABLE", "database is unavailable", nil)
 	default:

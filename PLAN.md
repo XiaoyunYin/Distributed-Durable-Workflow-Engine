@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 IN_PROGRESS; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 IN_PROGRESS; DUR-009 IN_PROGRESS; DUR-010 IN_PROGRESS; DUR-023A-M2 IN_PROGRESS; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -610,6 +610,71 @@ contract revision.
   `docs/BUILD_LOG.md`, and the committed review handoff.
 - **Remaining limitations:** This start record does not add Kafka, production
   workers, remote CI, sustained-load measurements, or a multi-host deployment.
+
+#### DUR-009 — Claim and result APIs
+
+- **Status:** IN_PROGRESS.
+- **Dependencies:** DUR-008; review base is the M1 closeout target `600726f`.
+- **Goal:** Expose the reviewed worker claim/result repository operations
+  through an idempotent control API without granting workers scheduler
+  authority.
+- **Scope:** Atomic claim by workflow/node/iteration, stable worker request
+  identity, heartbeats, attempt-token validation, durable result receipts,
+  duplicate result handling, and typed stale/conflict errors. The API is a
+  direct test/control seam; Kafka transport remains M3.
+- **Acceptance:** Concurrent claims leave one current claimant; a claim retry
+  returns the same attempt/token; a committed result retry returns the same
+  receipt without another event; stale tokens and replaced attempts cannot
+  overwrite state; and worker calls cannot change workflow state or create
+  retries.
+- **Validation:** API unit tests plus PostgreSQL concurrency/retry tests,
+  `go test -race ./...`, `go vet ./...`, `gofmt`, and `git diff --check`.
+- **Evidence:** `internal/api/`, `internal/state/`, worker control tests,
+  `docs/CONTRACTS.md`, and the committed review handoff.
+- **Remaining limitations:** No authentication or Kafka transport; the API is
+  development-only and localhost-bound by the runtime defaults.
+
+#### DUR-010 — Python activity runner
+
+- **Status:** IN_PROGRESS.
+- **Dependencies:** DUR-009; review base is the M1 closeout target `600726f`.
+- **Goal:** Provide a bounded, version-aware worker process seam that uses the
+  durable claim protocol and can be restarted without inventing local state.
+- **Scope:** Versioned activity registry, deterministic pure fixtures, bounded
+  concurrency, heartbeat/control client, direct task command, and explicit
+  lost-response/restart behavior. Do not add Kafka consumer logic or effect
+  services.
+- **Acceptance:** Unsupported versions are rejected; fixture results are
+  deterministic; concurrency never exceeds the configured bound; long work
+  heartbeats; terminal results use the claimed attempt identity; and restart
+  guidance covers both lost claim and lost result responses.
+- **Validation:** `uv run ruff check python tests`, `uv run mypy`, and
+  `uv run pytest` with registry, heartbeat, concurrency, and lost-claim tests.
+- **Evidence:** `python/workers/`, `tests/test_workers.py`,
+  `docs/INTERPRETER.md`, and `docs/BUILD_LOG.md`.
+- **Remaining limitations:** Direct dispatch is test-only; Kafka and
+  production activity isolation are M3/M4 scope.
+
+#### DUR-023A-M2 — Independent ownership/attempt extension
+
+- **Status:** IN_PROGRESS.
+- **Dependencies:** DUR-023A skeleton and DUR-008/DUR-009; review base is the
+  M1 closeout target `600726f`.
+- **Goal:** Extend the independent checker to detect stale scheduler and worker
+  evidence from persisted history and attempt rows.
+- **Scope:** Scheduler epoch monotonicity, scheduler ownership attribution,
+  attempt-generation continuity, one-current-attempt authority, claim
+  identity completeness, and stale result detection. The checker derives its
+  verdict from checker-owned records and never calls production validators.
+- **Acceptance:** Valid M2 traces and loaded database snapshots pass; seeded
+  old-owner epoch, duplicate-current-attempt, incomplete-claim, generation
+  gap, and stale-result traces fail with rule-specific violations.
+- **Validation:** Independent table-driven checker tests, a persisted-attempt
+  loader test, and `go test -race ./...`.
+- **Evidence:** `internal/invariants/`, `internal/state/`, M2 integration
+  tests, and the committed review handoff.
+- **Remaining limitations:** Outbox/inbox reconciliation, effect-ledger, and
+  approval invariants remain later DUR-023A extensions.
 
 **Exit:** Two schedulers own disjoint logical partitions, valid in-flight attempts survive scheduler handoff, and the checker rejects seeded ownership/attempt violations. Direct driver dispatch remains test-only.
 

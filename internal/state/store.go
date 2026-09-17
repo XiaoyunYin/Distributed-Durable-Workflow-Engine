@@ -448,6 +448,37 @@ func (s *Store) ReleaseLease(ctx context.Context, ref LeaseRef) error {
 	return tx.Commit(ctx)
 }
 
+// RenewLease extends an unexpired lease without changing its epoch. Renewal
+// is separate from AcquireLease so an expired owner cannot revive a lease.
+func (s *Store) RenewLease(ctx context.Context, ref LeaseRef, ttl time.Duration) (Lease, error) {
+	if ref.OwnerID == "" || ref.Epoch <= 0 || ttl <= 0 {
+		return Lease{}, errors.New("lease owner, positive epoch, and positive TTL are required")
+	}
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return Lease{}, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	current, err := lockLease(ctx, tx, ref)
+	if err != nil {
+		return Lease{}, err
+	}
+	var renewedExpiry time.Time
+	if err := tx.QueryRow(ctx, `
+		UPDATE engine.partition_leases
+		SET lease_expires_at = clock_timestamp() + ($2::double precision * interval '1 second'),
+			updated_at = clock_timestamp()
+		WHERE partition_id = $1 AND owner_id::text = $3 AND epoch = $4
+		RETURNING lease_expires_at`, ref.PartitionID, durationSeconds(ttl), ref.OwnerID, ref.Epoch).Scan(&renewedExpiry); err != nil {
+		return Lease{}, fmt.Errorf("renew partition lease: %w", err)
+	}
+	current.LeaseExpiresAt = renewedExpiry
+	if err := tx.Commit(ctx); err != nil {
+		return Lease{}, err
+	}
+	return current, nil
+}
+
 func lockLease(ctx context.Context, tx pgx.Tx, ref LeaseRef) (Lease, error) {
 	var owner *string
 	var expiry *time.Time
@@ -965,6 +996,9 @@ func (s *Store) ClaimAttempt(ctx context.Context, input ClaimInput) (ClaimResult
 	if err := tx.QueryRow(ctx, `
 		SELECT state FROM engine.workflow_executions
 		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ClaimResult{}, ErrWorkflowNotFound
+		}
 		return ClaimResult{}, fmt.Errorf("lock workflow for claim: %w", err)
 	}
 	if workflowState != StateWaitingActivity {
@@ -1068,6 +1102,9 @@ func (s *Store) HeartbeatAttempt(ctx context.Context, input HeartbeatInput) (tim
 	if err := tx.QueryRow(ctx, `
 		SELECT state FROM engine.workflow_executions
 		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return time.Time{}, ErrWorkflowNotFound
+		}
 		return time.Time{}, fmt.Errorf("lock workflow for heartbeat: %w", err)
 	}
 	if workflowState == StateSucceeded || workflowState == StateFailed || workflowState == StateRejected || workflowState == StateCanceled || workflowState == StateAbandoned {
@@ -1137,6 +1174,9 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 	if err := tx.QueryRow(ctx, `
 		SELECT state FROM engine.workflow_executions
 		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return ResultReceipt{}, ErrWorkflowNotFound
+		}
 		return ResultReceipt{}, fmt.Errorf("lock workflow for result: %w", err)
 	}
 	var nodeCurrentAttempt *int64

@@ -12,6 +12,8 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from workers import __version__
+from workers.registry import default_registry
+from workers.runner import ActivityTask, runner_for_url
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -68,7 +70,39 @@ def healthcheck() -> None:
             raise RuntimeError(f"unexpected health status {response.status}")
 
 
+def run_task(arguments: list[str]) -> None:
+    parser = argparse.ArgumentParser(prog="python -m workers run-task")
+    parser.add_argument(
+        "--control-url", default=os.getenv("CONTROL_API_URL", "http://127.0.0.1:8080")
+    )
+    parser.add_argument("--workflow-id", required=True)
+    parser.add_argument("--node-id", required=True)
+    parser.add_argument("--iteration", type=int, default=0)
+    parser.add_argument("--worker-id", default=os.getenv("WORKER_ID", "worker"))
+    parser.add_argument("--request-id", required=True)
+    parser.add_argument("--activity", default="pure.echo")
+    parser.add_argument("--version", default="v1")
+    parser.add_argument("--input", default="null", dest="activity_input")
+    parser.add_argument("--max-workers", type=int, default=4)
+    args = parser.parse_args(arguments)
+    task = ActivityTask(
+        workflow_id=args.workflow_id,
+        node_id=args.node_id,
+        iteration=args.iteration,
+        worker_id=args.worker_id,
+        request_id=args.request_id,
+        activity_name=args.activity,
+        activity_version=args.version,
+        input=json.loads(args.activity_input),
+    )
+    result = runner_for_url(args.control_url, default_registry(), args.max_workers).run_task(task)
+    print(json.dumps(result, separators=(",", ":")))
+
+
 def main() -> None:
+    if len(sys.argv) > 1 and sys.argv[1] == "run-task":
+        run_task(sys.argv[2:])
+        return
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "command", choices=("run", "healthcheck", "version"), nargs="?", default="run"
