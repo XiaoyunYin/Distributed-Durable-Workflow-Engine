@@ -1,5 +1,34 @@
 # Build log
 
+## 2026-09-17 - DUR-011 start
+
+- Base commit: `9412f3e` (M2 closeout after Claude's `NO_BLOCKING_FINDINGS`
+  review of `0d663c3` against `600726f`).
+- Task status: IN_PROGRESS; no DUR-011 implementation commit yet.
+- Scope: transactional outbox and Kafka relay claim/retry/recovery, including
+  stable event identities, duplicate publication after broker acknowledgement,
+  crash-window fault injection, and `LISTEN/NOTIFY` fallback polling. Consumer
+  offsets, inbox disposition, scheduler wake-up ownership, reconciliation
+  scans, and backpressure remain DUR-012 through DUR-014.
+
+DUR-011 is started from the M2 closeout without changing the reviewed M2
+implementation. The implementation must keep PostgreSQL authoritative: state
+transitions and their outbox obligations commit together, relay claims are
+recoverable, and a broker acknowledgement followed by a process crash must
+produce a safe, visible duplicate rather than an ambiguous new event.
+
+Planned evidence is in the outbox/relay code, migrations, PostgreSQL/Kafka
+integration tests, crash/fault tests, `docs/CONTRACTS.md`, and the committed
+review handoff. Planned validation is the race-enabled service CI, focused
+PostgreSQL/Kafka and fallback-poll tests, `go vet`, `gofmt`, the runtime image
+build, and `git diff --check`. No implementation or correctness result is
+claimed at this start record.
+
+Interview explanation: the outbox turns a workflow transition into a durable
+publication obligation. The relay may publish more than once, but stable event
+identity lets the later inbox make duplicates harmless while PostgreSQL keeps
+unfinished work discoverable after a missed notification or relay crash.
+
 ## 2026-09-17 - M2 closeout
 
 - Review base: `600726f` (M1 closeout).

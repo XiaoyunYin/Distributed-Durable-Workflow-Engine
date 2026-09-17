@@ -698,6 +698,35 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   is committed, using the resulting M2 closeout commit as its exact review
   base.
 
+## Codex handoff — DUR-011 start
+
+- Task: DUR-011 — Outbox and relay
+- Task status: IN_PROGRESS
+- Handoff basis: PROVISIONAL start record; no implementation commit yet.
+- Base commit: `9412f3e` (M2 closeout)
+- Target commit: unavailable; implementation has not started.
+- Scope: transactional outbox records and a recoverable Kafka relay with
+  stable event identity, relay claim/retry semantics, duplicate publication
+  after broker acknowledgement, crash-window recovery, and bounded fallback
+  polling when `LISTEN/NOTIFY` wake-up is missed. Consumer offsets, inbox
+  disposition, scheduler wake-up ownership, reconciliation scans, and
+  backpressure are DUR-012 through DUR-014.
+- Acceptance scenarios: atomic state-plus-outbox commit; single live relay
+  claim; expired-claim recovery; same-identity republish; visible and harmless
+  duplicate publication; crash before publish, after publish, and after
+  broker acknowledgement; and notification loss recovered by fallback poll.
+- Validation planned: PostgreSQL/Kafka integration tests with two relay owners,
+  fault injection at each publication boundary, duplicate-publication and
+  fallback-poll tests, `scripts/ci.ps1 -WithRace -WithServices`,
+  `go test -race ./...`, `go vet ./...`, `gofmt`, runtime Docker build, and
+  `git diff --check`.
+- Known limitations: no DUR-011 implementation or correctness result is
+  claimed yet. Consumer offset/inbox behavior, full reconciliation and
+  backpressure, multi-host deployment, hard-kill durability, sustained load,
+  clean bootstrap/restart smoke, and remote CI remain later or untested.
+- Review basis for next handoff: Claude should review the final DUR-011 code
+  against M2 closeout commit `9412f3e`.
+
 For each round, record:
 
 - Date and round:

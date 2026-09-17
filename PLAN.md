@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 IN_PROGRESS; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -690,6 +690,47 @@ contract revision.
 | DUR-014 — Database reconciliation and backpressure | Recover expired attempts, lost wake-ups, pending dispatch, due timers, poison records, and backlog limits. Workflow-specific scans are partition-owner scoped. Remove a notification in an isolated test and prove unfinished database work is redispatched. |
 | DUR-023A-M3 — Invariant-checker transport/reconciliation extension | Extend the DUR-023A checker with outbox/inbox identity reconciliation, duplicate-message dispositions, pending-obligation checks, and detection of a state change that lacks its required durable outbox record. Seed representative transport/reconciliation violations and require independent checker rejection; record fixtures and evidence under this subtask. |
 
+#### DUR-011 — Outbox and relay
+
+- **Status:** IN_PROGRESS.
+- **Dependencies:** M2 DONE; review base is the M2 closeout commit
+  `9412f3e`.
+- **Goal:** Publish durable workflow obligations through Kafka without making
+  broker acknowledgement a second source of truth, and recover every relay
+  crash window from PostgreSQL state.
+- **Scope:** Transactional outbox records for dispatch and result events;
+  stable event identity and payload/version metadata; relay claim, lease,
+  publication, retry, and recovery; duplicate publication after a broker
+  acknowledgement; and a notification wake-up path with a bounded fallback
+  poll when `LISTEN/NOTIFY` is missed. Consumer offsets, inbox disposition,
+  scheduler wake-up ownership, reconciliation scans, and backpressure remain
+  in DUR-012 through DUR-014. Do not add paid/model work or production effect
+  services.
+- **Acceptance:** Each state transition that creates a dispatch/result
+  obligation commits its outbox row atomically; only one live relay claim
+  advances at a time; a crashed or expired claim is recoverable; every retry
+  republishes the same event identity and meaning; a duplicate publication is
+  observable and harmless to the later inbox; and a relay still publishes
+  after its notification is lost by discovering pending rows through the
+  fallback poll. A crash after broker acknowledgement must leave durable
+  state that explains why a later duplicate is safe.
+- **Validation:** PostgreSQL and Kafka integration tests with two relay
+  owners; forced crashes before publish, after publish, and after broker
+  acknowledgement; expired-claim recovery; duplicate-publication assertions;
+  notification-loss plus fallback-poll tests; `powershell.exe -NoProfile
+  -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`;
+  `go test -race ./...`; `go vet ./...`; `gofmt`; runtime Docker build; and
+  `git diff --check`.
+- **Evidence:** outbox/relay implementation and migrations, PostgreSQL/Kafka
+  integration and fault tests, `docs/CONTRACTS.md`, `docs/BUILD_LOG.md`, and
+  the committed `REVIEW.md` handoff. Record crash boundaries, publication
+  identities, relay claims, fallback-poll timing, and cleanup evidence.
+- **Remaining limitations:** This task does not claim consumer offset
+  correctness, inbox deduplication, multi-host deployment, full
+  reconciliation/backpressure, hard-kill durability, sustained-load results,
+  clean bootstrap/restart smoke, or remote CI. The local Kafka/PostgreSQL
+  topology remains single-node development infrastructure.
+
 **Exit:** Normal task and event dispatch uses real Kafka. PostgreSQL alone identifies every unfinished obligation after recovery, and the checker rejects seeded transport/reconciliation violations.
 
 ### M4 — Recovery semantics, effects, and approvals
@@ -1026,10 +1067,12 @@ Claude's committed round-8 verdict. DUR-006 is DONE at reviewed code target
 `a37661d` with base `adf5934`; R029-R033 are VERIFIED. M1 is DONE at reviewed
 code target `600726f` with base `6bc0e2f`; Claude's committed round-13 verdict
 is `NO_BLOCKING_FINDINGS`, R034-R039 and R028 are VERIFIED, and the remaining
-R019 test gap is nonblocking. M2 is now DONE at reviewed code target
-`0d663c3` with base `600726f`; Claude's committed round-15 verdict is
-`NO_BLOCKING_FINDINGS`, and R040-R044 are VERIFIED. DUR-011 is the next task;
-its start record must use the M2 closeout commit as the exact review base.
+R019 test gap is nonblocking. M2 is DONE at reviewed code target `0d663c3`
+with base `600726f`; Claude's committed round-15 verdict is
+`NO_BLOCKING_FINDINGS`, and R040-R044 are VERIFIED. DUR-011 is IN_PROGRESS
+against M2 closeout `9412f3e`. Implement the outbox and relay within the
+scope, acceptance, validation, evidence, and limitations recorded in its
+section. The next Claude review must use `9412f3e` as its exact base.
 Keep the M0 contracts and partition-map version frozen while extending the
 durable state repository.
 
