@@ -61,3 +61,16 @@ Trace records use `fault-trace.v1` and carry the seed and sequence number.
 checks as explicit switches. Paid/model checks remain outside the foundation
 entry point. This is a local/shared validation contract; no remote CI service
 is claimed when the repository has no configured remote.
+
+## D006 - DUR-002 contract correction after round-1 review
+
+- Date: 2026-09-16
+- Status: accepted for the M0 fix pass
+
+Correct the pre-DUR-005 foundation contract to distinguish cooperating and
+non-cooperating effect outcomes, make retry/backoff the only use of
+`WAITING_TIMER`, add approval/version-paused/abandoned states, define the
+attempt lifecycle, and expand all race traces with transaction boundaries and
+durable-record locations. This is a clarification of the guarantees already
+specified in PLAN.md, not a relaxation or expansion of them. The contract
+version advances from `dur-002.v1` to `dur-002.v2` before schema work begins.

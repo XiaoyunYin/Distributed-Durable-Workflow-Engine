@@ -12,12 +12,8 @@ partition = value modulo 16
 
 Map version: `sha256-u64-be-v1`.
 
-| Workflow ID | Partition |
-| --- | ---: |
-| `workflow-0001` | 8 |
-| `workflow-0002` | 14 |
-| `incident-2026-09-14-a` | 0 |
-| `retry-key/abc` | 0 |
-
-The empty ID is invalid. The Go and Python implementations and their tests
-are the executable cross-implementation evidence for these vectors.
+The canonical vectors live in `api/partition-map-v1.vectors.json` and are
+loaded independently by the Go and Python tests. The file includes the
+non-ASCII vector `wf-é-日本`; invalid UTF-8 is rejected by both APIs and is
+tested separately because it cannot be represented in UTF-8 JSON. The empty ID
+is invalid.

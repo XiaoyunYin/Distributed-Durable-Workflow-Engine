@@ -91,3 +91,40 @@ Interview explanation: freeze the protocol before adding concurrency, then
 make crash tests wait on named observed boundaries. The controller proves that
 the fault was injected at the intended point; the later engine checker can
 consume the same versioned trace without guessing from elapsed time.
+
+## 2026-09-16 - M0 round-2 feedback fixes
+
+- Base commit: `d722cf7` (last reviewed planning baseline); target implementation commit: pending.
+- Task status: IN_PROGRESS pending commit and the R001 scope-authorization decision.
+
+Addressed R002-R009 from the round-1 review. The DUR-002 contract is now
+`dur-002.v2` with complete workflow/attempt states, cooperating versus
+non-cooperating effect recovery, approval/version-paused paths, and numbered
+race traces with transaction/store boundaries. DUR-003 now has reusable Go and
+Python failpoint clients, a loopback-channel controller for arbitrary commands,
+seeded fixtures/fake activities, repeated kill validation, dedicated protocol
+messages, early-exit/error handling, stderr draining, release acknowledgements,
+and append-flushed traces. Partition vectors are shared in one JSON file with
+non-ASCII and invalid-UTF-8 coverage. The runtime image copies `internal/`, the
+migration script is ledger-aware, and service-only CI explicitly reports that
+M0 has no integration tests yet.
+
+Validation after the fixes:
+
+- `scripts/check.ps1` with task-local caches/temp paths: PASS; Go build/vet/test, Ruff, strict mypy, and 11 pytest tests passed.
+- `scripts/ci.ps1 -WithRace`: PASS; Go race tests and the full Python suite passed.
+- `scripts/bootstrap.ps1 -StartServices`: PASS; runtime images rebuilt with `internal/`, migration ledger skip worked, and all services were healthy.
+- `scripts/restart-smoke.ps1`: PASS; PostgreSQL and Kafka markers survived forced container recreation.
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go race/Python tests, live service smoke, durability settings, and Prometheus target checks passed. The command explicitly reported that M0 integration tests are not implemented.
+- Targeted fault validation: 7/7 fault tests passed, including Python/Go targets, repeated same-seed kills, different-seed fixture fields, early exit, non-protocol stdout, heavy stderr, release acknowledgement, and JSONL sequence persistence.
+
+The remaining review blocker is R001: RQ7/RQ8 and the retrieval/adversarial
+scope expansion were already present before this M0 implementation pass. They
+were preserved in the target commit, but no authorship/authorization decision
+is recorded yet. No paid cap is invented; PLAN.md still requires explicit
+approval before any paid/model run.
+
+Interview explanation: review feedback turned the first harness from a toy
+process demo into a reusable protocol boundary. The important distinction is
+that ordinary logs cannot be allowed to corrupt fault-control evidence, and a
+process exit must be reported as an exit rather than guessed to be a timeout.

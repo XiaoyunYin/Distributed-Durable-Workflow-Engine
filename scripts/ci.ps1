@@ -19,6 +19,7 @@ try {
     }
 
     if ($WithServices) {
+        Write-Host "PostgreSQL/Kafka integration tests are not implemented at M0; running service health and durability smoke checks only."
         & $PSScriptRoot/smoke.ps1
         if ($LASTEXITCODE -ne 0) { throw "Real dependency smoke checks failed." }
     } else {

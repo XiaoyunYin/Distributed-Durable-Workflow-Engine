@@ -1,15 +1,12 @@
-"""Small target process used by the named-boundary controller tests."""
+"""Seeded Python fake activity used by the reusable fault harness."""
 
 from __future__ import annotations
 
 import argparse
-import hashlib
-import json
+import os
 import sys
 
-
-def emit(event: dict[str, object]) -> None:
-    print(json.dumps(event, sort_keys=True), flush=True)
+from faults.fixtures import fake_activity, fixture_for
 
 
 def run() -> int:
@@ -17,40 +14,27 @@ def run() -> int:
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--boundary", required=True)
     parser.add_argument("--skip-boundary", action="store_true")
+    parser.add_argument("--exit-before-boundary", action="store_true")
+    parser.add_argument("--noise", action="store_true")
+    parser.add_argument("--stderr-lines", type=int, default=0)
     args = parser.parse_args()
 
+    if args.noise:
+        print("starting up: ordinary target output", flush=True)
+    for index in range(args.stderr_lines):
+        print(f"diagnostic line {index}", file=sys.stderr, flush=True)
+    if args.exit_before_boundary:
+        return 17
     if args.skip_boundary:
-        # A controller timeout is the only exit path for this fixture. It is
-        # intentionally event-free so the test cannot pass by sleeping.
         sys.stdin.readline()
         return 0
 
-    fingerprint = hashlib.sha256(f"{args.seed}:{args.boundary}".encode()).hexdigest()[:16]
-    emit(
-        {
-            "event": "boundary_reached",
-            "boundary": args.boundary,
-            "seed": args.seed,
-            "work_fingerprint": fingerprint,
-        }
-    )
-
-    command_line = sys.stdin.readline()
-    if not command_line:
-        return 2
-    command = json.loads(command_line)
-    if not isinstance(command, dict):
-        return 2
-    if command.get("command") != "release" or command.get("boundary") != args.boundary:
-        return 2
-    emit(
-        {
-            "event": "released",
-            "boundary": args.boundary,
-            "seed": args.seed,
-            "work_fingerprint": fingerprint,
-        }
-    )
+    fixture = fixture_for(args.seed)
+    if not os.getenv("DURABLE_FAULT_ENDPOINT"):
+        print(f"fixture {fixture.workflow_id} result={fixture.expected_sum}", flush=True)
+        return 0
+    result = fake_activity(fixture, args.boundary)
+    print(f"fixture {fixture.workflow_id} result={result}", flush=True)
     return 0
 
 

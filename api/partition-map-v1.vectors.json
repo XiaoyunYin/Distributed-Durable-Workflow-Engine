@@ -1,0 +1,11 @@
+{
+  "version": "sha256-u64-be-v1",
+  "partition_count": 16,
+  "vectors": [
+    {"workflow_id": "workflow-0001", "partition": 8},
+    {"workflow_id": "workflow-0002", "partition": 14},
+    {"workflow_id": "incident-2026-09-14-a", "partition": 0},
+    {"workflow_id": "retry-key/abc", "partition": 0},
+    {"workflow_id": "wf-é-日本", "partition": 3}
+  ]
+}

@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"fmt"
+	"unicode/utf8"
 )
 
 const (
@@ -21,6 +22,9 @@ const (
 func ID(workflowID string) (uint64, error) {
 	if workflowID == "" {
 		return 0, fmt.Errorf("workflow ID must not be empty")
+	}
+	if !utf8.ValidString(workflowID) {
+		return 0, fmt.Errorf("workflow ID must be valid UTF-8")
 	}
 	digest := sha256.Sum256([]byte(workflowID))
 	return binary.BigEndian.Uint64(digest[:8]) % PartitionCount, nil
