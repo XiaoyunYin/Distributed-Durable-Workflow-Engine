@@ -128,3 +128,26 @@ Interview explanation: review feedback turned the first harness from a toy
 process demo into a reusable protocol boundary. The important distinction is
 that ordinary logs cannot be allowed to corrupt fault-control evidence, and a
 process exit must be reported as an exit rather than guessed to be a timeout.
+
+## 2026-09-16 - M0 scope authorization follow-up
+
+- Base commit: `ed62eca`; target commit: `c78803e`.
+- Task status: READY_FOR_REVIEW; R001 is addressed and M0 remains pending Claude round-2 verification.
+
+The user confirmed authorship and authorization of the protected PLAN.md scope
+changes that predated the M0 implementation pass. Added D005 to
+`docs/DECISIONS.md` covering RQ7/RQ8, retrieval/MCP/pgvector/full-text/Grafana
+scope, the revised release criteria, the 40-development/120-held-out
+retrieval benchmark, 60 live retrieval-arm executions, and 120 adversarial
+executions. D005 records that paid/model execution and its spending cap need
+separate approval before DUR-029; it does not claim that those experiments
+have run.
+
+Validation: `git diff --check` passed, and the decision was reviewed against
+the protected-scope locations listed in R001. No runtime checks were rerun
+because this was a documentation-only authorization change; the full M0
+validation remains recorded in the preceding round-2 entry.
+
+Interview explanation: protected planning changes are evidence too. D005
+separates authorization of the portfolio question from authorization to spend
+money or claim that the future model experiments have produced results.
