@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 READY_FOR_REVIEW; DUR-023A READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 IN_PROGRESS; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -558,24 +558,24 @@ contract revision.
 
 #### DUR-007 — Interpreter, timers, and joins
 
-- **Status:** READY_FOR_REVIEW (round-13 corrections addressed; Claude verification pending).
+- **Status:** DONE.
 - **Dependencies:** M0, DUR-005, and completed DUR-006; review base is the DUR-006 closeout commit `6bc0e2f`.
 - **Goal:** Execute a small versioned workflow graph from durable state, resume across process restarts, and create each downstream action once while timers and bounded fan-out/join branches converge safely.
 - **Scope:** Implement the interpreter over the reviewed repository transitions; persist accepted node results; support durable retry timers and bounded fan-out/join; restart between nodes; race final branch completions; and exercise a test-only activity driver until Kafka integration. Include the DUR-005 R028 follow-up: cancellation settles every active fan-out node/attempt, preserves `OUTCOME_UNKNOWN` for claimed effects, retains late reports as evidence without progress, and prevents post-terminal branch advancement. Do not add Kafka relay, paid/model work, or final production effect services here.
 - **Acceptance:** A versioned graph advances from a submitted workflow through persisted results to downstream work; restart between every node does not duplicate progress; retry timers are durable and enforced; fan-out creates bounded branches once and joins them once; concurrent final branch completion produces one downstream action and one terminal outcome; cancellation settles all active branches and preserves uncertain claimed effects; invariant checks derive their verdicts independently from persisted evidence.
 - **Validation:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`; focused Go interpreter/repository tests with `go test -race ./...`; PostgreSQL integration tests covering restart, timers, fan-out/join, duplicate delivery, cancellation races, and final-branch races; fault/recovery campaigns; `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur007-check .`; `git diff --check`.
-- **Evidence:** interpreter and transition code, test-only activity fixtures, integration/fault tests, the independent M1 invariant checker work, `docs/CONTRACTS.md`, `docs/BUILD_LOG.md`, and the committed `REVIEW.md` handoff. Review uses `6bc0e2f` as the exact base and target `600726f`.
-- **Remaining limitations:** No Kafka relay, production activity/effect service, paid/model evaluation, clean-machine bootstrap, hard-kill durability, or remote CI claim unless separately tested and recorded.
+- **Evidence:** interpreter and transition code, test-only activity fixtures, integration/fault tests, the independent M1 invariant checker work, `docs/CONTRACTS.md`, `docs/BUILD_LOG.md`, and the committed `REVIEW.md` handoff. Claude's committed review uses `6bc0e2f` as the exact base and `600726f` as the final code target.
+- **Remaining limitations:** No Kafka relay, production activity/effect service, paid/model evaluation, clean-machine bootstrap, hard-kill durability, or remote CI claim unless separately tested and recorded. A lost activity result may cause one re-execution after the claim lease expires; this is declared at-least-once behavior, not exactly-once execution.
 
 #### DUR-023A - Independent invariant checker skeleton
 
-- **Status:** READY_FOR_REVIEW (round-13 corrections addressed; Claude verification pending).
+- **Status:** DONE.
 - **Dependencies:** M1 durable state and DUR-007 implementation; review base is the DUR-006 closeout commit `6bc0e2f`.
 - **Goal:** Check M1 safety properties from persisted evidence without reusing production transition validation.
 - **Scope:** Add an independent checker for contiguous revisions, terminal-state monotonicity, unique accepted node results, and submission identity; seed valid and invalid traces in unit tests. Ownership/attempt, reconciliation, sandbox-ledger, and later milestone extensions remain in DUR-023A-M2 through DUR-023A-M4.
 - **Acceptance:** The valid trace passes, each seeded invalid trace fails with an independent violation, and the checker package has no dependency on production transition validators.
 - **Validation:** `go test -race ./internal/invariants ./internal/engine`; `scripts/ci.ps1 -WithRace -WithServices`; `git diff --check`.
-- **Evidence:** `internal/invariants/`, `internal/engine/`, `docs/INTERPRETER.md`, and this committed `REVIEW.md` handoff. Correction target is `600726f`; review uses `6bc0e2f` as the exact base.
+- **Evidence:** `internal/invariants/`, `internal/engine/`, `docs/INTERPRETER.md`, and this committed `REVIEW.md` handoff. Claude's committed review covers final code target `600726f` with base `6bc0e2f`.
 - **Remaining limitations:** This is the M1 checker skeleton only; ownership/attempt, effect-ledger, approval, and later milestone obligations are intentionally deferred to the named follow-up tasks.
 
 ### M2 — Multi-replica ownership and worker attempts
@@ -588,6 +588,28 @@ contract revision.
 | DUR-009 — Claim and result APIs | Atomic worker claims, idempotent claim/result retries, attempt-token validation, result receipts. Duplicate claims grant only one active claimant; stale completion cannot overwrite newer state. |
 | DUR-010 — Python activity runner | Versioned activity registry, bounded concurrency, heartbeat/control client, pure deterministic fixture. Process restart and lost claim response have documented behavior. |
 | DUR-023A-M2 — Invariant-checker ownership/attempt extension | Extend the DUR-023A checker with scheduler-epoch monotonicity, ownership-authority checks, attempt/claim generation rules, and stale-result detection. Seed at least one invalid old-owner write and stale worker result. Acceptance requires the checker to reject those seeded violations without calling production transition validators; record fixtures and checker evidence under this subtask. |
+
+#### DUR-008 — Partition leases and scheduler fencing
+
+- **Status:** IN_PROGRESS.
+- **Dependencies:** M1 DONE; review base is the M1 closeout target `600726f`.
+- **Goal:** Make partition ownership a reusable, explicitly tested scheduler
+  boundary for two concurrent scheduler instances.
+- **Scope:** Lease acquisition, renewal, takeover, release, epoch-fenced
+  owner transitions, and lock-wait/expiry ordering. Preserve the existing
+  frozen partition map and keep worker claim/result semantics within DUR-009.
+- **Acceptance:** Owner A can hold and renew a partition; owner B cannot write
+  while A's lease is valid; after expiry B can take over with a higher epoch;
+  A's later owner-authorized writes fail; release never clears a newer owner;
+  and concurrent lock/expiry orderings have one durable winner.
+- **Validation:** PostgreSQL integration tests with two owners and controlled
+  lease times; `go test -race ./...`; `go vet ./...`; `gofmt`; and
+  `git diff --check`. No M2 completion or multi-host claim is made until the
+  fixed target receives Claude review.
+- **Evidence:** `internal/state/`, lease integration tests, `docs/CONTRACTS.md`,
+  `docs/BUILD_LOG.md`, and the committed review handoff.
+- **Remaining limitations:** This start record does not add Kafka, production
+  workers, remote CI, sustained-load measurements, or a multi-host deployment.
 
 **Exit:** Two schedulers own disjoint logical partitions, valid in-flight attempts survive scheduler handoff, and the checker rejects seeded ownership/attempt violations. Direct driver dispatch remains test-only.
 
@@ -936,11 +958,12 @@ foundation work does not require a cloud or model-call budget.
 
 DUR-005 is DONE at reviewed code target `333a555` with base `79ba118` and
 Claude's committed round-8 verdict. DUR-006 is DONE at reviewed code target
-`a37661d` with base `adf5934`; R029-R033 are VERIFIED and R028 remains the
-recorded DUR-007 fan-out follow-up. DUR-007 and DUR-023A are implemented in
-`de0c5f2` against closeout base `6bc0e2f` and are READY_FOR_REVIEW. Their scope,
-acceptance, validation, evidence, and limitations are recorded above. Keep the
-M0 contracts and partition-map version frozen while extending the durable state
-repository.
+`a37661d` with base `adf5934`; R029-R033 are VERIFIED. M1 is DONE at reviewed
+code target `600726f` with base `6bc0e2f`; Claude's committed round-13 verdict
+is `NO_BLOCKING_FINDINGS`, R034-R039 and R028 are VERIFIED, and the remaining
+R019 test gap is nonblocking. Start DUR-008 against `600726f` using the scope,
+acceptance, validation, evidence, and limitations recorded in its section.
+Keep the M0 contracts and partition-map version frozen while extending the
+durable state repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

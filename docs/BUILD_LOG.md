@@ -4,8 +4,8 @@
 
 - Base commit: `6bc0e2f` (verified DUR-006 closeout).
 - Fix commits: `8cac005`, `b41deb6`, `600726f`.
-- Status: READY_FOR_REVIEW; Claude verification is pending. DUR-007 and
-  DUR-023A remain out of DONE.
+- Status: DONE after Claude's committed round-13 review found
+  `NO_BLOCKING_FINDINGS` for target `600726f` against base `6bc0e2f`.
 
 Round-13 corrections make the interpreter recover durable `WAITING_ACTIVITY`
 and `SUCCEEDED` phases after an intra-node crash, fence `Run` on the lease
@@ -36,6 +36,24 @@ Validation recorded for this correction:
 - Remaining review-only gaps: clean bootstrap/restart smoke, hard-kill
   durability, sustained-load/timeout studies, and remote CI were not claimed
   by this correction.
+
+Claude's independent trigger-based crash probes verified four recovery points,
+including the declared at-least-once case where a lost activity result can be
+re-executed after the claim lease expires. M1 reports this as at-least-once
+activity execution, not exactly-once execution. R034-R039 and the DUR-005 R028
+fan-out follow-up are verified; the nonblocking R019 claim-retry test gap
+remains open. M1 is closed, and DUR-008 is the next task.
+
+## 2026-09-17 - DUR-008 start
+
+- Base commit: `600726f` (M1 closeout with Claude `NO_BLOCKING_FINDINGS`).
+- Task status: IN_PROGRESS; no DUR-008 implementation commit yet.
+
+Opened the M2 partition-lease/fencing task. PLAN.md now records the scoped
+acceptance and validation before implementation: two owners, renewal,
+takeover, epoch-fenced writes, release safety after takeover, and lock/expiry
+ordering. The frozen partition map and later worker/Kafka tasks remain in
+scope only at their existing M2/M3 boundaries.
 
 ## 2026-09-17 - DUR-007 and DUR-023A implementation
 

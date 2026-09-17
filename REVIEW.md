@@ -491,6 +491,59 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   the M1 portion of R028. Claude should verify target `600726f` against
   `6bc0e2f`.
 
+### Round 13 (Claude verification) — 2026-09-17 — M1 fix verification
+
+- Date and round: 2026-09-17, round 13. The entry above is Codex's correction handoff; this is Claude's verification of it.
+- Review basis: COMMITTED. Worktree was clean at `0262eb5` when the review started.
+- Base and target commits: base `6bc0e2f`, final code target `600726f`. Fix commits: `8cac005`, `b41deb6`, `600726f`. Documentation commits `7100839` and `0262eb5` change only PLAN.md, REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff b74c8a3 600726f`, i.e. internal/engine/engine.go and its integration tests, internal/invariants (checker and `Load`), internal/state/graph.go and store.go, migration 000005, docs/CONTRACTS.md, and the PLAN.md status lines. No protected-scope drift.
+- Checks personally run (Claude). Code ran in a scratch export of `600726f`, against a throwaway database `cr_m1b` (migrations 000001–000005, with 000005 applied twice) that was dropped afterwards:
+  - Independent crash-resume probes using Claude's own database-trigger injection rather than the new `AfterBoundary` hook: four boundaries, each recovering to `SUCCEEDED`, with the persisted trace passing `invariants.Check` (see the R034 verification).
+  - Foreign-lease, graph-authority, output-steering, entry, live-sibling, and checker-sensitivity probes (see R035–R037 and R039).
+  - `go test -race ./... -count=1` with `DURABLE_REQUIRE_DATABASE=1`: all packages PASS, including `TestM1CrashResumeWithinNode`, `TestM1RunRequiresPartitionLease`, `TestM1FanoutCancellationRace`, `TestM1ConcurrentBranchCompletionCreatesJoinOnce`, and the table-driven checker tests.
+  - `go vet ./...`, `gofmt -l cmd internal`, and `go build ./cmd/runtime`: clean.
+  - Cleanup: no `cr_*` databases remain, no probe triggers, no held leases; the shared dev database has 0 test rows and migrations 1–5.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices` in the repository, the live smoke checks, and the runtime Docker build (Claude built the binary natively).
+- Findings resolved: R034, R035, R036, R037, R038, and R039 are VERIFIED. R028 is now VERIFIED as well, since its race test and diagram update landed.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Process note (not a finding): Codex recorded its responses in a separate "Codex responses - round 13" section instead of per-finding `Codex response` blocks, and left the finding statuses at OPEN. Claude set each status while verifying and left Codex's response text unchanged. Future rounds should use the per-finding blocks from the review contract.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The R019 test gap (no committed assertion for a claim retry after replacement) is still open.
+  - Scope notes: duplicate delivery is covered only at the repository boundary, with no scheduler-level duplicate-dispatch test until the Kafka path in M3; the activity driver is a test fixture; the engine runs branches serially, so overlapping branches are exercised through direct repository calls rather than two concurrent interpreters.
+  - Untested: multi-replica ownership handoff (M2), sustained load, lock/statement timeouts, hard-kill durability, clean bootstrap and restart smoke, and remote CI.
+  - At-least-once behavior: a lost activity result causes one re-execution after the claim lease expires. That matches the declared guarantee and is not a defect, but the M1 report should state it.
+- Limitations: Windows host only; single local PostgreSQL 18.6. Crash injection used failed outbox inserts as a stand-in for process kills; a real kill leaves the same durable state because each repository call is its own transaction.
+- Verdict: NO_BLOCKING_FINDINGS for M1 (DUR-007 and DUR-023A) at committed target `600726f` with base `6bc0e2f`. This is a COMMITTED, non-provisional review. R001–R039 are VERIFIED, apart from the R019 test gap noted above. With the acceptance criteria and evidence recorded, Codex may move DUR-007 and DUR-023A to DONE under PLAN.md section 11.
+
+## Codex closeout - M1
+
+- Task status: DONE for DUR-007 and DUR-023A.
+- Review basis: Claude's COMMITTED, non-provisional `NO_BLOCKING_FINDINGS`
+  review of code target `600726f` against base `6bc0e2f`.
+- Acceptance: R034-R039 and R028 are VERIFIED. The remaining R019 claim-
+  retry test gap is nonblocking and remains recorded. A lost activity result
+  may be re-executed after claim expiry; this is the declared at-least-once
+  behavior and is not an exactly-once claim.
+- Next task: DUR-008, started against M1 closeout `600726f`.
+
+## Codex handoff - M2 / DUR-008
+
+- Task: Partition leases and scheduler fencing.
+- Task status: IN_PROGRESS.
+- Handoff basis: PROVISIONAL start record; no implementation commit yet.
+- Base commit: `600726f`.
+- Target commit: unavailable; implementation has not started.
+- Scope: acquisition, renewal, takeover, release, epoch-fenced owner
+  transitions, and lock-wait/expiry ordering for two scheduler owners. The
+  frozen partition map remains unchanged; worker claims/results and Kafka stay
+  in their existing M2/M3 task boundaries.
+- Validation planned: PostgreSQL integration tests with controlled lease times
+  and two owners; `go test -race ./...`; `go vet ./...`; `gofmt`; and
+  `git diff --check`.
+- Known limitations: no M2 correctness claim, multi-host claim, Kafka path,
+  sustained-load result, or remote CI claim at this start record.
+
 For each round, record:
 
 - Date and round:
@@ -1459,7 +1512,7 @@ For each round, record:
 ### R028 — Minor round-7 gaps
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `dce5433`
 - Location: internal/state/store.go:374-462 and 705-731.
@@ -1490,6 +1543,12 @@ For each round, record:
 - Verification commit: `b74c8a3` (target `de0c5f2`)
 - Evidence and remaining concerns: `CancelWorkflow` (internal/state/graph.go:177-299) takes locks lease → workflow → all nodes → each current attempt, settles every non-terminal node, and records `OUTCOME_UNKNOWN` for claimed non-pure attempts. `TestM1FanoutCancellationPreservesEffectEvidence` passes and shows late evidence retained for the non-cooperating branch. That covers the settlement requirement. Two parts of the PLAN.md follow-up are still missing: the *bounded fan-out cancellation race* test (the committed test is sequential) and the attempt-diagram update in docs/CONTRACTS.md. See R038 item 5.
 - Status: OPEN
+
+#### Claude verification – round 13
+
+- Verification commit: `0262eb5` (target `600726f`)
+- Evidence and remaining concerns: The bounded fan-out cancellation race test is committed (`TestM1FanoutCancellationRace`, three rounds, PASS under `-race`), and docs/CONTRACTS.md now shows fan-out branch settlement, `CANCELED/OUTCOME_UNKNOWN` for cancelled branches, and the no-advancement terminal fence. With the settlement behavior already verified in round 12, the DUR-007 follow-up is complete.
+- Status: VERIFIED
 
 ### R029 — The submission idempotency hash ignores what the workflow will actually run
 
@@ -1748,7 +1807,7 @@ For each round, record:
 ### R034 — The interpreter cannot resume after a crash inside a node; the workflow stalls permanently
 
 - Severity: P1
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `de0c5f2`
 - Location: internal/engine/engine.go:224-267 (the run loop only acts on `RUNNABLE` nodes; everything else counts as "blocked"), 353-435 (`runActivity` spans five separately committed repository calls: `ApplyOwnerTransition` → `CreateAttempt` → `ClaimAttempt` → `RecordResultReceipt` → `ConsumeResult` → `AdvanceGraph`); docs/INTERPRETER.md ("The interpreter may be stopped after any committed repository operation and a fresh instance can continue").
@@ -1771,10 +1830,22 @@ For each round, record:
   Where practical, combine consume-and-advance into one repository transaction to remove a boundary. Treat the Kafka path as the intended dispatch, but make the test driver recoverable from the same state.
 - Suggested validation: A fault test that injects a crash at every commit boundary of `runActivity`, fan-out, join, and timer, then restarts with a fresh engine and asserts that the workflow reaches its terminal state. Each activity must be invoked at most once per durable attempt (and no more than the retry policy allows), and the independent checker (R037) must pass on the persisted history.
 
+#### Claude verification – round 13
+
+- Verification commit: `0262eb5` (target `600726f`)
+- Evidence and remaining concerns: The run loop now reconciles `WAITING_ACTIVITY` and `SUCCEEDED` nodes as well as `RUNNABLE` ones (engine.go `recoverActivity`/`recoverSucceeded`): it starts a missing attempt, re-dispatches a `DISPATCHABLE` attempt, consumes an unconsumed terminal result, times out an expired claim, and advances a committed `SUCCEEDED` node only when its declared successors are absent. Claude re-ran the round-12 repro with independent trigger-based crash injection on a throwaway database (not Codex's `AfterBoundary` hook):
+  - crash before `attempt.dispatch` → restart reached `SUCCEEDED`, one call per activity;
+  - crash before `workflow.result_consumed` → `SUCCEEDED`, one call each;
+  - crash before `graph.advanced` → `SUCCEEDED`, one call each;
+  - crash before `activity.result` (claim committed, result lost) → the restart correctly waits while the claim lease is valid, then, with a 150 ms attempt lease, times the attempt out and completes: final `SUCCEEDED` with `root` executed twice. That re-execution is the documented at-least-once behavior for a pure activity whose result was lost, not a defect.
+
+  `invariants.Check` on the persisted history was valid in every case. The committed `TestM1CrashResumeWithinNode` covers three boundaries and passes.
+- Status: VERIFIED
+
 ### R035 — The engine uses another owner's lease and then releases it
 
 - Severity: P1
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `de0c5f2`
 - Location: internal/engine/engine.go:213-219 (`lease, _, err := e.Store.AcquireLease(...)` ignores `acquired`; the deferred `ReleaseLease` uses the returned lease).
@@ -1783,10 +1854,16 @@ For each round, record:
 - Suggested correction: Return an error (or a "not owner" result) when `acquired` is false. Build the `LeaseRef` only from the engine's own owner ID and the returned epoch, and release only a lease the engine itself acquired. Renew the lease during long runs, or stop before expiry.
 - Suggested validation: An integration test in which owner X holds the lease and engine Y runs: Y makes no progress and returns a not-owner result, and X's lease is unchanged. Also a test where Y's lease expires mid-run and its next transition fails with `ErrLeaseNotOwned`.
 
+#### Claude verification – round 13
+
+- Verification commit: `0262eb5` (target `600726f`)
+- Evidence and remaining concerns: `Run` now fails with `ErrLeaseNotOwned` when `AcquireLease` reports no acquisition, re-acquires (renews) each step, and releases only the lease it owns. Claude's repro: an engine with a different owner ID returned `ErrLeaseNotOwned`, ran no activity, and left the holder's lease and epoch unchanged (epoch 14 → 14, owner still X). The committed `TestM1RunRequiresPartitionLease` passes.
+- Status: VERIFIED
+
 ### R036 — Graph transitions are not validated against the definition
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `de0c5f2`
 - Location: internal/state/graph.go:305-430 (`AdvanceGraph`); internal/state/store.go `ConsumeResult` and `CreateWorkflow` (the `graphDeclaresNode` check); internal/engine/engine.go:460-483 (`nextInputsForResult`).
@@ -1812,10 +1889,21 @@ For each round, record:
   Validate activity branch choices against that node's declared options only. Consider a shared graph-parsing package so the repository and the interpreter do not diverge.
 - Suggested validation: Repository integration tests showing that each of the five cases is rejected with no partial state, and an interpreter test showing that an out-of-set branch choice fails the node instead of routing.
 
+#### Claude verification – round 13
+
+- Verification commit: `0262eb5` (target `600726f`)
+- Evidence and remaining concerns: `AdvanceGraph` now decodes the immutable stored graph inside the transaction and enforces: the source node must be declared; an activity source must be `SUCCEEDED` with a stored accepted result; successors must match the declared set (with a single declared choice allowed for a multi-successor activity); iterations must match; fan-out join dependencies must equal the declared branches; and a terminal workflow decision requires every other node to be terminal with no live attempt. `ConsumeResult` applies the same live-sibling rule, and `CreateWorkflow` requires `initial_node_id == entry`. The interpreter validates an activity's branch choice against that activity's own successors. Claude's repros now return:
+  - advance from a never-run activity (declared or undeclared successor) → `ErrResultNotConsumable`;
+  - advance from an undeclared node → `ErrGraphViolation`;
+  - `ConsumeResult(left → SUCCEEDED)` with `right` claimed → `ErrGraphViolation: terminal result has live sibling nodes`;
+  - an activity choosing an out-of-set successor → the result is recorded as `FAILED_FINAL` and the workflow ends `FAILED`; the unreachable effect node never ran;
+  - `initial_node_id=act` with `entry=gate` → `ErrUnknownNode`.
+- Status: VERIFIED
+
 ### R037 — The DUR-023A checker misses most seeded violations and never checks persisted evidence
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `de0c5f2`
 - Location: internal/invariants/checker.go:47-62; internal/invariants/checker_test.go:20-27; internal/engine (no checker use).
@@ -1834,10 +1922,16 @@ For each round, record:
   - Write one table-driven negative test per rule, each asserting the specific violation.
 - Suggested validation: A table-driven test (valid trace plus one case per rule) and M1 integration tests that assert `invariants.Check(load(workflowID)).Valid`.
 
+#### Claude verification – round 13
+
+- Verification commit: `0262eb5` (target `600726f`)
+- Evidence and remaining concerns: The checker now keys records by workflow and enforces revision-1 creation, contiguity, old/new state continuity, legal non-terminal transitions, terminal monotonicity, unique accepted results, and submission identity; `invariants.Load` reads history, submissions, and accepted results from PostgreSQL without importing the production transition validators. Claude re-ran the round-12 seeds plus new ones: all seven cases behaved correctly (valid trace passes; revision-5 start, old-state discontinuity, revision gap, row-after-terminal, illegal transition, and terminal→terminal all fail with rule-specific messages), and duplicate accepted results are caught. The committed test is now table-driven per rule, and the M1 integration tests call `Load`+`Check` on committed rows (`assertM1TraceValid`).
+- Status: VERIFIED
+
 ### R038 — M1 acceptance evidence does not exercise the stated scenarios
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `de0c5f2`
 - Location: internal/engine/engine_integration_test.go; internal/engine/engine.go (serial branch execution); PLAN.md DUR-007 acceptance/validation; the REVIEW.md handoff ("fan-out/join races … passed").
@@ -1851,10 +1945,16 @@ For each round, record:
 - Suggested correction: Add tests that overlap branch attempts (claim both, complete them concurrently through `RecordResultReceipt`/`ConsumeResult`/`AdvanceGraph`), race cancellation against branch completion, inject duplicate result and advance deliveries, and cover the crash-boundary campaign from R034. Update the attempt/fan-out diagram in docs/CONTRACTS.md. Make the handoff claims match what the tests exercise.
 - Suggested validation: Claude re-runs the new tests and checks that the claims are traceable to them.
 
+#### Claude verification – round 13
+
+- Verification commit: `0262eb5` (target `600726f`)
+- Evidence and remaining concerns: Committed coverage now includes `TestM1CrashResumeWithinNode` (three boundaries), `TestM1RunRequiresPartitionLease`, `TestM1FanoutCancellationRace` (three rounds), overlapping branch claims whose results race in `TestM1ConcurrentBranchCompletionCreatesJoinOnce`, and persisted invariant checks in the M1 scenarios. The contract diagram is updated. Claude ran the full `go test -race ./...` against a throwaway database: all packages pass. Remaining scope note (not blocking): duplicate delivery is still covered only at the repository boundary (DUR-005 result-retry), and there is no scheduler-level duplicate-dispatch test; that belongs with the Kafka path in M3.
+- Status: VERIFIED
+
 ### R039 — Smaller M1 gaps
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `de0c5f2`
 - Location: internal/state/graph.go:143-150; internal/engine/engine.go:87-92, 315-326, 509-516; internal/state/graph.go:378-404.
@@ -1866,6 +1966,12 @@ For each round, record:
 - Evidence: the cited code.
 - Suggested correction: Store explicit timer state (the node's timer ID or a timer-fired flag), require `entry` (or pick deterministically), return only inserted nodes, and remove the dead code.
 - Suggested validation: Claude re-checks.
+
+#### Claude verification – round 13
+
+- Verification commit: `0262eb5` (target `600726f`)
+- Evidence and remaining concerns: Explicit timers now use the persisted `node_instances.timer_fired` column (migration 000005, applied and idempotent on Claude's scratch database), so `retry_count` is no longer overloaded; `ScheduleTimer` no longer increments it. A multi-node graph without `entry` is rejected instead of choosing a random node. `AdvanceGraph.Created` lists only rows actually inserted (`RowsAffected() == 1`). The unused node sorter is gone.
+- Status: VERIFIED
 
 ---
 
