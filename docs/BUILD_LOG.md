@@ -1,5 +1,49 @@
 # Build log
 
+## 2026-09-17 - M3 implementation handoff
+
+- Review base: `9412f3e` (M2 closeout).
+- Committed implementation target: `bc1b68b` (M3 implementation plus the
+  parallel-fixture isolation correction).
+- Task status: DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3 are
+  READY_FOR_REVIEW; M3 is not marked DONE before Claude's review.
+- Built the PostgreSQL transactional outbox and stable task/event topics,
+  relay claims and publication evidence, Kafka and deterministic consumer
+  adapters, contiguous inbox offsets, lease-fenced scheduler wake-ups,
+  durable poison quarantine, partition-owner reconciliation/backpressure, and
+  independent transport/reconciliation invariants. Runtime replicas start a
+  relay when their existing `DATABASE_URL` and `KAFKA_BOOTSTRAP_SERVERS` are
+  configured.
+- Migrations `000006` through `000008` add transport metadata/publication
+  evidence, wake-ups/reconciliation, inbox cleanup, and raw poison-record
+  retention. The migration runner applied them successfully and skipped them
+  safely on the final rerun.
+- Validation passed: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+  scripts/ci.ps1 -WithRace -WithServices` (19 Python tests, Go race suite,
+  PostgreSQL state/reconciliation tests, real Kafka task/event round trip,
+  and service smoke); `go vet ./...`; `gofmt`; `git diff --check`; and the
+  runtime-a/runtime-b Docker Compose build.
+- Focused fault evidence includes relay crash after broker acknowledgment,
+  expired-claim recovery, duplicate delivery at a new Kafka offset, missing
+  `LISTEN/NOTIFY` fallback polling, contiguous offset gaps, poison
+  quarantine, and expired-attempt reconciliation/redispatch. M3 fixtures are
+  partition/prefix isolated so parallel package integration tests do not
+  borrow each other's leases or outbox rows.
+- An attempted `go mod tidy` could not acquire permission-locked module-cache
+  test-download files. The verified dependency graph already built and passed;
+  the Kafka module was declared directly in `go.mod` without claiming a tidy
+  run.
+- Remaining gaps: multi-host deployment/rebalance, sustained load, database
+  outage and lock-timeout campaigns, hard-kill durability, clean bootstrap and
+  restart-smoke reruns, and remote CI (none is configured). The external-effect
+  ledger and approval invariants remain later M4 work.
+
+Interview explanation: PostgreSQL commits the workflow transition and its
+publication obligation together, while Kafka is allowed to duplicate records.
+The stable event ID, inbox disposition, contiguous offset watermark, and
+reconciliation scans make the broker crash windows recoverable without giving
+Kafka authority over workflow state.
+
 ## 2026-09-17 - DUR-011 start
 
 - Base commit: `9412f3e` (M2 closeout after Claude's `NO_BLOCKING_FINDINGS`

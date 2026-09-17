@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 IN_PROGRESS; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 READY_FOR_REVIEW; DUR-012 READY_FOR_REVIEW; DUR-013 READY_FOR_REVIEW; DUR-014 READY_FOR_REVIEW; DUR-023A-M3 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -692,7 +692,7 @@ contract revision.
 
 #### DUR-011 — Outbox and relay
 
-- **Status:** IN_PROGRESS.
+- **Status:** READY_FOR_REVIEW; implementation target is `bc1b68b`.
 - **Dependencies:** M2 DONE; review base is the M2 closeout commit
   `9412f3e`.
 - **Goal:** Publish durable workflow obligations through Kafka without making
@@ -732,6 +732,103 @@ contract revision.
   topology remains single-node development infrastructure.
 
 **Exit:** Normal task and event dispatch uses real Kafka. PostgreSQL alone identifies every unfinished obligation after recovery, and the checker rejects seeded transport/reconciliation violations.
+
+#### DUR-012 - Task consumer and acknowledgment
+
+- **Status:** READY_FOR_REVIEW; implementation target is `bc1b68b`.
+- **Dependencies:** DUR-011 implementation; review base is `9412f3e`.
+- **Goal:** Consume task notifications through a bounded worker adapter while
+  making PostgreSQL the durable disposition and acknowledgment boundary.
+- **Scope:** Kafka and deterministic in-memory message sources; durable inbox
+  disposition; contiguous per-consumer/topic/partition offset watermarks;
+  duplicate delivery; bounded concurrent processing; poison-record quarantine;
+  and commit-after-disposition behavior. Activity execution and external
+  effects remain later milestone work.
+- **Acceptance:** A message is not acknowledged before its durable disposition;
+  duplicate event IDs do not create duplicate workflow hints; lower Kafka
+  offsets cannot be skipped by a higher concurrent completion; a consumer can
+  retry after a lost commit; malformed/unknown records are durably quarantined;
+  and the bounded pool does not create unbounded in-flight work.
+- **Validation:** `go test -race ./...`; focused M3 state/transport tests;
+  real Kafka task and event round trip under
+  `DURABLE_KAFKA_BROKERS=127.0.0.1:9092`; `go vet ./...`; `gofmt`; and
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1
+  -WithRace -WithServices`.
+- **Evidence:** `internal/transport/transport.go`,
+  `internal/state/m3.go`, migration `000008`, focused integration tests, and
+  the final `REVIEW.md` handoff. The bounded-pool test seam is deterministic;
+  multi-host rebalance and hard-kill behavior remain untested.
+
+#### DUR-013 - Event inbox and scheduler wake-ups
+
+- **Status:** READY_FOR_REVIEW; implementation target is `bc1b68b`.
+- **Dependencies:** DUR-011 and DUR-012 implementation; review base is
+  `9412f3e`.
+- **Goal:** Persist event deduplication and scheduler hints without treating
+  Kafka consumer-group placement as workflow ownership.
+- **Scope:** Event inbox identity/payload validation; one wake-up per event;
+  lease-fenced wake-up claims and consumption; duplicate/reordered delivery;
+  and scheduler-facing bounded wake-up listings. Kafka remains transport and
+  PostgreSQL remains authoritative.
+- **Acceptance:** Repeated event delivery returns the stored disposition and
+  creates no second wake-up; a wake-up can be claimed only under the current
+  partition lease; a stale wake-up owner cannot consume it; and a hint on a
+  non-owning replica remains durable for the current owner to discover.
+- **Validation:** `go test -race ./...`; M3 inbox/offset and wake-up tests;
+  real Kafka task/event round trip; `go vet ./...`; `gofmt`; and the full
+  race-enabled service CI command. Focused fallback-poll evidence covers a
+  directly inserted outbox row with no notification.
+- **Evidence:** `internal/state/m3.go`, migration `000006`, migration
+  `000007`, `internal/transport/m3_integration_test.go`, and the final review
+  handoff. Multi-host placement is not claimed.
+
+#### DUR-014 - Database reconciliation and backpressure
+
+- **Status:** READY_FOR_REVIEW; implementation target is `bc1b68b`.
+- **Dependencies:** DUR-011 through DUR-013 implementation; review base is
+  `9412f3e`.
+- **Goal:** Make unfinished database obligations discoverable and recoverable
+  after missed notifications, relay/worker crashes, or dependency outages.
+- **Scope:** Lease-authorized scans for expired attempts, pending outbox rows,
+  stale wake-ups, due timers, and reconciliation items; durable poison records;
+  bounded batch/backlog checks; and fresh deadlines on redispatch/replacement.
+  No automatic retry of a non-cooperating unknown effect is introduced.
+- **Acceptance:** A lost notification is recovered by bounded polling; an
+  expired claimed pure attempt is replaced and redispatched with a fresh
+  deadline; non-cooperating unknown work remains reconciliation-required;
+  due/obligation rows are visible to the current partition owner; and a
+  configured backlog limit rejects the scan before it performs more work.
+- **Validation:** `go test -race ./...`; reconciliation integration coverage
+  for an expired attempt and durable redispatch; relay fallback-poll and
+  backpressure tests; `go vet ./...`; `gofmt`; and full service CI. Sustained
+  load, database outages, lock timeouts, and hard-kill durability remain
+  untested.
+- **Evidence:** `internal/reconciliation/reconciler.go`,
+  `internal/reconciliation/m3_integration_test.go`, M3 state tests, and
+  `docs/BUILD_LOG.md`.
+
+#### DUR-023A-M3 - Invariant-checker transport/reconciliation extension
+
+- **Status:** READY_FOR_REVIEW; implementation target is `bc1b68b`.
+- **Dependencies:** DUR-023A-M2 DONE and M3 transport/reconciliation
+  implementation; review base is `9412f3e`.
+- **Goal:** Independently check transport identity, dispositions, wake-ups,
+  reconciliation state, and the outbox obligation for accepted state changes.
+- **Scope:** Database trace loading for outbox/inbox/wake-up/reconciliation
+  rows; topic and event identity checks; duplicate offset/event checks;
+  publication-state and disposition validation; pending-obligation checks;
+  and seeded negative fixtures. The checker does not call production
+  transition validators or infer correctness from relay decisions.
+- **Acceptance:** The checker rejects malformed/duplicated/unknown transport
+  evidence, wrong task/event topic placement, open obligations that contradict
+  durable publication, and a required state-change outbox omission while
+  accepting a valid transport trace.
+- **Validation:** `go test ./internal/invariants`; `go test -race ./...`;
+  real M3 PostgreSQL integration tests; `go vet ./...`; `gofmt`; and
+  `git diff --check`.
+- **Evidence:** `internal/invariants/checker.go`,
+  `internal/invariants/m3_checker_test.go`, M3 migrations, and the final
+  `REVIEW.md` handoff. Effect-ledger and approval invariants remain DUR-023A-M4.
 
 ### M4 — Recovery semantics, effects, and approvals
 
@@ -1069,10 +1166,10 @@ code target `600726f` with base `6bc0e2f`; Claude's committed round-13 verdict
 is `NO_BLOCKING_FINDINGS`, R034-R039 and R028 are VERIFIED, and the remaining
 R019 test gap is nonblocking. M2 is DONE at reviewed code target `0d663c3`
 with base `600726f`; Claude's committed round-15 verdict is
-`NO_BLOCKING_FINDINGS`, and R040-R044 are VERIFIED. DUR-011 is IN_PROGRESS
-against M2 closeout `9412f3e`. Implement the outbox and relay within the
-scope, acceptance, validation, evidence, and limitations recorded in its
-section. The next Claude review must use `9412f3e` as its exact base.
+`NO_BLOCKING_FINDINGS`, and R040-R044 are VERIFIED. M3 implementation tasks
+DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3 are READY_FOR_REVIEW at
+target `bc1b68b`, all based on M2 closeout `9412f3e`. The next Claude review
+must use `9412f3e` as its exact base and cover the committed M3 target.
 Keep the M0 contracts and partition-map version frozen while extending the
 durable state repository.
 

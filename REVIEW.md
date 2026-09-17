@@ -727,6 +727,54 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Review basis for next handoff: Claude should review the final DUR-011 code
   against M2 closeout commit `9412f3e`.
 
+## Codex handoff - M3 implementation
+
+- Task: M3 Kafka and reconciliation (DUR-011, DUR-012, DUR-013, DUR-014, and
+  DUR-023A-M3)
+- Task status: READY_FOR_REVIEW; no M3 task is DONE pending Claude verification.
+- Handoff basis: COMMITTED implementation target.
+- Base commit: `9412f3e` (M2 closeout)
+- Target commit: `bc1b68b` (M3 implementation; subsequent handoff edits are
+  documentation only)
+- Scope and implementation summary: PostgreSQL-authoritative transactional
+  outbox with separate stable task/event topics; relay claims, publication
+  evidence, retry and post-ack crash recovery; Kafka and deterministic consumer
+  adapters; inbox dispositions and contiguous consumer offsets; lease-fenced
+  scheduler wake-ups; durable poison-record quarantine; bounded
+  partition-owner reconciliation/backpressure; runtime relay wiring; and the
+  independent transport/reconciliation checker. No paid/model work,
+  external-effect ledger, approval workflow, or multi-host claim is included.
+- Acceptance evidence: state transitions write outbox obligations atomically;
+  relay claims and duplicate publication are recoverable; the same event can be
+  consumed again at a new Kafka offset without a second wake-up; missing
+  notifications are recovered by fallback polling; malformed/unknown records
+  are durably quarantined; expired pure work is redispatched with a fresh
+  deadline; and checker fixtures reject transport/reconciliation violations.
+- Checks personally run: final
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1
+  -WithRace -WithServices` passed, including migrations, 19 Python tests, Go
+  race tests, PostgreSQL/M3 reconciliation tests, real Kafka task/event
+  round-trip tests, and service smoke. The focused M3 tests passed with race
+  detection; `go vet`, `gofmt`, and `git diff --check` passed; and both runtime
+  images built with Docker Compose. Migration `000008` was applied once and
+  skipped on the final rerun.
+- Codex-reported checks considered: the implementation target was committed
+  before this handoff. A `go mod tidy` attempt was blocked by permission-locked
+  module-cache test downloads; the existing verified module graph built and
+  passed, with Kafka declared as a direct dependency.
+- Skipped checks and reasons: multi-host deployment/rebalance, sustained load,
+  PostgreSQL/Kafka outage campaigns, lock/statement-timeout campaigns,
+  hard-kill durability, clean bootstrap and restart-smoke reruns, and remote
+  CI (none is configured) remain untested or outside M3.
+- Known limitations: the local PostgreSQL/Kafka topology is single-node
+  development infrastructure; the activity driver remains a test fixture and
+  the consumer handler is the seam for later worker execution; external-effect
+  and approval invariants remain M4 work; the control API remains the documented
+  unauthenticated development seam.
+- Review basis for next handoff: Claude should review the committed M3 target
+  `bc1b68b` against the exact M2 base `9412f3e`.
+- Verdict: PENDING CLAUDE REVIEW
+
 For each round, record:
 
 - Date and round:
