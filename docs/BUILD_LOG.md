@@ -3,8 +3,8 @@
 ## 2026-09-14 - DUR-001 repository and reproducible toolchain
 
 - Base commit: `d722cf7` (planning baseline)
-- Target commit: pending while work is in progress
-- Task status: IN_PROGRESS
+- Target commit: `87e123a`
+- Task status: READY_FOR_REVIEW
 
 Built the initial Go/Python repository layout, project-level toolchain pins,
 Python lock configuration, version-pinned Docker Compose topology, local secret
@@ -53,7 +53,7 @@ of an undocumented local setup.
 
 ## 2026-09-16 - M0 foundation completion pass
 
-- Base commit: `198fd4b` (DUR-001 scaffold); target commit: pending.
+- Base commit: `198fd4b` (DUR-001 scaffold); target implementation commit: `87e123a`.
 - Task status: READY_FOR_REVIEW after the implementation commit.
 
 Completed the remaining M0 foundation work. `docs/CONTRACTS.md` freezes actor

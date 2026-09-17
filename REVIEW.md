@@ -37,15 +37,21 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
 ## Codex handoff
 
-- Task:
-- Task status: <IN_PROGRESS | READY_FOR_REVIEW>
-- Handoff basis: <PROVISIONAL | COMMITTED>
-- Base commit: <commit | unavailable>
-- Target commit: <commit | unavailable>
-- Scope and implementation summary:
+- Task: M0 foundation (DUR-001 through DUR-004)
+- Task status: READY_FOR_REVIEW
+- Handoff basis: COMMITTED
+- Base commit: `198fd4b`
+- Target commit: `87e123a`
+- Scope and implementation summary: Completed the repository/toolchain foundation; added the DUR-002 actor, identity, transition, race, failure-model, and stable partition-map contracts; added independent Go/Python partition implementations and vectors; added the DUR-003 event-driven named-boundary target/controller with pause, release, kill, timeout, seed, and `fault-trace.v1` evidence; added shared `scripts/ci.ps1` validation with explicit race/service switches; updated README, runbook, decisions, and build log. Existing PLAN changes were preserved while M0 statuses/evidence were updated.
 - Checks run and results:
-- Skipped checks and reasons:
-- Known limitations:
+  - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap.ps1 -StartServices`: PASS; Go 1.27.1, locked Python environment, pinned Docker builds, migration, and local health smoke passed.
+  - `scripts/check.ps1` with task-local Go/uv/temp caches: PASS; Go format/vet/test/build, Ruff, strict mypy, and 7 pytest tests passed.
+  - `scripts/restart-smoke.ps1`: PASS; PostgreSQL marker and Kafka marker topic survived forced container recreation.
+  - `scripts/ci.ps1`: PASS; default path reported opt-in checks explicitly.
+  - `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go race tests, Python tests, PostgreSQL/Kafka smoke, service health, and Prometheus scrape checks passed.
+  - Partition vectors passed independently in Go and Python; fault controller release, pause/release, kill, timeout, and same-seed tests passed.
+- Skipped checks and reasons: No remote CI is configured (`git remote -v` is empty). Model/paid-provider checks are intentionally not part of M0. Final Linux I/O/performance studies are deferred by the plan. `pwsh` was unavailable, so Windows PowerShell was used. The existing `.pytest_cache` ACL emitted a non-fatal warning; task-local temp paths were used for passing validation.
+- Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude review remains pending; this handoff is ready for independent review, not DONE.
 
 ## Claude review rounds
 
