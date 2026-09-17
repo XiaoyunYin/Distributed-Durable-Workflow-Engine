@@ -1,5 +1,42 @@
 # Build log
 
+## 2026-09-17 - M2 implementation handoff
+
+- Base commit: `600726f` (Claude-reviewed M1 closeout).
+- Implementation target: `91e4b14`.
+- Task status: READY_FOR_REVIEW; DUR-008, DUR-009, DUR-010, and
+  DUR-023A-M2 are implemented and awaiting Claude's committed review. M2 is
+  not marked DONE.
+
+M2 adds explicit same-epoch lease renewal and takeover fencing, keeps the
+interpreter renewing and releasing only its own lease, exposes the worker
+claim/heartbeat/result control seam, and extends the independent checker with
+persisted scheduler-epoch and attempt-generation evidence. The Python worker
+runner has a versioned pure-activity registry, bounded concurrency, heartbeat
+renewal, and documented lost-response behavior. Kafka transport and production
+effect isolation remain later scope.
+
+Validation completed:
+
+- `go test -race ./...`: PASS.
+- `DURABLE_REQUIRE_DATABASE=1 go test -race ./internal/state
+  -run TestM2LeaseRenewalAndTakeoverFence -count=1`: PASS against PostgreSQL;
+  owner A renewed, owner B took over after expiry, and stale owner operations
+  were rejected.
+- `go vet ./...`, `go build ./cmd/runtime`, `gofmt -l cmd internal`, and
+  `git diff --check`: PASS.
+- `uv run ruff check python tests`, `uv run ruff format --check python tests`,
+  `uv run mypy`, and `uv run pytest`: PASS; 16 Python tests.
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS on the second run, including
+  migrations 000001-000005, all DUR-005 through DUR-007 PostgreSQL scenarios,
+  live PostgreSQL/Kafka/runtime/worker/telemetry health, and the service-mode
+  Python suite. The first run hit the existing probabilistic M1 fixture's
+  100-attempt partition-ID generation miss; the unchanged rerun passed.
+
+The full service-mode command and Claude's independent probes remain part of
+review validation. No M2 correctness, multi-host, Kafka, sustained-load,
+hard-kill, clean-bootstrap, or remote-CI claim is made here.
+
 ## 2026-09-17 - DUR-007/DUR-023A round-13 corrections
 
 - Base commit: `6bc0e2f` (verified DUR-006 closeout).

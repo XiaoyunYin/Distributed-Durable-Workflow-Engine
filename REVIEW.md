@@ -544,6 +544,39 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Known limitations: no M2 correctness claim, multi-host claim, Kafka path,
   sustained-load result, or remote CI claim at this start record.
 
+## Codex handoff - M2 implementation
+
+- Task: DUR-008, DUR-009, DUR-010, and DUR-023A-M2; M2 multi-replica
+  ownership and worker attempts.
+- Task status: READY_FOR_REVIEW; none of these tasks is DONE.
+- Handoff basis: COMMITTED implementation target.
+- Base commit: `600726f`.
+- Target commit: `91e4b14`.
+- Scope inspected: explicit lease renewal/takeover/release fencing; worker
+  claim, heartbeat, and result control endpoints; idempotent attempt identity
+  and typed errors; versioned bounded Python activity runner; and independent
+  persisted ownership/attempt checker evidence. Kafka relay/consumer,
+  production effect services, and multi-host deployment remain out of scope.
+- Checks personally run: `go test -race ./...`; the required PostgreSQL M2
+  takeover test with `DURABLE_REQUIRE_DATABASE=1`; `go vet ./...`; `go build
+  ./cmd/runtime`; `gofmt -l cmd internal`; `git diff --check`; Ruff check and
+  format check; mypy; pytest (16 tests); and
+  `scripts/ci.ps1 -WithRace -WithServices` (PASS on its second run, including
+  migration, DUR-005-DUR-007 PostgreSQL, and live-service checks).
+- Codex-reported checks considered: the targeted PostgreSQL test ran against
+  the configured local service and cleaned only its leased partition; the
+  non-service Go race suite does not claim full service-mode coverage.
+- Deferred P2 findings, if any: none known; Claude review is pending.
+- Remaining P3 findings / uncertainties / untested areas: R019's historical
+  claim-retry-after-replacement test gap remains nonblocking. Kafka transport,
+  multi-replica deployment, PostgreSQL outage/lock-timeout campaigns,
+  sustained load, hard-kill durability, clean bootstrap/restart smoke, and
+  remote CI remain untested or later scope.
+- Limitations: the control API is development-only and unauthenticated;
+  direct dispatch is a test seam; production activity isolation and external
+  effect ledgers are later milestones.
+- Verdict: pending Claude review.
+
 For each round, record:
 
 - Date and round:

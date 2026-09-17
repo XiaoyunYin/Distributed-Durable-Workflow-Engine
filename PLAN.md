@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 IN_PROGRESS; DUR-009 IN_PROGRESS; DUR-010 IN_PROGRESS; DUR-023A-M2 IN_PROGRESS; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 READY_FOR_REVIEW; DUR-009 READY_FOR_REVIEW; DUR-010 READY_FOR_REVIEW; DUR-023A-M2 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -591,7 +591,7 @@ contract revision.
 
 #### DUR-008 — Partition leases and scheduler fencing
 
-- **Status:** IN_PROGRESS.
+- **Status:** READY_FOR_REVIEW.
 - **Dependencies:** M1 DONE; review base is the M1 closeout target `600726f`.
 - **Goal:** Make partition ownership a reusable, explicitly tested scheduler
   boundary for two concurrent scheduler instances.
@@ -613,7 +613,7 @@ contract revision.
 
 #### DUR-009 — Claim and result APIs
 
-- **Status:** IN_PROGRESS.
+- **Status:** READY_FOR_REVIEW.
 - **Dependencies:** DUR-008; review base is the M1 closeout target `600726f`.
 - **Goal:** Expose the reviewed worker claim/result repository operations
   through an idempotent control API without granting workers scheduler
@@ -636,7 +636,7 @@ contract revision.
 
 #### DUR-010 — Python activity runner
 
-- **Status:** IN_PROGRESS.
+- **Status:** READY_FOR_REVIEW.
 - **Dependencies:** DUR-009; review base is the M1 closeout target `600726f`.
 - **Goal:** Provide a bounded, version-aware worker process seam that uses the
   durable claim protocol and can be restarted without inventing local state.
@@ -657,7 +657,7 @@ contract revision.
 
 #### DUR-023A-M2 — Independent ownership/attempt extension
 
-- **Status:** IN_PROGRESS.
+- **Status:** READY_FOR_REVIEW.
 - **Dependencies:** DUR-023A skeleton and DUR-008/DUR-009; review base is the
   M1 closeout target `600726f`.
 - **Goal:** Extend the independent checker to detect stale scheduler and worker
