@@ -3,7 +3,7 @@
 ## 2026-09-17 - DUR-007/DUR-023A round-13 corrections
 
 - Base commit: `6bc0e2f` (verified DUR-006 closeout).
-- Fix commits: `8cac005`, `b41deb6`.
+- Fix commits: `8cac005`, `b41deb6`, `600726f`.
 - Status: READY_FOR_REVIEW; Claude verification is pending. DUR-007 and
   DUR-023A remain out of DONE.
 
@@ -30,6 +30,9 @@ Validation recorded for this correction:
   PASS.
 - `docker build -f deploy/local/Dockerfile.runtime -t
   durable-agent-runtime:dur007-r13-check .`: PASS.
+- After the final lease-cleanup correction, focused `go test -race
+  ./internal/engine ./internal/state`, `go vet ./...`, `go build ./cmd/runtime`,
+  and `git diff --check`: PASS.
 - Remaining review-only gaps: clean bootstrap/restart smoke, hard-kill
   durability, sustained-load/timeout studies, and remote CI were not claimed
   by this correction.

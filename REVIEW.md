@@ -462,7 +462,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
 - Task status: READY_FOR_REVIEW for DUR-007 and DUR-023A; Claude verification is pending. Neither task is DONE.
 - Review basis: COMMITTED.
-- Handoff basis: committed correction target `b41deb6`, with base `6bc0e2f`.
+- Handoff basis: committed correction target `600726f`, with base `6bc0e2f`.
 - Scope: R034-R039 and the DUR-007 R028 test/contract follow-up. No Kafka,
   paid/model, production-effect, or protected-scope changes.
 - Changes: crash-resume reconciliation for durable node phases; lease
@@ -476,7 +476,10 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   tests, and live service smoke); `DURABLE_REQUIRE_DATABASE=1 go test -race
   ./...`; `go vet ./...`; `go build ./cmd/runtime`; `gofmt`; `git diff
   --check`; and `docker build -f deploy/local/Dockerfile.runtime -t
-  durable-agent-runtime:dur007-r13-check .`. All passed.
+  durable-agent-runtime:dur007-r13-check .`. All passed. After the final
+  lease-cleanup correction, focused `go test -race ./internal/engine
+  ./internal/state`, `go vet ./...`, `go build ./cmd/runtime`, and
+  `git diff --check` also passed.
 - Skipped checks and reasons: clean bootstrap/restart smoke, hard-kill
   durability, sustained-load and timeout studies, and remote CI remain
   untested or unavailable.
@@ -485,7 +488,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   injector models a process stop immediately after a committed repository
   transaction.
 - Findings addressed, not verified: R034, R035, R036, R037, R038, R039, and
-  the M1 portion of R028. Claude should verify target `b41deb6` against
+  the M1 portion of R028. Claude should verify target `600726f` against
   `6bc0e2f`.
 
 For each round, record:
@@ -1874,7 +1877,7 @@ original text or verification status.
 ### R028 response
 
 - Change made: The DUR-007 cancellation path settles every active node and preserves `OUTCOME_UNKNOWN` for claimed effect attempts. The missing bounded race test is committed, and the contract diagram now shows fan-out branch settlement and the no-advancement terminal fence.
-- Fix commits: `8cac005`, `b41deb6`.
+- Fix commits: `8cac005`, `b41deb6`, `600726f`.
 - Tests: `TestM1FanoutCancellationRace` passes in the PostgreSQL `-race` suite for three bounded rounds; `go test -race ./...` passes.
 - Status: ADDRESSED
 
@@ -1882,7 +1885,7 @@ original text or verification status.
 
 - Change made: `Run` now reconciles durable `WAITING_ACTIVITY` and `SUCCEEDED` node phases before scheduling new work. It resumes missing attempts, redispatches durable dispatchable attempts, consumes recorded terminal results, and advances committed succeeded nodes only when their declared successors are absent.
 - Affected files: `internal/engine/engine.go`, `internal/state/store.go`, `internal/engine/engine_integration_test.go`.
-- Fix commits: `8cac005`, `b41deb6`.
+- Fix commits: `8cac005`, `b41deb6`, `600726f`.
 - Tests: `TestM1CrashResumeWithinNode` injects failures after scheduling, after result recording, and after result consumption; each fresh-engine recovery reaches `SUCCEEDED` with one activity call. `go test -race ./...` passes.
 - Status: ADDRESSED
 
@@ -1890,7 +1893,7 @@ original text or verification status.
 
 - Change made: `Run` now requires `AcquireLease` to report ownership, renews during each step, and releases only the lease reference it acquired. A competing owner returns `ErrLeaseNotOwned` without progress.
 - Affected files: `internal/engine/engine.go`, `internal/engine/engine_integration_test.go`.
-- Fix commits: `8cac005`, `b41deb6`.
+- Fix commits: `8cac005`, `b41deb6`, `600726f`.
 - Tests: `TestM1RunRequiresPartitionLease` confirms the held owner and epoch remain unchanged; the full PostgreSQL race suite passes.
 - Status: ADDRESSED
 
@@ -1898,7 +1901,7 @@ original text or verification status.
 
 - Change made: The repository parses the immutable stored graph inside `AdvanceGraph`, requires an accepted result for activity completion, checks declared successors and join dependencies, rejects undeclared source/successor nodes, requires all siblings to be terminal before a terminal workflow decision, and requires workflow creation to start at the graph entry. The interpreter validates multi-successor activity output against that activity's own successor set.
 - Affected files: `internal/state/graph.go`, `internal/state/store.go`, `internal/engine/engine.go`.
-- Fix commits: `8cac005`, `b41deb6`.
+- Fix commits: `8cac005`, `b41deb6`, `600726f`.
 - Tests: PostgreSQL graph execution, joined branches, result consumption, terminal convergence, and persisted invariant-trace checks pass under `go test -race ./...`.
 - Status: ADDRESSED
 
@@ -1906,7 +1909,7 @@ original text or verification status.
 
 - Change made: The checker now keys history by workflow, requires revision 1 creation, contiguous revisions, old/new state continuity, legal non-terminal transitions, terminal monotonicity, unique accepted results, and stable submission identity. `invariants.Load` reads real workflow history, submissions, and accepted node results without reusing production transition validators.
 - Affected files: `internal/invariants/checker.go`, `internal/invariants/checker_test.go`, `internal/engine/engine_integration_test.go`.
-- Fix commits: `8cac005`, `b41deb6`.
+- Fix commits: `8cac005`, `b41deb6`, `600726f`.
 - Tests: The table-driven checker test isolates each seeded violation and asserts its rule-specific message. M1 integration tests call `Load` and `Check` on committed PostgreSQL rows; `go test -race ./...` passes.
 - Status: ADDRESSED
 
@@ -1914,7 +1917,7 @@ original text or verification status.
 
 - Change made: Acceptance evidence now includes three intra-node crash boundaries, real overlapping branch attempts whose results are recorded concurrently and consumed with revision fencing, a bounded cancellation/result race, live-database invariant checks, and the contract fan-out/attempt diagram update. Existing DUR-005 result-retry coverage remains the duplicate-delivery evidence for the repository boundary.
 - Affected files: `internal/engine/engine_integration_test.go`, `docs/CONTRACTS.md`.
-- Fix commits: `8cac005`, `b41deb6`.
+- Fix commits: `8cac005`, `b41deb6`, `600726f`.
 - Tests: PostgreSQL `go test -race ./...`, `go vet ./...`, `go build ./cmd/runtime`, `gofmt`, and `git diff --check` pass.
 - Status: ADDRESSED
 
@@ -1922,7 +1925,7 @@ original text or verification status.
 
 - Change made: Explicit graph timers now use persisted `timer_fired`, while retry backoff continues to use retry metadata. Multi-node graphs without an entry are rejected instead of selecting a map iteration result; `AdvanceGraph.Created` contains only inserted rows; and the unused node sorter was removed.
 - Affected files: `migrations/000005_dur007_timer_state.up.sql`, `internal/state/graph.go`, `internal/engine/engine.go`.
-- Fix commits: `8cac005`, `b41deb6`.
+- Fix commits: `8cac005`, `b41deb6`, `600726f`.
 - Tests: Migration 000005 applied successfully after migrations 000001–000004; timer/restart integration, full race tests, vet, build, formatting, and diff checks pass.
 - Status: ADDRESSED
 
