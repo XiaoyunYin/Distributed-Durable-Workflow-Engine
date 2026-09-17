@@ -389,12 +389,6 @@ func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID str
 		return Lease{}, false, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := tx.Exec(ctx, `
-		INSERT INTO engine.partition_leases (partition_id)
-		VALUES ($1)
-		ON CONFLICT (partition_id) DO NOTHING`, partitionID); err != nil {
-		return Lease{}, false, fmt.Errorf("ensure partition lease: %w", err)
-	}
 	var currentOwner *string
 	var currentExpiry *time.Time
 	var epoch int64
