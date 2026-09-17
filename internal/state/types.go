@@ -34,6 +34,7 @@ var (
 	ErrDefinitionNotFound     = errors.New("workflow definition not found")
 	ErrUnknownNode            = errors.New("initial node is not declared by the workflow definition")
 	ErrWorkflowIDConflict     = errors.New("workflow ID is already used by another submission")
+	ErrGraphViolation         = errors.New("workflow graph transition violates its definition")
 )
 
 const (
@@ -140,6 +141,7 @@ type NodeInstance struct {
 	CurrentAttempt *int64
 	RetryCount     int
 	DeadlineAt     *time.Time
+	TimerFired     bool
 	Revision       int64
 }
 
@@ -247,6 +249,7 @@ type Attempt struct {
 	LogicalEffectKey   string
 	GrantScopeHash     string
 	OutcomeDisposition string
+	Result             json.RawMessage
 	IsCurrent          bool
 }
 

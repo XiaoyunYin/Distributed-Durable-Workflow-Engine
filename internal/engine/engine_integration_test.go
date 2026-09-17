@@ -13,9 +13,84 @@ import (
 	"testing"
 	"time"
 
+	"durable-agent-execution-engine/internal/invariants"
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
 )
+
+func TestM1CrashResumeWithinNode(t *testing.T) {
+	ctx, store := openM1Database(t)
+	defer store.Close()
+	for _, boundary := range []string{"activity_scheduled", "result_recorded", "result_consumed"} {
+		t.Run(boundary, func(t *testing.T) {
+			definitionID := "dur007-crash-" + boundary + "-" + state.NewID()
+			workflowID, lease := createM1Workflow(t, ctx, store, definitionID,
+				`{"entry":"root","nodes":[{"id":"root","kind":"activity","next":"done"},{"id":"done","kind":"success"}]}`,
+				`{"root":"PURE_ACTIVITY"}`)
+			defer func() {
+				_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE workflow_id = $1`, workflowID)
+				_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, definitionID)
+				_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch})
+			}()
+			calls := 0
+			driver := ActivityDriverFunc(func(_ context.Context, _ Activity) (ActivityResult, error) {
+				calls++
+				return ActivityResult{Payload: []byte(`{"ok":true}`)}, nil
+			})
+			crash := true
+			first := New(store, driver)
+			first.OwnerID = lease.OwnerID
+			first.AfterBoundary = func(got string) error {
+				if crash && got == boundary {
+					crash = false
+					return errors.New("injected crash")
+				}
+				return nil
+			}
+			if _, err := first.Run(ctx, workflowID); err == nil {
+				t.Fatalf("crash boundary %q did not interrupt the first run", boundary)
+			}
+			second := New(store, driver)
+			second.OwnerID = lease.OwnerID
+			result, err := second.Run(ctx, workflowID)
+			if err != nil || result.Blocked || result.Workflow.State != state.StateSucceeded {
+				t.Fatalf("recovery run = %+v, err=%v", result, err)
+			}
+			if calls != 1 {
+				t.Fatalf("activity calls = %d, want one durable delivery", calls)
+			}
+			assertM1TraceValid(t, ctx, store, workflowID)
+		})
+	}
+}
+
+func TestM1RunRequiresPartitionLease(t *testing.T) {
+	ctx, store := openM1Database(t)
+	defer store.Close()
+	definitionID := "dur007-lease-" + state.NewID()
+	workflowID, lease := createM1Workflow(t, ctx, store, definitionID,
+		`{"entry":"root","nodes":[{"id":"root","kind":"success"}]}`, `{"root":"PURE_ACTIVITY"}`)
+	defer func() {
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE workflow_id = $1`, workflowID)
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, definitionID)
+		_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch})
+	}()
+	other := New(store, ActivityDriverFunc(func(context.Context, Activity) (ActivityResult, error) {
+		return ActivityResult{Payload: []byte(`{}`)}, nil
+	}))
+	other.OwnerID = "different-owner-" + state.NewID()
+	result, err := other.Run(ctx, workflowID)
+	if !errors.Is(err, state.ErrLeaseNotOwned) || !result.Blocked {
+		t.Fatalf("borrowed lease: result=%+v err=%v", result, err)
+	}
+	check, acquired, err := store.AcquireLease(ctx, lease.PartitionID, other.OwnerID, time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if acquired || check.OwnerID != lease.OwnerID {
+		t.Fatalf("lease changed while held: %+v acquired=%v", check, acquired)
+	}
+}
 
 func TestM1InterpreterTimersAndRestart(t *testing.T) {
 	ctx, store := openM1Database(t)
@@ -58,9 +133,9 @@ func TestM1InterpreterTimersAndRestart(t *testing.T) {
 	second.OwnerID = lease.OwnerID
 	second.RetryBackoff = 30 * time.Millisecond
 	second.LeaseTTL = time.Minute
-	second.MaxSteps = 3
+	second.MaxSteps = 2
 	run, err = second.Run(ctx, workflowID)
-	if err != nil || !run.Blocked || run.Workflow.State != state.StateWaitingTimer {
+	if err != nil || !run.Blocked || run.Workflow.State != state.StateRunnable {
 		t.Fatalf("second run = %+v, err=%v", run, err)
 	}
 	time.Sleep(60 * time.Millisecond)
@@ -68,6 +143,14 @@ func TestM1InterpreterTimersAndRestart(t *testing.T) {
 	third.OwnerID = lease.OwnerID
 	third.LeaseTTL = time.Minute
 	run, err = third.Run(ctx, workflowID)
+	if err != nil || !run.Blocked || run.Workflow.State != state.StateWaitingTimer {
+		t.Fatalf("timer scheduling run = %+v, err=%v", run, err)
+	}
+	time.Sleep(60 * time.Millisecond)
+	fourth := New(store, driver)
+	fourth.OwnerID = lease.OwnerID
+	fourth.LeaseTTL = time.Minute
+	run, err = fourth.Run(ctx, workflowID)
 	if err != nil || run.Blocked || run.Workflow.State != state.StateSucceeded {
 		t.Fatalf("restart run = %+v, err=%v", run, err)
 	}
@@ -176,6 +259,99 @@ func TestM1FanoutCancellationPreservesEffectEvidence(t *testing.T) {
 	}
 }
 
+func TestM1FanoutCancellationRace(t *testing.T) {
+	ctx, store := openM1Database(t)
+	defer store.Close()
+	for round := 0; round < 3; round++ {
+		t.Run(fmt.Sprintf("round-%d", round), func(t *testing.T) {
+			definitionID := "dur007-cancel-race-" + state.NewID()
+			workflowID, lease := createM1Workflow(t, ctx, store, definitionID,
+				`{"entry":"root","nodes":[{"id":"root","kind":"fanout","branches":["left","right"],"join":"join"},{"id":"left","kind":"activity","next":"join"},{"id":"right","kind":"activity","next":"join"},{"id":"join","kind":"join","next":"done"},{"id":"done","kind":"success"}]}`,
+				`{"right":"NON_COOPERATING_EFFECT"}`)
+			defer func() {
+				_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE workflow_id = $1`, workflowID)
+				_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, definitionID)
+				_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch})
+			}()
+			ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
+			wf, err := store.GetWorkflow(ctx, workflowID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			advanced, err := store.AdvanceGraph(ctx, state.AdvanceGraphInput{Lease: ref, WorkflowID: workflowID,
+				FromNodeID: "root", Iteration: 0, ExpectedRevision: wf.Revision,
+				Next: []state.GraphNodeInput{{NodeID: "left", Iteration: 0}, {NodeID: "right", Iteration: 0},
+					{NodeID: "join", Iteration: 0, Dependencies: []string{"left", "right"}}}, ActorID: "test"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			wf = advanced.Workflow
+			nodeState := state.StateWaitingActivity
+			if err := store.ApplyOwnerTransition(ctx, state.OwnerTransitionInput{Lease: ref, WorkflowID: workflowID,
+				ExpectedRevision: wf.Revision, NewState: state.StateWaitingActivity, NodeID: "right", Iteration: 0,
+				NodeState: &nodeState, ActorID: "test", Reason: "SCHEDULE_ACTIVITY"}); err != nil {
+				t.Fatal(err)
+			}
+			wf, err = store.GetWorkflow(ctx, workflowID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			attempt, err := store.CreateAttempt(ctx, state.AttemptInput{Lease: ref, WorkflowID: workflowID, NodeID: "right",
+				Iteration: 0, ExpectedRevision: wf.Revision, EffectClass: state.EffectNonCooperating,
+				LogicalEffectKey: workflowID + ":right", GrantScopeHash: "grant", HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "test"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			claim, err := store.ClaimAttempt(ctx, state.ClaimInput{WorkflowID: workflowID, NodeID: "right", Iteration: 0,
+				WorkerID: "worker-right", RequestID: "request-right", AttemptLease: time.Minute})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if claim.AttemptNumber != attempt.AttemptNumber {
+				t.Fatalf("claim = %+v attempt = %+v", claim, attempt)
+			}
+			traces := make(chan error, 2)
+			go func(expected int64) {
+				_, cancelErr := store.CancelWorkflow(ctx, state.CancelWorkflowInput{Lease: ref, WorkflowID: workflowID,
+					ExpectedRevision: expected, ActorID: "canceller"})
+				traces <- cancelErr
+			}(wf.Revision)
+			go func() {
+				traces <- store.RecordResult(ctx, state.ResultInput{WorkflowID: workflowID, NodeID: "right", Iteration: 0,
+					AttemptNumber: claim.AttemptNumber, ClaimToken: claim.ClaimToken, AttemptState: state.AttemptSucceeded,
+					Payload: []byte(`{"applied":true}`)})
+			}()
+			for range 2 {
+				<-traces
+			}
+			wf, err = store.GetWorkflow(ctx, workflowID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if wf.State != state.StateCanceled {
+				wf, err = store.CancelWorkflow(ctx, state.CancelWorkflowInput{Lease: ref, WorkflowID: workflowID,
+					ExpectedRevision: wf.Revision, ActorID: "cleanup-canceller"})
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			if wf.State != state.StateCanceled {
+				t.Fatalf("race left workflow in %s", wf.State)
+			}
+			nodes, err := store.ListNodes(ctx, workflowID)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for _, node := range nodes {
+				if node.NodeID != "root" && node.State != state.StateCanceled {
+					t.Fatalf("node %s escaped cancellation: %+v", node.NodeID, node)
+				}
+			}
+			assertM1TraceValid(t, ctx, store, workflowID)
+		})
+	}
+}
+
 func TestM1InterpreterFanoutJoin(t *testing.T) {
 	ctx, store := openM1Database(t)
 	defer store.Close()
@@ -238,52 +414,112 @@ func TestM1ConcurrentBranchCompletionCreatesJoinOnce(t *testing.T) {
 		t.Fatal(err)
 	}
 	wf = advanced.Workflow
+	claims := make(map[string]state.ClaimResult)
+	for _, nodeID := range []string{"left", "right"} {
+		nodeState := state.StateWaitingActivity
+		if err := store.ApplyOwnerTransition(ctx, state.OwnerTransitionInput{Lease: ref, WorkflowID: workflowID,
+			ExpectedRevision: wf.Revision, NewState: state.StateWaitingActivity, NodeID: nodeID,
+			Iteration: 0, NodeState: &nodeState, ActorID: "test", Reason: "SCHEDULE_ACTIVITY"}); err != nil {
+			t.Fatal(err)
+		}
+		wf, err = store.GetWorkflow(ctx, workflowID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		attempt, err := store.CreateAttempt(ctx, state.AttemptInput{Lease: ref, WorkflowID: workflowID,
+			NodeID: nodeID, Iteration: 0, ExpectedRevision: wf.Revision, EffectClass: state.EffectPure,
+			HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "test"})
+		if err != nil {
+			t.Fatal(err)
+		}
+		claim, err := store.ClaimAttempt(ctx, state.ClaimInput{WorkflowID: workflowID, NodeID: nodeID,
+			Iteration: 0, WorkerID: "worker-" + nodeID, RequestID: "request-" + nodeID, AttemptLease: time.Minute})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if claim.AttemptNumber != attempt.AttemptNumber {
+			t.Fatalf("claim = %+v, attempt = %+v", claim, attempt)
+		}
+		claims[nodeID] = claim
+		wf, err = store.GetWorkflow(ctx, workflowID)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
 	type outcome struct {
 		node string
 		err  error
 	}
-	results := make(chan outcome, 2)
+	resultCh := make(chan outcome, 2)
 	for _, nodeID := range []string{"left", "right"} {
 		go func(id string) {
-			_, advanceErr := store.AdvanceGraph(ctx, state.AdvanceGraphInput{Lease: ref, WorkflowID: workflowID,
-				FromNodeID: id, Iteration: 0, ExpectedRevision: wf.Revision,
-				Next: []state.GraphNodeInput{{NodeID: "join", Iteration: 0, Dependencies: []string{"left", "right"}}}, ActorID: "test"})
-			results <- outcome{node: id, err: advanceErr}
+			claim := claims[id]
+			resultCh <- outcome{node: id, err: store.RecordResult(ctx, state.ResultInput{WorkflowID: workflowID,
+				NodeID: id, Iteration: 0, AttemptNumber: claim.AttemptNumber, ClaimToken: claim.ClaimToken,
+				AttemptState: state.AttemptSucceeded, Payload: []byte(`{"node":"` + id + `"}`)})}
 		}(nodeID)
 	}
-	var winner, loser string
 	for range 2 {
-		result := <-results
-		if result.err == nil {
-			winner = result.node
-		} else if errors.Is(result.err, state.ErrRevisionConflict) {
-			loser = result.node
-		} else {
-			t.Fatalf("branch %s error = %v", result.node, result.err)
+		result := <-resultCh
+		if result.err != nil {
+			t.Fatalf("record branch %s result: %v", result.node, result.err)
 		}
-	}
-	if winner == "" || loser == "" {
-		t.Fatalf("race outcomes winner=%q loser=%q", winner, loser)
 	}
 	wf, err = store.GetWorkflow(ctx, workflowID)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := store.AdvanceGraph(ctx, state.AdvanceGraphInput{Lease: ref, WorkflowID: workflowID,
-		FromNodeID: loser, Iteration: 0, ExpectedRevision: wf.Revision,
-		Next: []state.GraphNodeInput{{NodeID: "join", Iteration: 0, Dependencies: []string{"left", "right"}}}, ActorID: "retry"}); err != nil {
+	consumeCh := make(chan outcome, 2)
+	for _, nodeID := range []string{"left", "right"} {
+		go func(id string, expectedRevision int64) {
+			claim := claims[id]
+			_, consumeErr := store.ConsumeResult(ctx, state.ConsumeResultInput{Lease: ref, WorkflowID: workflowID,
+				NodeID: id, Iteration: 0, AttemptNumber: claim.AttemptNumber, ExpectedRevision: expectedRevision,
+				NewWorkflowState: state.StateRunnable, ActorID: "scheduler"})
+			consumeCh <- outcome{node: id, err: consumeErr}
+		}(nodeID, wf.Revision)
+	}
+	var loser string
+	for range 2 {
+		result := <-consumeCh
+		if result.err == nil {
+			continue
+		}
+		if errors.Is(result.err, state.ErrRevisionConflict) {
+			loser = result.node
+			continue
+		}
+		t.Fatalf("consume branch %s error = %v", result.node, result.err)
+	}
+	if loser == "" {
+		t.Fatal("expected one result-consumption revision loser")
+	}
+	wf, err = store.GetWorkflow(ctx, workflowID)
+	if err != nil {
 		t.Fatal(err)
 	}
-	var joins, downstreamEvents int
+	claim := claims[loser]
+	if _, err := store.ConsumeResult(ctx, state.ConsumeResultInput{Lease: ref, WorkflowID: workflowID,
+		NodeID: loser, Iteration: 0, AttemptNumber: claim.AttemptNumber, ExpectedRevision: wf.Revision,
+		NewWorkflowState: state.StateRunnable, ActorID: "retry"}); err != nil {
+		t.Fatal(err)
+	}
+	interpreter := New(store, ActivityDriverFunc(func(context.Context, Activity) (ActivityResult, error) {
+		return ActivityResult{Payload: []byte(`{}`)}, nil
+	}))
+	interpreter.OwnerID = lease.OwnerID
+	result, err := interpreter.Run(ctx, workflowID)
+	if err != nil || result.Blocked || result.Workflow.State != state.StateSucceeded {
+		t.Fatalf("post-overlap run = %+v, err=%v", result, err)
+	}
+	var joins int
 	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM engine.node_instances WHERE workflow_id = $1 AND node_id = 'join'`, workflowID).Scan(&joins); err != nil {
 		t.Fatal(err)
 	}
-	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM engine.outbox WHERE workflow_id = $1 AND event_type = 'graph.advanced'`, workflowID).Scan(&downstreamEvents); err != nil {
-		t.Fatal(err)
+	if joins != 1 {
+		t.Fatalf("join rows=%d, want 1", joins)
 	}
-	if joins != 1 || downstreamEvents != 3 {
-		t.Fatalf("join rows=%d graph events=%d, want 1 and 3", joins, downstreamEvents)
-	}
+	assertM1TraceValid(t, ctx, store, workflowID)
 }
 
 func openM1Database(t *testing.T) (context.Context, *state.Store) {
@@ -304,10 +540,21 @@ func openM1Database(t *testing.T) (context.Context, *state.Store) {
 	if err := store.Pool().QueryRow(ctx, `SELECT max(version) FROM engine.schema_migrations`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version < 4 {
+	if version < 5 {
 		t.Fatalf("DUR-007 migration is not applied: version = %d", version)
 	}
 	return ctx, store
+}
+
+func assertM1TraceValid(t *testing.T, ctx context.Context, store *state.Store, workflowID string) {
+	t.Helper()
+	trace, err := invariants.Load(ctx, store, []string{workflowID})
+	if err != nil {
+		t.Fatalf("load invariant trace: %v", err)
+	}
+	if verdict := invariants.Check(trace); !verdict.Valid {
+		t.Fatalf("persisted invariant violations: %v", verdict.Violations)
+	}
 }
 
 func m1DatabaseURL(t *testing.T) string {

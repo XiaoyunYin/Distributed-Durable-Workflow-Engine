@@ -94,6 +94,12 @@ WAITING_TIMER --owner applies cancellation--------> CANCELED
 PAUSED_UNSUPPORTED_VERSION --owner applies version> RUNNABLE
 PAUSED_UNSUPPORTED_VERSION --owner cancellation---> CANCELED
 RECONCILIATION_REQUIRED --audited resolution------> RUNNABLE/CANCELED/ABANDONED
+
+RUNNABLE --fan-out owner transition----------------> branch nodes RUNNABLE
+branch node --accepted result----------------------> SUCCEEDED
+all declared branches SUCCEEDED --join ready------> JOIN/RUNNABLE
+any non-terminal branch --owner cancellation------> CANCELED/OUTCOME_UNKNOWN
+terminal workflow decision ------------------------> no branch advancement
 ```
 
 Cancellation and approval are serialized owner transitions. A client request
@@ -144,6 +150,12 @@ without changing the terminal workflow or revision. Operator resolution of a
 non-cooperating unknown attempt records
 either an observed/applied outcome for owner advancement or `ABANDONED`; it
 does not silently convert the attempt into a successful receipt.
+
+An explicit graph timer uses the node's persisted `timer_fired` marker rather
+than `retry_count`: scheduling creates one pending `WORKFLOW_TIMER`, the due
+owner transition consumes it and sets `timer_fired`, and only then may the
+timer node advance to its declared successor. Retry backoff timers remain
+separate and continue to use retry metadata.
 
 ## State and transaction boundaries
 

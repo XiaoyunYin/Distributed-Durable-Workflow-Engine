@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"sort"
 	"time"
 
 	"durable-agent-execution-engine/internal/state"
@@ -85,9 +84,11 @@ func ParseGraph(raw json.RawMessage) (Graph, error) {
 			Delay: time.Duration(node.DelayMS) * time.Millisecond}
 	}
 	if graph.Entry == "" {
+		if len(graph.Nodes) != 1 {
+			return Graph{}, errors.New("graph entry is required when more than one node is declared")
+		}
 		for id := range graph.Nodes {
 			graph.Entry = id
-			break
 		}
 	}
 	if _, ok := graph.Nodes[graph.Entry]; !ok {
@@ -165,6 +166,9 @@ type Engine struct {
 	AttemptLease time.Duration
 	RetryBackoff time.Duration
 	MaxSteps     int
+	// AfterBoundary is a test-only crash injector. Returning an error models a
+	// process crash immediately after the named repository transaction commits.
+	AfterBoundary func(string) error
 }
 
 type RunResult struct {
@@ -210,9 +214,12 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (RunResult, error) 
 	if ttl <= 0 {
 		ttl = time.Minute
 	}
-	lease, _, err := e.Store.AcquireLease(ctx, wf.PartitionID, ownerID, ttl)
+	lease, acquired, err := e.Store.AcquireLease(ctx, wf.PartitionID, ownerID, ttl)
 	if err != nil {
 		return RunResult{}, err
+	}
+	if !acquired {
+		return RunResult{Workflow: wf, Blocked: true}, state.ErrLeaseNotOwned
 	}
 	defer func() {
 		_ = e.Store.ReleaseLease(context.Background(), state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch})
@@ -222,6 +229,14 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (RunResult, error) 
 		maxSteps = 100
 	}
 	for steps := 0; steps < maxSteps; steps++ {
+		var renewed bool
+		lease, renewed, err = e.Store.AcquireLease(ctx, wf.PartitionID, ownerID, ttl)
+		if err != nil {
+			return RunResult{}, err
+		}
+		if !renewed {
+			return RunResult{Workflow: wf, Blocked: true}, state.ErrLeaseNotOwned
+		}
 		wf, err = e.Store.GetWorkflow(ctx, workflowID)
 		if err != nil {
 			return RunResult{}, err
@@ -238,21 +253,41 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (RunResult, error) 
 		} else if progressed {
 			continue
 		}
+		progressed := false
 		for _, node := range nodes {
-			if node.State != state.StateRunnable {
-				continue
-			}
 			definitionNode, ok := graph.Nodes[node.NodeID]
 			if !ok {
 				return RunResult{}, fmt.Errorf("node %q is not in definition", node.NodeID)
 			}
-			if definitionNode.Kind == "join" && !e.joinReady(ctx, workflowID, node) {
+			var nodeProgress bool
+			switch node.State {
+			case state.StateRunnable:
+				if definitionNode.Kind == "join" && !e.joinReady(ctx, workflowID, node) {
+					continue
+				}
+				if err := e.runNode(ctx, wf, node, definitionNode, graph, lease, workerID, actorID); err != nil {
+					return RunResult{}, err
+				}
+				nodeProgress = true
+			case state.StateWaitingActivity:
+				nodeProgress, err = e.recoverActivity(ctx, wf, node, definitionNode, graph, lease, workerID, actorID)
+				if err != nil {
+					return RunResult{}, err
+				}
+			case state.StateSucceeded:
+				nodeProgress, err = e.recoverSucceeded(ctx, wf, node, definitionNode, graph, lease, actorID)
+				if err != nil {
+					return RunResult{}, err
+				}
+			}
+			if !nodeProgress {
 				continue
 			}
-			if err := e.runNode(ctx, wf, node, definitionNode, graph, lease, workerID, actorID); err != nil {
-				return RunResult{}, err
-			}
+			progressed = true
 			break
+		}
+		if !progressed {
+			return RunResult{Workflow: wf, Steps: steps + 1, Blocked: true}, nil
 		}
 		// Re-read state to distinguish a completed last step from a durable wait.
 		wf, err = e.Store.GetWorkflow(ctx, workflowID)
@@ -261,9 +296,6 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (RunResult, error) 
 		}
 		if terminal(wf.State) {
 			return RunResult{Workflow: wf, Steps: steps + 1}, nil
-		}
-		if !hasRunnable(nodes) {
-			return RunResult{Workflow: wf, Steps: steps + 1, Blocked: true}, nil
 		}
 	}
 	wf, err = e.Store.GetWorkflow(ctx, workflowID)
@@ -313,7 +345,7 @@ func (e *Engine) runNode(ctx context.Context, wf state.Workflow, node state.Node
 	case "join":
 		return e.advanceFromControl(ctx, wf, node, definitionNode, graph, ref, actorID)
 	case "timer":
-		if node.RetryCount == 0 {
+		if !node.TimerFired {
 			delay := definitionNode.Delay
 			if delay <= 0 {
 				delay = 25 * time.Millisecond
@@ -345,7 +377,8 @@ func (e *Engine) advanceFromControl(ctx context.Context, wf state.Workflow, node
 	if err != nil {
 		return err
 	}
-	_, err = e.Store.AdvanceGraph(ctx, state.AdvanceGraphInput{Lease: lease, WorkflowID: wf.WorkflowID,
+	ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
+	_, err = e.Store.AdvanceGraph(ctx, state.AdvanceGraphInput{Lease: ref, WorkflowID: wf.WorkflowID,
 		FromNodeID: node.NodeID, Iteration: node.Iteration, ExpectedRevision: wf.Revision, Next: next, ActorID: actorID})
 	return err
 }
@@ -358,10 +391,18 @@ func (e *Engine) runActivity(ctx context.Context, wf state.Workflow, node state.
 		Iteration: node.Iteration, NodeState: &transitionNode, ActorID: actorID, Reason: "ACTIVITY_SCHEDULED"}); err != nil {
 		return err
 	}
+	if err := e.boundary("activity_scheduled"); err != nil {
+		return err
+	}
 	wf, err := e.Store.GetWorkflow(ctx, wf.WorkflowID)
 	if err != nil {
 		return err
 	}
+	return e.startActivity(ctx, wf, node, definitionNode, graph, lease, workerID, actorID)
+}
+
+func (e *Engine) startActivity(ctx context.Context, wf state.Workflow, node state.NodeInstance, definitionNode Node,
+	graph Graph, lease state.LeaseRef, workerID, actorID string) error {
 	effectClass, ok := definitionEffect(wf, node.NodeID, e.Store, ctx)
 	if !ok {
 		return fmt.Errorf("no effect class for activity %q", node.NodeID)
@@ -374,12 +415,31 @@ func (e *Engine) runActivity(ctx context.Context, wf state.Workflow, node state.
 	if err != nil {
 		return err
 	}
-	claim, err := e.Store.ClaimAttempt(ctx, state.ClaimInput{WorkflowID: wf.WorkflowID, NodeID: node.NodeID,
-		Iteration: node.Iteration, WorkerID: workerID,
-		RequestID:    "engine:" + wf.WorkflowID + ":" + node.NodeID + ":" + fmt.Sprint(node.Iteration) + ":" + fmt.Sprint(attempt.AttemptNumber),
-		AttemptLease: e.AttemptLease})
-	if err != nil {
+	if err := e.boundary("attempt_created"); err != nil {
 		return err
+	}
+	return e.executeAttempt(ctx, wf, node, definitionNode, graph, attempt, lease, workerID, actorID)
+}
+
+func (e *Engine) executeAttempt(ctx context.Context, wf state.Workflow, node state.NodeInstance, definitionNode Node,
+	graph Graph, attempt state.Attempt, lease state.LeaseRef, workerID, actorID string) error {
+	claim := state.ClaimResult{AttemptNumber: attempt.AttemptNumber, ClaimToken: attempt.ClaimToken,
+		EffectClass: attempt.EffectClass}
+	if attempt.State == state.AttemptDispatchable {
+		var err error
+		claim, err = e.Store.ClaimAttempt(ctx, state.ClaimInput{WorkflowID: wf.WorkflowID, NodeID: node.NodeID,
+			Iteration: node.Iteration, WorkerID: workerID,
+			RequestID:    "engine:" + wf.WorkflowID + ":" + node.NodeID + ":" + fmt.Sprint(node.Iteration) + ":" + fmt.Sprint(attempt.AttemptNumber),
+			AttemptLease: e.AttemptLease})
+		if err != nil {
+			return err
+		}
+		if err := e.boundary("attempt_claimed"); err != nil {
+			return err
+		}
+	}
+	if claim.ClaimToken == "" {
+		return state.ErrStaleClaim
 	}
 	result, runErr := e.Driver.Run(ctx, Activity{WorkflowID: wf.WorkflowID, NodeID: node.NodeID,
 		Iteration: node.Iteration, AttemptNumber: claim.AttemptNumber, EffectClass: claim.EffectClass,
@@ -397,41 +457,154 @@ func (e *Engine) runActivity(ctx context.Context, wf state.Workflow, node state.
 	if result.RetryAfter <= 0 {
 		result.RetryAfter = e.RetryBackoff
 	}
-	_, err = e.Store.RecordResultReceipt(ctx, state.ResultInput{WorkflowID: wf.WorkflowID, NodeID: node.NodeID,
+	if result.AttemptState == state.AttemptSucceeded {
+		if err := validateActivityResult(definitionNode, result.Payload); err != nil {
+			result.AttemptState = state.AttemptFailedFinal
+			result.Payload = json.RawMessage(fmt.Sprintf(`{"error":%q}`, err.Error()))
+		}
+	}
+	if _, err := e.Store.RecordResultReceipt(ctx, state.ResultInput{WorkflowID: wf.WorkflowID, NodeID: node.NodeID,
 		Iteration: node.Iteration, AttemptNumber: claim.AttemptNumber, ClaimToken: claim.ClaimToken,
-		AttemptState: result.AttemptState, Payload: result.Payload, EventType: "activity.result"})
+		AttemptState: result.AttemptState, Payload: result.Payload, EventType: "activity.result"}); err != nil {
+		return err
+	}
+	if err := e.boundary("result_recorded"); err != nil {
+		return err
+	}
+	return e.consumeRecordedResult(ctx, wf.WorkflowID, node, claim.AttemptNumber, result.AttemptState,
+		result.RetryAfter, lease, actorID)
+}
+
+func (e *Engine) consumeRecordedResult(ctx context.Context, workflowID string, node state.NodeInstance,
+	attemptNumber int64, attemptState state.AttemptState, retryAfter time.Duration, lease state.LeaseRef, actorID string) error {
+	wf, err := e.Store.GetWorkflow(ctx, workflowID)
 	if err != nil {
 		return err
 	}
-	wf, err = e.Store.GetWorkflow(ctx, wf.WorkflowID)
-	if err != nil {
-		return err
-	}
-	consume := state.ConsumeResultInput{Lease: lease, WorkflowID: wf.WorkflowID, NodeID: node.NodeID,
-		Iteration: node.Iteration, AttemptNumber: claim.AttemptNumber, ExpectedRevision: wf.Revision,
+	consume := state.ConsumeResultInput{Lease: lease, WorkflowID: workflowID, NodeID: node.NodeID,
+		Iteration: node.Iteration, AttemptNumber: attemptNumber, ExpectedRevision: wf.Revision,
 		NewWorkflowState: state.StateRunnable, ActorID: actorID}
-	if result.AttemptState == state.AttemptFailedRetryable {
+	if attemptState == state.AttemptFailedRetryable {
 		consume.NewWorkflowState = state.StateWaitingTimer
-		due := time.Now().Add(result.RetryAfter)
+		due := time.Now().Add(retryAfter)
 		consume.RetryDueAt = &due
-	} else if result.AttemptState == state.AttemptFailedFinal {
+	} else if attemptState == state.AttemptFailedFinal {
 		consume.NewWorkflowState = state.StateFailed
 	}
-	consumed, err := e.Store.ConsumeResult(ctx, consume)
-	if err != nil {
+	if _, err := e.Store.ConsumeResult(ctx, consume); err != nil {
 		return err
 	}
-	if result.AttemptState != state.AttemptSucceeded {
+	return e.boundary("result_consumed")
+}
+
+func (e *Engine) recoverActivity(ctx context.Context, wf state.Workflow, node state.NodeInstance, definitionNode Node,
+	graph Graph, lease state.Lease, workerID, actorID string) (bool, error) {
+	ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
+	if node.CurrentAttempt == nil {
+		if err := e.startActivity(ctx, wf, node, definitionNode, graph, ref, workerID, actorID); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	attempt, err := e.Store.GetAttempt(ctx, wf.WorkflowID, node.NodeID, node.Iteration, *node.CurrentAttempt)
+	if err != nil {
+		return false, err
+	}
+	if !attempt.IsCurrent && terminalAttempt(attempt.State) && len(attempt.Result) > 0 {
+		if err := e.consumeRecordedResult(ctx, wf.WorkflowID, node, attempt.AttemptNumber, attempt.State,
+			e.RetryBackoff, ref, actorID); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	if attempt.State == state.AttemptDispatchable {
+		if err := e.executeAttempt(ctx, wf, node, definitionNode, graph, attempt, ref, workerID, actorID); err != nil {
+			return false, err
+		}
+		return true, nil
+	}
+	if attempt.State == state.AttemptClaimed && attempt.HeartbeatDeadline != nil && !attempt.HeartbeatDeadline.After(time.Now()) {
+		_, err := e.Store.TimeoutAttempt(ctx, state.TimeoutInput{Lease: ref, WorkflowID: wf.WorkflowID,
+			NodeID: node.NodeID, Iteration: node.Iteration, AttemptNumber: attempt.AttemptNumber,
+			ExpectedRevision: wf.Revision, ActorID: actorID, DispatchLease: e.AttemptLease})
+		if err != nil {
+			return false, err
+		}
+		return true, e.boundary("attempt_timed_out")
+	}
+	return false, nil
+}
+
+func (e *Engine) recoverSucceeded(ctx context.Context, wf state.Workflow, node state.NodeInstance, definitionNode Node,
+	graph Graph, lease state.Lease, actorID string) (bool, error) {
+	var next []state.GraphNodeInput
+	var err error
+	if definitionNode.Kind == "activity" {
+		next, err = nextInputsForResult(node, definitionNode, graph, node.AcceptedResult)
+	} else {
+		next, err = nextInputs(node, definitionNode, graph)
+	}
+	if err != nil {
+		return false, err
+	}
+	nodes, err := e.Store.ListNodes(ctx, wf.WorkflowID)
+	if err != nil {
+		return false, err
+	}
+	allExist := true
+	for _, item := range next {
+		found := false
+		for _, existing := range nodes {
+			if existing.NodeID == item.NodeID && existing.Iteration == item.Iteration {
+				found = true
+				break
+			}
+		}
+		if !found {
+			allExist = false
+			break
+		}
+	}
+	if allExist && len(next) > 0 {
+		return false, nil
+	}
+	ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
+	_, err = e.Store.AdvanceGraph(ctx, state.AdvanceGraphInput{Lease: ref, WorkflowID: wf.WorkflowID,
+		FromNodeID: node.NodeID, Iteration: node.Iteration, ExpectedRevision: wf.Revision,
+		Next: next, ActorID: actorID})
+	if err != nil {
+		return false, err
+	}
+	return true, e.boundary("graph_advanced")
+}
+
+func (e *Engine) boundary(name string) error {
+	if e.AfterBoundary != nil {
+		return e.AfterBoundary(name)
+	}
+	return nil
+}
+
+func validateActivityResult(node Node, payload json.RawMessage) error {
+	if len(node.Next) <= 1 {
 		return nil
 	}
-	next, err := nextInputsForResult(node, definitionNode, graph, result.Payload)
-	if err != nil {
-		return err
+	var choice struct {
+		Next string `json:"next"`
 	}
-	_, err = e.Store.AdvanceGraph(ctx, state.AdvanceGraphInput{Lease: lease, WorkflowID: wf.WorkflowID,
-		FromNodeID: node.NodeID, Iteration: node.Iteration, ExpectedRevision: consumed.Workflow.Revision,
-		Next: next, ActorID: actorID})
-	return err
+	if err := json.Unmarshal(payload, &choice); err != nil || choice.Next == "" || !contains(node.Next, choice.Next) {
+		return fmt.Errorf("activity output selected an undeclared successor")
+	}
+	return nil
+}
+
+func contains(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
 }
 
 func definitionEffect(wf state.Workflow, nodeID string, store *state.Store, ctx context.Context) (state.EffectClass, bool) {
@@ -477,6 +650,9 @@ func nextInputsForResult(node state.NodeInstance, definitionNode Node, graph Gra
 		if _, ok := graph.Nodes[id]; !ok {
 			return nil, fmt.Errorf("next node %q is not declared", id)
 		}
+		if len(definitionNode.Next) > 0 && !containsString(definitionNode.Next, id) {
+			return nil, fmt.Errorf("activity %q selected an undeclared successor %q", node.NodeID, id)
+		}
 		result = append(result, state.GraphNodeInput{NodeID: id, Iteration: node.Iteration, Input: payload})
 	}
 	return result, nil
@@ -497,20 +673,16 @@ func terminal(s state.WorkflowState) bool {
 		s == state.StateCanceled || s == state.StateAbandoned
 }
 
-func hasRunnable(nodes []state.NodeInstance) bool {
-	for _, node := range nodes {
-		if node.State == state.StateRunnable {
+func containsString(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
 			return true
 		}
 	}
 	return false
 }
 
-func sortNodes(nodes []state.NodeInstance) {
-	sort.Slice(nodes, func(i, j int) bool {
-		if nodes[i].Iteration != nodes[j].Iteration {
-			return nodes[i].Iteration < nodes[j].Iteration
-		}
-		return nodes[i].NodeID < nodes[j].NodeID
-	})
+func terminalAttempt(attempt state.AttemptState) bool {
+	return attempt == state.AttemptSucceeded || attempt == state.AttemptFailedRetryable ||
+		attempt == state.AttemptFailedFinal
 }

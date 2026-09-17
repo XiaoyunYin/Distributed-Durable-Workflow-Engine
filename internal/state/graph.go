@@ -10,6 +10,186 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
+type definitionGraphNode struct {
+	ID       string
+	Kind     string
+	Next     []string
+	Branches []string
+	Join     string
+}
+
+type definitionGraph struct {
+	Entry string
+	Nodes map[string]definitionGraphNode
+}
+
+func decodeDefinitionGraph(raw []byte) (definitionGraph, error) {
+	var document struct {
+		Entry string            `json:"entry"`
+		Nodes []json.RawMessage `json:"nodes"`
+	}
+	if err := json.Unmarshal(raw, &document); err != nil {
+		return definitionGraph{}, fmt.Errorf("decode graph: %w", err)
+	}
+	if len(document.Nodes) == 0 {
+		return definitionGraph{}, errors.New("graph has no nodes")
+	}
+	graph := definitionGraph{Entry: document.Entry, Nodes: make(map[string]definitionGraphNode, len(document.Nodes))}
+	for _, rawNode := range document.Nodes {
+		var shorthand string
+		if json.Unmarshal(rawNode, &shorthand) == nil {
+			if shorthand == "" {
+				return definitionGraph{}, errors.New("graph node ID is empty")
+			}
+			if _, exists := graph.Nodes[shorthand]; exists {
+				return definitionGraph{}, fmt.Errorf("duplicate graph node %q", shorthand)
+			}
+			graph.Nodes[shorthand] = definitionGraphNode{ID: shorthand, Kind: "activity"}
+			continue
+		}
+		var object struct {
+			ID       string          `json:"id"`
+			Kind     string          `json:"kind"`
+			Next     json.RawMessage `json:"next"`
+			Branches []string        `json:"branches"`
+			Join     string          `json:"join"`
+		}
+		if err := json.Unmarshal(rawNode, &object); err != nil || object.ID == "" {
+			return definitionGraph{}, errors.New("graph node object requires an ID")
+		}
+		if object.Kind == "" {
+			object.Kind = "activity"
+		}
+		next, err := decodeDefinitionNext(object.Next)
+		if err != nil {
+			return definitionGraph{}, fmt.Errorf("node %q: %w", object.ID, err)
+		}
+		if _, exists := graph.Nodes[object.ID]; exists {
+			return definitionGraph{}, fmt.Errorf("duplicate graph node %q", object.ID)
+		}
+		graph.Nodes[object.ID] = definitionGraphNode{ID: object.ID, Kind: object.Kind,
+			Next: next, Branches: append([]string(nil), object.Branches...), Join: object.Join}
+	}
+	if graph.Entry == "" {
+		if len(graph.Nodes) != 1 {
+			return definitionGraph{}, errors.New("graph entry is required when more than one node is declared")
+		}
+		for id := range graph.Nodes {
+			graph.Entry = id
+		}
+	}
+	if _, exists := graph.Nodes[graph.Entry]; !exists {
+		return definitionGraph{}, fmt.Errorf("graph entry %q is not declared", graph.Entry)
+	}
+	for _, node := range graph.Nodes {
+		for _, ref := range append(append(append([]string{}, node.Next...), node.Branches...), node.Join) {
+			if ref == "" {
+				continue
+			}
+			if _, exists := graph.Nodes[ref]; !exists {
+				return definitionGraph{}, fmt.Errorf("node %q references undeclared node %q", node.ID, ref)
+			}
+		}
+	}
+	return graph, nil
+}
+
+func decodeDefinitionNext(raw json.RawMessage) ([]string, error) {
+	if len(raw) == 0 || string(raw) == "null" {
+		return nil, nil
+	}
+	var one string
+	if json.Unmarshal(raw, &one) == nil {
+		if one == "" {
+			return nil, errors.New("next node ID is empty")
+		}
+		return []string{one}, nil
+	}
+	var many []string
+	if err := json.Unmarshal(raw, &many); err != nil {
+		return nil, errors.New("next must be a node ID or array")
+	}
+	for _, id := range many {
+		if id == "" {
+			return nil, errors.New("next node ID is empty")
+		}
+	}
+	return many, nil
+}
+
+func (graph definitionGraph) node(id string) (definitionGraphNode, error) {
+	node, ok := graph.Nodes[id]
+	if !ok {
+		return definitionGraphNode{}, fmt.Errorf("%w: node %q is not declared", ErrGraphViolation, id)
+	}
+	return node, nil
+}
+
+func validateGraphSuccessors(graph definitionGraph, source definitionGraphNode, sourceIteration int, next []GraphNodeInput) error {
+	expected := append([]string(nil), source.Next...)
+	if source.Kind == "fanout" || source.Kind == "fan_out" {
+		expected = append(expected, source.Branches...)
+		if source.Join != "" {
+			expected = append(expected, source.Join)
+		}
+	}
+	if source.Kind == "activity" && len(expected) > 1 {
+		if len(next) != 1 || !containsString(expected, next[0].NodeID) {
+			return fmt.Errorf("%w: activity %q selected an undeclared successor", ErrGraphViolation, source.ID)
+		}
+	} else if len(expected) != len(next) {
+		return fmt.Errorf("%w: node %q expected %d successors, got %d", ErrGraphViolation, source.ID, len(expected), len(next))
+	} else {
+		for index, id := range expected {
+			if next[index].NodeID != id {
+				return fmt.Errorf("%w: node %q successor %q is not declared at position %d", ErrGraphViolation, source.ID, next[index].NodeID, index)
+			}
+		}
+	}
+	seen := make(map[string]struct{}, len(next))
+	for _, item := range next {
+		if item.Iteration < 0 || item.Iteration != sourceIteration {
+			return fmt.Errorf("%w: successor %q has iteration %d, want %d", ErrGraphViolation, item.NodeID, item.Iteration, sourceIteration)
+		}
+		if _, exists := seen[item.NodeID]; exists {
+			return fmt.Errorf("%w: duplicate successor %q", ErrGraphViolation, item.NodeID)
+		}
+		seen[item.NodeID] = struct{}{}
+		if _, err := graph.node(item.NodeID); err != nil {
+			return err
+		}
+	}
+	if source.Kind == "fanout" || source.Kind == "fan_out" {
+		for _, item := range next {
+			if item.NodeID == source.Join && !sameStrings(item.Dependencies, source.Branches) {
+				return fmt.Errorf("%w: join %q dependencies do not match fan-out branches", ErrGraphViolation, item.NodeID)
+			}
+		}
+	}
+	return nil
+}
+
+func containsString(values []string, wanted string) bool {
+	for _, value := range values {
+		if value == wanted {
+			return true
+		}
+	}
+	return false
+}
+
+func sameStrings(left, right []string) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
+}
+
 func (s *Store) GetDefinition(ctx context.Context, definitionID string, version int) (Definition, error) {
 	var definition Definition
 	var graph, activityVersions, effectClasses []byte
@@ -36,7 +216,7 @@ func (s *Store) GetDefinition(ctx context.Context, definitionID string, version 
 func (s *Store) GetNode(ctx context.Context, workflowID, nodeID string, iteration int) (NodeInstance, error) {
 	return scanNode(s.pool.QueryRow(ctx, `
 		SELECT workflow_id, node_id, iteration, state, dependencies, input,
-			accepted_result, current_attempt_number, retry_count, deadline_at, revision
+			accepted_result, current_attempt_number, retry_count, deadline_at, timer_fired, revision
 		FROM engine.node_instances
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`, workflowID, nodeID, iteration))
 }
@@ -44,7 +224,7 @@ func (s *Store) GetNode(ctx context.Context, workflowID, nodeID string, iteratio
 func (s *Store) ListNodes(ctx context.Context, workflowID string) ([]NodeInstance, error) {
 	rows, err := s.pool.Query(ctx, `
 		SELECT workflow_id, node_id, iteration, state, dependencies, input,
-			accepted_result, current_attempt_number, retry_count, deadline_at, revision
+			accepted_result, current_attempt_number, retry_count, deadline_at, timer_fired, revision
 		FROM engine.node_instances
 		WHERE workflow_id = $1
 		ORDER BY iteration, node_id`, workflowID)
@@ -142,7 +322,7 @@ func (s *Store) ScheduleTimer(ctx context.Context, input ScheduleTimerInput) (st
 	newRevision := revision + 1
 	if _, err := tx.Exec(ctx, `
 		UPDATE engine.node_instances
-		SET state = 'WAITING_TIMER', deadline_at = $4, retry_count = retry_count + 1,
+		SET state = 'WAITING_TIMER', deadline_at = $4,
 			revision = revision + 1,
 			updated_at = clock_timestamp()
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
@@ -352,20 +532,77 @@ func (s *Store) AdvanceGraph(ctx context.Context, input AdvanceGraphInput) (Adva
 	if !legalTransition(workflow.State, input.FinalWorkflowState) {
 		return AdvanceGraphResult{}, fmt.Errorf("%w: %s -> %s", ErrInvalidTransition, workflow.State, input.FinalWorkflowState)
 	}
+	var definitionRaw []byte
+	if err := tx.QueryRow(ctx, `
+		SELECT graph
+		FROM engine.workflow_definitions
+		WHERE definition_id = $1 AND version = $2`, workflow.DefinitionID, workflow.DefinitionVersion).Scan(&definitionRaw); err != nil {
+		return AdvanceGraphResult{}, fmt.Errorf("read graph for advancement: %w", err)
+	}
+	definitionGraph, err := decodeDefinitionGraph(definitionRaw)
+	if err != nil {
+		return AdvanceGraphResult{}, fmt.Errorf("%w: %v", ErrGraphViolation, err)
+	}
+	sourceDefinition, err := definitionGraph.node(input.FromNodeID)
+	if err != nil {
+		return AdvanceGraphResult{}, err
+	}
 	var sourceState WorkflowState
 	var sourceAttempt *int64
+	var acceptedResult []byte
 	if err := tx.QueryRow(ctx, `
-		SELECT state, current_attempt_number
+		SELECT state, current_attempt_number, accepted_result
 		FROM engine.node_instances
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
-		FOR UPDATE`, input.WorkflowID, input.FromNodeID, input.Iteration).Scan(&sourceState, &sourceAttempt); err != nil {
+		FOR UPDATE`, input.WorkflowID, input.FromNodeID, input.Iteration).Scan(&sourceState, &sourceAttempt, &acceptedResult); err != nil {
 		return AdvanceGraphResult{}, fmt.Errorf("lock source node for graph advancement: %w", err)
 	}
 	if sourceAttempt != nil {
 		return AdvanceGraphResult{}, ErrAttemptNotCurrent
 	}
-	if sourceState != StateRunnable && sourceState != StateSucceeded && sourceState != StateFailed {
-		return AdvanceGraphResult{}, fmt.Errorf("node state %s cannot advance graph", sourceState)
+	if sourceDefinition.Kind == "activity" {
+		if sourceState != StateSucceeded || len(acceptedResult) == 0 {
+			return AdvanceGraphResult{}, ErrResultNotConsumable
+		}
+	} else if sourceState != StateRunnable {
+		return AdvanceGraphResult{}, fmt.Errorf("%w: control node %q is not runnable", ErrGraphViolation, input.FromNodeID)
+	}
+	if err := validateGraphSuccessors(definitionGraph, sourceDefinition, input.Iteration, input.Next); err != nil {
+		return AdvanceGraphResult{}, err
+	}
+	if isTerminalWorkflowState(input.FinalWorkflowState) {
+		rows, err := tx.Query(ctx, `
+			SELECT node_id, iteration, state, current_attempt_number
+			FROM engine.node_instances
+			WHERE workflow_id = $1
+			ORDER BY iteration, node_id
+			FOR UPDATE`, input.WorkflowID)
+		if err != nil {
+			return AdvanceGraphResult{}, fmt.Errorf("lock sibling nodes for terminal graph advancement: %w", err)
+		}
+		for rows.Next() {
+			var nodeID string
+			var iteration int
+			var nodeState WorkflowState
+			var currentAttempt *int64
+			if err := rows.Scan(&nodeID, &iteration, &nodeState, &currentAttempt); err != nil {
+				rows.Close()
+				return AdvanceGraphResult{}, fmt.Errorf("scan sibling node: %w", err)
+			}
+			if nodeID == input.FromNodeID && iteration == input.Iteration {
+				nodeState = input.FinalNodeState
+				currentAttempt = nil
+			}
+			if !isTerminalWorkflowState(nodeState) || currentAttempt != nil {
+				rows.Close()
+				return AdvanceGraphResult{}, fmt.Errorf("%w: terminal workflow has live node %s/%d", ErrGraphViolation, nodeID, iteration)
+			}
+		}
+		if err := rows.Err(); err != nil {
+			rows.Close()
+			return AdvanceGraphResult{}, fmt.Errorf("iterate sibling nodes: %w", err)
+		}
+		rows.Close()
 	}
 	newRevision := workflow.Revision + 1
 	if _, err := tx.Exec(ctx, `
@@ -390,7 +627,7 @@ func (s *Store) AdvanceGraph(ctx context.Context, input AdvanceGraphInput) (Adva
 		if err != nil {
 			return AdvanceGraphResult{}, fmt.Errorf("encode graph dependencies: %w", err)
 		}
-		_, err = tx.Exec(ctx, `
+		commandTag, err := tx.Exec(ctx, `
 			INSERT INTO engine.node_instances
 				(workflow_id, node_id, iteration, state, dependencies, input)
 			VALUES ($1, $2, $3, 'RUNNABLE', $4, $5)
@@ -399,8 +636,10 @@ func (s *Store) AdvanceGraph(ctx context.Context, input AdvanceGraphInput) (Adva
 		if err != nil {
 			return AdvanceGraphResult{}, fmt.Errorf("create next graph node: %w", err)
 		}
-		created = append(created, NodeInstance{WorkflowID: input.WorkflowID, NodeID: next.NodeID,
-			Iteration: next.Iteration, State: StateRunnable, Dependencies: next.Dependencies, Input: next.Input})
+		if commandTag.RowsAffected() == 1 {
+			created = append(created, NodeInstance{WorkflowID: input.WorkflowID, NodeID: next.NodeID,
+				Iteration: next.Iteration, State: StateRunnable, Dependencies: next.Dependencies, Input: next.Input})
+		}
 	}
 	oldState := workflow.State
 	workflow.State = input.FinalWorkflowState
@@ -438,7 +677,7 @@ func scanNode(scanner nodeScanner) (NodeInstance, error) {
 	var dependencies, input, accepted []byte
 	if err := scanner.Scan(&node.WorkflowID, &node.NodeID, &node.Iteration, &node.State,
 		&dependencies, &input, &accepted, &node.CurrentAttempt, &node.RetryCount,
-		&node.DeadlineAt, &node.Revision); err != nil {
+		&node.DeadlineAt, &node.TimerFired, &node.Revision); err != nil {
 		return NodeInstance{}, err
 	}
 	if err := json.Unmarshal(dependencies, &node.Dependencies); err != nil {

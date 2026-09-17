@@ -163,7 +163,11 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 	if err != nil {
 		return CreateWorkflowResult{}, fmt.Errorf("read workflow definition: %w", err)
 	}
-	if !graphDeclaresNode(graph, input.InitialNodeID) {
+	definitionGraph, graphErr := decodeDefinitionGraph(graph)
+	if graphErr != nil {
+		return CreateWorkflowResult{}, fmt.Errorf("%w: %v", ErrGraphViolation, graphErr)
+	}
+	if input.InitialNodeID != definitionGraph.Entry {
 		return CreateWorkflowResult{}, ErrUnknownNode
 	}
 	if int16(computedPartition) != input.PartitionID {
@@ -285,13 +289,13 @@ func (s *Store) GetAttempt(ctx context.Context, workflowID, nodeID string, itera
 	err := s.pool.QueryRow(ctx, `
 		SELECT workflow_id, node_id, iteration, attempt_number, state, effect_class,
 			claim_token::text, worker_id, worker_request_id, heartbeat_deadline,
-			logical_effect_key, grant_scope_hash, outcome_disposition, is_current
+			logical_effect_key, grant_scope_hash, outcome_disposition, result, is_current
 		FROM engine.activity_attempts
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3 AND attempt_number = $4`,
 		workflowID, nodeID, iteration, attemptNumber).Scan(
 		&attempt.WorkflowID, &attempt.NodeID, &attempt.Iteration, &attempt.AttemptNumber,
 		&attempt.State, &attempt.EffectClass, &claimToken, &workerID, &workerRequestID,
-		&deadline, &effectKey, &grantScope, &attempt.OutcomeDisposition, &attempt.IsCurrent)
+		&deadline, &effectKey, &grantScope, &attempt.OutcomeDisposition, &attempt.Result, &attempt.IsCurrent)
 	if err != nil {
 		return Attempt{}, err
 	}
@@ -519,6 +523,7 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 		}
 	}
 	var retryTimerID *string
+	var timerPurpose string
 	if state == StateWaitingTimer && input.NewState == StateRunnable {
 		if input.NodeID == "" {
 			return fmt.Errorf("%w: retry timer requires a node", ErrInvalidTransition)
@@ -527,13 +532,13 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 		var dueAt time.Time
 		var consumedAt *time.Time
 		if err := tx.QueryRow(ctx, `
-		SELECT timer_id::text, due_at, consumed_at
+		SELECT timer_id::text, due_at, purpose, consumed_at
 			FROM engine.timers
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
 				AND consumed_at IS NULL
 			ORDER BY due_at ASC
 			LIMIT 1
-			FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&timerID, &dueAt, &consumedAt); err != nil {
+			FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&timerID, &dueAt, &timerPurpose, &consumedAt); err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
 				return fmt.Errorf("%w: no pending retry timer", ErrInvalidTransition)
 			}
@@ -594,9 +599,10 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 		if _, err := tx.Exec(ctx, `
 			UPDATE engine.node_instances
 			SET state = $4, deadline_at = CASE WHEN $4 = 'RUNNABLE' THEN NULL ELSE deadline_at END,
+				timer_fired = CASE WHEN $4 = 'RUNNABLE' AND $5 = 'WORKFLOW_TIMER' THEN true ELSE timer_fired END,
 				revision = revision + 1, updated_at = clock_timestamp()
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
-			input.WorkflowID, input.NodeID, input.Iteration, *nodeState); err != nil {
+			input.WorkflowID, input.NodeID, input.Iteration, *nodeState, timerPurpose); err != nil {
 			return fmt.Errorf("update node transition: %w", err)
 		}
 	}
@@ -651,7 +657,7 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 	if workflow.Revision != input.ExpectedRevision {
 		return ConsumeResult{}, fmt.Errorf("%w: expected %d, got %d", ErrRevisionConflict, input.ExpectedRevision, workflow.Revision)
 	}
-	if workflow.State != StateWaitingActivity {
+	if workflow.State != StateWaitingActivity && workflow.State != StateRunnable && workflow.State != StateWaitingTimer {
 		return ConsumeResult{}, fmt.Errorf("workflow state %s cannot consume a result", workflow.State)
 	}
 	var nodeState WorkflowState
@@ -699,6 +705,21 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 		newNodeState = StateFailed
 	default:
 		return ConsumeResult{}, ErrResultNotConsumable
+	}
+	if isTerminalWorkflowState(input.NewWorkflowState) {
+		var liveSiblings int
+		if err := tx.QueryRow(ctx, `
+			SELECT count(*)
+			FROM engine.node_instances
+			WHERE workflow_id = $1
+				AND NOT (node_id = $2 AND iteration = $3)
+				AND (state NOT IN ('SUCCEEDED', 'FAILED', 'REJECTED', 'CANCELED', 'ABANDONED')
+					OR current_attempt_number IS NOT NULL)`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&liveSiblings); err != nil {
+			return ConsumeResult{}, fmt.Errorf("check sibling completion before terminal result: %w", err)
+		}
+		if liveSiblings != 0 {
+			return ConsumeResult{}, fmt.Errorf("%w: terminal result has live sibling nodes", ErrGraphViolation)
+		}
 	}
 	newRevision := workflow.Revision + 1
 	if _, err := tx.Exec(ctx, `
@@ -1563,26 +1584,4 @@ func decodeEffectClasses(raw json.RawMessage) (map[string]EffectClass, error) {
 		}
 	}
 	return classes, nil
-}
-
-func graphDeclaresNode(raw []byte, nodeID string) bool {
-	var document struct {
-		Nodes []json.RawMessage `json:"nodes"`
-	}
-	if json.Unmarshal(raw, &document) != nil {
-		return false
-	}
-	for _, rawNode := range document.Nodes {
-		var shorthand string
-		if json.Unmarshal(rawNode, &shorthand) == nil && shorthand == nodeID {
-			return true
-		}
-		var object struct {
-			ID string `json:"id"`
-		}
-		if json.Unmarshal(rawNode, &object) == nil && object.ID == nodeID {
-			return true
-		}
-	}
-	return false
 }
