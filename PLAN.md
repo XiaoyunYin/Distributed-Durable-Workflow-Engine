@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 IN_PROGRESS; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -185,6 +185,7 @@ During database unavailability, reject new durable acceptance and new worker cla
 | Event inbox | Consumer identity, event ID, accepted/rejected disposition and durable reconciliation reference. |
 | Approval/action intent | Canonical proposed action/hash, target, decision, approver, validity window, dispatch status. |
 | Effect record | Stable effect key, argument hash, attempt/grant metadata, receipt or unknown outcome. |
+| Attempt result evidence | Late result/evidence payload, source attempt/claim, reconciliation reference, and recorded disposition; it never changes attempt or workflow state. |
 
 Use unique constraints for identities that must be unique and compare-and-set or locked transitions for legal state changes. JSON payloads do not replace relational constraints on ownership, identity, or lifecycle.
 
@@ -522,6 +523,8 @@ implementation/review cycle; retain its parent ID.
 ### M1 — Durable workflow core
 
 **Dependencies:** M0.
+
+**DUR-005 status:** IN_PROGRESS.
 
 | Task | Scope and acceptance |
 |---|---|

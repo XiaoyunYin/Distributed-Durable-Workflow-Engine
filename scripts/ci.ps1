@@ -19,7 +19,11 @@ try {
     }
 
     if ($WithServices) {
-        Write-Host "PostgreSQL/Kafka integration tests are not implemented at M0; running service health and durability smoke checks only."
+        Write-Host "Applying numbered migrations and running DUR-005 PostgreSQL integration tests."
+        & $PSScriptRoot/migrate.ps1
+        if ($LASTEXITCODE -ne 0) { throw "Database migrations failed." }
+        & go test ./internal/state -run '^TestPostgresStateRepository$' -count=1 -v
+        if ($LASTEXITCODE -ne 0) { throw "DUR-005 PostgreSQL integration tests failed." }
         & $PSScriptRoot/smoke.ps1
         if ($LASTEXITCODE -ne 0) { throw "Real dependency smoke checks failed." }
     } else {

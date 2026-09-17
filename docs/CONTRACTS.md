@@ -155,7 +155,10 @@ re-reads the current attempt and claim token, and applies the attempt-specific
 deadline policy. It does not reject a valid in-flight result solely because an
 unrelated owner transition changed the workflow revision after the claim; it
 rejects a replaced/terminal attempt, a mismatched claim token, or a policy
-violation. It records a heartbeat,
+violation. The exception is a timed-out `NON_COOPERATING_EFFECT` attempt whose
+disposition is `OUTCOME_UNKNOWN`: the API inserts an attempt-result-evidence
+row linked to the reconciliation reference and returns `RECORDED_AS_EVIDENCE`,
+not accepted. It does not change the attempt or workflow state. It records a heartbeat,
 checkpoint, or result receipt and, for a terminal result, a completion
 wake-up/outbox row. It never changes the workflow state, creates a replacement
 attempt, or schedules a node. A result retry after commit returns the durable
@@ -183,6 +186,7 @@ commits any workflow transition and outbox row together.
 | Claim attempt | Dispatchable current attempt and stable worker request ID | Already claimed by a different request |
 | Heartbeat/checkpoint | Current claim token and compatible schema | Stale token, attempt, or checkpoint sequence |
 | Accept result | Current claim token and one terminal attempt outcome | Timed out/replaced attempt |
+| Record late reconciliation evidence | Timed-out non-cooperating attempt, unknown disposition, source claim, and evidence payload | Cooperating/pure attempt, known outcome, or missing reconciliation reference |
 | Timeout/redispatch attempt | Matching lease, owner/epoch/expiry, attempt state, deadline, and declared effect class | Stale lease, active claim not eligible, or missing effect-class policy |
 | Publish event | Existing outbox row and stable event ID | Missing/unsupported event |
 | Record approval decision | Approver identity, exact proposal hash/target/scope, and validity window | Changed, expired, or unauthorized proposal |
@@ -260,10 +264,12 @@ never acquires the lease and never advances the workflow.
    automatic effect dispatch.
 6. A late old-worker T_result locks `workflow`, then `node/attempt`, and is
    accepted only if the current attempt/claim still permits that result. For a
-   pure/cooperating replacement it returns a stale receipt; for a
-   non-cooperating timeout the result is handled as reconciliation evidence.
-   Outcome: no non-cooperating replacement can invoke the irreversible endpoint
-   a second time.
+   pure/cooperating replacement it returns a stale receipt. For a
+   non-cooperating timeout, the API instead inserts an attempt-result-evidence
+   row linked to the reconciliation reference, leaves the timed-out attempt
+   and workflow unchanged, and returns `RECORDED_AS_EVIDENCE`. Outcome: no
+   non-cooperating replacement can invoke the irreversible endpoint a second
+   time, while an operator can use the late report to resolve the ambiguity.
 
 **Result wins:**
 

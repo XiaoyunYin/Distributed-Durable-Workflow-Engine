@@ -1,10 +1,12 @@
 # Distributed Durable Execution Engine
 
-This repository is at the M0 foundation stage (DUR-001 through DUR-004). It
-provides a reproducible Go/Python development environment, frozen foundation
-contracts, deterministic named-boundary fault fixtures, and a real local
-PostgreSQL/Kafka topology; it does **not** yet implement or claim durable
-workflow correctness.
+This repository has completed the M0 foundation (DUR-001 through DUR-004) and
+is implementing DUR-005, the first PostgreSQL-backed durable state repository.
+It provides a reproducible Go/Python development environment, frozen
+foundation contracts, deterministic named-boundary fault fixtures, and a real
+local PostgreSQL/Kafka topology. The DUR-005 repository is covered by
+PostgreSQL integration tests; the complete workflow engine and its end-to-end
+correctness claims are still future work.
 
 ## Local topology
 
