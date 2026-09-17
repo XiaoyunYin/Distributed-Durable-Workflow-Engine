@@ -343,6 +343,12 @@ never acquires the lease and never advances the workflow.
    and its K offset is acknowledged. Outcome: duplicate transport is visible
    and harmless.
 
+Malformed or unknown broker records cannot be linked to an outbox foreign key.
+The consumer stores their raw bytes and delivery identity in the durable
+transport-quarantine table, marks the disposition `QUARANTINED`, and advances
+the contiguous offset only after that commit. Quarantine is evidence and
+acknowledgment, not permission to execute the record.
+
 ### 5. Ambiguous effect response
 
 **Cooperating sink:**

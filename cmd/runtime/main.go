@@ -11,11 +11,13 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
 	"durable-agent-execution-engine/internal/api"
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/transport"
 )
 
 const version = "0.1.0-dev"
@@ -65,6 +67,25 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	var broker transport.Broker
+	if store != nil {
+		brokers := splitBrokers(os.Getenv("KAFKA_BOOTSTRAP_SERVERS"))
+		if len(brokers) > 0 {
+			var err error
+			broker, err = transport.NewKafkaBroker(brokers, transport.DefaultTopic)
+			if err != nil {
+				slog.Error("runtime Kafka relay initialization failed", "error", err)
+				os.Exit(1)
+			}
+			relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID()})
+			go func() {
+				if err := relay.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
+					slog.Error("runtime Kafka relay stopped", "error", err)
+				}
+			}()
+			defer broker.Close()
+		}
+	}
 
 	go func() {
 		<-ctx.Done()
@@ -129,4 +150,14 @@ func envOrDefault(name, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func splitBrokers(value string) []string {
+	var brokers []string
+	for _, broker := range strings.Split(value, ",") {
+		if broker = strings.TrimSpace(broker); broker != "" {
+			brokers = append(brokers, broker)
+		}
+	}
+	return brokers
 }

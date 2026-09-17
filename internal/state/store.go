@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strings"
 	"time"
 
 	"durable-agent-execution-engine/internal/partition"
@@ -637,6 +638,12 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 			SET consumed_at = clock_timestamp()
 			WHERE timer_id = $1 AND consumed_at IS NULL`, *retryTimerID); err != nil {
 			return fmt.Errorf("consume retry timer: %w", err)
+		}
+		if _, err := tx.Exec(ctx, `
+			UPDATE engine.reconciliation_items
+			SET status = 'RESOLVED', resolved_at = clock_timestamp(), updated_at = clock_timestamp()
+			WHERE kind = 'DUE_TIMER' AND reference = $1 AND status = 'OPEN'`, "timer/"+*retryTimerID); err != nil {
+			return fmt.Errorf("resolve consumed timer obligation: %w", err)
 		}
 	}
 	if err := insertHistory(ctx, tx, input.WorkflowID, newRevision, "scheduler", input.ActorID,
@@ -1598,10 +1605,19 @@ func insertOutbox(ctx context.Context, tx pgx.Tx, workflowID string, revision in
 	if len(payload) == 0 {
 		payload = json.RawMessage(`{}`)
 	}
+	topic := EventTopic
+	if strings.HasPrefix(eventType, "attempt.") {
+		topic = TaskTopic
+	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO engine.outbox (event_id, workflow_id, aggregate_revision, event_type, payload)
-		VALUES ($1, $2, $3, $4, $5)`, NewID(), workflowID, revision, eventType, payload); err != nil {
+		INSERT INTO engine.outbox (event_id, workflow_id, aggregate_revision, event_type, topic, payload)
+		VALUES ($1, $2, $3, $4, $5, $6)`, NewID(), workflowID, revision, eventType, topic, payload); err != nil {
 		return fmt.Errorf("insert outbox: %w", err)
+	}
+	// NOTIFY is only a prompt. The relay always has a bounded fallback poll,
+	// so a dropped listener or process crash cannot lose the obligation.
+	if _, err := tx.Exec(ctx, `SELECT pg_notify('durable_agent_outbox', $1)`, workflowID); err != nil {
+		return fmt.Errorf("notify outbox: %w", err)
 	}
 	return nil
 }

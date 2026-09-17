@@ -1,12 +1,13 @@
 # Distributed Durable Execution Engine
 
-This repository has completed the M0 foundation (DUR-001 through DUR-004) and
-is implementing DUR-005, the first PostgreSQL-backed durable state repository.
-It provides a reproducible Go/Python development environment, frozen
-foundation contracts, deterministic named-boundary fault fixtures, and a real
-local PostgreSQL/Kafka topology. The DUR-005 repository is covered by
-PostgreSQL integration tests; the complete workflow engine and its end-to-end
-correctness claims are still future work.
+This repository has completed M0 through M2 and has implemented the M3 Kafka
+transport/reconciliation slice, pending Claude review. It provides a
+reproducible Go/Python development environment, frozen foundation contracts,
+deterministic named-boundary fault fixtures, and a real local PostgreSQL/Kafka
+topology. PostgreSQL remains authoritative; the transactional outbox, Kafka
+relay, inbox/offset consumer, scheduler wake-ups, and bounded reconciliation
+paths are covered by focused integration tests. The complete workflow engine,
+external-effect ledger, and end-to-end correctness campaign remain future work.
 
 ## Local topology
 
@@ -50,6 +51,10 @@ Useful endpoints:
 - Prometheus: <http://localhost:9090>
 - PostgreSQL: `localhost:5432`
 - Kafka: `localhost:9092`
+
+When `DATABASE_URL` and `KAFKA_BOOTSTRAP_SERVERS` are set, each runtime replica
+also starts the bounded transactional-outbox relay. Kafka publication is a
+transport action only; workflow state remains in PostgreSQL.
 
 Ports can be changed in the local `.env` file.
 

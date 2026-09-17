@@ -5,8 +5,10 @@ package invariants
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"sort"
+	"strings"
 
 	"durable-agent-execution-engine/internal/state"
 )
@@ -18,6 +20,7 @@ type HistoryRecord struct {
 	SchedulerEpoch *int64
 	OldState       string
 	NewState       string
+	Reason         string
 }
 
 type AcceptedResult struct {
@@ -48,11 +51,48 @@ type AttemptRecord struct {
 	ResultRecorded  bool
 }
 
+type OutboxRecord struct {
+	WorkflowID        string
+	EventID           string
+	AggregateRevision int64
+	EventType         string
+	Topic             string
+	PublishState      string
+	PayloadValid      bool
+}
+
+type InboxRecord struct {
+	ConsumerID  string
+	EventID     string
+	Topic       string
+	Partition   int
+	Offset      int64
+	Disposition string
+}
+
+type WakeupRecord struct {
+	WorkflowID  string
+	EventID     string
+	PartitionID int16
+	State       string
+}
+
+type ReconciliationRecord struct {
+	WorkflowID string
+	Kind       string
+	Reference  string
+	Status     string
+}
+
 type Trace struct {
-	History     []HistoryRecord
-	Results     []AcceptedResult
-	Submissions []SubmissionRecord
-	Attempts    []AttemptRecord
+	History        []HistoryRecord
+	Results        []AcceptedResult
+	Submissions    []SubmissionRecord
+	Attempts       []AttemptRecord
+	Outbox         []OutboxRecord
+	Inbox          []InboxRecord
+	Wakeups        []WakeupRecord
+	Reconciliation []ReconciliationRecord
 }
 
 type Verdict struct {
@@ -81,7 +121,7 @@ func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace,
 			}
 			trace.History = append(trace.History, HistoryRecord{WorkflowID: workflowID,
 				Revision: record.Revision, ActorKind: record.ActorKind, SchedulerEpoch: record.SchedulerEpoch,
-				OldState: oldState, NewState: string(record.NewState)})
+				OldState: oldState, NewState: string(record.NewState), Reason: record.Reason})
 		}
 		nodes, err := store.ListNodes(ctx, workflowID)
 		if err != nil {
@@ -106,6 +146,43 @@ func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace,
 				ResultRecorded: len(attempt.Result) != 0,
 			})
 		}
+		outbox, err := store.ListOutbox(ctx, workflowID, 10000)
+		if err != nil {
+			return Trace{}, err
+		}
+		for _, event := range outbox {
+			trace.Outbox = append(trace.Outbox, OutboxRecord{
+				WorkflowID: event.WorkflowID, EventID: event.EventID,
+				AggregateRevision: event.AggregateRevision, EventType: event.EventType,
+				Topic:        event.Topic,
+				PublishState: string(event.PublishState), PayloadValid: json.Valid(event.Payload),
+			})
+		}
+		inbox, err := store.ListInboxForWorkflow(ctx, workflowID, 10000)
+		if err != nil {
+			return Trace{}, err
+		}
+		for _, message := range inbox {
+			trace.Inbox = append(trace.Inbox, InboxRecord{ConsumerID: message.ConsumerID,
+				EventID: message.EventID, Topic: message.Topic, Partition: message.Partition,
+				Offset: message.Offset, Disposition: string(message.Disposition)})
+		}
+		wakeups, err := store.ListWakeups(ctx, workflowID, 10000)
+		if err != nil {
+			return Trace{}, err
+		}
+		for _, wakeup := range wakeups {
+			trace.Wakeups = append(trace.Wakeups, WakeupRecord{WorkflowID: wakeup.WorkflowID,
+				EventID: wakeup.EventID, PartitionID: wakeup.PartitionID, State: string(wakeup.State)})
+		}
+		reconciliationItems, err := store.ListReconciliationItemsForWorkflow(ctx, workflowID, 10000)
+		if err != nil {
+			return Trace{}, err
+		}
+		for _, item := range reconciliationItems {
+			trace.Reconciliation = append(trace.Reconciliation, ReconciliationRecord{
+				WorkflowID: item.WorkflowID, Kind: string(item.Kind), Reference: item.Reference, Status: item.Status})
+		}
 		trace.Submissions = append(trace.Submissions, SubmissionRecord{Namespace: workflow.Namespace,
 			Key: workflow.SubmissionKey, Hash: workflow.PayloadHash, WorkflowID: workflowID})
 	}
@@ -118,7 +195,141 @@ func Check(trace Trace) Verdict {
 	checkResults(trace.Results, &violations)
 	checkSubmissions(trace.Submissions, &violations)
 	checkOwnershipAndAttempts(trace.History, trace.Attempts, &violations)
+	checkTransport(trace, &violations)
 	return Verdict{Valid: len(violations) == 0, Violations: violations}
+}
+
+// checkTransport derives transport verdicts from the independent snapshots,
+// not from relay or inbox transition helpers. Pending rows are obligations,
+// not failures; missing, malformed, or contradictory evidence is a failure.
+func checkTransport(trace Trace, violations *[]string) {
+	// Traces created by the M0/M1 unit fixtures intentionally predate the M3
+	// transport snapshot. A database-loaded M3 trace always has at least one
+	// outbox row, so only an explicitly transport-bearing trace opts into these
+	// additional obligations.
+	if len(trace.Outbox) == 0 && len(trace.Inbox) == 0 && len(trace.Wakeups) == 0 {
+		return
+	}
+	workflowIDs := make(map[string]struct{})
+	for _, submission := range trace.Submissions {
+		workflowIDs[submission.WorkflowID] = struct{}{}
+	}
+	events := make(map[string]OutboxRecord)
+	for _, event := range trace.Outbox {
+		if event.EventID == "" || event.WorkflowID == "" || event.AggregateRevision <= 0 ||
+			event.EventType == "" || event.Topic == "" || !event.PayloadValid {
+			*violations = append(*violations, "outbox event identity or payload is incomplete")
+		}
+		expectedTopic := state.EventTopic
+		if strings.HasPrefix(event.EventType, "attempt.") {
+			expectedTopic = state.TaskTopic
+		}
+		if event.Topic != expectedTopic {
+			*violations = append(*violations, "outbox event is on the wrong topic: "+event.EventID)
+		}
+		if _, exists := events[event.EventID]; exists {
+			*violations = append(*violations, "outbox event ID is duplicated: "+event.EventID)
+		}
+		events[event.EventID] = event
+		if _, exists := workflowIDs[event.WorkflowID]; !exists {
+			*violations = append(*violations, "outbox event references unknown workflow: "+event.EventID)
+		}
+		if event.PublishState != string(state.OutboxPending) && event.PublishState != string(state.OutboxClaimed) &&
+			event.PublishState != string(state.OutboxPublished) && event.PublishState != string(state.OutboxQuarantined) {
+			*violations = append(*violations, "outbox event has unknown publication state: "+event.EventID)
+		}
+	}
+	for _, history := range trace.History {
+		if !requiresOutbox(history.Reason) {
+			continue
+		}
+		found := false
+		for _, event := range trace.Outbox {
+			if event.WorkflowID == history.WorkflowID && event.AggregateRevision == history.Revision {
+				found = true
+				break
+			}
+		}
+		if !found {
+			*violations = append(*violations, fmt.Sprintf("history revision lacks an outbox obligation: %s/%d", history.WorkflowID, history.Revision))
+		}
+	}
+	seenOffsets := make(map[string]string)
+	for _, message := range trace.Inbox {
+		if message.ConsumerID == "" || message.EventID == "" || message.Topic == "" || message.Partition < 0 || message.Offset < 0 {
+			*violations = append(*violations, "inbox message identity is incomplete")
+		}
+		event, exists := events[message.EventID]
+		if !exists {
+			*violations = append(*violations, "inbox message references unknown event: "+message.EventID)
+		} else if event.Topic != message.Topic {
+			*violations = append(*violations, "inbox message topic conflicts with outbox event: "+message.EventID)
+		}
+		key := fmt.Sprintf("%s\x00%s\x00%d\x00%d", message.ConsumerID, message.Topic, message.Partition, message.Offset)
+		if prior, exists := seenOffsets[key]; exists && prior != message.EventID {
+			*violations = append(*violations, "inbox offset maps to multiple event IDs: "+key)
+		}
+		seenOffsets[key] = message.EventID
+		if message.Disposition != string(state.InboxAccepted) && message.Disposition != string(state.InboxAlreadyHandled) &&
+			message.Disposition != string(state.InboxStale) && message.Disposition != string(state.InboxQuarantined) {
+			*violations = append(*violations, "inbox has unknown disposition: "+message.EventID)
+		}
+	}
+	seenWakeups := make(map[string]struct{})
+	for _, wakeup := range trace.Wakeups {
+		if wakeup.WorkflowID == "" || wakeup.EventID == "" || wakeup.PartitionID < 0 || wakeup.PartitionID >= 16 {
+			*violations = append(*violations, "scheduler wake-up identity is incomplete")
+		}
+		if _, exists := events[wakeup.EventID]; !exists {
+			*violations = append(*violations, "scheduler wake-up references unknown event: "+wakeup.EventID)
+		}
+		if _, exists := seenWakeups[wakeup.EventID]; exists {
+			*violations = append(*violations, "event has duplicate scheduler wake-ups: "+wakeup.EventID)
+		}
+		seenWakeups[wakeup.EventID] = struct{}{}
+		if wakeup.State != string(state.WakeupPending) && wakeup.State != string(state.WakeupClaimed) &&
+			wakeup.State != string(state.WakeupConsumed) {
+			*violations = append(*violations, "scheduler wake-up has unknown state: "+wakeup.EventID)
+		}
+	}
+	for _, item := range trace.Reconciliation {
+		if item.WorkflowID == "" || item.Kind == "" || item.Reference == "" {
+			*violations = append(*violations, "reconciliation item identity is incomplete")
+		}
+		if _, exists := workflowIDs[item.WorkflowID]; !exists {
+			*violations = append(*violations, "reconciliation item references unknown workflow: "+item.Reference)
+		}
+		switch item.Kind {
+		case string(state.ReconcileExpiredAttempt), string(state.ReconcilePendingOutbox),
+			string(state.ReconcileLostWakeup), string(state.ReconcileDueTimer), string(state.ReconcilePoisonRecord):
+		default:
+			*violations = append(*violations, "reconciliation item has unknown kind: "+item.Reference)
+		}
+		switch item.Status {
+		case "OPEN", "RESOLVED", "ABANDONED":
+		default:
+			*violations = append(*violations, "reconciliation item has unknown status: "+item.Reference)
+		}
+		if item.Kind == string(state.ReconcilePendingOutbox) && strings.HasPrefix(item.Reference, "outbox/") {
+			eventID := strings.TrimPrefix(item.Reference, "outbox/")
+			if event, exists := events[eventID]; !exists {
+				*violations = append(*violations, "pending-outbox item references unknown event: "+item.Reference)
+			} else if item.Status == "OPEN" && event.PublishState == string(state.OutboxPublished) {
+				*violations = append(*violations, "published outbox event has an open reconciliation item: "+eventID)
+			}
+		}
+	}
+}
+
+func requiresOutbox(reason string) bool {
+	switch reason {
+	case "WORKFLOW_CREATED", "ATTEMPT_RESULT_RECORDED", "RESULT_CONSUMED",
+		"GRAPH_ADVANCED", "TIMER_SCHEDULED", "CANCELED_ALL_ACTIVE_NODES",
+		"REDISPATCH_UNCLAIMED", "TIMEOUT_REPLACEMENT", "TIMEOUT_RECONCILIATION_REQUIRED":
+		return true
+	default:
+		return false
+	}
 }
 
 func checkOwnershipAndAttempts(history []HistoryRecord, attempts []AttemptRecord, violations *[]string) {

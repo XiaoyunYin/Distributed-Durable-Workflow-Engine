@@ -12,3 +12,11 @@ Migration `000004` adds the `WORKFLOW_TIMER` purpose used by explicit graph
 timer nodes; retry timers continue to use `RETRY_BACKOFF`.
 Migration `000005` records explicit graph-timer completion on each node so
 timer lifecycle is not inferred from retry counts.
+Migration `000006` adds relay publication evidence, durable consumer offsets,
+scheduler wake-up claims, reconciliation items, and the retry metadata used by
+the M3 transport and recovery paths.
+Migration `000007` changes event-inbox retention to cascade with its referenced
+outbox event, so workflow cleanup cannot strand transport rows.
+Migration `000008` preserves malformed or unknown broker records as durable
+offset-addressed poison records so a consumer can acknowledge them without
+discarding reconciliation evidence.
