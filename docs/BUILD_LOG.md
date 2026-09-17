@@ -94,8 +94,8 @@ consume the same versioned trace without guessing from elapsed time.
 
 ## 2026-09-16 - M0 round-2 feedback fixes
 
-- Base commit: `d722cf7` (last reviewed planning baseline); target implementation commit: pending.
-- Task status: IN_PROGRESS pending commit and the R001 scope-authorization decision.
+- Base commit: `d722cf7` (last reviewed planning baseline); target implementation commit: `ed62eca`.
+- Task status: READY_FOR_REVIEW; R001 scope authorization remains open.
 
 Addressed R002-R009 from the round-1 review. The DUR-002 contract is now
 `dur-002.v2` with complete workflow/attempt states, cooperating versus

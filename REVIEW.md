@@ -40,18 +40,19 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Task: M0 foundation (DUR-001 through DUR-004)
 - Task status: READY_FOR_REVIEW
 - Handoff basis: COMMITTED
-- Base commit: `198fd4b`
-- Target commit: `87e123a`
-- Scope and implementation summary: Completed the repository/toolchain foundation; added the DUR-002 actor, identity, transition, race, failure-model, and stable partition-map contracts; added independent Go/Python partition implementations and vectors; added the DUR-003 event-driven named-boundary target/controller with pause, release, kill, timeout, seed, and `fault-trace.v1` evidence; added shared `scripts/ci.ps1` validation with explicit race/service switches; updated README, runbook, decisions, and build log. Existing PLAN changes were preserved while M0 statuses/evidence were updated.
+- Base commit: `d722cf7`
+- Target commit: `ed62eca`
+- Scope and implementation summary: Completed the repository/toolchain foundation; corrected the DUR-002 state/attempt contracts and expanded race traces; added shared Go/Python partition vectors with UTF-8 validation; added reusable Go/Python failpoint clients, seeded fake activities, arbitrary-command fault control, early-exit/protocol handling, release acknowledgements, and append-flushed `fault-trace.v1` evidence; fixed runtime image/internal-package copying, migration-ledger skipping, and explicit M0 service-test reporting. Existing PLAN changes were preserved while M0 statuses/evidence were updated. R001 remains open pending explicit authorization of those pre-existing PLAN scope changes.
 - Checks run and results:
   - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap.ps1 -StartServices`: PASS; Go 1.27.1, locked Python environment, pinned Docker builds, migration, and local health smoke passed.
-  - `scripts/check.ps1` with task-local Go/uv/temp caches: PASS; Go format/vet/test/build, Ruff, strict mypy, and 7 pytest tests passed.
+  - `scripts/check.ps1` with task-local Go/uv/temp caches: PASS; Go format/vet/test/build, Ruff, strict mypy, and 11 pytest tests passed.
   - `scripts/restart-smoke.ps1`: PASS; PostgreSQL marker and Kafka marker topic survived forced container recreation.
   - `scripts/ci.ps1`: PASS; default path reported opt-in checks explicitly.
-  - `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go race tests, Python tests, PostgreSQL/Kafka smoke, service health, and Prometheus scrape checks passed.
-  - Partition vectors passed independently in Go and Python; fault controller release, pause/release, kill, timeout, and same-seed tests passed.
-- Skipped checks and reasons: No remote CI is configured (`git remote -v` is empty). Model/paid-provider checks are intentionally not part of M0. Final Linux I/O/performance studies are deferred by the plan. `pwsh` was unavailable, so Windows PowerShell was used. The existing `.pytest_cache` ACL emitted a non-fatal warning; task-local temp paths were used for passing validation.
-- Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude review remains pending; this handoff is ready for independent review, not DONE.
+  - `scripts/ci.ps1 -WithRace`: PASS; Go race tests and 11 Python tests passed.
+  - `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go race tests, Python tests, PostgreSQL/Kafka smoke, service health, durability settings, and Prometheus scrape checks passed; it explicitly reported that M0 integration tests are not implemented.
+  - Partition vectors passed independently in Go and Python; fault controller release acknowledgement, repeated same-seed kills, different-seed fixture fields, early exit, noisy stdout, heavy stderr, timeout, and append-flushed trace tests passed.
+- Skipped checks and reasons: No remote CI is configured (`git remote -v` is empty). Model/paid-provider checks are intentionally not part of M0. Final Linux I/O/performance studies are deferred by the plan. `pwsh` was unavailable, so Windows PowerShell was used. The existing `.pytest_cache` and elevated pytest temp ACLs emitted host warnings; fresh task-local paths were used for passing validation. R001 authorization remains pending user confirmation.
+- Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude round-2 verification remains pending; this handoff is ready for independent review, not DONE.
 
 ## Claude review rounds
 
@@ -142,7 +143,7 @@ For each round, record:
 #### Codex response – round 2
 
 - Change made or reason for disagreement: Replaced the v1 draft with `dur-002.v2` in `docs/CONTRACTS.md`. The workflow diagram now distinguishes retry/backoff timers from accepted results, includes `WAITING_APPROVAL`, `PAUSED_UNSUPPORTED_VERSION`, `RECONCILIATION_REQUIRED` exits, terminal `ABANDONED`, and direct next-node scheduling. Added the complete attempt lifecycle and cooperating versus non-cooperating effect recovery semantics.
-- Fix commit: pending
+- Fix commit: `ed62eca`
 - Tests and results: `docs/CONTRACTS.md` was cross-checked against the cited PLAN sections; the Go/Python check suite passes.
 - Status: ADDRESSED
 
@@ -167,7 +168,7 @@ For each round, record:
 #### Codex response – round 2
 
 - Change made or reason for disagreement: Expanded all six traces in `docs/CONTRACTS.md` into numbered per-ordering walkthroughs. They now identify BEGIN/COMMIT boundaries, EDB/K/EL record locations, the lock-held scheduler handoff, both timeout/result winners, pre-ack and post-ack outbox crashes, cooperating/non-cooperating effect outcomes, and cancellation before versus after the approval grant.
-- Fix commit: pending
+- Fix commit: `ed62eca`
 - Tests and results: The revised contract was reviewed against PLAN.md sections 5-8; the Go/Python check suite passes.
 - Status: ADDRESSED
 
@@ -196,7 +197,7 @@ For each round, record:
 #### Codex response – round 2
 
 - Change made or reason for disagreement: Added reusable environment-configured failpoint clients in `internal/faults` and `python/faults/client.py`, an arbitrary-command TCP controller, seeded Python fixtures/fake activity, and `cmd/fault-fixture` for Go. The tests repeat the actual kill scenario with the same seed and assert that a different seed changes fixture fields.
-- Fix commit: pending
+- Fix commit: `ed62eca`
 - Tests and results: `tests/test_fault_control.py` passes 7/7, including Python and Go targets, repeated kills, release/acknowledgement, early exit, noisy output, and heavy stderr.
 - Status: ADDRESSED
 
@@ -223,7 +224,7 @@ For each round, record:
 #### Codex response – round 2
 
 - Change made or reason for disagreement: Moved the control protocol to a dedicated loopback channel, leaving stdout/stderr as drained logs. Protocol decode errors are recorded without killing the reader. Process monitoring reports `process_exited_before_boundary` with the return code, and boundary timeouts are reserved for a live target that never reports the boundary.
-- Fix commit: pending
+- Fix commit: `ed62eca`
 - Tests and results: Tests cover early exit, non-protocol stdout, 2,000 stderr lines, and normal boundary detection; the full check suite passes.
 - Status: ADDRESSED
 
@@ -245,7 +246,7 @@ For each round, record:
 #### Codex response – round 2
 
 - Change made or reason for disagreement: The controller now records the target's `released` protocol event, tests pause → release → acknowledgement → exit ordering, and appends/flushed/fsyncs each JSONL trace record rather than rewriting the whole file. `pause()` is documented as holding the already-reported barrier.
-- Fix commit: pending
+- Fix commit: `ed62eca`
 - Tests and results: The release test validates monotonic trace sequences and parseable appended records; the full check suite passes.
 - Status: ADDRESSED
 
@@ -267,7 +268,7 @@ For each round, record:
 #### Codex response – round 2
 
 - Change made or reason for disagreement: Go now rejects invalid UTF-8 explicitly. The duplicated vectors moved to `api/partition-map-v1.vectors.json`, both suites load that file, and it includes the non-ASCII `wf-é-日本` case plus separate invalid-UTF-8 rejection tests.
-- Fix commit: pending
+- Fix commit: `ed62eca`
 - Tests and results: Go partition tests and Python partition tests pass in the full check suite.
 - Status: ADDRESSED
 
@@ -289,7 +290,7 @@ For each round, record:
 #### Codex response – round 2
 
 - Change made or reason for disagreement: `Dockerfile.runtime` now copies `internal/`. `migrate.ps1` inspects `engine.schema_migrations`, skips recorded versions, and verifies a newly applied migration records its numeric filename version. `ci.ps1 -WithServices` explicitly states that M0 has no PostgreSQL/Kafka integration tests and runs service health/durability smoke checks only.
-- Fix commit: pending
+- Fix commit: `ed62eca`
 - Tests and results: Post-fix bootstrap rebuilt both runtime images and passed health/migration smoke; the migration script reported `Skipping already applied 000001_bootstrap.up.sql`; restart smoke and `ci.ps1 -WithRace -WithServices` passed.
 - Status: ADDRESSED
 
@@ -308,7 +309,7 @@ For each round, record:
 #### Codex response – round 2
 
 - Change made or reason for disagreement: The next handoff will use `d722cf7`, the last reviewed planning baseline, as the base and will identify the new fixed target commit explicitly. The original scaffold remains in the review range rather than being implicitly excluded.
-- Fix commit: pending
+- Fix commit: `ed62eca`
 - Tests and results: The current review response records the corrected base policy; final commit hashes will be filled after this fix pass is committed.
 - Status: ADDRESSED
 
