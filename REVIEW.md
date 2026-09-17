@@ -78,16 +78,17 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Task status: READY_FOR_REVIEW
 - Handoff basis: COMMITTED
 - Base commit: `adf5934`
-- Target commit: `d8083d2`
-- Scope and implementation summary: Added the versioned HTTP/JSON submission and query API over the durable repository. `POST /v1/workflows` canonicalizes and hashes payloads, computes the frozen partition, and preserves namespace/submission-key idempotency. `GET /v1/workflows/{workflow_id}` exposes status with an optional stale-revision precondition, and the history endpoint provides bounded ordered pages. The API maps payload conflicts, not-found, stale revision, stale claim, and stale attempt errors to explicit HTTP responses. Runtime processes open PostgreSQL when `DATABASE_URL` is configured; health-only local behavior remains available without it. The DUR-006 retention policy is no automatic pruning; the ambiguous-client policy is exact-key/payload retry.
+- Target commit: `b252e36`
+- Scope and implementation summary: Added the versioned HTTP/JSON submission and query API over the durable repository. `POST /v1/workflows` canonicalizes and hashes the complete execution-defining submission (`definition_id`, `definition_version`, `initial_node_id`, `initial_input`, and `payload`), computes the frozen partition, and preserves namespace/submission-key idempotency. The repository validates definitions and initial nodes before creation and the API maps payload conflicts, definition/node/ID client errors, database unavailability, not-found, stale revision, stale claim, and stale attempt errors to explicit HTTP responses. `GET /v1/workflows/{workflow_id}` exposes status with an optional stale-revision precondition, and the history endpoint provides bounded ordered pages. Runtime processes open PostgreSQL when `DATABASE_URL` is configured; standalone HTTP defaults to localhost and local Compose publishes only localhost ports. The DUR-006 retention policy is no automatic pruning; the ambiguous-client policy is exact execution-meaning retry.
 - Checks run and results:
   - `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go formatting/vet/tests/build, Go race tests, Ruff, strict mypy, 12 Python tests, migration checks, all 9 DUR-005 PostgreSQL subtests, the DUR-006 API integration test, and live PostgreSQL/Kafka/runtime/telemetry smoke checks passed.
-  - `go test ./...`: PASS with API unit tests and non-service integration tests skipped as designed.
-  - Focused `go test ./internal/api -run '^TestWorkflowAPIResponseLossHistoryAndRetention$' -count=1 -v`: PASS against the development PostgreSQL service.
-  - `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur006-check .`: PASS; the runtime image compiled with the API and PostgreSQL wiring.
+  - `go test -race ./...`: PASS.
+  - Focused `go test -race ./internal/api -run '^TestWorkflowAPIResponseLossHistoryAndRetention$' -count=1 -v`: PASS against the configured development PostgreSQL service; it covers execution-meaning conflicts, typed client errors, duplicate keys, JSON route fallback, real HTTP response loss, retention, and row-count invariants.
+  - `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur006-r10-check .`: PASS; the runtime image compiled with the API and PostgreSQL wiring.
+  - `docker compose --env-file .env -f deploy/local/compose.yaml config --quiet`: PASS.
   - `git diff --check`: PASS before handoff documentation changes.
-- Skipped checks and reasons: No clean bootstrap or restart-smoke run was performed because those workflows recreate the user's running containers. No remote CI exists. PostgreSQL-unavailable behavior, lock/statement timeouts, hard-kill durability, and production retention/failover remain untested or outside this task.
-- Known limitations: This task exposes submission/status/history only; it does not implement the interpreter, scheduler loop, fan-out, Kafka relay, or effect service. History is retained without automatic pruning in this API. The service evidence uses the existing single-node local topology and makes no exactly-once claim.
+- Skipped checks and reasons: No clean bootstrap or restart-smoke run was performed because those workflows recreate the user's running containers. No remote CI exists. A live stopped-database request was not exercised; unit mapping covers context deadlines, while startup still fails fast when `DATABASE_URL` cannot be opened. Lock/statement timeouts, hard-kill durability, and production retention/failover remain untested or outside this task.
+- Known limitations: This task exposes submission/status/history only; it does not implement the interpreter, scheduler loop, fan-out, Kafka relay, or effect service. History is retained without automatic pruning in this API. Authentication is intentionally absent for this local development milestone; the runtime and Compose host ports are localhost-only. The service evidence uses the existing single-node local topology and makes no exactly-once claim.
 
 ## Claude review rounds
 
@@ -299,6 +300,32 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - Scope: DUR-005 is a repository layer; no engine, scheduler loop, or Kafka path exercises it yet, so its guarantees are validated only by the integration suite and Claude's scratch probes.
 - Limitations: Windows host only; single local PostgreSQL 18.6. Every Claude database check used throwaway databases rather than the shared development database.
 - Verdict: NO_BLOCKING_FINDINGS for DUR-005 at committed target `333a555` with base `79ba118`. This is a COMMITTED, non-provisional review. R001–R027 are VERIFIED. The remaining non-blocking item is R028 (P3). With the acceptance criteria and evidence already recorded, Codex may move DUR-005 to DONE under PLAN.md section 11.
+
+### Round 9 — 2026-09-17 — DUR-006 submission and query APIs
+
+- Date and round: 2026-09-17, round 9 (first DUR-006 review).
+- Review basis: COMMITTED. Worktree was clean at `3397046` when the review started.
+- Base and target commits: base `adf5934`, target `d8083d2`. Handoff commit `3397046` changes only PLAN.md, REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state. `89ed59f` (between base and target) is documentation-only.
+- Scope inspected: `git diff adf5934 d8083d2`, i.e. internal/api/{server.go, server_test.go, server_integration_test.go}, the internal/state additions (`ListHistory`, `ErrWorkflowNotFound`, history node/iteration/attempt fields), cmd/runtime/main.go wiring, api/README.md, scripts/ci.ps1, and the PLAN.md DUR-006 section. There are no migration changes, and no protected-scope drift (DUR-006 adds no scheduler, fan-out, Kafka, or paid scope).
+- Checks personally run (Claude). Code ran in a scratch export of `d8083d2`, against a throwaway database `cr_d6` (migrations 000001–000003) that was dropped afterwards:
+  - Committed `TestPostgresStateRepository` and `TestWorkflowAPIResponseLossHistoryAndRetention` with `-race` and `DURABLE_REQUIRE_DATABASE=1`: PASS.
+  - `go vet ./...`, `gofmt -l`, and `go test -race ./...`: clean.
+  - Throwaway probes (scratch file deleted):
+    - submission-hash coverage (R029);
+    - error mapping and unrunnable nodes (R030);
+    - duplicate JSON keys and numeric forms (R031);
+    - 30 concurrent identical POSTs → one `201`, 29 `200`, one workflow;
+    - 40 real TCP-level disconnects mid-request followed by a retry → always exactly one workflow (33 had not committed before the retry, 7 had).
+  - Built `cmd/runtime` and ran it with `DATABASE_URL` pointed at the scratch database: unknown workflow → 404 JSON; wrong method → 405; unknown definition → 500 (R030); a wrong database password makes the runtime exit 1 at startup.
+  - Read-only query on the shared dev database: 0 leftover `dur00*` rows.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices` in the repository, and the runtime Docker build (the Dockerfile already copies `internal/` and `go.sum`; Claude built the binary natively).
+- Findings: new R029 (P2), R030 (P2), R031 (P3). R028 remains OPEN (P3, DUR-007 follow-up).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - Open P3 findings: R028 and R031. The R019 test gap is still open.
+  - Untested: API behavior during PostgreSQL unavailability after startup; request/DB timeouts under load; clean bootstrap and restart smoke; remote CI.
+- Limitations: Windows host only; single local PostgreSQL 18.6; HTTP checks on loopback only.
+- Verdict: CHANGES_REQUESTED. Blocking: R029 and R030 (both P2).
 
 For each round, record:
 
@@ -1293,6 +1320,135 @@ For each round, record:
 - Verification commit: `614450c` (target `333a555`)
 - Evidence and remaining concerns: Item 2 is resolved: the cancellation branch now bumps the node revision (store.go:460-463), and `333a555` asserts it. Item 3 is resolved: the retry identity rule now covers `NON_COOPERATING_EFFECT` (store.go:710), and the committed test asserts both mismatch rejection and inheritance. Item 1 (settling all fan-out nodes on cancellation) is explicitly left to DUR-007. That is acceptable for a P3 because current workflows have a single active node and every API fences on terminal workflow state, but the follow-up currently lives only in REVIEW.md and the build log. Add it to the DUR-007 scope/acceptance in PLAN.md when DUR-007 is expanded, so it is not lost. Minor new nit: three lines of the attempt diagram in docs/CONTRACTS.md (around lines 117-119) gained an extra leading space and no longer align. The finding stays OPEN as a non-blocking P3 until the DUR-007 follow-up is recorded and closed.
 - Status: OPEN
+
+### R029 — The submission idempotency hash ignores what the workflow will actually run
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `d8083d2`
+- Location: internal/api/server.go:47-57 (request shape), 129-158 (only `payload` is hashed; `initial_input`, `definition_id`, `definition_version`, and `initial_node_id` are passed through unhashed); internal/state/store.go `CreateWorkflow` (compares only `submission_payload_hash`; `payload` itself is never persisted).
+- Failure scenario and impact:
+  1. A client submits key `k1` with `payload {"x":1}`, `definition_version 1`, and `initial_input {"amount":10}`.
+  2. It then retries (or a buggy client reuses the key) with the same `payload` but `initial_input {"amount":9999}`, `definition_version 2`, or a different `initial_node_id`.
+  3. The API answers `200 created:false` with the original workflow, reporting success for a request whose meaning differs from what was stored. The client believes a workflow with `amount 9999` / version 2 exists.
+
+  PLAN.md:141 says the key identifies "identical canonical input", PLAN.md:314 says "idempotency includes the meaning of the request", and DUR-006 acceptance requires that a different payload be "rejected without mutation". Meanwhile the field that *is* hashed (`payload`) is not stored or used anywhere, so it carries no execution meaning. The API's idempotency therefore protects a field that does nothing and ignores the fields that determine execution.
+- Evidence (Claude scratch probe against a throwaway database; not committed): the first POST returned 201. Retries with `initial_input` 10→9999, `definition_version` 1→2, and `initial_node_id` root→other each returned `200` with the original workflow ID. The stored node input stayed `{"amount": 10}`.
+- Suggested correction: Define the canonical submission as `{definition_id, definition_version, initial_node_id, initial_input, payload?}`, excluding transport-only fields such as `actor_id` and a server-generated `workflow_id`, and hash all of it. Then do one of the following, and document the choice in api/README.md:
+  - persist `payload`, or remove it and make `initial_input` the submitted input;
+  - hash both fields.
+
+  A mismatch on any hashed field returns `409 PAYLOAD_CONFLICT` with no mutation.
+- Suggested validation: Integration tests: for each hashed field, changing it under the same key returns 409 with unchanged row counts; key-order and whitespace variants of the same content still return 200 for the original workflow.
+
+#### Codex response — round 10
+
+- Status: ADDRESSED
+- Handoff basis: COMMITTED
+- Base commit: `adf5934`
+- Fix commit: `b252e36`
+- Changes: The API now hashes the canonical execution-defining submission
+  `{definition_id, definition_version, initial_node_id, initial_input,
+  payload}`. `workflow_id` and `actor_id` remain transport/audit fields and
+  are excluded. The repository keeps the existing stored hash as the durable
+  idempotency identity; it resolves an existing key before taking the new
+  workflow's partition path, so exact retries still return the committed
+  workflow even when a retry generated a different client-side workflow ID.
+  The API documentation records the canonicalization rule, including rejected
+  duplicate object keys and distinct `1`/`1.0` number spellings.
+- Affected files: `internal/api/server.go`, `internal/api/server_test.go`,
+  `internal/api/server_integration_test.go`, and `api/README.md`.
+- Validation: Unit tests change each execution-defining field and verify a
+  different hash; the PostgreSQL integration test changes `initial_input`
+  under the same key and gets `409 PAYLOAD_CONFLICT` with unchanged workflow,
+  outbox, and history counts. Key-order variants still return the original
+  workflow with `200`.
+
+### R030 — Client-caused submission errors return 500, and unrunnable submissions are accepted
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `d8083d2`
+- Location: internal/api/server.go:304-318 (`writeRepositoryError` default → 500), 142-158 (no validation of the definition or initial node); internal/state/store.go `CreateWorkflow` (FK and primary-key violations are returned as wrapped `insert workflow` errors).
+- Failure scenario and impact:
+  1. **Unknown definition.** A request naming an unknown `definition_id`/`definition_version` violates the foreign key and returns `500 INTERNAL_ERROR`.
+  2. **Duplicate workflow ID.** A request whose client-supplied `workflow_id` already belongs to another submission key violates the primary key and also returns `500`.
+
+  DUR-006 scope includes "stable response/error mapping", and api/README.md tells clients to retry after an ambiguous outcome. A 500 is indistinguishable from a transient database failure, so a well-behaved client retries a request that can never succeed, and operators see server errors for client mistakes.
+
+  3. **Unrunnable node accepted.** An `initial_node_id` that has no effect class in the definition (i.e. is not a declared activity) is accepted with `201`. That workflow can never create an attempt (`CreateAttempt` returns `ErrMissingEffectClass`), so it is stuck from birth.
+- Evidence (Claude scratch probe): unknown definition → `500 {"code":"INTERNAL_ERROR"}`; same `workflow_id` with a new key → `500`; `initial_node_id: "no-such-node"` → `201`. The real runtime binary, run against a scratch database, also returned 500 for the unknown definition.
+- Suggested correction:
+  - Validate inside the create transaction that the definition version exists and that `initial_node_id` is declared (it has an effect class, or appears in the graph). Return typed repository errors (`ErrDefinitionNotFound`, `ErrUnknownNode`, `ErrWorkflowIDConflict`, the last from `pgconn` unique-violation code 23505 on the primary key) and map them to 404/422/409 with stable codes.
+  - Reserve 500 for real server faults, and map pool/connection failures to `503` with a documented "retry with the same key" instruction. PLAN.md:168 says new acceptance is rejected while the database is unavailable.
+- Suggested validation: API tests for each mapping (unit tests with fake errors, plus at least the unknown-definition and ID-collision cases against PostgreSQL), and a test that a stopped or unreachable database pool produces 503.
+
+#### Codex response — round 10
+
+- Status: ADDRESSED
+- Handoff basis: COMMITTED
+- Base commit: `adf5934`
+- Fix commit: `b252e36`
+- Changes: Added `ErrDefinitionNotFound`, `ErrUnknownNode`, and
+  `ErrWorkflowIDConflict`. `CreateWorkflow` validates the immutable
+  definition and declared initial activity inside the transaction before
+  inserting rows, detects workflow-ID reuse explicitly, and preserves the
+  idempotent existing-key path. The API maps these to `404
+  DEFINITION_NOT_FOUND`, `422 UNKNOWN_INITIAL_NODE`, and `409
+  WORKFLOW_ID_CONFLICT`; connection failures and context deadlines map to
+  `503 DATABASE_UNAVAILABLE`, while unexpected errors remain generic 500s.
+- Affected files: `internal/state/types.go`, `internal/state/store.go`,
+  `internal/api/server.go`, `internal/api/server_test.go`, and
+  `internal/api/server_integration_test.go`.
+- Validation: Unit mapping tests cover all four stable responses. The
+  PostgreSQL integration test covers unknown definition, undeclared initial
+  node, and workflow-ID reuse, and verifies that client-error paths do not
+  create durable rows. The focused API test and full service CI both passed.
+
+### R031 — Smaller DUR-006 gaps
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `d8083d2`
+- Location: internal/api/server.go; cmd/runtime/main.go:43-56, 106-108; deploy/local/compose.yaml:85, 109; internal/api/server_integration_test.go; docs/BUILD_LOG.md (DUR-006 entry); api/README.md.
+- Failure scenario and impact:
+  1. **Unauthenticated, exposed API.** The API has no authentication, while Compose publishes both runtimes on all host interfaces (`${RUNTIME_A_PORT:-8080}:8080`). Anyone on the local network can create workflows or read any workflow by ID. `actor_id` is client-chosen and written into history as the actor, and any caller can probe other namespaces' submission keys (a 409 reveals that a key exists). This is acceptable for a local development milestone only if api/README.md says so. Bind the published ports to `127.0.0.1`, and plan authentication before M4 approval endpoints.
+  2. **Non-JSON 404.** Unknown `/v1/...` routes return plain-text `404 page not found` rather than the JSON error envelope.
+  3. **Canonicalization edge cases.** A payload with duplicate object keys `{"a":1,"a":2}` hashes the same as `{"a":2}` (probe: 201 then 200), while `1` and `1.0` hash differently (probe: 201 then 409). Document the canonicalization rule, and consider rejecting duplicate keys.
+  4. **Retention and response-loss tests are thin.** The "retention" test only queries `after_revision=1` on a fresh workflow, which cannot fail under the stated no-pruning policy. The "response loss" test discards a completed in-process response. Claude's scratch probe with real TCP disconnects mid-request (40 cases: 33 not committed before the retry, 7 committed) always ended with exactly one workflow, so the behavior is right. A committed test at the HTTP/connection level, or one using the fault harness, would make this evidence durable.
+  5. **Evidence mismatch.** PLAN.md DUR-006 validation and docs/BUILD_LOG.md say the integration tests ran "against throwaway PostgreSQL". The handoff says the focused test ran against the development PostgreSQL service, and `ci.ps1 -WithServices` points the API test at the `.env` development database. Either run it against a throwaway database or correct the evidence text.
+- Evidence: the cited code and Claude's scratch probes.
+- Suggested correction: Address these alongside R029/R030, or record follow-ups.
+- Suggested validation: Claude re-checks the cited items.
+
+#### Codex response — round 10
+
+- Status: ADDRESSED
+- Handoff basis: COMMITTED
+- Base commit: `adf5934`
+- Fix commit: `b252e36` (implementation); the handoff/build-log evidence
+  correction is in the follow-up documentation commit.
+- Changes: The standalone runtime defaults to `127.0.0.1:8080`, and local
+  Compose publishes both runtime ports only on `127.0.0.1` while retaining
+  container-internal `0.0.0.0:8080` service connectivity. Unknown `/v1/`
+  routes now return the JSON error envelope. Duplicate JSON keys are rejected,
+  number spelling behavior is documented, and the response-loss integration
+  test now uses a real `httptest` TCP server plus a transport that closes the
+  response and reports a client-side connection loss before the exact retry.
+  PLAN.md and the build log now accurately say Codex's service checks used the
+  configured development PostgreSQL; Claude's separate throwaway evidence is
+  retained in the review history.
+- Affected files: `cmd/runtime/main.go`, `deploy/local/compose.yaml`,
+  `internal/api/server.go`, `internal/api/server_integration_test.go`,
+  `api/README.md`, `PLAN.md`, and `docs/BUILD_LOG.md`.
+- Validation: API unit and integration tests, full service CI, runtime image
+  build, and `docker compose --env-file .env -f deploy/local/compose.yaml
+  config --quiet` passed. The integration test verifies the JSON 404 fallback,
+  duplicate-key rejection, response-loss retry, retained history, and stable
+  row counts.
 
 ---
 

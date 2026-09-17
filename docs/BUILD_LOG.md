@@ -1,5 +1,62 @@
 # Build log
 
+## 2026-09-17 - DUR-006 round-10 corrections
+
+- Base commit: `adf5934`; implementation target: `b252e36`.
+- Task status: READY_FOR_REVIEW; R029 and R030 are addressed, and R031 is
+  addressed in the implementation and documentation.
+
+The API now hashes the complete execution meaning of a submission:
+`definition_id`, `definition_version`, `initial_node_id`, canonical
+`initial_input`, and canonical `payload`. Transport-only `workflow_id` and
+`actor_id` are excluded. Duplicate JSON object keys are rejected, object keys
+are sorted for canonicalization, and number spellings remain distinct because
+the decoder preserves them. The repository validates the definition and
+initial node inside the create transaction, maps unknown definitions, unknown
+nodes, workflow-ID reuse, and database unavailability to typed API responses,
+and resolves an existing idempotency record before validating a newly supplied
+workflow ID's partition.
+
+The standalone runtime now binds to localhost by default. Local Compose still
+binds inside each container for service networking, but publishes both runtime
+ports only on `127.0.0.1`. Unknown `/v1/` routes use the JSON error envelope.
+The integration test now uses a real HTTP server with a transport that closes
+the response and reports a client-side loss, then verifies the exact retry;
+the same test covers changed execution meaning, definition/node/ID errors,
+duplicate keys, retention, history, and no duplicate outbox/history rows.
+
+Validation:
+
+- `go test -race ./...`: PASS.
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS; formatting, vet, Go tests
+  and race tests, Ruff, strict mypy, 12 Python tests, all 9 DUR-005 database
+  subtests, the DUR-006 PostgreSQL integration suite, and service smoke checks
+  passed.
+- `docker build -f deploy/local/Dockerfile.runtime -t
+  durable-agent-runtime:dur006-r10-check .`: PASS.
+- `docker compose --env-file .env -f deploy/local/compose.yaml config
+  --quiet`: PASS.
+- `git diff --check`: PASS before the handoff documentation edit.
+
+The first full race run exposed a regression in the pre-existing state test:
+an idempotent retry with the same key but a different client-supplied workflow
+ID was rejected by the new partition check. The repository now resolves the
+existing key first and only enforces the new workflow's partition on the
+creation path; the full suite was rerun successfully. The service checks used
+the configured development PostgreSQL database, which the integration cleanup
+left without DUR-006 test rows. Claude's earlier round-9 verification used a
+separate throwaway database; the evidence is no longer described as if Codex's
+run used one.
+
+Not rerun: clean bootstrap, restart-smoke, hard-kill durability, remote CI,
+database-down behavior against a live stopped service, and production
+retention/failover. No migrations changed.
+
+Interview explanation: idempotency must protect the request's execution
+meaning, not a decorative field. The API computes that identity at the edge,
+while the repository independently validates definitions and durable identity
+inside the transaction so client mistakes cannot become server-looking 500s.
+
 ## 2026-09-14 - DUR-001 repository and reproducible toolchain
 
 - Base commit: `d722cf7` (planning baseline)
