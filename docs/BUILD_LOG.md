@@ -299,6 +299,52 @@ durable receipt, while only the lease owner can consume it and advance the
 workflow; timeout branches are selected from immutable effect metadata, so a
 non-cooperating unknown effect cannot be automatically repeated.
 
+## 2026-09-17 - DUR-005 round-6 fixes
+
+- Base commit: `79ba118`; implementation target: `dce5433`.
+- Task status: READY_FOR_REVIEW; round-6 findings R024-R026 are addressed and
+  handed back to Claude for verification.
+
+Addressed the cancellation and retry-integrity findings. Owner cancellation
+now settles the current attempt and clears the node pointer in the same locked
+transaction. Terminal workflows reject timeout replacement and new late
+results, while identical durable-result retries remain idempotent. Cooperating
+retries inherit the first attempt's effect key and grant scope, or fail without
+partial state when a caller supplies a mismatch. Retry timers must be due and
+are consumed atomically when the owner releases `WAITING_TIMER`.
+
+Migration hygiene was corrected by restoring the already-applied `000002`
+schema and keeping the change in `000003`; the new constraint creation is
+guarded so the migration can be re-run manually. CI script indentation was
+normalized.
+
+Validation:
+
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go format/vet/tests/build,
+  Go race tests, Ruff, strict mypy, 12 Python tests, migration checks, nine
+  PostgreSQL integration subtests, 20-round claim/result races, rollback
+  injection, cancellation fencing, timer enforcement, retry identity, and
+  service smoke checks passed.
+- `000003_dur005_integrity.up.sql` executed twice manually: PASS; the schema
+  ledger retained one version-3 row and no duplicate constraint was created.
+- `docker build -f deploy/local/Dockerfile.runtime -t
+  durable-agent-runtime:dur005-r7-check .`: PASS.
+- Post-run database hygiene query: zero `dur005-*` workflows, definitions, or
+  evidence rows. `git diff --check` passed before the handoff documentation
+  edit.
+
+Remaining gaps: clean bootstrap and restart smoke were not rerun because they
+recreate the user's running containers; no remote CI exists; and DUR-005 does
+not implement the complete scheduler/interpreter, Kafka relay, hard-kill
+durability study, or production exactly-once behavior. Timer scheduling beyond
+the repository's due/consume guard remains a DUR-007 concern.
+
+Interview explanation: cancellation is a state-and-attempt settlement, not
+just a workflow flag. The repository fences every later timeout, heartbeat,
+and result against that terminal decision, while retry identity is derived
+from the first cooperating attempt so a scheduler bug cannot create a second
+logical sink operation.
+
 ## 2026-09-16 - M0 final acceptance
 
 - Base commit: `d722cf7`; final code/contract target: `b993d71`.
