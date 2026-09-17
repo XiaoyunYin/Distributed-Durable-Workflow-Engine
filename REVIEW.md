@@ -52,7 +52,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go race tests, Python tests, PostgreSQL/Kafka smoke, service health, durability settings, and Prometheus scrape checks passed; it explicitly reported that M0 integration tests are not implemented.
   - Partition vectors passed independently in Go and Python; fault controller release acknowledgement, repeated same-seed kills, different-seed fixture fields, early exit, noisy stdout, heavy stderr, timeout, and append-flushed trace tests passed.
 - Skipped checks and reasons: No remote CI is configured (`git remote -v` is empty). Model/paid-provider checks are intentionally not part of M0. Final Linux I/O/performance studies are deferred by the plan. `pwsh` was unavailable, so Windows PowerShell was used. The existing `.pytest_cache` and elevated pytest temp ACLs emitted host warnings; fresh task-local paths were used for passing validation.
-- Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude round-3 verification remains pending; this handoff is ready for independent review, not DONE.
+- Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude round-4 verification remains pending; this handoff is ready for independent review, not DONE.
 
 ## Claude review rounds
 
