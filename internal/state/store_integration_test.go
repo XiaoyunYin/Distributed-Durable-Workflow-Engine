@@ -312,6 +312,154 @@ func TestPostgresStateRepository(t *testing.T) {
 		}
 	})
 
+	t.Run("multi-step repository transactions roll back on outbox failure", func(t *testing.T) {
+		createRollbackWorkflow := func(t *testing.T, definitionID string) Workflow {
+			t.Helper()
+			var workflowID string
+			var mappedPartition uint64
+			for {
+				workflowID = "dur005-rollback-" + NewID()
+				mappedPartition, _ = partition.ID(workflowID)
+				if int16(mappedPartition) == lease.PartitionID {
+					break
+				}
+			}
+			workflowIDs = append(workflowIDs, workflowID)
+			result, err := store.CreateWorkflow(ctx, CreateWorkflowInput{
+				WorkflowID: workflowID, Namespace: "dur005", SubmissionKey: "rollback-" + workflowID,
+				SubmissionPayloadHash: "payload-1", DefinitionID: definitionID, DefinitionVersion: 1,
+				PartitionID: int16(mappedPartition), InitialNodeID: "root", ActorID: "test-client",
+			})
+			if err != nil {
+				t.Fatalf("create rollback workflow: %v", err)
+			}
+			return result.Workflow
+		}
+		installOutboxFailure := func(t *testing.T) {
+			t.Helper()
+			if _, err := store.pool.Exec(ctx, `
+				DROP TRIGGER IF EXISTS dur005_test_fail_outbox_trigger ON engine.outbox;
+				CREATE OR REPLACE FUNCTION engine.dur005_test_fail_outbox() RETURNS trigger
+				LANGUAGE plpgsql AS $fn$
+				BEGIN
+					IF NEW.workflow_id LIKE 'dur005-rollback-%' THEN
+						RAISE EXCEPTION 'dur005 injected outbox failure';
+					END IF;
+					RETURN NEW;
+				END
+				$fn$;
+				CREATE TRIGGER dur005_test_fail_outbox_trigger
+				BEFORE INSERT ON engine.outbox
+				FOR EACH ROW EXECUTE FUNCTION engine.dur005_test_fail_outbox()`); err != nil {
+				t.Fatalf("install outbox failure: %v", err)
+			}
+			t.Cleanup(func() {
+				cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				defer cancel()
+				_, _ = store.pool.Exec(cleanupCtx, `DROP TRIGGER IF EXISTS dur005_test_fail_outbox_trigger ON engine.outbox`)
+				_, _ = store.pool.Exec(cleanupCtx, `DROP FUNCTION IF EXISTS engine.dur005_test_fail_outbox()`)
+			})
+		}
+
+		createWorkflow := createRollbackWorkflow(t, definitionIDs[EffectPure])
+		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: createWorkflow.WorkflowID, ExpectedRevision: 1, NewState: StateWaitingActivity,
+			ActorID: "scheduler-test", Reason: "SCHEDULE_ACTIVITY", NodeID: "root",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		historyBefore, err := store.HistoryCount(ctx, createWorkflow.WorkflowID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		installOutboxFailure(t)
+		_, err = store.CreateAttempt(ctx, AttemptInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: createWorkflow.WorkflowID, NodeID: "root", ExpectedRevision: 2,
+			EffectClass: EffectPure, HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "scheduler-test",
+		})
+		if err == nil {
+			t.Fatal("CreateAttempt unexpectedly committed through injected outbox failure")
+		}
+		rolledBack, err := store.GetWorkflow(ctx, createWorkflow.WorkflowID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var attemptCount int
+		if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM engine.activity_attempts WHERE workflow_id = $1`, createWorkflow.WorkflowID).Scan(&attemptCount); err != nil {
+			t.Fatal(err)
+		}
+		historyAfter, err := store.HistoryCount(ctx, createWorkflow.WorkflowID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rolledBack.Revision != 2 || attemptCount != 0 || historyAfter != historyBefore {
+			t.Fatalf("CreateAttempt partially committed: workflow=%+v attempts=%d history=%d before=%d", rolledBack, attemptCount, historyAfter, historyBefore)
+		}
+
+		// Remove the first trigger before installing it for the timeout case.
+		if _, err := store.pool.Exec(ctx, `DROP TRIGGER IF EXISTS dur005_test_fail_outbox_trigger ON engine.outbox`); err != nil {
+			t.Fatal(err)
+		}
+		timeoutWorkflow := createRollbackWorkflow(t, definitionIDs[EffectPure])
+		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: timeoutWorkflow.WorkflowID, ExpectedRevision: 1, NewState: StateWaitingActivity,
+			ActorID: "scheduler-test", Reason: "SCHEDULE_ACTIVITY", NodeID: "root",
+		}); err != nil {
+			t.Fatal(err)
+		}
+		timeoutAttempt, err := store.CreateAttempt(ctx, AttemptInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: timeoutWorkflow.WorkflowID, NodeID: "root", ExpectedRevision: 2,
+			EffectClass: EffectPure, HeartbeatDeadline: time.Now().Add(-time.Second), ActorID: "scheduler-test",
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		claim, err := store.ClaimAttempt(ctx, ClaimInput{
+			WorkflowID: timeoutWorkflow.WorkflowID, NodeID: "root", WorkerID: "rollback-worker",
+			RequestID: "rollback-timeout-" + timeoutWorkflow.WorkflowID, AttemptLease: 10 * time.Millisecond,
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		time.Sleep(20 * time.Millisecond)
+		historyBefore, err = store.HistoryCount(ctx, timeoutWorkflow.WorkflowID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		installOutboxFailure(t)
+		_, err = store.TimeoutAttempt(ctx, TimeoutInput{
+			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
+			WorkflowID: timeoutWorkflow.WorkflowID, NodeID: "root", AttemptNumber: timeoutAttempt.AttemptNumber,
+			ExpectedRevision: 3, ActorID: "scheduler-test", DispatchLease: time.Minute,
+		})
+		if err == nil {
+			t.Fatal("TimeoutAttempt unexpectedly committed through injected outbox failure")
+		}
+		rolledBack, err = store.GetWorkflow(ctx, timeoutWorkflow.WorkflowID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var currentAttemptCount int
+		if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM engine.activity_attempts WHERE workflow_id = $1`, timeoutWorkflow.WorkflowID).Scan(&currentAttemptCount); err != nil {
+			t.Fatal(err)
+		}
+		historyAfter, err = store.HistoryCount(ctx, timeoutWorkflow.WorkflowID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if rolledBack.Revision != 3 || currentAttemptCount != 1 || historyAfter != historyBefore {
+			t.Fatalf("TimeoutAttempt partially committed: workflow=%+v attempts=%d history=%d before=%d", rolledBack, currentAttemptCount, historyAfter, historyBefore)
+		}
+		current, err := store.GetAttempt(ctx, timeoutWorkflow.WorkflowID, "root", 0, timeoutAttempt.AttemptNumber)
+		if err != nil || current.State != AttemptClaimed || !current.IsCurrent || current.ClaimToken != claim.ClaimToken {
+			t.Fatalf("TimeoutAttempt rollback attempt=%+v err=%v", current, err)
+		}
+	})
+
 	t.Run("authoritative metadata and fresh claim deadlines", func(t *testing.T) {
 		workflowID := "dur005-" + NewID()
 		mapped, err := partition.ID(workflowID)
