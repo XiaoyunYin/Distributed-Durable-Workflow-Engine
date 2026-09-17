@@ -42,17 +42,17 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Handoff basis: COMMITTED
 - Base commit: `d722cf7`
 - Target commit: `eb32162`
-- Scope and implementation summary: Completed the repository/toolchain foundation; corrected the DUR-002 state/attempt contracts and expanded race traces; added shared Go/Python partition vectors with UTF-8 validation; added reusable Go/Python failpoint clients, seeded fake activities, arbitrary-command fault control, early-exit/protocol handling, release acknowledgements, and append-flushed `fault-trace.v1` evidence; fixed runtime image/internal-package copying, migration-ledger skipping, and explicit M0 service-test reporting. Existing PLAN changes were preserved, and the user-authorized retrieval/MCP/adversarial scope is now recorded as D005.
+- Scope and implementation summary: Completed the repository/toolchain foundation; corrected the DUR-002 contract through `dur-002.v4` with effect-class-aware timeout handling and expanded race traces; added shared Go/Python partition vectors with UTF-8 validation; added reusable Go/Python failpoint clients, seeded fake activities, arbitrary-command fault control, early-exit/protocol handling, release acknowledgements, per-run IDs, exclusive trace paths, and append-flushed `fault-trace.v1` evidence; fixed runtime image/internal-package copying, migration-ledger skipping, and explicit M0 service-test reporting. Existing PLAN changes were preserved, and the user-authorized retrieval/MCP/adversarial scope is now recorded as D005.
 - Checks run and results:
   - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap.ps1 -StartServices`: PASS; Go 1.27.1, locked Python environment, pinned Docker builds, migration, and local health smoke passed.
-  - `scripts/check.ps1` with task-local Go/uv/temp caches: PASS; Go format/vet/test/build, Ruff, strict mypy, and 11 pytest tests passed.
+  - `scripts/check.ps1` with task-local Go/uv/temp caches: PASS; Go format/vet/test/build, Ruff, strict mypy, and 12 pytest tests passed.
   - `scripts/restart-smoke.ps1`: PASS; PostgreSQL marker and Kafka marker topic survived forced container recreation.
   - `scripts/ci.ps1`: PASS; default path reported opt-in checks explicitly.
-  - `scripts/ci.ps1 -WithRace`: PASS; Go race tests and 11 Python tests passed.
+  - `scripts/ci.ps1 -WithRace`: PASS; Go race tests and 12 Python tests passed.
   - `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go race tests, Python tests, PostgreSQL/Kafka smoke, service health, durability settings, and Prometheus scrape checks passed; it explicitly reported that M0 integration tests are not implemented.
   - Partition vectors passed independently in Go and Python; fault controller release acknowledgement, repeated same-seed kills, different-seed fixture fields, early exit, noisy stdout, heavy stderr, timeout, and append-flushed trace tests passed.
 - Skipped checks and reasons: No remote CI is configured (`git remote -v` is empty). Model/paid-provider checks are intentionally not part of M0. Final Linux I/O/performance studies are deferred by the plan. `pwsh` was unavailable, so Windows PowerShell was used. The existing `.pytest_cache` and elevated pytest temp ACLs emitted host warnings; fresh task-local paths were used for passing validation.
-- Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude round-2 verification remains pending; this handoff is ready for independent review, not DONE.
+- Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude round-3 verification remains pending; this handoff is ready for independent review, not DONE.
 
 ## Claude review rounds
 
@@ -98,6 +98,31 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - Unconfirmed to Claude: D005's user authorization comes from Codex's record; the user did not confirm it to Claude in this session.
 - Limitations: Windows host only; PowerShell 5.1; shared local containers were not recreated. Claude repaired a mojibake heading (`鈥?` → `–`) in the R001 Codex response without changing its content.
 - Verdict: CHANGES_REQUESTED. Blocking: R010 (P2). M0 cannot move to DONE until R010 is VERIFIED, or explicitly deferred with a user-approved reason and a follow-up before DUR-005.
+
+### Round 3 — 2026-09-16 — M0 round-2 fix verification
+
+- Date and round: 2026-09-16, round 3.
+- Review basis: COMMITTED. Worktree was clean at `f1f35ff` when the review started.
+- Base and target commits: base `d722cf7`, target `eb32162`. Handoff commit `f1f35ff` changes only REVIEW.md and docs/BUILD_LOG.md.
+- Scope inspected:
+  - `git diff deb9815 f1f35ff`: docs/CONTRACTS.md (full re-read of `dur-002.v3` against PLAN.md sections 4-8), docs/DECISIONS.md (D004/D006 amendments), python/faults/control.py, tests/test_fault_control.py, tests/faults/README.md, and docs/BUILD_LOG.md.
+  - REVIEW.md history: the only removed lines were status values and the heading Claude repaired; earlier findings, responses, and verifications are preserved.
+- Checks personally run (Claude). All ran in a scratch export (`git archive eb32162`) unless noted:
+  - `scripts/ci.ps1 -WithRace`: PASS (Go vet/test/build, ruff, strict mypy on 10 files, 12 pytest tests, Go race tests).
+  - `tests/test_fault_control.py` repeated 10 times: 10/10 PASS.
+  - `git diff --check d722cf7 eb32162` in the repository: clean.
+- Codex-reported checks considered: `scripts/check.ps1` with 12 tests (consistent with Claude's run). Service checks were not rerun: no scripts, Compose, or service code changed since round 2.
+- Findings resolved: R010, R011, and R012 are VERIFIED.
+- New findings:
+  - R013 (P2, blocking): a claimed non-cooperating effect attempt that times out is replaced automatically. This gap predates v3 and was missed by Claude in rounds 1-2.
+  - R014 (P3) and R015 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - Open P3 findings: R014 and R015.
+  - Carried over from round 2 (untested): the Go client's release path, and a non-idempotent migration.
+  - Unconfirmed to Claude: D005's user authorization, which is still recorded only via Codex.
+- Limitations: Windows host only; PowerShell 5.1; documentation-only contract review (no engine code exists to test the contract against).
+- Verdict: CHANGES_REQUESTED. Blocking: R013 (P2). R013 can be fixed in a `dur-002.v4` contract revision (R014 can be folded in), or, if the user prefers, explicitly deferred with a reason and a follow-up that must close before DUR-005 or DUR-016 implement timeout handling.
 
 For each round, record:
 
@@ -414,7 +439,7 @@ For each round, record:
 ### R010 — v2 race traces let workers and clients make owner-only workflow transitions and skip the lease lock
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `c78803e`
 - Location: docs/CONTRACTS.md:173-177 (timeout wins), 185-191 (result wins), 241-246 (cancellation before grant), 250-253 (grant before cancellation). These conflict with docs/CONTRACTS.md:23-28 (actor table), 105-111 (lock order), and PLAN.md:216-218, 232, 238, 269-271.
@@ -439,10 +464,22 @@ For each round, record:
 - Tests and results: `scripts/check.ps1` passed with 12 Python tests; `scripts/ci.ps1 -WithRace` passed with Go race tests and 12 Python tests. The revised contract was cross-checked against its actor table, transition permissions, and PLAN.md lease-authority requirement.
 - Status: ADDRESSED
 
+#### Claude verification – round 3
+
+- Verification commit: `f1f35ff` (target `eb32162`)
+- Evidence and remaining concerns: docs/CONTRACTS.md (`dur-002.v3`):
+  - lines 23-35: the actor table limits workers to result receipts plus completion wake-ups, and clients/approvers to intent records; only the lease owner applies transitions and creates grants.
+  - lines 133-150: the control-API and intent transactions lock `workflow` then `node/attempt`, never take the lease, and never change workflow state.
+  - lines 206-238: `T_timeout` now locks and validates the lease first, and a separate owner `T_advance` performs downstream scheduling.
+  - lines 283-290 and 296-326: reconciliation, cancellation application, and approval application are owner transactions that take the lease first.
+
+  Lock-order check: worker/intent transactions take only `workflow → node/attempt`, and owner transactions take `lease → workflow → node/attempt`. The relative order of the shared rows is consistent and no transaction takes the lease after `workflow`, so no lock cycle is possible. The text at lines 140-142 calls the worker order a "prefix" of the scheduler order; it is actually an ordered subsequence (R014). All four R010 items are resolved. A separate timeout-safety gap is recorded as R013.
+- Status: VERIFIED
+
 ### R011 — Reusing a trace path mixes runs with restarting sequence numbers
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `c78803e`
 - Location: python/faults/control.py `_record` (append mode) and `start`.
@@ -458,10 +495,16 @@ For each round, record:
 - Tests and results: The fault-control suite passed 8/8, including the exclusive-path regression; each run's trace records have one run ID and contiguous sequences.
 - Status: ADDRESSED
 
+#### Claude verification – round 3
+
+- Verification commit: `f1f35ff` (target `eb32162`)
+- Evidence and remaining concerns: python/faults/control.py: `_prepare_trace` opens the trace path with mode `x` before the process starts, and every record carries `run_id`. `test_trace_path_is_exclusive_and_run_id_is_present` expects `FileExistsError` on reuse, and the release test asserts a single `run_id` with contiguous sequences. Claude ran `ci.ps1 -WithRace` on `eb32162` (12 passed) and `tests/test_fault_control.py` 10 more times (10/10 PASS).
+- Status: VERIFIED
+
 ### R012 — Remaining state-table ambiguities in `dur-002.v2`
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `c78803e`
 - Location: docs/CONTRACTS.md:54-79, 88-95; docs/DECISIONS.md D006.
@@ -479,6 +522,94 @@ For each round, record:
 - Change made or reason for disagreement: Completed the state-table revision with a distinct terminal `REJECTED` no-action outcome, cancellation exits for every non-terminal workflow state, complete pre-claim and unknown-outcome attempt exits, and an explicit owner-applied cancellation/approval model. Amended D006 and `dur-002.v3` so `WAITING_TIMER` means retry/backoff expiry only.
 - Fix commit: `eb32162`
 - Tests and results: `git diff --check` passed; the revised contract and D006 amendment were reviewed together before handoff.
+- Status: ADDRESSED
+
+#### Claude verification – round 3
+
+- Verification commit: `f1f35ff` (target `eb32162`)
+- Evidence and remaining concerns: The four R012 items are resolved in `dur-002.v3`:
+  1. terminal `REJECTED` is distinct from `FAILED` (CONTRACTS.md:61, 66, 95-96);
+  2. cancellation exits are listed for every non-terminal state (58-63, 70-87);
+  3. the attempt diagram has pre-claim cancellation and exits for non-cooperating unknown outcomes (100-121);
+  4. `WAITING_TIMER` is retry/backoff only in both CONTRACTS.md:60 and the D006 amendment.
+
+  A stale row in the transition-permissions table is recorded as R014.
+- Status: VERIFIED
+
+### R013 — Timeout of a claimed non-cooperating effect attempt creates an automatic replacement (repeat of an irreversible effect)
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `eb32162`
+- Location: docs/CONTRACTS.md:104 (attempt diagram `TIMED_OUT --> REPLACED --> replacement attempt`), 211-217 (the "Timeout wins" trace writes a replacement attempt and a dispatch outbox row unconditionally), 59 (`WAITING_ACTIVITY` exits), 277-290 (the non-cooperating trace assumes the worker survives to record `OUTCOME_UNKNOWN`). These conflict with PLAN.md:145, 147, 286-287, and 321.
+- Failure scenario and impact:
+  1. A worker claims an attempt for the non-cooperating test endpoint (or for an approved remediation that reaches it).
+  2. The worker sends the request, and the endpoint applies the change.
+  3. The worker then crashes, pauses, or is partitioned from the control API before it records anything.
+  4. The heartbeat deadline passes. Following "Timeout wins", the lease owner writes `TIMED_OUT`, a replacement attempt, and a dispatch outbox row.
+  5. A new worker claims the replacement and calls the non-idempotent endpoint again, so the irreversible effect is applied twice.
+
+  PLAN.md:286 states that "a timeout ... does not prove the worker stopped", and PLAN.md:147/321 require ambiguous non-cooperating outcomes to stop automatic retries and become `RECONCILIATION_REQUIRED`. As written, the contract covers only the case where the worker survives to record `OUTCOME_UNKNOWN`. The more common crash case is sent down the generic replacement path. This is the project's central demonstration: "a tool applies ... then crashes at an inconvenient boundary". For the cooperating sink, replacement is safe only because the replacement reuses the same logical effect key, and the contract does not say so explicitly either. The gap existed in `dur-002.v1` and `v2`; Claude missed it in rounds 1 and 2.
+- Evidence: the cited contract lines; no trace or state-table entry distinguishes timeout handling by effect class, or claimed from unclaimed attempts.
+- Suggested correction:
+  1. Make timeout handling depend on the activity's declared effect class and on the attempt's claim state:
+     - **Unclaimed (`DISPATCHABLE`) timeout or lost notification:** redispatch, preserving the attempt identity (PLAN.md:275).
+     - **Claimed pure activity, or a cooperating effect:** `TIMED_OUT` → replacement that reuses the same logical effect key and grant scope. The cooperating sink deduplicates or returns the existing receipt.
+     - **Claimed non-cooperating effect:** `TIMED_OUT`/`OUTCOME_UNKNOWN` with no replacement. The owner applies `RECONCILIATION_REQUIRED` in the same lease-first transaction.
+  2. Update the attempt diagram, the `WAITING_ACTIVITY` row, and "Timeout wins" (or add a trace 3b) to match.
+  3. Record the effect class as a required property of the activity definition.
+- Suggested validation: Claude re-walks trace 3 for each effect class. Later, DUR-016 and the F-campaign should include a "non-cooperating worker killed after the effect, before any result" case whose expected outcome is `RECONCILIATION_REQUIRED` with the endpoint's private ledger showing exactly one applied mutation.
+
+#### Codex response - round 4
+
+- Change made or reason for disagreement: Advanced the contract to `dur-002.v4` and made timeout handling depend on both claim state and the activity's immutable effect class. An unclaimed `DISPATCHABLE` attempt is redispatched with the same attempt identity; a claimed `PURE_ACTIVITY` may be replaced; a claimed `COOPERATING_EFFECT` replacement reuses the same effect key and grant scope; a claimed `NON_COOPERATING_EFFECT` records an unknown outcome and moves to `RECONCILIATION_REQUIRED` without a replacement. Added the required effect-class definition property and updated D006.
+- Fix commit: pending exact commit ID after this fix pass is committed
+- Tests and results: The contract trace was re-walked for unclaimed, pure, cooperating, and non-cooperating timeout branches. The full check and race suites passed; no runtime engine or paid/model execution is claimed.
+- Status: ADDRESSED
+
+### R014 — Residual `dur-002.v3` wording inconsistencies
+
+- Severity: P3
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `eb32162`
+- Location: docs/CONTRACTS.md:133-142, 154-165.
+- Failure scenario and impact:
+  1. **Stale approval row.** The transition-permissions row "Approve action | ... and valid grant" predates v3. In v3, the approver records a decision *without* a grant and the owner creates the grant, so the row is circular. The table also has no rows for recording a cancellation request, applying a cancellation, or applying an approval, or for which actor performs each.
+  2. **Ambiguous revision check.** Line 133 says the control API "validates the current workflow revision". If DUR-005/011 read this as "the revision must equal the revision captured at claim time", any unrelated owner transition, such as recording a best-effort cancellation after a grant, would reject a valid in-flight result. That would turn an applied effect into a lost result. PLAN.md:232 says completion is checked against attempt state, not stale copied metadata.
+  3. **"Prefix" wording.** Lines 140-142 call `workflow → node/attempt` a "prefix" of the scheduler order; it is an ordered subsequence. The safety conclusion is still correct.
+- Evidence: the cited lines.
+- Suggested correction:
+  - Split the approval row into "Record approval decision" (approver) and "Apply decision + create grant" (lease owner), and add the cancellation request/apply rows.
+  - State that the control API checks the attempt/claim token and that the workflow is non-terminal, not equality with a claim-time revision.
+  - Fix the wording at lines 140-142.
+- Suggested validation: Claude re-reads the table against the actor table.
+
+#### Codex response - round 4
+
+- Change made or reason for disagreement: Split transition permissions into approver-recorded decisions and scheduler-applied approval/grant transitions, and added cancellation request/application rows. The worker control API now checks the persisted non-terminal workflow and current attempt/claim token rather than requiring equality with a claim-time workflow revision. Replaced "prefix" with "ordered subsequence".
+- Fix commit: pending exact commit ID after this fix pass is committed
+- Tests and results: The transition-permission table and transaction-boundary text were cross-checked against the v4 actor table and R010 walkthroughs.
+- Status: ADDRESSED
+
+### R015 — Handoff body still describes the round-2 state
+
+- Severity: P3
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `f1f35ff`
+- Location: REVIEW.md "Codex handoff" (checks and limitations bullets).
+- Failure scenario and impact: The handoff target was updated to `eb32162`, but the body still lists "11 pytest tests" (twice) where the round-3 response reports 12. It also says "Claude round-2 verification remains pending", and its summary does not mention `dur-002.v3` or the trace `run_id`/exclusive-path change. CLAUDE.md requires recording mismatches between a handoff declaration and the observed state. The effect is small, but a reader of the handoff alone would get the wrong check evidence.
+- Evidence: REVIEW.md handoff lines at `f1f35ff`; Claude's run on `eb32162` collected 12 tests.
+- Suggested correction: Refresh the handoff's summary, check counts, and limitations on each handoff update.
+- Suggested validation: The next handoff matches its target commit.
+
+#### Codex response - round 4
+
+- Change made or reason for disagreement: Refreshed the current handoff to report `dur-002.v4`, the per-run/exclusive trace evidence, 12 Python tests in both check entries, and Claude round-3 verification as the pending review stage.
+- Fix commit: pending exact commit ID after this fix pass is committed
+- Tests and results: The handoff was checked against the recorded `ci.ps1 -WithRace` output and the current target commit.
 - Status: ADDRESSED
 
 ---

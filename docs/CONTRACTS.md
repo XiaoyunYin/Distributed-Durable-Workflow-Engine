@@ -6,8 +6,8 @@ durable engine already exists.
 
 ## Version and scope
 
-- Contract version: `dur-002.v3` (the authority, lock-order, and state-table
-  correction to `dur-002.v2`).
+- Contract version: `dur-002.v4` (the effect-class-aware timeout correction to
+  `dur-002.v3`).
 - Workflow partition-map version: `sha256-u64-be-v1`.
 - Partition count: 16.
 - Workflow IDs are non-empty UTF-8 strings.
@@ -49,6 +49,14 @@ for its own applied state.
 Repetition of a message does not create an attempt. Replacing an attempt does
 not create a new logical effect key.
 
+Every activity definition declares an immutable effect class for its version:
+`PURE_ACTIVITY`, `COOPERATING_EFFECT`, or `NON_COOPERATING_EFFECT`. A pure
+activity has no irreversible external mutation. A cooperating effect accepts a
+stable logical effect key and exposes an idempotent receipt/lookup contract. A
+non-cooperating effect may mutate an unobservable target without a receipt
+lookup. Timeout handling and retry eligibility use this declared class; a
+worker claim or heartbeat cannot change it.
+
 ## Workflow state machine
 
 The following are workflow states, not process-local states:
@@ -56,7 +64,7 @@ The following are workflow states, not process-local states:
 | State | Terminal? | Meaning and permitted exits |
 | --- | --- | --- |
 | `RUNNABLE` | No | The current lease owner may schedule the next node; exits to `WAITING_ACTIVITY`, `WAITING_APPROVAL`, `WAITING_TIMER`, `CANCELED`, or a terminal state for an empty/complete graph. |
-| `WAITING_ACTIVITY` | No | A current node has dispatchable/claimed work. The worker records only the attempt result; the lease owner later advances to the next node or terminal state. Cancellation may prevent an unclaimed dispatch or become a best-effort request for an in-flight attempt. Retryable failure exits to `WAITING_TIMER`; non-cooperating unknown effect exits to `RECONCILIATION_REQUIRED`. |
+| `WAITING_ACTIVITY` | No | A current node has dispatchable/claimed work. The worker records only the attempt result; the lease owner later advances to the next node or terminal state. An unclaimed attempt may be redispatched without a new attempt identity. A claimed pure activity may be replaced after timeout; a claimed cooperating effect may be replaced only with the same logical effect key and grant scope; a claimed non-cooperating effect becomes outcome-unknown and exits to `RECONCILIATION_REQUIRED` with no replacement. Cancellation may prevent an unclaimed dispatch or become a best-effort request for an in-flight attempt. Retryable failure exits to `WAITING_TIMER`. |
 | `WAITING_TIMER` | No | A durable retry/backoff expiry is pending; due expiry returns to `RUNNABLE`, or the lease owner applies a cancellation to `CANCELED`. This state is not used for a successful result or a general-purpose business timer. |
 | `WAITING_APPROVAL` | No | Exact proposal is durable and no lock or worker slot is held. An approver records a decision; the lease owner applies approval by creating a dispatch grant and moving to `RUNNABLE`, or applies rejection as `REJECTED`/no-action. Cancellation prevents a grant if the owner applies it first. |
 | `PAUSED_UNSUPPORTED_VERSION` | No | Definition/activity/checkpoint version is unsupported; the lease owner applies an audited version-availability decision to return to `RUNNABLE`, cancellation to `CANCELED`, or operator abandonment to `ABANDONED`. |
@@ -101,13 +109,24 @@ separate outcome.
 CREATED --> DISPATCHABLE --> CLAIMED --> SUCCEEDED --owner consumes--> next node/terminal
   |              |             |  |----> FAILED_RETRYABLE --> replacement attempt
   |              |             |  |----> FAILED_FINAL --owner consumes--> FAILED
-  |              |             |  |----> TIMED_OUT --> REPLACED --> replacement attempt
+  |              |             |  |----> TIMED_OUT --pure--> REPLACED --> replacement attempt
+  |              |             |  |                 \-cooperating--> REPLACED(same effect key) --> replacement attempt
+  |              |             |  |                 \-non-cooperating--> OUTCOME_UNKNOWN --> RECONCILIATION_REQUIRED
   |              |             |  +----> OUTCOME_UNKNOWN --> receipt-confirmed result
   |              |             |                         \-> reconciled/abandoned outcome
   |              |             +------ late progress/result is rejected
+  |              +------------------> redispatch same attempt identity
   |              +------------------> CANCELED before claim
   +---------------------------------> CANCELED before dispatch
 ```
+
+An owner timeout of `DISPATCHABLE` work is a lost-notification/dispatch
+condition, not evidence of execution: the owner redispatches the same attempt
+identity. Once an attempt is `CLAIMED`, the declared effect class controls the
+timeout branch. `PURE_ACTIVITY` may use a replacement attempt; a
+`COOPERATING_EFFECT` replacement must reuse the same logical effect key and
+grant scope; a `NON_COOPERATING_EFFECT` timeout records an unknown outcome and
+moves the workflow to `RECONCILIATION_REQUIRED` without a replacement.
 
 Only the current attempt/claim token may add progress. A cooperating sink's
 `OUTCOME_UNKNOWN` attempt is recovered with the same logical effect key or a
@@ -130,14 +149,18 @@ workflow revision before writing transition history and any outbox rows in the
 same engine-PostgreSQL transaction. It never holds that transaction while
 calling a worker, Kafka, a tool, or an approver.
 
-The worker control API validates the current workflow revision, current
-attempt, claim token, and deadline policy in an engine-PostgreSQL transaction
-that locks `workflow` first and then `node/attempt`. It records a heartbeat,
+The worker control API locks `workflow` first and then `node/attempt` in an
+engine-PostgreSQL transaction. It validates that the workflow is non-terminal,
+re-reads the current attempt and claim token, and applies the attempt-specific
+deadline policy. It does not reject a valid in-flight result solely because an
+unrelated owner transition changed the workflow revision after the claim; it
+rejects a replaced/terminal attempt, a mismatched claim token, or a policy
+violation. It records a heartbeat,
 checkpoint, or result receipt and, for a terminal result, a completion
 wake-up/outbox row. It never changes the workflow state, creates a replacement
 attempt, or schedules a node. A result retry after commit returns the durable
 receipt; a late result after replacement is rejected without changing state.
-This `workflow -> node/attempt` order is a prefix of the scheduler's
+This `workflow -> node/attempt` order is an ordered subsequence of the scheduler's
 `lease -> workflow -> node/attempt -> subordinate` order, so result and
 timeout transactions cannot acquire those rows in reverse order.
 
@@ -160,8 +183,12 @@ commits any workflow transition and outbox row together.
 | Claim attempt | Dispatchable current attempt and stable worker request ID | Already claimed by a different request |
 | Heartbeat/checkpoint | Current claim token and compatible schema | Stale token, attempt, or checkpoint sequence |
 | Accept result | Current claim token and one terminal attempt outcome | Timed out/replaced attempt |
+| Timeout/redispatch attempt | Matching lease, owner/epoch/expiry, attempt state, deadline, and declared effect class | Stale lease, active claim not eligible, or missing effect-class policy |
 | Publish event | Existing outbox row and stable event ID | Missing/unsupported event |
-| Approve action | Exact proposal hash, target, scope, and valid grant | Changed, expired, or rejected proposal |
+| Record approval decision | Approver identity, exact proposal hash/target/scope, and validity window | Changed, expired, or unauthorized proposal |
+| Apply approval + create grant | Matching lease, current workflow revision, approved decision, exact proposal, and grant scope | Stale lease/revision, rejected/expired decision, or changed proposal |
+| Record cancellation request | Client key and observed workflow revision | Duplicate/conflicting request or terminal workflow |
+| Apply cancellation | Matching lease, current workflow state, and durable request | Stale lease/revision or an already-issued grant/effect that cannot be undone |
 | Apply effect | Stable effect key, canonical argument hash, valid fence/grant | Key conflict or lower sink fence token |
 
 ## Required ordering traces
@@ -212,14 +239,31 @@ never acquires the lease and never advances the workflow.
 
 1. The lease-owning scheduler begins T_timeout, locks `partition_lease` first,
    validates `(owner, epoch, unexpired)` using database time, then locks
-   `workflow`, `node`, and `attempt` in EDB. It validates the deadline, writes
-   attempt `TIMED_OUT`, a replacement attempt, `transition_history`, and a
-   dispatch `outbox` row, then commits.
-2. The old worker's T_result later locks `workflow`, then `node/attempt`, finds
-   the old claim token/current-attempt check false, rolls back, and returns a
-   stale receipt. Outcome: no result, checkpoint, or downstream node is changed
-   by the late worker; the owner-created replacement is the only dispatchable
-   attempt.
+   `workflow`, `node`, and `attempt` in EDB. It validates the deadline and reads
+   the immutable effect class before choosing one of the following branches.
+2. If the attempt is `DISPATCHABLE` and unclaimed, T_timeout keeps that attempt
+   identity dispatchable, records a lost-notification/redispatch history row,
+   and writes a dispatch outbox row for the same attempt. It does not create a
+   replacement attempt: an unclaimed deadline does not prove that an activity
+   ran.
+3. If the attempt is `CLAIMED` and `PURE_ACTIVITY`, T_timeout writes
+   `TIMED_OUT`, a replacement attempt, history, and a dispatch outbox row, then
+   commits. No irreversible effect is being retried.
+4. If the attempt is `CLAIMED` and `COOPERATING_EFFECT`, T_timeout writes
+   `TIMED_OUT`, a replacement attempt carrying the same logical effect key and
+   grant scope, history, and a dispatch outbox row, then commits. The
+   cooperating sink must deduplicate or return the existing receipt.
+5. If the attempt is `CLAIMED` and `NON_COOPERATING_EFFECT`, T_timeout records
+   `TIMED_OUT` with an `OUTCOME_UNKNOWN` effect disposition, reconciliation
+   history/reference, and `WAITING_ACTIVITY -> RECONCILIATION_REQUIRED` in the
+   same lease-first transaction. It creates no replacement attempt and no
+   automatic effect dispatch.
+6. A late old-worker T_result locks `workflow`, then `node/attempt`, and is
+   accepted only if the current attempt/claim still permits that result. For a
+   pure/cooperating replacement it returns a stale receipt; for a
+   non-cooperating timeout the result is handled as reconciliation evidence.
+   Outcome: no non-cooperating replacement can invoke the irreversible endpoint
+   a second time.
 
 **Result wins:**
 

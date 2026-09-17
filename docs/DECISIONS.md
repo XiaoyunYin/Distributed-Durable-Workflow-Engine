@@ -110,3 +110,13 @@ DUR-005. Worker result receipts and client/approver intent records do not apply
 workflow transitions; the lease-owning scheduler does. All scheduler writes
 use the lease-first lock order, and `WAITING_TIMER` means retry/backoff expiry
 only, not a general-purpose explicit timer.
+
+R013/R014 amendment: the contract advances to `dur-002.v4` before DUR-005.
+Every activity definition must declare `PURE_ACTIVITY`,
+`COOPERATING_EFFECT`, or `NON_COOPERATING_EFFECT`. An unclaimed timeout
+redispatches the same attempt; a claimed pure activity may be replaced; a
+claimed cooperating effect may be replaced only with the same effect key and
+grant scope; a claimed non-cooperating effect becomes outcome-unknown and
+requires `RECONCILIATION_REQUIRED` with no automatic replacement. The
+transition-permission table names approval/cancellation intent records and
+owner-applied transitions separately.
