@@ -96,7 +96,7 @@ func TestM1InterpreterTimersAndRestart(t *testing.T) {
 	ctx, store := openM1Database(t)
 	defer store.Close()
 	definitionID := "dur007-engine-" + state.NewID()
-	workflowID, lease := createM1Workflow(t, ctx, store, definitionID, `{"entry":"root","nodes":[{"id":"root","kind":"activity","next":"wait"},{"id":"wait","kind":"timer","delay_ms":30,"next":"finish"},{"id":"finish","kind":"activity","next":"done"},{"id":"done","kind":"success"}]}`, `{"root":"PURE_ACTIVITY","finish":"PURE_ACTIVITY"}`)
+	workflowID, lease := createM1Workflow(t, ctx, store, definitionID, `{"entry":"root","nodes":[{"id":"root","kind":"activity","next":"wait"},{"id":"wait","kind":"timer","delay_ms":200,"next":"finish"},{"id":"finish","kind":"activity","next":"done"},{"id":"done","kind":"success"}]}`, `{"root":"PURE_ACTIVITY","finish":"PURE_ACTIVITY"}`)
 	defer func() {
 		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE workflow_id = $1`, workflowID)
 		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, definitionID)
@@ -146,7 +146,7 @@ func TestM1InterpreterTimersAndRestart(t *testing.T) {
 	if err != nil || !run.Blocked || run.Workflow.State != state.StateWaitingTimer {
 		t.Fatalf("timer scheduling run = %+v, err=%v", run, err)
 	}
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(250 * time.Millisecond)
 	fourth := New(store, driver)
 	fourth.OwnerID = lease.OwnerID
 	fourth.LeaseTTL = time.Minute
