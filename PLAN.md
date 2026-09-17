@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -480,7 +480,7 @@ implementation/review cycle; retain its parent ID.
 
 #### DUR-001 — Repository and reproducible toolchain
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** None.
 - **Goal:** A clean checkout supports Go/Python development and starts the real local dependencies.
 - **Scope:** Agent/review files; pinned toolchains/images; dependency locks; configuration examples; Compose; migrations entry point; setup guide.
@@ -491,7 +491,7 @@ implementation/review cycle; retain its parent ID.
 
 #### DUR-002 — Contracts and invariant catalogue
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-001.
 - **Goal:** Define exactly what each actor can change before implementing concurrency and freeze the workflow-to-partition mapping contract required by M2.
 - **Scope:** Workflow/attempt state diagrams; identity scopes; transition permissions; lease and worker-fencing boundaries; acknowledgment rules; failure model; versioned stable workflow-to-partition hash algorithm; partition-map version; canonical test vectors.
@@ -501,7 +501,7 @@ implementation/review cycle; retain its parent ID.
 
 #### DUR-003 — Fixtures and test-control interface
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-002.
 - **Goal:** Make failures reproducible before the engine grows.
 - **Scope:** Seeded workflow fixtures, fake activities, named barrier/failpoint API, controller process, trace schema.
@@ -511,7 +511,7 @@ implementation/review cycle; retain its parent ID.
 
 #### DUR-004 — Shared validation and CI
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-001, DUR-003.
 - **Goal:** Local and CI checks use the same entry points.
 - **Scope:** Format/lint/build; Go unit and relevant race checks; Python checks; real database/Kafka integration; small fault smoke suite.
@@ -882,12 +882,14 @@ Do not insert invented numbers or call fixture-only evaluation a live-model resu
 
 ## 16. Immediate next action
 
-M0 foundation tasks DUR-001 through DUR-004 are READY_FOR_REVIEW. Complete the
-committed Claude review before marking them DONE or starting M1. Local
+M0 foundation tasks DUR-001 through DUR-004 are DONE. The committed Claude
+review at base `d722cf7` and target `b993d71` returned
+`NO_BLOCKING_FINDINGS`; R001-R015 are VERIFIED. R016 is a nonblocking P3
+contract wording follow-up for the first DUR-005 contract touch. Local
 foundation work does not require a cloud or model-call budget.
 
-After the committed review accepts M0, start **DUR-005 — Schema and state
-repository**. Keep the M0 contracts and partition-map version frozen while
-building the first durable state repository.
+Start **DUR-005 — Schema and state repository**. Keep the M0 contracts and
+partition-map version frozen while building the first durable state repository;
+fold R016 into the first contract touch before implementing timeout handling.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

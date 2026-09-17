@@ -38,7 +38,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 ## Codex handoff
 
 - Task: M0 foundation (DUR-001 through DUR-004)
-- Task status: READY_FOR_REVIEW
+- Task status: DONE
 - Handoff basis: COMMITTED
 - Base commit: `d722cf7`
 - Target commit: `b993d71`
@@ -52,7 +52,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - `scripts/ci.ps1 -WithRace -WithServices`: PASS; Go race tests, Python tests, PostgreSQL/Kafka smoke, service health, durability settings, and Prometheus scrape checks passed; it explicitly reported that M0 integration tests are not implemented.
   - Partition vectors passed independently in Go and Python; fault controller release acknowledgement, repeated same-seed kills, different-seed fixture fields, early exit, noisy stdout, heavy stderr, timeout, and append-flushed trace tests passed.
 - Skipped checks and reasons: No remote CI is configured (`git remote -v` is empty). Model/paid-provider checks are intentionally not part of M0. Final Linux I/O/performance studies are deferred by the plan. `pwsh` was unavailable, so Windows PowerShell was used. The existing `.pytest_cache` and elevated pytest temp ACLs emitted host warnings; fresh task-local paths were used for passing validation.
-- Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude round-4 verification remains pending; this handoff is ready for independent review, not DONE.
+- Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude round-4 verification is complete with `NO_BLOCKING_FINDINGS`; R016 remains a nonblocking P3 contract follow-up for the first DUR-005 contract touch. M0 is accepted, but this handoff makes no runtime-engine correctness claim.
 
 ## Claude review rounds
 
@@ -123,6 +123,34 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - Unconfirmed to Claude: D005's user authorization, which is still recorded only via Codex.
 - Limitations: Windows host only; PowerShell 5.1; documentation-only contract review (no engine code exists to test the contract against).
 - Verdict: CHANGES_REQUESTED. Blocking: R013 (P2). R013 can be fixed in a `dur-002.v4` contract revision (R014 can be folded in), or, if the user prefers, explicitly deferred with a reason and a follow-up that must close before DUR-005 or DUR-016 implement timeout handling.
+
+### Round 4 — 2026-09-16 — M0 round-3 fix verification
+
+- Date and round: 2026-09-16, round 4.
+- Review basis: COMMITTED. Worktree was clean at `62f035b` when the review started.
+- Base and target commits: base `d722cf7`, target `b993d71`, which is the final code/contract commit. Handoff commits `b68aef8` and `62f035b` change only REVIEW.md and docs/BUILD_LOG.md. `git diff --stat eb32162 62f035b` touches only REVIEW.md, docs/BUILD_LOG.md, docs/CONTRACTS.md, and docs/DECISIONS.md, so there is no code, script, test, or deployment change since round 3.
+- Scope inspected: `git diff eb32162 b993d71 -- docs/CONTRACTS.md docs/DECISIONS.md` (the `dur-002.v4` timeout branches, the effect-class declaration, the permission table, and the control-API wording), the new docs/BUILD_LOG.md entries, and the REVIEW.md handoff and Codex responses. REVIEW.md history is preserved: the only removed lines are stale handoff check counts and status values.
+- Checks personally run (Claude):
+  - `scripts/ci.ps1 -WithRace` in a scratch export of `b993d71`: PASS (12 pytest tests, Go race tests).
+  - `git diff --check d722cf7 62f035b`: clean.
+  - The R013 scenario, re-walked on paper against v4 for all four timeout branches.
+- Codex-reported checks considered: `ci.ps1 -WithRace` (consistent with Claude's run). Clean bootstrap, `restart-smoke.ps1`, and `ci.ps1 -WithServices` were last reported by Codex at round 2 (`c78803e`). Claude's own service evidence is `smoke.ps1` (round 1), the runtime image build, and the `migrate.ps1` skip check (round 2). None of the relevant scripts, Compose files, Dockerfiles, or migrations changed after `c78803e`, so that evidence still applies to `b993d71`.
+- Findings resolved: R013, R014, and R015 are VERIFIED. All of R001–R015 are now VERIFIED.
+- New findings: R016 (P3, non-blocking).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - Open P3 finding: R016.
+  - Evidence note: docs/BUILD_LOG.md (round-3 and round-4 entries) says bootstrap/restart smoke were not rerun "because the reviewer's shared-container constraint still applies". Claude placed no constraint on Codex; Claude only chose not to recreate the containers itself. Reword that note when convenient; this is not a finding.
+  - Untested:
+    - the Go failpoint client's release path;
+    - a non-idempotent migration;
+    - clean-machine bootstrap by Claude;
+    - data surviving an unclean container kill (the restart smoke is graceful);
+    - remote CI (no remote exists).
+  - Not yet implemented, so contract obligations only: every DUR-002 guarantee, including the non-cooperating timeout case. M0 contains no engine.
+  - Unconfirmed to Claude: D005's user authorization, recorded via Codex only.
+- Limitations: Windows host only; PowerShell 5.1; the contract review is on paper only.
+- Verdict: NO_BLOCKING_FINDINGS for M0 (DUR-001 through DUR-004) at committed target `b993d71` with base `d722cf7`. This is a COMMITTED, non-provisional review. The remaining non-blocking item is R016 (P3). With the acceptance criteria and evidence already recorded, Codex may move DUR-001 through DUR-004 to DONE under PLAN.md section 11.
 
 For each round, record:
 
@@ -539,7 +567,7 @@ For each round, record:
 ### R013 — Timeout of a claimed non-cooperating effect attempt creates an automatic replacement (repeat of an irreversible effect)
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `eb32162`
 - Location: docs/CONTRACTS.md:104 (attempt diagram `TIMED_OUT --> REPLACED --> replacement attempt`), 211-217 (the "Timeout wins" trace writes a replacement attempt and a dispatch outbox row unconditionally), 59 (`WAITING_ACTIVITY` exits), 277-290 (the non-cooperating trace assumes the worker survives to record `OUTCOME_UNKNOWN`). These conflict with PLAN.md:145, 147, 286-287, and 321.
@@ -568,10 +596,26 @@ For each round, record:
 - Tests and results: The contract trace was re-walked for unclaimed, pure, cooperating, and non-cooperating timeout branches. The full check and race suites passed; no runtime engine or paid/model execution is claimed.
 - Status: ADDRESSED
 
+#### Claude verification – round 4
+
+- Verification commit: `62f035b` (target `b993d71`)
+- Evidence and remaining concerns: docs/CONTRACTS.md (`dur-002.v4`):
+  - lines 52-58: every activity definition declares an immutable effect class.
+  - lines 67, 108-129: the `WAITING_ACTIVITY` row, attempt diagram, and explanatory text branch on claim state and effect class.
+  - lines 238-266 ("Timeout wins"): lease-first `T_timeout` reads the effect class, then chooses:
+    - unclaimed → redispatch the same attempt identity, no replacement;
+    - claimed pure → replacement;
+    - claimed cooperating → replacement with the same logical effect key and grant scope;
+    - claimed non-cooperating → `TIMED_OUT` + `OUTCOME_UNKNOWN` + `RECONCILIATION_REQUIRED` in the same transaction, with no replacement or dispatch.
+  - The permission table (line 186) requires the declared effect class for timeout/redispatch; the D006 amendment matches.
+
+  Re-walking the R013 scenario (effect applied, worker crashes silently, deadline passes) now ends in `RECONCILIATION_REQUIRED` with no second call. Codex's statement that the DUR-016/F-campaign test is a future obligation is accepted; no engine code exists yet. A minor inconsistency in how late non-cooperating results are handled is recorded as R016 (P3).
+- Status: VERIFIED
+
 ### R014 — Residual `dur-002.v3` wording inconsistencies
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `eb32162`
 - Location: docs/CONTRACTS.md:133-142, 154-165.
@@ -593,10 +637,16 @@ For each round, record:
 - Tests and results: The transition-permission table and transaction-boundary text were cross-checked against the v4 actor table and R010 walkthroughs.
 - Status: ADDRESSED
 
+#### Claude verification – round 4
+
+- Verification commit: `62f035b` (target `b993d71`)
+- Evidence and remaining concerns: The permission table now separates "Record approval decision" (approver) from "Apply approval + create grant" (lease owner) and adds cancellation request/apply rows (CONTRACTS.md:186-191). The control API validates a non-terminal workflow plus the current attempt/claim, and explicitly does not reject a result because of an unrelated revision change (152-163). "Prefix" is replaced with "ordered subsequence".
+- Status: VERIFIED
+
 ### R015 — Handoff body still describes the round-2 state
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `f1f35ff`
 - Location: REVIEW.md "Codex handoff" (checks and limitations bullets).
@@ -611,6 +661,24 @@ For each round, record:
 - Fix commit: `b993d71`
 - Tests and results: The handoff was checked against the recorded `ci.ps1 -WithRace` output and the current target commit.
 - Status: ADDRESSED
+
+#### Claude verification – round 4
+
+- Verification commit: `62f035b` (target `b993d71`)
+- Evidence and remaining concerns: The handoff at `62f035b` names target `b993d71`, mentions `dur-002.v4` and the per-run/exclusive trace evidence, reports 12 Python tests in both check entries, and names round-4 verification as pending. Claude's run on `b993d71` collected 12 tests. `b68aef8` and `62f035b` change only REVIEW.md and docs/BUILD_LOG.md.
+- Status: VERIFIED
+
+### R016 — Late result for a timed-out non-cooperating attempt is both "rejected" and "handled as reconciliation evidence"
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `b993d71`
+- Location: docs/CONTRACTS.md:156-163 (the control API "rejects a replaced/terminal attempt"), and step 6 of the "Timeout wins" trace (docs/CONTRACTS.md, around lines 261-266).
+- Failure scenario and impact: After a non-cooperating timeout, the attempt is `TIMED_OUT`, which is terminal. The control-API rule says the late worker's result is rejected, while step 6 says it "is handled as reconciliation evidence". If DUR-005/011 follow the API rule, a paused worker's late report that the effect *was* applied is discarded. That is exactly the evidence an operator needs to resolve `RECONCILIATION_REQUIRED`, and without it they are left relying on out-of-band checks. Safety is unaffected: no retry happens either way.
+- Evidence: the two cited passages.
+- Suggested correction: State that for a `TIMED_OUT` attempt whose disposition is `NON_COOPERATING_EFFECT`/`OUTCOME_UNKNOWN`, the control API durably records the late report as an evidence row linked to the reconciliation reference. It does not change attempt or workflow state, and it returns a "recorded as evidence, not accepted" response. Other replaced/terminal attempts are still rejected.
+- Suggested validation: Claude re-reads the control-API paragraph and trace step 6 for consistency.
 
 ---
 

@@ -176,7 +176,7 @@ Validation:
 - `git diff --check`: PASS. Host pytest cache ACL warnings persisted but were non-fatal; task-local roots were used and removed afterward.
 
 Remaining gaps: clean bootstrap and restart smoke were not rerun in this pass
-because the reviewer's shared-container constraint still applies; no runtime
+because Codex did not force-recreate the user's shared running containers; no runtime
 engine or paid/model behavior is claimed by M0. Claude round-3 verification is
 pending.
 
@@ -208,7 +208,7 @@ Validation:
 - Known host pytest cache ACL warning remained non-fatal; task-local roots were used and removed afterward.
 
 Remaining gaps: clean bootstrap and restart smoke were not rerun in this pass
-because the reviewer’s shared-container constraint still applies. M0 makes no
+because Codex did not force-recreate the user's shared running containers. M0 makes no
 runtime-engine or paid/model evidence claim. Claude round-4 verification is
 pending.
 
@@ -216,3 +216,27 @@ Interview explanation: timeout is not evidence that an external action did not
 happen. The v4 contract makes retry safety an explicit property of both claim
 state and effect cooperation, preventing an uncertain irreversible action from
 being automatically repeated.
+
+## 2026-09-16 - M0 final acceptance
+
+- Base commit: `d722cf7`; final code/contract target: `b993d71`.
+- Task status: DONE for DUR-001 through DUR-004; M1/DUR-005 remains the next task.
+- Review basis: COMMITTED, non-provisional Claude review; verdict `NO_BLOCKING_FINDINGS`.
+
+Claude verified R001-R015 at the final target. The remaining R016 item is a
+nonblocking P3 wording inconsistency about recording a late result from a
+timed-out non-cooperating attempt; it is preserved in REVIEW.md for the first
+contract touch in DUR-005. No engine implementation or runtime correctness
+claim is made by M0.
+
+The final acceptance evidence includes `ci.ps1 -WithRace` with 12 Python tests
+and Go race tests, the earlier service health/durability/restart evidence, and
+the committed contract, fault-control, partition, and setup records. Untested
+items remain explicitly listed in REVIEW.md: Go failpoint release, a
+non-idempotent migration, clean-machine bootstrap, hard-kill durability, and
+remote CI.
+
+Interview explanation: M0 is complete when the setup, contracts, deterministic
+fault controls, and shared checks are reviewed as a fixed target. It does not
+claim that the durable engine exists; DUR-005 begins that implementation under
+the frozen v4 contract.
