@@ -65,7 +65,7 @@ The following are workflow states, not process-local states:
 | --- | --- | --- |
 | `RUNNABLE` | No | The current lease owner may schedule the next node; exits to `WAITING_ACTIVITY`, `WAITING_APPROVAL`, `WAITING_TIMER`, `CANCELED`, or a terminal state for an empty/complete graph. |
 | `WAITING_ACTIVITY` | No | A current node has dispatchable/claimed work. The worker records only the attempt result; the lease owner later advances to the next node or terminal state. An unclaimed attempt may be redispatched without a new attempt identity. A claimed pure activity may be replaced after timeout; a claimed cooperating effect may be replaced only with the same logical effect key and grant scope; a claimed non-cooperating effect becomes outcome-unknown and exits to `RECONCILIATION_REQUIRED` with no replacement. Cancellation may prevent an unclaimed dispatch or become a best-effort request for an in-flight attempt: a claimed effect attempt is settled as `CANCELED` with `OUTCOME_UNKNOWN`, and a later report is retained as evidence without progress. Retryable failure exits to `WAITING_TIMER`. |
-| `WAITING_TIMER` | No | A durable retry/backoff expiry is pending; due expiry returns to `RUNNABLE`, or the lease owner applies a cancellation to `CANCELED`. This state is not used for a successful result or a general-purpose business timer. |
+| `WAITING_TIMER` | No | A durable timer is pending. `purpose=RETRY_BACKOFF` represents a retryable activity result; `purpose=WORKFLOW_TIMER` represents an explicit graph timer. A due timer returns the node/workflow to `RUNNABLE`, or the lease owner applies cancellation to `CANCELED`. No process-local sleep is authoritative. |
 | `WAITING_APPROVAL` | No | Exact proposal is durable and no lock or worker slot is held. An approver records a decision; the lease owner applies approval by creating a dispatch grant and moving to `RUNNABLE`, or applies rejection as `REJECTED`/no-action. Cancellation prevents a grant if the owner applies it first. |
 | `PAUSED_UNSUPPORTED_VERSION` | No | Definition/activity/checkpoint version is unsupported; the lease owner applies an audited version-availability decision to return to `RUNNABLE`, cancellation to `CANCELED`, or operator abandonment to `ABANDONED`. |
 | `RECONCILIATION_REQUIRED` | No | A non-cooperating effect is outcome-unknown, or a cooperating receipt lookup remains unavailable past the declared recovery policy; audited receipt evidence can return to the next node, an audited cancellation can exit to `CANCELED` without claiming the effect was undone, and audited abandonment exits to `ABANDONED`. |
@@ -86,6 +86,7 @@ RUNNABLE --schedule node-------------------------> WAITING_ACTIVITY
 
 RUNNABLE --schedule approval---------------------> WAITING_APPROVAL
 RUNNABLE --schedule retry/backoff----------------> WAITING_TIMER
+RUNNABLE --schedule graph timer------------------> WAITING_TIMER
 WAITING_APPROVAL --owner applies approval + grant--> RUNNABLE
 WAITING_APPROVAL --owner applies rejection--------> REJECTED/no-action
 WAITING_APPROVAL --owner applies cancellation-----> CANCELED

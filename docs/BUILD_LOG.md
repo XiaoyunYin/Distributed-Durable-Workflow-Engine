@@ -1,5 +1,41 @@
 # Build log
 
+## 2026-09-17 - DUR-007 and DUR-023A implementation
+
+- Base commit: `6bc0e2f` (verified DUR-006 closeout).
+- Implementation status: complete; the review handoff is a separate commit.
+
+Implemented the M1 durable graph core. `internal/engine` parses versioned
+activity, timer, fan-out, join, success, and failure nodes and drives only the
+lease-fenced repository transitions. `internal/state` now reads node/definition
+state, persists explicit graph timers, advances downstream nodes idempotently,
+and cancels every non-terminal branch while preserving unknown claimed effects
+as evidence. Migration 000004 adds the `WORKFLOW_TIMER` purpose without
+editing an applied migration. `internal/invariants` provides an independent
+evidence checker for revision continuity, terminal monotonicity, accepted
+result uniqueness, and submission identity.
+
+Validation completed before handoff:
+
+- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/check.ps1`:
+  PASS with task-local Go/uv/Pytest cache paths; Go formatting/vet/tests/build,
+  Ruff, mypy, and 12 Python tests passed.
+- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace`:
+  PASS; all Go race tests and Python tests passed.
+- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`:
+  PASS; migration 000004 applied and then skipped on rerun, all DUR-005 and
+  DUR-006 service tests, four M1 PostgreSQL scenarios, and live service smoke
+  checks passed.
+- `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur007-check .`:
+  PASS. `git diff --check` and `gofmt -l cmd internal` are clean.
+
+The M1 integration scenarios cover restart between durable retry/graph timers,
+full fan-out/join execution, concurrent branch completion with one join row,
+and cancellation of multiple claimed effects with evidence-only late reports.
+The activity driver remains a test fixture; Kafka relay, production effect
+services, hard-kill durability, clean bootstrap/restart smoke, sustained-load
+testing, and remote CI remain outside this task or untested.
+
 ## 2026-09-17 - DUR-007 start
 
 - Base commit: `6bc0e2f` (DUR-006 closeout).

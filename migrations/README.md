@@ -8,3 +8,5 @@ the DUR-005 durable workflow state repository, including revision/history,
 lease, attempt, outbox/inbox, approval, effect, and reconciliation-evidence
 tables. Migration `000003` adds immutable activity effect-class metadata and
 makes evidence follow workflow retention with a cascading foreign key.
+Migration `000004` adds the `WORKFLOW_TIMER` purpose used by explicit graph
+timer nodes; retry timers continue to use `RETRY_BACKOFF`.

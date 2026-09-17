@@ -149,21 +149,21 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 	}
 
 	// The repository, not the HTTP caller, is the authority for the initial
-	// node's declared effect class. This also turns FK/invalid-node mistakes
-	// into typed client errors before creating any durable rows.
-	var effectClass *string
+	// node declared by the immutable graph. This also turns FK/invalid-node
+	// mistakes into typed client errors before creating any durable rows.
+	var graph []byte
 	err = tx.QueryRow(ctx, `
-		SELECT effect_classes ->> $3
+		SELECT graph
 		FROM engine.workflow_definitions
 		WHERE definition_id = $1 AND version = $2`,
-		input.DefinitionID, input.DefinitionVersion, input.InitialNodeID).Scan(&effectClass)
+		input.DefinitionID, input.DefinitionVersion).Scan(&graph)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return CreateWorkflowResult{}, ErrDefinitionNotFound
 	}
 	if err != nil {
 		return CreateWorkflowResult{}, fmt.Errorf("read workflow definition: %w", err)
 	}
-	if effectClass == nil || *effectClass == "" {
+	if !graphDeclaresNode(graph, input.InitialNodeID) {
 		return CreateWorkflowResult{}, ErrUnknownNode
 	}
 	if int16(computedPartition) != input.PartitionID {
@@ -527,10 +527,10 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 		var dueAt time.Time
 		var consumedAt *time.Time
 		if err := tx.QueryRow(ctx, `
-			SELECT timer_id::text, due_at, consumed_at
+		SELECT timer_id::text, due_at, consumed_at
 			FROM engine.timers
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
-				AND purpose = 'RETRY_BACKOFF' AND consumed_at IS NULL
+				AND consumed_at IS NULL
 			ORDER BY due_at ASC
 			LIMIT 1
 			FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&timerID, &dueAt, &consumedAt); err != nil {
@@ -593,7 +593,8 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 	} else if nodeState != nil {
 		if _, err := tx.Exec(ctx, `
 			UPDATE engine.node_instances
-			SET state = $4, revision = revision + 1, updated_at = clock_timestamp()
+			SET state = $4, deadline_at = CASE WHEN $4 = 'RUNNABLE' THEN NULL ELSE deadline_at END,
+				revision = revision + 1, updated_at = clock_timestamp()
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
 			input.WorkflowID, input.NodeID, input.Iteration, *nodeState); err != nil {
 			return fmt.Errorf("update node transition: %w", err)
@@ -705,9 +706,10 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 		SET state = $4, current_attempt_number = NULL,
 			accepted_result = CASE WHEN $4 = 'SUCCEEDED' THEN $5::jsonb ELSE accepted_result END,
 			retry_count = CASE WHEN $4 = 'WAITING_TIMER' THEN retry_count + 1 ELSE retry_count END,
+			deadline_at = CASE WHEN $4 = 'WAITING_TIMER' THEN $6::timestamptz ELSE NULL END,
 			revision = revision + 1, updated_at = clock_timestamp()
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
-		input.WorkflowID, input.NodeID, input.Iteration, newNodeState, result); err != nil {
+		input.WorkflowID, input.NodeID, input.Iteration, newNodeState, result, input.RetryDueAt); err != nil {
 		return ConsumeResult{}, fmt.Errorf("consume node result: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -747,11 +749,11 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 func legalTransition(from, to WorkflowState) bool {
 	allowed := map[WorkflowState]map[WorkflowState]bool{
 		StateRunnable: {
-			StateWaitingActivity: true, StateWaitingApproval: true, StateWaitingTimer: true,
-			StatePausedUnsupportedVersion: true, StateSucceeded: true, StateCanceled: true,
+			StateRunnable: true, StateWaitingActivity: true, StateWaitingApproval: true, StateWaitingTimer: true,
+			StatePausedUnsupportedVersion: true, StateSucceeded: true, StateFailed: true, StateCanceled: true,
 		},
 		StateWaitingActivity: {
-			StateReconciliationRequired: true, StateCanceled: true,
+			StateWaitingActivity: true, StateReconciliationRequired: true, StateCanceled: true,
 		},
 		StateWaitingTimer: {
 			StateRunnable: true, StateCanceled: true,
@@ -1561,4 +1563,26 @@ func decodeEffectClasses(raw json.RawMessage) (map[string]EffectClass, error) {
 		}
 	}
 	return classes, nil
+}
+
+func graphDeclaresNode(raw []byte, nodeID string) bool {
+	var document struct {
+		Nodes []json.RawMessage `json:"nodes"`
+	}
+	if json.Unmarshal(raw, &document) != nil {
+		return false
+	}
+	for _, rawNode := range document.Nodes {
+		var shorthand string
+		if json.Unmarshal(rawNode, &shorthand) == nil && shorthand == nodeID {
+			return true
+		}
+		var object struct {
+			ID string `json:"id"`
+		}
+		if json.Unmarshal(rawNode, &object) == nil && object.ID == nodeID {
+			return true
+		}
+	}
+	return false
 }

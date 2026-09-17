@@ -27,11 +27,13 @@ try {
     }
 
     if ($WithServices) {
-        Write-Host "Running DUR-005 and DUR-006 PostgreSQL integration tests."
+        Write-Host "Running DUR-005 through DUR-007 PostgreSQL integration tests."
         & go test ./internal/state -run '^TestPostgresStateRepository$' -count=1 -v
         if ($LASTEXITCODE -ne 0) { throw "DUR-005 PostgreSQL integration tests failed." }
         & go test ./internal/api -run '^TestWorkflowAPIResponseLossHistoryAndRetention$' -count=1 -v
         if ($LASTEXITCODE -ne 0) { throw "DUR-006 API integration tests failed." }
+        & go test ./internal/engine -run '^TestM1' -count=1 -v
+        if ($LASTEXITCODE -ne 0) { throw "DUR-007 interpreter integration tests failed." }
         & $PSScriptRoot/smoke.ps1
         if ($LASTEXITCODE -ne 0) { throw "Real dependency smoke checks failed." }
     } else {

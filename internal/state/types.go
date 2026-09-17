@@ -93,6 +93,15 @@ type DefinitionInput struct {
 	EffectClasses    json.RawMessage
 }
 
+type Definition struct {
+	DefinitionID     string
+	Version          int
+	DefinitionHash   string
+	Graph            json.RawMessage
+	ActivityVersions json.RawMessage
+	EffectClasses    map[string]EffectClass
+}
+
 type CreateWorkflowInput struct {
 	WorkflowID            string
 	Namespace             string
@@ -118,6 +127,68 @@ type Workflow struct {
 	Revision          int64
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
+}
+
+type NodeInstance struct {
+	WorkflowID     string
+	NodeID         string
+	Iteration      int
+	State          WorkflowState
+	Dependencies   []string
+	Input          json.RawMessage
+	AcceptedResult json.RawMessage
+	CurrentAttempt *int64
+	RetryCount     int
+	DeadlineAt     *time.Time
+	Revision       int64
+}
+
+type GraphNodeInput struct {
+	NodeID       string
+	Iteration    int
+	Dependencies []string
+	Input        json.RawMessage
+}
+
+type AdvanceGraphInput struct {
+	Lease              LeaseRef
+	WorkflowID         string
+	FromNodeID         string
+	Iteration          int
+	ExpectedRevision   int64
+	Next               []GraphNodeInput
+	FinalWorkflowState WorkflowState
+	FinalNodeState     WorkflowState
+	ActorID            string
+}
+
+type AdvanceGraphResult struct {
+	Workflow Workflow
+	Created  []NodeInstance
+}
+
+type ScheduleTimerInput struct {
+	Lease            LeaseRef
+	WorkflowID       string
+	NodeID           string
+	Iteration        int
+	ExpectedRevision int64
+	DueAt            time.Time
+	Purpose          string
+	ActorID          string
+}
+
+type DueTimerResult struct {
+	TimerID  string
+	Workflow Workflow
+	Node     NodeInstance
+}
+
+type CancelWorkflowInput struct {
+	Lease            LeaseRef
+	WorkflowID       string
+	ExpectedRevision int64
+	ActorID          string
 }
 
 type Lease struct {
