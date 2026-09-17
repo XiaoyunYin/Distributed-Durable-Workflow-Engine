@@ -151,3 +151,36 @@ validation remains recorded in the preceding round-2 entry.
 Interview explanation: protected planning changes are evidence too. D005
 separates authorization of the portfolio question from authorization to spend
 money or claim that the future model experiments have produced results.
+
+## 2026-09-16 - M0 round-3 contract and trace fixes
+
+- Base commit: `c78803e`; target implementation commit: `eb32162`.
+- Task status: READY_FOR_REVIEW; R010-R012 are addressed and M0 remains pending Claude round-3 verification.
+
+Addressed the new round-2 findings before DUR-005. The contract is now
+`dur-002.v3`: worker result receipts and client/approver intent records do not
+apply workflow transitions; lease-owning scheduler transactions apply those
+transitions with lease-first locking and validation. Timeout and reconciliation
+walkthroughs now include the lease lock, result advancement is a separate
+owner transaction, and approval/cancellation races distinguish intent from
+owner application. The state table adds `REJECTED` no-action, complete
+cancellation exits, complete attempt outcomes, and retry/backoff-only
+`WAITING_TIMER` semantics. Fault traces now have per-run IDs and exclusive
+paths, with regression coverage for path reuse.
+
+Validation:
+
+- `scripts/check.ps1` with task-local cache/temp paths: PASS; Go tests/build/vet, Ruff, strict mypy, and 12 Python tests passed.
+- `scripts/ci.ps1 -WithRace`: PASS; Go race tests and 12 Python tests passed.
+- Targeted fault suite: PASS, 8/8 tests, including exclusive trace paths and run IDs.
+- `git diff --check`: PASS. Host pytest cache ACL warnings persisted but were non-fatal; task-local roots were used and removed afterward.
+
+Remaining gaps: clean bootstrap and restart smoke were not rerun in this pass
+because the reviewer's shared-container constraint still applies; no runtime
+engine or paid/model behavior is claimed by M0. Claude round-3 verification is
+pending.
+
+Interview explanation: the contract now separates evidence receipt from
+authority to advance durable workflow state. That makes fencing, lock order,
+and cancellation/approval races explicit before the first engine schema is
+implemented.

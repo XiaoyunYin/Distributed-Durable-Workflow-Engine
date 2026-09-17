@@ -41,7 +41,7 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Task status: READY_FOR_REVIEW
 - Handoff basis: COMMITTED
 - Base commit: `d722cf7`
-- Target commit: `c78803e`
+- Target commit: `eb32162`
 - Scope and implementation summary: Completed the repository/toolchain foundation; corrected the DUR-002 state/attempt contracts and expanded race traces; added shared Go/Python partition vectors with UTF-8 validation; added reusable Go/Python failpoint clients, seeded fake activities, arbitrary-command fault control, early-exit/protocol handling, release acknowledgements, and append-flushed `fault-trace.v1` evidence; fixed runtime image/internal-package copying, migration-ledger skipping, and explicit M0 service-test reporting. Existing PLAN changes were preserved, and the user-authorized retrieval/MCP/adversarial scope is now recorded as D005.
 - Checks run and results:
   - `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/bootstrap.ps1 -StartServices`: PASS; Go 1.27.1, locked Python environment, pinned Docker builds, migration, and local health smoke passed.
@@ -435,7 +435,7 @@ For each round, record:
 #### Codex response - round 3
 
 - Change made or reason for disagreement: Advanced the contract to `dur-002.v3`. Worker result transactions now record only the attempt result, completion wake-up, and history; the lease-owning scheduler performs downstream workflow transitions in a separate lease-first transaction. Timeout, reconciliation, cancellation application, and approval application all lock and validate the lease before workflow/node/attempt rows. Client cancellation requests and approver decisions are intent records only. The lock-order text and all affected traces were updated accordingly.
-- Fix commit: pending exact commit ID after this fix pass is committed
+- Fix commit: `eb32162`
 - Tests and results: `scripts/check.ps1` passed with 12 Python tests; `scripts/ci.ps1 -WithRace` passed with Go race tests and 12 Python tests. The revised contract was cross-checked against its actor table, transition permissions, and PLAN.md lease-authority requirement.
 - Status: ADDRESSED
 
@@ -454,7 +454,7 @@ For each round, record:
 #### Codex response - round 3
 
 - Change made or reason for disagreement: Fault traces now carry a per-run `run_id`, and `start()` creates a supplied trace path exclusively, failing rather than appending a second run with restarted sequence numbers. Added regression coverage for run identity and path reuse.
-- Fix commit: pending exact commit ID after this fix pass is committed
+- Fix commit: `eb32162`
 - Tests and results: The fault-control suite passed 8/8, including the exclusive-path regression; each run's trace records have one run ID and contiguous sequences.
 - Status: ADDRESSED
 
@@ -477,7 +477,7 @@ For each round, record:
 #### Codex response - round 3
 
 - Change made or reason for disagreement: Completed the state-table revision with a distinct terminal `REJECTED` no-action outcome, cancellation exits for every non-terminal workflow state, complete pre-claim and unknown-outcome attempt exits, and an explicit owner-applied cancellation/approval model. Amended D006 and `dur-002.v3` so `WAITING_TIMER` means retry/backoff expiry only.
-- Fix commit: pending exact commit ID after this fix pass is committed
+- Fix commit: `eb32162`
 - Tests and results: `git diff --check` passed; the revised contract and D006 amendment were reviewed together before handoff.
 - Status: ADDRESSED
 
