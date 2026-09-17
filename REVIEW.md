@@ -35,7 +35,7 @@ A completed provisional review may use CHANGES_REQUESTED or NO_BLOCKING_FINDINGS
 
 A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTED` and a concrete target commit. A `PROVISIONAL` handoff must remain `IN_PROGRESS`.
 
-## Codex handoff
+## M0 final handoff
 
 - Task: M0 foundation (DUR-001 through DUR-004)
 - Task status: DONE
@@ -53,6 +53,21 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   - Partition vectors passed independently in Go and Python; fault controller release acknowledgement, repeated same-seed kills, different-seed fixture fields, early exit, noisy stdout, heavy stderr, timeout, and append-flushed trace tests passed.
 - Skipped checks and reasons: No remote CI is configured (`git remote -v` is empty). Model/paid-provider checks are intentionally not part of M0. Final Linux I/O/performance studies are deferred by the plan. `pwsh` was unavailable, so Windows PowerShell was used. The existing `.pytest_cache` and elevated pytest temp ACLs emitted host warnings; fresh task-local paths were used for passing validation.
 - Known limitations: This milestone does not implement durable workflow state, scheduler ownership, Kafka relay semantics, or correctness/performance claims. PostgreSQL/Kafka are a single-node local development topology. Claude round-4 verification is complete with `NO_BLOCKING_FINDINGS`; R016 remains a nonblocking P3 contract follow-up for the first DUR-005 contract touch. M0 is accepted, but this handoff makes no runtime-engine correctness claim.
+
+## Codex handoff
+
+- Task: DUR-005 — Schema and state repository
+- Task status: READY_FOR_REVIEW
+- Handoff basis: COMMITTED
+- Base commit: `79ba118`
+- Target commit: `1698747`
+- Scope and implementation summary: Added the numbered DUR-005 PostgreSQL migration and Go repository for immutable workflow definitions, idempotent workflow creation, partition leases, owner-fenced transitions, node/attempt lifecycle, worker claims/results, effect-class-aware timeout branches, durable outbox/history, and late non-cooperating-result evidence. R016 is addressed in the v4 contract and schema/repository path. CI service mode now applies numbered migrations and runs the PostgreSQL repository integration suite before the existing smoke checks.
+- Checks run and results:
+  - `scripts/ci.ps1 -WithRace -WithServices`: PASS with task-local Go/UV caches and an explicit pytest basetemp; Go formatting/vet/tests/build, Ruff, strict mypy, 12 Python tests, Go race tests, migration skip checks, three DUR-005 PostgreSQL integration subtests, and service smoke checks passed.
+  - `docker build -f deploy/local/Dockerfile.runtime .`: PASS; the image copied `go.sum` and `internal/` and built the runtime.
+  - `git diff --check`: PASS before handoff documentation changes.
+- Skipped checks and reasons: No clean bootstrap or restart-smoke run was performed because those workflows recreate the user’s running containers. No remote CI exists. Full workflow-engine, scheduler, Kafka-relay, hard-kill durability, and paid/model behavior remain outside DUR-005.
+- Known limitations: This task implements the durable state repository and its PostgreSQL transaction boundaries, not the complete engine. The service evidence uses the existing single-node local topology. The integration suite uses generated `dur005-*` identities and does not claim production retention, failover, or exactly-once behavior.
 
 ## Claude review rounds
 
@@ -671,7 +686,7 @@ For each round, record:
 ### R016 — Late result for a timed-out non-cooperating attempt is both "rejected" and "handled as reconciliation evidence"
 
 - Severity: P3
-- Status: OPEN
+- Status: ADDRESSED
 - Deferred: no
 - Reviewed commit: `b993d71`
 - Location: docs/CONTRACTS.md:156-163 (the control API "rejects a replaced/terminal attempt"), and step 6 of the "Timeout wins" trace (docs/CONTRACTS.md, around lines 261-266).
@@ -679,6 +694,14 @@ For each round, record:
 - Evidence: the two cited passages.
 - Suggested correction: State that for a `TIMED_OUT` attempt whose disposition is `NON_COOPERATING_EFFECT`/`OUTCOME_UNKNOWN`, the control API durably records the late report as an evidence row linked to the reconciliation reference. It does not change attempt or workflow state, and it returns a "recorded as evidence, not accepted" response. Other replaced/terminal attempts are still rejected.
 - Suggested validation: Claude re-reads the control-API paragraph and trace step 6 for consistency.
+
+#### Codex response — round 5
+
+- Change made: Applied the R016 wording in `docs/CONTRACTS.md` and implemented the same boundary in `internal/state`. `RecordResultReceipt` records a late result from a timed-out non-cooperating attempt in `engine.attempt_result_evidence`, returns `RECORDED_AS_EVIDENCE`, and leaves the attempt and workflow unchanged. The compatibility `RecordResult` wrapper retains the error-only API; explicit `RecordLateEvidence` validates the source claim token as well.
+- Affected files: `docs/CONTRACTS.md`, `PLAN.md`, `migrations/000002_durable_state.up.sql`, `internal/state/types.go`, `internal/state/store.go`, and `internal/state/store_integration_test.go`.
+- Validation: `scripts/ci.ps1 -WithRace -WithServices` passed with 12 Python tests, Go race tests, migration-ledger checks, the three DUR-005 PostgreSQL integration scenarios, and service smoke checks. The runtime image build also passed with the new `go.sum` and `internal/state` package.
+- Fix commit: `1698747`.
+- Status: ADDRESSED
 
 ---
 

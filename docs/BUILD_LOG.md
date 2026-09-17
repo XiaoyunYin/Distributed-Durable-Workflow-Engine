@@ -217,6 +217,45 @@ happen. The v4 contract makes retry safety an explicit property of both claim
 state and effect cooperation, preventing an uncertain irreversible action from
 being automatically repeated.
 
+## 2026-09-16 - DUR-005 durable state repository
+
+- Base commit: `79ba118`; implementation commit: `1698747`; final handoff
+  commit is the documentation commit containing the fixed review target.
+- Task status: READY_FOR_REVIEW; DUR-005 is handed off for Claude review.
+
+Implemented the first PostgreSQL-backed durable state repository under the
+frozen `dur-002.v4` contract. Migration `000002` adds workflow definitions and
+executions, node instances, attempts with immutable effect classes, leases,
+timers, checkpoints, transition history, outbox/inbox, approval/cancellation
+intents, effect records, and late-result evidence. The Go repository enforces
+lease-first scheduler locking, revision checks, transition legality, claim
+tokens, idempotent submission, rollback on rejected transitions, and the four
+effect-class-aware timeout outcomes. R016 is closed in the first contract
+touch: late reports from timed-out non-cooperating attempts are retained as
+evidence without changing durable workflow state.
+
+Validation:
+
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS with task-local Go/UV caches
+  and an explicit pytest basetemp; Go formatting/vet/tests/build, Ruff,
+  strict mypy, 12 Python tests, Go race tests, migration-ledger skip checks,
+  three PostgreSQL integration subtests, and PostgreSQL/Kafka/telemetry smoke
+  checks passed.
+- `docker build -f deploy/local/Dockerfile.runtime .`: PASS; the runtime image
+  includes `go.sum` and `internal/` and builds successfully.
+- `git diff --check`: PASS before the final handoff-only documentation edit.
+
+Remaining gaps: clean bootstrap and restart smoke were not rerun because they
+recreate the user’s running containers; no remote CI exists. DUR-005 does not
+implement the complete scheduler, interpreter, Kafka relay, effect service, or
+end-to-end workflow engine, and makes no exactly-once, failover, hard-kill, or
+paid/model claim.
+
+Interview explanation: the repository establishes the database boundary before
+the interpreter exists. The key design choice is that owner-authorized writes
+lock and fence the lease before workflow/node/attempt rows, while uncertain
+non-cooperating effects stop in reconciliation and preserve late evidence.
+
 ## 2026-09-16 - M0 final acceptance
 
 - Base commit: `d722cf7`; final code/contract target: `b993d71`.
