@@ -77,17 +77,19 @@ type controlReport struct {
 }
 
 type artifact struct {
-	SchemaVersion string         `json:"schema_version"`
-	Status        string         `json:"status"`
-	GitCommit     string         `json:"git_commit"`
-	GeneratedAt   time.Time      `json:"generated_at_utc"`
-	Protocol      map[string]any `json:"protocol"`
-	Runs          []runReport    `json:"runs"`
-	Controls      controlReport  `json:"negative_controls"`
-	Validation    map[string]any `json:"validation"`
-	Limitations   []string       `json:"limitations"`
-	Failure       string         `json:"failure,omitempty"`
-	Summary       map[string]any `json:"summary,omitempty"`
+	SchemaVersion       string         `json:"schema_version"`
+	Status              string         `json:"status"`
+	GitCommit           string         `json:"git_commit"`
+	GeneratedAt         time.Time      `json:"generated_at_utc"`
+	Protocol            map[string]any `json:"protocol"`
+	Runs                []runReport    `json:"runs"`
+	Controls            controlReport  `json:"negative_controls"`
+	Validation          map[string]any `json:"validation"`
+	Limitations         []string       `json:"limitations"`
+	Failure             string         `json:"failure,omitempty"`
+	Summary             map[string]any `json:"summary,omitempty"`
+	CostEffectsResolved bool           `json:"cost_effects_resolved"`
+	CostInterpretation  string         `json:"cost_interpretation"`
 }
 
 type config struct {
@@ -304,6 +306,12 @@ func run(ctx context.Context, cfg config) (artifact, error) {
 		NoOutboxRecovery:    anyManualRecovery(result.Runs),
 	}
 	result.Summary = summarizeRuns(result.Runs)
+	result.CostEffectsResolved = safeguardCostEffectResolved(result.Runs)
+	if result.CostEffectsResolved {
+		result.CostInterpretation = "At least one profile's throughput median is outside every peer profile's observed range; treat the separated delta as descriptive and bounded by this protocol."
+	} else {
+		result.CostInterpretation = "No safeguard-cost delta is resolved by the measured throughput ranges. Mechanism controls are measured separately; performance differences remain descriptive and unresolved at this sample size."
+	}
 	result.Validation = map[string]any{
 		"expected_runs":                   12,
 		"measured_runs":                   len(result.Runs),
@@ -313,6 +321,7 @@ func run(ctx context.Context, cfg config) (artifact, error) {
 		"safe_lease_preserves_order":      !result.Controls.SafeLease.OldOwnerMutationAfterTakeover,
 		"no_outbox_delay_measured":        result.Controls.NoOutboxRecovery,
 		"all_slo_values_within_limit":     allSLOValuesWithinLimit(result.Runs),
+		"cost_effects_resolved":           result.CostEffectsResolved,
 	}
 	if len(result.Runs) != 12 || !allRunsReconciled(result.Runs) || !result.Controls.HistoryEvidenceLoss ||
 		!result.Controls.UnsafeLease.ExpectedNegativeControlFailure || result.Controls.SafeLease.OldOwnerMutationAfterTakeover ||
@@ -743,6 +752,37 @@ func summarizeRuns(runs []runReport) map[string]any {
 	}
 	result["interpretation"] = "Descriptive medians and min/max spread are reported per profile. Differences whose intervals overlap the within-profile spread are not treated as resolved safeguard-cost effects."
 	return result
+}
+
+func safeguardCostEffectResolved(runs []runReport) bool {
+	profiles := make(map[string][]float64)
+	for _, run := range runs {
+		profiles[run.Profile] = append(profiles[run.Profile], run.Throughput)
+	}
+	type interval struct {
+		median float64
+		min    float64
+		max    float64
+	}
+	intervals := make([]interval, 0, len(profiles))
+	for _, values := range profiles {
+		intervals = append(intervals, interval{
+			median: median(append([]float64(nil), values...)),
+			min:    minFloat(values),
+			max:    maxFloat(values),
+		})
+	}
+	for index, current := range intervals {
+		for peerIndex, peer := range intervals {
+			if index == peerIndex {
+				continue
+			}
+			if current.median < peer.min || current.median > peer.max {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func minFloat(values []float64) float64 {

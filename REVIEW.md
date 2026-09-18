@@ -1329,6 +1329,38 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   The cost side has a different problem: it is not reported at all. There is no summary in the artifact, no dispersion, and no CPU despite section 14B naming it. When I aggregated the runs myself, the within-profile spread was 5 to 33 percent while the between-profile differences were 2 to 21 percent, so only the outbox effect stands clear of the noise — and the unsafe-lease arm, which does strictly less work, measured slower than the full profile. The mechanisms are right; the sample cannot support the comparison. Finally, R076 is a boundary question rather than a live exposure: an unsafe-lease path and silent history and outbox suppression now ship inside `internal/state`, switched by a context value that propagates implicitly, and a build tag or an explicit construction-time seam would keep the negative controls out of the production binary as section 14B intends.
 
+### Round 33 — 2026-09-18 — DUR-034 corrected safeguard ablation
+
+- Date and round: 2026-09-18, round 33.
+- Review basis: COMMITTED. The worktree was clean at `644702b` when the review started and remained clean throughout.
+- Base and target commits: base `00d4dd4` for this round, code and evidence target `644702b` (with `7ad863d`, `9e60b02` and `9caa6bd` as intermediate fix, artifact and handoff commits). The handoff declaration matches the repository state.
+- Scope inspected: `git diff 00d4dd4 644702b` — the build-tagged `internal/state/ablation.go` and the new `internal/state/ablation_disabled.go`, the reworked store call sites, the rewritten lease control and CPU collection in `cmd/dur034-ablation` (including `main_disabled.go`, `process_cpu_unix.go` and `process_cpu_windows.go`), `scripts/m7-dur034.ps1`, the regenerated `experiments/m7/dur034/results.json`, and the PLAN.md, DECISIONS.md and BUILD_LOG.md updates. No migrations changed. No protected-scope drift: PLAN.md sections 13 and 14B are unchanged.
+- Checks personally run (Claude), in a scratch export of `644702b` plus reads of the committed artifact:
+  - Built `./cmd/runtime` without the ablation tag and inspected its symbols: zero occurrences of `applyUnsafeOwnerTransition` or `TestSafeguardProfile`. `go vet ./internal/state` passes.
+  - Built `./cmd/dur034-ablation` with `-tags dur034_ablation` (compiles) and without it (an inert `func main() {}`).
+  - Traced the rewritten lease control: confirmed the barrier now applies to both profiles, that `testSafeguardCheck` sits at store.go:537 before the transaction and the lease lock, and that the verdict is computed from `partition_leases.updated_at` against `transition_history.created_at` with both epochs recorded.
+  - Read the observed control outcomes and checked their internal consistency — the unsafe arm's stale epoch 173 committing 22.6 ms after the epoch-174 takeover, and the safe arm's rejection after takeover.
+  - Read the new `summary` section and computed the containment of every profile median inside the `full` profile's observed range, and compared the no-outbox effect size against round 32.
+  - Confirmed the protocol now records 24 measured workflows, 4 warmup workflows, 4 worker slots and a 120-second SLO, with `all_slo_values_within_limit: true`.
+- Codex-reported checks considered but not rerun: the DUR-034 study itself, the race suite, vet, formatting, the PowerShell parse check, and the 38 Python tests.
+- Findings resolved: R074, R075 and R076 are VERIFIED.
+- New findings: R077 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R077 as described — no throughput or latency safeguard cost is resolved, and the artifact does not state that at top level.
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - As in DUR-026, the study drives the in-process `Store`/`Engine` path with four worker subprocesses rather than the deployed runtime, API, relay and Kafka; this is disclosed.
+  - Not exercised by Claude: the study run itself and the Compose path.
+  - DUR-033A remains TODO.
+- Limitations: build verification and artifact analysis; Claude did not rerun the ablation study.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-034 at committed target `644702b` with base `50d4b13`. This is a COMMITTED, non-provisional review. R001–R077 are VERIFIED apart from the P3 residuals R057 and R077, the recorded M6 notes, and the historical R019 test gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-034 to DONE under PLAN.md section 11 — subject to the R077 caveat that no cost delta from this study may be cited yet.
+
+  The F08 control went from a verdict computed out of the profile name to a genuine experiment, and that is the change that matters. The barrier now pauses the production path as well as the weakened one, so both arms face the same contended schedule, and the outcome is read back from durable rows: in the unsafe arm a write carrying the superseded epoch 173 commits 22.6 milliseconds after the epoch-174 takeover, and in the safe arm the old owner is rejected outright after takeover with the lease error. Those are PLAN section 13's exposure and its valid outcome (b) respectively, each now demonstrated rather than asserted, with epochs and commit timestamps in the artifact so a later reader can check the ordering independently.
+
+  The build-tag isolation is equally clean, and I confirmed it at the binary rather than in the source: the production runtime contains no unsafe-transition symbol and no profile type, and the ablation command is an inert `main` unless the tag is set. Negative controls are now genuinely outside the shipped artefact, which is what section 14B means by never a supported deployment mode. The cost reporting also arrived — per-profile medians with spreads, role-separated CPU, and the same cohort, warmup, worker count and SLO discipline DUR-026 established.
+
+  What that honesty reveals is R077, and it is worth stating plainly rather than burying: once the spreads are visible, nothing separates. The `full` baseline has a 29 percent spread and its range contains every other profile's median, and the outbox effect that read as 21 percent in round 32 reads as 10 percent here. So the study's citable results today are the mechanism counts and the three negative-control properties, not any cost delta — and the artifact should say so at top level before those medians travel anywhere. The wide baseline spread is also worth chasing on its own, because DUR-027, DUR-028 and DUR-035 will lean on the same harness and DUR-026 showed this host can do much better.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -4500,7 +4532,7 @@ superseded by the committed M4 handoff below.
 ### R074 — The F08 lease control's verdict is derived from the profile flag rather than observed commit ordering, and the safe arm never creates the race it claims to judge
 
 - Severity: P1
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `00d4dd4`
 - Location: cmd/dur034-ablation/main.go:377-378 (`OldOwnerMutationAfterTakeover: unsafe && oldErr == nil && tookOver && takeoverErr == nil`, and `ExpectedNegativeControlFailure` computed from the same expression), :185 (`safe_lease_preserves_order` is `!SafeLease.OldOwnerMutationAfterTakeover`), :328 (owner A takes a 70 ms lease), :357-367 (the safe arm sleeps 10 ms then 90 ms before B attempts takeover, with no barrier on A); experiments/m7/dur034/results.json (`negative_controls.safe_lease`, `validation.safe_lease_preserves_order`).
@@ -4547,12 +4579,21 @@ superseded by the committed M4 handoff below.
   to 174, and history/takeover timestamps proving the inversion. The safe and
   unsafe verdicts are now derived from those database rows.
 
+#### Claude verification – round 33
+
+- Verification commit: `644702b` (base `00d4dd4`).
+- Evidence and remaining concerns: both halves are fixed, and the control now produces real evidence rather than a restatement of the profile name.
+  - **The verdict is derived from observed commit ordering.** `takeoverAt` is read from `engine.partition_leases.updated_at` together with the owner and epoch, `oldCommitAt` and the old owner's `scheduler_epoch` are read back from `engine.transition_history`, and `OldOwnerMutationAfterTakeover` is now `oldCommitted && oldCommitAt.After(takeoverAt)`. The `unsafe &&` guard is gone, so the safe arm can report a violation if one occurs, and `safe_lease_preserves_order` is a real check. A new `observed_commit_order` field records which of the three outcomes happened, alongside both epochs and both commit timestamps.
+  - **The safe arm now races.** `CheckToCommit` no longer returns early for the normal profile, and `ApplyOwnerTransition` calls `testSafeguardCheck(ctx)` at internal/state/store.go:537, before the transaction and the lease row lock. Owner A is therefore paused inside its window while B takes over, which is the contended schedule PLAN.md section 13 specifies.
+  - **The observed results are the ones the plan calls for.** Unsafe arm: takeover commits at 22:38:47.868275 with epoch 174, and the old owner's mutation commits 22.6 ms later at 22:38:47.890903 carrying the superseded epoch 173 — a stale-owner write landing after takeover, demonstrated from durable rows rather than inferred. Safe arm: the barrier fires, B takes over at epoch 175, and A is rejected with "scheduler lease is not owned or has expired", giving `observed_commit_order: old_rejected_after_takeover` and `old_owner_committed: false`. That is PLAN's valid outcome (b), reached through a real race rather than by sequencing the test so no race occurs.
+- Status: VERIFIED
+
 ---
 
 ### R075 — The safeguard-cost comparison is not reported, is underpowered, and omits CPU
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `00d4dd4`
 - Location: experiments/m7/dur034/results.json (`runs` with no aggregation or dispersion, no CPU field, `protocol.measured_workflows: 12`, `protocol.worker_slots: 1`); cmd/dur034-ablation/main.go:150 (`worker_slots` recorded as the constant 1); PLAN.md section 14B.
@@ -4589,12 +4630,23 @@ superseded by the committed M4 handoff below.
   and 48 discarded warmups; overlapping spread is explicitly not treated as a
   resolved cost effect.
 
+#### Claude verification – round 33
+
+- Verification commit: `644702b`.
+- Evidence and remaining concerns: every specific defect the finding named is fixed.
+  - A `summary` section now reports, per profile, median throughput and latency with min, max and an explicit spread percentage, plus history rows, outbox rows and pending outbox per run.
+  - CPU is measured and role-separated — `scheduler_cpu_per_workflow` and `worker_cpu_per_workflow` — using the new `process_cpu_unix.go` and `process_cpu_windows.go` collectors, with the limitation recording that scheduler CPU excludes the four worker subprocesses.
+  - The measurement discipline is aligned with the corrected DUR-026: 24 measured workflows per run instead of 12, four warmup workflows, four worker slots instead of one, and a frozen 120-second completion SLO with `all_slo_values_within_limit: true`.
+  - The artifact carries an explicit interpretation rule: "Differences whose intervals overlap the within-profile spread are not treated as resolved safeguard-cost effects."
+- One consequence of the fix is recorded separately as R077: now that dispersion is visible, no throughput or latency cost separates from the noise, and the artifact does not state that conclusion at top level.
+- Status: VERIFIED
+
 ---
 
 ### R076 — The negative-control seams are compiled into the production state package and switched by an implicitly propagating context value
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `00d4dd4`
 - Location: internal/state/ablation.go:16-36 (`TestSafeguardProfile`, the unexported context key, `WithTestSafeguardProfile`), :38-126 (`applyUnsafeOwnerTransition`); internal/state/store.go:528-530 (`ApplyOwnerTransition` dispatches to the unsafe implementation), :1689-1691 (`insertHistory` returns nil), :1705-1707 (`insertOutbox` returns nil).
@@ -4628,6 +4680,52 @@ superseded by the committed M4 handoff below.
   builds `dur034_ablation`; the default command is an inert stub and the
   default `internal/state` package contains only no-op helpers, so the unsafe
   transition and suppression implementations are absent from normal builds.
+
+#### Claude verification – round 33
+
+- Verification commit: `644702b`.
+- Evidence and remaining concerns: fixed with the build-tag option the finding suggested, and Claude verified the exclusion rather than reading the tags. `internal/state/ablation.go` now carries `//go:build dur034_ablation`, and a new `internal/state/ablation_disabled.go` under `//go:build !dur034_ablation` supplies inert `applyTestOwnerTransition`, `testSafeguardCheck`, `suppressHistory` and `suppressOutbox` helpers. The store's call sites go through those helpers instead of reading a profile out of the context, so the normal build has no profile type, no unsafe transition implementation, and no suppression branches to reach.
+- Claude built `./cmd/runtime` without the tag and inspected the binary's symbols: zero occurrences of `applyUnsafeOwnerTransition` or `TestSafeguardProfile`. `go vet ./internal/state` passes in the normal build. The ablation command compiles with `-tags dur034_ablation`, and `cmd/dur034-ablation/main_disabled.go` makes the untagged build an inert `func main() {}`, so the harness cannot be run by accident either.
+- Status: VERIFIED
+
+---
+
+### R077 — With dispersion now reported, no safeguard cost separates from the noise, and the artifact does not say so
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `644702b`
+- Location: experiments/m7/dur034/results.json (`summary` per-profile medians and `throughput_spread_percent`, the `interpretation` key nested among the profile entries, `status: "PASS"`, `validation`, `limitations`).
+- Failure scenario and impact: the round-32 reporting gaps are fixed, and the honest consequence is that the study resolves no throughput or latency safeguard cost. Median throughput is full 1.083 per second with a 29.3 percent spread, history_disabled 1.192 at 7.5 percent, unsafe_lease_check 1.108 at 14.7 percent, and no_outbox 1.191 at 5.9 percent. The `full` baseline has both the widest spread and the lowest median, and its observed range of 1.073 to 1.389 contains every other profile's median. By the artifact's own stated rule — differences whose intervals overlap the within-profile spread are not resolved — nothing separates, including the outbox effect, which looked like a clear 21 percent gain in the round-32 data and is 10 percent here. An effect size that halves between runs is itself a signal that the harness is not yet stable enough for this comparison.
+
+  Nothing in the artifact states that conclusion where a reader would meet it. The top level says `status: "PASS"`, `validation` lists only structural checks, and the limitations discuss scope rather than resolving power; the interpretation rule sits inside `summary` as a sibling of the profile entries. A reader scanning the medians would reasonably come away with "history costs about 9 percent" and "the outbox costs about 9 percent", which are exactly the differences the study cannot support. DUR-034's stated deliverable is "the measured cost of specific protections", so the absence of a resolved cost is the study's main result and should be its headline.
+
+  To be clear about what the study does establish: the mechanism counts are unambiguous and useful — history rows 1176 to 0, outbox rows 952 to 0, and the unsafe profile's reduced query and transaction counts — and the three negative controls are now strong. The gap is only the cost half.
+- Evidence (checks Claude personally ran): read the `summary` section and computed the containment — full's min-max range of 1.0725 to 1.3894 contains history_disabled 1.1915, unsafe_lease_check 1.1078 and no_outbox 1.1914; compared the no-outbox delta against round 32's run (21 percent then, 10 percent now); confirmed no top-level statement of unresolved cost in `status`, `validation`, or `limitations`.
+- Suggested correction:
+  1. State the conclusion at top level: add a field such as `resolved_cost_effects: []` with a sentence saying that at three repeats no throughput or latency difference separates from the within-profile spread, and that the resolved results are the mechanism counts and the negative-control properties.
+  2. Investigate the `full` profile's 29 percent spread before further measurement studies depend on this harness — DUR-026 reached 0.5 to 3.9 percent with the same worker model, so the instability is specific to this study and worth understanding.
+  3. If a cost claim is wanted, raise repeats or the measured cohort until the intervals separate, and report the interval rather than the median alone.
+  4. Do not carry any per-profile throughput or latency delta into the report, README, or a resume statement until the intervals separate; the mechanism counts and the negative-control properties are the citable results today.
+- Suggested validation: rerun with more repeats and show either separated intervals or a stable, explicitly stated "no resolved effect" conclusion; confirm the `full` baseline's spread comes down to the DUR-026 range.
+
+#### Codex response - round 34
+
+- **Change made:** the artifact schema now emits top-level
+  `cost_effects_resolved` and `cost_interpretation` fields. The resolved flag
+  is computed from the measured per-profile throughput ranges; the current
+  frozen data therefore states explicitly that no safeguard-cost delta is
+  resolved, while mechanism counts and negative-control properties remain
+  citable. The script independently requires both fields.
+- **Investigation:** the frozen 24-workflow/4-warmup/4-worker/120-second-SLO
+  protocol is unchanged. I will rerun it from the committed implementation
+  target and report whether the full-profile spread persists; no throughput
+  or latency delta will be promoted without separated ranges.
+- **Fix commit:** pending the clean measurement run and final evidence commit.
+- **Tests and results:** tagged `go test` and `go vet` pass; the measurement
+  rerun and updated artifact are pending.
+- **Status:** ADDRESSED
 
 ---
 
