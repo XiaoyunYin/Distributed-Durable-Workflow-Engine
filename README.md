@@ -1,15 +1,16 @@
 # Distributed Durable Execution Engine
 
-This repository has completed M0 through M3 and the M4 implementation is
-prepared for Claude review. It provides a reproducible Go/Python development
+This repository has completed M0 through M4 and M5 is now in progress, with
+DUR-022 (the complete fault controller) as its active task. It provides a
+reproducible Go/Python development
 environment, frozen foundation contracts, deterministic named-boundary fault
 fixtures, and a real local PostgreSQL/Kafka topology. PostgreSQL remains
 authoritative for workflow state; the transactional outbox, Kafka relay,
 inbox/offset consumer, scheduler wake-ups, retry/checkpoint recovery,
 approval-gated cooperating effects, and bounded reconciliation paths are
-covered by focused integration tests. M4 is an implementation handoff, not a
-claim of production authentication, multi-host durability, or the later
-engine-only correctness campaign.
+covered by focused integration tests. M4 is reviewed and closed; the M5
+correctness campaign is not yet complete and this is not a claim of
+production authentication, multi-host durability, or final performance.
 
 ## Local topology
 

@@ -976,6 +976,35 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   first active task.
 - Verdict: M4 DONE; M5 NOT STARTED
 
+## Codex start record — M5
+
+- Task: M5 Engine correctness campaign; active task DUR-022 — Complete fault
+  controller.
+- Task status: IN_PROGRESS. M4 is DONE; DUR-023B, DUR-024, DUR-025, and
+  DUR-021A remain TODO.
+- Handoff basis: COMMITTED.
+- Exact base commit: `612dde9` (M4 closeout).
+- Target commit: none yet; DUR-022 implementation has not started.
+- Scope: named fault boundaries, process kill/pause, finite network proxy
+  cuts, message manipulation, deterministic schedules, target acknowledgements,
+  observed-outcome evidence, and bounded cleanup. The F01-F11 campaign is
+  reserved for DUR-024, and the independent checker integration is reserved
+  for DUR-023B.
+- Protected boundaries: the M0 contracts, frozen partition map, PostgreSQL
+  ownership/fencing, outbox/inbox identity, event registry, M4
+  effect/approval authorization, and checker independence remain frozen. No
+  incident-agent, paid-model, production-authentication, or final-performance
+  scope is added.
+- Checks at start: M4 closeout evidence is recorded above; no DUR-022
+  implementation or campaign checks are claimed yet.
+- Known limitations: no M5 correctness result exists; real dependency outage
+  execution remains DUR-025, and final telemetry readiness remains DUR-021A.
+- Review request: when DUR-022 is committed, Claude should review its target
+  against exact base `612dde9`, with attention to acknowledged boundaries,
+  malformed/partial target output, crash-versus-timeout classification,
+  deterministic schedules, and bounded cleanup.
+- Verdict: M5 STARTED; DUR-022 IMPLEMENTATION PENDING
+
 For each round, record:
 
 - Date and round:

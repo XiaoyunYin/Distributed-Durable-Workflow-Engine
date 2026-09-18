@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 IN_PROGRESS; DUR-022 IN_PROGRESS; DUR-023B TODO; DUR-024 TODO; DUR-025 TODO; DUR-021A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1047,6 +1047,57 @@ contract revision.
 | DUR-025 — Real dependency outages and Core Engine MVP smoke | PostgreSQL restart/unavailability, Kafka restart/unavailability, rebalance, worker/control partition, whole-process restart with retained volumes. Recovery and unresolved work are reported separately. Finish with a bounded two-scheduler throughput smoke run; label it preliminary rather than a final performance study. |
 | DUR-021A — Engine telemetry prerequisite | Instrument traces/metrics needed by later engine measurements: durable-readiness and accepted-claim timestamps, scheduler/lease activity, DB transaction/query/lock metrics, reconciliation activity, outbox/relay/Kafka timing, backlog age, worker utilization, and bounded resource labels. Validate that one engine execution and one fault episode can be reconstructed from durable evidence plus telemetry. This task must be DONE before any final M7 engine measurement begins. |
 
+#### M5 implementation record
+
+- **Status:** IN_PROGRESS.
+- **Base commit:** `612dde9` (M4 closeout).
+- **Active task:** DUR-022 — Complete fault controller.
+- **Protected boundaries:** Preserve the M0 contracts, frozen partition map,
+  PostgreSQL ownership and fencing rules, outbox/inbox identity, event
+  registry, effect/approval authorization boundary, and the independent
+  checker rule that its verdicts do not call production transition
+  validators. No incident-agent, paid-model, or final performance scope is
+  added by this start record.
+- **Milestone scope:** Complete deterministic fault control and evidence
+  before running the full F01-F11 correctness campaign. DUR-023B, DUR-024,
+  DUR-025, and DUR-021A remain separate M5 tasks.
+- **Validation policy:** Use named controller boundaries with target
+  acknowledgements, record requested versus observed faults, and require
+  bounded cleanup. Run focused controller tests with race detection and
+  preserve campaign evidence before any M5 completion claim.
+
+#### DUR-022 — Complete fault controller
+
+- **Status:** IN_PROGRESS.
+- **Dependencies:** M4 DONE at closeout commit `612dde9`.
+- **Goal:** Make the failure controller reliable enough to drive the named
+  engine campaign boundaries and to report what actually happened.
+- **Scope:** Named process boundaries, process kill/pause, finite network
+  proxy cuts, message manipulation, deterministic schedules, target
+  acknowledgements, and bounded cleanup. Preserve the existing fault
+  controller's safe target lifecycle and do not broaden it into an incident
+  workflow or a production chaos system.
+- **Acceptance:** Each supported fault reports an acknowledged boundary and
+  observed outcome; pre-boundary, post-boundary, timeout, malformed-output,
+  and target-crash cases are distinguishable; repeated seeded schedules are
+  reproducible within the declared model; cleanup is bounded and leaves no
+  orphaned target/process state; and evidence records can be consumed by
+  DUR-023B and the F01-F11 campaign without treating a requested fault as a
+  completed fault.
+- **Validation:** Focused Go/Python controller tests with race detection,
+  deterministic repeated fault campaigns, malformed/partial target output,
+  process-kill and pause/resume cases, bounded cleanup checks, `go vet`,
+  `gofmt`, and `git diff --check`. Full F01-F11 execution belongs to
+  DUR-024 after this task is complete.
+- **Evidence:** Fault-controller implementation and tests, named-boundary
+  fixtures, campaign records, `docs/BUILD_LOG.md`, and the final
+  `REVIEW.md` handoff.
+- **Implementation commit:** none yet.
+- **Review:** pending implementation and Claude review.
+- **Remaining limitations:** Network faults are test-profile controls until
+  the real dependency outage work in DUR-025; no correctness or performance
+  result is claimed at task start.
+
 **Exit:** Core Engine MVP evidence is complete, and DUR-021A provides validated engine telemetry sufficient for later measurements. Unavailable infrastructure tests remain visibly pending; do not substitute a mock exception for an actual restart claim.
 
 ### M6 — Incident workflow, observability, and agent-specific correctness
@@ -1364,8 +1415,10 @@ round-18 review returned `NO_BLOCKING_FINDINGS`; R048 is VERIFIED with a
 nonblocking residual note about manual DB-enabled parallel runs. M4 is DONE
 at reviewed implementation target `fcdbf09` against M3 closeout `8fb2f75`;
 Claude's committed round-20 review returned `NO_BLOCKING_FINDINGS`, and R049
-is VERIFIED. M5 is the next milestone; its first task will be started from
-the M4 closeout commit recorded with this update. Keep the M0 contracts and
-partition-map version frozen while extending the durable state repository.
+is VERIFIED. M5 is IN_PROGRESS from closeout commit `612dde9`, with DUR-022
+as the active task. Its first implementation target does not exist yet; when
+DUR-022 is ready, Claude should review it against `612dde9`. Keep the M0
+contracts and partition-map version frozen while extending the durable state
+repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

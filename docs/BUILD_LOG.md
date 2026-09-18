@@ -1150,3 +1150,26 @@ Interview explanation: M4 closes the authorization boundary by making an
 approval a capability over the exact resource and canonical action, while the
 effect ledger and independent checker preserve evidence across lost responses
 and prevent an approval-shaped token from authorizing a different mutation.
+
+## 2026-09-17 - M5 start
+
+- Base commit: `612dde9` (M4 closeout).
+- Task status: M5 IN_PROGRESS; DUR-022 is IN_PROGRESS. DUR-023B, DUR-024,
+  DUR-025, and DUR-021A remain TODO.
+- Scope: complete the fault controller's named boundaries, process
+  kill/pause, finite network cuts, message manipulation, deterministic
+  schedules, target acknowledgements, observed-outcome recording, and
+  bounded cleanup. The full F01-F11 campaign remains DUR-024.
+- No DUR-022 implementation commit exists yet. No M5 correctness or
+  performance result is claimed.
+
+The M5 start uses the M4 closeout as its exact base. The first implementation
+pass will make requested-versus-observed fault outcomes durable and
+distinguishable, including target crash, timeout, malformed output, and
+post-boundary completion cases, before the correctness campaign consumes the
+controller evidence.
+
+Interview explanation: a fault request is not proof that the fault happened;
+the controller must receive a named-boundary acknowledgement and persist the
+observed result so a later checker can distinguish an unexecuted experiment
+from a successful recovery claim.
