@@ -120,6 +120,44 @@ func TestM3RelayFailureIsDurablyRetryable(t *testing.T) {
 	}
 }
 
+func TestM3QuarantineCreatesRecoverablePoisonObligation(t *testing.T) {
+	ctx, store := openM3TransportDatabase(t)
+	defer store.Close()
+	definitionID, workflowID, lease := createM3TransportWorkflow(t, ctx, store)
+	defer cleanupM3TransportWorkflow(t, ctx, store, definitionID, workflowID, lease)
+
+	eventID := state.NewID()
+	if _, err := store.Pool().Exec(ctx, `
+		INSERT INTO engine.outbox
+			(event_id, workflow_id, aggregate_revision, event_type, topic, payload)
+		VALUES ($1, $2, 2, 'unregistered.event', $3, '{"poison":true}')`,
+		eventID, workflowID, state.EventTopic); err != nil {
+		t.Fatal(err)
+	}
+	relay := NewRelay(store, &MemoryBroker{}, RelayConfig{OwnerID: state.NewID(),
+		PartitionID: &lease.PartitionID, BatchSize: 10})
+	if report, err := relay.RunOnce(ctx); err != nil || report.Quarantined != 1 {
+		t.Fatalf("quarantine relay = %+v, err=%v", report, err)
+	}
+	items, err := store.ListReconciliationItems(ctx, lease.PartitionID, 20)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range items {
+		if item.Kind == state.ReconcilePoisonRecord && item.Reference == "outbox/"+eventID {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("poison obligation missing: %+v", items)
+	}
+	backlog, err := store.GetBacklog(ctx, lease.PartitionID)
+	if err != nil || backlog.OpenItems < 1 || backlog.QuarantinedOutbox < 1 || backlog.OldestAge < 0 {
+		t.Fatalf("quarantine backlog = %+v, err=%v", backlog, err)
+	}
+}
+
 func TestM3RelayPollRecoversWithoutNotification(t *testing.T) {
 	ctx, store := openM3TransportDatabase(t)
 	defer store.Close()
@@ -269,7 +307,7 @@ func openM3TransportDatabase(t *testing.T) (context.Context, *state.Store) {
 		store.Close()
 		t.Fatal(err)
 	}
-	if version < 8 {
+	if version < 9 {
 		store.Close()
 		t.Fatalf("M3 migration is not applied: version=%d", version)
 	}
@@ -298,6 +336,11 @@ func cleanupM3TransportFixtures(t *testing.T, ctx context.Context, store *state.
 		DELETE FROM engine.transport_quarantine
 		WHERE consumer_id LIKE 'm3-relay-consumer-%' OR consumer_id LIKE 'm3-kafka-consumer-%'`); err != nil {
 		t.Fatalf("clean M3 transport poison fixtures: %v", err)
+	}
+	if _, err := store.Pool().Exec(ctx, `
+		DELETE FROM engine.reconciliation_items
+		WHERE reference LIKE 'transport/m3-relay-consumer-%' OR reference LIKE 'transport/m3-kafka-consumer-%'`); err != nil {
+		t.Fatalf("clean M3 transport poison obligations: %v", err)
 	}
 }
 

@@ -128,7 +128,7 @@ func openM3ReconciliationDatabase(t *testing.T) (context.Context, *state.Store) 
 		store.Close()
 		t.Fatal(err)
 	}
-	if version < 8 {
+	if version < 9 {
 		store.Close()
 		t.Fatalf("M3 migration is not applied: version=%d", version)
 	}

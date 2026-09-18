@@ -135,12 +135,17 @@ type RelayConfig struct {
 	RetryBackoff  time.Duration
 	PollInterval  time.Duration
 	AfterBoundary func(string) error
+	// OnError observes durable relay-loop failures while the loop remains
+	// alive for a later retry. Runtime wiring uses this for logs/metrics.
+	OnError func(error)
 }
 
 type Relay struct {
-	Store  *state.Store
-	Broker Broker
-	Config RelayConfig
+	Store     *state.Store
+	Broker    Broker
+	Config    RelayConfig
+	errorMu   sync.Mutex
+	runErrors uint64
 }
 
 type RelayReport struct {
@@ -235,7 +240,7 @@ func (r *Relay) Run(ctx context.Context) error {
 	// outage. RunOnce records row-level failures durably; this loop retries the
 	// scan on the next notification or poll instead of turning an availability
 	// blip into a permanently stopped relay.
-	_, _ = r.RunOnce(ctx)
+	r.runOnceAndReportError(ctx)
 	ticker := time.NewTicker(r.Config.PollInterval)
 	defer ticker.Stop()
 	wakeups := r.listen(ctx)
@@ -244,11 +249,34 @@ func (r *Relay) Run(ctx context.Context) error {
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
-			_, _ = r.RunOnce(ctx)
+			r.runOnceAndReportError(ctx)
 		case <-wakeups:
-			_, _ = r.RunOnce(ctx)
+			r.runOnceAndReportError(ctx)
 		}
 	}
+}
+
+func (r *Relay) runOnceAndReportError(ctx context.Context) {
+	if _, err := r.RunOnce(ctx); err != nil && !errors.Is(err, context.Canceled) {
+		r.errorMu.Lock()
+		r.runErrors++
+		r.errorMu.Unlock()
+		if r.Config.OnError != nil {
+			r.Config.OnError(err)
+		}
+	}
+}
+
+// ErrorCount reports relay-loop pass failures observed since construction.
+// It remains useful when no logging hook is configured and is intentionally
+// separate from row-level publish failures, which are durably recorded.
+func (r *Relay) ErrorCount() uint64 {
+	if r == nil {
+		return 0
+	}
+	r.errorMu.Lock()
+	defer r.errorMu.Unlock()
+	return r.runErrors
 }
 
 func (r *Relay) listen(ctx context.Context) <-chan struct{} {
@@ -276,14 +304,8 @@ func (r *Relay) listen(ctx context.Context) <-chan struct{} {
 }
 
 func supportedEventType(eventType string) bool {
-	switch eventType {
-	case "workflow.created", "attempt.dispatch", "attempt.redispatch", "activity.result",
-		"workflow.result_consumed", "graph.advanced", "timer.scheduled", "workflow.canceled",
-		"reconciliation.required", "reconciliation.resolved":
-		return true
-	default:
-		return false
-	}
+	_, ok := state.EventDefinitionFor(eventType)
+	return ok
 }
 
 type Message struct {

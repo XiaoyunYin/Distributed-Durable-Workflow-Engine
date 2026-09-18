@@ -28,6 +28,15 @@ func TestCheckAcceptsTransportEvidence(t *testing.T) {
 	}
 }
 
+func TestCheckAcceptsGlobalPoisonEvidence(t *testing.T) {
+	trace := Trace{Reconciliation: []ReconciliationRecord{{
+		Kind: string(state.ReconcilePoisonRecord), Reference: "transport/consumer/topic/0/1", Status: "OPEN",
+	}}}
+	if verdict := Check(trace); !verdict.Valid {
+		t.Fatalf("global poison evidence rejected: %v", verdict.Violations)
+	}
+}
+
 func TestCheckRejectsTransportObligations(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -54,13 +63,26 @@ func TestCheckRejectsTransportObligations(t *testing.T) {
 				{ConsumerID: "consumer", EventID: trace.Outbox[1].EventID, Topic: "durable-agent.events.v1", Partition: 0, Offset: 0, Disposition: string(state.InboxAccepted)},
 			}
 		}, message: "offset maps to multiple event IDs"},
+		{name: "quarantine requires reconciliation", mutate: func(trace *Trace) {
+			trace.Outbox[0].PublishState = string(state.OutboxQuarantined)
+		}, message: "lacks a poison reconciliation item"},
+		{name: "unknown quarantined event is durable evidence", mutate: func(trace *Trace) {
+			trace.Outbox[0].EventType = "unregistered.event"
+			trace.Outbox[0].PublishState = string(state.OutboxQuarantined)
+			trace.Reconciliation = []ReconciliationRecord{{WorkflowID: "wf", Kind: string(state.ReconcilePoisonRecord),
+				Reference: "outbox/" + trace.Outbox[0].EventID, Status: "OPEN"}}
+		}, message: ""},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {
 			trace := validTransportTrace()
 			testCase.mutate(&trace)
 			verdict := Check(trace)
-			if verdict.Valid || !strings.Contains(strings.Join(verdict.Violations, "\n"), testCase.message) {
+			if testCase.message == "" {
+				if !verdict.Valid {
+					t.Fatalf("expected valid trace, got violations=%v", verdict.Violations)
+				}
+			} else if verdict.Valid || !strings.Contains(strings.Join(verdict.Violations, "\n"), testCase.message) {
 				t.Fatalf("expected %q, got valid=%v violations=%v", testCase.message, verdict.Valid, verdict.Violations)
 			}
 		})

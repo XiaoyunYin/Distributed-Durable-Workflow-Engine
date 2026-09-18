@@ -77,7 +77,8 @@ func main() {
 				slog.Error("runtime Kafka relay initialization failed", "error", err)
 				os.Exit(1)
 			}
-			relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID()})
+			relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID(),
+				OnError: func(err error) { slog.Warn("runtime Kafka relay pass failed", "error", err) }})
 			go func() {
 				if err := relay.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 					slog.Error("runtime Kafka relay stopped", "error", err)

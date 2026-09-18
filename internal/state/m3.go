@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -16,13 +17,57 @@ import (
 type OutboxPublishState string
 
 const (
-	EventTopic                           = "durable-agent.events.v1"
-	TaskTopic                            = "durable-agent.tasks.v1"
-	OutboxPending     OutboxPublishState = "PENDING"
-	OutboxClaimed     OutboxPublishState = "CLAIMED"
-	OutboxPublished   OutboxPublishState = "PUBLISHED"
-	OutboxQuarantined OutboxPublishState = "QUARANTINED"
+	EventTopic                                = "durable-agent.events.v1"
+	TaskTopic                                 = "durable-agent.tasks.v1"
+	DefaultResultEventType                    = "activity.result"
+	OutboxPending          OutboxPublishState = "PENDING"
+	OutboxClaimed          OutboxPublishState = "CLAIMED"
+	OutboxPublished        OutboxPublishState = "PUBLISHED"
+	OutboxQuarantined      OutboxPublishState = "QUARANTINED"
 )
+
+// EventDefinition is the authoritative transport contract for an event type.
+// Keep this table explicit: event names are not topic namespaces. Producers,
+// relays, consumers and the invariant checker all consult this same registry.
+type EventDefinition struct {
+	Topic string
+}
+
+var eventDefinitions = map[string]EventDefinition{
+	"workflow.created":         {Topic: EventTopic},
+	"attempt.dispatch":         {Topic: TaskTopic},
+	"attempt.redispatch":       {Topic: TaskTopic},
+	"activity.result":          {Topic: EventTopic},
+	"workflow.result_consumed": {Topic: EventTopic},
+	"graph.advanced":           {Topic: EventTopic},
+	"timer.scheduled":          {Topic: EventTopic},
+	"workflow.canceled":        {Topic: EventTopic},
+	"reconciliation.required":  {Topic: EventTopic},
+	"reconciliation.resolved":  {Topic: EventTopic},
+}
+
+func EventDefinitionFor(eventType string) (EventDefinition, bool) {
+	definition, ok := eventDefinitions[eventType]
+	return definition, ok
+}
+
+func EventTopicFor(eventType string) (string, bool) {
+	definition, ok := EventDefinitionFor(eventType)
+	if !ok {
+		return "", false
+	}
+	return definition.Topic, true
+}
+
+// NormalizeResultEventType preserves the optional API field while ensuring a
+// result is emitted as a scheduler event. An empty event type is not an
+// attempt command and must never be inferred from an event-name prefix.
+func NormalizeResultEventType(eventType string) string {
+	if strings.TrimSpace(eventType) == "" {
+		return DefaultResultEventType
+	}
+	return eventType
+}
 
 type OutboxEvent struct {
 	EventID           string
@@ -80,6 +125,24 @@ type InboxResult struct {
 	CommitOffset  bool
 }
 
+// TransportQuarantineRecord is the durable evidence for a broker delivery
+// that cannot be accepted as an executable inbox event. WorkflowID and
+// PartitionID are nullable for records whose event identity is unknown.
+type TransportQuarantineRecord struct {
+	QuarantineID string
+	ConsumerID   string
+	EventID      string
+	WorkflowID   string
+	PartitionID  *int16
+	Topic        string
+	Partition    int
+	Offset       int64
+	EventType    string
+	Payload      []byte
+	Reason       string
+	RecordedAt   time.Time
+}
+
 type ConsumerOffset struct {
 	ConsumerID string
 	Topic      string
@@ -120,6 +183,9 @@ const (
 	ReconcilePoisonRecord   ReconciliationKind = "POISON_RECORD"
 )
 
+// ReconciliationItem is workflow-scoped unless it is a global poison record.
+// Global items use PartitionID = -1 and an empty WorkflowID because an
+// untrusted broker record cannot safely be assigned to work.
 type ReconciliationItem struct {
 	ItemID        string
 	WorkflowID    string
@@ -163,13 +229,17 @@ type BackpressureLimits struct {
 	PendingOutbox  int
 	PendingWakeups int
 	OpenItems      int
+	OldestAge      time.Duration
 }
 
 type Backlog struct {
-	PartitionID    int16
-	PendingOutbox  int
-	PendingWakeups int
-	OpenItems      int
+	PartitionID       int16
+	PendingOutbox     int
+	PendingWakeups    int
+	OpenItems         int
+	QuarantinedOutbox int
+	PoisonRecords     int
+	OldestAge         time.Duration
 }
 
 var (
@@ -182,6 +252,7 @@ var (
 	ErrBacklogLimit           = errors.New("transport backlog exceeds configured limit")
 	ErrReconciliationNotFound = errors.New("reconciliation item not found")
 	ErrConsumerOffsetNotFound = errors.New("consumer offset not found")
+	ErrInvalidEventType       = errors.New("unknown transport event type")
 )
 
 func (s *Store) ClaimOutbox(ctx context.Context, ownerID string, limit int, lease time.Duration) ([]OutboxEvent, error) {
@@ -401,7 +472,16 @@ func (s *Store) QuarantineOutbox(ctx context.Context, eventID, ownerID string, r
 	var currentOwner *string
 	var currentAttempt int
 	var currentState OutboxPublishState
-	if err := tx.QueryRow(ctx, `SELECT claim_owner::text, relay_attempts, publish_state FROM engine.outbox WHERE event_id = $1 FOR UPDATE`, eventID).Scan(&currentOwner, &currentAttempt, &currentState); err != nil {
+	var workflowID string
+	var partitionID int16
+	var eventType string
+	if err := tx.QueryRow(ctx, `
+		SELECT o.claim_owner::text, o.relay_attempts, o.publish_state,
+			o.workflow_id, w.partition_id, o.event_type
+		FROM engine.outbox o
+		JOIN engine.workflow_executions w ON w.workflow_id = o.workflow_id
+		WHERE o.event_id = $1 FOR UPDATE`, eventID).Scan(&currentOwner, &currentAttempt, &currentState,
+		&workflowID, &partitionID, &eventType); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ErrOutboxNotFound
 		}
@@ -423,6 +503,16 @@ func (s *Store) QuarantineOutbox(ctx context.Context, eventID, ownerID string, r
 			last_error = $2
 		WHERE event_id = $1`, eventID, reason); err != nil {
 		return err
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO engine.reconciliation_items
+			(item_id, workflow_id, partition_id, kind, reference, detail)
+		VALUES ($1, $2, $3, 'POISON_RECORD', $4, $5)
+		ON CONFLICT (kind, reference) DO UPDATE
+		SET detail = EXCLUDED.detail, updated_at = clock_timestamp()`,
+		NewID(), workflowID, partitionID, "outbox/"+eventID,
+		json.RawMessage(fmt.Sprintf(`{"event_type":%q,"reason":%q}`, eventType, reason))); err != nil {
+		return fmt.Errorf("record quarantined outbox obligation: %w", err)
 	}
 	return tx.Commit(ctx)
 }
@@ -547,15 +637,45 @@ func (s *Store) QuarantineMessage(ctx context.Context, message InboxMessage, rea
 		return InboxResult{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	var workflowID *string
+	var partitionID *int16
+	if message.EventID != "" {
+		if err := tx.QueryRow(ctx, `
+			SELECT o.workflow_id, w.partition_id
+			FROM engine.outbox o
+			JOIN engine.workflow_executions w ON w.workflow_id = o.workflow_id
+			WHERE o.event_id::text = $1`, message.EventID).Scan(&workflowID, &partitionID); err != nil && !errors.Is(err, pgx.ErrNoRows) {
+			return InboxResult{}, fmt.Errorf("link transport poison record: %w", err)
+		}
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO engine.transport_quarantine
 			(quarantine_id, consumer_id, event_id, topic, kafka_partition,
-			 kafka_offset, event_type, payload, reason)
-		VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), $4, $5, $6, NULLIF($7, ''), $8, $9)
+			 kafka_offset, event_type, payload, reason, workflow_id, partition_id)
+		VALUES ($1, NULLIF($2, ''), NULLIF($3, ''), $4, $5, $6, NULLIF($7, ''), $8, $9, $10, $11)
 		ON CONFLICT (consumer_id, topic, kafka_partition, kafka_offset) DO NOTHING`,
 		NewID(), message.ConsumerID, message.EventID, message.Topic, message.Partition,
-		message.Offset, message.EventType, payload, reason); err != nil {
+		message.Offset, message.EventType, payload, reason, workflowID, partitionID); err != nil {
 		return InboxResult{}, fmt.Errorf("record transport poison record: %w", err)
+	}
+	reference := fmt.Sprintf("transport/%s/%s/%d/%d", message.ConsumerID, message.Topic,
+		message.Partition, message.Offset)
+	var itemWorkflow any
+	var itemPartition any
+	if workflowID != nil && partitionID != nil {
+		itemWorkflow = *workflowID
+		itemPartition = *partitionID
+	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO engine.reconciliation_items
+			(item_id, workflow_id, partition_id, kind, reference, detail)
+		VALUES ($1, $2, $3, 'POISON_RECORD', $4, $5)
+		ON CONFLICT (kind, reference) DO UPDATE
+		SET detail = EXCLUDED.detail, updated_at = clock_timestamp()`,
+		NewID(), itemWorkflow, itemPartition, reference,
+		json.RawMessage(fmt.Sprintf(`{"event_id":%q,"event_type":%q,"reason":%q}`,
+			message.EventID, message.EventType, reason))); err != nil {
+		return InboxResult{}, fmt.Errorf("record transport poison obligation: %w", err)
 	}
 	nextOffset, commitOffset, err := advanceConsumerOffset(ctx, tx, message.ConsumerID, message.Topic,
 		message.Partition, message.Offset)
@@ -566,6 +686,45 @@ func (s *Store) QuarantineMessage(ctx context.Context, message InboxMessage, rea
 		return InboxResult{}, err
 	}
 	return InboxResult{Disposition: InboxQuarantined, NextOffset: nextOffset, CommitOffset: commitOffset}, nil
+}
+
+// ListTransportQuarantine returns raw broker poison evidence, including
+// records whose event ID was too malformed to link to a workflow. The latter
+// are intentionally global obligations and must be handled by an operator
+// scan rather than guessed onto an unrelated partition.
+func (s *Store) ListTransportQuarantine(ctx context.Context, limit int) ([]TransportQuarantineRecord, error) {
+	if limit <= 0 || limit > 10000 {
+		return nil, errors.New("bounded transport quarantine limit is required")
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT quarantine_id::text, consumer_id, COALESCE(event_id, ''),
+			COALESCE(workflow_id, ''), partition_id, topic, kafka_partition, kafka_offset,
+			COALESCE(event_type, ''), payload, reason, recorded_at
+		FROM engine.transport_quarantine
+		ORDER BY recorded_at, quarantine_id LIMIT $1`, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var records []TransportQuarantineRecord
+	for rows.Next() {
+		var record TransportQuarantineRecord
+		if err := rows.Scan(&record.QuarantineID, &record.ConsumerID, &record.EventID,
+			&record.WorkflowID, &record.PartitionID, &record.Topic, &record.Partition,
+			&record.Offset, &record.EventType, &record.Payload, &record.Reason,
+			&record.RecordedAt); err != nil {
+			return nil, err
+		}
+		record.Payload = append([]byte(nil), record.Payload...)
+		record.WorkflowID = strings.TrimSpace(record.WorkflowID)
+		record.EventID = strings.TrimSpace(record.EventID)
+		record.EventType = strings.TrimSpace(record.EventType)
+		record.ConsumerID = strings.TrimSpace(record.ConsumerID)
+		record.Topic = strings.TrimSpace(record.Topic)
+		record.Reason = strings.TrimSpace(record.Reason)
+		records = append(records, record)
+	}
+	return records, rows.Err()
 }
 
 func (s *Store) EnsureConsumerOffset(ctx context.Context, consumerID, topic string, partition int, nextOffset int64) error {
@@ -962,7 +1121,9 @@ func (s *Store) ListDueTimers(ctx context.Context, partitionID int16, limit int)
 }
 
 func (s *Store) UpsertReconciliationItem(ctx context.Context, item ReconciliationItem) (ReconciliationItem, error) {
-	if item.WorkflowID == "" || item.PartitionID < 0 || item.PartitionID >= 16 || item.Kind == "" || item.Reference == "" {
+	global := item.WorkflowID == "" && item.PartitionID == -1
+	if (!global && (item.WorkflowID == "" || item.PartitionID < 0 || item.PartitionID >= 16)) ||
+		item.Kind == "" || item.Reference == "" {
 		return ReconciliationItem{}, errors.New("reconciliation item identity is required")
 	}
 	if len(item.Detail) == 0 {
@@ -975,15 +1136,21 @@ func (s *Store) UpsertReconciliationItem(ctx context.Context, item Reconciliatio
 	var nodeID *string
 	var iteration *int
 	var attemptNumber *int64
+	var workflowArg any = item.WorkflowID
+	var partitionArg any = item.PartitionID
+	if global {
+		workflowArg = nil
+		partitionArg = nil
+	}
 	err := s.pool.QueryRow(ctx, `
 		INSERT INTO engine.reconciliation_items
 			(item_id, workflow_id, partition_id, node_id, iteration, attempt_number, kind, reference, detail)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (kind, reference) DO UPDATE
 		SET detail = EXCLUDED.detail, updated_at = clock_timestamp()
-		RETURNING item_id::text, workflow_id, partition_id, node_id, iteration, attempt_number,
+		RETURNING item_id::text, COALESCE(workflow_id, ''), COALESCE(partition_id, -1), node_id, iteration, attempt_number,
 			kind, reference, status, detail, created_at, updated_at, resolved_at`,
-		NewID(), item.WorkflowID, item.PartitionID, nullableString(item.NodeID), item.Iteration,
+		NewID(), workflowArg, partitionArg, nullableString(item.NodeID), item.Iteration,
 		item.AttemptNumber, item.Kind, item.Reference, item.Detail).Scan(
 		&result.ItemID, &result.WorkflowID, &result.PartitionID, &nodeID, &iteration,
 		&attemptNumber, &result.Kind, &result.Reference, &result.Status, &result.Detail,
@@ -1021,9 +1188,9 @@ func (s *Store) ListReconciliationItems(ctx context.Context, partitionID int16, 
 		return nil, errors.New("partition and bounded reconciliation limit are required")
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT item_id::text, workflow_id, partition_id, node_id, iteration, attempt_number,
+		SELECT item_id::text, COALESCE(workflow_id, ''), COALESCE(partition_id, -1), node_id, iteration, attempt_number,
 			kind, reference, status, detail, created_at, updated_at, resolved_at
-		FROM engine.reconciliation_items WHERE partition_id = $1 AND status = 'OPEN'
+		FROM engine.reconciliation_items WHERE (partition_id = $1 OR partition_id IS NULL) AND status = 'OPEN'
 		ORDER BY created_at LIMIT $2`, partitionID, limit)
 	if err != nil {
 		return nil, err
@@ -1055,10 +1222,43 @@ func (s *Store) ListReconciliationItemsForWorkflow(ctx context.Context, workflow
 		return nil, errors.New("workflow and bounded reconciliation limit are required")
 	}
 	rows, err := s.pool.Query(ctx, `
-		SELECT item_id::text, workflow_id, partition_id, node_id, iteration, attempt_number,
+		SELECT item_id::text, COALESCE(workflow_id, ''), COALESCE(partition_id, -1), node_id, iteration, attempt_number,
 			kind, reference, status, detail, created_at, updated_at, resolved_at
 		FROM engine.reconciliation_items WHERE workflow_id = $1
 		ORDER BY created_at, item_id LIMIT $2`, workflowID, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ReconciliationItem
+	for rows.Next() {
+		var item ReconciliationItem
+		var nodeID *string
+		if err := rows.Scan(&item.ItemID, &item.WorkflowID, &item.PartitionID, &nodeID,
+			&item.Iteration, &item.AttemptNumber, &item.Kind, &item.Reference, &item.Status,
+			&item.Detail, &item.CreatedAt, &item.UpdatedAt, &item.ResolvedAt); err != nil {
+			return nil, err
+		}
+		if nodeID != nil {
+			item.NodeID = *nodeID
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+// ListGlobalReconciliationItems returns poison obligations that cannot be
+// assigned to a workflow because the broker event identity is untrusted.
+func (s *Store) ListGlobalReconciliationItems(ctx context.Context, limit int) ([]ReconciliationItem, error) {
+	if limit <= 0 || limit > 10000 {
+		return nil, errors.New("bounded global reconciliation limit is required")
+	}
+	rows, err := s.pool.Query(ctx, `
+		SELECT item_id::text, COALESCE(workflow_id, ''), COALESCE(partition_id, -1), node_id, iteration, attempt_number,
+			kind, reference, status, detail, created_at, updated_at, resolved_at
+		FROM engine.reconciliation_items
+		WHERE workflow_id IS NULL AND partition_id IS NULL
+		ORDER BY created_at, item_id LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -1086,13 +1286,39 @@ func (s *Store) GetBacklog(ctx context.Context, partitionID int16) (Backlog, err
 	}
 	var backlog Backlog
 	backlog.PartitionID = partitionID
+	var oldestAgeSeconds float64
 	err := s.pool.QueryRow(ctx, `
+		WITH obligation_times AS (
+			SELECT o.created_at
+			FROM engine.outbox o JOIN engine.workflow_executions w ON w.workflow_id = o.workflow_id
+			WHERE w.partition_id = $1 AND o.publish_state IN ('PENDING','CLAIMED')
+			UNION ALL
+			SELECT o.created_at
+			FROM engine.outbox o JOIN engine.workflow_executions w ON w.workflow_id = o.workflow_id
+			WHERE w.partition_id = $1 AND o.publish_state = 'QUARANTINED'
+			UNION ALL
+			SELECT created_at FROM engine.scheduler_wakeups
+			WHERE partition_id = $1 AND state IN ('PENDING','CLAIMED')
+			UNION ALL
+			SELECT created_at FROM engine.reconciliation_items
+			WHERE (partition_id = $1 OR partition_id IS NULL) AND status = 'OPEN'
+			UNION ALL
+			SELECT q.recorded_at
+			FROM engine.transport_quarantine q
+			WHERE q.partition_id = $1 OR q.partition_id IS NULL
+		)
 		SELECT
 			(SELECT count(*) FROM engine.outbox o JOIN engine.workflow_executions w ON w.workflow_id = o.workflow_id
 			 WHERE w.partition_id = $1 AND o.publish_state IN ('PENDING','CLAIMED')),
 			(SELECT count(*) FROM engine.scheduler_wakeups WHERE partition_id = $1 AND state IN ('PENDING','CLAIMED')),
-			(SELECT count(*) FROM engine.reconciliation_items WHERE partition_id = $1 AND status = 'OPEN')`, partitionID).Scan(
-		&backlog.PendingOutbox, &backlog.PendingWakeups, &backlog.OpenItems)
+			(SELECT count(*) FROM engine.reconciliation_items WHERE (partition_id = $1 OR partition_id IS NULL) AND status = 'OPEN'),
+			(SELECT count(*) FROM engine.outbox o JOIN engine.workflow_executions w ON w.workflow_id = o.workflow_id
+			 WHERE w.partition_id = $1 AND o.publish_state = 'QUARANTINED'),
+			(SELECT count(*) FROM engine.transport_quarantine WHERE partition_id = $1 OR partition_id IS NULL),
+			COALESCE((SELECT EXTRACT(EPOCH FROM (clock_timestamp() - min(created_at))) FROM obligation_times), 0)`, partitionID).Scan(
+		&backlog.PendingOutbox, &backlog.PendingWakeups, &backlog.OpenItems,
+		&backlog.QuarantinedOutbox, &backlog.PoisonRecords, &oldestAgeSeconds)
+	backlog.OldestAge = time.Duration(oldestAgeSeconds * float64(time.Second))
 	return backlog, err
 }
 
@@ -1103,9 +1329,11 @@ func (s *Store) CheckBackpressure(ctx context.Context, partitionID int16, limits
 	}
 	if (limits.PendingOutbox > 0 && backlog.PendingOutbox > limits.PendingOutbox) ||
 		(limits.PendingWakeups > 0 && backlog.PendingWakeups > limits.PendingWakeups) ||
-		(limits.OpenItems > 0 && backlog.OpenItems > limits.OpenItems) {
-		return backlog, fmt.Errorf("%w: partition=%d outbox=%d wakeups=%d reconciliation=%d", ErrBacklogLimit,
-			partitionID, backlog.PendingOutbox, backlog.PendingWakeups, backlog.OpenItems)
+		(limits.OpenItems > 0 && backlog.OpenItems > limits.OpenItems) ||
+		(limits.OldestAge > 0 && backlog.OldestAge > limits.OldestAge) {
+		return backlog, fmt.Errorf("%w: partition=%d outbox=%d wakeups=%d reconciliation=%d quarantined=%d poison=%d oldest_age=%s", ErrBacklogLimit,
+			partitionID, backlog.PendingOutbox, backlog.PendingWakeups, backlog.OpenItems, backlog.QuarantinedOutbox,
+			backlog.PoisonRecords, backlog.OldestAge)
 	}
 	return backlog, nil
 }

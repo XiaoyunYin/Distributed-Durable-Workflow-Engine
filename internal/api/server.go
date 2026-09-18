@@ -608,6 +608,8 @@ func writeRepositoryError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusNotFound, "NODE_NOT_FOUND", "workflow node was not found", nil)
 	case errors.Is(err, state.ErrInvalidAttemptState):
 		writeError(w, http.StatusUnprocessableEntity, "INVALID_ATTEMPT_STATE", "attempt state must be a terminal worker outcome", nil)
+	case errors.Is(err, state.ErrInvalidEventType):
+		writeError(w, http.StatusUnprocessableEntity, "INVALID_EVENT_TYPE", "event_type is not a supported transport event", nil)
 	case errors.Is(err, state.ErrRevisionConflict):
 		writeError(w, http.StatusConflict, "STALE_REVISION", "the requested workflow state is stale", nil)
 	case errors.Is(err, state.ErrStaleClaim):

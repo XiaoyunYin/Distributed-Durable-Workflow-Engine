@@ -159,6 +159,18 @@ func TestM3ConsumerOffsetsAreContiguous(t *testing.T) {
 	if poisonRows != 1 {
 		t.Fatalf("poison rows = %d, want one", poisonRows)
 	}
+	backlog, err := store.GetBacklog(ctx, lease.PartitionID)
+	if err != nil || backlog.PoisonRecords < 1 || backlog.OldestAge < 0 {
+		t.Fatalf("poison backlog = %+v, err=%v", backlog, err)
+	}
+	poisonRecords, err := store.ListTransportQuarantine(ctx, 10)
+	if err != nil || len(poisonRecords) != 1 || poisonRecords[0].EventID != "unknown-event" {
+		t.Fatalf("poison evidence = %+v, err=%v", poisonRecords, err)
+	}
+	globalItems, err := store.ListGlobalReconciliationItems(ctx, 10)
+	if err != nil || len(globalItems) != 1 || globalItems[0].Kind != ReconcilePoisonRecord {
+		t.Fatalf("global poison obligations = %+v, err=%v", globalItems, err)
+	}
 }
 
 func TestM3ReconciliationAndBackpressure(t *testing.T) {
@@ -213,7 +225,7 @@ func openM3Database(t *testing.T) (context.Context, *Store) {
 	if err := store.Pool().QueryRow(ctx, `SELECT max(version) FROM engine.schema_migrations`).Scan(&version); err != nil {
 		t.Fatal(err)
 	}
-	if version < 8 {
+	if version < 9 {
 		t.Fatalf("M3 migration is not applied: version=%d", version)
 	}
 	cleanupM3Fixtures(t, ctx, store)
@@ -231,8 +243,12 @@ func cleanupM3Fixtures(t *testing.T, ctx context.Context, store *Store) {
 		t.Fatalf("clean M3 workflow fixtures: %v", err)
 	}
 	if _, err := store.Pool().Exec(ctx, `
-		DELETE FROM engine.workflow_definitions
-		WHERE definition_id LIKE 'dur011-state-%' OR definition_id LIKE 'dur013-%' OR definition_id LIKE 'dur014-%'`); err != nil {
+		DELETE FROM engine.workflow_definitions d
+		WHERE (d.definition_id LIKE 'dur011-state-%' OR d.definition_id LIKE 'dur013-%' OR d.definition_id LIKE 'dur014-%')
+		  AND NOT EXISTS (
+			SELECT 1 FROM engine.workflow_executions w
+			WHERE w.definition_id = d.definition_id AND w.definition_version = d.version
+		  )`); err != nil {
 		t.Fatalf("clean M3 definition fixtures: %v", err)
 	}
 	if _, err := store.Pool().Exec(ctx, `
@@ -244,6 +260,11 @@ func cleanupM3Fixtures(t *testing.T, ctx context.Context, store *Store) {
 		DELETE FROM engine.transport_quarantine
 		WHERE consumer_id LIKE 'm3-%' OR consumer_id LIKE 'offset-consumer-%'`); err != nil {
 		t.Fatalf("clean M3 poison fixtures: %v", err)
+	}
+	if _, err := store.Pool().Exec(ctx, `
+		DELETE FROM engine.reconciliation_items
+		WHERE reference LIKE 'transport/m3-%' OR reference LIKE 'transport/offset-consumer-%'`); err != nil {
+		t.Fatalf("clean M3 global poison obligations: %v", err)
 	}
 }
 
@@ -293,6 +314,11 @@ func createM3Workflow(t *testing.T, ctx context.Context, store *Store, definitio
 
 func cleanupM3Workflow(t *testing.T, ctx context.Context, store *Store, workflowID, definitionID string, lease Lease) {
 	t.Helper()
+	if _, err := store.Pool().Exec(ctx, `
+		DELETE FROM engine.reconciliation_items
+		WHERE reference LIKE 'transport/m3-%' OR reference LIKE 'transport/offset-consumer-%'`); err != nil {
+		t.Errorf("cleanup poison obligations: %v", err)
+	}
 	if _, err := store.Pool().Exec(ctx, `DELETE FROM engine.consumer_offsets WHERE consumer_id LIKE 'm3-%' OR consumer_id LIKE 'offset-consumer-%'`); err != nil {
 		t.Errorf("cleanup offsets: %v", err)
 	}

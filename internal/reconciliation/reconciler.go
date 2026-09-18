@@ -27,6 +27,7 @@ type Report struct {
 	ExpiredAttempts int
 	PendingOutbox   int
 	PendingWakeups  int
+	PoisonRecords   int
 	DueTimers       int
 	OpenItems       int
 	TimedOut        int
@@ -147,6 +148,28 @@ func (r *Reconciler) RunOnce(ctx context.Context, lease state.LeaseRef, actorID 
 			WorkflowID: wakeup.WorkflowID, PartitionID: lease.PartitionID, Kind: state.ReconcileLostWakeup,
 			Reference: "wakeup/" + wakeup.WakeupID,
 			Detail:    []byte(fmt.Sprintf(`{"reason":%q}`, wakeup.Reason)),
+		}); itemErr != nil {
+			return report, itemErr
+		}
+	}
+	poisonRecords, err := r.Store.ListTransportQuarantine(ctx, r.Config.BatchSize)
+	if err != nil {
+		return report, err
+	}
+	report.PoisonRecords = len(poisonRecords)
+	for _, poison := range poisonRecords {
+		if poison.WorkflowID == "" || poison.PartitionID == nil || *poison.PartitionID != lease.PartitionID {
+			// An event ID that cannot be linked to a workflow is global poison
+			// evidence. It is intentionally not assigned to this partition.
+			continue
+		}
+		reference := fmt.Sprintf("transport/%s/%s/%d/%d", poison.ConsumerID, poison.Topic,
+			poison.Partition, poison.Offset)
+		if _, itemErr := r.Store.UpsertReconciliationItem(ctx, state.ReconciliationItem{
+			WorkflowID: poison.WorkflowID, PartitionID: *poison.PartitionID,
+			Kind: state.ReconcilePoisonRecord, Reference: reference,
+			Detail: []byte(fmt.Sprintf(`{"event_id":%q,"event_type":%q,"reason":%q}`,
+				poison.EventID, poison.EventType, poison.Reason)),
 		}); itemErr != nil {
 			return report, itemErr
 		}

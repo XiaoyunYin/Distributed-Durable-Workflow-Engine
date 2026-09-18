@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
-	"strings"
 	"time"
 
 	"durable-agent-execution-engine/internal/partition"
@@ -1163,8 +1162,9 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 	if input.AttemptState != AttemptSucceeded && input.AttemptState != AttemptFailedRetryable && input.AttemptState != AttemptFailedFinal {
 		return ResultReceipt{}, fmt.Errorf("%w: result must be a terminal attempt outcome", ErrInvalidAttemptState)
 	}
-	if input.EventType == "" {
-		input.EventType = "attempt.result"
+	input.EventType = NormalizeResultEventType(input.EventType)
+	if _, ok := EventDefinitionFor(input.EventType); !ok {
+		return ResultReceipt{}, fmt.Errorf("%w: %s", ErrInvalidEventType, input.EventType)
 	}
 	if len(input.Payload) == 0 {
 		input.Payload = json.RawMessage(`{}`)
@@ -1605,9 +1605,9 @@ func insertOutbox(ctx context.Context, tx pgx.Tx, workflowID string, revision in
 	if len(payload) == 0 {
 		payload = json.RawMessage(`{}`)
 	}
-	topic := EventTopic
-	if strings.HasPrefix(eventType, "attempt.") {
-		topic = TaskTopic
+	topic, ok := EventTopicFor(eventType)
+	if !ok {
+		return fmt.Errorf("%w: %s", ErrInvalidEventType, eventType)
 	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO engine.outbox (event_id, workflow_id, aggregate_revision, event_type, topic, payload)

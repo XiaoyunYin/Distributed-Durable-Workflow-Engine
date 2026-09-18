@@ -19,4 +19,6 @@ Migration `000007` changes event-inbox retention to cascade with its referenced
 outbox event, so workflow cleanup cannot strand transport rows.
 Migration `000008` preserves malformed or unknown broker records as durable
 offset-addressed poison records so a consumer can acknowledge them without
-discarding reconciliation evidence.
+discarding reconciliation evidence. Migration `000009` links poison records
+whose event ID is known to their workflow and partition for reconciliation
+scans; records with unknown IDs remain global poison evidence.

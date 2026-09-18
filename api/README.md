@@ -23,7 +23,10 @@ The worker control seam is:
 - `POST .../heartbeat` with `attempt_number`, `claim_token`, and optional
   `extension_ms`.
 - `POST .../result` with `attempt_number`, `claim_token`, `attempt_state`, and
-  `payload`; it returns the durable result receipt. Claim retries reuse
+  `payload`, and optional `event_type`; it returns the durable result receipt. An
+  omitted event type is normalized to the publishable `activity.result` event.
+  An explicit unsupported event type is rejected with `422 INVALID_EVENT_TYPE`.
+  Claim retries reuse
   `request_id`; result retries reuse the attempt number and token.
 
 These endpoints are the direct M2 control seam, not the M3 Kafka transport.

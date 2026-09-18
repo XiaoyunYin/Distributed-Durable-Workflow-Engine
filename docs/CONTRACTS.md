@@ -343,11 +343,22 @@ never acquires the lease and never advances the workflow.
    and its K offset is acknowledged. Outcome: duplicate transport is visible
    and harmless.
 
+Event types use one explicit producer/relay/checker registry. Task commands
+(`attempt.dispatch` and `attempt.redispatch`) use the task topic; completion
+and workflow events, including `activity.result`, use the event topic. The
+optional worker result `event_type` normalizes to `activity.result`; no topic
+is inferred from an event-name prefix.
+
 Malformed or unknown broker records cannot be linked to an outbox foreign key.
 The consumer stores their raw bytes and delivery identity in the durable
 transport-quarantine table, marks the disposition `QUARANTINED`, and advances
-the contiguous offset only after that commit. Quarantine is evidence and
-acknowledgment, not permission to execute the record.
+the contiguous offset only after that commit. Each quarantine path also creates
+an open `POISON_RECORD` reconciliation obligation: relay quarantine links it to
+the workflow, while a broker record with no trustworthy event ID is a global
+operator obligation keyed by consumer/topic/partition/offset. Quarantine is
+evidence and acknowledgment, not permission to execute the record. Backlog
+reporting includes poison count and oldest-obligation age, and the checker
+rejects a quarantined outbox row that lacks its poison obligation.
 
 ### 5. Ambiguous effect response
 

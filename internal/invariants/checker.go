@@ -186,6 +186,14 @@ func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace,
 		trace.Submissions = append(trace.Submissions, SubmissionRecord{Namespace: workflow.Namespace,
 			Key: workflow.SubmissionKey, Hash: workflow.PayloadHash, WorkflowID: workflowID})
 	}
+	globalItems, err := store.ListGlobalReconciliationItems(ctx, 10000)
+	if err != nil {
+		return Trace{}, err
+	}
+	for _, item := range globalItems {
+		trace.Reconciliation = append(trace.Reconciliation, ReconciliationRecord{
+			WorkflowID: item.WorkflowID, Kind: string(item.Kind), Reference: item.Reference, Status: item.Status})
+	}
 	return trace, nil
 }
 
@@ -207,7 +215,7 @@ func checkTransport(trace Trace, violations *[]string) {
 	// transport snapshot. A database-loaded M3 trace always has at least one
 	// outbox row, so only an explicitly transport-bearing trace opts into these
 	// additional obligations.
-	if len(trace.Outbox) == 0 && len(trace.Inbox) == 0 && len(trace.Wakeups) == 0 {
+	if len(trace.Outbox) == 0 && len(trace.Inbox) == 0 && len(trace.Wakeups) == 0 && len(trace.Reconciliation) == 0 {
 		return
 	}
 	workflowIDs := make(map[string]struct{})
@@ -220,11 +228,10 @@ func checkTransport(trace Trace, violations *[]string) {
 			event.EventType == "" || event.Topic == "" || !event.PayloadValid {
 			*violations = append(*violations, "outbox event identity or payload is incomplete")
 		}
-		expectedTopic := state.EventTopic
-		if strings.HasPrefix(event.EventType, "attempt.") {
-			expectedTopic = state.TaskTopic
-		}
-		if event.Topic != expectedTopic {
+		expectedTopic, knownEventType := state.EventTopicFor(event.EventType)
+		if !knownEventType && event.PublishState != string(state.OutboxQuarantined) {
+			*violations = append(*violations, "outbox event has unknown event type: "+event.EventID)
+		} else if knownEventType && event.Topic != expectedTopic {
 			*violations = append(*violations, "outbox event is on the wrong topic: "+event.EventID)
 		}
 		if _, exists := events[event.EventID]; exists {
@@ -276,6 +283,7 @@ func checkTransport(trace Trace, violations *[]string) {
 		}
 	}
 	seenWakeups := make(map[string]struct{})
+	poisonReferences := make(map[string]struct{})
 	for _, wakeup := range trace.Wakeups {
 		if wakeup.WorkflowID == "" || wakeup.EventID == "" || wakeup.PartitionID < 0 || wakeup.PartitionID >= 16 {
 			*violations = append(*violations, "scheduler wake-up identity is incomplete")
@@ -293,10 +301,16 @@ func checkTransport(trace Trace, violations *[]string) {
 		}
 	}
 	for _, item := range trace.Reconciliation {
-		if item.WorkflowID == "" || item.Kind == "" || item.Reference == "" {
+		globalPoison := item.WorkflowID == "" && item.Kind == string(state.ReconcilePoisonRecord) &&
+			strings.HasPrefix(item.Reference, "transport/")
+		if (item.WorkflowID == "" && !globalPoison) || item.Kind == "" || item.Reference == "" {
 			*violations = append(*violations, "reconciliation item identity is incomplete")
 		}
-		if _, exists := workflowIDs[item.WorkflowID]; !exists {
+		if item.WorkflowID != "" {
+			if _, exists := workflowIDs[item.WorkflowID]; !exists {
+				*violations = append(*violations, "reconciliation item references unknown workflow: "+item.Reference)
+			}
+		} else if !globalPoison {
 			*violations = append(*violations, "reconciliation item references unknown workflow: "+item.Reference)
 		}
 		switch item.Kind {
@@ -316,6 +330,16 @@ func checkTransport(trace Trace, violations *[]string) {
 				*violations = append(*violations, "pending-outbox item references unknown event: "+item.Reference)
 			} else if item.Status == "OPEN" && event.PublishState == string(state.OutboxPublished) {
 				*violations = append(*violations, "published outbox event has an open reconciliation item: "+eventID)
+			}
+		}
+		if item.Kind == string(state.ReconcilePoisonRecord) {
+			poisonReferences[item.Reference] = struct{}{}
+		}
+	}
+	for eventID, event := range events {
+		if event.PublishState == string(state.OutboxQuarantined) {
+			if _, exists := poisonReferences["outbox/"+eventID]; !exists {
+				*violations = append(*violations, "quarantined outbox event lacks a poison reconciliation item: "+eventID)
 			}
 		}
 	}
