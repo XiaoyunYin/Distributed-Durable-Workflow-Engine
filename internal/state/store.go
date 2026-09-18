@@ -525,14 +525,17 @@ func lockLease(ctx context.Context, tx pgx.Tx, ref LeaseRef) (Lease, error) {
 }
 
 func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionInput) error {
-	if profile := testSafeguardProfile(ctx); profile.UnsafeLeaseValidation {
-		return s.applyUnsafeOwnerTransition(ctx, input)
+	if err, handled := applyTestOwnerTransition(s, ctx, input); handled {
+		return err
 	}
 	started := time.Now()
 	defer s.observeQuery(started)
 	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.ActorID == "" || input.Reason == "" {
 		return errors.New("workflow, actor, and reason are required")
+	}
+	if err := testSafeguardCheck(ctx); err != nil {
+		return err
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1686,7 +1689,7 @@ func updateRevisionAndHistory(ctx context.Context, tx pgx.Tx, input TimeoutInput
 func insertHistory(ctx context.Context, tx pgx.Tx, workflowID string, revision int64, actorKind, actorID string,
 	epoch *int64, nodeID string, iteration *int, attemptNumber *int64, oldState *WorkflowState,
 	newState WorkflowState, reason string) error {
-	if testSafeguardProfile(ctx).DisableHistory {
+	if suppressHistory(ctx) {
 		return nil
 	}
 	if _, err := tx.Exec(ctx, `
@@ -1702,7 +1705,7 @@ func insertHistory(ctx context.Context, tx pgx.Tx, workflowID string, revision i
 }
 
 func insertOutbox(ctx context.Context, tx pgx.Tx, workflowID string, revision int64, eventType string, payload json.RawMessage) error {
-	if testSafeguardProfile(ctx).DisableOutbox {
+	if suppressOutbox(ctx) {
 		return nil
 	}
 	if len(payload) == 0 {

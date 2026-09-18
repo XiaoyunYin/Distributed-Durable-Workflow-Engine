@@ -9,6 +9,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $RepoRoot
 $buildRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("durable-dur034-" + [guid]::NewGuid().ToString("N"))
 $ablationBinary = Join-Path $buildRoot "dur034-ablation.exe"
+$workerBinary = Join-Path $buildRoot "dur034-worker.exe"
 $composeArgs = @("compose", "--env-file", ".env", "-f", "deploy/local/compose.yaml")
 
 function Invoke-Required([string]$FilePath, [string[]]$Arguments) {
@@ -56,8 +57,14 @@ try {
 
     New-Item -ItemType Directory -Force -Path $buildRoot | Out-Null
     Invoke-Sweep
-    Invoke-Required "go" @("build", "-o", $ablationBinary, "./cmd/dur034-ablation")
-    Invoke-Required $ablationBinary @("-output", $OutputPath)
+    Invoke-Required "go" @("build", "-tags", "dur034_ablation", "-o", $ablationBinary, "./cmd/dur034-ablation")
+    Invoke-Required "go" @("build", "-o", $workerBinary, "./cmd/dur026-worker")
+    Invoke-Required $ablationBinary @(
+        "-output", $OutputPath,
+        "-worker-binary", $workerBinary,
+        "-worker-slots", "4",
+        "-completion-slo-seconds", "120"
+    )
 
     if (-not (Test-Path -LiteralPath $OutputPath)) {
         throw "DUR-034 did not write $OutputPath."
@@ -70,7 +77,9 @@ try {
         -not [bool]$artifact.validation.all_runs_reconciled -or
         -not [bool]$artifact.validation.history_disabled_has_no_history -or
         -not [bool]$artifact.validation.unsafe_negative_control_fails -or
-        -not [bool]$artifact.validation.no_outbox_delay_measured) {
+        -not [bool]$artifact.validation.no_outbox_delay_measured -or
+        -not [bool]$artifact.validation.all_slo_values_within_limit -or
+        $null -eq $artifact.summary) {
         throw "DUR-034 artifact failed its independent acceptance checks."
     }
     Invoke-Sweep

@@ -1,3 +1,5 @@
+//go:build dur034_ablation
+
 package state
 
 import (
@@ -37,6 +39,30 @@ func testSafeguardProfile(ctx context.Context) TestSafeguardProfile {
 	return TestSafeguardProfile{Name: "full"}
 }
 
+func applyTestOwnerTransition(s *Store, ctx context.Context, input OwnerTransitionInput) (error, bool) {
+	profile := testSafeguardProfile(ctx)
+	if !profile.UnsafeLeaseValidation {
+		return nil, false
+	}
+	return s.applyUnsafeOwnerTransition(ctx, input), true
+}
+
+func testSafeguardCheck(ctx context.Context) error {
+	profile := testSafeguardProfile(ctx)
+	if profile.CheckToCommit == nil {
+		return nil
+	}
+	return profile.CheckToCommit(ctx)
+}
+
+func suppressHistory(ctx context.Context) bool {
+	return testSafeguardProfile(ctx).DisableHistory
+}
+
+func suppressOutbox(ctx context.Context) bool {
+	return testSafeguardProfile(ctx).DisableOutbox
+}
+
 func (s *Store) applyUnsafeOwnerTransition(ctx context.Context, input OwnerTransitionInput) error {
 	if input.WorkflowID == "" || input.ActorID == "" || input.Reason == "" {
 		return errors.New("workflow, actor, and reason are required")
@@ -57,11 +83,8 @@ func (s *Store) applyUnsafeOwnerTransition(ctx context.Context, input OwnerTrans
 	if owner == nil || expiry == nil || *owner != input.Lease.OwnerID || epoch != input.Lease.Epoch || !expiry.After(databaseNow) {
 		return ErrLeaseNotOwned
 	}
-	profile := testSafeguardProfile(ctx)
-	if profile.CheckToCommit != nil {
-		if err := profile.CheckToCommit(ctx); err != nil {
-			return err
-		}
+	if err := testSafeguardCheck(ctx); err != nil {
+		return err
 	}
 
 	tx, err := s.pool.Begin(ctx)
