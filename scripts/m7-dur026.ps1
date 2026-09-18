@@ -102,18 +102,19 @@ try {
                     $cpuSeconds = [double]$totalProcessorTime.TotalSeconds
                     $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -Raw -LiteralPath $stdoutPath } else { "" }
                     $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -Raw -LiteralPath $stderrPath } else { "" }
+                    $stderrText = if ($null -eq $stderr) { "" } else { [string]$stderr }
                     $run = $null
                     if (-not [string]::IsNullOrWhiteSpace($stdout)) {
                         try { $run = $stdout | ConvertFrom-Json } catch { $run = $null }
                     }
                     if ($null -eq $run) {
-                        $run = [pscustomobject]@{ schema_version = "dur026-run.v1"; status = "FAIL"; failure = ($stderr.Trim() + " " + $stdout.Trim()).Trim() }
+                        $run = [pscustomobject]@{ schema_version = "dur026-run.v1"; status = "FAIL"; failure = ($stderrText.Trim() + " " + ([string]$stdout).Trim()).Trim() }
                     }
                     Add-Property $run "case_id" $caseID | Out-Null
                     Add-Property $run "repeat" $repeat | Out-Null
                     Add-Property $run "process_cpu_seconds" $cpuSeconds | Out-Null
                     Add-Property $run "process_wall_seconds" (($finished - $started).TotalSeconds) | Out-Null
-                    Add-Property $run "stderr" $stderr.Trim() | Out-Null
+                    Add-Property $run "stderr" $stderrText.Trim() | Out-Null
                     $results += $run
                     if ($process.ExitCode -ne 0 -or $run.status -ne "PASS") {
                         throw "DUR-026 case $caseID failed. See $OutputPath and temporary stderr $stderrPath."
