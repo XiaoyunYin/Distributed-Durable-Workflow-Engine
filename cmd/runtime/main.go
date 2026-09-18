@@ -168,11 +168,15 @@ func newHandlerWithMetrics(role string, store *state.Store, metrics *telemetry.M
 }
 
 type readinessResponse struct {
-	WorkflowID   string              `json:"workflow_id"`
-	DefinitionID string              `json:"definition_id"`
-	State        state.WorkflowState `json:"state"`
-	Revision     int64               `json:"revision"`
-	Metrics      telemetry.Snapshot  `json:"metrics"`
+	WorkflowID    string              `json:"workflow_id"`
+	DefinitionID  string              `json:"definition_id"`
+	Mode          string              `json:"mode"`
+	State         state.WorkflowState `json:"state"`
+	Revision      int64               `json:"revision"`
+	Resumed       bool                `json:"resumed,omitempty"`
+	CrashBoundary string              `json:"crash_boundary,omitempty"`
+	FirstRunError string              `json:"first_run_error,omitempty"`
+	Metrics       telemetry.Snapshot  `json:"metrics"`
 }
 
 func readinessHandler(store *state.Store, metrics *telemetry.Metrics, role string) http.Handler {
@@ -183,6 +187,14 @@ func readinessHandler(store *state.Store, metrics *telemetry.Metrics, role strin
 		}
 		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
 		defer cancel()
+		mode := r.URL.Query().Get("mode")
+		if mode == "" {
+			mode = "normal"
+		}
+		if mode != "normal" && mode != "fault" {
+			writeReadinessError(w, http.StatusBadRequest, "readiness mode must be normal or fault")
+			return
+		}
 		workflowID := "dur036-runtime-" + state.NewID()
 		definitionID := "dur036-runtime-def-" + state.NewID()
 		graph := json.RawMessage(`{"entry":"root","nodes":[{"id":"root","kind":"activity","next":"done"},{"id":"done","kind":"success"}]}`)
@@ -208,15 +220,43 @@ func readinessHandler(store *state.Store, metrics *telemetry.Metrics, role strin
 			writeReadinessError(w, http.StatusInternalServerError, err.Error())
 			return
 		}
-		runner := engine.New(store, engine.ActivityDriverFunc(func(context.Context, engine.Activity) (engine.ActivityResult, error) {
+		driver := engine.ActivityDriverFunc(func(context.Context, engine.Activity) (engine.ActivityResult, error) {
 			return engine.ActivityResult{Payload: json.RawMessage(`{"ok":true}`)}, nil
-		}))
-		// Partition lease ownership is persisted as a UUID. Keep the runtime
-		// role in telemetry, but use a valid durable owner identity here.
-		runner.OwnerID = state.NewID()
-		runner.WorkerID = "dur036-runtime-worker"
-		runner.ActorID = "dur036-runtime-engine"
-		runner.MaxSteps = 20
+		})
+		ownerID := state.NewID()
+		newRunner := func() *engine.Engine {
+			runner := engine.New(store, driver)
+			// Partition lease ownership is persisted as a UUID. Keep the runtime
+			// role in telemetry, but use a valid durable owner identity here.
+			runner.OwnerID = ownerID
+			runner.WorkerID = "dur036-runtime-worker"
+			runner.ActorID = "dur036-runtime-engine"
+			runner.MaxSteps = 20
+			return runner
+		}
+		runner := newRunner()
+		firstRunError := ""
+		resumed := false
+		crashBoundary := ""
+		if mode == "fault" {
+			crashBoundary = "result_recorded"
+			runner.AfterBoundary = func(boundary string) error {
+				if boundary == crashBoundary {
+					return errors.New("dur036 deployed injected crash at result_recorded")
+				}
+				return nil
+			}
+			if _, firstErr := runner.Run(ctx, workflowID); firstErr == nil {
+				writeReadinessError(w, http.StatusInternalServerError, "fault readiness run did not stop at the requested boundary")
+				return
+			} else {
+				firstRunError = firstErr.Error()
+			}
+			// A fresh engine in the same deployed process models the scheduler
+			// restart while retaining the committed result in PostgreSQL.
+			runner = newRunner()
+			resumed = true
+		}
 		result, err := runner.Run(ctx, workflowID)
 		if err != nil {
 			writeReadinessError(w, http.StatusInternalServerError, err.Error())
@@ -228,8 +268,10 @@ func readinessHandler(store *state.Store, metrics *telemetry.Metrics, role strin
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(readinessResponse{WorkflowID: workflowID,
-			DefinitionID: definitionID, State: result.Workflow.State,
-			Revision: result.Workflow.Revision, Metrics: metrics.Snapshot()})
+			DefinitionID: definitionID, Mode: mode, State: result.Workflow.State,
+			Revision: result.Workflow.Revision, Resumed: resumed,
+			CrashBoundary: crashBoundary, FirstRunError: firstRunError,
+			Metrics: metrics.Snapshot()})
 	})
 }
 

@@ -168,6 +168,28 @@ try {
         throw "Deployed durable-ready timestamp changed after readiness: before=$readyBefore after=$readyAfter."
     }
 
+    $faultURL = $readinessURL + "?mode=fault"
+    $faultBefore = $metricsAfter
+    $faultHTTP = Invoke-WebRequest -UseBasicParsing -Method Post -Uri $faultURL -TimeoutSec 30
+    if ($faultHTTP.StatusCode -ne 200) { throw "Deployed fault readiness workload returned HTTP $($faultHTTP.StatusCode)." }
+    $faultRun = $faultHTTP.Content | ConvertFrom-Json
+    if ($faultRun.mode -ne "fault" -or $faultRun.state -ne "SUCCEEDED" -or -not $faultRun.resumed -or $faultRun.crash_boundary -ne "result_recorded" -or [string]::IsNullOrWhiteSpace($faultRun.first_run_error)) {
+        throw "Deployed fault readiness workload did not prove crash/resume: $($faultHTTP.Content)"
+    }
+    $faultAfter = Get-Metrics $runtimePort
+    if ($faultAfter.status -ne 200) { throw "Deployed runtime metrics endpoint was not available after the fault workload." }
+    $faultMetricDelta = [ordered]@{}
+    foreach ($metricName in $metricNames) {
+        $before = MetricValue $faultBefore.body $metricName $metricRole
+        $after = MetricValue $faultAfter.body $metricName $metricRole
+        if ($after -le $before) { throw "Fault workload metric '$metricName' did not increase: before=$before after=$after." }
+        $faultMetricDelta[$metricName] = [ordered]@{ before = $before; after = $after; delta = ($after - $before) }
+    }
+    $faultReadyAfter = MetricValue $faultAfter.body "durable_runtime_durable_ready_timestamp_seconds" $metricRole
+    if ($readyAfter -gt 0 -and $faultReadyAfter -ne $readyAfter) {
+        throw "Deployed durable-ready timestamp changed after fault workload: before=$readyAfter after=$faultReadyAfter."
+    }
+
     $oldRequireDatabase = $env:DURABLE_REQUIRE_DATABASE
     try {
         $env:DURABLE_REQUIRE_DATABASE = "1"
@@ -183,7 +205,7 @@ try {
     }
     $faultChecker = Invoke-Required "go" @("run", "./cmd/fault-checker", "-offline", "-trace", $faultTrace, "-durable-trace", $faultSnapshot)
 
-    $cleanupSQL = "DELETE FROM engine.workflow_executions WHERE workflow_id = '$($deployedRun.workflow_id)'; DELETE FROM engine.workflow_definitions WHERE definition_id = '$($deployedRun.definition_id)';"
+    $cleanupSQL = "DELETE FROM engine.workflow_executions WHERE workflow_id IN ('$($deployedRun.workflow_id)', '$($faultRun.workflow_id)'); DELETE FROM engine.workflow_definitions WHERE definition_id IN ('$($deployedRun.definition_id)', '$($faultRun.definition_id)');"
     Invoke-Required "docker" ($composeArgs + @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", $databaseUser, "-d", $databaseName, "-c", $cleanupSQL)) | Out-Null
 
     $volumeDrivers = @($volumes | ForEach-Object { $_.driver } | Where-Object { $_ } | Select-Object -Unique)
@@ -217,6 +239,7 @@ try {
                 clean_worktree_verified = $true
                 existing_services_may_be_reused = $true
                 existing_volumes_may_be_preserved = $true
+                engine_mode = "readiness"
                 note = "This readiness run verifies a clean version-controlled worktree. It does not claim a fresh clone or volume recreation; service uptimes and volume names below are the authoritative lifecycle evidence."
             }
             services = $serviceSummary
@@ -233,7 +256,7 @@ try {
         validation = [ordered]@{
             dependency_smoke = [ordered]@{ command = $smoke.command; status = "PASS"; output_tail = (($smoke.output -split "`r?`n" | Select-Object -Last 5) -join "`n") }
             normal_execution = [ordered]@{ command = $readinessURL; status = "PASS"; response = $deployedRun; telemetry_metric_delta = $metricDelta; durable_ready_before = $readyBefore; durable_ready_after = $readyAfter; telemetry_endpoint_before = $metricsBefore.body; telemetry_endpoint_after = $metricsAfter.body }
-            fault_episode = [ordered]@{ command = $telemetryReadiness.command; status = "PASS"; output = $telemetryReadiness.output; checker_command = $faultChecker.command; checker_output = $faultChecker.output; trace = $faultTrace; durable_snapshot = $faultSnapshot }
+            fault_episode = [ordered]@{ command = $faultURL; status = "PASS"; response = $faultRun; telemetry_metric_delta = $faultMetricDelta; durable_ready_before = $readyAfter; durable_ready_after = $faultReadyAfter; telemetry_endpoint_before = $faultBefore.body; telemetry_endpoint_after = $faultAfter.body; checker_command = $faultChecker.command; checker_output = $faultChecker.output; trace = $faultTrace; durable_snapshot = $faultSnapshot }
             local_regression = [ordered]@{ command = $telemetryReadiness.command; status = "PASS"; output = $telemetryReadiness.output }
         }
         assumptions = @(

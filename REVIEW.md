@@ -1173,6 +1173,39 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   None of this suggests a defect in the engine. The fix for R066 is the one that also closes a note that has been carried since M5: give the deployed topology a process that runs the interpreter, drive the readiness workload through it, and make the readiness run fail when the deployed series do not move.
 
+### Round 28 — 2026-09-18 — DUR-036 deployed-telemetry verification
+
+- Date and round: 2026-09-18, round 28.
+- Review basis: COMMITTED. The worktree was clean at `a94cf86` when the review started and remained clean throughout.
+- Base and target commits: base `efe1fe3` for this round, code target `bfa99fe` (intermediate fixes `15f5422` and `b9ee792`), handoff `a94cf86`, which changes only documentation and the regenerated artifact. The handoff declaration matches the repository state.
+- Scope inspected: `git diff efe1fe3 bfa99fe` — the new readiness engine profile and endpoint in `cmd/runtime/main.go`, the `MarkDurableReady` compare-and-swap and its test in `internal/telemetry`, the `RUNTIME_ENGINE_MODE` wiring in `deploy/local/compose.yaml`, the assertions and lifecycle disclosure in `scripts/m7-readiness.ps1`, the regenerated `experiments/m7/dur036-readiness.json`, and the PLAN.md, README.md, DECISIONS.md, and BUILD_LOG.md updates. No migrations changed. No protected-scope drift: the DUR-036 task row is unchanged and no guarantee, release criterion, experiment family, or budget was altered.
+- Checks personally run (Claude), against the live declared host and a scratch export; no scratch database was created:
+  - Scraped the deployed `runtime-a` `/metrics`: lease acquisitions 1, lease renewals 3, accepted claims 1, accepted results 1, worker completed 1, and a set last-accepted-claim timestamp — all zero in round 27.
+  - Queried Prometheus: `durable_worker_claims_accepted_total` and `durable_scheduler_lease_acquisitions_total` are `1` for `scheduler-a` and `0` for `scheduler-b`, so the deployed execution is visible on the scraped surface.
+  - Measured durable-ready stability on the live host: `1789753318` at t0 and the same value eight seconds later, equal to the start timestamp. In round 27 the two were 924 seconds apart and drifting.
+  - Read the readiness script's assertion sites and confirmed the gate throws on a non-increasing metric, a moved readiness timestamp, a non-`SUCCEEDED` workflow, a non-Linux server OS, and an unhealthy service.
+  - Read the artifact's `runtime.deployment` lifecycle block and compared it with the recorded service uptimes.
+  - Built the tree and ran the changed packages: `go build ./...`, `go vet ./cmd/runtime ./internal/telemetry`, and `go test ./internal/telemetry ./cmd/runtime` all pass.
+  - Cleanup: scratch export only; no database created or dropped, no container started or stopped, no repository file touched.
+- Codex-reported checks considered but not rerun: the full `scripts/m7-readiness.ps1` run and `ci.ps1 -WithRace`. Claude did not rerun the readiness script because it rebuilds and recreates the user's runtime and worker containers.
+- Process note: Codex recorded per-finding `Codex response - round 27` blocks with `Status: ADDRESSED` but left each finding's top-level `Status` at OPEN. Claude set the top-level statuses while verifying and left Codex's text unchanged.
+- Findings resolved: R067 and R068 are VERIFIED, each confirmed against the live host rather than from the diff.
+- Findings still open: R066, revised from P1 to P2. The normal execution is now genuinely reconstructible from the deployed, Prometheus-scraped telemetry, and the readiness gate can fail; the fault episode is still validated only by an in-process test registry that is never exported.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - The telemetry-producing configuration is the `RUNTIME_ENGINE_MODE=readiness` profile, which the script enables for the run and which is `disabled` by default; the decision record describes it, but the artifact does not record which mode produced the numbers. Worth adding so a later study cannot misread the profile.
+  - The readiness endpoint creates workflows and runs the interpreter without authentication. It is off by default and localhost-bound, which is the right posture, but it enlarges the surface the standing "control API is unauthenticated" caveat covers.
+  - Not exercised by Claude: the Compose rebuild path, multi-host, and any measurement workload beyond the single readiness execution.
+  - DUR-033A remains TODO.
+- Limitations: the declared host is Docker Desktop's WSL2 Linux VM, reviewed as declared rather than against a native Linux baseline.
+- Verdict: CHANGES_REQUESTED. Blocking: R066 (P2). DUR-036 must not move to DONE, so DUR-026, DUR-027, DUR-028, DUR-034, and DUR-035 remain gated.
+
+  This round closed the substance of the P1. The deployed runtime now runs the interpreter in-process and exports real engine telemetry, and I confirmed it end to end on the live host: the counters moved, Prometheus scraped them, and `scheduler-b` correctly stayed at zero. Just as important, the readiness run became a gate that can fail — it throws when a deployed metric does not increase, when the readiness timestamp moves, or when the workload does not reach `SUCCEEDED` — which is what was missing when the previous artifact carried zero-valued before/after captures alongside a `PASS`. The durable-ready timestamp is now a one-time compare-and-swap transition and held stable across eight seconds, so time-to-readiness is finally a measurable quantity rather than a heartbeat. The lifecycle wording is now accurate about the difference between a clean worktree and a fresh clone, and about the reused dependencies and volumes.
+
+  What keeps DUR-036 open is narrow and specific: DUR-036 names two episodes, and only one of them is demonstrated on the deployed surface. The fault episode is still the in-process `go test` whose registry is discarded when the test exits. The engine already has the `AfterBoundary` hook needed to inject a crash through the readiness endpoint, so the remaining work is small, and it matters because the studies this gate unblocks include the crash and ablation families that would need exactly that telemetry. If Codex judges the work disproportionate for a bounded readiness check, the honest alternative is to record in the DUR-036 record that fault-episode reconstruction is in-process only and to say which downstream studies may rely on it — but that is a deferral decision to state explicitly, not something to leave implied by a `PASS`.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -4014,7 +4047,7 @@ superseded by the committed M4 handoff below.
 
 ### R066 — On the declared measurement host no execution can be reconstructed from telemetry; the readiness evidence comes from a test-local registry
 
-- Severity: P1
+- Severity: P2 (revised from P1 in round 28; see the round-28 verification)
 - Status: OPEN
 - Deferred: no
 - Reviewed commit: `efe1fe3`
@@ -4043,12 +4076,22 @@ superseded by the committed M4 handoff below.
 - Fix commit: `bfa99fe`.
 - Status: ADDRESSED
 
+#### Claude verification – round 28
+
+- Verification commit: `bfa99fe` (base `efe1fe3`), checked against the live declared host.
+- Severity revised: P1 to P2. The blocking substance — that nothing deployed emitted engine telemetry at all — is resolved and independently confirmed. What remains is one of the two episodes DUR-036 names.
+- What is fixed, and verified by Claude rather than read: the runtime now exposes `POST /internal/readiness/run` behind `RUNTIME_ENGINE_MODE` (default `disabled`, and the Compose default is `disabled` too), and that handler constructs and runs the interpreter **inside the deployed container** against its own telemetry registry. Claude scraped the live `runtime-a` endpoint: `durable_scheduler_lease_acquisitions_total` 1, `durable_scheduler_lease_renewals_total` 3, `durable_worker_claims_accepted_total` 1, `durable_worker_results_accepted_total` 1, `durable_worker_completed_total` 1, and `durable_runtime_last_accepted_claim_timestamp_seconds` set — all of which read `0` in round 27. Prometheus has scraped it: `durable_worker_claims_accepted_total` and `durable_scheduler_lease_acquisitions_total` both return `1` for `scheduler-a` and `0` for `scheduler-b`, which is the correct discrimination. The normal execution is therefore reconstructible from the surface a measurement study would actually read.
+- The gate can now fail, which was the other half of the finding. `scripts/m7-readiness.ps1` throws when the workflow state is not `SUCCEEDED` (:148), when any of the four asserted deployed metrics did not increase (:162), when the durable-ready timestamp moved (:168), when the Docker server OS is not Linux (:100), and when a Compose service is missing or unhealthy (:110-113). The artifact records `telemetry_metric_delta` with before/after for lease acquisitions, accepted claims, accepted results, and DB queries (+1/+1/+1/+41), matching what Claude observed live.
+- What remains: the **fault episode is still validated only in-process**. `validation.fault_episode` is the same `go test ./internal/engine -run ^TestDUR036TelemetryReconstruction$` invocation as `local_regression`, and its telemetry is the test-local registry with `Role:dur036-readiness` — not the deployed runtime, not exported, not scraped. DUR-036 requires reconstructing "one normal execution **and one fault episode** on this host" from the DUR-021A telemetry. Claude acknowledges the counter-reading — the test does execute on this host, against the same PostgreSQL and the same telemetry code — but the argument that made this finding P1 applies equally to the fault episode: a registry that is discarded when the test exits is not the measurement surface, and the crash-related studies this gate unblocks (DUR-034 and DUR-035 in particular) are exactly the ones that need fault-episode telemetry to be readable from the deployed system.
+- Suggested remaining work: extend the readiness endpoint with an opt-in crash boundary (the interpreter already has `AfterBoundary`), so the readiness run can request a crash at `result_recorded`, observe the deployed counters after the failed attempt, resume through the same endpoint, and assert the deployed deltas across both phases. Then assert those deltas in the script as the normal path already does. If that is judged disproportionate for a bounded readiness gate, the alternative is to record in the DUR-036 record that the fault-episode reconstruction is in-process only, and state which downstream studies may rely on it.
+- Status: OPEN
+
 ---
 
 ### R067 — The durable-readiness timestamp is a liveness heartbeat on the declared host, so time-to-readiness cannot be measured
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `efe1fe3`
 - Location: cmd/runtime/main.go (the two-second `markDurableReadyOnRecovery` ping loop and the relay `OnSuccess` re-mark, introduced for R053); internal/engine/m7_readiness_test.go:22-24 (`time.Sleep(1100 * time.Millisecond)` before `MarkDurableReady` so the readiness snapshot shows a gap); experiments/m7/dur036-readiness.json.
@@ -4067,12 +4110,20 @@ superseded by the committed M4 handoff below.
 - Fix commit: `bfa99fe`.
 - Status: ADDRESSED
 
+#### Claude verification – round 28
+
+- Verification commit: `bfa99fe`.
+- Evidence and remaining concerns: fixed exactly as suggested. `MarkDurableReady` now uses `durableReadyUnix.CompareAndSwap(0, time.Now().Unix())`, so the first durable-dependency transition wins and is never overwritten, and the two-second `markDurableReadyOnRecovery` ping loop is deleted. The relay `OnSuccess` re-mark remains but is now idempotent through the same compare-and-swap, which keeps it useful as a fallback when startup readiness was not observable without turning the field back into a heartbeat.
+- Claude verified this on the live host rather than from the diff: `durable_runtime_durable_ready_timestamp_seconds{role="scheduler-a"}` read `1789753318` and, after an eight-second wait, still read `1789753318`, equal to `durable_runtime_started_timestamp_seconds`. In round 27 the same two fields were 924 seconds apart and the gap tracked wall clock. The readiness script now also throws if the timestamp changes across the workload (:168), and the artifact records `durable_ready_before` and `durable_ready_after` as equal.
+- Time-to-durable-readiness is therefore measurable from this series. Liveness is left to the health checks, which is the right split.
+- Status: VERIFIED
+
 ---
 
 ### R068 — The "clean checkout" and clean-deployment claims overstate what the readiness run did
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `efe1fe3`
 - Location: scripts/m7-readiness.ps1:74-77 and :156 (`git status --porcelain` sets `clean_checkout_verified = $true`), :82 (`docker compose up -d --build --wait`); experiments/m7/dur036-readiness.json (`git.clean_checkout_verified`, the service uptimes, `runtime.compose_volumes`).
@@ -4092,6 +4143,12 @@ superseded by the committed M4 handoff below.
 - Validation: documentation and script changes pass `git diff --check`; the committed artifact at `bfa99fe` records `clean_worktree_verified: true`, `fresh_checkout_verified: false`, possible service reuse, possible volume preservation, and the service/volume lifecycle details.
 - Fix commit: `bfa99fe`.
 - Status: ADDRESSED
+
+#### Claude verification – round 28
+
+- Verification commit: `bfa99fe`.
+- Evidence and remaining concerns: fixed, taking the second option the finding offered. The field is renamed to `clean_worktree_verified`, and the artifact gained a `runtime.deployment` block recording the exact Compose command, `fresh_checkout_verified: false`, `existing_services_may_be_reused: true`, `existing_volumes_may_be_preserved: true`, and a note stating that the run "does not claim a fresh clone or volume recreation; service uptimes and volume names below are the authoritative lifecycle evidence". The service table still shows the reused dependencies honestly (PostgreSQL and Kafka up 11 hours, the collector and Prometheus up 2 days, the runtimes and workers freshly recreated). PLAN.md:1302 and docs/DECISIONS.md:231 carry the same distinction, so the claim and the evidence now agree.
+- Status: VERIFIED
 
 ---
 
