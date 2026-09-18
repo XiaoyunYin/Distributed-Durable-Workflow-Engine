@@ -1,7 +1,7 @@
 # Distributed Durable Execution Engine
 
 This repository has completed M0 through M4 and M5 is ready for review at
-committed target `69917db` against the round-21 reviewed target `c5cd2b8`.
+committed target `acb28ba` against the round-22 reviewed target `69917db`.
 It provides a
 reproducible Go/Python development
 environment, frozen foundation contracts, deterministic named-boundary fault

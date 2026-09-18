@@ -1051,8 +1051,8 @@ contract revision.
 
 - **Status:** READY_FOR_REVIEW.
 - **Base commit:** `561b5a9` (M5 start record; M4 closeout ancestor `612dde9`).
-- **Target commit:** `69917db` (M5 corrections, campaign guard, and evidence;
-  implementation `6ab54ea`, campaign evidence correction `69917db`).
+- **Target commit:** `acb28ba` (M5 round-23 evidence and crash-boundary fixes;
+  prior corrections `6ab54ea` and `69917db`).
 - **Active task:** DUR-022 — Complete fault controller.
 - **Protected boundaries:** Preserve the M0 contracts, frozen partition map,
   PostgreSQL ownership and fencing rules, outbox/inbox identity, event
@@ -1098,10 +1098,9 @@ contract revision.
 - **Evidence:** Fault-controller implementation and tests, named-boundary
   fixtures, campaign records, `docs/BUILD_LOG.md`, and the final
   `REVIEW.md` handoff.
-- **Implementation commits:** `6ab54ea`, followed by campaign evidence guard
-  and regeneration in `69917db`.
-- **Review:** pending Claude review of `69917db` against the round-21 target
-  `c5cd2b8`.
+- **Implementation commits:** `6ab54ea`, `69917db`, and `acb28ba`.
+- **Review:** pending Claude review of `acb28ba` against the round-22 target
+  `69917db`.
 - **Remaining limitations:** The fault proxy is a local test-profile control;
   the real Kafka adapter/rebalance, multi-host deployment, hard-kill storage
   durability, sustained-load measurements, and remote CI remain untested.
@@ -1121,7 +1120,8 @@ contract revision.
   and unbounded cleanup, and joins explicit durable identity fields without
   importing the controller package or transition validators.
 - **Evidence:** `internal/invariants/m5.go`, `internal/invariants/m5_test.go`,
-  48 traces and `experiments/m5/f01-f11-results.json` in `69917db`.
+  48 traces, their durable snapshots, and
+  `experiments/m5/f01-f11-results.json` in `acb28ba`.
 - **Review:** pending Claude review.
 
 #### DUR-024 — Engine boundary matrix
@@ -1136,9 +1136,10 @@ contract revision.
   enumerated cases across F01-F11 with seeds 11, 23, and 47: 48/48 PASS,
   48/48 controller PASS, 48/48 checker PASS, 48/48 Go PASS, and zero skipped
   selected tests. The script forces service mode and fails on `--- SKIP`.
-- **Evidence:** `scripts/m5-campaign.ps1`, `experiments/m5/README.md`,
-  `experiments/m5/traces/`, and `experiments/m5/f01-f11-results.json` in
-  `69917db`.
+- **Evidence:** `scripts/m5-campaign.ps1`, `scripts/m5-archive-check.ps1`,
+  `experiments/m5/README.md`, `experiments/m5/traces/`,
+  `experiments/m5/durable/`, and `experiments/m5/f01-f11-results.json` in
+  `acb28ba`.
 - **Review:** pending Claude review.
 
 #### DUR-025 — Real dependency outages and Core Engine MVP smoke
@@ -1183,7 +1184,7 @@ contract revision.
 - **Evidence:** `internal/telemetry/metrics.go`,
   `internal/telemetry/metrics_test.go`, runtime wiring in
   `cmd/runtime/main.go` and `internal/state`, `internal/engine/m5_smoke_test.go`,
-  and `69917db`.
+  and `acb28ba`.
 - **Review:** pending Claude review.
 - **Remaining limitations:** This is a bounded prerequisite, not the final
   M7 measurement host, dashboard, or performance study.
@@ -1505,11 +1506,11 @@ round-18 review returned `NO_BLOCKING_FINDINGS`; R048 is VERIFIED with a
 nonblocking residual note about manual DB-enabled parallel runs. M4 is DONE
 at reviewed implementation target `fcdbf09` against M3 closeout `8fb2f75`;
 Claude's committed round-20 review returned `NO_BLOCKING_FINDINGS`, and R049
-is VERIFIED. M5 is READY_FOR_REVIEW at corrected target `69917db`, based on
-the round-21 reviewed target `c5cd2b8` and M5 start commit `561b5a9` (M4
+is VERIFIED. M5 is READY_FOR_REVIEW at corrected target `acb28ba`, based on
+the round-22 reviewed target `69917db` and M5 start commit `561b5a9` (M4
 closeout ancestor `612dde9`). DUR-022, DUR-023B, DUR-024, DUR-025, and
 DUR-021A are READY_FOR_REVIEW. Claude should review the corrected M5 target
-against `c5cd2b8`. Keep the M0 contracts and
+against `69917db`. Keep the M0 contracts and
 partition-map version frozen while extending the durable state repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

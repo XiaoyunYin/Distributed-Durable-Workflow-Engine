@@ -1301,3 +1301,59 @@ green commands into an auditable chain: the controller creates the durable
 prefix, records what it actually observed, the independent checker joins that
 identity to persisted state, and the campaign refuses to accept a skipped
 database case.
+
+## 2026-09-18 - M5 round-23 corrections
+
+- Review basis: Claude round 22 requested R055-R058 changes against `69917db`.
+- Implementation commit: `acb28ba`. M5 remains READY_FOR_REVIEW; no task is
+  DONE pending Claude verification.
+
+R055 is addressed by making missed-boundary evidence sticky, requiring a
+boundary acknowledgement for every campaign-scoped action, rejecting unknown
+boundary names, and requiring the durable identity needed by each boundary
+join. The checker now rejects a target that exits before its declared boundary
+instead of treating missing durable fields as a valid empty join.
+
+R056 is addressed by building `m5-fixture` before the campaign and killing the
+actual target process tree (`taskkill /T /F` on Windows and a process group on
+POSIX). The trace records the kill mechanism. This removes the `go run` wrapper
+and its cold-start race from the boundary protocol.
+
+R057 is addressed by making the fixture execute the substantive durable path
+for each named boundary: effects, approval grants, timer consumption,
+timeouts, cancellation, lease takeover, and result transitions now have
+corresponding persisted rows. The checker has a join rule for every campaign
+boundary and rejects unknown names. The timeout path also marks the terminal
+non-cooperating attempt non-current and writes the reconciliation outbox event,
+which the strict checker correctly requires.
+
+R058 is addressed with per-campaign run IDs, seed/run identity in fixture input,
+durable JSON snapshots beside all 48 traces, and the offline archive checker.
+`scripts/m5-archive-check.ps1` revalidated all 48 committed traces after the
+campaign completed. The campaign preserves the rows needed by those snapshots
+and releases fixture lease ownership without deleting the lease table rows.
+
+Validation:
+
+- `scripts/check.ps1 -SerialPackages`: PASS; all Go packages, formatting,
+  Ruff, mypy, and 25 Python tests.
+- `scripts/m5-campaign.ps1 -StopRuntimeRelays`: PASS; 16 cases x seeds
+  11/23/47, 48/48 controller/checker/Go PASS, zero skips.
+- `scripts/m5-archive-check.ps1`: PASS; 48/48 archived traces validated
+  offline.
+- Focused invariant/checker and fixture packages, `gofmt`, and `git diff
+  --check`: PASS.
+
+The first round-23 campaign cleanup attempt deleted partition-lease rows;
+the cleanup was corrected to release fixture ownership while preserving the
+fixed lease table, and the final campaign and archive validation passed. The
+remaining evidence limits are unchanged: outage episodes were idle, the
+readiness timestamp is refreshed periodically, Kafka rebalance, multi-host
+deployment, hard-kill storage durability, lock/statement-timeout campaigns,
+sustained load, clean bootstrap, and remote CI remain untested.
+
+Interview explanation: M5 now treats a fault campaign as a durable proof
+artifact. A boundary is valid only when the target acknowledges it and the
+independent checker finds the corresponding persisted record; the archived
+trace and durable snapshot can be replayed after the campaign rather than
+depending on rows that cleanup removed.
