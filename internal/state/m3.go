@@ -42,6 +42,12 @@ var eventDefinitions = map[string]EventDefinition{
 	"graph.advanced":           {Topic: EventTopic},
 	"timer.scheduled":          {Topic: EventTopic},
 	"workflow.canceled":        {Topic: EventTopic},
+	"approval.requested":       {Topic: EventTopic},
+	"approval.decided":         {Topic: EventTopic},
+	"approval.granted":         {Topic: EventTopic},
+	"approval.rejected":        {Topic: EventTopic},
+	"cancellation.requested":   {Topic: EventTopic},
+	"effect.applied":           {Topic: EventTopic},
 	"reconciliation.required":  {Topic: EventTopic},
 	"reconciliation.resolved":  {Topic: EventTopic},
 }

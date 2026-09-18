@@ -120,3 +120,23 @@ grant scope; a claimed non-cooperating effect becomes outcome-unknown and
 requires `RECONCILIATION_REQUIRED` with no automatic replacement. The
 transition-permission table names approval/cancellation intent records and
 owner-applied transitions separately.
+## D007 - M4 recovery and approval boundary
+
+- Date: 2026-09-17
+- Status: accepted as the implementation boundary pending Claude review
+
+M4 keeps retry policy, checkpoint progress, approval intents, effect call
+evidence, and operator resolution audit in durable PostgreSQL tables. The
+cooperating sandbox ledger is exposed through a separate service package and
+table family, but it is intentionally local-development infrastructure rather
+than a cross-database transaction. The effect service requires a grant bound
+to the exact proposal, resource revision, and logical effect key before a
+mutation; a non-cooperating endpoint has no runtime lookup or deduplication
+capability and therefore remains reconciliation-only after an uncertain call.
+
+The rejected alternative was to let the engine infer approval from a caller's
+actor string or to make cancellation and grant application separate commits.
+That would make authorization and the cancellation/grant race dependent on
+caller behavior. The selected design keeps the owner-side lease/workflow
+transition atomic and records operator resolution separately, while leaving
+authentication and production deployment explicitly outside this milestone.

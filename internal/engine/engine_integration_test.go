@@ -2,6 +2,7 @@ package engine
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -61,6 +62,78 @@ func TestM1CrashResumeWithinNode(t *testing.T) {
 			}
 			assertM1TraceValid(t, ctx, store, workflowID)
 		})
+	}
+}
+
+type checkpointResumeDriver struct {
+	calls  int
+	loaded bool
+}
+
+func (d *checkpointResumeDriver) Run(context.Context, Activity) (ActivityResult, error) {
+	return ActivityResult{Payload: []byte(`{"ok":true}`)}, nil
+}
+
+func (d *checkpointResumeDriver) RunWithCheckpoint(ctx context.Context, _ Activity, sink CheckpointSink) (ActivityResult, error) {
+	d.calls++
+	if d.calls == 1 {
+		if err := sink.Save(ctx, 0, 1, []byte(`{"chunk":1}`)); err != nil {
+			return ActivityResult{}, err
+		}
+		panic("injected process crash after checkpoint")
+	}
+	reader, ok := sink.(CheckpointReader)
+	if !ok {
+		return ActivityResult{}, errors.New("checkpoint sink is not readable")
+	}
+	checkpoint, err := reader.Load(ctx)
+	if err != nil {
+		return ActivityResult{}, err
+	}
+	if checkpoint.Sequence != 0 || !json.Valid(checkpoint.Payload) {
+		return ActivityResult{}, fmt.Errorf("unexpected checkpoint: %+v", checkpoint)
+	}
+	d.loaded = true
+	return ActivityResult{Payload: []byte(`{"ok":true}`)}, nil
+}
+
+func TestM4CheckpointSurvivesCrashBeforeResult(t *testing.T) {
+	ctx, store := openM1Database(t)
+	defer store.Close()
+	definitionID := "dur015-checkpoint-crash-" + state.NewID()
+	workflowID, lease := createM1Workflow(t, ctx, store, definitionID,
+		`{"entry":"root","nodes":[{"id":"root","kind":"activity","next":"done"},{"id":"done","kind":"success"}]}`,
+		`{"root":"PURE_ACTIVITY"}`)
+	defer func() {
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE workflow_id = $1`, workflowID)
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, definitionID)
+		_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch + 1})
+	}()
+	driver := &checkpointResumeDriver{}
+	first := New(store, driver)
+	first.OwnerID = lease.OwnerID
+	first.AttemptLease = 25 * time.Millisecond
+	first.MaxSteps = 5
+	panicked := false
+	func() {
+		defer func() {
+			if recover() != nil {
+				panicked = true
+			}
+		}()
+		_, _ = first.Run(ctx, workflowID)
+	}()
+	if !panicked {
+		t.Fatal("checkpoint crash was not injected")
+	}
+	time.Sleep(60 * time.Millisecond)
+	second := New(store, driver)
+	second.OwnerID = lease.OwnerID
+	second.AttemptLease = time.Minute
+	second.MaxSteps = 20
+	result, err := second.Run(ctx, workflowID)
+	if err != nil || result.Workflow.State != state.StateSucceeded || !driver.loaded || driver.calls != 2 {
+		t.Fatalf("checkpoint recovery = %+v err=%v calls=%d loaded=%v", result, err, driver.calls, driver.loaded)
 	}
 }
 

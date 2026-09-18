@@ -1,13 +1,15 @@
 # Distributed Durable Execution Engine
 
-This repository has completed M0 through M2 and has implemented the M3 Kafka
-transport/reconciliation slice, pending Claude review. It provides a
-reproducible Go/Python development environment, frozen foundation contracts,
-deterministic named-boundary fault fixtures, and a real local PostgreSQL/Kafka
-topology. PostgreSQL remains authoritative; the transactional outbox, Kafka
-relay, inbox/offset consumer, scheduler wake-ups, and bounded reconciliation
-paths are covered by focused integration tests. The complete workflow engine,
-external-effect ledger, and end-to-end correctness campaign remain future work.
+This repository has completed M0 through M3 and the M4 implementation is
+prepared for Claude review. It provides a reproducible Go/Python development
+environment, frozen foundation contracts, deterministic named-boundary fault
+fixtures, and a real local PostgreSQL/Kafka topology. PostgreSQL remains
+authoritative for workflow state; the transactional outbox, Kafka relay,
+inbox/offset consumer, scheduler wake-ups, retry/checkpoint recovery,
+approval-gated cooperating effects, and bounded reconciliation paths are
+covered by focused integration tests. M4 is an implementation handoff, not a
+claim of production authentication, multi-host durability, or the later
+engine-only correctness campaign.
 
 ## Local topology
 

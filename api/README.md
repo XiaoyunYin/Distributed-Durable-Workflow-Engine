@@ -26,8 +26,34 @@ The worker control seam is:
   `payload`, and optional `event_type`; it returns the durable result receipt. An
   omitted event type is normalized to the publishable `activity.result` event.
   An explicit unsupported event type is rejected with `422 INVALID_EVENT_TYPE`.
-  Claim retries reuse
+Claim retries reuse
   `request_id`; result retries reuse the attempt number and token.
+
+M4 approval/cancellation control is lease-fenced and development-only:
+
+- `POST /v1/workflows/{workflow_id}/nodes/{node_id}/iterations/{iteration}/approval`
+  creates an exact canonical proposal while the scheduler holds the lease.
+- `POST /v1/approvals/{intent_id}/decision` records an approver decision for
+  the exact proposal hash. The approver identity is explicit in the request;
+  production authentication and identity binding are required before exposing
+  this write-capable path beyond localhost.
+- `POST /v1/approvals/{intent_id}/apply` lets the lease owner apply an approved
+  proposal and issue a bounded dispatch grant for one stable logical effect
+  key. The effect service rejects a mutation without that exact grant.
+- `POST /v1/workflows/{workflow_id}/cancel-request` records a client intent;
+  `POST /v1/cancellations/{request_id}/apply` lets the lease owner apply it or
+  mark it best-effort after a grant has already been issued.
+
+Approval decisions are idempotent only when the intent, proposal hash,
+approver, and decision match. Changed, expired, or duplicate conflicting
+decisions are rejected. A grant is not an effect receipt: the cooperating
+effect ledger still validates its stable key, argument hash, grant scope, and
+resource fence before applying a mutation.
+
+Unknown non-cooperating outcomes are never retried automatically. An operator
+must attach independently verified receipt evidence or explicitly abandon the
+unknown outcome; both choices are actor-attributed in the effect-resolution
+audit ledger.
 
 These endpoints are the direct M2 control seam, not the M3 Kafka transport.
 They are unauthenticated and accept caller-declared `worker_id` because this

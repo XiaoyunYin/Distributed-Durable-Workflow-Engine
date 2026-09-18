@@ -57,6 +57,11 @@ non-cooperating effect may mutate an unobservable target without a receipt
 lookup. Timeout handling and retry eligibility use this declared class; a
 worker claim or heartbeat cannot change it.
 
+The cooperating effect service validates a bounded approval grant covering the
+canonical action and stable logical effect key before mutating protected state.
+A missing, expired, or key-mismatched grant is rejected before the sink ledger
+changes; the grant is separate from the effect receipt and resource fence.
+
 ## Workflow state machine
 
 The following are workflow states, not process-local states:
@@ -149,7 +154,9 @@ best effort. A claimed effect attempt settled by cancellation is recorded as
 without changing the terminal workflow or revision. Operator resolution of a
 non-cooperating unknown attempt records
 either an observed/applied outcome for owner advancement or `ABANDONED`; it
-does not silently convert the attempt into a successful receipt.
+does not silently convert the attempt into a successful receipt. The operator,
+disposition, argument identity, and any supplied receipt are retained in an
+effect-resolution audit row.
 
 An explicit graph timer uses the node's persisted `timer_fired` marker rather
 than `retry_count`: scheduling creates one pending `WORKFLOW_TIMER`, the due

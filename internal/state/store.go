@@ -252,6 +252,9 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 		input.WorkflowID, input.InitialNodeID, StateRunnable, input.InitialInput); err != nil {
 		return CreateWorkflowResult{}, fmt.Errorf("insert initial node: %w", err)
 	}
+	if err := ensureRetryPolicyTx(ctx, tx, input.WorkflowID, input.InitialNodeID, 0); err != nil {
+		return CreateWorkflowResult{}, fmt.Errorf("insert initial retry policy: %w", err)
+	}
 	if err := insertHistory(ctx, tx, workflow.WorkflowID, 1, "client", input.ActorID,
 		nil, input.InitialNodeID, nil, nil, nil, StateRunnable, "WORKFLOW_CREATED"); err != nil {
 		return CreateWorkflowResult{}, err
@@ -717,6 +720,26 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 	if attemptCurrent || !isTerminalAttempt(attemptState) || len(result) == 0 {
 		return ConsumeResult{}, ErrResultNotConsumable
 	}
+	if attemptState == AttemptFailedRetryable {
+		policy, policyErr := retryPolicyTx(ctx, tx, input.WorkflowID, input.NodeID, input.Iteration)
+		if policyErr != nil {
+			return ConsumeResult{}, fmt.Errorf("read retry policy during result consumption: %w", policyErr)
+		}
+		var databaseNow time.Time
+		if err := tx.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&databaseNow); err != nil {
+			return ConsumeResult{}, err
+		}
+		if policy.RetriesUsed >= policy.MaxRetries || (policy.TotalDeadlineAt != nil && !policy.TotalDeadlineAt.After(databaseNow)) {
+			input.NewWorkflowState = StateFailed
+			input.RetryDueAt = nil
+		} else {
+			policy.RetriesUsed++
+			if _, err := tx.Exec(ctx, `UPDATE engine.retry_policies SET retries_used = $4, updated_at = clock_timestamp() WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
+				input.WorkflowID, input.NodeID, input.Iteration, policy.RetriesUsed); err != nil {
+				return ConsumeResult{}, fmt.Errorf("advance retry budget: %w", err)
+			}
+		}
+	}
 	var newNodeState WorkflowState
 	switch attemptState {
 	case AttemptSucceeded:
@@ -725,10 +748,14 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 		}
 		newNodeState = StateSucceeded
 	case AttemptFailedRetryable:
-		if input.NewWorkflowState != StateWaitingTimer || input.RetryDueAt == nil {
-			return ConsumeResult{}, fmt.Errorf("%w: retryable result requires WAITING_TIMER and a due time", ErrInvalidTransition)
+		if input.NewWorkflowState == StateFailed {
+			newNodeState = StateFailed
+		} else {
+			if input.NewWorkflowState != StateWaitingTimer || input.RetryDueAt == nil {
+				return ConsumeResult{}, fmt.Errorf("%w: retryable result requires WAITING_TIMER and a due time", ErrInvalidTransition)
+			}
+			newNodeState = StateWaitingTimer
 		}
-		newNodeState = StateWaitingTimer
 	case AttemptFailedFinal:
 		if input.NewWorkflowState != StateFailed {
 			return ConsumeResult{}, fmt.Errorf("%w: final failure must advance to FAILED", ErrInvalidTransition)
@@ -775,7 +802,7 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 		&workflow.State, input.NewWorkflowState, "RESULT_CONSUMED"); err != nil {
 		return ConsumeResult{}, err
 	}
-	if attemptState == AttemptFailedRetryable {
+	if attemptState == AttemptFailedRetryable && input.NewWorkflowState == StateWaitingTimer && input.RetryDueAt != nil {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO engine.timers
 				(timer_id, workflow_id, node_id, iteration, due_at, purpose, owning_revision)
@@ -1390,6 +1417,16 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3 AND attempt_number = $4`,
 			input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber); err != nil {
 			return TimeoutResult{}, err
+		}
+		reconciliationReference := fmt.Sprintf("attempt/%s/%s/%d/%d", input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber)
+		if _, err := tx.Exec(ctx, `
+			INSERT INTO engine.reconciliation_items
+				(item_id, workflow_id, partition_id, node_id, iteration, attempt_number, kind, reference, detail)
+			VALUES ($1, $2, $3, $4, $5, $6, 'EXPIRED_ATTEMPT', $7, $8)
+			ON CONFLICT (kind, reference) DO UPDATE SET detail = EXCLUDED.detail, updated_at = clock_timestamp()`,
+			NewID(), input.WorkflowID, partitionID, input.NodeID, input.Iteration, input.AttemptNumber,
+			reconciliationReference, json.RawMessage(`{"reason":"non-cooperating effect timeout","outcome":"OUTCOME_UNKNOWN"}`)); err != nil {
+			return TimeoutResult{}, fmt.Errorf("record timeout reconciliation item: %w", err)
 		}
 		if err := updateRevisionAndHistory(ctx, tx, input, workflowState, newRevision, "TIMEOUT_RECONCILIATION_REQUIRED"); err != nil {
 			return TimeoutResult{}, err

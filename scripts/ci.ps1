@@ -47,7 +47,7 @@ try {
     }
 
     if ($WithServices) {
-        Write-Host "Running DUR-005 through DUR-014 PostgreSQL/Kafka integration tests."
+        Write-Host "Running DUR-005 through DUR-018 PostgreSQL/Kafka integration tests."
         & go test ./internal/state -run '^TestPostgresStateRepository$' -count=1 -v
         if ($LASTEXITCODE -ne 0) { throw "DUR-005 PostgreSQL integration tests failed." }
         & go test ./internal/api -run '^TestWorkflowAPIResponseLossHistoryAndRetention$' -count=1 -v
@@ -58,6 +58,12 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "M3 state integration tests failed." }
         & go test ./internal/transport -run '^TestM3' -count=1 -v
         if ($LASTEXITCODE -ne 0) { throw "M3 transport integration tests failed." }
+        & go test ./internal/state -run '^TestM4' -count=1 -v
+        if ($LASTEXITCODE -ne 0) { throw "M4 state integration tests failed." }
+        & go test ./internal/engine -run '^TestM4' -count=1 -v
+        if ($LASTEXITCODE -ne 0) { throw "M4 engine integration tests failed." }
+        & go test ./internal/invariants -run '^TestM4' -count=1 -v
+        if ($LASTEXITCODE -ne 0) { throw "M4 invariant integration tests failed." }
         & $PSScriptRoot/smoke.ps1
         if ($LASTEXITCODE -ne 0) { throw "Real dependency smoke checks failed." }
     } else {

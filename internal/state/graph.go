@@ -689,6 +689,9 @@ func (s *Store) AdvanceGraph(ctx context.Context, input AdvanceGraphInput) (Adva
 			return AdvanceGraphResult{}, fmt.Errorf("create next graph node: %w", err)
 		}
 		if commandTag.RowsAffected() == 1 {
+			if err := ensureRetryPolicyTx(ctx, tx, input.WorkflowID, next.NodeID, next.Iteration); err != nil {
+				return AdvanceGraphResult{}, fmt.Errorf("create retry policy for next node: %w", err)
+			}
 			created = append(created, NodeInstance{WorkflowID: input.WorkflowID, NodeID: next.NodeID,
 				Iteration: next.Iteration, State: StateRunnable, Dependencies: next.Dependencies, Input: next.Input})
 		}

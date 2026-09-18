@@ -22,3 +22,7 @@ offset-addressed poison records so a consumer can acknowledge them without
 discarding reconciliation evidence. Migration `000009` links poison records
 whose event ID is known to their workflow and partition for reconciliation
 scans; records with unknown IDs remain global poison evidence.
+Migration `000010` adds durable retry policies, effect call/resource-fence
+evidence, sandbox state, and bounded approval grant metadata for M4.
+Migration `000011` records actor-attributed operator confirmation or
+abandonment of an unknown effect.

@@ -138,6 +138,7 @@ type Activity struct {
 	Input            json.RawMessage
 	LogicalEffectKey string
 	GrantScopeHash   string
+	ClaimToken       string
 }
 
 type ActivityResult struct {
@@ -154,6 +155,47 @@ type ActivityDriverFunc func(context.Context, Activity) (ActivityResult, error)
 
 func (f ActivityDriverFunc) Run(ctx context.Context, activity Activity) (ActivityResult, error) {
 	return f(ctx, activity)
+}
+
+// CheckpointDriver is an optional extension for pure chunked activities. The
+// normal ActivityDriver contract remains source-compatible; only drivers that
+// explicitly opt in can commit progress through the current claim token.
+type CheckpointDriver interface {
+	RunWithCheckpoint(context.Context, Activity, CheckpointSink) (ActivityResult, error)
+}
+
+type CheckpointSink interface {
+	Save(context.Context, int64, int, json.RawMessage) error
+}
+
+// CheckpointReader is implemented by the sink passed to CheckpointDriver. A
+// chunked activity may load its last committed progress before doing work;
+// absence is reported as pgx.ErrNoRows so a driver can start at its initial
+// chunk without confusing that with a stale checkpoint.
+type CheckpointReader interface {
+	Load(context.Context) (state.Checkpoint, error)
+}
+
+type checkpointSink struct {
+	store         *state.Store
+	workflowID    string
+	nodeID        string
+	iteration     int
+	attemptNumber int64
+	claimToken    string
+}
+
+func (s checkpointSink) Save(ctx context.Context, sequence int64, schemaVersion int, payload json.RawMessage) error {
+	_, err := s.store.RecordCheckpoint(ctx, state.CheckpointInput{
+		WorkflowID: s.workflowID, NodeID: s.nodeID, Iteration: s.iteration,
+		AttemptNumber: s.attemptNumber, ClaimToken: s.claimToken,
+		Sequence: sequence, SchemaVersion: schemaVersion, Payload: payload,
+	})
+	return err
+}
+
+func (s checkpointSink) Load(ctx context.Context) (state.Checkpoint, error) {
+	return s.store.GetLatestCheckpoint(ctx, s.workflowID, s.nodeID, s.iteration)
 }
 
 type Engine struct {
@@ -443,9 +485,19 @@ func (e *Engine) executeAttempt(ctx context.Context, wf state.Workflow, node sta
 	if claim.ClaimToken == "" {
 		return state.ErrStaleClaim
 	}
-	result, runErr := e.Driver.Run(ctx, Activity{WorkflowID: wf.WorkflowID, NodeID: node.NodeID,
+	activity := Activity{WorkflowID: wf.WorkflowID, NodeID: node.NodeID,
 		Iteration: node.Iteration, AttemptNumber: claim.AttemptNumber, EffectClass: claim.EffectClass,
-		Input: node.Input, LogicalEffectKey: attempt.LogicalEffectKey, GrantScopeHash: attempt.GrantScopeHash})
+		Input: node.Input, LogicalEffectKey: attempt.LogicalEffectKey, GrantScopeHash: attempt.GrantScopeHash,
+		ClaimToken: claim.ClaimToken}
+	var result ActivityResult
+	var runErr error
+	if checkpointDriver, ok := e.Driver.(CheckpointDriver); ok {
+		result, runErr = checkpointDriver.RunWithCheckpoint(ctx, activity, checkpointSink{store: e.Store,
+			workflowID: wf.WorkflowID, nodeID: node.NodeID, iteration: node.Iteration,
+			attemptNumber: claim.AttemptNumber, claimToken: claim.ClaimToken})
+	} else {
+		result, runErr = e.Driver.Run(ctx, activity)
+	}
 	if runErr != nil {
 		result = ActivityResult{AttemptState: state.AttemptFailedRetryable,
 			Payload: json.RawMessage(fmt.Sprintf(`{"error":%q}`, runErr.Error())), RetryAfter: e.RetryBackoff}

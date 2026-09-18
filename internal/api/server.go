@@ -41,6 +41,15 @@ type WorkerRepository interface {
 	RecordResultReceipt(context.Context, state.ResultInput) (state.ResultReceipt, error)
 }
 
+type ApprovalRepository interface {
+	CreateApprovalIntent(context.Context, state.ApprovalIntentInput) (state.ApprovalIntent, error)
+	GetApprovalIntent(context.Context, string) (state.ApprovalIntent, error)
+	RecordApprovalDecision(context.Context, state.ApprovalDecisionInput) (state.ApprovalIntent, error)
+	ApplyApproval(context.Context, state.ApplyApprovalInput) (state.ApprovalGrant, error)
+	RequestCancellation(context.Context, state.CancellationRequestInput) (state.CancellationRequest, error)
+	ApplyCancellationRequest(context.Context, state.LeaseRef, string, string) (state.Workflow, error)
+}
+
 type Server struct {
 	repository Repository
 }
@@ -57,10 +66,71 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/claim", s.claimAttempt)
 	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/heartbeat", s.heartbeatAttempt)
 	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/result", s.recordResult)
+	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/approval", s.createApproval)
+	mux.HandleFunc("POST /v1/approvals/{intentID}/decision", s.recordApprovalDecision)
+	mux.HandleFunc("POST /v1/approvals/{intentID}/apply", s.applyApproval)
+	mux.HandleFunc("POST /v1/workflows/{workflowID}/cancel-request", s.requestCancellation)
+	mux.HandleFunc("POST /v1/cancellations/{requestID}/apply", s.applyCancellation)
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "route was not found", nil)
 	})
 	return mux
+}
+
+type approvalRepository interface {
+	ApprovalRepository
+}
+
+func (s *Server) approvalRepository(w http.ResponseWriter) (ApprovalRepository, bool) {
+	repository, ok := s.repository.(ApprovalRepository)
+	if !ok {
+		writeError(w, http.StatusNotImplemented, "APPROVAL_CONTROL_UNAVAILABLE", "approval control is unavailable", nil)
+	}
+	return repository, ok
+}
+
+type leaseRequest struct {
+	PartitionID int16  `json:"partition_id"`
+	OwnerID     string `json:"owner_id"`
+	Epoch       int64  `json:"epoch"`
+}
+
+type approvalRequest struct {
+	leaseRequest
+	ExpectedRevision         int64           `json:"expected_revision"`
+	Target                   string          `json:"target"`
+	CanonicalArguments       json.RawMessage `json:"canonical_arguments"`
+	ExpectedResourceRevision string          `json:"expected_resource_revision,omitempty"`
+	ValidUntil               time.Time       `json:"valid_until"`
+	ActorID                  string          `json:"actor_id"`
+}
+
+type approvalDecisionRequest struct {
+	ApproverID     string `json:"approver_id"`
+	ProposalHash   string `json:"proposal_hash"`
+	Decision       string `json:"decision"`
+	DecisionReason string `json:"decision_reason,omitempty"`
+}
+
+type applyApprovalRequest struct {
+	leaseRequest
+	WorkflowID       string `json:"workflow_id"`
+	NodeID           string `json:"node_id"`
+	Iteration        int    `json:"iteration"`
+	ExpectedRevision int64  `json:"expected_revision"`
+	IntentID         string `json:"intent_id"`
+	LogicalEffectKey string `json:"logical_effect_key"`
+	ActorID          string `json:"actor_id"`
+}
+
+type cancellationRequest struct {
+	ClientKey        string `json:"client_key"`
+	ObservedRevision int64  `json:"observed_revision"`
+}
+
+type applyCancellationRequest struct {
+	leaseRequest
+	ActorID string `json:"actor_id"`
 }
 
 type claimAttemptRequest struct {
@@ -209,6 +279,141 @@ func (s *Server) recordResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, receipt)
+}
+
+func decodeLease(request leaseRequest) state.LeaseRef {
+	return state.LeaseRef{PartitionID: request.PartitionID, OwnerID: request.OwnerID, Epoch: request.Epoch}
+}
+
+func (s *Server) createApproval(w http.ResponseWriter, r *http.Request) {
+	repository, ok := s.approvalRepository(w)
+	if !ok {
+		return
+	}
+	workflowID, nodeID, iteration, valid := parseAttemptPath(r)
+	if !valid {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "iteration must be a non-negative integer", nil)
+		return
+	}
+	var request approvalRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
+		return
+	}
+	if request.OwnerID == "" || request.Epoch <= 0 || request.ActorID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "lease and actor identity are required", nil)
+		return
+	}
+	intent, err := repository.CreateApprovalIntent(r.Context(), state.ApprovalIntentInput{
+		Lease: decodeLease(request.leaseRequest), WorkflowID: workflowID, NodeID: nodeID,
+		Iteration: iteration, ExpectedRevision: request.ExpectedRevision, Target: request.Target,
+		CanonicalArguments: request.CanonicalArguments, ExpectedResourceRevision: request.ExpectedResourceRevision,
+		ValidUntil: request.ValidUntil, ActorID: request.ActorID,
+	})
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusCreated, intent)
+}
+
+func (s *Server) recordApprovalDecision(w http.ResponseWriter, r *http.Request) {
+	repository, ok := s.approvalRepository(w)
+	if !ok {
+		return
+	}
+	var request approvalDecisionRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
+		return
+	}
+	if request.ApproverID == "" || request.ProposalHash == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "approver_id and proposal_hash are required", nil)
+		return
+	}
+	intent, err := repository.RecordApprovalDecision(r.Context(), state.ApprovalDecisionInput{
+		IntentID: r.PathValue("intentID"), ApproverID: request.ApproverID,
+		ProposalHash: request.ProposalHash, Decision: request.Decision,
+		DecisionReason: request.DecisionReason,
+	})
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, intent)
+}
+
+func (s *Server) applyApproval(w http.ResponseWriter, r *http.Request) {
+	repository, ok := s.approvalRepository(w)
+	if !ok {
+		return
+	}
+	var request applyApprovalRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
+		return
+	}
+	if request.WorkflowID == "" || request.NodeID == "" || request.OwnerID == "" || request.Epoch <= 0 || request.IntentID == "" || request.ActorID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "workflow, node, intent, lease, and actor identity are required", nil)
+		return
+	}
+	grant, err := repository.ApplyApproval(r.Context(), state.ApplyApprovalInput{
+		Lease: decodeLease(request.leaseRequest), WorkflowID: request.WorkflowID, NodeID: request.NodeID,
+		Iteration: request.Iteration, IntentID: request.IntentID, LogicalEffectKey: request.LogicalEffectKey, ExpectedRevision: request.ExpectedRevision,
+		ActorID: request.ActorID,
+	})
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, grant)
+}
+
+func (s *Server) requestCancellation(w http.ResponseWriter, r *http.Request) {
+	repository, ok := s.approvalRepository(w)
+	if !ok {
+		return
+	}
+	var request cancellationRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
+		return
+	}
+	if request.ClientKey == "" || request.ObservedRevision < 0 {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "client_key and observed_revision are required", nil)
+		return
+	}
+	result, err := repository.RequestCancellation(r.Context(), state.CancellationRequestInput{
+		WorkflowID: r.PathValue("workflowID"), ClientKey: request.ClientKey,
+		ObservedRevision: request.ObservedRevision,
+	})
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, result)
+}
+
+func (s *Server) applyCancellation(w http.ResponseWriter, r *http.Request) {
+	repository, ok := s.approvalRepository(w)
+	if !ok {
+		return
+	}
+	var request applyCancellationRequest
+	if err := decodeJSON(w, r, &request); err != nil {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
+		return
+	}
+	if request.OwnerID == "" || request.Epoch <= 0 || request.ActorID == "" {
+		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "lease and actor identity are required", nil)
+		return
+	}
+	workflow, err := repository.ApplyCancellationRequest(r.Context(), decodeLease(request.leaseRequest), r.PathValue("requestID"), request.ActorID)
+	if err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, workflow)
 }
 
 type submitWorkflowRequest struct {
@@ -628,6 +833,32 @@ func writeRepositoryError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusUnprocessableEntity, "GRAPH_VIOLATION", "workflow graph transition is invalid", nil)
 	case errors.Is(err, state.ErrInvalidTransition):
 		writeError(w, http.StatusConflict, "INVALID_TRANSITION", "workflow transition is invalid", nil)
+	case errors.Is(err, state.ErrCheckpointConflict):
+		writeError(w, http.StatusConflict, "CHECKPOINT_CONFLICT", "checkpoint conflicts with durable progress", nil)
+	case errors.Is(err, state.ErrCheckpointStale):
+		writeError(w, http.StatusConflict, "STALE_CHECKPOINT", "checkpoint sequence is stale or skips progress", nil)
+	case errors.Is(err, state.ErrRetryBudgetExhausted):
+		writeError(w, http.StatusConflict, "RETRY_BUDGET_EXHAUSTED", "retry budget is exhausted", nil)
+	case errors.Is(err, state.ErrApprovalNotFound):
+		writeError(w, http.StatusNotFound, "APPROVAL_NOT_FOUND", "approval intent was not found", nil)
+	case errors.Is(err, state.ErrApprovalExpired):
+		writeError(w, http.StatusUnprocessableEntity, "APPROVAL_EXPIRED", "approval intent has expired", nil)
+	case errors.Is(err, state.ErrApprovalUnauthorized):
+		writeError(w, http.StatusForbidden, "APPROVAL_UNAUTHORIZED", "approver identity is required", nil)
+	case errors.Is(err, state.ErrApprovalMismatch), errors.Is(err, state.ErrApprovalConflict):
+		writeError(w, http.StatusConflict, "APPROVAL_CONFLICT", "approval does not match the exact proposal", nil)
+	case errors.Is(err, state.ErrGrantInvalid):
+		writeError(w, http.StatusForbidden, "INVALID_GRANT", "dispatch grant is missing, expired, or mismatched", nil)
+	case errors.Is(err, state.ErrEffectConflict):
+		writeError(w, http.StatusConflict, "EFFECT_CONFLICT", "effect key conflicts with a prior argument", nil)
+	case errors.Is(err, state.ErrEffectFence):
+		writeError(w, http.StatusConflict, "STALE_EFFECT_FENCE", "effect fence token is stale", nil)
+	case errors.Is(err, state.ErrEffectVersion):
+		writeError(w, http.StatusConflict, "EFFECT_RESOURCE_CONFLICT", "effect resource revision does not match approval", nil)
+	case errors.Is(err, state.ErrAmbiguousEffect):
+		writeError(w, http.StatusConflict, "AMBIGUOUS_EFFECT", "effect outcome requires reconciliation", nil)
+	case errors.Is(err, state.ErrCancellationConflict):
+		writeError(w, http.StatusConflict, "CANCELLATION_CONFLICT", "cancellation request is no longer pending", nil)
 	case isDatabaseUnavailable(err):
 		writeError(w, http.StatusServiceUnavailable, "DATABASE_UNAVAILABLE", "database is unavailable", nil)
 	default:

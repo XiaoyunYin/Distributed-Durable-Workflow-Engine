@@ -48,8 +48,26 @@ effect class remains authoritative in the immutable definition metadata.
   effect attempt becomes `CANCELED/OUTCOME_UNKNOWN`; a late report is evidence
   only and cannot change the terminal workflow revision.
 
-The activity driver in `internal/engine` is deliberately a test fixture. Kafka
-relay, production effect services, and paid/model execution are later scope.
+The activity driver in `internal/engine` is deliberately a test fixture. M4
+checkpoint drivers may load the latest compatible checkpoint through the
+provided reader and save progress through the current claim token. Kafka relay
+and paid/model execution remain outside this interpreter contract.
+
+## M4 recovery and effect boundaries
+
+- Retry policies and checkpoint rows are durable. A fresh interpreter can
+  recover a claimed attempt after its lease expires and the driver can resume
+  from the latest compatible checkpoint; regenerated pure work is measured
+  separately from committed progress.
+- A cooperating effect is applied through `internal/effects` only with an
+  approval grant bound to the proposal, resource revision, and logical key.
+  Its receipt ledger and call-attempt evidence make response loss safe.
+- A non-cooperating response loss is an explicit unknown outcome. The
+  interpreter does not retry that endpoint; reconciliation and actor-audited
+  resolution are required.
+- Approval and cancellation intent records do not themselves change workflow
+  state. The lease owner serializes grant, rejection, and cancellation
+  application.
 
 ## M2 worker runner seam
 

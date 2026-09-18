@@ -84,6 +84,50 @@ type ReconciliationRecord struct {
 	Status     string
 }
 
+type CheckpointRecord struct {
+	WorkflowID    string
+	NodeID        string
+	Iteration     int
+	Sequence      int64
+	SchemaVersion int
+	SourceAttempt int64
+	PayloadValid  bool
+	PayloadHash   string
+}
+
+type EffectRecordSnapshot struct {
+	WorkflowID       string
+	LogicalEffectKey string
+	ArgumentHash     string
+	AttemptNumber    int64
+	GrantScopeHash   string
+	Outcome          string
+	ReceiptPresent   bool
+}
+
+type EffectCallRecord struct {
+	WorkflowID       string
+	LogicalEffectKey string
+	ArgumentHash     string
+	AttemptNumber    int64
+	RequestID        string
+	Outcome          string
+}
+
+type ApprovalRecord struct {
+	IntentID       string
+	WorkflowID     string
+	NodeID         string
+	Iteration      int
+	ProposalHash   string
+	Target         string
+	ArgumentsValid bool
+	Decision       string
+	DispatchStatus string
+	GrantScopeHash string
+	GrantToken     string
+}
+
 type Trace struct {
 	History        []HistoryRecord
 	Results        []AcceptedResult
@@ -93,6 +137,10 @@ type Trace struct {
 	Inbox          []InboxRecord
 	Wakeups        []WakeupRecord
 	Reconciliation []ReconciliationRecord
+	Checkpoints    []CheckpointRecord
+	Effects        []EffectRecordSnapshot
+	EffectCalls    []EffectCallRecord
+	Approvals      []ApprovalRecord
 }
 
 type Verdict struct {
@@ -183,6 +231,55 @@ func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace,
 			trace.Reconciliation = append(trace.Reconciliation, ReconciliationRecord{
 				WorkflowID: item.WorkflowID, Kind: string(item.Kind), Reference: item.Reference, Status: item.Status})
 		}
+		checkpoints, err := store.ListCheckpoints(ctx, workflowID)
+		if err != nil {
+			return Trace{}, err
+		}
+		for _, checkpoint := range checkpoints {
+			trace.Checkpoints = append(trace.Checkpoints, CheckpointRecord{
+				WorkflowID: checkpoint.WorkflowID, NodeID: checkpoint.NodeID,
+				Iteration: checkpoint.Iteration, Sequence: checkpoint.Sequence,
+				SchemaVersion: checkpoint.SchemaVersion, SourceAttempt: checkpoint.SourceAttempt,
+				PayloadValid: json.Valid(checkpoint.Payload), PayloadHash: checkpoint.PayloadHash,
+			})
+		}
+		effects, err := store.ListEffectRecords(ctx, workflowID)
+		if err != nil {
+			return Trace{}, err
+		}
+		for _, effect := range effects {
+			trace.Effects = append(trace.Effects, EffectRecordSnapshot{
+				WorkflowID: effect.WorkflowID, LogicalEffectKey: effect.LogicalEffectKey,
+				ArgumentHash: effect.ArgumentHash, AttemptNumber: effect.AttemptNumber,
+				GrantScopeHash: effect.GrantScopeHash, Outcome: effect.Outcome,
+				ReceiptPresent: len(effect.Receipt) != 0,
+			})
+		}
+		calls, err := store.ListEffectCallAttempts(ctx, workflowID)
+		if err != nil {
+			return Trace{}, err
+		}
+		for _, call := range calls {
+			trace.EffectCalls = append(trace.EffectCalls, EffectCallRecord{
+				WorkflowID: call.WorkflowID, LogicalEffectKey: call.LogicalEffectKey,
+				ArgumentHash: call.ArgumentHash, AttemptNumber: call.AttemptNumber,
+				RequestID: call.RequestID, Outcome: call.Outcome,
+			})
+		}
+		approvals, err := store.ListApprovalIntents(ctx, workflowID)
+		if err != nil {
+			return Trace{}, err
+		}
+		for _, approval := range approvals {
+			trace.Approvals = append(trace.Approvals, ApprovalRecord{
+				IntentID: approval.IntentID, WorkflowID: approval.WorkflowID,
+				NodeID: approval.NodeID, Iteration: approval.Iteration,
+				ProposalHash: approval.ProposalHash, Target: approval.Target,
+				ArgumentsValid: json.Valid(approval.CanonicalArguments),
+				Decision:       approval.Decision, DispatchStatus: approval.DispatchStatus,
+				GrantScopeHash: approval.GrantScopeHash, GrantToken: approval.GrantToken,
+			})
+		}
 		trace.Submissions = append(trace.Submissions, SubmissionRecord{Namespace: workflow.Namespace,
 			Key: workflow.SubmissionKey, Hash: workflow.PayloadHash, WorkflowID: workflowID})
 	}
@@ -204,7 +301,85 @@ func Check(trace Trace) Verdict {
 	checkSubmissions(trace.Submissions, &violations)
 	checkOwnershipAndAttempts(trace.History, trace.Attempts, &violations)
 	checkTransport(trace, &violations)
+	checkM4(trace, &violations)
 	return Verdict{Valid: len(violations) == 0, Violations: violations}
+}
+
+func checkM4(trace Trace, violations *[]string) {
+	checkpointsByNode := make(map[string][]CheckpointRecord)
+	for _, checkpoint := range trace.Checkpoints {
+		if checkpoint.WorkflowID == "" || checkpoint.NodeID == "" || checkpoint.Iteration < 0 ||
+			checkpoint.Sequence < 0 || checkpoint.SchemaVersion <= 0 || checkpoint.SourceAttempt <= 0 ||
+			!checkpoint.PayloadValid || checkpoint.PayloadHash == "" {
+			*violations = append(*violations, "checkpoint evidence is incomplete")
+		}
+		key := fmt.Sprintf("%s\x00%s\x00%d", checkpoint.WorkflowID, checkpoint.NodeID, checkpoint.Iteration)
+		checkpointsByNode[key] = append(checkpointsByNode[key], checkpoint)
+	}
+	for key, checkpoints := range checkpointsByNode {
+		sort.Slice(checkpoints, func(i, j int) bool { return checkpoints[i].Sequence < checkpoints[j].Sequence })
+		for index, checkpoint := range checkpoints {
+			if checkpoint.Sequence != int64(index) {
+				*violations = append(*violations, "checkpoint sequence is not contiguous: "+key)
+				break
+			}
+			if index > 0 && checkpoint.SchemaVersion != checkpoints[index-1].SchemaVersion {
+				*violations = append(*violations, "checkpoint schema changed within an activity: "+key)
+			}
+		}
+	}
+
+	effects := make(map[string]EffectRecordSnapshot)
+	for _, effect := range trace.Effects {
+		if effect.WorkflowID == "" || effect.LogicalEffectKey == "" || effect.ArgumentHash == "" || effect.AttemptNumber <= 0 {
+			*violations = append(*violations, "effect record identity is incomplete")
+		}
+		key := effect.WorkflowID + "\x00" + effect.LogicalEffectKey
+		if _, exists := effects[key]; exists {
+			*violations = append(*violations, "effect key has duplicate records: "+key)
+		}
+		effects[key] = effect
+		switch effect.Outcome {
+		case "APPLIED":
+			if !effect.ReceiptPresent {
+				*violations = append(*violations, "applied effect lacks a receipt: "+key)
+			}
+		case "OUTCOME_UNKNOWN":
+			// An unknown effect must remain visible until an operator resolves it.
+		default:
+			*violations = append(*violations, "effect has unknown outcome: "+key)
+		}
+	}
+	callRequests := make(map[string]struct{})
+	for _, call := range trace.EffectCalls {
+		if call.WorkflowID == "" || call.LogicalEffectKey == "" || call.ArgumentHash == "" || call.AttemptNumber <= 0 || call.RequestID == "" {
+			*violations = append(*violations, "effect call identity is incomplete")
+		}
+		key := call.WorkflowID + "\x00" + call.RequestID
+		if _, exists := callRequests[key]; exists {
+			*violations = append(*violations, "effect request ID is duplicated: "+key)
+		}
+		callRequests[key] = struct{}{}
+		if call.Outcome != "APPLIED" && call.Outcome != "DUPLICATE" && call.Outcome != "CONFLICT" && call.Outcome != "REJECTED" && call.Outcome != "UNKNOWN" {
+			*violations = append(*violations, "effect call has unknown outcome: "+key)
+		}
+	}
+	for _, approval := range trace.Approvals {
+		if approval.IntentID == "" || approval.WorkflowID == "" || approval.NodeID == "" || approval.Iteration < 0 || approval.ProposalHash == "" || approval.Target == "" || !approval.ArgumentsValid {
+			*violations = append(*violations, "approval intent is incomplete")
+		}
+		if approval.Decision != "PENDING" && approval.Decision != "APPROVED" && approval.Decision != "REJECTED" {
+			*violations = append(*violations, "approval decision is unknown: "+approval.IntentID)
+		}
+		if approval.DispatchStatus != "NOT_GRANTED" && approval.DispatchStatus != "GRANTED" && approval.DispatchStatus != "DISPATCHED" && approval.DispatchStatus != "CANCELED" {
+			*violations = append(*violations, "approval dispatch status is unknown: "+approval.IntentID)
+		}
+		if approval.DispatchStatus == "GRANTED" || approval.DispatchStatus == "DISPATCHED" {
+			if approval.Decision != "APPROVED" || approval.GrantScopeHash == "" || approval.GrantToken == "" {
+				*violations = append(*violations, "approval grant lacks matching approved decision: "+approval.IntentID)
+			}
+		}
+	}
 }
 
 // checkTransport derives transport verdicts from the independent snapshots,

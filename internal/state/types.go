@@ -37,6 +37,21 @@ var (
 	ErrWorkflowIDConflict     = errors.New("workflow ID is already used by another submission")
 	ErrGraphViolation         = errors.New("workflow graph transition violates its definition")
 	ErrInvalidAttemptState    = errors.New("invalid attempt state")
+	ErrCheckpointConflict     = errors.New("checkpoint conflicts with durable progress")
+	ErrCheckpointStale        = errors.New("checkpoint sequence is stale or skips progress")
+	ErrRetryBudgetExhausted   = errors.New("retry budget is exhausted")
+	ErrApprovalNotFound       = errors.New("approval intent not found")
+	ErrApprovalConflict       = errors.New("approval decision conflicts with the proposal")
+	ErrApprovalExpired        = errors.New("approval is expired")
+	ErrApprovalUnauthorized   = errors.New("approver is not authorized")
+	ErrApprovalMismatch       = errors.New("approval does not match the requested action")
+	ErrGrantInvalid           = errors.New("dispatch grant is invalid")
+	ErrEffectConflict         = errors.New("effect key conflicts with durable effect record")
+	ErrEffectFence            = errors.New("effect fence token is stale")
+	ErrEffectVersion          = errors.New("effect resource revision does not match approval")
+	ErrEffectNotFound         = errors.New("effect record not found")
+	ErrAmbiguousEffect        = errors.New("effect outcome is ambiguous")
+	ErrCancellationConflict   = errors.New("cancellation request conflicts with durable state")
 )
 
 const (
@@ -145,6 +160,25 @@ type NodeInstance struct {
 	DeadlineAt     *time.Time
 	TimerFired     bool
 	Revision       int64
+}
+
+type RetryPolicy struct {
+	MaxRetries              int
+	RetriesUsed             int
+	TotalDeadlineAt         *time.Time
+	CheckpointSchemaVersion int
+}
+
+type RetryPolicyInput struct {
+	Lease                   LeaseRef
+	WorkflowID              string
+	NodeID                  string
+	Iteration               int
+	ExpectedRevision        int64
+	MaxRetries              int
+	TotalDeadlineAt         *time.Time
+	CheckpointSchemaVersion int
+	ActorID                 string
 }
 
 type GraphNodeInput struct {
@@ -384,6 +418,163 @@ type ConsumeResult struct {
 	Workflow     Workflow
 	NodeState    WorkflowState
 	AttemptState AttemptState
+}
+
+type CheckpointInput struct {
+	WorkflowID    string
+	NodeID        string
+	Iteration     int
+	AttemptNumber int64
+	ClaimToken    string
+	Sequence      int64
+	SchemaVersion int
+	Payload       json.RawMessage
+}
+
+type Checkpoint struct {
+	WorkflowID    string
+	NodeID        string
+	Iteration     int
+	Sequence      int64
+	SchemaVersion int
+	SourceAttempt int64
+	Payload       json.RawMessage
+	PayloadHash   string
+	CreatedAt     time.Time
+}
+
+type ApprovalIntentInput struct {
+	Lease                    LeaseRef
+	WorkflowID               string
+	NodeID                   string
+	Iteration                int
+	ExpectedRevision         int64
+	Target                   string
+	CanonicalArguments       json.RawMessage
+	ExpectedResourceRevision string
+	ValidUntil               time.Time
+	ActorID                  string
+}
+
+type ApprovalIntent struct {
+	IntentID                 string
+	WorkflowID               string
+	NodeID                   string
+	Iteration                int
+	ProposalHash             string
+	ProposalSignature        string
+	Target                   string
+	CanonicalArguments       json.RawMessage
+	ExpectedResourceRevision string
+	Decision                 string
+	ApproverID               string
+	ValidUntil               time.Time
+	DispatchStatus           string
+	GrantScopeHash           string
+	GrantToken               string
+	GrantExpiresAt           *time.Time
+	DecisionReason           string
+}
+
+type ApprovalDecisionInput struct {
+	IntentID       string
+	ApproverID     string
+	ProposalHash   string
+	Decision       string
+	DecisionReason string
+	ValidUntil     time.Time
+}
+
+type ApplyApprovalInput struct {
+	Lease            LeaseRef
+	WorkflowID       string
+	NodeID           string
+	Iteration        int
+	IntentID         string
+	LogicalEffectKey string
+	ExpectedRevision int64
+	ActorID          string
+}
+
+type ApprovalGrant struct {
+	IntentID       string
+	GrantToken     string
+	GrantScopeHash string
+	ExpiresAt      time.Time
+}
+
+type CancellationRequestInput struct {
+	WorkflowID       string
+	ClientKey        string
+	ObservedRevision int64
+}
+
+type CancellationRequest struct {
+	RequestID        string
+	WorkflowID       string
+	ClientKey        string
+	ObservedRevision int64
+	Status           string
+	CreatedAt        time.Time
+	AppliedAt        *time.Time
+}
+
+type EffectRecord struct {
+	WorkflowID       string
+	LogicalEffectKey string
+	ArgumentHash     string
+	AttemptNumber    int64
+	GrantScopeHash   string
+	Outcome          string
+	Receipt          json.RawMessage
+	CreatedAt        time.Time
+	UpdatedAt        time.Time
+}
+
+type EffectApplyInput struct {
+	WorkflowID               string
+	LogicalEffectKey         string
+	ArgumentHash             string
+	AttemptNumber            int64
+	GrantScopeHash           string
+	ExpectedResourceRevision string
+	RequestID                string
+	ResourceID               string
+	FenceToken               int64
+	State                    json.RawMessage
+	IntentID                 string
+	GrantToken               string
+}
+
+type EffectReceipt struct {
+	WorkflowID       string
+	LogicalEffectKey string
+	ArgumentHash     string
+	ResourceID       string
+	ResourceRevision int64
+	Receipt          json.RawMessage
+}
+
+type EffectCallAttempt struct {
+	CallID           string
+	WorkflowID       string
+	LogicalEffectKey string
+	ArgumentHash     string
+	AttemptNumber    int64
+	RequestID        string
+	Outcome          string
+	Receipt          json.RawMessage
+	CreatedAt        time.Time
+}
+
+type GrantValidationInput struct {
+	IntentID         string
+	GrantToken       string
+	GrantScopeHash   string
+	LogicalEffectKey string
+	WorkflowID       string
+	NodeID           string
+	Iteration        int
 }
 
 func New(pool *pgxpool.Pool) *Store {
