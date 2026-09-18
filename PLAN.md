@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 READY_FOR_REVIEW; DUR-022 READY_FOR_REVIEW; DUR-023B READY_FOR_REVIEW; DUR-024 READY_FOR_REVIEW; DUR-025 READY_FOR_REVIEW; DUR-021A READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1049,11 +1049,11 @@ contract revision.
 
 #### M5 implementation record
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Base commit:** `561b5a9` (M5 start record; M4 closeout ancestor `612dde9`).
 - **Target commit:** `acb28ba` (M5 round-23 evidence and crash-boundary fixes;
   prior corrections `6ab54ea` and `69917db`).
-- **Active task:** DUR-022 — Complete fault controller.
+- **Completed tasks:** DUR-022, DUR-023B, DUR-024, DUR-025, and DUR-021A.
 - **Protected boundaries:** Preserve the M0 contracts, frozen partition map,
   PostgreSQL ownership and fencing rules, outbox/inbox identity, event
   registry, effect/approval authorization boundary, and the independent
@@ -1074,7 +1074,7 @@ contract revision.
 
 #### DUR-022 — Complete fault controller
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** M4 DONE at closeout commit `612dde9`.
 - **Goal:** Make the failure controller reliable enough to drive the named
   engine campaign boundaries and to report what actually happened.
@@ -1099,15 +1099,16 @@ contract revision.
   fixtures, campaign records, `docs/BUILD_LOG.md`, and the final
   `REVIEW.md` handoff.
 - **Implementation commits:** `6ab54ea`, `69917db`, and `acb28ba`.
-- **Review:** pending Claude review of `acb28ba` against the round-22 target
-  `69917db`.
+- **Review:** Claude's committed round-23 review of `acb28ba` against
+  `69917db` returned `NO_BLOCKING_FINDINGS`; R055, R056, and R058 are VERIFIED.
+  R057 remains OPEN as a nonblocking P3 evidence-labelling limitation.
 - **Remaining limitations:** The fault proxy is a local test-profile control;
   the real Kafka adapter/rebalance, multi-host deployment, hard-kill storage
   durability, sustained-load measurements, and remote CI remain untested.
 
 #### DUR-023B — Finalize and mutation-test invariant checker
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** M1 through M4 reviewed and closed.
 - **Goal and scope:** Join independent durable-state invariants with parsed
   `fault-trace.v1` evidence, validate requested versus observed outcomes and
@@ -1122,11 +1123,12 @@ contract revision.
 - **Evidence:** `internal/invariants/m5.go`, `internal/invariants/m5_test.go`,
   48 traces, their durable snapshots, and
   `experiments/m5/f01-f11-results.json` in `acb28ba`.
-- **Review:** pending Claude review.
+- **Review:** Claude round-23 `NO_BLOCKING_FINDINGS` at `acb28ba` against
+  `69917db`.
 
 #### DUR-024 — Engine boundary matrix
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-022 and DUR-023B implementation in `c5cd2b8`.
 - **Goal and scope:** Execute the committed F01-F11 boundary matrix with
   durable PostgreSQL/Kafka tests, including duplicate publication, relay
@@ -1140,11 +1142,12 @@ contract revision.
   `experiments/m5/README.md`, `experiments/m5/traces/`,
   `experiments/m5/durable/`, and `experiments/m5/f01-f11-results.json` in
   `acb28ba`.
-- **Review:** pending Claude review.
+- **Review:** Claude round-23 `NO_BLOCKING_FINDINGS` at `acb28ba` against
+  `69917db`.
 
 #### DUR-025 — Real dependency outages and Core Engine MVP smoke
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-022 through DUR-024 implementation in `c5cd2b8`.
 - **Goal and scope:** Validate local PostgreSQL/Kafka restart/unavailability,
   worker/control partition, whole-process restart with retained volumes, and
@@ -1160,14 +1163,15 @@ contract revision.
 - **Evidence:** `internal/engine/m5_smoke_test.go`,
   `scripts/m5-outage-report.ps1`, `experiments/m5/outage-recovery.json`,
   `scripts/restart-smoke.ps1`, `scripts/smoke.ps1`, and the M5 BUILD_LOG entry.
-- **Review:** pending Claude review.
+- **Review:** Claude round-23 `NO_BLOCKING_FINDINGS` at `acb28ba` against
+  `69917db`.
 - **Remaining limitations:** No multi-host deployment, Kafka consumer
   rebalance, hard-kill durability, lock/statement-timeout campaign,
   sustained-load study, or remote CI exists.
 
 #### DUR-021A — Engine telemetry prerequisite
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** M5 engine and fault evidence implementation.
 - **Goal and scope:** Provide bounded Prometheus text metrics for durable
   readiness, accepted claims/results, lease activity, fenced writes, database
@@ -1185,7 +1189,8 @@ contract revision.
   `internal/telemetry/metrics_test.go`, runtime wiring in
   `cmd/runtime/main.go` and `internal/state`, `internal/engine/m5_smoke_test.go`,
   and `acb28ba`.
-- **Review:** pending Claude review.
+- **Review:** Claude round-23 `NO_BLOCKING_FINDINGS` at `acb28ba` against
+  `69917db`.
 - **Remaining limitations:** This is a bounded prerequisite, not the final
   M7 measurement host, dashboard, or performance study.
 
@@ -1506,11 +1511,11 @@ round-18 review returned `NO_BLOCKING_FINDINGS`; R048 is VERIFIED with a
 nonblocking residual note about manual DB-enabled parallel runs. M4 is DONE
 at reviewed implementation target `fcdbf09` against M3 closeout `8fb2f75`;
 Claude's committed round-20 review returned `NO_BLOCKING_FINDINGS`, and R049
-is VERIFIED. M5 is READY_FOR_REVIEW at corrected target `acb28ba`, based on
-the round-22 reviewed target `69917db` and M5 start commit `561b5a9` (M4
-closeout ancestor `612dde9`). DUR-022, DUR-023B, DUR-024, DUR-025, and
-DUR-021A are READY_FOR_REVIEW. Claude should review the corrected M5 target
-against `69917db`. Keep the M0 contracts and
+is VERIFIED. M5 is DONE at reviewed target `acb28ba`, based on the round-22
+reviewed target `69917db` and M5 start commit `561b5a9` (M4 closeout ancestor
+`612dde9`). Claude's round-23 review returned `NO_BLOCKING_FINDINGS`; DUR-022,
+DUR-023B, DUR-024, DUR-025, and DUR-021A are DONE. R057 remains open as a
+nonblocking P3 evidence-labelling limitation. Keep the M0 contracts and
 partition-map version frozen while extending the durable state repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

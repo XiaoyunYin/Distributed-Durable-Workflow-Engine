@@ -1,7 +1,8 @@
 # Distributed Durable Execution Engine
 
-This repository has completed M0 through M4 and M5 is ready for review at
-committed target `acb28ba` against the round-22 reviewed target `69917db`.
+This repository has completed M0 through M5. M5 was reviewed with
+`NO_BLOCKING_FINDINGS` at committed target `acb28ba` against round-22 target
+`69917db`; R057 remains a nonblocking P3 evidence-labelling limitation.
 It provides a
 reproducible Go/Python development
 environment, frozen foundation contracts, deterministic named-boundary fault
@@ -9,9 +10,9 @@ fixtures, and a real local PostgreSQL/Kafka topology. PostgreSQL remains
 authoritative for workflow state; the transactional outbox, Kafka relay,
 inbox/offset consumer, scheduler wake-ups, retry/checkpoint recovery,
 approval-gated cooperating effects, and bounded reconciliation paths are
-covered by focused integration tests. M4 is reviewed and closed; M5's
-corrected implementation, controller-driven fault campaign, outage checks,
-and telemetry prerequisite are awaiting Claude's review, and this is not a claim of
+covered by focused integration tests. M4 and M5 are reviewed and closed; M5's
+controller-driven fault campaign, outage checks, and telemetry prerequisite
+remain development evidence, and this is not a claim of
 production authentication, multi-host durability, or final performance.
 
 ## Local topology

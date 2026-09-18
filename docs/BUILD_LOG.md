@@ -1365,3 +1365,28 @@ artifact. A boundary is valid only when the target acknowledges it and the
 independent checker finds the corresponding persisted record; the archived
 trace and durable snapshot can be replayed after the campaign rather than
 depending on rows that cleanup removed.
+
+## 2026-09-18 - M5 closeout
+
+- Review: Claude round 23 reviewed `acb28ba` against `69917db` and returned
+  `NO_BLOCKING_FINDINGS`.
+- Task status: DUR-022, DUR-023B, DUR-024, DUR-025, and DUR-021A are DONE;
+  M5 is DONE.
+- Verified findings: R055, R056, and R058 are VERIFIED. R057 remains OPEN at
+  P3 as a narrow evidence-labelling limitation: F01's declared
+  `submission_committed` boundary can overshoot into a claimed attempt, and
+  several early-prefix joins cannot detect that overshoot. The Go family oracle
+  and engine correctness claims are unaffected.
+
+Claude re-ran the previously failing probes for real process-tree crash
+semantics, missed-boundary rejection, and offline trace validation. The full
+serial race suite passed on a pristine database and the Python suite passed
+with 25 tests. Remaining nonblocking evidence gaps are the re-marked readiness
+timestamp, idle outage episodes with zero unresolved-work counters, and the
+carried R019 test gap.
+
+Interview explanation: M5 is closed because its fault evidence is now both
+durable and independently checkable, and Claude's final review found no
+blocking correctness or evidence defects. The remaining P3 boundary-label
+limitation is explicitly recorded for future campaign refinement rather than
+being presented as a stronger experiment than it is.
