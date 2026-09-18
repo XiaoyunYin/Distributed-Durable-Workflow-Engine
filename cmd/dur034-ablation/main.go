@@ -429,6 +429,15 @@ func runProfile(ctx context.Context, store *state.Store, metrics *telemetry.Metr
 			return failedRun(profile, repeat, err), err
 		}
 	}
+	if _, err := workers.Close(); err != nil {
+		return failedRun(profile, repeat, fmt.Errorf("close warmup worker pool: %w", err)), err
+	}
+	workersClosed = true
+	workers, err = newWorkerPool(cfg.WorkerBinary, cfg.WorkerSlots)
+	if err != nil {
+		return failedRun(profile, repeat, err), err
+	}
+	workersClosed = false
 	baseline := metrics.Snapshot()
 	cpuStart, err := processCPUSeconds()
 	if err != nil {
