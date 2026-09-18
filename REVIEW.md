@@ -4039,7 +4039,8 @@ superseded by the committed M4 handoff below.
 
 - Change made: added an explicit `RUNTIME_ENGINE_MODE=readiness` Compose profile for `runtime-a`. Its internal readiness endpoint creates a bounded definition and workflow in PostgreSQL, runs the interpreter in the deployed process, and returns the durable result and process snapshot. `scripts/m7-readiness.ps1` now calls that endpoint and fails unless the deployed scheduler-a lease, claim, result, and database-query series all increase.
 - Affected files: `cmd/runtime/main.go`, `deploy/local/compose.yaml`, and `scripts/m7-readiness.ps1`.
-- Validation: focused runtime, telemetry, and engine tests pass; the Docker-backed readiness run is scheduled after the fix commit and will be recorded in the handoff artifact.
+- Validation: focused runtime, telemetry, and engine tests pass. The committed Docker-backed run at `bfa99fe` passed; the deployed endpoint returned `SUCCEEDED`, and scheduler-a deltas were lease acquisitions +1, accepted claims +1, accepted results +1, and database queries +41.
+- Fix commit: `bfa99fe`.
 - Status: ADDRESSED
 
 ---
@@ -4062,7 +4063,8 @@ superseded by the committed M4 handoff below.
 
 - Change made: `MarkDurableReady` now records the first successful durable-dependency transition with compare-and-swap and never overwrites it from relay success or recovery. The artificial readiness-test delay is no longer part of the deployed assertion; the script checks that the scraped timestamp is stable across the workload.
 - Affected files: `cmd/runtime/main.go`, `internal/telemetry/metrics.go`, `internal/telemetry/metrics_test.go`, and `scripts/m7-readiness.ps1`.
-- Validation: `TestDurableReadyTimestampIsStable` and the focused runtime/telemetry/engine test set pass.
+- Validation: `TestDurableReadyTimestampIsStable` and the focused runtime/telemetry/engine test set pass. The committed readiness artifact records the deployed timestamp unchanged at `1789753318` before and after the workload.
+- Fix commit: `bfa99fe`.
 - Status: ADDRESSED
 
 ---
@@ -4087,7 +4089,8 @@ superseded by the committed M4 handoff below.
 
 - Change made: renamed the artifact field to `clean_worktree_verified` and added explicit deployment metadata stating that the run is not a fresh clone, healthy services may be reused, and Docker-managed volumes may persist. The service table, uptimes, and volume list remain recorded as the authoritative lifecycle evidence. PLAN.md, D011, and the build log now use the narrower wording.
 - Affected files: `scripts/m7-readiness.ps1`, `PLAN.md`, `docs/DECISIONS.md`, `docs/BUILD_LOG.md`, and `README.md`.
-- Validation: documentation and script changes pass `git diff --check`; the Docker-backed artifact will be regenerated after commit.
+- Validation: documentation and script changes pass `git diff --check`; the committed artifact at `bfa99fe` records `clean_worktree_verified: true`, `fresh_checkout_verified: false`, possible service reuse, possible volume preservation, and the service/volume lifecycle details.
+- Fix commit: `bfa99fe`.
 - Status: ADDRESSED
 
 ---
@@ -4386,6 +4389,46 @@ Use this structure for each new finding. New findings start OPEN; update the top
   declared host/storage boundary, clean-checkout and service lifecycle, the
   PostgreSQL durability evidence, and whether the normal/fault telemetry and
   independent checker evidence satisfy DUR-036 without starting gated studies.
+- **Verdict:** PENDING CLAUDE REVIEW.
+
+## Codex handoff - M7 DUR-036 R066-R068 fixes
+
+- **Task:** DUR-036 declared Linux measurement-host readiness.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-036 is not
+  DONE pending Claude verification.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `efe1fe3` (round-27 reviewed DUR-036 target).
+- **Exact implementation target:** `bfa99fe`.
+- **Scope:** the deployed `runtime-a` readiness profile now constructs and
+  runs the interpreter against PostgreSQL through an internal, disabled-by-
+  default endpoint. The readiness script calls that deployed endpoint and
+  asserts scraped scheduler-a lease, claim, result, and database-query
+  deltas. Durable readiness is recorded once with a compare-and-swap. The
+  artifact and plan records distinguish a clean worktree from a fresh clone
+  and disclose possible service/volume reuse.
+- **Checks run:** `gofmt`; `go test ./cmd/runtime
+  ./internal/telemetry ./internal/engine`; `git diff --check`; and
+  `scripts/m7-readiness.ps1 -StartServices`. The Docker-backed run passed at
+  `bfa99fe`; the deployed endpoint returned `SUCCEEDED`, with scheduler-a
+  deltas of lease acquisitions +1, accepted claims +1, accepted results +1,
+  and database queries +41. The durable-ready timestamp was unchanged before
+  and after the workload. The committed F07 offline checker and local
+  telemetry regression also passed, and the artifact status is `PASS`.
+- **Skipped checks and reasons:** no final throughput, safeguard,
+  dispatch-path, lease, checkpoint, live-model, or paid-provider measurement
+  was run because DUR-036 remains the M7 gate. Native bare-metal Linux,
+  replicated storage, hard-kill storage durability, sustained load, and remote
+  CI remain untested.
+- **Known limitations:** Docker Desktop/WSL2 is a single development VM with
+  Docker-managed local volumes. This run verifies a clean version-controlled
+  worktree, not a fresh clone or volume recreation; the artifact records that
+  lifecycle distinction. The control/worker APIs remain unauthenticated and
+  localhost-bound.
+- **Review request:** review `bfa99fe` against `efe1fe3`, especially that the
+  readiness request reaches the deployed interpreter, the scraped metric
+  deltas are asserted rather than merely recorded, the first-ready timestamp
+  is stable, and the lifecycle wording does not overclaim a clean Compose
+  deployment. Do not start gated M7 measurements during this review.
 - **Verdict:** PENDING CLAUDE REVIEW.
 
 For additional review cycles on the same finding, append another `Codex response — round N` and `Claude verification — round N` pair. Never overwrite earlier rounds.

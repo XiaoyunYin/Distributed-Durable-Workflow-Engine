@@ -1601,8 +1601,14 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   and Docker-managed volumes may have been reused. Service uptimes and volume
   metadata remain the lifecycle evidence.
 - Focused validation: `gofmt`; `go test ./cmd/runtime ./internal/telemetry
-  ./internal/engine` passed. The Docker-backed readiness run is still pending
-  the committed fix target and will be recorded with its exact output.
+  ./internal/engine` passed. After the fix target was committed as `bfa99fe`,
+  `scripts/m7-readiness.ps1 -StartServices` passed and regenerated the tracked
+  artifact. The deployed readiness endpoint returned `SUCCEEDED`; the scraped
+  scheduler-a deltas were lease acquisitions +1, accepted claims +1, accepted
+  results +1, and database queries +41. The durable-ready timestamp remained
+  `1789753318` before and after the workload. The artifact records the exact
+  service lifecycle and explicitly does not claim a fresh clone or volume
+  recreation.
 - Alternatives considered: a separate scheduler container would have added a
   second production-like process and another ownership path; the bounded
   readiness profile keeps the measured runtime path explicit while remaining
