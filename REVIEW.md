@@ -4309,8 +4309,9 @@ superseded by the committed M4 handoff below.
 
 - Change made: replaced the inline activity driver with a fixed-capacity four-process worker pool. Scheduler goroutines now drive the durable interpreter and submit activity requests; worker process CPU is measured separately. The report takes `worker_slots` from the configured pool rather than writing a literal. The harness remains bounded Store/Engine evidence and does not claim to exercise the deployed Kafka/API/relay path.
 - Affected files: `cmd/dur026-benchmark/main.go`, `cmd/dur026-worker/main.go`, `scripts/m7-dur026.ps1`, and the DUR-026 plan/evidence records.
-- Fix commit: pending the corrected pilot and final evidence commit.
-- Tests and results: command-level Go tests, vet, gofmt, PowerShell parsing, and `git diff --check` pass. Corrected pilot/final runs are pending.
+- Corrected fix/evidence commit: `50d4b13` (with calibration at `1e54bc6`).
+- Fix commit: `50d4b13`; calibration artifact: `1e54bc6`.
+- Tests and results: command-level Go tests, vet, gofmt, PowerShell parsing, and `git diff --check` pass. The corrected pilot and final runs pass; the final artifact records 24 runs and 576 terminal workflows.
 - Status: ADDRESSED
 
 ---
@@ -4337,8 +4338,9 @@ superseded by the committed M4 handoff below.
 
 - Change made: replaced the unbuffered scheduler channel with a cohort-sized queue and an independent scheduled producer. The pilot now sweeps six offered rates on the one-scheduler baseline, records throughput/offer ratios, and freezes the highest rate that tracks both workloads plus the next rate as the near-saturation condition. Final runs read those frozen rates from the committed pilot.
 - Affected files: `cmd/dur026-benchmark/main.go`, `scripts/m7-dur026.ps1`, `PLAN.md`, and the DUR-026 evidence records.
-- Fix commit: pending the corrected pilot and final evidence commit.
-- Tests and results: static checks pass; the calibration run is pending.
+- Corrected fix/evidence commit: `50d4b13` (with calibration at `1e54bc6`).
+- Fix commit: `50d4b13`; calibration artifact: `1e54bc6`.
+- Tests and results: the calibration pilot passed 12 cases and 96 terminal workflows; the final run then passed 24 cases and 576 terminal workflows.
 - Status: ADDRESSED
 
 ---
@@ -4361,8 +4363,9 @@ superseded by the committed M4 handoff below.
 
 - Change made: the child benchmark now reports worker CPU separately from scheduler process CPU. The grouped report publishes scheduler CPU-seconds per terminal workflow and worker CPU-seconds per terminal workflow as distinct quantities, so synthetic activity cost is not presented as scheduler cost.
 - Affected files: `cmd/dur026-benchmark/main.go`, `cmd/dur026-worker/main.go`, and `scripts/m7-dur026.ps1`.
-- Fix commit: pending the corrected pilot and final evidence commit.
-- Tests and results: command-level Go tests, vet, gofmt, PowerShell parsing, and `git diff --check` pass; corrected measurements are pending.
+- Corrected fix/evidence commit: `50d4b13` (with calibration at `1e54bc6`).
+- Fix commit: `50d4b13`; calibration artifact: `1e54bc6`.
+- Tests and results: command-level Go tests, vet, gofmt, PowerShell parsing, `git diff --check`, and `scripts/ci.ps1 -WithRace` pass; role-separated CPU fields are present in the final artifact.
 - Status: ADDRESSED
 
 ---
@@ -4385,8 +4388,9 @@ superseded by the committed M4 handoff below.
 
 - Change made: the protocol now runs four discarded warm-up workflows before each measured cohort, measures 24 workflows per final run, records the open-loop arrival window and separate drain duration, and enforces a frozen 120-second completion SLO with a 900-second run cap in the runner. Pilot and final artifacts record those fields and SLO violations.
 - Affected files: `cmd/dur026-benchmark/main.go`, `scripts/m7-dur026.ps1`, `PLAN.md`, and the DUR-026 evidence records.
-- Fix commit: pending the corrected pilot and final evidence commit.
-- Tests and results: static checks pass; corrected pilot/final measurements are pending.
+- Corrected fix/evidence commit: `50d4b13` (with calibration at `1e54bc6`).
+- Fix commit: `50d4b13`; calibration artifact: `1e54bc6`.
+- Tests and results: the final artifact records the warm-up, arrival-window, drain, SLO, and run-cap fields, with zero SLO violations.
 - Status: ADDRESSED
 
 ---
@@ -4835,3 +4839,41 @@ Use this structure for each new finding. New findings start OPEN; update the top
   returns `NO_BLOCKING_FINDINGS`.
 
 For additional review cycles on the same finding, append another `Codex response — round N` and `Claude verification — round N` pair. Never overwrite earlier rounds.
+
+## Codex handoff - M7 DUR-026 corrected throughput protocol and core runs
+
+- **Task:** DUR-026 throughput protocol and core runs.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-026 is not
+  DONE pending Claude's committed review of the corrected target.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `7a0ef95` (the round-30 reviewed target whose evidence
+  was superseded; DUR-036 remains accepted at `6325d1f`).
+- **Exact implementation target:** `50d4b13`; calibration artifact commit
+  `1e54bc6`.
+- **Scope and correction:** the benchmark now uses four fixed worker
+  subprocesses, keeps worker capacity fixed across scheduler counts, measures
+  scheduler and worker CPU separately, feeds a cohort-sized queue from an
+  independent open-loop schedule, and records warm-up, arrival-window, drain,
+  SLO, and run-cap fields. The pilot sweeps six one-scheduler offered rates
+  and freezes 1 workflow/second as below saturation and 2 as the next
+  near-saturation rate for both workloads. The harness is explicitly bounded
+  Store/Engine evidence and does not claim deployed Kafka/API/relay throughput.
+- **Measured evidence:** `experiments/m7/dur026/pilot.json` is PASS with 12
+  calibration cases and 96/96 terminal pilot workflows. `results.json` is
+  PASS with 24 measured runs (8 configurations x 3 repeats), 576/576 terminal
+  workflows, zero pending workflows, zero completion-SLO violations, four
+  warm-up workflows per case, 24 measured workflows per case, a 120-second
+  SLO, and a 900-second run cap. The R069 pre-run sweep and post-run query
+  found zero rows/definitions in both reserved readiness and benchmark
+  namespaces.
+- **Checks run:** `scripts/m7-dur026.ps1 -Pilot`; `scripts/m7-dur026.ps1`;
+  `scripts/ci.ps1 -WithRace`; `go test ./cmd/dur026-benchmark
+  ./cmd/dur026-worker`; `go vet ./cmd/dur026-benchmark ./cmd/dur026-worker`;
+  gofmt; PowerShell parse validation; and `git diff --check`. CI passed the
+  race suite, formatting, Ruff, mypy, and 38 Python tests. Its live
+  PostgreSQL/Kafka smoke phase was skipped; the study used the existing local
+  Compose PostgreSQL service.
+- **Known limitations:** this is bounded single-node Docker Desktop/WSL2
+  evidence through the committed Store/Engine harness, not production-scale,
+  multi-host, Kafka-dispatch, or deployed-runtime throughput evidence. No
+  paid/live-model work was run. DUR-026 remains READY_FOR_REVIEW, not DONE.

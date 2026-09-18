@@ -1728,3 +1728,22 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - Static validation after the correction: Go tests and vet for both benchmark
   commands, gofmt, PowerShell parse validation, and `git diff --check` passed.
   The corrected pilot and final study remain pending before the next review.
+
+## 2026-09-18 - M7 DUR-026 corrected evidence handoff
+
+- Calibration commit `1e54bc6` records 12 one-scheduler rate-sweep cases over
+  offered rates 0.25, 0.5, 1, 2, 4, and 8 workflows/second for T1 and T2.
+  Every case passed with 96/96 terminal pilot workflows and zero pending. The
+  frozen rates are 1 workflow/second for below saturation and 2 for the next
+  near-saturation condition under the recorded >=0.8 tracking criterion.
+- Final evidence commit `50d4b13` records 24 measured runs (8 configurations
+  x 3 repeats), 576/576 terminal workflows, zero pending, and zero completion
+  SLO violations. Each run has four discarded warm-up workflows, 24 measured
+  workflows, a 120-second completion SLO, a 900-second cap, separate arrival
+  and drain durations, fixed four-process worker capacity, and role-separated
+  scheduler/worker CPU measurements.
+- The R069 sweep found zero pre-run readiness or benchmark rows and the final
+  post-run query found zero rows/definitions in both reserved namespaces.
+  `scripts/ci.ps1 -WithRace` passed all Go race packages, formatting, Ruff,
+  mypy, and 38 Python tests; its live PostgreSQL/Kafka smoke phase remains
+  intentionally skipped. This handoff is READY_FOR_REVIEW, not DONE.
