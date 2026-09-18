@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 IN_PROGRESS; DUR-015 READY_FOR_REVIEW; DUR-016 READY_FOR_REVIEW; DUR-017 READY_FOR_REVIEW; DUR-018 READY_FOR_REVIEW; DUR-023A-M4 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -850,7 +850,7 @@ contract revision.
 
 #### M4 implementation record
 
-- **Status:** IN_PROGRESS.
+- **Status:** DONE.
 - **Dependencies:** M3 is DONE at closeout commit `8fb2f75`; the M4
   implementation starts with DUR-015.
 - **Protected boundaries:** Preserve the M0 contract, frozen partition map,
@@ -863,13 +863,13 @@ contract revision.
   -WithRace -WithServices`; non-service checks may remain parallel. The
   residual manual parallel-fixture hazard from R048 remains nonblocking; the
   supported service command serializes the M4 database-backed suites.
-- **Milestone review:** Claude reviews each committed M4 implementation
-  target against the preceding task's closeout commit. M4 is not DONE until
-  all five task reviews and the M4 exit evidence are complete.
+- **Milestone review:** Claude's committed round-20 review of `fcdbf09`
+  against `8fb2f75` returned `NO_BLOCKING_FINDINGS`; R049 is VERIFIED and
+  the M4 exit evidence is complete.
 
 #### DUR-015 — Retry policy and checkpoints
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** M3 DONE; this M4 implementation is co-delivered with
   DUR-016 through DUR-023A-M4; review base is M3 closeout commit `8fb2f75`.
 - **Goal:** Make retryability, retry budgets, backoff, and pure-work
@@ -896,7 +896,8 @@ contract revision.
   `docs/BUILD_LOG.md`.
 - **Implementation commit:** `fcdbf09`; final handoff target is recorded in
   `REVIEW.md`.
-- **Review:** Claude review pending.
+- **Review:** Claude round-20 review returned `NO_BLOCKING_FINDINGS`; R049 is
+  VERIFIED.
 - **Remaining limitations:** This task does not authorize external-effect
   retries, approval application, production checkpoint scaling, or final
   performance claims. Hard-kill and sustained-load evidence remain later
@@ -904,7 +905,7 @@ contract revision.
 
 #### DUR-016 — Cancellation and ambiguous outcomes
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-015 implementation is co-delivered in the M4 target;
   review base is M3 closeout commit `8fb2f75`.
 - **Goal:** Preserve one durable outcome when cancellation, completion, and
@@ -926,13 +927,14 @@ contract revision.
   `docs/BUILD_LOG.md`.
 - **Implementation commit:** `fcdbf09`; final handoff target is recorded in
   `REVIEW.md`.
-- **Review:** Claude review pending.
+- **Review:** Claude round-20 review returned `NO_BLOCKING_FINDINGS`; R049 is
+  VERIFIED.
 - **Remaining limitations:** No sandbox effect ledger or approval endpoint is
   included until DUR-017 and DUR-018.
 
 #### DUR-017 — Sandbox effect service
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-016 implementation is co-delivered in the M4 target;
   review base is M3 closeout commit `8fb2f75`.
 - **Goal:** Provide a cooperating sink with an independent transactional
@@ -955,13 +957,14 @@ contract revision.
   `docs/CONTRACTS.md`, `docs/BUILD_LOG.md`, and fault-campaign records.
 - **Implementation commit:** `fcdbf09`; final handoff target is recorded in
   `REVIEW.md`.
-- **Review:** Claude review pending.
+- **Review:** Claude round-20 review returned `NO_BLOCKING_FINDINGS`; R049 is
+  VERIFIED.
 - **Remaining limitations:** The endpoint remains development-only until
   DUR-018 authentication and approval authority requirements are complete.
 
 #### DUR-018 — Approval gates
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-016 and DUR-017 implementation is co-delivered in the
   M4 target; review base is M3 closeout commit `8fb2f75`.
 - **Goal:** Ensure no remediation action can dispatch without a matching,
@@ -983,14 +986,15 @@ contract revision.
   transition records, tests, `docs/BUILD_LOG.md`, and checker fixtures.
 - **Implementation commit:** `fcdbf09`; final handoff target is recorded in
   `REVIEW.md`.
-- **Review:** Claude review pending.
+- **Review:** Claude round-20 review returned `NO_BLOCKING_FINDINGS`; R049 is
+  VERIFIED.
 - **Remaining limitations:** Authentication is a prerequisite, not implied by
   the current development-only localhost control API; no paid/model work is
   part of M4.
 
 #### DUR-023A-M4 — Independent checkpoint/effect/approval checker extension
 
-- **Status:** READY_FOR_REVIEW.
+- **Status:** DONE.
 - **Dependencies:** DUR-023A-M3 and DUR-015 through DUR-018 are co-delivered
   in the M4 target; review base is M3 closeout commit `8fb2f75`.
 - **Goal:** Extend independent persisted-evidence checking across retry,
@@ -1009,9 +1013,27 @@ contract revision.
   fixtures, `docs/CONTRACTS.md`, and `docs/BUILD_LOG.md`.
 - **Implementation commit:** `fcdbf09`; final handoff target is recorded in
   `REVIEW.md`.
-- **Review:** Claude review pending.
+- **Review:** Claude round-20 review returned `NO_BLOCKING_FINDINGS`; R049 is
+  VERIFIED.
 - **Remaining limitations:** Final all-milestone checker integration and
   mutation testing remain DUR-023B in M5.
+
+#### M4 closeout record
+
+- **Status:** DONE.
+- **Base commit:** `8fb2f75` (M3 closeout).
+- **Reviewed implementation target:** `fcdbf09`.
+- **Review:** Claude's committed round-20 review is recorded in
+  `REVIEW.md`; it returned `NO_BLOCKING_FINDINGS` and verified R049.
+- **Acceptance evidence:** Seven consecutive serial race-suite runs on a
+  pristine database passed, along with the full M4 service validation,
+  `go vet`, `gofmt`, the build, 19 Python tests, migration 000013 applied
+  twice, and the approval/effect checker attack fixtures.
+- **Remaining limitations:** The R019 committed-test gap remains
+  nonblocking. The real Kafka path, multi-host deployment, sustained load,
+  hard-kill durability, clean bootstrap/restart smoke, and remote CI remain
+  untested. The effect service has no production caller yet, and the control
+  API remains unauthenticated and localhost-bound as documented.
 
 ### M5 — Engine correctness campaign
 
@@ -1339,11 +1361,11 @@ with base `600726f`; Claude's committed round-15 verdict is
 DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3 are DONE at reviewed
 implementation target `b1e11bb`, based on M2 closeout `9412f3e`. Claude's
 round-18 review returned `NO_BLOCKING_FINDINGS`; R048 is VERIFIED with a
-nonblocking residual note about manual DB-enabled parallel runs. M4 is now
-IN_PROGRESS against M3 closeout commit `8fb2f75`; DUR-015 is the active task
-and its review must use `8fb2f75` as the exact base. DUR-016 through
-DUR-018 and DUR-023A-M4 remain TODO until their preceding M4 work is closed.
-Keep the M0 contracts and partition-map version frozen while extending the
-durable state repository.
+nonblocking residual note about manual DB-enabled parallel runs. M4 is DONE
+at reviewed implementation target `fcdbf09` against M3 closeout `8fb2f75`;
+Claude's committed round-20 review returned `NO_BLOCKING_FINDINGS`, and R049
+is VERIFIED. M5 is the next milestone; its first task will be started from
+the M4 closeout commit recorded with this update. Keep the M0 contracts and
+partition-map version frozen while extending the durable state repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

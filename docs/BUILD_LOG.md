@@ -1124,3 +1124,29 @@ Interview explanation: approval is a capability over a complete action, not a
 key-shaped permission. The sink independently recomputes the payload identity,
 binds the resource and scope, and leaves durable evidence that the checker can
 compare with the approval record.
+
+## 2026-09-17 - M4 closeout
+
+- Base commit: `8fb2f75`; reviewed implementation target: `fcdbf09`.
+- Task status: M4 DONE. DUR-015, DUR-016, DUR-017, DUR-018, and DUR-023A-M4
+  are DONE after Claude's committed round-20 `NO_BLOCKING_FINDINGS` review;
+  R049 is VERIFIED.
+- Closeout documentation is committed together with the preserved review
+  record in this closeout change.
+
+M4 acceptance is complete: retry/checkpoint recovery, cancellation and
+ambiguous-outcome handling, cooperating and non-cooperating effect paths,
+approval binding, and independent checkpoint/effect/approval invariants are
+implemented and reviewed. Migration 000013 applied twice, seven consecutive
+serial race-suite runs on a pristine database passed, and the full service
+validation, vet, formatting, build, and 19 Python tests passed.
+
+Remaining limitations are explicit: R019's committed-test gap, hard-kill and
+outage campaigns, sustained load, multi-host deployment, clean bootstrap and
+restart smoke, real production effect callers, and remote CI remain outside
+the demonstrated M4 claim.
+
+Interview explanation: M4 closes the authorization boundary by making an
+approval a capability over the exact resource and canonical action, while the
+effect ledger and independent checker preserve evidence across lost responses
+and prevent an approval-shaped token from authorizing a different mutation.
