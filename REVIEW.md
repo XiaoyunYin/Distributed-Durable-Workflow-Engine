@@ -2805,16 +2805,21 @@ superseded by the committed M4 handoff below.
   committed review.
 - Handoff basis: COMMITTED
 - Base commit: `8fb2f75` (M3 closeout)
-- Target commit: `92f3f14` (M4 implementation)
+- Target commit: `4d2aa81` (M4 final implementation)
 - Scope: durable retry policies/budgets and timer enforcement, compatible pure
   activity checkpoints and crash resume, cancellation and ambiguous-outcome
   reconciliation, a grant-bound cooperating effect ledger with scoped fencing,
   the non-cooperating endpoint fixture, exact approval decisions and bounded
   grants, rejected approval/no-action, atomic cancellation application, and the
-  independent M4 checker extension. No paid/model, production authentication,
-  multi-host, or production-remediation scope was added.
+  independent M4 checker extension. The final fix also places the cooperating
+  ledger in the independently owned `effects` schema via migration `000012`;
+  grant validation reads engine state before the effect-only transaction, and
+  no effect transaction updates workflow or approval rows. No paid/model,
+  production authentication, multi-host, or production-remediation scope was
+  added.
 - Checks run: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
-  scripts/ci.ps1 -WithRace -WithServices` passed migrations, shared Go/Python
+  scripts/ci.ps1 -WithRace -WithServices` passed migrations 000001 through
+  000012, shared Go/Python
   checks, 19 Python tests, serial Go race packages, DUR-005 through DUR-014
   integration suites, all M4 state/engine/invariant suites, and service smoke.
   Focused race-enabled M4 tests passed for retry exhaustion, checkpoint crash
@@ -2833,7 +2838,7 @@ superseded by the committed M4 handoff below.
   deterministic fixture; no exactly-once or production-remediation claim is
   made. The effect ledger is a local development service/table family and is
   not a cross-database transaction with workflow state.
-- Review request: Claude should review target `92f3f14` against base
+- Review request: Claude should review target `4d2aa81` against base
   `8fb2f75`, with special attention to checkpoint compatibility and crash
   resume, no automatic retry for uncertain non-cooperating effects, the
   grant/action/resource-version binding, cancellation-vs-grant serialization,

@@ -1048,3 +1048,44 @@ stable-key receipt and resource fence, while an unobservable endpoint must stop
 at reconciliation. Approval is a durable capability bound to the exact action,
 and cancellation/grant races are serialized by the scheduler lease and
 workflow row.
+
+## 2026-09-17 - M4 final effect-boundary fix and handoff refresh
+
+- Base commit: `8fb2f75`; final implementation target: `4d2aa81`.
+- Task status: READY_FOR_REVIEW; DUR-015, DUR-016, DUR-017, DUR-018, and
+  DUR-023A-M4 remain pending Claude's committed review.
+
+The cooperating effect ledger now lives in the independently owned `effects`
+schema created by migration `000012`; grant validation reads the engine grant
+before the effect transaction, and the effect transaction writes only the
+effect ledger. It no longer updates approval rows or uses foreign keys into
+workflow state. The integration test asserts that the effect service row is
+written while the legacy engine effect table remains untouched. A shared M1
+fixture candidate cap was also increased to avoid a rare partition-mapping
+false failure under service CI.
+
+Validation:
+
+- `scripts/migrate.ps1`: PASS; migration `000012` applied once and is now
+  skipped idempotently.
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS; serial Go checks and race
+  tests, 19 Python tests, DUR-005 through DUR-018 integration tests, M4
+  checkpoint/effect/approval/checker suites, and live service smoke passed.
+- Focused M4 race suites: PASS for state, engine checkpoint recovery, and
+  invariant loading against PostgreSQL.
+- `docker compose ... config --quiet`: PASS.
+- `docker build -f deploy/local/Dockerfile.runtime -t
+  durable-agent-runtime:dur004-m4-final .`: PASS.
+- `git diff --check`: PASS before this handoff metadata update.
+
+Skipped/remaining gaps are unchanged: hard-kill durability, PostgreSQL outage
+and lock-timeout campaigns, sustained load, multi-host deployment or broker
+rebalance, clean bootstrap/restart smoke, and remote CI. The APIs remain
+localhost-bound development surfaces without production authentication; no
+exactly-once or production-remediation claim is made.
+
+Interview explanation: the engine authorizes an effect, but the sink owns its
+own receipt and protected state. Separating the `effects` ledger transaction
+prevents a workflow transaction from pretending it can make an external
+mutation atomic, while stable keys and resource fences still make retries
+safe for the cooperating contract.
