@@ -1768,6 +1768,35 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - Static checks so far: `gofmt`, focused Go tests, and `go vet` for the changed
   packages pass. The measurement and repository-wide CI remain pending.
 
+## 2026-09-18 - M7 DUR-034 safeguard ablation handoff
+
+- DUR-034 is `READY_FOR_REVIEW` at implementation target `00d4dd4`, based on
+  accepted DUR-026 closeout `611ff26`. The target adds the context-scoped
+  test-only safeguard profiles, `cmd/dur034-ablation`, and
+  `scripts/m7-dur034.ps1`; no runtime binary enables a weakened profile.
+- `scripts/m7-dur034.ps1` passed from the clean committed target: four profiles
+  x three repeats, 12 measured runs, and 144/144 terminal workflows with zero
+  workflow-pending rows. The full profile recorded 504 history rows and 408
+  outbox rows per run; history-disabled recorded zero history rows; no-outbox
+  recorded zero outbox rows and a 26–34 ms durable reconciliation-scan delay.
+- The unsafe lease negative control reached the check-to-commit barrier, let a
+  new owner commit takeover, and then allowed the stale owner mutation to
+  commit. The normal row-locked control preserved commit ordering. The artifact
+  records both controls independently of the profile timing comparison.
+- Evidence: `experiments/m7/dur034/results.json`, with `git_commit` equal to
+  `00d4dd49cb207abe70a9cb3acc6733af40d75cee`. The runner swept the reserved
+  DUR-034 workflow and definition namespaces before and after the study; the
+  final read-only PostgreSQL check found zero rows in both.
+- Validation: `ci.ps1 -WithRace` passed with isolated task Go/UV/Python caches
+  (38 Python tests and all Go race packages); focused race tests, vet, gofmt,
+  PowerShell parsing, and `git diff --check` passed. The first CI attempt hit
+  a host cache-permission collision before tests and is not acceptance
+  evidence. Non-service CI skipped PostgreSQL/Kafka smoke; the measurement used
+  the existing local PostgreSQL service. No paid or live-model work ran.
+- Known limits: this is bounded single-node Docker Desktop/WSL2 Store/Engine
+  evidence. It does not claim deployed API/relay/Kafka throughput, multi-host
+  behavior, or either weakened profile as a production alternative.
+
 ## 2026-09-18 - M7 DUR-026 closeout
 
 - Claude's committed round-31 review of target `50d4b13` returned

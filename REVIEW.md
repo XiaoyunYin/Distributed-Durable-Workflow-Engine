@@ -4949,3 +4949,60 @@ For additional review cycles on the same finding, append another `Codex response
   evidence through the committed Store/Engine harness, not production-scale,
   multi-host, Kafka-dispatch, or deployed-runtime throughput evidence. No
   paid/live-model work was run. DUR-026 remains READY_FOR_REVIEW, not DONE.
+
+## Codex handoff - M7 DUR-034 safeguard-cost ablation
+
+- **Task:** DUR-034 safeguard-cost ablation.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-034 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `611ff26` (accepted DUR-026 closeout).
+- **Exact implementation target:** `00d4dd4`.
+- **Scope:** implement the section-14B four-profile, test-only ablation over
+  T1's eight sequential pure activities at the frozen 2 workflows/second
+  near-saturation rate. The profiles are full safeguards, history-disabled,
+  unsafe lease validation with the dedicated check-to-commit takeover barrier,
+  and no-outbox with a durable reconciliation scan after the dispatch hint is
+  removed. No runtime binary enables a weakened profile.
+- **Implementation:** `internal/state/ablation.go` adds the explicit
+  context-scoped profile seam; `internal/state/store.go` applies it only to
+  history/outbox writes and the unsafe owner-transition negative control;
+  `cmd/dur034-ablation/main.go` runs the fixed cohort and independent controls;
+  `scripts/m7-dur034.ps1` enforces a clean worktree, migration/service setup
+  when requested, reserved-namespace sweeps, artifact checks, and cleanup.
+- **Measured evidence:** `experiments/m7/dur034/results.json` is `PASS` and
+  records the exact implementation commit, 12 measured runs (four profiles x
+  three repeats), 144/144 terminal workflows, zero workflow-pending rows,
+  history/outbox evidence, DB query/transaction/query-time/lock telemetry,
+  and no-outbox reconciliation delays of 26–34 ms. The history-disabled
+  control has zero history rows; the unsafe control commits stale owner work
+  after takeover; the normal control preserves commit ordering; and the
+  no-outbox control has zero outbox rows while rediscovering all 12 durable
+  workflows.
+- **Checks run:** `scripts/m7-dur034.ps1`; `ci.ps1 -WithRace` with isolated
+  task caches; focused `go test -race ./internal/state ./internal/engine
+  ./cmd/dur034-ablation`; `go vet`; `gofmt`; PowerShell parse validation;
+  `git diff --check`; and read-only PostgreSQL checks showing zero reserved
+  DUR-034 rows after cleanup. CI passed 38 Python tests and all Go race
+  packages. The non-service CI path skipped PostgreSQL/Kafka smoke; the
+  measurement itself used the existing PostgreSQL service.
+- **Skipped checks and reasons:** no separate `ci.ps1 -WithServices` run was
+  repeated because the accepted M7 host/service readiness and prior service
+  suites already cover the live stack, while this task's measured path is the
+  Store/Engine harness. No Kafka/API/relay dispatch, multi-host deployment,
+  sustained-load, hard-kill durability, remote CI, paid provider, or live-model
+  work was run.
+- **Known limitations:** the study is bounded single-node Docker Desktop/WSL2
+  evidence through the committed Store/Engine path, with one inline activity
+  driver and fixed scheduler count. The weakened profiles are negative-control
+  test seams, not deployable alternatives; the no-outbox delay is a measured
+  harness reconciliation scan, not a production reconciliation-throughput
+  claim.
+- **Review request:** inspect that the four profiles are explicit and
+  non-deployable, the unsafe lease barrier actually permits the intended stale
+  commit while the normal protocol preserves commit ordering, history and
+  outbox evidence are independently counted, no-outbox recovery discovers
+  durable rows rather than replaying an in-memory list, and the artifact's
+  claims stay within the Store/Engine/WSL2 limitation. Do not mark DUR-034 DONE
+  until the committed review returns `NO_BLOCKING_FINDINGS`.
+- **Verdict:** PENDING CLAUDE REVIEW.
