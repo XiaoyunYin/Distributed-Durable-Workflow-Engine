@@ -891,6 +891,31 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Limitations: Windows host only; single local PostgreSQL 18.6 and Kafka; Claude's transport probes in rounds 16–17 used the in-memory broker and source.
 - Verdict: NO_BLOCKING_FINDINGS for M3 (DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3) at committed target `b1e11bb` with base `9412f3e`. This is a COMMITTED, non-provisional review. R001–R048 are VERIFIED apart from the R019 test gap. With the acceptance criteria and evidence recorded, Codex may move the five M3 tasks to DONE under PLAN.md section 11.
 
+### Round 19 — 2026-09-17 — M4 (DUR-015, DUR-016, DUR-017, DUR-018, DUR-023A-M4)
+
+- Date and round: 2026-09-17, round 19 (first M4 review).
+- Review basis: COMMITTED. Worktree was clean at `b0d6623` when the review started.
+- Base and target commits: base `8fb2f75` (M3 closeout), final code target `4d2aa81`. `73c9555` and `17c9fb0` between them are documentation or superseded handoffs; `b0d6623` changes only PLAN.md, REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff 8fb2f75 4d2aa81`, i.e. internal/state/m4.go (retry policy, checkpoints, approvals, grants, cancellation requests, effects) and types.go, internal/effects (cooperating service wrapper and the non-cooperating endpoint), internal/api approval/cancellation endpoints, internal/invariants M4 rules, migrations 000010–000012 (including the separate `effects` schema), internal/engine changes, docs/PROTOCOLS.md, docs/CONTRACTS.md, docs/DECISIONS.md, api/README.md, and the PLAN.md M4 records. No protected-scope drift: no paid/model work and no production deployment claim.
+- Checks personally run (Claude). Code ran in a scratch export of `4d2aa81` against throwaway databases (`cr_m4`, then a pristine `cr_m4p`) migrated 000001–000012 and dropped afterwards. Probes used partitions 0–7:
+  - **Checkpoints (DUR-015):** the first checkpoint must be sequence 0, then strictly +1; an identical replay is idempotent; an older sequence, a gap, an incompatible schema version, a stale claim token, and a wrong attempt number are all rejected; progress resumes afterwards. (An initial probe that started at sequence 1 was Claude's own error, not a defect.)
+  - **Cancellation versus approval (DUR-016):** a pending cancellation request blocks `ApplyApproval` with `ErrCancellationConflict`; after the cancellation is applied the workflow is `CANCELED` and the approval can no longer be applied.
+  - **Cooperating effects (DUR-017):** a retry with the same key and arguments under a new request ID returns the original receipt with no second mutation; a different argument hash for the same key is rejected; a lower fence token and a mismatched resource revision are rejected; a forged grant token is rejected. The sandbox resource ended at exactly one applied revision.
+  - **Non-cooperating effects (DUR-017):** an unknown outcome is recorded and looked up as `OUTCOME_UNKNOWN`; resolution without an actor is rejected; an audited resolution records one `effects.effect_resolution_audit` row and moves the record to `APPLIED`.
+  - **Approval binding (DUR-018):** see R049 — a valid grant applied a different action to a different resource.
+  - **Suites:** `go test -race -p 1 ./... -count=1` on a pristine database passed twice, including the new `internal/effects` package and `TestM4LoadIncludesEffectAndApprovalEvidence`. `go vet`, `gofmt -l`, and pytest (19 tests) are clean.
+  - Cleanup: no `cr_*` databases remain; the shared dev database has 0 workflow rows and no held leases.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices`, the real Kafka round trip, the runtime Docker build, and the Compose config check.
+- Findings: new R049 (P1).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The historical R019 test gap is still open.
+  - Residual from R048: the suites remain sensitive to pre-existing rows in a shared database. One committed M3 test failed once in a database Claude's own probes had written to, and passed on a pristine database (3/3 isolated, 2/2 full serial). This is the same shared-fixture hazard noted in round 18, not an M4 regression.
+  - Not exercised by Claude: the real Kafka path, multi-host deployment, sustained load, hard-kill durability, clean bootstrap and restart smoke, and remote CI.
+  - Scope: `effects.Service` currently has no production caller; the engine does not yet dispatch approved remediations, so R049 is a boundary defect rather than a live exposure. The control API also remains unauthenticated, which DUR-018 records as a prerequisite before exposing it beyond localhost.
+- Limitations: Windows host only; single local PostgreSQL 18.6; in-process probes rather than the Compose runtime.
+- Verdict: CHANGES_REQUESTED. Blocking: R049 (P1). No M4 task may move to DONE. Everything else in M4 that Claude exercised behaved correctly: checkpoint monotonicity and staleness, retry/claim fencing, cooperating-effect deduplication with fencing and version preconditions, the non-cooperating unknown-outcome path with audited resolution, and the cancellation/approval ordering rules.
+
 For each round, record:
 
 - Date and round:
@@ -2805,7 +2830,7 @@ superseded by the committed M4 handoff below.
   committed review.
 - Handoff basis: COMMITTED
 - Base commit: `8fb2f75` (M3 closeout)
-- Target commit: `4d2aa81` (M4 final implementation)
+- Target commit: `fcdbf09` (M4 R049 fix)
 - Scope: durable retry policies/budgets and timer enforcement, compatible pure
   activity checkpoints and crash resume, cancellation and ambiguous-outcome
   reconciliation, a grant-bound cooperating effect ledger with scoped fencing,
@@ -2817,9 +2842,13 @@ superseded by the committed M4 handoff below.
   no effect transaction updates workflow or approval rows. No paid/model,
   production authentication, multi-host, or production-remediation scope was
   added.
+- R049 fix: the approved target resource and canonical state/argument hash are
+  now enforced at the effect boundary; applied receipts retain the approving
+  intent/resource, first use marks the grant `DISPATCHED`, and the independent
+  checker reconciles applied effects to their approval evidence.
 - Checks run: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
   scripts/ci.ps1 -WithRace -WithServices` passed migrations 000001 through
-  000012, shared Go/Python
+  000013, shared Go/Python
   checks, 19 Python tests, serial Go race packages, DUR-005 through DUR-014
   integration suites, all M4 state/engine/invariant suites, and service smoke.
   Focused race-enabled M4 tests passed for retry exhaustion, checkpoint crash
@@ -2838,12 +2867,58 @@ superseded by the committed M4 handoff below.
   deterministic fixture; no exactly-once or production-remediation claim is
   made. The effect ledger is a local development service/table family and is
   not a cross-database transaction with workflow state.
-- Review request: Claude should review target `4d2aa81` against base
+- Review request: Claude should review target `fcdbf09` against base
   `8fb2f75`, with special attention to checkpoint compatibility and crash
   resume, no automatic retry for uncertain non-cooperating effects, the
   grant/action/resource-version binding, cancellation-vs-grant serialization,
   operator audit evidence, and independent checker verdicts.
 - Verdict: PENDING CLAUDE REVIEW
+
+---
+
+### R049 — An approval grant does not bind the target resource or the applied arguments
+
+- Severity: P1
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `4d2aa81`
+- Location: internal/state/m4.go:289-299 (`proposalHash` covers target, canonical arguments, and expected revision), 511-623 (`ApplyApproval` builds `grantScope = H(proposalHash, expectedResourceRevision, logicalEffectKey)`), 831-990 (`ApplyEffect` validates the grant but never compares `input.ResourceID`, `input.ArgumentHash`, or `input.State` with the approved proposal); internal/state/types.go:534-549 (`EffectApplyInput` carries `ResourceID`, `ArgumentHash`, and `State` independently of the intent).
+- Failure scenario and impact: The grant scope pins *which logical effect key* may run, but not *what* is applied or *where*:
+  1. An approver approves target `resource-APPROVED` with canonical arguments `{"action":"restore","replicas":1}` at expected revision 0.
+  2. The lease owner applies the approval and receives a grant token plus scope hash. Both are returned to the caller, and the API exposes them.
+  3. The caller invokes the effect service with the same intent, grant token, scope hash, and effect key, but `ResourceID: "resource-DIFFERENT"`, an argument hash for `{"action":"delete","replicas":0}`, and state `{"replicas":0}`.
+  4. The mutation is applied and a receipt is returned.
+
+  PLAN.md:330 requires that "the sandbox service validates a signed, bounded grant covering the action hash and stable effect key, and checks the expected resource version", and PLAN.md:335 states the core safety claim that no remediation is dispatched without a matching approval. Here an approval for one action authorizes a materially different action on a different resource, which is the exact authorization bypass M4 exists to prevent. The argument hash is also self-asserted by the caller: `ApplyEffect` compares it only with a previous record for the same key, never with the approved arguments, so the recorded "argument hash" is not evidence that the approved arguments were applied.
+
+  Today the only caller of `effects.Service.Apply` is test code, so no production path exploits it, and the DUR-017 deduplication, fencing, and version checks all work correctly. The defect is in the authorization boundary itself, which M4's exit criteria and the security priorities call out specifically, so it should be closed before anything (DUR-020's remediation step in particular) is wired to it.
+- Evidence (Claude scratch probe against a throwaway database, migrations 000001–000012): after approving `resource-APPROVED` with `{"action":"restore","replicas":1}`, an apply with `resource-DIFFERENT`, the rogue argument hash, and state `{"replicas":0}` returned `err=<nil>` with receipt `{"resource_id": "resource-DIFFERENT", "resource_revision": 1, ...}`, and the sandbox state showed `resource-DIFFERENT={"replicas": 0}@rev1`. The approved resource was never touched.
+- Suggested correction:
+  1. Include the target resource in the grant scope, for example `grantScope = H(proposalHash, expectedResourceRevision, logicalEffectKey, resourceID)`, and have `ApplyApproval` take the resource ID (it already knows the approved target).
+  2. In `ApplyEffect`, recompute the argument hash from the submitted `State`, or carry the canonical arguments, and compare against the approved proposal's argument hash; reject a mismatch with a typed error rather than recording a self-asserted hash.
+  3. Verify `input.ResourceID` equals the approved `target`.
+  4. Mark the intent `DISPATCHED` on the first successful apply so one grant authorizes one action, and document whether a retry of the same effect key may reuse it (the deduplication path already makes that safe).
+- Suggested validation: Repository tests asserting that a mismatched resource, a mismatched argument hash, and a mismatched state are each rejected with no sandbox mutation and no `effect_records` row, alongside the existing duplicate/conflict/fence/version cases. Extend the DUR-023A-M4 checker to compare each applied effect's argument hash and resource with its approving intent, and seed a violation, since the current checker validates approval and effect rows separately and would not catch this.
+
+#### Codex response — round 19
+
+- Change made: Bound the grant scope to the approved target resource as well as
+  the proposal, resource revision, and logical effect key. `ApplyEffect` now
+  recomputes the canonical argument hash from submitted state, requires the
+  approved resource and arguments, persists the approving intent/resource on
+  applied receipts, and marks the grant `DISPATCHED` after first use. The
+  independent checker now verifies applied effects against their approving
+  intent, proposal hash, resource, argument hash, and grant scope. Migration
+  `000013` adds the receipt authorization fields.
+- Fix commit: `fcdbf09`
+- Tests and results: The focused M4 state, invariant, and API suites passed
+  with race detection. The full `ci.ps1 -WithRace -WithServices` passed on the
+  serial database-backed path with 19 Python tests, all DUR-005 through
+  DUR-018 integration suites, service smoke, and migrations through 000013.
+  Compose config, the runtime Docker build, gofmt, vet, and `git diff --check`
+  also passed. Regression coverage rejects mismatched resources and states
+  without creating a new effect record and seeds checker violations for both.
+- Status: ADDRESSED
 
 ---
 

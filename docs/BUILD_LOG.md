@@ -1089,3 +1089,38 @@ own receipt and protected state. Separating the `effects` ledger transaction
 prevents a workflow transaction from pretending it can make an external
 mutation atomic, while stable keys and resource fences still make retries
 safe for the cooperating contract.
+
+## 2026-09-17 - M4 R049 approval-grant binding fix
+
+- Base commit: `4d2aa81`; implementation target: `fcdbf09`.
+- Task status: READY_FOR_REVIEW; R049 is ADDRESSED and pending Claude
+  verification. M4 remains IN_PROGRESS.
+
+Closed the approval authorization gap. Grant scope now includes the approved
+resource, effect application recomputes the argument hash from submitted state
+and compares both resource and arguments with the approved intent, and the
+first successful application marks the grant `DISPATCHED`. Applied effect
+receipts retain intent/resource identity. The independent checker validates
+proposal hashes and reconciles applied effects to approved intent, resource,
+arguments, and scope. Migration `000013` adds receipt authorization fields.
+
+Validation:
+
+- `scripts/migrate.ps1`: PASS; migration `000013` applied and subsequent runs
+  skip it idempotently.
+- `scripts/ci.ps1 -WithRace -WithServices`: PASS; serial Go checks and race
+  tests, 19 Python tests, DUR-005 through DUR-018 PostgreSQL/Kafka integration,
+  M4 state/engine/invariant suites, and service smoke all passed.
+- Regression checks: mismatched resource and submitted state are rejected
+  before mutation or a new effect row; duplicate same-key/same-state returns
+  the original receipt; grant status becomes `DISPATCHED`; checker fixtures
+  reject mismatched resource/arguments and missing approval linkage.
+- `docker compose ... config --quiet`: PASS.
+- `docker build -f deploy/local/Dockerfile.runtime -t
+  durable-agent-runtime:dur004-m4-r049 .`: PASS.
+- `git diff --check`: PASS before handoff metadata changes.
+
+Interview explanation: approval is a capability over a complete action, not a
+key-shaped permission. The sink independently recomputes the payload identity,
+binds the resource and scope, and leaves durable evidence that the checker can
+compare with the approval record.

@@ -144,3 +144,21 @@ That would make authorization and the cancellation/grant race dependent on
 caller behavior. The selected design keeps the owner-side lease/workflow
 transition atomic and records operator resolution separately, while leaving
 authentication and production deployment explicitly outside this milestone.
+
+## D008 - Bind effect grants to the complete approved action
+
+- Date: 2026-09-17
+- Status: accepted as the R049 fix pending Claude review
+
+The approval target is the protected resource and the canonical effect state is
+the approved action payload. The effect service recomputes the argument hash
+from submitted state, requires it and the resource to match the approved
+intent, and includes the resource in the grant scope. Applied receipts retain
+the approving intent/resource so the independent checker can reconcile sink
+mutations to authorization evidence. First successful use changes the grant to
+`DISPATCHED`; retries may return the same receipt but cannot authorize a new
+resource or payload.
+
+The effect ledger remains a separate service-schema transaction. Marking the
+engine grant dispatched is a separate post-commit update; if that acknowledgement
+is lost, the stable effect receipt makes the retry safe.

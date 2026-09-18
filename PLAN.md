@@ -894,7 +894,7 @@ contract revision.
 - **Evidence:** `internal/state/`, `internal/engine/`, retry/checkpoint
   migrations, `docs/CONTRACTS.md`, `docs/INTERPRETER.md`, tests, and
   `docs/BUILD_LOG.md`.
-- **Implementation commit:** `4d2aa81`; final handoff target is recorded in
+- **Implementation commit:** `fcdbf09`; final handoff target is recorded in
   `REVIEW.md`.
 - **Review:** Claude review pending.
 - **Remaining limitations:** This task does not authorize external-effect
@@ -924,7 +924,7 @@ contract revision.
 - **Evidence:** `internal/state/`, `internal/engine/`,
   `internal/reconciliation/`, `docs/CONTRACTS.md`, failure fixtures, and
   `docs/BUILD_LOG.md`.
-- **Implementation commit:** `4d2aa81`; final handoff target is recorded in
+- **Implementation commit:** `fcdbf09`; final handoff target is recorded in
   `REVIEW.md`.
 - **Review:** Claude review pending.
 - **Remaining limitations:** No sandbox effect ledger or approval endpoint is
@@ -953,7 +953,7 @@ contract revision.
   checker fixtures.
 - **Evidence:** effect-service package, migrations, API documentation,
   `docs/CONTRACTS.md`, `docs/BUILD_LOG.md`, and fault-campaign records.
-- **Implementation commit:** `4d2aa81`; final handoff target is recorded in
+- **Implementation commit:** `fcdbf09`; final handoff target is recorded in
   `REVIEW.md`.
 - **Review:** Claude review pending.
 - **Remaining limitations:** The endpoint remains development-only until
@@ -981,7 +981,7 @@ contract revision.
   `gofmt`, and `git diff --check`.
 - **Evidence:** approval schema/service, API documentation, contract and
   transition records, tests, `docs/BUILD_LOG.md`, and checker fixtures.
-- **Implementation commit:** `4d2aa81`; final handoff target is recorded in
+- **Implementation commit:** `fcdbf09`; final handoff target is recorded in
   `REVIEW.md`.
 - **Review:** Claude review pending.
 - **Remaining limitations:** Authentication is a prerequisite, not implied by
@@ -1007,7 +1007,7 @@ contract revision.
   integration is enabled, `go vet ./...`, `gofmt`, and `git diff --check`.
 - **Evidence:** `internal/invariants/`, M4 state/effect records, checker
   fixtures, `docs/CONTRACTS.md`, and `docs/BUILD_LOG.md`.
-- **Implementation commit:** `4d2aa81`; final handoff target is recorded in
+- **Implementation commit:** `fcdbf09`; final handoff target is recorded in
   `REVIEW.md`.
 - **Review:** Claude review pending.
 - **Remaining limitations:** Final all-milestone checker integration and
