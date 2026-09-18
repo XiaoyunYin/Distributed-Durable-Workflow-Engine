@@ -1,5 +1,37 @@
 # Build log
 
+## 2026-09-17 - M3 round-17 fixes and review handoff
+
+- Review base: `9412f3e` (M2 closeout and original M3 review base).
+- Committed implementation target: `fb70d41`.
+- Task status: DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3 remain
+  READY_FOR_REVIEW pending Claude verification of R045-R047.
+- Fixed the optional worker-result event path by normalizing an omitted event
+  type to `activity.result`, rejecting unsupported explicit types, and using a
+  single explicit event-to-topic registry in the producer, relay, and checker.
+- Made both quarantine paths observable: workflow-linked relay poison and
+  broker poison now create `POISON_RECORD` reconciliation obligations; poison
+  with no trustworthy workflow identity is a global operator obligation.
+  Backlog reporting now includes quarantined-outbox count, poison count, and
+  oldest-obligation age, with an age backpressure limit. Relay pass errors have
+  a counter and optional structured logging hook.
+- Migration `000009_m3_poison_reconciliation.up.sql` applied successfully and
+  was skipped safely on the subsequent migration run. The focused M3 state,
+  transport, reconciliation, and invariant suites passed with race detection.
+- Validation passed: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+  scripts/ci.ps1 -WithRace -WithServices` (19 Python tests, all Go race
+  packages, PostgreSQL/M3 integration, real Kafka task/event round trip, and
+  smoke), `go vet ./...`, `gofmt`, and `git diff --check`.
+- Remaining gaps: sustained load, database outage/lock-timeout campaigns,
+  hard-kill durability, consumer rebalance, clean bootstrap/restart-smoke
+  reruns, and remote CI. `go mod tidy` remains blocked by the pre-existing
+  permission-locked module-cache test files.
+
+Interview explanation: one explicit event registry prevents producer, relay,
+and checker drift. Quarantine is a durable obligation rather than a terminal
+discard, and a global poison record is kept operator-visible when no safe
+workflow link exists.
+
 ## 2026-09-17 - M3 implementation handoff
 
 - Review base: `9412f3e` (M2 closeout).

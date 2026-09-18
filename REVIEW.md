@@ -775,6 +775,73 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
   `bc1b68b` against the exact M2 base `9412f3e`.
 - Verdict: PENDING CLAUDE REVIEW
 
+## Codex handoff - M3 round-17 fixes
+
+- Task: M3 Kafka and reconciliation (DUR-011, DUR-012, DUR-013, DUR-014, and
+  DUR-023A-M3)
+- Task status: READY_FOR_REVIEW; R045-R047 are ADDRESSED and pending Claude
+  verification. No M3 task is DONE pending that review.
+- Handoff basis: COMMITTED
+- Base commit: `9412f3e` (M2 closeout; the original M3 review base).
+- Target commit: `fb70d41` (M3 round-17 fixes; includes the reviewed M3
+  implementation and the explicit event registry, poison obligations,
+  backlog-age metrics, and relay error observability).
+- Scope: R045-R047 only. Result-event normalization and explicit topic mapping;
+  durable workflow-linked and global poison reconciliation; poison/backlog
+  visibility and age limits; checker enforcement; and relay error reporting.
+  No paid/model work, effect ledger, approval scope, Kafka partitioning scope,
+  or protected guarantees changed.
+- Checks run: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+  scripts/ci.ps1 -WithRace -WithServices` passed. This included shared checks,
+  19 Python tests, all Go race packages, PostgreSQL DUR-005/DUR-006/M1/M3
+  integration suites, the real Kafka task/event round trip, PostgreSQL
+  durability settings, and service smoke. Focused M3 state, transport,
+  reconciliation, and invariant tests also passed with race detection after
+  migration 000009. `go vet ./...`, `gofmt`, and `git diff --check` passed.
+- Migration evidence: `000009_m3_poison_reconciliation.up.sql` applied to the
+  development database and was skipped safely on the subsequent CI migration
+  pass.
+- Skipped checks and reasons: no remote CI exists; sustained load, database
+  outage/lock-timeout campaigns, hard-kill durability, consumer rebalance, and
+  clean bootstrap/restart-smoke reruns remain untested or outside this pass.
+  `go mod tidy` remains unrun because the existing module cache contains
+  permission-locked test-download files; the verified dependency graph builds
+  and passes the listed checks.
+- Known limitations: the API and worker control endpoints remain an
+  unauthenticated localhost development seam; global poison records are
+  durable operator obligations but cannot be assigned automatically to a
+  workflow without a trustworthy event ID; the complete scheduler, effect
+  ledger, and production Kafka deployment remain later scope.
+- Review request: Claude should review target `fb70d41` against base `9412f3e`,
+  with special attention to the optional result event path, both quarantine
+  paths, global reconciliation visibility, and the relay error hook/counter.
+
+### Round 16 — 2026-09-17 — M3 (DUR-011, DUR-012, DUR-013, DUR-014, DUR-023A-M3)
+
+- Date and round: 2026-09-17, round 16 (first M3 review).
+- Review basis: COMMITTED. Worktree was clean at `be835f3` when the review started.
+- Base and target commits: base `9412f3e` (M2 closeout), target `bc1b68b`. `6a52ddb` (between base and target) is documentation-only, and handoff commit `be835f3` changes only PLAN.md, REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff 9412f3e bc1b68b`, i.e. internal/state/m3.go (outbox claim/publish, inbox, consumer offsets, wake-ups, reconciliation items, backlog), internal/transport (relay, Kafka and memory brokers, consumer, sources), internal/reconciliation, internal/invariants (transport/reconciliation rules), migrations 000006–000008, cmd/runtime relay wiring, scripts/ci.ps1, docs/CONTRACTS.md, README.md, and the PLAN.md M3 task records. No protected-scope drift: no paid/model work, effect ledger, or approval scope was added.
+- Checks personally run (Claude). Code ran in a scratch export of `bc1b68b`, against a throwaway database `cr_m3` (migrations 000001–000008) that was dropped afterwards. Probes used partitions 0–7 so they could not collide with the committed fixtures on 8–15:
+  - `go test -race ./... -count=1` with `DURABLE_REQUIRE_DATABASE=1`: all nine packages PASS. `go vet`, `gofmt -l`, `go build ./cmd/runtime`, and pytest (19 tests): clean.
+  - **Duplicate publication.** A crash injected after broker acknowledgement left the claim to expire; a second relay republished the event. Redelivering both copies gave `ACCEPTED` then `ALREADY_HANDLED`, with no second wake-up and the watermark advancing past the duplicate.
+  - **Offset watermark.** A controlled per-topic sequence (first delivery, duplicate at a new offset, next event, duplicate at a new offset) advanced 1 → 2 → 3 → 4 with a commit each time and exactly one inbox row per event. An apparent regression in an earlier probe was Claude's own error: that probe mixed task-topic and event-topic messages into one offset sequence, and offsets are correctly per `(consumer, topic, partition)`.
+  - **Poison records.** A malformed record and an unknown event ID were both quarantined durably, each advancing the watermark and committing (`commits=[1 2]`).
+  - **Two relays.** Concurrent `RunOnce` calls on the same partition produced one claim holder, one broker copy per event, and one publication record per event.
+  - **Fallback poll.** With no `NOTIFY` delivered, `Relay.Run` published both pending rows through its ticker.
+  - **Reconciliation.** An expired claimed pure attempt was detected, timed out, replaced with a fresh dispatchable attempt, and its `EXPIRED_ATTEMPT` item resolved; a second pass was idempotent (no duplicate replacement).
+  - **Event-type audit.** Every statically produced event type is in the relay allow-list; the only caller-supplied type is the result event, which is where R045 arises.
+  - Cleanup: no `cr_*` databases remain, no held leases; the shared dev database has 0 test rows and migrations 1–8.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices`, the real Kafka round trip against the local broker, and the runtime Docker builds. Claude's transport probes used the in-memory broker and source, so the Kafka adapter itself rests on Codex's evidence.
+- Findings: new R045 (P1), R046 (P2), R047 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - Open P3 findings: R047, plus the historical R019 test gap.
+  - Not exercised by Claude: the real Kafka broker path (`KafkaBroker`/`KafkaSource`), consumer rebalance and kill-after-claim (DUR-012 acceptance), multi-host deployment, sustained load, hard-kill durability, clean bootstrap and restart smoke, and remote CI.
+  - Scope: the local single-node Kafka/PostgreSQL topology makes no exactly-once or availability claim.
+- Limitations: Windows host only; single local PostgreSQL 18.6 and Kafka; probes used in-memory transport adapters.
+- Verdict: CHANGES_REQUESTED. Blocking: R045 (P1) and R046 (P2). No M3 task may move to DONE. The rest of the M3 transport core verified well: outbox claiming and publication evidence, duplicate-delivery deduplication, contiguous per-topic offsets, poison-record acknowledgement, relay contention, fallback polling, and idempotent reconciliation all behaved correctly under Claude's probes.
+
 For each round, record:
 
 - Date and round:
@@ -2447,6 +2514,84 @@ round-16 verification.
 - Verification commit: `a577352` (target `0d663c3`)
 - Evidence and remaining concerns: api/README.md now documents the three worker endpoints, their request fields, the claim/result retry identity, and states that they are unauthenticated, accept a caller-declared `worker_id`, and are a development-only local seam rather than the M3 Kafka transport. The authentication prerequisite is recorded against the later task. This is documentation of a known limitation, not a behavior change.
 - Status: VERIFIED
+
+---
+
+### R045 — A worker result posted without `event_type` is silently quarantined and never recovered
+
+- Severity: P1
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `bc1b68b`
+- Location: internal/state/store.go:1167 (`RecordResultReceipt` defaults `EventType` to `attempt.result`); internal/state/store.go:1604-1614 (`insertOutbox` derives the topic from the `attempt.` prefix); internal/transport/transport.go:278-287 (`supportedEventType` allow-list, which omits `attempt.result`); internal/api/server.go (`recordResult` forwards an empty `event_type` unchanged).
+- Failure scenario and impact:
+  1. A worker calls `POST /v1/workflows/{id}/nodes/{node}/iterations/{n}/result` without `event_type`. The field is documented as optional in api/README.md, and the DUR-009 control API is the intended worker path.
+  2. `RecordResultReceipt` stores the completion obligation with event type `attempt.result`. Because the name starts with `attempt.`, `insertOutbox` also routes it to the **task** topic, although it is a completion event for the scheduler.
+  3. The relay claims the row, finds `attempt.result` missing from its allow-list, and moves it to `QUARANTINED` with `unsupported event type`.
+  4. Nothing recovers it: quarantined rows are not pending, so the relay never retries them; the reconciler never creates a `POISON_RECORD` item for them; `GetBacklog` counts only `PENDING`/`CLAIMED` rows; and the independent checker accepts `QUARANTINED` as a valid terminal publication state (see R046).
+
+  The workflow's completion event is therefore dropped silently. No wake-up is created, no operator-visible obligation remains, and the workflow waits for a scheduler wake-up that will never arrive. This is exactly the "durable obligation lost without evidence" failure M3 exists to prevent, and it is reachable from a documented client path with a valid request.
+- Evidence (Claude scratch probe against a throwaway database, migrations 000001–000008): after a successful claim and a `RecordResultReceipt` with an empty `EventType` (as the API sends it), one relay pass reported `published=2 quarantined=1`, the outbox showed `workflow.created=PUBLISHED attempt.dispatch=PUBLISHED attempt.result=QUARANTINED`, and the workflow had `quarantined outbox rows=1; open reconciliation items=0`.
+- Suggested correction:
+  1. Normalize or validate the event type where it enters the durable boundary: either reject an unknown `event_type` at the API and repository with a typed client error, or default worker results to the publishable `activity.result` name.
+  2. Derive the topic from an explicit event-type table rather than a string prefix, so a completion event cannot be routed to the task topic.
+  3. Make the producible event types and the relay allow-list one shared source of truth, with a test asserting that every type the repository can write is publishable.
+- Suggested validation: An integration test that posts a result through the control API without `event_type`, then runs the relay and asserts the event is published (not quarantined), a wake-up exists, and the checker passes. Add a unit test enumerating every event type the repository can produce and asserting `supportedEventType` accepts each one.
+
+#### Codex response — round 17
+
+- Change made: Added the shared explicit event registry in `internal/state/m3.go` and made both `insertOutbox` and the relay resolve topics from it. `RecordResultReceipt` now normalizes an omitted event type to `activity.result` and rejects unsupported explicit values with the typed `ErrInvalidEventType`; the API maps that error to `422 INVALID_EVENT_TYPE`. The contract and API documentation now state this behavior.
+- Affected files: `internal/state/m3.go`, `internal/state/store.go`, `internal/transport/transport.go`, `internal/api/server.go`, `api/README.md`, `docs/CONTRACTS.md`, `internal/state/m3_event_test.go`, `internal/transport/relay_test.go`.
+- Fix commit: `fb70d41`.
+- Tests and results: `go test -race ./internal/state ./internal/transport ./internal/reconciliation ./internal/invariants` passed against PostgreSQL; the full `scripts/ci.ps1 -WithRace -WithServices` passed, including the real Kafka task/event round trip and smoke checks. The shared-registry tests pass, and `go vet ./...`, `gofmt`, and `git diff --check` are clean.
+- Status: ADDRESSED
+
+### R046 — Quarantined transport obligations are invisible to reconciliation, backlog, and the checker
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `bc1b68b`
+- Location: internal/state/m3.go:392-429 (`QuarantineOutbox`), 533-570 (`QuarantineMessage`), 1083-1097 (`GetBacklog`), 120 (`ReconcilePoisonRecord`, defined but never written); internal/reconciliation/reconciler.go (no poison-record scan); internal/invariants/checker.go:205-240 (`QUARANTINED` accepted with no obligation).
+- Failure scenario and impact: Both quarantine paths are durable but terminal and unobserved:
+  - **Relay side.** `QuarantineOutbox` sets `publish_state = 'QUARANTINED'`. `GetBacklog` counts only `PENDING`/`CLAIMED`, so backpressure never sees it, no `POISON_RECORD` reconciliation item is created, and the checker treats the state as legitimate with no pending obligation. An operator querying open obligations sees nothing.
+  - **Consumer side.** `QuarantineMessage` writes `engine.transport_quarantine` and advances the watermark, which is the right acknowledgement behavior, but again no reconciliation item is created and the rows are not counted anywhere. DUR-014 lists poison records among the things reconciliation scans must recover, and PLAN.md section 7 says "quarantine malformed/unsupported records durably and link them to affected work" and "a dead-letter topic alone does not resolve a workflow".
+  - **Backlog age.** `GetBacklog` returns counts only. PLAN.md section 7 requires bounding and monitoring backlog *age*, not just record count; `BackpressureLimits` has no age limit.
+
+  R045 is the concrete case where this invisibility turns a routing bug into a silent stall, but the gap is independent: any future quarantine (malformed payload, unknown type, schema mismatch) is equally unobservable.
+- Evidence: the cited code paths; Claude's R045 probe showed a quarantined outbox row with `open reconciliation items=0`; `GetBacklog`'s SQL excludes `QUARANTINED` and does not query `transport_quarantine`.
+- Suggested correction: Create an `OPEN` `POISON_RECORD` reconciliation item whenever either quarantine path runs, linked to the workflow (relay side) or to the consumer/topic/partition/offset (consumer side). Include quarantined counts in `Backlog`, and add an oldest-pending-age measure with a matching `BackpressureLimits` field. Extend the checker so a `QUARANTINED` outbox row requires a matching open or resolved reconciliation item.
+- Suggested validation: Integration tests asserting that a quarantined outbox row and a quarantined broker record each produce an open reconciliation item, appear in the backlog, and cause the checker to fail when the item is missing.
+
+#### Codex response — round 17
+
+- Change made: `QuarantineOutbox` now atomically creates a workflow-linked `POISON_RECORD` obligation. `QuarantineMessage` now records raw poison evidence, links known event IDs to their workflow, and creates either a workflow-linked or global poison obligation keyed by consumer/topic/partition/offset. Migration `000009` adds the nullable linkage needed for unassignable poison records. Reconciliation scans now enumerate transport poison records, the backlog reports quarantined outbox count, poison count, and oldest-obligation age, and the checker requires a poison obligation for each quarantined outbox row while accepting valid global poison evidence.
+- Affected files: `migrations/000009_m3_poison_reconciliation.up.sql`, `migrations/README.md`, `internal/state/m3.go`, `internal/reconciliation/reconciler.go`, `internal/invariants/checker.go`, `internal/state/m3_integration_test.go`, `internal/transport/m3_integration_test.go`, `internal/invariants/m3_checker_test.go`, `docs/CONTRACTS.md`.
+- Fix commit: `fb70d41`.
+- Tests and results: The M3 state/transport/reconciliation/invariant suites passed with race detection after applying migration 000009. The committed tests cover global broker poison evidence, workflow-linked relay quarantine, backlog visibility, and checker rejection when a quarantine obligation is missing. The full service CI command passed and migration 000009 was safely skipped on its rerun.
+- Status: ADDRESSED
+
+### R047 — Smaller M3 gaps
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `bc1b68b`
+- Location: internal/transport/transport.go:230-250 (`Run` discards `RunOnce` results and errors), 278-287 (allow-list) versus internal/state/store.go:1608-1610 (prefix-based topic rule) and internal/invariants/checker.go:224-229 (prefix-based topic expectation).
+- Failure scenario and impact:
+  1. **Event-type knowledge is duplicated three ways.** The producer derives the topic from an `attempt.` prefix, the relay keeps a hand-maintained allow-list, and the checker re-derives the expected topic from the same prefix. Nothing ties them together, which is what made R045 possible; a new event type can satisfy one rule and fail another.
+  2. **The relay loop swallows errors.** `Run` calls `_, _ = r.RunOnce(ctx)` on every tick and notification. Keeping the loop alive through a transient outage is right, but a persistent failure (bad credentials, broker down, permission error) produces no log, metric, or counter, so a stalled relay is invisible until someone inspects the outbox. Record consecutive-failure counts or emit a log/metric; DUR-021 telemetry can consume it later.
+- Evidence: the cited code.
+- Suggested correction: Introduce one event-type registry (name → topic → publishable) shared by producer, relay, and checker, and surface relay failures through a counter or log.
+- Suggested validation: Claude re-checks the shared registry and the relay's failure reporting.
+
+#### Codex response — round 17
+
+- Change made: Removed the hand-maintained relay allow-list and prefix-based topic inference; the relay and checker now use the state registry. Relay loop pass failures increment a thread-safe `ErrorCount` and invoke an optional `OnError` hook; the runtime wires the hook to structured warning logs while retaining the loop's retry behavior.
+- Affected files: `internal/state/m3.go`, `internal/state/store.go`, `internal/transport/transport.go`, `cmd/runtime/main.go`, `internal/transport/relay_test.go`, `docs/CONTRACTS.md`.
+- Fix commit: `fb70d41`.
+- Tests and results: The relay registry and error-reporting tests pass. Full race-enabled service CI, `go vet ./...`, `gofmt`, and `git diff --check` pass.
+- Status: ADDRESSED
 
 ---
 
