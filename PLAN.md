@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 IN_PROGRESS; DUR-022 IN_PROGRESS; DUR-023B TODO; DUR-024 TODO; DUR-025 TODO; DUR-021A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 READY_FOR_REVIEW; DUR-022 READY_FOR_REVIEW; DUR-023B READY_FOR_REVIEW; DUR-024 READY_FOR_REVIEW; DUR-025 READY_FOR_REVIEW; DUR-021A READY_FOR_REVIEW; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1049,8 +1049,9 @@ contract revision.
 
 #### M5 implementation record
 
-- **Status:** IN_PROGRESS.
-- **Base commit:** `612dde9` (M4 closeout).
+- **Status:** READY_FOR_REVIEW.
+- **Base commit:** `561b5a9` (M5 start record; M4 closeout ancestor `612dde9`).
+- **Target commit:** `c5cd2b8` (M5 implementation and evidence).
 - **Active task:** DUR-022 — Complete fault controller.
 - **Protected boundaries:** Preserve the M0 contracts, frozen partition map,
   PostgreSQL ownership and fencing rules, outbox/inbox identity, event
@@ -1058,17 +1059,21 @@ contract revision.
   checker rule that its verdicts do not call production transition
   validators. No incident-agent, paid-model, or final performance scope is
   added by this start record.
-- **Milestone scope:** Complete deterministic fault control and evidence
-  before running the full F01-F11 correctness campaign. DUR-023B, DUR-024,
-  DUR-025, and DUR-021A remain separate M5 tasks.
+- **Milestone scope:** Complete deterministic fault control and evidence,
+  independently check the fault traces, execute the F01-F11 correctness
+  campaign, validate real local dependency/process recovery, and establish
+  bounded engine telemetry. No incident-agent, paid-model, or final
+  performance scope is added.
 - **Validation policy:** Use named controller boundaries with target
   acknowledgements, record requested versus observed faults, and require
-  bounded cleanup. Run focused controller tests with race detection and
-  preserve campaign evidence before any M5 completion claim.
+  bounded cleanup. Keep checker verdicts independent of production
+  transition validators. Run focused controller tests with race detection,
+  the serial service gate, real outage/restart checks, and preserve campaign
+  evidence before any M5 completion claim.
 
 #### DUR-022 — Complete fault controller
 
-- **Status:** IN_PROGRESS.
+- **Status:** READY_FOR_REVIEW.
 - **Dependencies:** M4 DONE at closeout commit `612dde9`.
 - **Goal:** Make the failure controller reliable enough to drive the named
   engine campaign boundaries and to report what actually happened.
@@ -1087,16 +1092,89 @@ contract revision.
 - **Validation:** Focused Go/Python controller tests with race detection,
   deterministic repeated fault campaigns, malformed/partial target output,
   process-kill and pause/resume cases, bounded cleanup checks, `go vet`,
-  `gofmt`, and `git diff --check`. Full F01-F11 execution belongs to
-  DUR-024 after this task is complete.
+  `gofmt`, and `git diff --check`. The full F01-F11 execution is recorded
+  under DUR-024.
 - **Evidence:** Fault-controller implementation and tests, named-boundary
   fixtures, campaign records, `docs/BUILD_LOG.md`, and the final
   `REVIEW.md` handoff.
-- **Implementation commit:** none yet.
-- **Review:** pending implementation and Claude review.
-- **Remaining limitations:** Network faults are test-profile controls until
-  the real dependency outage work in DUR-025; no correctness or performance
-  result is claimed at task start.
+- **Implementation commit:** `c5cd2b8`.
+- **Review:** pending Claude review against `561b5a9`.
+- **Remaining limitations:** The fault proxy is a local test-profile control;
+  the real Kafka adapter/rebalance, multi-host deployment, hard-kill storage
+  durability, sustained-load measurements, and remote CI remain untested.
+
+#### DUR-023B — Finalize and mutation-test invariant checker
+
+- **Status:** READY_FOR_REVIEW.
+- **Dependencies:** M1 through M4 reviewed and closed.
+- **Goal and scope:** Join independent durable-state invariants with parsed
+  `fault-trace.v1` evidence, validate requested versus observed outcomes and
+  bounded cleanup, and seed mutation tests for identity, duplicate runs,
+  missing process outcomes, missing cleanup, contradictory boundaries, and
+  missing effect/approval evidence.
+- **Validation:** `go test -race ./...`, focused invariant mutation tests,
+  and the service-backed F01-F11 campaign all passed. The checker parses the
+  evidence format without importing the controller package or transition
+  validators.
+- **Evidence:** `internal/invariants/m5.go`, `internal/invariants/m5_test.go`,
+  and `experiments/m5/f01-f11-results.json` in `c5cd2b8`.
+- **Review:** pending Claude review.
+
+#### DUR-024 — Engine boundary matrix
+
+- **Status:** READY_FOR_REVIEW.
+- **Dependencies:** DUR-022 and DUR-023B implementation in `c5cd2b8`.
+- **Goal and scope:** Execute the committed F01-F11 boundary matrix with
+  durable PostgreSQL/Kafka tests, including duplicate publication, relay
+  failure, worker/effect uncertainty, crash resume, lease takeover, timer/
+  join, and cancellation races.
+- **Validation:** `scripts/m5-campaign.ps1 -StopRuntimeRelays` passed all eleven
+  cases and wrote per-case package, pattern, exit code, timestamp, and output
+  evidence. `scripts/ci.ps1 -WithRace -WithServices -WithM5` passed with the
+  same campaign entry point.
+- **Evidence:** `scripts/m5-campaign.ps1`, `experiments/m5/README.md`, and
+  `experiments/m5/f01-f11-results.json` in `c5cd2b8`.
+- **Review:** pending Claude review.
+
+#### DUR-025 — Real dependency outages and Core Engine MVP smoke
+
+- **Status:** READY_FOR_REVIEW.
+- **Dependencies:** DUR-022 through DUR-024 implementation in `c5cd2b8`.
+- **Goal and scope:** Validate local PostgreSQL/Kafka restart/unavailability,
+  worker/control partition, whole-process restart with retained volumes, and
+  a bounded two-scheduler smoke. This is local development evidence, not a
+  multi-host availability or final throughput claim.
+- **Validation:** Kafka outage restored and runtime health remained 200;
+  PostgreSQL outage returned runtime 503 and recovered; a stopped worker left
+  runtime health at 200 and recovered; runtime/worker restart retained the
+  dependency volumes and passed smoke. `TestM5BoundedTwoSchedulerSmoke`
+  completed four workflows on two owners in 137 ms and is labeled preliminary.
+- **Evidence:** `internal/engine/m5_smoke_test.go`,
+  `scripts/restart-smoke.ps1`, `scripts/smoke.ps1`, and the M5 BUILD_LOG entry.
+- **Review:** pending Claude review.
+- **Remaining limitations:** No multi-host deployment, Kafka consumer
+  rebalance, hard-kill durability, lock/statement-timeout campaign,
+  sustained-load study, or remote CI exists.
+
+#### DUR-021A — Engine telemetry prerequisite
+
+- **Status:** READY_FOR_REVIEW.
+- **Dependencies:** M5 engine and fault evidence implementation.
+- **Goal and scope:** Provide bounded Prometheus text metrics for durable
+  readiness, accepted claims/results, lease activity, fenced writes, database
+  transactions/queries/lock waits, reconciliation/backlog age, relay
+  publications/failures, and worker utilization, with only the bounded `role`
+  label.
+- **Validation:** `internal/telemetry` unit tests pass; the live runtime
+  `/metrics` endpoint rendered the fixed names; service smoke confirmed both
+  runtimes are scraped. The telemetry fields are joined with durable traces
+  and the parsed fault evidence in the M5 validation record.
+- **Evidence:** `internal/telemetry/metrics.go`,
+  `internal/telemetry/metrics_test.go`, runtime wiring in
+  `cmd/runtime/main.go` and `internal/state`, and `c5cd2b8`.
+- **Review:** pending Claude review.
+- **Remaining limitations:** This is a bounded prerequisite, not the final
+  M7 measurement host, dashboard, or performance study.
 
 **Exit:** Core Engine MVP evidence is complete, and DUR-021A provides validated engine telemetry sufficient for later measurements. Unavailable infrastructure tests remain visibly pending; do not substitute a mock exception for an actual restart claim.
 
@@ -1415,10 +1493,10 @@ round-18 review returned `NO_BLOCKING_FINDINGS`; R048 is VERIFIED with a
 nonblocking residual note about manual DB-enabled parallel runs. M4 is DONE
 at reviewed implementation target `fcdbf09` against M3 closeout `8fb2f75`;
 Claude's committed round-20 review returned `NO_BLOCKING_FINDINGS`, and R049
-is VERIFIED. M5 is IN_PROGRESS from closeout commit `612dde9`, with DUR-022
-as the active task. Its first implementation target does not exist yet; when
-DUR-022 is ready, Claude should review it against `612dde9`. Keep the M0
-contracts and partition-map version frozen while extending the durable state
-repository.
+is VERIFIED. M5 is READY_FOR_REVIEW at implementation target `c5cd2b8`, based
+on M5 start commit `561b5a9` (M4 closeout ancestor `612dde9`). DUR-022,
+DUR-023B, DUR-024, DUR-025, and DUR-021A are READY_FOR_REVIEW. Claude should
+review the committed M5 target against `561b5a9`. Keep the M0 contracts and
+partition-map version frozen while extending the durable state repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

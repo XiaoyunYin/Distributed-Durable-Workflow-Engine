@@ -1,15 +1,16 @@
 # Distributed Durable Execution Engine
 
-This repository has completed M0 through M4 and M5 is now in progress, with
-DUR-022 (the complete fault controller) as its active task. It provides a
+This repository has completed M0 through M4 and M5 is ready for review at
+committed target `c5cd2b8` against base `561b5a9`. It provides a
 reproducible Go/Python development
 environment, frozen foundation contracts, deterministic named-boundary fault
 fixtures, and a real local PostgreSQL/Kafka topology. PostgreSQL remains
 authoritative for workflow state; the transactional outbox, Kafka relay,
 inbox/offset consumer, scheduler wake-ups, retry/checkpoint recovery,
 approval-gated cooperating effects, and bounded reconciliation paths are
-covered by focused integration tests. M4 is reviewed and closed; the M5
-correctness campaign is not yet complete and this is not a claim of
+covered by focused integration tests. M4 is reviewed and closed; M5's
+implementation, fault campaign, outage checks, and telemetry prerequisite are
+awaiting Claude's review, and this is not a claim of
 production authentication, multi-host durability, or final performance.
 
 ## Local topology
@@ -85,8 +86,9 @@ pytest checks. `scripts/smoke.ps1` verifies real service health and pinned
 PostgreSQL durability settings. `scripts/restart-smoke.ps1` proves PostgreSQL
 and Kafka development volumes retain explicit markers across container recreation.
 `scripts/ci.ps1` is the shared validation entry point; use `-WithRace` for Go
-race checks and `-WithServices` for real dependency checks. No model or paid
-provider calls are made by these checks.
+race checks, `-WithServices` for real dependency checks, and `-WithM5` to run
+the bounded two-scheduler smoke plus the isolated F01-F11 campaign. No model
+or paid-provider calls are made by these checks.
 
 See [docs/RUNBOOK.md](docs/RUNBOOK.md) for operations and
 [docs/BUILD_LOG.md](docs/BUILD_LOG.md) for evidence and known gaps.

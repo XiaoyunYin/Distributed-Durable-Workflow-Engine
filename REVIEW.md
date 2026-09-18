@@ -3050,4 +3050,56 @@ Use this structure for each new finding. New findings start OPEN; update the top
 - Evidence and remaining concerns:
 - Status: <OPEN | VERIFIED | WITHDRAWN>
 
+## Codex handoff — M5 implementation
+
+- Task: M5 engine correctness campaign (`DUR-022`, `DUR-023B`, `DUR-024`,
+  `DUR-025`, and `DUR-021A`)
+- Task status: READY_FOR_REVIEW
+- Handoff basis: COMMITTED
+- Base commit: `561b5a9` (M5 start record; M4 closeout ancestor `612dde9`)
+- Target commit: `c5cd2b8`
+- Scope and implementation summary: Completed the named-boundary fault
+  controller and local bounded fault proxy; process kill/pause, finite network
+  cuts, message manipulation, malformed-output and timeout classification;
+  requested-versus-observed fault evidence; bounded cleanup; independent
+  `fault-trace.v1` checker integration and mutation fixtures; bounded runtime,
+  lease, worker, database, relay, reconciliation, and backlog-age telemetry;
+  the F01-F11 correctness campaign; real local dependency/process recovery;
+  and a preliminary two-scheduler engine smoke. Service-mode CI isolates
+  runtime/worker relays from shared database fixtures and restores them before
+  smoke or campaign execution. M0 contracts, the frozen partition map, M4
+  effect/approval boundary, and checker independence were preserved.
+- Checks run and results:
+  - `scripts/ci.ps1 -WithRace -WithServices -WithM5`: PASS; migrations
+    000001–000013, Go format/vet/build/tests, 24 Python tests, serial Go race
+    packages, DUR-005–DUR-018 service suites, service smoke, the bounded
+    two-scheduler smoke, and F01-F11 all passed.
+  - `experiments/m5/f01-f11-results.json`: PASS for F01 through F11 with
+    captured package/test output and per-case status.
+  - `scripts/smoke.ps1` after Kafka outage, PostgreSQL outage, worker/control
+    partition, and whole-process runtime/worker restart: PASS. PostgreSQL
+    outage returned HTTP 503 while unavailable; retained-volume restart
+    smoke passed.
+  - `scripts/restart-smoke.ps1`: PASS earlier in M5; PostgreSQL and Kafka
+    markers survived forced container recreation.
+  - `docker compose --env-file .env -f deploy/local/compose.yaml config --quiet`:
+    PASS; fresh runtime and worker Docker images built successfully.
+  - `git diff --check`: PASS before this handoff metadata commit.
+- Skipped checks and reasons: Kafka consumer rebalance, multi-host deployment,
+  hard-kill storage durability, lock/statement-timeout campaigns,
+  sustained-load/final performance studies, clean-machine bootstrap, and
+  remote CI are not implemented or configured. No model or paid-provider
+  checks run in M5.
+- Known limitations: The two-scheduler result is a bounded preliminary smoke,
+  not a throughput benchmark. The local topology is single-node development
+  evidence. The fault proxy is a test-profile control; worker/control APIs
+  remain unauthenticated and localhost-bound; no production effect caller,
+  exactly-once, multi-host durability, or final performance claim is made.
+- Review request: Claude should review target `c5cd2b8` against base `561b5a9`,
+  with special attention to requested-versus-observed fault evidence and
+  bounded cleanup, the independent checker/mutation cases, CI fixture
+  isolation, F01-F11 coverage, outage/restart boundaries, and the bounded
+  telemetry cardinality and durable-readiness/accepted-claim signals.
+- Verdict: PENDING CLAUDE REVIEW
+
 For additional review cycles on the same finding, append another `Codex response — round N` and `Claude verification — round N` pair. Never overwrite earlier rounds.

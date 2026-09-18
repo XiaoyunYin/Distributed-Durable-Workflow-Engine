@@ -1173,3 +1173,66 @@ Interview explanation: a fault request is not proof that the fault happened;
 the controller must receive a named-boundary acknowledgement and persist the
 observed result so a later checker can distinguish an unexecuted experiment
 from a successful recovery claim.
+
+## 2026-09-17 - M5 implementation and review handoff
+
+- Base commit: `561b5a9` (M5 start record; M4 closeout ancestor `612dde9`).
+- Implementation target: `c5cd2b8`.
+- Task status: M5 READY_FOR_REVIEW; DUR-022, DUR-023B, DUR-024, DUR-025, and
+  DUR-021A are READY_FOR_REVIEW. Claude review is pending.
+
+M5 completed the named-boundary fault controller and local fault proxy, with
+target acknowledgements, requested-versus-observed actions, malformed-output
+and timeout classification, process pause/kill, message/network controls, and
+bounded idempotent cleanup. The independent invariant checker now consumes
+`fault-trace.v1` summaries without importing the controller or production
+transition validators, and mutation tests cover missing cleanup/outcomes,
+duplicate runs, identity errors, contradictory boundary evidence, and the
+existing durable-state/effect/approval invariants. Runtime, worker, store,
+relay, and database instrumentation exports bounded Prometheus metrics using
+only the `role` label.
+
+Validation and evidence:
+
+- `scripts/ci.ps1 -WithRace -WithServices -WithM5`: PASS. This ran migrations
+  000001 through 000013, Go format/vet/build/tests, 24 Python tests, serial Go
+  race packages, DUR-005 through DUR-018 service suites, service smoke,
+  `TestM5BoundedTwoSchedulerSmoke`, and the isolated F01-F11 campaign.
+- `experiments/m5/f01-f11-results.json`: all F01-F11 cases PASS with package,
+  test pattern, exit code, timestamp, and captured output. The campaign
+  temporarily stops only runtime/worker relays so they cannot consume its
+  outbox fixtures, then restores them in a bounded cleanup path.
+- `TestM5BoundedTwoSchedulerSmoke`: four workflows completed concurrently on
+  two scheduler owners in 137 ms. This is a preliminary smoke, not a final
+  throughput result.
+- Real local recovery checks: Kafka outage restored with runtime health 200;
+  PostgreSQL outage returned runtime 503 and recovered; one worker stopped
+  left runtime health 200 and recovered; runtime/worker process restart with
+  retained volumes passed `scripts/smoke.ps1`; `scripts/restart-smoke.ps1`
+  had already verified PostgreSQL/Kafka markers survive recreation.
+- `docker compose --env-file .env -f deploy/local/compose.yaml config --quiet`:
+  PASS. Fresh `durable-agent-runtime:m5-check` and
+  `durable-agent-worker:m5-check` images built successfully.
+- Live `/metrics` rendering and Prometheus scraping: PASS for both runtime
+  replicas; telemetry unit tests passed with the full Go suite.
+- `git diff --check`: PASS before this documentation handoff commit.
+
+Failed approach and correction: the first complete service gate allowed live
+runtime relays to consume database-test outbox fixtures, producing a
+reproducible `TestM3TransportPersistenceAndFencing` fixture race. Service-mode
+CI now stops only runtime/worker relays around shared database checks, restores
+them before smoke, and restores them in `finally`; the M5 campaign has the
+same explicit isolation switch. The corrected gate passed.
+
+Skipped or untested: Kafka consumer rebalance, multi-host deployment,
+hard-kill storage durability, lock/statement-timeout campaigns,
+sustained-load/final performance studies, clean-machine bootstrap, and remote
+CI. The local Docker topology is single-node development evidence. Control
+and worker APIs remain unauthenticated and localhost-bound; no production
+effect caller, exactly-once, or multi-host durability claim is made.
+
+Interview explanation: M5 turns “we requested a crash” into an auditable
+experiment by recording what the target acknowledged, what process outcome
+was observed, and whether cleanup completed. The checker then joins that
+evidence to durable engine history independently, while the service gate
+isolates test fixtures from live relays so a green campaign is reproducible.
