@@ -177,6 +177,10 @@ func run(cfg config) (result, error) {
 		return result{}, err
 	}
 	defer cleanup(ctx, store, namespace, definitionID)
+	entryNode := "root"
+	if cfg.Workload == "t1" {
+		entryNode = "activity-0"
+	}
 	if err := store.CreateDefinition(ctx, state.DefinitionInput{DefinitionID: definitionID,
 		Version: 1, DefinitionHash: namespace, Graph: graph,
 		ActivityVersions: versions, EffectClasses: effects}); err != nil {
@@ -199,7 +203,9 @@ func run(cfg config) (result, error) {
 		go func(index int) {
 			defer schedulerWG.Done()
 			runner := engine.New(store, driver)
-			runner.OwnerID = fmt.Sprintf("dur026-%s-scheduler-%d", cfg.RunID, index)
+			// Lease owner_id is a PostgreSQL UUID. Keep the durable owner random
+			// and use the actor/worker fields for the bounded benchmark labels.
+			runner.OwnerID = state.NewID()
 			runner.WorkerID = fmt.Sprintf("dur026-%s-worker-%d", cfg.RunID, index%4)
 			runner.ActorID = fmt.Sprintf("dur026-%s-actor-%d", cfg.RunID, index)
 			runner.MaxSteps = 500
@@ -232,7 +238,7 @@ func run(cfg config) (result, error) {
 		created, createErr := store.CreateWorkflow(ctx, state.CreateWorkflowInput{
 			WorkflowID: workflowID, Namespace: namespace, SubmissionKey: "key-" + workflowID,
 			SubmissionPayloadHash: "sub-v1:" + workflowID, DefinitionID: definitionID,
-			DefinitionVersion: 1, PartitionID: int16(partitionID), InitialNodeID: "root",
+			DefinitionVersion: 1, PartitionID: int16(partitionID), InitialNodeID: entryNode,
 			InitialInput: json.RawMessage(fmt.Sprintf(`{"seed":%d,"workflow":%q}`, cfg.Seed, workflowID)), ActorID: "dur026-client",
 		})
 		if createErr != nil {
@@ -325,7 +331,11 @@ func summarize(ctx context.Context, store *state.Store, outcomes []workflowOutco
 		}
 	}
 	if len(latencies) == 0 {
-		return cohort, timingReport{}, errors.New("no terminal completion latencies recorded")
+		states := make([]string, 0, len(outcomes))
+		for _, item := range outcomes {
+			states = append(states, item.WorkflowID+"="+item.State+"/"+item.Error)
+		}
+		return cohort, timingReport{}, fmt.Errorf("no terminal completion latencies recorded: %s", strings.Join(states, ","))
 	}
 	for i := 1; i < len(latencies); i++ {
 		for j := i; j > 0 && latencies[j] < latencies[j-1]; j-- {
