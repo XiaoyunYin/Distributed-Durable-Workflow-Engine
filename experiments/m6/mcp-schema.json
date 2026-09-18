@@ -1,0 +1,36 @@
+{
+  "max_calls": 8,
+  "max_rows": 20,
+  "methods": [
+    {
+      "arguments": [
+        "case_id",
+        "service",
+        "level"
+      ],
+      "name": "query_logs"
+    },
+    {
+      "arguments": [
+        "case_id",
+        "service",
+        "metric"
+      ],
+      "name": "query_metrics"
+    },
+    {
+      "arguments": [
+        "query",
+        "arm"
+      ],
+      "name": "search_runbooks"
+    },
+    {
+      "arguments": [
+        "resource_id"
+      ],
+      "name": "remediation_status"
+    }
+  ],
+  "schema_version": "m6-mcp-v1"
+}

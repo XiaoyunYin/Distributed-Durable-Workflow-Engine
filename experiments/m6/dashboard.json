@@ -1,0 +1,48 @@
+{
+  "label_policy": "Only bounded role, arm, method, outcome, kind, decision, and component labels are permitted.",
+  "panels": [
+    {
+      "group_by": [
+        "role",
+        "arm",
+        "outcome"
+      ],
+      "metric": "durable_incident_outcomes_total",
+      "title": "Abstention rate"
+    },
+    {
+      "group_by": [
+        "role",
+        "method",
+        "outcome"
+      ],
+      "metric": "durable_incident_tool_calls_total",
+      "title": "Invalid or denied tool calls"
+    },
+    {
+      "group_by": [
+        "role",
+        "kind"
+      ],
+      "metric": "durable_incident_citation_violations_total",
+      "title": "Citation provenance violations"
+    },
+    {
+      "group_by": [
+        "role",
+        "decision"
+      ],
+      "metric": "durable_incident_approvals_total",
+      "title": "Approver decisions"
+    },
+    {
+      "group_by": [
+        "role",
+        "component"
+      ],
+      "metric": "durable_incident_latency_seconds",
+      "title": "Model and tool latency"
+    }
+  ],
+  "schema": "incident-dashboard.v1"
+}

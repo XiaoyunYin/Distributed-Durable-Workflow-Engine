@@ -1,0 +1,1133 @@
+{
+  "cases": [
+    {
+      "answerable": true,
+      "case_id": "dev-bad_-01",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "rollback",
+        "revision": "v1"
+      },
+      "expected_diagnosis": "The checkout deployment is using a bad configuration revision.",
+      "family": "bad_configuration",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "revision signal observed; inspect bounded evidence",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:00:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:00:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:00:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate checkout: revision deployment config and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-01-01-chunk-01",
+        "doc-01-01-chunk-02"
+      ],
+      "service": "checkout",
+      "split": "development"
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-bad_-02",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "rollback",
+        "revision": "v1"
+      },
+      "expected_diagnosis": "The checkout deployment is using a bad configuration revision.",
+      "family": "bad_configuration",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "revision signal observed; inspect bounded evidence",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:01:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:01:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:01:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate checkout: revision deployment config and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "checkout",
+      "split": "development"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-bad_-03",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "rollback",
+        "revision": "v1"
+      },
+      "expected_diagnosis": "The checkout deployment is using a bad configuration revision.",
+      "family": "bad_configuration",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "revision signal observed; inspect bounded evidence",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:02:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:02:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:02:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate checkout: revision deployment config and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-01-03-chunk-01",
+        "doc-01-03-chunk-02"
+      ],
+      "service": "checkout",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-bad_-04",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "rollback",
+        "revision": "v1"
+      },
+      "expected_diagnosis": "The checkout deployment is using a bad configuration revision.",
+      "family": "bad_configuration",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "revision signal observed; inspect bounded evidence",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:03:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:03:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:03:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate checkout: revision deployment config and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "checkout",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-bad_-05",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "rollback",
+        "revision": "v1"
+      },
+      "expected_diagnosis": "The checkout deployment is using a bad configuration revision.",
+      "family": "bad_configuration",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "revision signal observed; inspect bounded evidence",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:04:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:04:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:04:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate checkout: revision deployment config and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-01-05-chunk-01",
+        "doc-01-05-chunk-02"
+      ],
+      "service": "checkout",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-bad_-06",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "rollback",
+        "revision": "v1"
+      },
+      "expected_diagnosis": "The checkout deployment is using a bad configuration revision.",
+      "family": "bad_configuration",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "revision signal observed; inspect bounded evidence",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:05:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:05:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "checkout",
+          "timestamp": "2026-09-18T00:05:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate checkout: revision deployment config and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "checkout",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-conn-01",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "restart_pool",
+        "replicas": 1
+      },
+      "expected_diagnosis": "The payments service is exhausting its database connection pool.",
+      "family": "connection_pool",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "pool signal observed; inspect bounded evidence",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:00:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:00:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:00:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate payments: pool connection timeout and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-02-01-chunk-01",
+        "doc-02-01-chunk-02"
+      ],
+      "service": "payments",
+      "split": "development"
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-conn-02",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "restart_pool",
+        "replicas": 1
+      },
+      "expected_diagnosis": "The payments service is exhausting its database connection pool.",
+      "family": "connection_pool",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "pool signal observed; inspect bounded evidence",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:01:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:01:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:01:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate payments: pool connection timeout and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "payments",
+      "split": "development"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-conn-03",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "restart_pool",
+        "replicas": 1
+      },
+      "expected_diagnosis": "The payments service is exhausting its database connection pool.",
+      "family": "connection_pool",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "pool signal observed; inspect bounded evidence",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:02:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:02:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:02:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate payments: pool connection timeout and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-02-03-chunk-01",
+        "doc-02-03-chunk-02"
+      ],
+      "service": "payments",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-conn-04",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "restart_pool",
+        "replicas": 1
+      },
+      "expected_diagnosis": "The payments service is exhausting its database connection pool.",
+      "family": "connection_pool",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "pool signal observed; inspect bounded evidence",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:03:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:03:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:03:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate payments: pool connection timeout and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "payments",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-conn-05",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "restart_pool",
+        "replicas": 1
+      },
+      "expected_diagnosis": "The payments service is exhausting its database connection pool.",
+      "family": "connection_pool",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "pool signal observed; inspect bounded evidence",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:04:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:04:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:04:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate payments: pool connection timeout and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-02-05-chunk-01",
+        "doc-02-05-chunk-02"
+      ],
+      "service": "payments",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-conn-06",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "restart_pool",
+        "replicas": 1
+      },
+      "expected_diagnosis": "The payments service is exhausting its database connection pool.",
+      "family": "connection_pool",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "pool signal observed; inspect bounded evidence",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:05:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:05:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "payments",
+          "timestamp": "2026-09-18T00:05:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate payments: pool connection timeout and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "payments",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-down-01",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "enable_circuit_breaker",
+        "service": "catalog"
+      },
+      "expected_diagnosis": "The catalog dependency is exceeding the request deadline.",
+      "family": "downstream_latency",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "latency signal observed; inspect bounded evidence",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:00:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:00:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:00:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate catalog: latency upstream deadline and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-03-01-chunk-01",
+        "doc-03-01-chunk-02"
+      ],
+      "service": "catalog",
+      "split": "development"
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-down-02",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "enable_circuit_breaker",
+        "service": "catalog"
+      },
+      "expected_diagnosis": "The catalog dependency is exceeding the request deadline.",
+      "family": "downstream_latency",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "latency signal observed; inspect bounded evidence",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:01:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:01:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:01:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate catalog: latency upstream deadline and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "catalog",
+      "split": "development"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-down-03",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "enable_circuit_breaker",
+        "service": "catalog"
+      },
+      "expected_diagnosis": "The catalog dependency is exceeding the request deadline.",
+      "family": "downstream_latency",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "latency signal observed; inspect bounded evidence",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:02:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:02:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:02:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate catalog: latency upstream deadline and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-03-03-chunk-01",
+        "doc-03-03-chunk-02"
+      ],
+      "service": "catalog",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-down-04",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "enable_circuit_breaker",
+        "service": "catalog"
+      },
+      "expected_diagnosis": "The catalog dependency is exceeding the request deadline.",
+      "family": "downstream_latency",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "latency signal observed; inspect bounded evidence",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:03:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:03:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:03:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate catalog: latency upstream deadline and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "catalog",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-down-05",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "enable_circuit_breaker",
+        "service": "catalog"
+      },
+      "expected_diagnosis": "The catalog dependency is exceeding the request deadline.",
+      "family": "downstream_latency",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "latency signal observed; inspect bounded evidence",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:04:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:04:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:04:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate catalog: latency upstream deadline and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-03-05-chunk-01",
+        "doc-03-05-chunk-02"
+      ],
+      "service": "catalog",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-down-06",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "enable_circuit_breaker",
+        "service": "catalog"
+      },
+      "expected_diagnosis": "The catalog dependency is exceeding the request deadline.",
+      "family": "downstream_latency",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "latency signal observed; inspect bounded evidence",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:05:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:05:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "catalog",
+          "timestamp": "2026-09-18T00:05:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate catalog: latency upstream deadline and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "catalog",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-disk-01",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "compact_volume",
+        "service": "search"
+      },
+      "expected_diagnosis": "The search volume is under disk pressure and needs retention relief.",
+      "family": "disk_pressure",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "disk signal observed; inspect bounded evidence",
+          "service": "search",
+          "timestamp": "2026-09-18T00:00:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "search",
+          "timestamp": "2026-09-18T00:00:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "search",
+          "timestamp": "2026-09-18T00:00:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate search: disk pressure inode and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-04-01-chunk-01",
+        "doc-04-01-chunk-02"
+      ],
+      "service": "search",
+      "split": "development"
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-disk-02",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "compact_volume",
+        "service": "search"
+      },
+      "expected_diagnosis": "The search volume is under disk pressure and needs retention relief.",
+      "family": "disk_pressure",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "disk signal observed; inspect bounded evidence",
+          "service": "search",
+          "timestamp": "2026-09-18T00:01:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "search",
+          "timestamp": "2026-09-18T00:01:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "search",
+          "timestamp": "2026-09-18T00:01:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate search: disk pressure inode and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "search",
+      "split": "development"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-disk-03",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "compact_volume",
+        "service": "search"
+      },
+      "expected_diagnosis": "The search volume is under disk pressure and needs retention relief.",
+      "family": "disk_pressure",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "disk signal observed; inspect bounded evidence",
+          "service": "search",
+          "timestamp": "2026-09-18T00:02:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "search",
+          "timestamp": "2026-09-18T00:02:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "search",
+          "timestamp": "2026-09-18T00:02:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate search: disk pressure inode and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-04-03-chunk-01",
+        "doc-04-03-chunk-02"
+      ],
+      "service": "search",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-disk-04",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "compact_volume",
+        "service": "search"
+      },
+      "expected_diagnosis": "The search volume is under disk pressure and needs retention relief.",
+      "family": "disk_pressure",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "disk signal observed; inspect bounded evidence",
+          "service": "search",
+          "timestamp": "2026-09-18T00:03:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "search",
+          "timestamp": "2026-09-18T00:03:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "search",
+          "timestamp": "2026-09-18T00:03:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate search: disk pressure inode and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "search",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-disk-05",
+      "document_dependent": true,
+      "expected_action": {
+        "action": "compact_volume",
+        "service": "search"
+      },
+      "expected_diagnosis": "The search volume is under disk pressure and needs retention relief.",
+      "family": "disk_pressure",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "disk signal observed; inspect bounded evidence",
+          "service": "search",
+          "timestamp": "2026-09-18T00:04:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "search",
+          "timestamp": "2026-09-18T00:04:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "search",
+          "timestamp": "2026-09-18T00:04:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate search: disk pressure inode and recent symptoms",
+      "relevant_chunk_ids": [
+        "doc-04-05-chunk-01",
+        "doc-04-05-chunk-02"
+      ],
+      "service": "search",
+      "split": "heldout"
+    },
+    {
+      "answerable": true,
+      "case_id": "hel-disk-06",
+      "document_dependent": false,
+      "expected_action": {
+        "action": "compact_volume",
+        "service": "search"
+      },
+      "expected_diagnosis": "The search volume is under disk pressure and needs retention relief.",
+      "family": "disk_pressure",
+      "logs": [
+        {
+          "level": "WARN",
+          "message": "disk signal observed; inspect bounded evidence",
+          "service": "search",
+          "timestamp": "2026-09-18T00:05:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "search",
+          "timestamp": "2026-09-18T00:05:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "search",
+          "timestamp": "2026-09-18T00:05:00Z",
+          "value": 1.0
+        }
+      ],
+      "query": "Investigate search: disk pressure inode and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "search",
+      "split": "heldout"
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-insu-01",
+      "document_dependent": false,
+      "expected_action": null,
+      "expected_diagnosis": "Evidence is insufficient to justify a remediation action.",
+      "family": "insufficient_evidence",
+      "logs": [
+        {
+          "level": "INFO",
+          "message": "transient signal observed; inspect bounded evidence",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:00:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:00:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:00:00Z",
+          "value": 0.2
+        }
+      ],
+      "query": "Investigate notifications: transient sample unknown and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "notifications",
+      "split": "development"
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-insu-02",
+      "document_dependent": false,
+      "expected_action": null,
+      "expected_diagnosis": "Evidence is insufficient to justify a remediation action.",
+      "family": "insufficient_evidence",
+      "logs": [
+        {
+          "level": "INFO",
+          "message": "transient signal observed; inspect bounded evidence",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:01:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:01:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:01:00Z",
+          "value": 0.2
+        }
+      ],
+      "query": "Investigate notifications: transient sample unknown and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "notifications",
+      "split": "development"
+    },
+    {
+      "answerable": false,
+      "case_id": "hel-insu-03",
+      "document_dependent": false,
+      "expected_action": null,
+      "expected_diagnosis": "Evidence is insufficient to justify a remediation action.",
+      "family": "insufficient_evidence",
+      "logs": [
+        {
+          "level": "INFO",
+          "message": "transient signal observed; inspect bounded evidence",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:02:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:02:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:02:00Z",
+          "value": 0.2
+        }
+      ],
+      "query": "Investigate notifications: transient sample unknown and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "notifications",
+      "split": "heldout"
+    },
+    {
+      "answerable": false,
+      "case_id": "hel-insu-04",
+      "document_dependent": false,
+      "expected_action": null,
+      "expected_diagnosis": "Evidence is insufficient to justify a remediation action.",
+      "family": "insufficient_evidence",
+      "logs": [
+        {
+          "level": "INFO",
+          "message": "transient signal observed; inspect bounded evidence",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:03:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:03:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:03:00Z",
+          "value": 0.2
+        }
+      ],
+      "query": "Investigate notifications: transient sample unknown and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "notifications",
+      "split": "heldout"
+    },
+    {
+      "answerable": false,
+      "case_id": "hel-insu-05",
+      "document_dependent": false,
+      "expected_action": null,
+      "expected_diagnosis": "Evidence is insufficient to justify a remediation action.",
+      "family": "insufficient_evidence",
+      "logs": [
+        {
+          "level": "INFO",
+          "message": "transient signal observed; inspect bounded evidence",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:04:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:04:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:04:00Z",
+          "value": 0.2
+        }
+      ],
+      "query": "Investigate notifications: transient sample unknown and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "notifications",
+      "split": "heldout"
+    },
+    {
+      "answerable": false,
+      "case_id": "hel-insu-06",
+      "document_dependent": false,
+      "expected_action": null,
+      "expected_diagnosis": "Evidence is insufficient to justify a remediation action.",
+      "family": "insufficient_evidence",
+      "logs": [
+        {
+          "level": "INFO",
+          "message": "transient signal observed; inspect bounded evidence",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:05:00Z"
+        },
+        {
+          "level": "INFO",
+          "message": "request sample retained for investigation",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:05:05Z"
+        }
+      ],
+      "metrics": [
+        {
+          "name": "incident_signal",
+          "service": "notifications",
+          "timestamp": "2026-09-18T00:05:00Z",
+          "value": 0.2
+        }
+      ],
+      "query": "Investigate notifications: transient sample unknown and recent symptoms",
+      "relevant_chunk_ids": [],
+      "service": "notifications",
+      "split": "heldout"
+    }
+  ],
+  "schema": "incident-cases.evaluator-only.v1"
+}

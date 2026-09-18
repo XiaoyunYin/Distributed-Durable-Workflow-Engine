@@ -1,0 +1,51 @@
+{
+  "arms": [
+    {
+      "answerable_queries": 120,
+      "arm": "keyword",
+      "delivered_recall_at_k": 1.0,
+      "no_answer_false_positive_rate": 0.0,
+      "queries": 160,
+      "ranking_mrr": 1.0,
+      "ranking_recall_at_k": 1.0
+    },
+    {
+      "answerable_queries": 120,
+      "arm": "dense",
+      "delivered_recall_at_k": 0.4,
+      "no_answer_false_positive_rate": 0.0,
+      "queries": 160,
+      "ranking_mrr": 1.0,
+      "ranking_recall_at_k": 1.0
+    },
+    {
+      "answerable_queries": 120,
+      "arm": "hybrid",
+      "delivered_recall_at_k": 1.0,
+      "no_answer_false_positive_rate": 0.0,
+      "queries": 160,
+      "ranking_mrr": 1.0,
+      "ranking_recall_at_k": 1.0
+    }
+  ],
+  "corpus": {
+    "chunks": 300,
+    "development_cases": 10,
+    "development_queries": 40,
+    "documents": 60,
+    "families": [
+      "bad_configuration",
+      "connection_pool",
+      "downstream_latency",
+      "disk_pressure",
+      "insufficient_evidence"
+    ],
+    "heldout_cases": 20,
+    "heldout_queries": 120,
+    "incident_cases": 30,
+    "no_answer_development_queries": 10,
+    "no_answer_heldout_queries": 30,
+    "schema": "incident-fixtures.v1"
+  },
+  "schema": "dur-019-retrieval.v1"
+}

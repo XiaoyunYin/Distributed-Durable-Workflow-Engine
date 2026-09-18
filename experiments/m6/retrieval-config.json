@@ -1,0 +1,10 @@
+{
+  "corpus_version": "m6-corpus-v1",
+  "dense_threshold": 0.45,
+  "embedding_dimension": 64,
+  "embedding_model": "durable-hash-embed-v1",
+  "embedding_revision": "sha256:incident-agent-local-64d-v1",
+  "keyword_threshold": 0.18,
+  "rrf_k": 60,
+  "top_k": 5
+}

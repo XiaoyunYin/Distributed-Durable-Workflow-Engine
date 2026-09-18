@@ -2,7 +2,8 @@
 param(
     [switch]$WithServices,
     [switch]$WithRace,
-    [switch]$WithM5
+    [switch]$WithM5,
+    [switch]$WithM6
 )
 
 $ErrorActionPreference = "Stop"
@@ -98,7 +99,13 @@ try {
         Write-Host "Skipped PostgreSQL/Kafka smoke checks; rerun with -WithServices."
     }
 
-    Write-Host "CI checks passed. Model and paid-provider checks are not part of this entry point."
+    if ($WithM6) {
+        Write-Host "Running deterministic M6 incident evidence."
+        & $PSScriptRoot/m6-evidence.ps1
+        if ($LASTEXITCODE -ne 0) { throw "M6 evidence checks failed." }
+    }
+
+    Write-Host "CI checks passed. Live model and paid-provider checks are not part of this entry point."
 } finally {
     if ($ciRelaysStopped) {
         & docker compose @composeArgs up -d --wait runtime-a runtime-b worker-a worker-b

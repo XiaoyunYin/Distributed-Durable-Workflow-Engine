@@ -1,0 +1,11 @@
+{
+  "case_id": "dev-bad_-01",
+  "cited_ids": [
+    "doc-01-01-chunk-01",
+    "doc-01-01-chunk-02",
+    "doc-01-02-chunk-01",
+    "doc-01-03-chunk-01",
+    "doc-01-03-chunk-02"
+  ],
+  "violations": 0
+}
