@@ -77,7 +77,8 @@ try {
             foreach ($rate in $rates) {
                 foreach ($repeat in $repeats) {
                     $caseIndex++
-                    $caseID = "DUR026-${workload}-s${schedulerCount}-r$($rate.ToString('0.###'))-rep$repeat"
+                    $configID = "DUR026-${workload}-s${schedulerCount}-r$($rate.ToString('0.###'))"
+                    $caseID = "$configID-rep$repeat"
                     $runID = ("m7-{0}-{1:D2}-{2}" -f $caseID.ToLowerInvariant(), $caseIndex, ([guid]::NewGuid().ToString("N")))
                     $stdoutPath = Join-Path $buildRoot ($caseIndex.ToString("D3") + ".json")
                     $stderrPath = Join-Path $buildRoot ($caseIndex.ToString("D3") + ".err")
@@ -111,6 +112,7 @@ try {
                         $run = [pscustomobject]@{ schema_version = "dur026-run.v1"; status = "FAIL"; failure = ($stderrText.Trim() + " " + ([string]$stdout).Trim()).Trim() }
                     }
                     Add-Property $run "case_id" $caseID | Out-Null
+                    Add-Property $run "config_id" $configID | Out-Null
                     Add-Property $run "repeat" $repeat | Out-Null
                     Add-Property $run "process_cpu_seconds" $cpuSeconds | Out-Null
                     Add-Property $run "process_wall_seconds" (($finished - $started).TotalSeconds) | Out-Null
@@ -128,9 +130,9 @@ try {
         }
     }
 
-    $summary = @($results | Group-Object case_id | ForEach-Object {
+    $summary = @($results | Group-Object config_id | ForEach-Object {
         $group = @($_.Group)
-        $throughputs = @($group | ForEach-Object { [double]$_.timing.throughput }) | Sort-Object
+        $throughputs = @($group | ForEach-Object { [double]$_.timing.terminal_workflows_per_second }) | Sort-Object
         $cpu = @($group | ForEach-Object { [double]$_.process_cpu_seconds }) | Measure-Object -Average -Sum
         [ordered]@{
             case_id = $_.Name
@@ -142,6 +144,7 @@ try {
             total_process_cpu_seconds = $cpu.Sum
             terminal_total = [int](($group | ForEach-Object { $_.cohort.terminal } | Measure-Object -Sum).Sum)
             pending_total = [int](($group | ForEach-Object { $_.cohort.pending } | Measure-Object -Sum).Sum)
+            cpu_seconds_per_terminal_workflow = if ([int](($group | ForEach-Object { $_.cohort.terminal } | Measure-Object -Sum).Sum) -gt 0) { $cpu.Sum / [int](($group | ForEach-Object { $_.cohort.terminal } | Measure-Object -Sum).Sum) } else { $null }
         }
     })
     $artifact = [ordered]@{
