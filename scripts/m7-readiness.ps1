@@ -68,7 +68,7 @@ function Get-Metrics([string]$Port) {
 }
 
 function MetricValue([string]$Text, [string]$Name, [string]$Role) {
-    $pattern = "(?m)^" + [regex]::Escape($Name) + "\{role=\"" + [regex]::Escape($Role) + "\"\}\s+([0-9.eE+-]+)$"
+    $pattern = '(?m)^' + [regex]::Escape($Name) + '\{role="' + [regex]::Escape($Role) + '"\}\s+([0-9.eE+-]+)$'
     $match = [regex]::Match($Text, $pattern)
     if (-not $match.Success) { throw "Metric '$Name' for role '$Role' was not exported." }
     return [double]::Parse($match.Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture)
