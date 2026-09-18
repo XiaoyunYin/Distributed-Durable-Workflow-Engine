@@ -21,7 +21,7 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import IO, cast
@@ -185,6 +185,9 @@ class FaultController:
             bufsize=1,
             env=environment,
             cwd=str(cwd) if cwd is not None else None,
+            # A campaign target is a process tree on POSIX.  Put it in its
+            # own group so kill() cannot leave a compiler/runner child alive.
+            start_new_session=os.name != "nt",
         )
         self._record("process_started", boundary=self.boundary, command=child_command)
         threading.Thread(target=self._read_protocol, daemon=True).start()
@@ -488,8 +491,31 @@ class FaultController:
             self._observed_action = "process_already_exited"
             self._record("fault_observed", action=self._observed_action, pid=process.pid)
             return False
-        with contextlib.suppress(OSError):
-            process.kill()
+        mechanism = "windows-process-tree"
+        if os.name == "nt":
+            # ``go run`` and other launchers may leave the real target as a
+            # child.  Terminate the whole Windows process tree, not only the
+            # launcher that Popen returned.
+            with contextlib.suppress(OSError):
+                subprocess.run(
+                    ["taskkill", "/PID", str(process.pid), "/T", "/F"],
+                    check=False,
+                    stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL,
+                )
+            if process.poll() is None:
+                with contextlib.suppress(OSError):
+                    process.kill()
+        else:
+            mechanism = "posix-process-group"
+            killpg = getattr(os, "killpg", None)
+            sigkill = getattr(signal, "SIGKILL", None)
+            if callable(killpg) and isinstance(sigkill, int):
+                with contextlib.suppress(OSError):
+                    cast(Callable[[int, int], None], killpg)(process.pid, sigkill)
+            else:
+                with contextlib.suppress(OSError):
+                    process.kill()
         try:
             process.wait(timeout=5)
         except subprocess.TimeoutExpired:
@@ -497,7 +523,12 @@ class FaultController:
             self._record("fault_observed", action=self._observed_action, pid=process.pid)
             return False
         self._observed_action = "process_killed"
-        self._record("fault_observed", action="process_killed", pid=process.pid)
+        self._record(
+            "fault_observed",
+            action="process_killed",
+            pid=process.pid,
+            mechanism=mechanism,
+        )
         return True
 
     def finish(self) -> int:

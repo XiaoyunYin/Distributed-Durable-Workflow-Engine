@@ -20,6 +20,8 @@ import (
 func main() {
 	path := flag.String("trace", "", "fault-trace.v1 JSONL path")
 	databaseURL := flag.String("database-url", "", "PostgreSQL URL used to load durable rows referenced by the trace")
+	durableTracePath := flag.String("durable-trace", "", "JSON snapshot path for the durable rows joined to the fault trace")
+	offline := flag.Bool("offline", false, "check only the durable-trace snapshot; do not connect to PostgreSQL")
 	flag.Parse()
 	if *path == "" {
 		fmt.Fprintln(os.Stderr, "-trace is required")
@@ -31,32 +33,63 @@ func main() {
 		os.Exit(1)
 	}
 	trace := invariants.Trace{}
-	if *databaseURL == "" {
-		*databaseURL = durableDatabaseURL()
-	}
-	if *databaseURL != "" {
-		store, storeErr := state.NewFromURL(context.Background(), *databaseURL)
-		if storeErr != nil {
-			fmt.Fprintf(os.Stderr, "open durable state: %v\n", storeErr)
+	if *offline {
+		if *durableTracePath == "" {
+			fmt.Fprintln(os.Stderr, "-durable-trace is required with -offline")
+			os.Exit(2)
+		}
+		data, readErr := os.ReadFile(*durableTracePath)
+		if readErr != nil {
+			fmt.Fprintf(os.Stderr, "load durable trace snapshot: %v\n", readErr)
 			os.Exit(1)
 		}
-		workflowIDs := make([]string, 0, len(evidence))
-		seen := map[string]bool{}
-		for _, item := range evidence {
-			if item.WorkflowID != "" && !seen[item.WorkflowID] {
-				seen[item.WorkflowID] = true
-				workflowIDs = append(workflowIDs, item.WorkflowID)
-			}
+		if err := json.Unmarshal(data, &trace); err != nil {
+			fmt.Fprintf(os.Stderr, "decode durable trace snapshot: %v\n", err)
+			os.Exit(1)
 		}
-		if len(workflowIDs) > 0 {
-			trace, err = invariants.Load(context.Background(), store, workflowIDs)
-			if err != nil {
-				store.Close()
-				fmt.Fprintf(os.Stderr, "load durable trace: %v\n", err)
+	} else {
+		if *databaseURL == "" {
+			*databaseURL = durableDatabaseURL()
+		}
+		if *databaseURL != "" {
+			store, storeErr := state.NewFromURL(context.Background(), *databaseURL)
+			if storeErr != nil {
+				fmt.Fprintf(os.Stderr, "open durable state: %v\n", storeErr)
 				os.Exit(1)
 			}
+			workflowIDs := make([]string, 0, len(evidence))
+			seen := map[string]bool{}
+			for _, item := range evidence {
+				if item.WorkflowID != "" && !seen[item.WorkflowID] {
+					seen[item.WorkflowID] = true
+					workflowIDs = append(workflowIDs, item.WorkflowID)
+				}
+			}
+			if len(workflowIDs) > 0 {
+				trace, err = invariants.Load(context.Background(), store, workflowIDs)
+				if err != nil {
+					store.Close()
+					fmt.Fprintf(os.Stderr, "load durable trace: %v\n", err)
+					os.Exit(1)
+				}
+			}
+			store.Close()
 		}
-		store.Close()
+	}
+	if *durableTracePath != "" && !*offline {
+		data, marshalErr := json.MarshalIndent(trace, "", "  ")
+		if marshalErr != nil {
+			fmt.Fprintf(os.Stderr, "encode durable trace snapshot: %v\n", marshalErr)
+			os.Exit(1)
+		}
+		if mkdirErr := os.MkdirAll(filepath.Dir(*durableTracePath), 0o755); mkdirErr != nil {
+			fmt.Fprintf(os.Stderr, "create durable trace directory: %v\n", mkdirErr)
+			os.Exit(1)
+		}
+		if writeErr := os.WriteFile(*durableTracePath, data, 0o644); writeErr != nil {
+			fmt.Fprintf(os.Stderr, "write durable trace snapshot: %v\n", writeErr)
+			os.Exit(1)
+		}
 	}
 	verdict := invariants.CheckWithFaults(trace, evidence)
 	_ = json.NewEncoder(os.Stdout).Encode(map[string]any{

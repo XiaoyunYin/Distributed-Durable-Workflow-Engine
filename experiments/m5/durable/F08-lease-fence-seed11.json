@@ -1,0 +1,139 @@
+{
+  "History": [
+    {
+      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Revision": 1,
+      "ActorKind": "client",
+      "SchedulerEpoch": null,
+      "OldState": "",
+      "NewState": "RUNNABLE",
+      "Reason": "WORKFLOW_CREATED"
+    },
+    {
+      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Revision": 2,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 5,
+      "OldState": "RUNNABLE",
+      "NewState": "WAITING_ACTIVITY",
+      "Reason": "M5_FIXTURE_ACTIVITY"
+    },
+    {
+      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Revision": 3,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 5,
+      "OldState": "WAITING_ACTIVITY",
+      "NewState": "WAITING_ACTIVITY",
+      "Reason": "ATTEMPT_CREATED"
+    }
+  ],
+  "Results": null,
+  "Submissions": [
+    {
+      "Namespace": "m5-fixture",
+      "Key": "key-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Hash": "sub-v1:m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-11"
+    }
+  ],
+  "Attempts": [
+    {
+      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "NodeID": "root",
+      "Iteration": 0,
+      "AttemptNumber": 1,
+      "State": "CLAIMED",
+      "ClaimToken": "dc6397c7-0073-43ab-891e-fa237cd113fc",
+      "WorkerID": "m5-fixture-worker",
+      "WorkerRequestID": "m5-request-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Outcome": "NONE",
+      "IsCurrent": true,
+      "ResultRecorded": false
+    }
+  ],
+  "Outbox": [
+    {
+      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "EventID": "05226c57-5bad-482d-8e60-574a6d788533",
+      "AggregateRevision": 1,
+      "EventType": "workflow.created",
+      "Topic": "durable-agent.events.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    },
+    {
+      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "EventID": "e685305d-4316-4bab-a4d2-46957de36081",
+      "AggregateRevision": 3,
+      "EventType": "attempt.dispatch",
+      "Topic": "durable-agent.tasks.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    }
+  ],
+  "Inbox": null,
+  "Wakeups": null,
+  "Reconciliation": null,
+  "Checkpoints": null,
+  "Effects": null,
+  "EffectCalls": null,
+  "Approvals": null,
+  "Timers": null,
+  "ConsumerOffsets": [
+    {
+      "ConsumerID": "m5-consumer-F05-offset-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    }
+  ]
+}

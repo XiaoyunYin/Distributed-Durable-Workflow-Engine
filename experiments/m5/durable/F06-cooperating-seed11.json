@@ -1,0 +1,171 @@
+{
+  "History": [
+    {
+      "WorkflowID": "m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Revision": 1,
+      "ActorKind": "client",
+      "SchedulerEpoch": null,
+      "OldState": "",
+      "NewState": "RUNNABLE",
+      "Reason": "WORKFLOW_CREATED"
+    },
+    {
+      "WorkflowID": "m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Revision": 2,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 33,
+      "OldState": "RUNNABLE",
+      "NewState": "WAITING_APPROVAL",
+      "Reason": "APPROVAL_REQUESTED"
+    },
+    {
+      "WorkflowID": "m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Revision": 3,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 33,
+      "OldState": "WAITING_APPROVAL",
+      "NewState": "RUNNABLE",
+      "Reason": "APPROVAL_GRANTED"
+    }
+  ],
+  "Results": null,
+  "Submissions": [
+    {
+      "Namespace": "m5-fixture",
+      "Key": "key-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Hash": "sub-v1:m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11"
+    }
+  ],
+  "Attempts": null,
+  "Outbox": [
+    {
+      "WorkflowID": "m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "EventID": "f91a6bf0-adf2-44be-b263-92e3cd70ca6b",
+      "AggregateRevision": 1,
+      "EventType": "workflow.created",
+      "Topic": "durable-agent.events.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    },
+    {
+      "WorkflowID": "m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "EventID": "46a4f0a9-8cef-4097-a8e0-1cb1442e0d9c",
+      "AggregateRevision": 2,
+      "EventType": "approval.requested",
+      "Topic": "durable-agent.events.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    },
+    {
+      "WorkflowID": "m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "EventID": "965bf5fd-e92f-4679-a7ff-efd706fe4729",
+      "AggregateRevision": 3,
+      "EventType": "approval.granted",
+      "Topic": "durable-agent.events.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    }
+  ],
+  "Inbox": null,
+  "Wakeups": null,
+  "Reconciliation": null,
+  "Checkpoints": null,
+  "Effects": [
+    {
+      "WorkflowID": "m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "IntentID": "c9ef1120-4574-477f-a7ae-a642c202f59c",
+      "LogicalEffectKey": "m5-effect-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "ArgumentHash": "ef29d0825cf3ae5135da05d1c3b51cbed0cb8e8407c8a3a983e7e7f31295102a",
+      "AttemptNumber": 1,
+      "GrantScopeHash": "ef6cdfb0dab5620f5810fd1de13a985359f72c2719748ec60b76e45376f22e48",
+      "ResourceID": "m5-resource-m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Outcome": "APPLIED",
+      "ReceiptPresent": true
+    }
+  ],
+  "EffectCalls": [
+    {
+      "WorkflowID": "m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "LogicalEffectKey": "m5-effect-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "ArgumentHash": "ef29d0825cf3ae5135da05d1c3b51cbed0cb8e8407c8a3a983e7e7f31295102a",
+      "AttemptNumber": 1,
+      "RequestID": "m5-effect-request-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Outcome": "APPLIED"
+    }
+  ],
+  "Approvals": [
+    {
+      "IntentID": "c9ef1120-4574-477f-a7ae-a642c202f59c",
+      "WorkflowID": "m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "NodeID": "root",
+      "Iteration": 0,
+      "ProposalHash": "8a608169c6f46488eac370f9cd5e7b8777857f99a6387547540db1a9b5be9393",
+      "Target": "m5-resource-m5-fixture-F06-cooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "ArgumentsValid": true,
+      "CanonicalArgumentHash": "ef29d0825cf3ae5135da05d1c3b51cbed0cb8e8407c8a3a983e7e7f31295102a",
+      "ExpectedResourceRevision": "0",
+      "Decision": "APPROVED",
+      "DispatchStatus": "DISPATCHED",
+      "GrantScopeHash": "ef6cdfb0dab5620f5810fd1de13a985359f72c2719748ec60b76e45376f22e48",
+      "GrantToken": "44eb2f38-35ce-4369-a884-bb2c8e2bbf8d"
+    }
+  ],
+  "Timers": null,
+  "ConsumerOffsets": [
+    {
+      "ConsumerID": "m5-consumer-F05-offset-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    }
+  ]
+}

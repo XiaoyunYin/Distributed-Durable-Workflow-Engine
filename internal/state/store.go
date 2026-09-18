@@ -1461,7 +1461,8 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 	if effectClass == EffectNonCooperating {
 		if _, err := tx.Exec(ctx, `
 			UPDATE engine.activity_attempts
-			SET state = 'TIMED_OUT', outcome_disposition = 'OUTCOME_UNKNOWN', updated_at = clock_timestamp()
+			SET state = 'TIMED_OUT', is_current = false,
+				outcome_disposition = 'OUTCOME_UNKNOWN', updated_at = clock_timestamp()
 			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3 AND attempt_number = $4`,
 			input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber); err != nil {
 			return TimeoutResult{}, err
@@ -1483,6 +1484,11 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 			UPDATE engine.workflow_executions
 			SET state = $2, updated_at = clock_timestamp()
 			WHERE workflow_id = $1`, input.WorkflowID, StateReconciliationRequired); err != nil {
+			return TimeoutResult{}, err
+		}
+		payload := json.RawMessage(fmt.Sprintf(`{"workflow_id":%q,"node_id":%q,"iteration":%d,"attempt_number":%d,"reference":%q}`,
+			input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber, reconciliationReference))
+		if err := insertOutbox(ctx, tx, input.WorkflowID, newRevision, "reconciliation.required", payload); err != nil {
 			return TimeoutResult{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {

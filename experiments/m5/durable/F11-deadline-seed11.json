@@ -1,0 +1,164 @@
+{
+  "History": [
+    {
+      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Revision": 1,
+      "ActorKind": "client",
+      "SchedulerEpoch": null,
+      "OldState": "",
+      "NewState": "RUNNABLE",
+      "Reason": "WORKFLOW_CREATED"
+    },
+    {
+      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Revision": 2,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 57,
+      "OldState": "RUNNABLE",
+      "NewState": "WAITING_ACTIVITY",
+      "Reason": "M5_FIXTURE_ACTIVITY"
+    },
+    {
+      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Revision": 3,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 57,
+      "OldState": "WAITING_ACTIVITY",
+      "NewState": "WAITING_ACTIVITY",
+      "Reason": "ATTEMPT_CREATED"
+    },
+    {
+      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Revision": 4,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 57,
+      "OldState": "WAITING_ACTIVITY",
+      "NewState": "RECONCILIATION_REQUIRED",
+      "Reason": "TIMEOUT_RECONCILIATION_REQUIRED"
+    }
+  ],
+  "Results": null,
+  "Submissions": [
+    {
+      "Namespace": "m5-fixture",
+      "Key": "key-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Hash": "sub-v1:m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11"
+    }
+  ],
+  "Attempts": [
+    {
+      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "NodeID": "root",
+      "Iteration": 0,
+      "AttemptNumber": 1,
+      "State": "TIMED_OUT",
+      "ClaimToken": "54cd8cdd-6184-4bbd-8158-64e89fdf0306",
+      "WorkerID": "m5-fixture-worker",
+      "WorkerRequestID": "m5-request-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Outcome": "OUTCOME_UNKNOWN",
+      "IsCurrent": false,
+      "ResultRecorded": false
+    }
+  ],
+  "Outbox": [
+    {
+      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "EventID": "4f9f5a0b-fded-49b3-bf3f-250c638736e0",
+      "AggregateRevision": 1,
+      "EventType": "workflow.created",
+      "Topic": "durable-agent.events.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    },
+    {
+      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "EventID": "61a4ca18-4b82-4c4a-bda0-e0422561699f",
+      "AggregateRevision": 3,
+      "EventType": "attempt.dispatch",
+      "Topic": "durable-agent.tasks.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    },
+    {
+      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "EventID": "9dffa1da-eec7-48ee-b87d-7d57b2a3f279",
+      "AggregateRevision": 4,
+      "EventType": "reconciliation.required",
+      "Topic": "durable-agent.events.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    }
+  ],
+  "Inbox": null,
+  "Wakeups": null,
+  "Reconciliation": [
+    {
+      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Kind": "EXPIRED_ATTEMPT",
+      "Reference": "attempt/m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-11/root/0/1",
+      "Status": "OPEN"
+    }
+  ],
+  "Checkpoints": null,
+  "Effects": null,
+  "EffectCalls": null,
+  "Approvals": null,
+  "Timers": null,
+  "ConsumerOffsets": [
+    {
+      "ConsumerID": "m5-consumer-F05-offset-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    }
+  ]
+}

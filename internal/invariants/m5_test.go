@@ -104,3 +104,33 @@ func TestParseFaultTraceRejectsCleanupTimeoutAndSchemaDrift(t *testing.T) {
 		t.Fatalf("schema drift error = %v", err)
 	}
 }
+
+func TestFaultCheckerRejectsMissedBoundaryAndMissingDurableJoin(t *testing.T) {
+	trace := strings.NewReader(`{"schema_version":"fault-trace.v1","run_id":"run-missed","sequence":1,"event":"boundary_timeout","seed":23,"boundary":"attempt_claimed"}
+{"schema_version":"fault-trace.v1","run_id":"run-missed","sequence":2,"event":"command","seed":23,"boundary":"attempt_claimed","command":"kill"}
+{"schema_version":"fault-trace.v1","run_id":"run-missed","sequence":3,"event":"fault_observed","seed":23,"boundary":"attempt_claimed","action":"process_killed"}
+{"schema_version":"fault-trace.v1","run_id":"run-missed","sequence":4,"event":"process_exited","seed":23,"boundary":"attempt_claimed","return_code":137}
+{"schema_version":"fault-trace.v1","run_id":"run-missed","sequence":5,"event":"cleanup_completed","seed":23,"boundary":"attempt_claimed","bounded":true}
+`)
+	evidence, err := ParseFaultTrace(trace)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(evidence) != 1 || !evidence[0].BoundaryMissed {
+		t.Fatalf("boundary miss was not sticky: %+v", evidence)
+	}
+	verdict := CheckWithFaults(Trace{}, evidence)
+	joined := strings.Join(verdict.Violations, "\n")
+	if verdict.Valid || !strings.Contains(joined, "boundary miss") || !strings.Contains(joined, "durable workflow identity") {
+		t.Fatalf("missed boundary without durable join was accepted: %+v", verdict)
+	}
+}
+
+func TestFaultCheckerRejectsUnknownCampaignBoundary(t *testing.T) {
+	evidence := validFaultEvidence()
+	evidence.Boundary = "not-a-campaign-boundary"
+	verdict := CheckWithFaults(validTrace(), []FaultEvidence{evidence})
+	if verdict.Valid || !strings.Contains(strings.Join(verdict.Violations, "\n"), "unknown fault boundary") {
+		t.Fatalf("unknown boundary was accepted: %+v", verdict)
+	}
+}

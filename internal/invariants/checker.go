@@ -135,19 +135,36 @@ type ApprovalRecord struct {
 	GrantToken               string
 }
 
+type TimerRecord struct {
+	WorkflowID string
+	NodeID     string
+	Iteration  int
+	Purpose    string
+	Consumed   bool
+}
+
+type ConsumerOffsetRecord struct {
+	ConsumerID string
+	Topic      string
+	Partition  int
+	NextOffset int64
+}
+
 type Trace struct {
-	History        []HistoryRecord
-	Results        []AcceptedResult
-	Submissions    []SubmissionRecord
-	Attempts       []AttemptRecord
-	Outbox         []OutboxRecord
-	Inbox          []InboxRecord
-	Wakeups        []WakeupRecord
-	Reconciliation []ReconciliationRecord
-	Checkpoints    []CheckpointRecord
-	Effects        []EffectRecordSnapshot
-	EffectCalls    []EffectCallRecord
-	Approvals      []ApprovalRecord
+	History         []HistoryRecord
+	Results         []AcceptedResult
+	Submissions     []SubmissionRecord
+	Attempts        []AttemptRecord
+	Outbox          []OutboxRecord
+	Inbox           []InboxRecord
+	Wakeups         []WakeupRecord
+	Reconciliation  []ReconciliationRecord
+	Checkpoints     []CheckpointRecord
+	Effects         []EffectRecordSnapshot
+	EffectCalls     []EffectCallRecord
+	Approvals       []ApprovalRecord
+	Timers          []TimerRecord
+	ConsumerOffsets []ConsumerOffsetRecord
 }
 
 type Verdict struct {
@@ -289,6 +306,25 @@ func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace,
 				GrantScopeHash: approval.GrantScopeHash, GrantToken: approval.GrantToken,
 			})
 		}
+		timerRows, err := store.Pool().Query(ctx, `
+			SELECT workflow_id, node_id, iteration, purpose, consumed_at IS NOT NULL
+			FROM engine.timers WHERE workflow_id = $1 ORDER BY timer_id`, workflowID)
+		if err != nil {
+			return Trace{}, err
+		}
+		for timerRows.Next() {
+			var timer TimerRecord
+			if err := timerRows.Scan(&timer.WorkflowID, &timer.NodeID, &timer.Iteration, &timer.Purpose, &timer.Consumed); err != nil {
+				timerRows.Close()
+				return Trace{}, err
+			}
+			trace.Timers = append(trace.Timers, timer)
+		}
+		if err := timerRows.Err(); err != nil {
+			timerRows.Close()
+			return Trace{}, err
+		}
+		timerRows.Close()
 		trace.Submissions = append(trace.Submissions, SubmissionRecord{Namespace: workflow.Namespace,
 			Key: workflow.SubmissionKey, Hash: workflow.PayloadHash, WorkflowID: workflowID})
 	}
@@ -300,6 +336,25 @@ func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace,
 		trace.Reconciliation = append(trace.Reconciliation, ReconciliationRecord{
 			WorkflowID: item.WorkflowID, Kind: string(item.Kind), Reference: item.Reference, Status: item.Status})
 	}
+	offsetRows, err := store.Pool().Query(ctx, `
+		SELECT consumer_id, topic, kafka_partition, next_offset
+		FROM engine.consumer_offsets`)
+	if err != nil {
+		return Trace{}, err
+	}
+	for offsetRows.Next() {
+		var offset ConsumerOffsetRecord
+		if err := offsetRows.Scan(&offset.ConsumerID, &offset.Topic, &offset.Partition, &offset.NextOffset); err != nil {
+			offsetRows.Close()
+			return Trace{}, err
+		}
+		trace.ConsumerOffsets = append(trace.ConsumerOffsets, offset)
+	}
+	if err := offsetRows.Err(); err != nil {
+		offsetRows.Close()
+		return Trace{}, err
+	}
+	offsetRows.Close()
 	return trace, nil
 }
 

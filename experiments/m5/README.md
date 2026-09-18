@@ -14,6 +14,22 @@ real durable prefix, pauses at the named boundary, and is killed by the
 controller. The checker loads the trace and joins its explicit durable
 identity fields to the PostgreSQL rows before the package assertion runs.
 
+Each trace also has a same-named JSON file under `durable/`. It is an
+independent snapshot of the checker-owned durable rows captured before the
+campaign cleanup, so the committed evidence remains verifiable after the
+development database is cleaned. Recheck the archived set without PostgreSQL
+with:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/m5-archive-check.ps1
+```
+
+The campaign uses a per-run nonce in every fixture workflow/definition and
+passes the three declared seeds into the durable initial input; rerunning the
+campaign does not reuse a prior fixture identity. It builds `m5-fixture` and
+`fault-checker` once before starting boundary control, so the boundary timeout
+does not include a cold `go run` compilation.
+
 Run from the repository root after PostgreSQL/Kafka services are available:
 
 ```powershell

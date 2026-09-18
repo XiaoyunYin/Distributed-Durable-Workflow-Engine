@@ -27,6 +27,7 @@ type FaultEvidence struct {
 	AttemptNumber     int64
 	EffectKey         string
 	BoundaryReached   bool
+	BoundaryMissed    bool
 	RequestedAction   string
 	ObservedAction    string
 	ProcessExitKnown  bool
@@ -72,8 +73,14 @@ func checkFaultEvidence(faults []FaultEvidence, violations *[]string) {
 		if fault.RequestedAction == "" {
 			*violations = append(*violations, "fault run lacks requested action: "+fault.RunID)
 		}
-		if fault.RequestedAction == "release" && !fault.BoundaryReached {
+		if boundaryRequiresAcknowledgement(fault.Boundary) && !fault.BoundaryReached {
+			*violations = append(*violations, "fault action was requested before the boundary was reached: "+fault.RunID)
+		}
+		if fault.RequestedAction == "release" && !fault.BoundaryReached && !boundaryRequiresAcknowledgement(fault.Boundary) {
 			*violations = append(*violations, "release was requested before the boundary was reached: "+fault.RunID)
+		}
+		if fault.BoundaryMissed {
+			*violations = append(*violations, "fault trace recorded a boundary miss: "+fault.RunID)
 		}
 		if fault.BoundaryReached && fault.ObservedAction == "boundary_not_reached" {
 			*violations = append(*violations, "fault evidence contradicts its boundary acknowledgement: "+fault.RunID)
@@ -84,9 +91,33 @@ func checkFaultEvidence(faults []FaultEvidence, violations *[]string) {
 	}
 }
 
+func boundaryRequiresAcknowledgement(boundary string) bool {
+	switch boundary {
+	case "submission_committed", "outbox_insert", "before_publish", "after_broker_ack", "before_offset_ack",
+		"attempt_claimed", "claim_committed", "attempt_replaced", "result_recorded", "result_consumed",
+		"effect_applied", "effect_unknown", "lease_takeover", "timer_consumed", "approval_grant",
+		"attempt_timeout", "cancel_completion", "reconciliation_required", "outbox_published":
+		return true
+	default:
+		return false
+	}
+}
+
+func knownFaultBoundary(boundary string) bool {
+	return boundary == "after-effect" || boundaryRequiresAcknowledgement(boundary)
+}
+
 func checkFaultJoins(trace Trace, faults []FaultEvidence, violations *[]string) {
 	for _, fault := range faults {
+		if !knownFaultBoundary(fault.Boundary) {
+			*violations = append(*violations, "unknown fault boundary: "+fault.Boundary)
+			continue
+		}
+		if !boundaryRequiresAcknowledgement(fault.Boundary) {
+			continue
+		}
 		if fault.WorkflowID == "" {
+			*violations = append(*violations, "fault boundary lacks durable workflow identity: "+fault.Boundary)
 			continue
 		}
 		if !traceHasWorkflow(trace, fault.WorkflowID) {
@@ -95,6 +126,17 @@ func checkFaultJoins(trace Trace, faults []FaultEvidence, violations *[]string) 
 		}
 		key := fmt.Sprintf("%s/%s/%d", fault.WorkflowID, fault.NodeID, fault.AttemptNumber)
 		switch fault.Boundary {
+		case "submission_committed":
+			if !traceHasSubmission(trace, fault.WorkflowID) {
+				*violations = append(*violations, "submission boundary has no durable submission: "+fault.WorkflowID)
+			}
+		case "outbox_insert", "before_publish", "after_broker_ack", "before_offset_ack", "outbox_published":
+			if !traceHasOutbox(trace, fault.WorkflowID) {
+				*violations = append(*violations, "fault boundary has no durable outbox event: "+fault.WorkflowID)
+			}
+			if fault.Boundary == "before_offset_ack" && !traceHasConsumerOffset(trace, fault) {
+				*violations = append(*violations, "offset boundary has no durable consumer offset: "+fault.WorkflowID)
+			}
 		case "attempt_claimed", "claim_committed":
 			if !traceHasAttempt(trace, fault.WorkflowID, fault.NodeID, fault.AttemptNumber) {
 				*violations = append(*violations, "fault boundary has no durable attempt: "+key)
@@ -111,9 +153,33 @@ func checkFaultJoins(trace Trace, faults []FaultEvidence, violations *[]string) 
 			if !traceHasResult(trace, fault.WorkflowID, fault.NodeID) {
 				*violations = append(*violations, "fault boundary has no accepted durable result: "+key)
 			}
-		case "after_broker_ack", "outbox_published":
-			if !traceHasOutbox(trace, fault.WorkflowID) {
-				*violations = append(*violations, "fault boundary has no durable outbox event: "+fault.WorkflowID)
+		case "effect_applied":
+			if !traceHasEffect(trace, fault.WorkflowID, fault.EffectKey, "APPLIED") {
+				*violations = append(*violations, "effect boundary has no applied effect record: "+fault.WorkflowID)
+			}
+		case "effect_unknown":
+			if !traceHasEffect(trace, fault.WorkflowID, fault.EffectKey, "OUTCOME_UNKNOWN") {
+				*violations = append(*violations, "effect boundary has no unknown-outcome record: "+fault.WorkflowID)
+			}
+		case "lease_takeover":
+			if leaseEpoch, ok := fault.Fields["durable_lease_epoch"].(json.Number); !ok || leaseEpoch.String() == "" || leaseEpoch.String() == "1" || leaseEpoch.String() == "0" {
+				*violations = append(*violations, "lease boundary lacks a durable epoch increase: "+fault.WorkflowID)
+			}
+		case "timer_consumed":
+			if !traceHasConsumedTimer(trace, fault.WorkflowID, fault.NodeID) {
+				*violations = append(*violations, "timer boundary has no consumed timer: "+fault.WorkflowID)
+			}
+		case "approval_grant":
+			if !traceHasApprovalGrant(trace, fault.WorkflowID) {
+				*violations = append(*violations, "approval boundary has no durable grant: "+fault.WorkflowID)
+			}
+		case "attempt_timeout":
+			if !traceHasTimedOutAttempt(trace, fault.WorkflowID, fault.NodeID) {
+				*violations = append(*violations, "timeout boundary has no timed-out attempt: "+fault.WorkflowID)
+			}
+		case "cancel_completion":
+			if !traceHasCanceledWorkflow(trace, fault.WorkflowID) {
+				*violations = append(*violations, "cancellation boundary has no canceled workflow: "+fault.WorkflowID)
 			}
 		case "reconciliation_required":
 			if !traceHasReconciliation(trace, fault.WorkflowID) {
@@ -121,6 +187,71 @@ func checkFaultJoins(trace Trace, faults []FaultEvidence, violations *[]string) 
 			}
 		}
 	}
+}
+
+func traceHasSubmission(trace Trace, workflowID string) bool {
+	for _, item := range trace.Submissions {
+		if item.WorkflowID == workflowID {
+			return true
+		}
+	}
+	return false
+}
+
+func traceHasEffect(trace Trace, workflowID, effectKey, outcome string) bool {
+	for _, item := range trace.Effects {
+		if item.WorkflowID == workflowID && item.Outcome == outcome && (effectKey == "" || item.LogicalEffectKey == effectKey) {
+			return true
+		}
+	}
+	return false
+}
+
+func traceHasConsumerOffset(trace Trace, fault FaultEvidence) bool {
+	consumer, consumerOK := fault.Fields["durable_consumer_id"].(string)
+	topic, topicOK := fault.Fields["durable_topic"].(string)
+	for _, item := range trace.ConsumerOffsets {
+		if (!consumerOK || item.ConsumerID == consumer) && (!topicOK || item.Topic == topic) {
+			return true
+		}
+	}
+	return false
+}
+
+func traceHasConsumedTimer(trace Trace, workflowID, nodeID string) bool {
+	for _, item := range trace.Timers {
+		if item.WorkflowID == workflowID && item.NodeID == nodeID && item.Consumed {
+			return true
+		}
+	}
+	return false
+}
+
+func traceHasApprovalGrant(trace Trace, workflowID string) bool {
+	for _, item := range trace.Approvals {
+		if item.WorkflowID == workflowID && (item.DispatchStatus == "GRANTED" || item.DispatchStatus == "DISPATCHED") {
+			return true
+		}
+	}
+	return false
+}
+
+func traceHasTimedOutAttempt(trace Trace, workflowID, nodeID string) bool {
+	for _, item := range trace.Attempts {
+		if item.WorkflowID == workflowID && item.NodeID == nodeID && item.State == "TIMED_OUT" {
+			return true
+		}
+	}
+	return false
+}
+
+func traceHasCanceledWorkflow(trace Trace, workflowID string) bool {
+	for _, item := range trace.History {
+		if item.WorkflowID == workflowID && item.NewState == "CANCELED" {
+			return true
+		}
+	}
+	return false
 }
 
 func traceHasWorkflow(trace Trace, workflowID string) bool {
@@ -273,10 +404,13 @@ func ParseFaultTrace(r io.Reader) ([]FaultEvidence, error) {
 				fault.RequestedAction = command
 			}
 		case "fault_observed":
-			fault.ObservedAction = record.Action
+			if !fault.BoundaryMissed {
+				fault.ObservedAction = record.Action
+			}
 		case "released":
 			fault.ObservedAction = "released"
 		case "boundary_timeout", "process_exited_before_boundary":
+			fault.BoundaryMissed = true
 			if fault.ObservedAction == "" {
 				fault.ObservedAction = "boundary_not_reached"
 			}

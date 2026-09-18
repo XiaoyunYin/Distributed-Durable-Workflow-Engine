@@ -8,8 +8,11 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $RepoRoot
 $relaysStopped = $false
+$buildRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("durable-m5-" + [guid]::NewGuid().ToString("N"))
+$fixtureBinary = Join-Path $buildRoot "m5-fixture.exe"
+$checkerBinary = Join-Path $buildRoot "fault-checker.exe"
+$campaignRunID = [guid]::NewGuid().ToString("N")
 $composeArgs = @("--env-file", ".env", "-f", "deploy/local/compose.yaml")
-$previousCampaignSeed = $env:DURABLE_CAMPAIGN_SEED
 $previousRequireDatabase = $env:DURABLE_REQUIRE_DATABASE
 $previousPythonPath = $env:PYTHONPATH
 $env:DURABLE_REQUIRE_DATABASE = "1"
@@ -25,7 +28,12 @@ function Remove-FixtureRows {
     # The fixture is intentionally killed at the named boundary. Remove only
     # its deterministic namespace after each campaign, including when a case
     # fails, so evidence runs do not contaminate the developer database.
-    $sql = @"
+$sql = @"
+UPDATE engine.partition_leases
+SET owner_id = NULL, lease_expires_at = NULL, updated_at = clock_timestamp()
+WHERE partition_id IN (
+    SELECT DISTINCT partition_id FROM engine.workflow_executions WHERE workflow_id LIKE 'm5-fixture-%'
+);
 DELETE FROM engine.workflow_executions WHERE workflow_id LIKE 'm5-fixture-%';
 DELETE FROM engine.workflow_definitions WHERE definition_id LIKE 'm5-fixture-def-%';
 "@
@@ -37,6 +45,11 @@ DELETE FROM engine.workflow_definitions WHERE definition_id LIKE 'm5-fixture-def
 }
 
 try {
+	New-Item -ItemType Directory -Force $buildRoot | Out-Null
+	& go build -o $fixtureBinary ./cmd/m5-fixture
+	if ($LASTEXITCODE -ne 0) { throw "Could not build the M5 durable fixture." }
+	& go build -o $checkerBinary ./cmd/fault-checker
+	if ($LASTEXITCODE -ne 0) { throw "Could not build the M5 fault checker." }
     if ($StopRuntimeRelays) {
         # The transport cases create claimable outbox rows. A live runtime
         # relay would legitimately consume those rows before the test owns
@@ -52,6 +65,11 @@ try {
         Remove-Item -LiteralPath $traceRoot -Recurse -Force
     }
     New-Item -ItemType Directory -Force $traceRoot | Out-Null
+	$durableRoot = Join-Path $RepoRoot "experiments/m5/durable"
+	if (Test-Path -LiteralPath $durableRoot) {
+		Remove-Item -LiteralPath $durableRoot -Recurse -Force
+	}
+	New-Item -ItemType Directory -Force $durableRoot | Out-Null
     $seeds = @(11, 23, 47)
     $cases = @(
         [pscustomobject]@{ Id = "F01-response-loss"; Family = "F01"; Ordering = "response-lost"; Package = "./internal/api"; Pattern = "^TestWorkflowAPIResponseLossHistoryAndRetention$"; Boundary = "submission_committed"; Observation = "retry returns the original workflow" },
@@ -78,7 +96,7 @@ try {
             $tracePath = Join-Path $traceRoot ("{0}-seed{1}.jsonl" -f $case.Id, $seed)
             $controlArgs = @("-m", "faults.control", "--seed", "$seed", "--boundary", $case.Boundary,
                 "--action", "kill", "--trace", $tracePath)
-            $controlArgs += @("--command", "go", "run", "./cmd/m5-fixture", "--case-id", $case.Id, "--seed", "$seed", "--boundary", $case.Boundary)
+            $controlArgs += @("--command", $fixtureBinary, "--case-id", $case.Id, "--seed", "$seed", "--run-id", $campaignRunID, "--boundary", $case.Boundary)
             $controllerOutput = & uv run python @controlArgs 2>&1 | Out-String
             $controllerExit = $LASTEXITCODE
             if ($controllerExit -ne 0) {
@@ -87,7 +105,8 @@ try {
                 throw "$($case.Id) controller failed for seed $seed. See $OutputPath"
             }
 
-            $checkerOutput = & go run ./cmd/fault-checker -trace $tracePath 2>&1 | Out-String
+			$snapshotPath = Join-Path $durableRoot ("{0}-seed{1}.json" -f $case.Id, $seed)
+			$checkerOutput = & $checkerBinary -trace $tracePath -durable-trace $snapshotPath 2>&1 | Out-String
             $checkerExit = $LASTEXITCODE
             if ($checkerExit -ne 0) {
                 $results += [pscustomobject]@{ case_id = $case.Id; family = $case.Family; ordering = $case.Ordering; seed = $seed; run_count = 1; status = "FAIL"; controller_status = "PASS"; checker_status = "FAIL"; go_status = "NOT_RUN"; trace_path = $tracePath.Replace($RepoRoot + "\", ""); observation = $case.Observation; controller_output = $controllerOutput.Trim(); checker_output = $checkerOutput.Trim(); go_output = "" }
@@ -101,8 +120,7 @@ try {
             # a killed target's deliberately incomplete rows.
             Remove-FixtureRows
 
-            $env:DURABLE_CAMPAIGN_SEED = "$seed"
-            $goOutput = & go test -race -p 1 $case.Package -run $case.Pattern -count=1 -v 2>&1 | Out-String
+			$goOutput = & go test -race -p 1 $case.Package -run $case.Pattern -count=1 -v 2>&1 | Out-String
             $goExit = $LASTEXITCODE
             $skipped = $goOutput -match '(?m)^--- SKIP'
             $status = if ($goExit -eq 0 -and -not $skipped) { "PASS" } else { "FAIL" }
@@ -131,14 +149,20 @@ try {
             }
         }
     }
+	$archiveFailures = @()
+	foreach ($traceFile in Get-ChildItem -LiteralPath $traceRoot -Filter "*.jsonl" -File) {
+		$snapshotFile = Join-Path $durableRoot ($traceFile.BaseName + ".json")
+		$archiveOutput = & $checkerBinary -offline -trace $traceFile.FullName -durable-trace $snapshotFile 2>&1 | Out-String
+		if ($LASTEXITCODE -ne 0) {
+			$archiveFailures += "$($traceFile.Name): $($archiveOutput.Trim())"
+		}
+	}
+	if ($archiveFailures.Count -gt 0) {
+		throw "Archived M5 checker validation failed: $($archiveFailures -join '; ')"
+	}
     Write-Results $results $OutputPath
     Write-Host "M5 F01-F11 campaign passed: $($cases.Count) cases x $($seeds.Count) seeded runs; evidence written to $OutputPath"
 } finally {
-    if ($null -eq $previousCampaignSeed) {
-        Remove-Item Env:DURABLE_CAMPAIGN_SEED -ErrorAction SilentlyContinue
-    } else {
-        $env:DURABLE_CAMPAIGN_SEED = $previousCampaignSeed
-    }
     if ($null -eq $previousRequireDatabase) {
         Remove-Item Env:DURABLE_REQUIRE_DATABASE -ErrorAction SilentlyContinue
     } else {
@@ -156,5 +180,8 @@ try {
     } else {
         $env:PYTHONPATH = $previousPythonPath
     }
+	if (Test-Path -LiteralPath $buildRoot) {
+		Remove-Item -LiteralPath $buildRoot -Recurse -Force -ErrorAction SilentlyContinue
+	}
     Pop-Location
 }

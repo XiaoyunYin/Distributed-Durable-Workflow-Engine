@@ -1,0 +1,150 @@
+{
+  "History": [
+    {
+      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Revision": 1,
+      "ActorKind": "client",
+      "SchedulerEpoch": null,
+      "OldState": "",
+      "NewState": "RUNNABLE",
+      "Reason": "WORKFLOW_CREATED"
+    },
+    {
+      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Revision": 2,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 36,
+      "OldState": "RUNNABLE",
+      "NewState": "WAITING_APPROVAL",
+      "Reason": "APPROVAL_REQUESTED"
+    },
+    {
+      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Revision": 3,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 36,
+      "OldState": "WAITING_APPROVAL",
+      "NewState": "RUNNABLE",
+      "Reason": "APPROVAL_GRANTED"
+    }
+  ],
+  "Results": null,
+  "Submissions": [
+    {
+      "Namespace": "m5-fixture",
+      "Key": "key-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Hash": "sub-v1:m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23"
+    }
+  ],
+  "Attempts": null,
+  "Outbox": [
+    {
+      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "EventID": "dafc8639-ba05-46ea-8c60-d5aadf2a23be",
+      "AggregateRevision": 1,
+      "EventType": "workflow.created",
+      "Topic": "durable-agent.events.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    },
+    {
+      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "EventID": "5f19cfa9-025c-4d33-aadc-9a93672f2ca5",
+      "AggregateRevision": 2,
+      "EventType": "approval.requested",
+      "Topic": "durable-agent.events.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    },
+    {
+      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "EventID": "4c4d3345-73e2-44c4-986e-082ff2f9878c",
+      "AggregateRevision": 3,
+      "EventType": "approval.granted",
+      "Topic": "durable-agent.events.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    }
+  ],
+  "Inbox": null,
+  "Wakeups": null,
+  "Reconciliation": null,
+  "Checkpoints": null,
+  "Effects": null,
+  "EffectCalls": null,
+  "Approvals": [
+    {
+      "IntentID": "607eb3f4-66a2-45df-a031-0305b2d4b28c",
+      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "NodeID": "root",
+      "Iteration": 0,
+      "ProposalHash": "1daf72f64a79e01ab7455a3479e5226f7292f83414683199eff15f6df46e5a68",
+      "Target": "m5-resource-m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "ArgumentsValid": true,
+      "CanonicalArgumentHash": "ef29d0825cf3ae5135da05d1c3b51cbed0cb8e8407c8a3a983e7e7f31295102a",
+      "ExpectedResourceRevision": "0",
+      "Decision": "APPROVED",
+      "DispatchStatus": "GRANTED",
+      "GrantScopeHash": "51af21deb8905b218c1b8119d47339bf8b63b0f221c8bf65e6d2727478990401",
+      "GrantToken": "3ad31f91-233f-41fc-bccc-4aacbbe94e05"
+    }
+  ],
+  "Timers": null,
+  "ConsumerOffsets": [
+    {
+      "ConsumerID": "m5-consumer-F05-offset-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    }
+  ]
+}

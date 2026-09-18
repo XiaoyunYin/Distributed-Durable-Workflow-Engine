@@ -1,0 +1,170 @@
+{
+  "History": [
+    {
+      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Revision": 1,
+      "ActorKind": "client",
+      "SchedulerEpoch": null,
+      "OldState": "",
+      "NewState": "RUNNABLE",
+      "Reason": "WORKFLOW_CREATED"
+    },
+    {
+      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Revision": 2,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 8,
+      "OldState": "RUNNABLE",
+      "NewState": "WAITING_ACTIVITY",
+      "Reason": "M5_FIXTURE_ACTIVITY"
+    },
+    {
+      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Revision": 3,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 8,
+      "OldState": "WAITING_ACTIVITY",
+      "NewState": "WAITING_ACTIVITY",
+      "Reason": "ATTEMPT_CREATED"
+    },
+    {
+      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Revision": 4,
+      "ActorKind": "scheduler",
+      "SchedulerEpoch": 8,
+      "OldState": "WAITING_ACTIVITY",
+      "NewState": "WAITING_ACTIVITY",
+      "Reason": "TIMEOUT_REPLACEMENT"
+    }
+  ],
+  "Results": null,
+  "Submissions": [
+    {
+      "Namespace": "m5-fixture",
+      "Key": "key-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Hash": "sub-v1:m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23"
+    }
+  ],
+  "Attempts": [
+    {
+      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "NodeID": "root",
+      "Iteration": 0,
+      "AttemptNumber": 1,
+      "State": "TIMED_OUT",
+      "ClaimToken": "1b61396a-13e2-4bf4-81af-99419e8f5f99",
+      "WorkerID": "m5-fixture-worker",
+      "WorkerRequestID": "m5-request-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Outcome": "NONE",
+      "IsCurrent": false,
+      "ResultRecorded": false
+    },
+    {
+      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "NodeID": "root",
+      "Iteration": 0,
+      "AttemptNumber": 2,
+      "State": "DISPATCHABLE",
+      "ClaimToken": "",
+      "WorkerID": "",
+      "WorkerRequestID": "",
+      "Outcome": "NONE",
+      "IsCurrent": true,
+      "ResultRecorded": false
+    }
+  ],
+  "Outbox": [
+    {
+      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "EventID": "ef90e2c4-2eaf-4be0-a4b0-7e89b94aa0e1",
+      "AggregateRevision": 1,
+      "EventType": "workflow.created",
+      "Topic": "durable-agent.events.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    },
+    {
+      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "EventID": "70932eed-a83c-4511-a4cc-fd99959a8fe0",
+      "AggregateRevision": 3,
+      "EventType": "attempt.dispatch",
+      "Topic": "durable-agent.tasks.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    },
+    {
+      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "EventID": "2674f7f7-27f4-4eb7-92ec-eb092a110fb2",
+      "AggregateRevision": 4,
+      "EventType": "attempt.dispatch",
+      "Topic": "durable-agent.tasks.v1",
+      "PublishState": "PENDING",
+      "PayloadValid": true
+    }
+  ],
+  "Inbox": null,
+  "Wakeups": null,
+  "Reconciliation": null,
+  "Checkpoints": null,
+  "Effects": null,
+  "EffectCalls": null,
+  "Approvals": null,
+  "Timers": null,
+  "ConsumerOffsets": [
+    {
+      "ConsumerID": "m5-consumer-F05-offset-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    }
+  ]
+}
