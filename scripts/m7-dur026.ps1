@@ -117,6 +117,9 @@ try {
                     Add-Property $run "stderr" $stderrText.Trim() | Out-Null
                     $results += $run
                     if ($process.ExitCode -ne 0 -or $run.status -ne "PASS") {
+                        $partialParent = Split-Path -Parent $OutputPath
+                        if ($partialParent) { New-Item -ItemType Directory -Force -Path $partialParent | Out-Null }
+                        [ordered]@{ status = "FAIL"; commit = $commit; case_id = $caseID; run = $run; runs = $results } | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $OutputPath -Encoding utf8
                         throw "DUR-026 case $caseID failed. See $OutputPath and temporary stderr $stderrPath."
                     }
                 }
