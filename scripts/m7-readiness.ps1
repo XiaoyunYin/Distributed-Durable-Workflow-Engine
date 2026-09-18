@@ -157,6 +157,7 @@ try {
     }
     $faultChecker = Invoke-Required "go" @("run", "./cmd/fault-checker", "-offline", "-trace", $faultTrace, "-durable-trace", $faultSnapshot)
 
+    $volumeDrivers = @($volumes | ForEach-Object { $_.driver } | Where-Object { $_ } | Select-Object -Unique)
     $artifact = [ordered]@{
         schema_version = "dur036-readiness.v1"
         status = "PASS"
@@ -176,7 +177,7 @@ try {
             cgroup_version = $info.CgroupVersion
             server_time_utc = $info.SystemTime
             filesystem_probe = $filesystemProbe.output
-            volume_driver = @($volumes | Select-Object -ExpandProperty driver -Unique)
+            volume_driver = $volumeDrivers
         }
         runtime = [ordered]@{
             docker_client = $version.Client.Version
