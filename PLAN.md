@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 READY_FOR_REVIEW; DUR-019 READY_FOR_REVIEW; DUR-020 READY_FOR_REVIEW; DUR-021B READY_FOR_REVIEW; DUR-033 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1209,6 +1209,55 @@ contract revision.
 
 **Exit:** Portfolio MVP evidence is complete: a human can inspect, approve, interrupt, and resume a synthetic incident investigation; keyword/dense/hybrid retrieval and MCP tool paths are reproducible; the separate retrieval benchmark, programmatic citation checks, adversarial-evidence checks, canary redaction scan, and model-behavior dashboard run from a clean setup; and agent-specific safety/continuity cases are independently checked.
 
+#### M6 implementation record
+
+- **Status:** READY_FOR_REVIEW; Claude review pending.
+- **Base commit:** `db8b462` (M5 closeout).
+- **Target commit:** `d8ec3d6` (M6 deterministic incident workflow and evidence).
+- **Tasks:** DUR-019, DUR-020, DUR-021B, and DUR-033.
+- **Protected boundaries:** M0-M5 contracts, PostgreSQL workflow authority,
+  approval/effect authorization, independent invariant checking, frozen
+  experiment families, paid-run approval, and the distinction between
+  deterministic evidence and live-model claims remain unchanged.
+- **Delivered:** 60 synthetic documents and 300 stable chunks across five
+  families; 30 incident cases (10 development, 20 held-out); 40 development
+  and 120 held-out retrieval queries with 25% no-answer labels and
+  near-duplicate metadata; schema-constrained bounded MCP methods; keyword,
+  dense, and hybrid retrieval with frozen config plus pre-gate and delivered
+  evidence; `source_corpus` PostgreSQL full-text schema with an optional
+  pgvector index and deterministic JSON embedding fallback; approval-gated
+  investigation state, citations, sandbox receipt idempotence, redaction,
+  timeline events, bounded metrics, dashboard manifest, and live-mode budget
+  authorization.
+- **Evidence:** `experiments/m6/` contains the corpus manifest, evaluator-only
+  cases, retrieval config and benchmark, difficulty audit, MCP schema,
+  dashboard, 20/20 continuity report, citation report, and 120-execution
+  adversarial report. The M6 source schema is
+  `migrations/000014_m6_incident_source_corpus.up.sql`.
+- **Measured deterministic results:** keyword and hybrid delivered recall
+  1.0 with zero no-answer false positives on the 160-query fixture; dense
+  ranking recall is 1.0 and its delivered recall is 0.4 under the frozen
+  development-tuned gate; continuity is 20/20; adversarial execution is
+  120/120 with zero canary leaks, zero clean/injected proposal changes, and
+  approval enforcement blocking 24/24 pre-approval actions.
+- **Validation:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+  ./scripts/ci.ps1 -WithRace -WithM6` passed Go race checks, Go vet/build,
+  Ruff, mypy, all 37 Python tests, and artifact generation. `migrate.ps1`
+  applied migration 000014 to the local PostgreSQL service and a second run
+  skipped it as already applied. `git diff --check` is clean for the
+  implementation target.
+- **Skipped or untested:** live model/provider runs and paid budgets;
+  production MCP wire transport; a PostgreSQL-backed workflow adapter and
+  source-corpus seeding; pgvector native execution on the pinned image when
+  the extension is unavailable; clean-machine bootstrap/restart, hard-kill
+  storage durability, multi-host deployment, sustained load, Kafka rebalance,
+  and remote CI. The SQLite workflow and hash embedding are deterministic
+  correctness fixtures, not production availability or model-quality claims.
+- **Known limitations:** M5 residual P3 R057 and the historical R019 test gap
+  remain nonblocking. Incident IDs, prompts, and evidence text are not metric
+  labels. Raw source files and the declared `source_corpus` boundary remain
+  excluded from downstream canary scanning as required by the plan.
+
 ### M7 — Controlled measurements
 
 **Dependencies:** M5. DUR-036 is the readiness gate for the final engine measurement studies DUR-026, DUR-027, DUR-028, DUR-034, and DUR-035. DUR-029 additionally depends on M6/DUR-021B and uses its separately frozen live-model budget/protocol. No final throughput, safeguard, dispatch-path, lease, or checkpoint run starts before DUR-036 is DONE.
@@ -1517,5 +1566,15 @@ reviewed target `69917db` and M5 start commit `561b5a9` (M4 closeout ancestor
 DUR-023B, DUR-024, DUR-025, and DUR-021A are DONE. R057 remains open as a
 nonblocking P3 evidence-labelling limitation. Keep the M0 contracts and
 partition-map version frozen while extending the durable state repository.
+
+M6 implementation is READY_FOR_REVIEW at target `d8ec3d6`, based on the M5
+closeout `db8b462`. DUR-019, DUR-020, DUR-021B, and DUR-033 are
+READY_FOR_REVIEW; Claude review is pending. The implementation is a
+deterministic local-first profile: it provides the versioned incident corpus,
+bounded MCP-style tools, keyword/dense/hybrid retrieval, an approval-gated
+SQLite workflow adapter, incident timeline/metrics artifacts, citation checks,
+and F12 continuity and redaction evidence. It does not claim live-model
+quality, paid execution, production MCP transport, or a production scheduler
+integration.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

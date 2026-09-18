@@ -162,3 +162,23 @@ resource or payload.
 The effect ledger remains a separate service-schema transaction. Marking the
 engine grant dispatched is a separate post-commit update; if that acknowledgement
 is lost, the stable effect receipt makes the retry safe.
+
+## D009 - M6 deterministic local-first incident profile
+
+- Date: 2026-09-18
+- Status: accepted as the M6 implementation boundary pending Claude review
+
+M6 correctness evidence uses a pinned deterministic local embedding adapter,
+scripted fixture decisions, bounded schema-constrained MCP calls, and a
+portable SQLite workflow store. The PostgreSQL `source_corpus` schema owns the
+raw-source boundary and full-text index; a native pgvector column/index is
+created only when the pinned development image exposes the extension, while
+the JSON embedding column remains the explicit fallback. Live provider use is
+not implied by deterministic evidence: any future provider adapter must pass a
+positive budget and an explicit `INCIDENT_LIVE_APPROVED=1` gate.
+
+This keeps retrieval, citation, approval, redaction, and interruption
+properties reproducible without paid calls or importing model behavior into
+the engine correctness claim. The rejected alternative was to make M6's
+acceptance depend on network credentials or a semantic model whose weights and
+latency could change between runs.

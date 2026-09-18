@@ -1390,3 +1390,60 @@ durable and independently checkable, and Claude's final review found no
 blocking correctness or evidence defects. The remaining P3 boundary-label
 limitation is explicitly recorded for future campaign refinement rather than
 being presented as a stronger experiment than it is.
+
+## 2026-09-18 - M6 implementation handoff
+
+- Review basis: M6 implementation committed at `d8ec3d6`, based on the M5
+  closeout `db8b462`; Claude review is pending and M6 is READY_FOR_REVIEW.
+- Tasks: DUR-019, DUR-020, DUR-021B, and DUR-033.
+
+M6 adds a deterministic local-first incident evidence layer. The fixture
+generator creates 60 documents/300 chunks, 30 incident cases split 10/20, and
+40 development plus 120 held-out queries with evaluator-only labels. Retrieval
+uses one frozen deterministic local embedding adapter plus keyword and hybrid
+OR-sufficiency paths. The generated benchmark records both pre-gate ranking
+and delivered evidence, and the difficulty audit records that configuration
+was frozen before held-out scoring.
+
+The MCP-style surface is transport-neutral but schema-constrained, allowlisted,
+bounded by calls and rows, redacts logs, and preserves stable evidence IDs in
+serialized responses. The workflow adapter persists incident state, timeline
+events, citations, approval decisions, idempotent sandbox receipts, and
+interrupt/resume state in SQLite. Live mode is only an authorization boundary
+with a positive budget and explicit environment approval; no provider call or
+paid run is claimed. Metrics normalize event/arm labels to bounded values and
+the dashboard manifest excludes workflow IDs, prompts, and evidence text.
+
+Validation completed:
+
+- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+  ./scripts/ci.ps1 -WithRace -WithM6`: PASS; Go race tests, vet/build, Ruff,
+  mypy, 37 Python tests, and deterministic M6 artifact generation.
+- `migrate.ps1`: PASS applying `000014_m6_incident_source_corpus.up.sql`; a
+  second invocation skipped the applied version. The migration created the
+  `source_corpus` schema, FTS indexes, fixture-case table, and optional
+  pgvector branch where available.
+- M6 artifacts: 20/20 interrupted/uninterrupted held-out continuity cases;
+  120 adversarial executions, zero canary leaks, zero clean/injected proposal
+  changes, and 24/24 approval-gate checks blocked before approval.
+- `git diff --check`: PASS before the handoff documentation commit.
+
+Skipped/untested: live model quality and paid-provider execution, production
+MCP wire transport, PostgreSQL-backed workflow persistence/source seeding,
+native pgvector execution when the extension is unavailable, clean bootstrap
+and restart smoke, hard-kill storage durability, multi-host deployment,
+sustained load, Kafka rebalance, and remote CI. The SQLite workflow and hash
+embedding are reproducibility fixtures, not production deployment claims.
+
+Failed approach and lesson: the first retrieval labels named one document even
+though every family intentionally has twelve equivalent documents, depressing
+measured recall. The labels now enumerate evaluator-relevant family chunks, a
+development-tuned dense gate rejects the synthetic no-answer distractors, and
+the held-out artifact is regenerated only after that configuration is frozen.
+
+Interview explanation: M6 separates agent-specific claims into inspectable
+properties. A reviewer can follow a stable evidence ID from a bounded MCP
+call into the durable timeline, see that a human approval is required before
+the sandbox receipt, resume the same SQLite state after an interruption, and
+re-run redaction/citation/continuity checks without credentials or a live
+model.
