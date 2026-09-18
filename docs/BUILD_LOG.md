@@ -1675,5 +1675,8 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   freezes the existing section-14 throughput protocol: 8 configurations and
   24 measured runs, with deterministic synthetic activities, fixed capacity,
   explicit reconciliation, and scheduler CPU-seconds per completed workflow.
-  No final throughput run has started yet; the host and single-node scope
-  limitations from DUR-036 remain.
+- The pilot passed at `5ec2f1c` with 8 configurations (the two scheduler
+  counts, T1/T2, and rates 2/8) and 96/96 terminal workflows. It selected and
+  froze rates 2 and 8 workflows/second and 5,000 deterministic activity work
+  units for the final three-repeat run. No final throughput run has started
+  yet; the host and single-node scope limitations from DUR-036 remain.

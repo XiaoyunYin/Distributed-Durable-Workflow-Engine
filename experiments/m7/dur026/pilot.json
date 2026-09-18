@@ -1,0 +1,1336 @@
+﻿{
+    "schema_version":  "dur026-throughput.v1",
+    "status":  "PASS",
+    "generated_at_utc":  "2026-09-18T18:54:19.8415028Z",
+    "git":  {
+                "commit":  "5ec2f1c98e5deb0539d976718584dfaf64c3e3f8",
+                "clean_worktree_verified":  true
+            },
+    "protocol":  {
+                     "study":  "engine throughput",
+                     "scheduler_counts":  [
+                                              1,
+                                              2
+                                          ],
+                     "workloads":  {
+                                       "t1":  "8 sequential deterministic pure activities",
+                                       "t2":  "8-branch fan-out/fan-in deterministic pure activities"
+                                   },
+                     "arrival_rates_per_second":  [
+                                                      2,
+                                                      8
+                                                  ],
+                     "repeats":  1,
+                     "workflow_count_per_run":  12,
+                     "activity_work_units":  5000,
+                     "worker_slots":  4,
+                     "database_and_broker_capacity":  "Compose profile held constant; this harness exercises the Store/Engine path directly and records that limitation.",
+                     "llm_latency":  "excluded",
+                     "seed_rule":  "10000 + case index"
+                 },
+    "validation":  {
+                       "measured_runs":  8,
+                       "expected_runs":  8,
+                       "terminal_workflows":  96,
+                       "pending_workflows":  0,
+                       "all_runs_passed":  true
+                   },
+    "summary":  [
+                    {
+                        "case_id":  "DUR026-t1-s1-r2-rep1",
+                        "runs":  1,
+                        "throughput_min":  0,
+                        "throughput_median":  0,
+                        "throughput_max":  0,
+                        "mean_process_cpu_seconds":  1.375,
+                        "total_process_cpu_seconds":  1.375,
+                        "terminal_total":  12,
+                        "pending_total":  0
+                    },
+                    {
+                        "case_id":  "DUR026-t1-s1-r8-rep1",
+                        "runs":  1,
+                        "throughput_min":  0,
+                        "throughput_median":  0,
+                        "throughput_max":  0,
+                        "mean_process_cpu_seconds":  1.734375,
+                        "total_process_cpu_seconds":  1.734375,
+                        "terminal_total":  12,
+                        "pending_total":  0
+                    },
+                    {
+                        "case_id":  "DUR026-t2-s1-r2-rep1",
+                        "runs":  1,
+                        "throughput_min":  0,
+                        "throughput_median":  0,
+                        "throughput_max":  0,
+                        "mean_process_cpu_seconds":  0.96875,
+                        "total_process_cpu_seconds":  0.96875,
+                        "terminal_total":  12,
+                        "pending_total":  0
+                    },
+                    {
+                        "case_id":  "DUR026-t2-s1-r8-rep1",
+                        "runs":  1,
+                        "throughput_min":  0,
+                        "throughput_median":  0,
+                        "throughput_max":  0,
+                        "mean_process_cpu_seconds":  1.078125,
+                        "total_process_cpu_seconds":  1.078125,
+                        "terminal_total":  12,
+                        "pending_total":  0
+                    },
+                    {
+                        "case_id":  "DUR026-t1-s2-r2-rep1",
+                        "runs":  1,
+                        "throughput_min":  0,
+                        "throughput_median":  0,
+                        "throughput_max":  0,
+                        "mean_process_cpu_seconds":  1.5625,
+                        "total_process_cpu_seconds":  1.5625,
+                        "terminal_total":  12,
+                        "pending_total":  0
+                    },
+                    {
+                        "case_id":  "DUR026-t1-s2-r8-rep1",
+                        "runs":  1,
+                        "throughput_min":  0,
+                        "throughput_median":  0,
+                        "throughput_max":  0,
+                        "mean_process_cpu_seconds":  1.0625,
+                        "total_process_cpu_seconds":  1.0625,
+                        "terminal_total":  12,
+                        "pending_total":  0
+                    },
+                    {
+                        "case_id":  "DUR026-t2-s2-r2-rep1",
+                        "runs":  1,
+                        "throughput_min":  0,
+                        "throughput_median":  0,
+                        "throughput_max":  0,
+                        "mean_process_cpu_seconds":  0.90625,
+                        "total_process_cpu_seconds":  0.90625,
+                        "terminal_total":  12,
+                        "pending_total":  0
+                    },
+                    {
+                        "case_id":  "DUR026-t2-s2-r8-rep1",
+                        "runs":  1,
+                        "throughput_min":  0,
+                        "throughput_median":  0,
+                        "throughput_max":  0,
+                        "mean_process_cpu_seconds":  1.328125,
+                        "total_process_cpu_seconds":  1.328125,
+                        "terminal_total":  12,
+                        "pending_total":  0
+                    }
+                ],
+    "runs":  [
+                 {
+                     "schema_version":  "dur026-run.v1",
+                     "status":  "PASS",
+                     "generated_at_utc":  "2026-09-18T18:53:31.3032026Z",
+                     "config":  {
+                                    "workload":  "t1",
+                                    "scheduler_count":  1,
+                                    "arrival_rate_per_second":  2,
+                                    "workflow_count":  12,
+                                    "seed":  10001,
+                                    "activity_work_units":  5000,
+                                    "worker_slots":  4,
+                                    "graph_profile":  "t1"
+                                },
+                     "timing":  {
+                                    "measured_start_utc":  "2026-09-18T18:53:22.7649646Z",
+                                    "measured_end_utc":  "2026-09-18T18:53:31.2961277Z",
+                                    "elapsed_seconds":  8.5311631,
+                                    "terminal_workflows_per_second":  1.4066077344131422,
+                                    "min_completion_latency_seconds":  0.7052858,
+                                    "median_completion_latency_seconds":  1.6644415000000001,
+                                    "max_completion_latency_seconds":  3.0311631
+                                },
+                     "cohort":  {
+                                    "scheduled":  12,
+                                    "submitted":  12,
+                                    "accepted":  12,
+                                    "terminal":  12,
+                                    "pending":  0,
+                                    "ambiguous_submissions":  0,
+                                    "failed_runs":  0
+                                },
+                     "telemetry":  {
+                                       "lease_acquires":  12,
+                                       "lease_renews":  204,
+                                       "fenced_writes":  0,
+                                       "accepted_claims":  96,
+                                       "accepted_results":  96,
+                                       "db_transactions":  828,
+                                       "db_queries":  2628,
+                                       "query_seconds":  8.655757300000023,
+                                       "lock_waits":  12,
+                                       "lock_wait_seconds":  0.0109157,
+                                       "worker_completed":  96
+                                   },
+                     "outcomes":  [
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0000",
+                                          "scheduled_at":  "2026-09-18T18:53:22.7649646Z",
+                                          "created_at":  "2026-09-18T18:53:22.7649646Z",
+                                          "finished_at":  "2026-09-18T18:53:23.4702504Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0001",
+                                          "scheduled_at":  "2026-09-18T18:53:23.2649646Z",
+                                          "created_at":  "2026-09-18T18:53:23.2650538Z",
+                                          "finished_at":  "2026-09-18T18:53:24.1681594Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0002",
+                                          "scheduled_at":  "2026-09-18T18:53:23.7649646Z",
+                                          "created_at":  "2026-09-18T18:53:23.7653175Z",
+                                          "finished_at":  "2026-09-18T18:53:24.6911623Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0003",
+                                          "scheduled_at":  "2026-09-18T18:53:24.2649646Z",
+                                          "created_at":  "2026-09-18T18:53:24.2653193Z",
+                                          "finished_at":  "2026-09-18T18:53:25.4092551Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0004",
+                                          "scheduled_at":  "2026-09-18T18:53:24.7649646Z",
+                                          "created_at":  "2026-09-18T18:53:24.7653466Z",
+                                          "finished_at":  "2026-09-18T18:53:26.0826542Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0005",
+                                          "scheduled_at":  "2026-09-18T18:53:25.2649646Z",
+                                          "created_at":  "2026-09-18T18:53:25.4092551Z",
+                                          "finished_at":  "2026-09-18T18:53:26.6745915Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0006",
+                                          "scheduled_at":  "2026-09-18T18:53:25.7649646Z",
+                                          "created_at":  "2026-09-18T18:53:26.0832138Z",
+                                          "finished_at":  "2026-09-18T18:53:27.4294061Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0007",
+                                          "scheduled_at":  "2026-09-18T18:53:26.2649646Z",
+                                          "created_at":  "2026-09-18T18:53:26.6745915Z",
+                                          "finished_at":  "2026-09-18T18:53:28.0861046Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0008",
+                                          "scheduled_at":  "2026-09-18T18:53:26.7649646Z",
+                                          "created_at":  "2026-09-18T18:53:27.4294061Z",
+                                          "finished_at":  "2026-09-18T18:53:28.8765473Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0009",
+                                          "scheduled_at":  "2026-09-18T18:53:27.2649646Z",
+                                          "created_at":  "2026-09-18T18:53:28.0861046Z",
+                                          "finished_at":  "2026-09-18T18:53:29.5901843Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0010",
+                                          "scheduled_at":  "2026-09-18T18:53:27.7649646Z",
+                                          "created_at":  "2026-09-18T18:53:28.8765473Z",
+                                          "finished_at":  "2026-09-18T18:53:30.4266588Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r2-rep1-01-19d9e1a2de334974b747caa3204069cc-0011",
+                                          "scheduled_at":  "2026-09-18T18:53:28.2649646Z",
+                                          "created_at":  "2026-09-18T18:53:29.5907158Z",
+                                          "finished_at":  "2026-09-18T18:53:31.2961277Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      }
+                                  ],
+                     "case_id":  "DUR026-t1-s1-r2-rep1",
+                     "repeat":  1,
+                     "process_cpu_seconds":  1.375,
+                     "process_wall_seconds":  9.2630187,
+                     "child_exit_code":  null,
+                     "stderr":  ""
+                 },
+                 {
+                     "schema_version":  "dur026-run.v1",
+                     "status":  "PASS",
+                     "generated_at_utc":  "2026-09-18T18:53:41.5971174Z",
+                     "config":  {
+                                    "workload":  "t1",
+                                    "scheduler_count":  1,
+                                    "arrival_rate_per_second":  8,
+                                    "workflow_count":  12,
+                                    "seed":  10002,
+                                    "activity_work_units":  5000,
+                                    "worker_slots":  4,
+                                    "graph_profile":  "t1"
+                                },
+                     "timing":  {
+                                    "measured_start_utc":  "2026-09-18T18:53:31.7138029Z",
+                                    "measured_end_utc":  "2026-09-18T18:53:41.5895263Z",
+                                    "elapsed_seconds":  9.8757234,
+                                    "terminal_workflows_per_second":  1.2151008603582396,
+                                    "min_completion_latency_seconds":  0.7157502,
+                                    "median_completion_latency_seconds":  5.1920639,
+                                    "max_completion_latency_seconds":  8.5007234
+                                },
+                     "cohort":  {
+                                    "scheduled":  12,
+                                    "submitted":  12,
+                                    "accepted":  12,
+                                    "terminal":  12,
+                                    "pending":  0,
+                                    "ambiguous_submissions":  0,
+                                    "failed_runs":  0
+                                },
+                     "telemetry":  {
+                                       "lease_acquires":  12,
+                                       "lease_renews":  204,
+                                       "fenced_writes":  0,
+                                       "accepted_claims":  96,
+                                       "accepted_results":  96,
+                                       "db_transactions":  828,
+                                       "db_queries":  2628,
+                                       "query_seconds":  10.006460700000016,
+                                       "lock_waits":  12,
+                                       "lock_wait_seconds":  0.009922699999999998,
+                                       "worker_completed":  96
+                                   },
+                     "outcomes":  [
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0000",
+                                          "scheduled_at":  "2026-09-18T18:53:31.7138029Z",
+                                          "created_at":  "2026-09-18T18:53:31.7138029Z",
+                                          "finished_at":  "2026-09-18T18:53:32.4295531Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0001",
+                                          "scheduled_at":  "2026-09-18T18:53:31.8388029Z",
+                                          "created_at":  "2026-09-18T18:53:31.8390911Z",
+                                          "finished_at":  "2026-09-18T18:53:33.0885139Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0002",
+                                          "scheduled_at":  "2026-09-18T18:53:31.9638029Z",
+                                          "created_at":  "2026-09-18T18:53:32.4295531Z",
+                                          "finished_at":  "2026-09-18T18:53:33.8425189Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0003",
+                                          "scheduled_at":  "2026-09-18T18:53:32.0888029Z",
+                                          "created_at":  "2026-09-18T18:53:33.0885139Z",
+                                          "finished_at":  "2026-09-18T18:53:34.7759884Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0004",
+                                          "scheduled_at":  "2026-09-18T18:53:32.2138029Z",
+                                          "created_at":  "2026-09-18T18:53:33.8425189Z",
+                                          "finished_at":  "2026-09-18T18:53:35.8038779Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0005",
+                                          "scheduled_at":  "2026-09-18T18:53:32.3388029Z",
+                                          "created_at":  "2026-09-18T18:53:34.7759884Z",
+                                          "finished_at":  "2026-09-18T18:53:36.899961Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0006",
+                                          "scheduled_at":  "2026-09-18T18:53:32.4638029Z",
+                                          "created_at":  "2026-09-18T18:53:35.8038779Z",
+                                          "finished_at":  "2026-09-18T18:53:37.6558668Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0007",
+                                          "scheduled_at":  "2026-09-18T18:53:32.5888029Z",
+                                          "created_at":  "2026-09-18T18:53:36.899961Z",
+                                          "finished_at":  "2026-09-18T18:53:38.3032252Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0008",
+                                          "scheduled_at":  "2026-09-18T18:53:32.7138029Z",
+                                          "created_at":  "2026-09-18T18:53:37.6558668Z",
+                                          "finished_at":  "2026-09-18T18:53:39.0143561Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0009",
+                                          "scheduled_at":  "2026-09-18T18:53:32.8388029Z",
+                                          "created_at":  "2026-09-18T18:53:38.3032252Z",
+                                          "finished_at":  "2026-09-18T18:53:39.7899678Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0010",
+                                          "scheduled_at":  "2026-09-18T18:53:32.9638029Z",
+                                          "created_at":  "2026-09-18T18:53:39.0143561Z",
+                                          "finished_at":  "2026-09-18T18:53:40.6727795Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s1-r8-rep1-02-f7656064e6f04bc8ac8fc8f8eb956c89-0011",
+                                          "scheduled_at":  "2026-09-18T18:53:33.0888029Z",
+                                          "created_at":  "2026-09-18T18:53:39.7899678Z",
+                                          "finished_at":  "2026-09-18T18:53:41.5895263Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      }
+                                  ],
+                     "case_id":  "DUR026-t1-s1-r8-rep1",
+                     "repeat":  1,
+                     "process_cpu_seconds":  1.734375,
+                     "process_wall_seconds":  10.1802972,
+                     "child_exit_code":  null,
+                     "stderr":  ""
+                 },
+                 {
+                     "schema_version":  "dur026-run.v1",
+                     "status":  "PASS",
+                     "generated_at_utc":  "2026-09-18T18:53:49.467104Z",
+                     "config":  {
+                                    "workload":  "t2",
+                                    "scheduler_count":  1,
+                                    "arrival_rate_per_second":  2,
+                                    "workflow_count":  12,
+                                    "seed":  10003,
+                                    "activity_work_units":  5000,
+                                    "worker_slots":  4,
+                                    "graph_profile":  "t2"
+                                },
+                     "timing":  {
+                                    "measured_start_utc":  "2026-09-18T18:53:41.9194083Z",
+                                    "measured_end_utc":  "2026-09-18T18:53:49.4564085Z",
+                                    "elapsed_seconds":  7.5370002,
+                                    "terminal_workflows_per_second":  1.5921453736992073,
+                                    "min_completion_latency_seconds":  0.6998991,
+                                    "median_completion_latency_seconds":  1.4758966,
+                                    "max_completion_latency_seconds":  2.0370002
+                                },
+                     "cohort":  {
+                                    "scheduled":  12,
+                                    "submitted":  12,
+                                    "accepted":  12,
+                                    "terminal":  12,
+                                    "pending":  0,
+                                    "ambiguous_submissions":  0,
+                                    "failed_runs":  0
+                                },
+                     "telemetry":  {
+                                       "lease_acquires":  12,
+                                       "lease_renews":  132,
+                                       "fenced_writes":  0,
+                                       "accepted_claims":  96,
+                                       "accepted_results":  96,
+                                       "db_transactions":  684,
+                                       "db_queries":  2028,
+                                       "query_seconds":  7.7100740999999955,
+                                       "lock_waits":  12,
+                                       "lock_wait_seconds":  0.0113462,
+                                       "worker_completed":  96
+                                   },
+                     "outcomes":  [
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0000",
+                                          "scheduled_at":  "2026-09-18T18:53:41.9194083Z",
+                                          "created_at":  "2026-09-18T18:53:41.9194083Z",
+                                          "finished_at":  "2026-09-18T18:53:42.6193074Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0001",
+                                          "scheduled_at":  "2026-09-18T18:53:42.4194083Z",
+                                          "created_at":  "2026-09-18T18:53:42.4198591Z",
+                                          "finished_at":  "2026-09-18T18:53:43.343323Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0002",
+                                          "scheduled_at":  "2026-09-18T18:53:42.9194083Z",
+                                          "created_at":  "2026-09-18T18:53:42.9196273Z",
+                                          "finished_at":  "2026-09-18T18:53:44.1208332Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0003",
+                                          "scheduled_at":  "2026-09-18T18:53:43.4194083Z",
+                                          "created_at":  "2026-09-18T18:53:43.4196719Z",
+                                          "finished_at":  "2026-09-18T18:53:44.6923227Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0004",
+                                          "scheduled_at":  "2026-09-18T18:53:43.9194083Z",
+                                          "created_at":  "2026-09-18T18:53:44.1208332Z",
+                                          "finished_at":  "2026-09-18T18:53:45.2431448Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0005",
+                                          "scheduled_at":  "2026-09-18T18:53:44.4194083Z",
+                                          "created_at":  "2026-09-18T18:53:44.6923227Z",
+                                          "finished_at":  "2026-09-18T18:53:45.8307638Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0006",
+                                          "scheduled_at":  "2026-09-18T18:53:44.9194083Z",
+                                          "created_at":  "2026-09-18T18:53:45.2431448Z",
+                                          "finished_at":  "2026-09-18T18:53:46.3953049Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0007",
+                                          "scheduled_at":  "2026-09-18T18:53:45.4194083Z",
+                                          "created_at":  "2026-09-18T18:53:45.8307638Z",
+                                          "finished_at":  "2026-09-18T18:53:47.041261Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0008",
+                                          "scheduled_at":  "2026-09-18T18:53:45.9194083Z",
+                                          "created_at":  "2026-09-18T18:53:46.3953049Z",
+                                          "finished_at":  "2026-09-18T18:53:47.622409Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0009",
+                                          "scheduled_at":  "2026-09-18T18:53:46.4194083Z",
+                                          "created_at":  "2026-09-18T18:53:47.041261Z",
+                                          "finished_at":  "2026-09-18T18:53:48.1801389Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0010",
+                                          "scheduled_at":  "2026-09-18T18:53:46.9194083Z",
+                                          "created_at":  "2026-09-18T18:53:47.622409Z",
+                                          "finished_at":  "2026-09-18T18:53:48.8730378Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r2-rep1-03-6ddd6b9dfdc74aa996217307af73184b-0011",
+                                          "scheduled_at":  "2026-09-18T18:53:47.4194083Z",
+                                          "created_at":  "2026-09-18T18:53:48.1801389Z",
+                                          "finished_at":  "2026-09-18T18:53:49.4564085Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      }
+                                  ],
+                     "case_id":  "DUR026-t2-s1-r2-rep1",
+                     "repeat":  1,
+                     "process_cpu_seconds":  0.96875,
+                     "process_wall_seconds":  7.8646006999999996,
+                     "child_exit_code":  null,
+                     "stderr":  ""
+                 },
+                 {
+                     "schema_version":  "dur026-run.v1",
+                     "status":  "PASS",
+                     "generated_at_utc":  "2026-09-18T18:53:57.3583242Z",
+                     "config":  {
+                                    "workload":  "t2",
+                                    "scheduler_count":  1,
+                                    "arrival_rate_per_second":  8,
+                                    "workflow_count":  12,
+                                    "seed":  10004,
+                                    "activity_work_units":  5000,
+                                    "worker_slots":  4,
+                                    "graph_profile":  "t2"
+                                },
+                     "timing":  {
+                                    "measured_start_utc":  "2026-09-18T18:53:49.8822955Z",
+                                    "measured_end_utc":  "2026-09-18T18:53:57.3466584Z",
+                                    "elapsed_seconds":  7.4643629,
+                                    "terminal_workflows_per_second":  1.6076388783294553,
+                                    "min_completion_latency_seconds":  0.7116008,
+                                    "median_completion_latency_seconds":  3.5920441,
+                                    "max_completion_latency_seconds":  6.0886307
+                                },
+                     "cohort":  {
+                                    "scheduled":  12,
+                                    "submitted":  12,
+                                    "accepted":  12,
+                                    "terminal":  12,
+                                    "pending":  0,
+                                    "ambiguous_submissions":  0,
+                                    "failed_runs":  0
+                                },
+                     "telemetry":  {
+                                       "lease_acquires":  12,
+                                       "lease_renews":  132,
+                                       "fenced_writes":  0,
+                                       "accepted_claims":  96,
+                                       "accepted_results":  96,
+                                       "db_transactions":  684,
+                                       "db_queries":  2028,
+                                       "query_seconds":  7.598935000000009,
+                                       "lock_waits":  12,
+                                       "lock_wait_seconds":  0.010481000000000002,
+                                       "worker_completed":  96
+                                   },
+                     "outcomes":  [
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0000",
+                                          "scheduled_at":  "2026-09-18T18:53:49.8822955Z",
+                                          "created_at":  "2026-09-18T18:53:49.8822955Z",
+                                          "finished_at":  "2026-09-18T18:53:50.5938963Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0001",
+                                          "scheduled_at":  "2026-09-18T18:53:50.0072955Z",
+                                          "created_at":  "2026-09-18T18:53:50.0073944Z",
+                                          "finished_at":  "2026-09-18T18:53:51.2456676Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0002",
+                                          "scheduled_at":  "2026-09-18T18:53:50.1322955Z",
+                                          "created_at":  "2026-09-18T18:53:50.5938963Z",
+                                          "finished_at":  "2026-09-18T18:53:51.8050945Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0003",
+                                          "scheduled_at":  "2026-09-18T18:53:50.2572955Z",
+                                          "created_at":  "2026-09-18T18:53:51.2456676Z",
+                                          "finished_at":  "2026-09-18T18:53:52.3946836Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0004",
+                                          "scheduled_at":  "2026-09-18T18:53:50.3822955Z",
+                                          "created_at":  "2026-09-18T18:53:51.8050945Z",
+                                          "finished_at":  "2026-09-18T18:53:52.964848Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0005",
+                                          "scheduled_at":  "2026-09-18T18:53:50.5072955Z",
+                                          "created_at":  "2026-09-18T18:53:52.3946836Z",
+                                          "finished_at":  "2026-09-18T18:53:53.6629592Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0006",
+                                          "scheduled_at":  "2026-09-18T18:53:50.6322955Z",
+                                          "created_at":  "2026-09-18T18:53:52.964848Z",
+                                          "finished_at":  "2026-09-18T18:53:54.2243396Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0007",
+                                          "scheduled_at":  "2026-09-18T18:53:50.7572955Z",
+                                          "created_at":  "2026-09-18T18:53:53.6629592Z",
+                                          "finished_at":  "2026-09-18T18:53:54.7361333Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0008",
+                                          "scheduled_at":  "2026-09-18T18:53:50.8822955Z",
+                                          "created_at":  "2026-09-18T18:53:54.2243396Z",
+                                          "finished_at":  "2026-09-18T18:53:55.3018594Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0009",
+                                          "scheduled_at":  "2026-09-18T18:53:51.0072955Z",
+                                          "created_at":  "2026-09-18T18:53:54.7361333Z",
+                                          "finished_at":  "2026-09-18T18:53:56.0304039Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0010",
+                                          "scheduled_at":  "2026-09-18T18:53:51.1322955Z",
+                                          "created_at":  "2026-09-18T18:53:55.3018594Z",
+                                          "finished_at":  "2026-09-18T18:53:56.6662523Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s1-r8-rep1-04-9fffe2eaa3404dc1bea996a9d56c4148-0011",
+                                          "scheduled_at":  "2026-09-18T18:53:51.2572955Z",
+                                          "created_at":  "2026-09-18T18:53:56.03102Z",
+                                          "finished_at":  "2026-09-18T18:53:57.3459262Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      }
+                                  ],
+                     "case_id":  "DUR026-t2-s1-r8-rep1",
+                     "repeat":  1,
+                     "process_cpu_seconds":  1.078125,
+                     "process_wall_seconds":  7.8809866999999993,
+                     "child_exit_code":  null,
+                     "stderr":  ""
+                 },
+                 {
+                     "schema_version":  "dur026-run.v1",
+                     "status":  "PASS",
+                     "generated_at_utc":  "2026-09-18T18:54:03.8674406Z",
+                     "config":  {
+                                    "workload":  "t1",
+                                    "scheduler_count":  2,
+                                    "arrival_rate_per_second":  2,
+                                    "workflow_count":  12,
+                                    "seed":  10005,
+                                    "activity_work_units":  5000,
+                                    "worker_slots":  4,
+                                    "graph_profile":  "t1"
+                                },
+                     "timing":  {
+                                    "measured_start_utc":  "2026-09-18T18:53:57.6394846Z",
+                                    "measured_end_utc":  "2026-09-18T18:54:03.8480911Z",
+                                    "elapsed_seconds":  6.2086065,
+                                    "terminal_workflows_per_second":  1.932800862802305,
+                                    "min_completion_latency_seconds":  0.6771717,
+                                    "median_completion_latency_seconds":  0.8198864,
+                                    "max_completion_latency_seconds":  1.2333191000000001
+                                },
+                     "cohort":  {
+                                    "scheduled":  12,
+                                    "submitted":  12,
+                                    "accepted":  12,
+                                    "terminal":  12,
+                                    "pending":  0,
+                                    "ambiguous_submissions":  0,
+                                    "failed_runs":  0
+                                },
+                     "telemetry":  {
+                                       "lease_acquires":  12,
+                                       "lease_renews":  204,
+                                       "fenced_writes":  31,
+                                       "accepted_claims":  96,
+                                       "accepted_results":  96,
+                                       "db_transactions":  859,
+                                       "db_queries":  2721,
+                                       "query_seconds":  9.594289399999981,
+                                       "lock_waits":  43,
+                                       "lock_wait_seconds":  0.13186200000000003,
+                                       "worker_completed":  96
+                                   },
+                     "outcomes":  [
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0000",
+                                          "scheduled_at":  "2026-09-18T18:53:57.6394846Z",
+                                          "created_at":  "2026-09-18T18:53:57.6400208Z",
+                                          "finished_at":  "2026-09-18T18:53:58.4651567Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0001",
+                                          "scheduled_at":  "2026-09-18T18:53:58.1394846Z",
+                                          "created_at":  "2026-09-18T18:53:58.1395613Z",
+                                          "finished_at":  "2026-09-18T18:53:58.9470456Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0002",
+                                          "scheduled_at":  "2026-09-18T18:53:58.6394846Z",
+                                          "created_at":  "2026-09-18T18:53:58.6399273Z",
+                                          "finished_at":  "2026-09-18T18:53:59.4101996Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0003",
+                                          "scheduled_at":  "2026-09-18T18:53:59.1394846Z",
+                                          "created_at":  "2026-09-18T18:53:59.1398021Z",
+                                          "finished_at":  "2026-09-18T18:53:59.959371Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0004",
+                                          "scheduled_at":  "2026-09-18T18:53:59.6394846Z",
+                                          "created_at":  "2026-09-18T18:53:59.6399972Z",
+                                          "finished_at":  "2026-09-18T18:54:00.3166563Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0005",
+                                          "scheduled_at":  "2026-09-18T18:54:00.1394846Z",
+                                          "created_at":  "2026-09-18T18:54:00.1396659Z",
+                                          "finished_at":  "2026-09-18T18:54:00.8411982Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0006",
+                                          "scheduled_at":  "2026-09-18T18:54:00.6394846Z",
+                                          "created_at":  "2026-09-18T18:54:00.6398143Z",
+                                          "finished_at":  "2026-09-18T18:54:01.3220206Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0007",
+                                          "scheduled_at":  "2026-09-18T18:54:01.1394846Z",
+                                          "created_at":  "2026-09-18T18:54:01.1395588Z",
+                                          "finished_at":  "2026-09-18T18:54:01.9814587Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0008",
+                                          "scheduled_at":  "2026-09-18T18:54:01.6394846Z",
+                                          "created_at":  "2026-09-18T18:54:01.6402283Z",
+                                          "finished_at":  "2026-09-18T18:54:02.8728037Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  32
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0009",
+                                          "scheduled_at":  "2026-09-18T18:54:02.1394846Z",
+                                          "created_at":  "2026-09-18T18:54:02.1399897Z",
+                                          "finished_at":  "2026-09-18T18:54:03.0125087Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0010",
+                                          "scheduled_at":  "2026-09-18T18:54:02.6394846Z",
+                                          "created_at":  "2026-09-18T18:54:02.6398972Z",
+                                          "finished_at":  "2026-09-18T18:54:03.5474275Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r2-rep1-05-3c71473285714374a7a6a1f4b46960fd-0011",
+                                          "scheduled_at":  "2026-09-18T18:54:03.1394846Z",
+                                          "created_at":  "2026-09-18T18:54:03.1399954Z",
+                                          "finished_at":  "2026-09-18T18:54:03.847561Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      }
+                                  ],
+                     "case_id":  "DUR026-t1-s2-r2-rep1",
+                     "repeat":  1,
+                     "process_cpu_seconds":  1.5625,
+                     "process_wall_seconds":  6.5137274,
+                     "child_exit_code":  null,
+                     "stderr":  ""
+                 },
+                 {
+                     "schema_version":  "dur026-run.v1",
+                     "status":  "PASS",
+                     "generated_at_utc":  "2026-09-18T18:54:08.7164061Z",
+                     "config":  {
+                                    "workload":  "t1",
+                                    "scheduler_count":  2,
+                                    "arrival_rate_per_second":  8,
+                                    "workflow_count":  12,
+                                    "seed":  10006,
+                                    "activity_work_units":  5000,
+                                    "worker_slots":  4,
+                                    "graph_profile":  "t1"
+                                },
+                     "timing":  {
+                                    "measured_start_utc":  "2026-09-18T18:54:04.1577008Z",
+                                    "measured_end_utc":  "2026-09-18T18:54:08.7065458Z",
+                                    "elapsed_seconds":  4.548845,
+                                    "terminal_workflows_per_second":  2.638032291713611,
+                                    "min_completion_latency_seconds":  0.7859958,
+                                    "median_completion_latency_seconds":  2.1516798,
+                                    "max_completion_latency_seconds":  3.173845
+                                },
+                     "cohort":  {
+                                    "scheduled":  12,
+                                    "submitted":  12,
+                                    "accepted":  12,
+                                    "terminal":  12,
+                                    "pending":  0,
+                                    "ambiguous_submissions":  0,
+                                    "failed_runs":  0
+                                },
+                     "telemetry":  {
+                                       "lease_acquires":  12,
+                                       "lease_renews":  204,
+                                       "fenced_writes":  0,
+                                       "accepted_claims":  96,
+                                       "accepted_results":  96,
+                                       "db_transactions":  828,
+                                       "db_queries":  2628,
+                                       "query_seconds":  8.870540999999998,
+                                       "lock_waits":  12,
+                                       "lock_wait_seconds":  0.013755600000000002,
+                                       "worker_completed":  96
+                                   },
+                     "outcomes":  [
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0000",
+                                          "scheduled_at":  "2026-09-18T18:54:04.1577008Z",
+                                          "created_at":  "2026-09-18T18:54:04.1577008Z",
+                                          "finished_at":  "2026-09-18T18:54:04.9436966Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0001",
+                                          "scheduled_at":  "2026-09-18T18:54:04.2827008Z",
+                                          "created_at":  "2026-09-18T18:54:04.2832484Z",
+                                          "finished_at":  "2026-09-18T18:54:05.0753947Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0002",
+                                          "scheduled_at":  "2026-09-18T18:54:04.4077008Z",
+                                          "created_at":  "2026-09-18T18:54:04.4077979Z",
+                                          "finished_at":  "2026-09-18T18:54:05.650036Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0003",
+                                          "scheduled_at":  "2026-09-18T18:54:04.5327008Z",
+                                          "created_at":  "2026-09-18T18:54:04.9436966Z",
+                                          "finished_at":  "2026-09-18T18:54:05.7758639Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0004",
+                                          "scheduled_at":  "2026-09-18T18:54:04.6577008Z",
+                                          "created_at":  "2026-09-18T18:54:05.0753947Z",
+                                          "finished_at":  "2026-09-18T18:54:06.3838645Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0005",
+                                          "scheduled_at":  "2026-09-18T18:54:04.7827008Z",
+                                          "created_at":  "2026-09-18T18:54:05.650036Z",
+                                          "finished_at":  "2026-09-18T18:54:06.5210608Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0006",
+                                          "scheduled_at":  "2026-09-18T18:54:04.9077008Z",
+                                          "created_at":  "2026-09-18T18:54:05.7758639Z",
+                                          "finished_at":  "2026-09-18T18:54:07.0593806Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0007",
+                                          "scheduled_at":  "2026-09-18T18:54:05.0327008Z",
+                                          "created_at":  "2026-09-18T18:54:06.3838645Z",
+                                          "finished_at":  "2026-09-18T18:54:07.2112788Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0008",
+                                          "scheduled_at":  "2026-09-18T18:54:05.1577008Z",
+                                          "created_at":  "2026-09-18T18:54:06.521814Z",
+                                          "finished_at":  "2026-09-18T18:54:07.7785929Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0009",
+                                          "scheduled_at":  "2026-09-18T18:54:05.2827008Z",
+                                          "created_at":  "2026-09-18T18:54:07.0593806Z",
+                                          "finished_at":  "2026-09-18T18:54:07.9210592Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0010",
+                                          "scheduled_at":  "2026-09-18T18:54:05.4077008Z",
+                                          "created_at":  "2026-09-18T18:54:07.2112788Z",
+                                          "finished_at":  "2026-09-18T18:54:08.4844545Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t1-s2-r8-rep1-06-92a8ec024f704de696fa148fb8b76581-0011",
+                                          "scheduled_at":  "2026-09-18T18:54:05.5327008Z",
+                                          "created_at":  "2026-09-18T18:54:07.7785929Z",
+                                          "finished_at":  "2026-09-18T18:54:08.7065458Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      }
+                                  ],
+                     "case_id":  "DUR026-t1-s2-r8-rep1",
+                     "repeat":  1,
+                     "process_cpu_seconds":  1.0625,
+                     "process_wall_seconds":  4.8174223,
+                     "child_exit_code":  null,
+                     "stderr":  ""
+                 },
+                 {
+                     "schema_version":  "dur026-run.v1",
+                     "status":  "PASS",
+                     "generated_at_utc":  "2026-09-18T18:54:15.3982272Z",
+                     "config":  {
+                                    "workload":  "t2",
+                                    "scheduler_count":  2,
+                                    "arrival_rate_per_second":  2,
+                                    "workflow_count":  12,
+                                    "seed":  10007,
+                                    "activity_work_units":  5000,
+                                    "worker_slots":  4,
+                                    "graph_profile":  "t2"
+                                },
+                     "timing":  {
+                                    "measured_start_utc":  "2026-09-18T18:54:09.0439737Z",
+                                    "measured_end_utc":  "2026-09-18T18:54:15.3899912Z",
+                                    "elapsed_seconds":  6.3460175,
+                                    "terminal_workflows_per_second":  1.8909497176772676,
+                                    "min_completion_latency_seconds":  0.5787138,
+                                    "median_completion_latency_seconds":  0.6757982,
+                                    "max_completion_latency_seconds":  0.8669793
+                                },
+                     "cohort":  {
+                                    "scheduled":  12,
+                                    "submitted":  12,
+                                    "accepted":  12,
+                                    "terminal":  12,
+                                    "pending":  0,
+                                    "ambiguous_submissions":  0,
+                                    "failed_runs":  0
+                                },
+                     "telemetry":  {
+                                       "lease_acquires":  12,
+                                       "lease_renews":  132,
+                                       "fenced_writes":  13,
+                                       "accepted_claims":  96,
+                                       "accepted_results":  96,
+                                       "db_transactions":  697,
+                                       "db_queries":  2067,
+                                       "query_seconds":  8.231118000000011,
+                                       "lock_waits":  25,
+                                       "lock_wait_seconds":  0.044167899999999996,
+                                       "worker_completed":  96
+                                   },
+                     "outcomes":  [
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0000",
+                                          "scheduled_at":  "2026-09-18T18:54:09.0439737Z",
+                                          "created_at":  "2026-09-18T18:54:09.0439737Z",
+                                          "finished_at":  "2026-09-18T18:54:09.7197719Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0001",
+                                          "scheduled_at":  "2026-09-18T18:54:09.5439737Z",
+                                          "created_at":  "2026-09-18T18:54:09.5443042Z",
+                                          "finished_at":  "2026-09-18T18:54:10.2852874Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0002",
+                                          "scheduled_at":  "2026-09-18T18:54:10.0439737Z",
+                                          "created_at":  "2026-09-18T18:54:10.044012Z",
+                                          "finished_at":  "2026-09-18T18:54:10.659619Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0003",
+                                          "scheduled_at":  "2026-09-18T18:54:10.5439737Z",
+                                          "created_at":  "2026-09-18T18:54:10.5441869Z",
+                                          "finished_at":  "2026-09-18T18:54:11.2735756Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  14
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0004",
+                                          "scheduled_at":  "2026-09-18T18:54:11.0439737Z",
+                                          "created_at":  "2026-09-18T18:54:11.0442583Z",
+                                          "finished_at":  "2026-09-18T18:54:11.7510429Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0005",
+                                          "scheduled_at":  "2026-09-18T18:54:11.5439737Z",
+                                          "created_at":  "2026-09-18T18:54:11.5441437Z",
+                                          "finished_at":  "2026-09-18T18:54:12.1853703Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0006",
+                                          "scheduled_at":  "2026-09-18T18:54:12.0439737Z",
+                                          "created_at":  "2026-09-18T18:54:12.0441927Z",
+                                          "finished_at":  "2026-09-18T18:54:12.6539261Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0007",
+                                          "scheduled_at":  "2026-09-18T18:54:12.5439737Z",
+                                          "created_at":  "2026-09-18T18:54:12.5442196Z",
+                                          "finished_at":  "2026-09-18T18:54:13.1351455Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0008",
+                                          "scheduled_at":  "2026-09-18T18:54:13.0439737Z",
+                                          "created_at":  "2026-09-18T18:54:13.0444585Z",
+                                          "finished_at":  "2026-09-18T18:54:13.6226875Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0009",
+                                          "scheduled_at":  "2026-09-18T18:54:13.5439737Z",
+                                          "created_at":  "2026-09-18T18:54:13.5441298Z",
+                                          "finished_at":  "2026-09-18T18:54:14.2002928Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0010",
+                                          "scheduled_at":  "2026-09-18T18:54:14.0439737Z",
+                                          "created_at":  "2026-09-18T18:54:14.0440496Z",
+                                          "finished_at":  "2026-09-18T18:54:14.910953Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r2-rep1-07-68f616a8609c42ebb00b39d6401dbedb-0011",
+                                          "scheduled_at":  "2026-09-18T18:54:14.5439737Z",
+                                          "created_at":  "2026-09-18T18:54:14.5447207Z",
+                                          "finished_at":  "2026-09-18T18:54:15.3899912Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      }
+                                  ],
+                     "case_id":  "DUR026-t2-s2-r2-rep1",
+                     "repeat":  1,
+                     "process_cpu_seconds":  0.90625,
+                     "process_wall_seconds":  6.6740433999999995,
+                     "child_exit_code":  null,
+                     "stderr":  ""
+                 },
+                 {
+                     "schema_version":  "dur026-run.v1",
+                     "status":  "PASS",
+                     "generated_at_utc":  "2026-09-18T18:54:19.6326107Z",
+                     "config":  {
+                                    "workload":  "t2",
+                                    "scheduler_count":  2,
+                                    "arrival_rate_per_second":  8,
+                                    "workflow_count":  12,
+                                    "seed":  10008,
+                                    "activity_work_units":  5000,
+                                    "worker_slots":  4,
+                                    "graph_profile":  "t2"
+                                },
+                     "timing":  {
+                                    "measured_start_utc":  "2026-09-18T18:54:15.7470929Z",
+                                    "measured_end_utc":  "2026-09-18T18:54:19.6216495Z",
+                                    "elapsed_seconds":  3.8745566,
+                                    "terminal_workflows_per_second":  3.097128584984408,
+                                    "min_completion_latency_seconds":  0.6351135,
+                                    "median_completion_latency_seconds":  1.6708611,
+                                    "max_completion_latency_seconds":  2.5734299
+                                },
+                     "cohort":  {
+                                    "scheduled":  12,
+                                    "submitted":  12,
+                                    "accepted":  12,
+                                    "terminal":  12,
+                                    "pending":  0,
+                                    "ambiguous_submissions":  0,
+                                    "failed_runs":  0
+                                },
+                     "telemetry":  {
+                                       "lease_acquires":  12,
+                                       "lease_renews":  132,
+                                       "fenced_writes":  12,
+                                       "accepted_claims":  96,
+                                       "accepted_results":  96,
+                                       "db_transactions":  696,
+                                       "db_queries":  2064,
+                                       "query_seconds":  7.6635742,
+                                       "lock_waits":  24,
+                                       "lock_wait_seconds":  0.049138299999999996,
+                                       "worker_completed":  96
+                                   },
+                     "outcomes":  [
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0000",
+                                          "scheduled_at":  "2026-09-18T18:54:15.7470929Z",
+                                          "created_at":  "2026-09-18T18:54:15.7470929Z",
+                                          "finished_at":  "2026-09-18T18:54:16.3934437Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0001",
+                                          "scheduled_at":  "2026-09-18T18:54:15.8720929Z",
+                                          "created_at":  "2026-09-18T18:54:15.8725087Z",
+                                          "finished_at":  "2026-09-18T18:54:16.5072064Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0003",
+                                          "scheduled_at":  "2026-09-18T18:54:16.1220929Z",
+                                          "created_at":  "2026-09-18T18:54:16.3934437Z",
+                                          "finished_at":  "2026-09-18T18:54:17.0295885Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0002",
+                                          "scheduled_at":  "2026-09-18T18:54:15.9970929Z",
+                                          "created_at":  "2026-09-18T18:54:15.99738Z",
+                                          "finished_at":  "2026-09-18T18:54:17.067722Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  13
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0004",
+                                          "scheduled_at":  "2026-09-18T18:54:16.2470929Z",
+                                          "created_at":  "2026-09-18T18:54:16.5072064Z",
+                                          "finished_at":  "2026-09-18T18:54:17.6603567Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0005",
+                                          "scheduled_at":  "2026-09-18T18:54:16.3720929Z",
+                                          "created_at":  "2026-09-18T18:54:17.0295885Z",
+                                          "finished_at":  "2026-09-18T18:54:17.6918174Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0006",
+                                          "scheduled_at":  "2026-09-18T18:54:16.4970929Z",
+                                          "created_at":  "2026-09-18T18:54:17.067722Z",
+                                          "finished_at":  "2026-09-18T18:54:18.2551155Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0007",
+                                          "scheduled_at":  "2026-09-18T18:54:16.6220929Z",
+                                          "created_at":  "2026-09-18T18:54:17.6603567Z",
+                                          "finished_at":  "2026-09-18T18:54:18.292954Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0008",
+                                          "scheduled_at":  "2026-09-18T18:54:16.7470929Z",
+                                          "created_at":  "2026-09-18T18:54:17.6918174Z",
+                                          "finished_at":  "2026-09-18T18:54:18.8753287Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0009",
+                                          "scheduled_at":  "2026-09-18T18:54:16.8720929Z",
+                                          "created_at":  "2026-09-18T18:54:18.2551155Z",
+                                          "finished_at":  "2026-09-18T18:54:18.9255758Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0010",
+                                          "scheduled_at":  "2026-09-18T18:54:16.9970929Z",
+                                          "created_at":  "2026-09-18T18:54:18.292954Z",
+                                          "finished_at":  "2026-09-18T18:54:19.5705228Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      },
+                                      {
+                                          "workflow_id":  "dur026-bench-m7-dur026-t2-s2-r8-rep1-08-fd16190050054017b0b82ef391975398-0011",
+                                          "scheduled_at":  "2026-09-18T18:54:17.1220929Z",
+                                          "created_at":  "2026-09-18T18:54:18.8753287Z",
+                                          "finished_at":  "2026-09-18T18:54:19.621038Z",
+                                          "state":  "SUCCEEDED",
+                                          "scheduler_attempts":  1
+                                      }
+                                  ],
+                     "case_id":  "DUR026-t2-s2-r8-rep1",
+                     "repeat":  1,
+                     "process_cpu_seconds":  1.328125,
+                     "process_wall_seconds":  4.2966628,
+                     "child_exit_code":  null,
+                     "stderr":  ""
+                 }
+             ],
+    "limitations":  [
+                        "This is bounded single-node Docker Desktop/WSL2 evidence under the DUR-036 host declaration.",
+                        "The current runtime does not construct a production scheduler Engine; this study invokes the committed Engine/Store harness directly.",
+                        "Scheduler CPU is the benchmark process CPU time, not a multi-process production scheduler allocation.",
+                        "No maximum sustainable throughput or constant-total-CPU speedup claim is made."
+                    ]
+}
