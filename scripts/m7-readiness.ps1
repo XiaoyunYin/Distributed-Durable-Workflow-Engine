@@ -8,7 +8,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $RepoRoot
 
-$composeArgs = @("--env-file", ".env", "-f", "deploy/local/compose.yaml")
+$composeArgs = @("compose", "--env-file", ".env", "-f", "deploy/local/compose.yaml")
 $expectedServices = @("postgres", "kafka", "runtime-a", "runtime-b", "worker-a", "worker-b", "otel-collector", "prometheus")
 $startedAt = (Get-Date).ToUniversalTime()
 
