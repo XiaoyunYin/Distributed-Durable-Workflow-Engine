@@ -1615,3 +1615,30 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   disabled by default. Destroying developer volumes would make the probe more
   destructive, so lifecycle reuse is disclosed rather than mislabeled as a
   fresh deployment.
+
+## 2026-09-18 - M7 DUR-036 deployed fault-episode follow-up
+
+- Task status: IN_PROGRESS; DUR-036 remains READY_FOR_REVIEW and is not DONE.
+- Addressed the remaining R066 scope: the deployed readiness endpoint accepts
+  an opt-in `mode=fault`, injects `AfterBoundary("result_recorded")` after the
+  result transaction, then starts a fresh Engine in the same runtime process
+  and resumes from PostgreSQL. The readiness artifact now treats this as the
+  fault episode; the existing Go test is retained only as a local regression.
+- Validation: `scripts/m7-readiness.ps1 -StartServices` passed at target
+  `6325d1f`. The deployed response reported `crash_boundary=result_recorded`,
+  `resumed=true`, `state=SUCCEEDED`, and the injected crash error. Fault-phase
+  scheduler-a deltas were lease acquisitions +2, accepted claims +1,
+  accepted results +1, and database queries +44. The durable-ready timestamp
+  remained `1789754802` before and after the fault workload. The normal phase,
+  committed F07 checker, local regression, and cleanup also passed.
+- The artifact records `engine_mode: readiness`; the default Compose mode
+  remains disabled. The endpoint is still localhost-bound and unauthenticated,
+  so this remains a bounded development readiness profile rather than a
+  production control surface.
+- Repository validation after the follow-up: `ci.ps1 -WithRace` passed all Go
+  race packages, Ruff, formatting, mypy, and 38 Python tests. The run used
+  task-local Go/uv/Pytest cache paths because the host global cache locations
+  are inaccessible or collide with files; one non-fatal pytest cache warning
+  remains from that host restriction. PostgreSQL/Kafka service checks were
+  already covered by the Docker-backed readiness run and were not duplicated
+  by this non-service CI invocation.

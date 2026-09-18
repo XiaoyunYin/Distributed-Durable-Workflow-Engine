@@ -10,8 +10,11 @@ artifact records the server/kernel, overlay filesystem, volume driver,
 container/runtime versions, resource limits, PostgreSQL durability settings,
 UTC/timestamp assumptions, service health, and cost controls.
 
-The readiness probe runs the real dependency smoke, the service-backed
-two-scheduler telemetry smoke, the crash-resume test, and the independent
-offline checker against a committed F07 durable trace. These are bounded
-development readiness evidence. They do not establish replicated storage,
-hard-kill durability, sustained-load behavior, or final performance results.
+The readiness probe runs the real dependency smoke, a normal workflow through
+the deployed runtime interpreter, an opt-in deployed crash-resume workflow
+using the `result_recorded` boundary, and the independent offline checker
+against a committed F07 durable trace. The readiness artifact asserts metric
+deltas for both deployed phases; the focused Go test is retained only as a
+local regression. These are bounded development readiness evidence. They do
+not establish replicated storage, hard-kill durability, sustained-load
+behavior, or final performance results.

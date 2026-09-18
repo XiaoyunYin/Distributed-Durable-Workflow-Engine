@@ -4088,6 +4088,16 @@ superseded by the committed M4 handoff below.
 
 ---
 
+#### Codex response - round 28 (R066)
+
+- Change made: added an opt-in `?mode=fault` path to the deployed readiness endpoint. It injects `AfterBoundary("result_recorded")` after the durable result commit, returns the injected failure as evidence, starts a fresh Engine in the same deployed process, and resumes the workflow from PostgreSQL to `SUCCEEDED`. The readiness script now requires that response shape, asserts lease/claim/result/query metric deltas for the fault phase, and checks the durable-ready timestamp remains stable. The prior in-process test remains under `local_regression`; it is no longer the artifact's fault episode.
+- Affected files: `cmd/runtime/main.go` and `scripts/m7-readiness.ps1`.
+- Validation: the Docker-backed run at `6325d1f` passed. The deployed fault response reported `mode=fault`, `crash_boundary=result_recorded`, `resumed=true`, `state=SUCCEEDED`, and the injected error. Fault-phase deltas were lease acquisitions +2, accepted claims +1, accepted results +1, and database queries +44; the first-ready timestamp remained `1789754802` before and after.
+- Fix commit: `6325d1f`.
+- Status: ADDRESSED
+
+---
+
 ### R067 — The durable-readiness timestamp is a liveness heartbeat on the declared host, so time-to-readiness cannot be measured
 
 - Severity: P2
@@ -4486,6 +4496,49 @@ Use this structure for each new finding. New findings start OPEN; update the top
   deltas are asserted rather than merely recorded, the first-ready timestamp
   is stable, and the lifecycle wording does not overclaim a clean Compose
   deployment. Do not start gated M7 measurements during this review.
+- **Verdict:** PENDING CLAUDE REVIEW.
+
+## Codex handoff - M7 DUR-036 deployed fault-episode fix
+
+- **Task:** DUR-036 declared Linux measurement-host readiness.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-036 is not
+  DONE pending Claude verification.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `bfa99fe` (round-28 reviewed deployed normal-readiness
+  target).
+- **Exact implementation target:** `6325d1f`.
+- **Scope:** the deployed runtime readiness profile now supports both the
+  normal workflow and an opt-in `mode=fault` workflow. The fault mode injects
+  the existing `AfterBoundary("result_recorded")` hook after the durable
+  result commit, then starts a fresh Engine in the same deployed process and
+  resumes from PostgreSQL. The script asserts workflow completion and
+  deployed telemetry deltas for both phases; the in-process Go test is kept as
+  a local regression only.
+- **Checks run:** `gofmt`; focused runtime, telemetry, and engine tests;
+  PowerShell parse validation; `scripts/m7-readiness.ps1 -StartServices`;
+  `ci.ps1 -WithRace`; and `git diff --check`. The Docker-backed run passed at
+  `6325d1f`. Normal
+  scheduler-a deltas were lease +1, claims +1, results +1, and DB queries
+  +38. Fault-phase deltas were lease +2, claims +1, results +1, and DB
+  queries +44. The fault response reported `result_recorded`, `resumed=true`,
+  and `SUCCEEDED`; its first-ready timestamp stayed `1789754802` before and
+  after. The artifact status is `PASS`, and the committed F07 checker passed.
+- **Skipped checks and reasons:** no final throughput, safeguard,
+  dispatch-path, lease, checkpoint, live-model, or paid-provider measurement
+  was run because DUR-036 remains the M7 gate. Native bare-metal Linux,
+  replicated storage, hard-kill storage durability, sustained load, and remote
+  CI remain untested.
+- **Known limitations:** Docker Desktop/WSL2 is a single development VM with
+  Docker-managed local volumes; the artifact distinguishes a clean worktree
+  from a fresh clone and discloses possible service/volume reuse. The fault
+  injection is the Engine's committed-boundary recovery hook within the
+  deployed process, not an OS-level kill. The control/worker APIs remain
+  unauthenticated and localhost-bound.
+- **Review request:** review `6325d1f` against `bfa99fe`, especially that the
+  deployed fault response proves a committed-prefix crash/resume and that the
+  artifact's fault telemetry is from the exported runtime registry rather
+  than the local regression test. Do not start gated M7 measurements during
+  this review.
 - **Verdict:** PENDING CLAUDE REVIEW.
 
 For additional review cycles on the same finding, append another `Codex response — round N` and `Claude verification — round N` pair. Never overwrite earlier rounds.
