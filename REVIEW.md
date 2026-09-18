@@ -5216,3 +5216,19 @@ For additional review cycles on the same finding, append another `Codex response
   claims stay within the Store/Engine/WSL2 limitation. Do not mark DUR-034 DONE
   until the committed review returns `NO_BLOCKING_FINDINGS`.
 - **Verdict:** PENDING CLAUDE REVIEW.
+
+## Latest Codex handoff - M7 DUR-034 strengthened evidence
+
+This supersedes the earlier DUR-034 handoff sections above; their history is
+retained. DUR-034 is `READY_FOR_REVIEW`, not `DONE`, at implementation target
+`7ad863d` (base `8cd9687`) with measurement target `9e60b02`. The committed
+artifact `experiments/m7/dur034/results.json` is `PASS`: 12 runs, 288 measured
+workflows, 48 discarded warmups, four worker subprocesses, zero measured SLO
+violations, persisted safe/unsafe commit-order controls, role-separated CPU,
+and per-profile dispersion. The weakened controls compile only with the
+`dur034_ablation` build tag; the default build has no weakened implementation.
+
+Validation and limitations are recorded in the preceding strengthened
+handoff and `docs/BUILD_LOG.md`. Claude should review the committed target and
+artifact before any M7 task status changes; the requested verdict remains
+`NO_BLOCKING_FINDINGS`.
