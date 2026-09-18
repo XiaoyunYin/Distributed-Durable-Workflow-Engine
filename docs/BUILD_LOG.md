@@ -1344,6 +1344,14 @@ Validation:
 - Focused invariant/checker and fixture packages, `gofmt`, and `git diff
   --check`: PASS.
 
+Post-handoff validation note: a direct race run with live relays and the first
+service-gate attempt reached the M3 transport phase but hit the known shared
+fixture hazard after a stale partition-8 lease; that run is not counted as a
+full-gate pass. After stopping runtime/worker relays, the isolated
+`go test ./internal/transport -run '^TestM3' -count=1 -v` passed all five tests,
+and the relays were restored. The database was checked afterward: all 16 lease
+rows exist, no lease is active, and no `m5-fixture-*` workflows remain.
+
 The first round-23 campaign cleanup attempt deleted partition-lease rows;
 the cleanup was corrected to release fixture ownership while preserving the
 fixed lease table, and the final campaign and archive validation passed. The

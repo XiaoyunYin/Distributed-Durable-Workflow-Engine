@@ -3624,6 +3624,12 @@ Use this structure for each new finding. New findings start OPEN; update the top
     snapshots validated offline after the campaign.
   - Focused invariant/checker and fixture tests, `gofmt`, and `git diff
     --check`: PASS.
+- A direct full race run with live relays and the first service-gate attempt
+  were not counted as full-gate passes: the M3 transport phase encountered the
+  known shared-fixture partition-8 hazard after a stale lease. After stopping
+  runtime/worker relays, `go test ./internal/transport -run '^TestM3' -count=1
+  -v` passed all five tests; services were restored and the database was left
+  with all 16 lease rows, no active leases, and no M5 fixture workflows.
 - Skipped checks and reasons: Kafka consumer rebalance, multi-host deployment,
   hard-kill storage durability, lock/statement-timeout campaigns,
   sustained-load/final performance studies, clean-machine bootstrap, and
