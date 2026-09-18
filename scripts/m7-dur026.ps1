@@ -93,8 +93,13 @@ try {
                     $started = Get-Date
                     $process = Start-Process -FilePath $benchmarkBinary -ArgumentList $arguments -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath -PassThru
                     $process.WaitForExit()
+                    $process.Refresh()
                     $finished = Get-Date
-                    $cpuSeconds = [double]$process.TotalProcessorTime.TotalSeconds
+                    $totalProcessorTime = $process.TotalProcessorTime
+                    if ($null -eq $totalProcessorTime) {
+                        throw "DUR-026 child process did not expose CPU time for $caseID."
+                    }
+                    $cpuSeconds = [double]$totalProcessorTime.TotalSeconds
                     $stdout = if (Test-Path -LiteralPath $stdoutPath) { Get-Content -Raw -LiteralPath $stdoutPath } else { "" }
                     $stderr = if (Test-Path -LiteralPath $stderrPath) { Get-Content -Raw -LiteralPath $stderrPath } else { "" }
                     $run = $null
