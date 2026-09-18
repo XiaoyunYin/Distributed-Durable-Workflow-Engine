@@ -215,7 +215,8 @@ unnamed.
 ## D011 - Declare the bounded M7 readiness host
 
 - Date: 2026-09-18
-- Status: proposed for DUR-036 review
+- Status: accepted for DUR-036 review; final task acceptance remains pending
+  Claude's committed review
 
 DUR-036 uses Docker Desktop's `desktop-linux` Linux VM as the explicitly
 declared measurement host: Docker Engine 29.7.2, Docker Desktop 4.86.0,

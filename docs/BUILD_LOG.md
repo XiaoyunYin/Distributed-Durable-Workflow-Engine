@@ -1554,3 +1554,30 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - Validation is pending the clean-checkout run of
   `scripts/m7-readiness.ps1 -StartServices`; the generated artifact and exact
   command results will be added before the review handoff.
+
+## 2026-09-18 - M7 DUR-036 readiness handoff
+
+- Task status: READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-036 is not DONE
+  pending Claude's committed review.
+- Base and implementation target: `421b1cb` (M6 closeout) to `efe1fe3`.
+  The handoff commit changes only PLAN.md, README.md, REVIEW.md,
+  docs/BUILD_LOG.md, docs/DECISIONS.md, and the generated M7 artifact.
+- Readiness command: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+  ./scripts/m7-readiness.ps1 -StartServices` PASS from a clean checkout. The
+  artifact is `experiments/m7/dur036-readiness.json` with schema
+  `dur036-readiness.v1` and status `PASS`.
+- Host evidence: Docker Desktop 4.86.0 / Engine 29.7.2 `desktop-linux`, Linux
+  amd64, WSL2 kernel 6.6.87.2, overlayfs, cgroup v2, 32 CPUs, 8 GiB Docker
+  memory, Docker local volumes, and PostgreSQL's ext4 data filesystem. The
+  database reported checksums, fsync, synchronous_commit, and
+  full_page_writes all enabled, with UTC timezone.
+- Validation evidence: Compose dependency smoke passed; all eight required
+  services were running/healthy where healthchecks exist; the focused
+  `TestDUR036TelemetryReconstruction` passed with normal and crash/resume
+  telemetry snapshots and independent invariant verdicts; the committed F07
+  trace passed `go run ./cmd/fault-checker -offline`.
+- Remaining limits: this is a single Docker Desktop/WSL2 development VM and
+  local-volume readiness gate. No replicated storage, hard-kill durability,
+  sustained load, final performance, live-model, or paid-provider claim is
+  made. DUR-026, DUR-034, DUR-035, DUR-027, DUR-028, and DUR-029 remain gated
+  on DUR-036 acceptance.

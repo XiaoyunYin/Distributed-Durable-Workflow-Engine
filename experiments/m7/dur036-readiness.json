@@ -1,0 +1,159 @@
+﻿{
+    "schema_version":  "dur036-readiness.v1",
+    "status":  "PASS",
+    "generated_at_utc":  "2026-09-18T17:02:21.9361444Z",
+    "git":  {
+                "commit":  "efe1fe3b88ba66f8a139d750b821f6dec2c6ce0a",
+                "clean_checkout_verified":  true
+            },
+    "host":  {
+                 "platform":  "Docker Desktop 4.86.0 (236216)",
+                 "docker_server_version":  "29.7.2",
+                 "os":  "Docker Desktop",
+                 "os_type":  "linux",
+                 "architecture":  "x86_64",
+                 "kernel":  "6.6.87.2-microsoft-standard-WSL2",
+                 "storage_driver":  "overlayfs",
+                 "docker_root":  "/var/lib/docker",
+                 "cpus":  32,
+                 "memory_bytes":  8185307136,
+                 "cgroup_version":  "2",
+                 "server_time_utc":  "2026-09-18T17:02:05.301386375Z",
+                 "filesystem_probe":  "Filesystem     Type  1K-blocks     Used Available Use% Mounted on\r\n/dev/sdd       ext4 1055762868 20989672 981069724   3% /var/lib/postgresql\r\next2/ext3",
+                 "volume_driver":  [
+                                       "local"
+                                   ]
+             },
+    "runtime":  {
+                    "docker_client":  "29.7.2",
+                    "compose_file":  "deploy/local/compose.yaml",
+                    "services":  [
+                                     {
+                                         "service":  "postgres",
+                                         "container_id":  "63b9dd2ffb57",
+                                         "image":  "postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af",
+                                         "state":  "running",
+                                         "health":  "healthy",
+                                         "status":  "Up 10 hours (healthy)"
+                                     },
+                                     {
+                                         "service":  "kafka",
+                                         "container_id":  "bf89e5c10e65",
+                                         "image":  "apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837",
+                                         "state":  "running",
+                                         "health":  "healthy",
+                                         "status":  "Up 10 hours (healthy)"
+                                     },
+                                     {
+                                         "service":  "runtime-a",
+                                         "container_id":  "c24fc0bb2585",
+                                         "image":  "durable-agent-engine-runtime-a",
+                                         "state":  "running",
+                                         "health":  "healthy",
+                                         "status":  "Up 23 seconds (healthy)"
+                                     },
+                                     {
+                                         "service":  "runtime-b",
+                                         "container_id":  "ee0c262fec3b",
+                                         "image":  "durable-agent-engine-runtime-b",
+                                         "state":  "running",
+                                         "health":  "healthy",
+                                         "status":  "Up 23 seconds (healthy)"
+                                     },
+                                     {
+                                         "service":  "worker-a",
+                                         "container_id":  "9395575352cf",
+                                         "image":  "durable-agent-engine-worker-a",
+                                         "state":  "running",
+                                         "health":  "healthy",
+                                         "status":  "Up 17 seconds (healthy)"
+                                     },
+                                     {
+                                         "service":  "worker-b",
+                                         "container_id":  "5c42e3c594ef",
+                                         "image":  "durable-agent-engine-worker-b",
+                                         "state":  "running",
+                                         "health":  "healthy",
+                                         "status":  "Up 17 seconds (healthy)"
+                                     },
+                                     {
+                                         "service":  "otel-collector",
+                                         "container_id":  "6be1e91a9a5e",
+                                         "image":  "otel/opentelemetry-collector-contrib:0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6",
+                                         "state":  "running",
+                                         "health":  "not-declared",
+                                         "status":  "Up 2 days"
+                                     },
+                                     {
+                                         "service":  "prometheus",
+                                         "container_id":  "89681458582f",
+                                         "image":  "prom/prometheus:v3.13.0@sha256:c6b27ea434f8389bfe233fbc7be381cf50587c286e871bc842008f5a1b1908a7",
+                                         "state":  "running",
+                                         "health":  "not-declared",
+                                         "status":  "Up 2 days"
+                                     }
+                                 ],
+                    "compose_services":  [
+                                             "kafka",
+                                             "kafka-init",
+                                             "otel-collector",
+                                             "postgres",
+                                             "prometheus",
+                                             "runtime-a",
+                                             "runtime-b",
+                                             "worker-a",
+                                             "worker-b"
+                                         ],
+                    "compose_volumes":  [
+                                            "kafka-data",
+                                            "postgres-data",
+                                            "prometheus-data"
+                                        ],
+                    "postgres":  "postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af",
+                    "resource_limits":  {
+                                            "postgres_memory_bytes":  0,
+                                            "postgres_nano_cpus":  0,
+                                            "postgres_pids_limit":  null
+                                        }
+                },
+    "database":  {
+                     "server_version":  "PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit",
+                     "data_checksums":  "on",
+                     "fsync":  "on",
+                     "synchronous_commit":  "on",
+                     "full_page_writes":  "on",
+                     "timezone":  "Etc/UTC",
+                     "now_utc":  "2026-09-18T17:02:06.376533"
+                 },
+    "validation":  {
+                       "dependency_smoke":  {
+                                                "command":  "powershell.exe -NoProfile -ExecutionPolicy Bypass -File D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\smoke.ps1",
+                                                "status":  "PASS",
+                                                "output_tail":  "----------------------------------------------------------------------------------------------------------------------------+-----------------+-----------------+-----------------+-----------------\n PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit | on              | on              | on              | on\n(1 row)\n\nPostgreSQL, Kafka, two runtimes, two workers, OpenTelemetry, and Prometheus are healthy; both runtimes are scraped."
+                                            },
+                       "normal_execution":  {
+                                                "command":  "go test ./internal/engine -run ^TestDUR036TelemetryReconstruction$ -count=1 -v",
+                                                "status":  "PASS",
+                                                "output":  "=== RUN   TestDUR036TelemetryReconstruction\r\n    m7_readiness_test.go:48: DUR036 normal workflow=dur007-a249c13d-b58a-4910-b8ed-0a5664850dfc state=SUCCEEDED telemetry={Role:dur036-readiness StartedUnix:1789750939 DurableReadyUnix:1789750940 LastAcceptedClaimUnix:1789750940 LeaseAcquires:1 LeaseRenews:3 FencedWrites:0 AcceptedClaims:1 AcceptedResults:1 ReconciliationItems:0 RelayPublications:0 RelayFailures:0 DBTransactions:15 DBQueries:44 WorkerActive:0 WorkerCompleted:1 QueryCount:44 QuerySeconds:0.2468527 LockWaitCount:2 LockWaitSeconds:0.0062832 BacklogAgeSeconds:0} invariant_valid=true\r\n    m7_readiness_test.go:80: DUR036 fault workflow=dur007-44d9653f-6fc1-4d6c-8657-f574963e81a5 boundary=result_recorded resumed_state=SUCCEEDED telemetry={Role:dur036-readiness StartedUnix:1789750939 DurableReadyUnix:1789750940 LastAcceptedClaimUnix:1789750940 LeaseAcquires:3 LeaseRenews:7 FencedWrites:0 AcceptedClaims:2 AcceptedResults:2 ReconciliationItems:0 RelayPublications:0 RelayFailures:0 DBTransactions:33 DBQueries:96 WorkerActive:0 WorkerCompleted:2 QueryCount:96 QuerySeconds:0.41722119999999985 LockWaitCount:5 LockWaitSeconds:0.0085095 BacklogAgeSeconds:0} invariant_valid=true\r\n--- PASS: TestDUR036TelemetryReconstruction (1.57s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t5.350s",
+                                                "telemetry_endpoint_before_status":  200,
+                                                "telemetry_endpoint_after_status":  200,
+                                                "telemetry_before":  "# HELP durable_runtime_up Whether the runtime process is up.\n# TYPE durable_runtime_up gauge\ndurable_runtime_up{role=\"scheduler-a\"} 1\n# HELP durable_runtime_started_timestamp_seconds Unix time when the runtime started.\n# TYPE durable_runtime_started_timestamp_seconds gauge\ndurable_runtime_started_timestamp_seconds{role=\"scheduler-a\"} 1789750902\n# HELP durable_runtime_durable_ready_timestamp_seconds Unix time when durable dependencies became ready.\n# TYPE durable_runtime_durable_ready_timestamp_seconds gauge\ndurable_runtime_durable_ready_timestamp_seconds{role=\"scheduler-a\"} 1789750926\n# HELP durable_runtime_last_accepted_claim_timestamp_seconds Unix time of the last accepted worker claim.\n# TYPE durable_runtime_last_accepted_claim_timestamp_seconds gauge\ndurable_runtime_last_accepted_claim_timestamp_seconds{role=\"scheduler-a\"} 0\n# HELP durable_scheduler_lease_acquisitions_total Accepted scheduler lease acquisitions.\n# TYPE durable_scheduler_lease_acquisitions_total counter\ndurable_scheduler_lease_acquisitions_total{role=\"scheduler-a\"} 0\n# HELP durable_scheduler_lease_renewals_total Scheduler lease renewals.\n# TYPE durable_scheduler_lease_renewals_total counter\ndurable_scheduler_lease_renewals_total{role=\"scheduler-a\"} 0\n# HELP durable_scheduler_fenced_writes_total Writes rejected by ownership fencing.\n# TYPE durable_scheduler_fenced_writes_total counter\ndurable_scheduler_fenced_writes_total{role=\"scheduler-a\"} 0\n# HELP durable_worker_claims_accepted_total Accepted worker claims.\n# TYPE durable_worker_claims_accepted_total counter\ndurable_worker_claims_accepted_total{role=\"scheduler-a\"} 0\n# HELP durable_worker_results_accepted_total Accepted worker results.\n# TYPE durable_worker_results_accepted_total counter\ndurable_worker_results_accepted_total{role=\"scheduler-a\"} 0\n# HELP durable_reconciliation_items_total Reconciliation obligations observed.\n# TYPE durable_reconciliation_items_total counter\ndurable_reconciliation_items_total{role=\"scheduler-a\"} 0\n# HELP durable_outbox_publications_total Outbox publications observed.\n# TYPE durable_outbox_publications_total counter\ndurable_outbox_publications_total{role=\"scheduler-a\"} 0\n# HELP durable_outbox_relay_failures_total Outbox relay failures observed.\n# TYPE durable_outbox_relay_failures_total counter\ndurable_outbox_relay_failures_total{role=\"scheduler-a\"} 0\n# HELP durable_db_transactions_total Database transactions observed.\n# TYPE durable_db_transactions_total counter\ndurable_db_transactions_total{role=\"scheduler-a\"} 24\n# HELP durable_db_queries_total Database queries observed.\n# TYPE durable_db_queries_total counter\ndurable_db_queries_total{role=\"scheduler-a\"} 24\n# HELP durable_worker_active Active worker executions.\n# TYPE durable_worker_active gauge\ndurable_worker_active{role=\"scheduler-a\"} 0\n# HELP durable_worker_completed_total Completed worker executions.\n# TYPE durable_worker_completed_total counter\ndurable_worker_completed_total{role=\"scheduler-a\"} 0\n# HELP durable_db_query_seconds_total Cumulative database query seconds.\n# TYPE durable_db_query_seconds_total counter\ndurable_db_query_seconds_total{role=\"scheduler-a\"} 0.03074952899999999\n# HELP durable_db_lock_wait_seconds_total Cumulative database lock-wait seconds.\n# TYPE durable_db_lock_wait_seconds_total counter\ndurable_db_lock_wait_seconds_total{role=\"scheduler-a\"} 0\n# HELP durable_db_lock_waits_total Database lock waits observed.\n# TYPE durable_db_lock_waits_total counter\ndurable_db_lock_waits_total{role=\"scheduler-a\"} 0\n# HELP durable_reconciliation_oldest_age_seconds Age of the oldest reconciliation obligation.\n# TYPE durable_reconciliation_oldest_age_seconds gauge\ndurable_reconciliation_oldest_age_seconds{role=\"scheduler-a\"} 0\n",
+                                                "telemetry_after":  "# HELP durable_runtime_up Whether the runtime process is up.\n# TYPE durable_runtime_up gauge\ndurable_runtime_up{role=\"scheduler-a\"} 1\n# HELP durable_runtime_started_timestamp_seconds Unix time when the runtime started.\n# TYPE durable_runtime_started_timestamp_seconds gauge\ndurable_runtime_started_timestamp_seconds{role=\"scheduler-a\"} 1789750902\n# HELP durable_runtime_durable_ready_timestamp_seconds Unix time when durable dependencies became ready.\n# TYPE durable_runtime_durable_ready_timestamp_seconds gauge\ndurable_runtime_durable_ready_timestamp_seconds{role=\"scheduler-a\"} 1789750940\n# HELP durable_runtime_last_accepted_claim_timestamp_seconds Unix time of the last accepted worker claim.\n# TYPE durable_runtime_last_accepted_claim_timestamp_seconds gauge\ndurable_runtime_last_accepted_claim_timestamp_seconds{role=\"scheduler-a\"} 0\n# HELP durable_scheduler_lease_acquisitions_total Accepted scheduler lease acquisitions.\n# TYPE durable_scheduler_lease_acquisitions_total counter\ndurable_scheduler_lease_acquisitions_total{role=\"scheduler-a\"} 0\n# HELP durable_scheduler_lease_renewals_total Scheduler lease renewals.\n# TYPE durable_scheduler_lease_renewals_total counter\ndurable_scheduler_lease_renewals_total{role=\"scheduler-a\"} 0\n# HELP durable_scheduler_fenced_writes_total Writes rejected by ownership fencing.\n# TYPE durable_scheduler_fenced_writes_total counter\ndurable_scheduler_fenced_writes_total{role=\"scheduler-a\"} 0\n# HELP durable_worker_claims_accepted_total Accepted worker claims.\n# TYPE durable_worker_claims_accepted_total counter\ndurable_worker_claims_accepted_total{role=\"scheduler-a\"} 0\n# HELP durable_worker_results_accepted_total Accepted worker results.\n# TYPE durable_worker_results_accepted_total counter\ndurable_worker_results_accepted_total{role=\"scheduler-a\"} 0\n# HELP durable_reconciliation_items_total Reconciliation obligations observed.\n# TYPE durable_reconciliation_items_total counter\ndurable_reconciliation_items_total{role=\"scheduler-a\"} 0\n# HELP durable_outbox_publications_total Outbox publications observed.\n# TYPE durable_outbox_publications_total counter\ndurable_outbox_publications_total{role=\"scheduler-a\"} 6\n# HELP durable_outbox_relay_failures_total Outbox relay failures observed.\n# TYPE durable_outbox_relay_failures_total counter\ndurable_outbox_relay_failures_total{role=\"scheduler-a\"} 0\n# HELP durable_db_transactions_total Database transactions observed.\n# TYPE durable_db_transactions_total counter\ndurable_db_transactions_total{role=\"scheduler-a\"} 54\n# HELP durable_db_queries_total Database queries observed.\n# TYPE durable_db_queries_total counter\ndurable_db_queries_total{role=\"scheduler-a\"} 54\n# HELP durable_worker_active Active worker executions.\n# TYPE durable_worker_active gauge\ndurable_worker_active{role=\"scheduler-a\"} 0\n# HELP durable_worker_completed_total Completed worker executions.\n# TYPE durable_worker_completed_total counter\ndurable_worker_completed_total{role=\"scheduler-a\"} 0\n# HELP durable_db_query_seconds_total Cumulative database query seconds.\n# TYPE durable_db_query_seconds_total counter\ndurable_db_query_seconds_total{role=\"scheduler-a\"} 0.08377353800000001\n# HELP durable_db_lock_wait_seconds_total Cumulative database lock-wait seconds.\n# TYPE durable_db_lock_wait_seconds_total counter\ndurable_db_lock_wait_seconds_total{role=\"scheduler-a\"} 0\n# HELP durable_db_lock_waits_total Database lock waits observed.\n# TYPE durable_db_lock_waits_total counter\ndurable_db_lock_waits_total{role=\"scheduler-a\"} 0\n# HELP durable_reconciliation_oldest_age_seconds Age of the oldest reconciliation obligation.\n# TYPE durable_reconciliation_oldest_age_seconds gauge\ndurable_reconciliation_oldest_age_seconds{role=\"scheduler-a\"} 0\n"
+                                            },
+                       "fault_episode":  {
+                                             "command":  "go test ./internal/engine -run ^TestDUR036TelemetryReconstruction$ -count=1 -v",
+                                             "status":  "PASS",
+                                             "output":  "=== RUN   TestDUR036TelemetryReconstruction\r\n    m7_readiness_test.go:48: DUR036 normal workflow=dur007-a249c13d-b58a-4910-b8ed-0a5664850dfc state=SUCCEEDED telemetry={Role:dur036-readiness StartedUnix:1789750939 DurableReadyUnix:1789750940 LastAcceptedClaimUnix:1789750940 LeaseAcquires:1 LeaseRenews:3 FencedWrites:0 AcceptedClaims:1 AcceptedResults:1 ReconciliationItems:0 RelayPublications:0 RelayFailures:0 DBTransactions:15 DBQueries:44 WorkerActive:0 WorkerCompleted:1 QueryCount:44 QuerySeconds:0.2468527 LockWaitCount:2 LockWaitSeconds:0.0062832 BacklogAgeSeconds:0} invariant_valid=true\r\n    m7_readiness_test.go:80: DUR036 fault workflow=dur007-44d9653f-6fc1-4d6c-8657-f574963e81a5 boundary=result_recorded resumed_state=SUCCEEDED telemetry={Role:dur036-readiness StartedUnix:1789750939 DurableReadyUnix:1789750940 LastAcceptedClaimUnix:1789750940 LeaseAcquires:3 LeaseRenews:7 FencedWrites:0 AcceptedClaims:2 AcceptedResults:2 ReconciliationItems:0 RelayPublications:0 RelayFailures:0 DBTransactions:33 DBQueries:96 WorkerActive:0 WorkerCompleted:2 QueryCount:96 QuerySeconds:0.41722119999999985 LockWaitCount:5 LockWaitSeconds:0.0085095 BacklogAgeSeconds:0} invariant_valid=true\r\n--- PASS: TestDUR036TelemetryReconstruction (1.57s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t5.350s",
+                                             "checker_command":  "go run ./cmd/fault-checker -offline -trace experiments/m5/traces/F07-crash-resume-seed11.jsonl -durable-trace experiments/m5/durable/F07-crash-resume-seed11.json",
+                                             "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
+                                             "trace":  "experiments/m5/traces/F07-crash-resume-seed11.jsonl",
+                                             "durable_snapshot":  "experiments/m5/durable/F07-crash-resume-seed11.json"
+                                         }
+                   },
+    "assumptions":  [
+                        "All host and container timestamps are recorded as UTC where available; PostgreSQL reports its configured TimeZone separately.",
+                        "Docker Desktop\u0027s Linux WSL2 VM and its Docker-managed local volumes are the declared DUR-036 measurement host and storage boundary.",
+                        "No paid resources or live model providers are used by readiness; cost control is not applicable.",
+                        "The readiness smoke is development evidence on Docker Desktop/WSL2; final I/O-sensitive claims remain subject to the host and protocol limits in PLAN.md."
+                    ]
+}

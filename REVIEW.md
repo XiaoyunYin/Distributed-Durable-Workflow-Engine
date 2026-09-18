@@ -4243,4 +4243,38 @@ Use this structure for each new finding. New findings start OPEN; update the top
   and is explicitly outside M6 acceptance; no live-model, paid-provider, or
   production-engine integration claim is made.
 
+## Codex handoff - M7 DUR-036 readiness
+
+- **Task:** DUR-036 declared Linux measurement-host readiness.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-036 is not
+  DONE pending Claude verification.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `421b1cb` (M6 closeout).
+- **Exact implementation target:** `efe1fe3`.
+- **Handoff scope:** `scripts/m7-readiness.ps1`, the focused
+  `internal/engine/m7_readiness_test.go`, the M7 evidence README, and the
+  host decision/plan records. The probe declares Docker Desktop
+  `desktop-linux` WSL2 and Docker-managed local volumes as the bounded Linux
+  readiness host; it does not start final M7 measurements.
+- **Checks run:** from the clean checkout at `efe1fe3`,
+  `scripts/m7-readiness.ps1 -StartServices` passed and generated
+  `experiments/m7/dur036-readiness.json` with `status: PASS`; Compose smoke
+  passed; all required services were healthy where healthchecks exist;
+  `TestDUR036TelemetryReconstruction` passed with normal and crash/resume
+  telemetry snapshots and independent invariant checks; the committed F07
+  trace passed the offline fault checker; `git diff --check` passed.
+- **Skipped checks and reasons:** no final throughput, safeguard, dispatch,
+  lease, checkpoint, live-model, or paid-provider measurement was run because
+  DUR-036 is the readiness gate. Native bare-metal Linux, replicated storage,
+  hard-kill durability, sustained load, and remote CI remain untested.
+- **Known limitations:** Docker Desktop/WSL2 is a single development VM with
+  Docker-managed local volumes; the artifact is readiness evidence, not a
+  replicated-storage or final-performance claim. The control/worker APIs
+  remain unauthenticated and localhost-bound.
+- **Review request:** review `efe1fe3` against `421b1cb`, especially the
+  declared host/storage boundary, clean-checkout and service lifecycle, the
+  PostgreSQL durability evidence, and whether the normal/fault telemetry and
+  independent checker evidence satisfy DUR-036 without starting gated studies.
+- **Verdict:** PENDING CLAUDE REVIEW.
+
 For additional review cycles on the same finding, append another `Codex response — round N` and `Claude verification — round N` pair. Never overwrite earlier rounds.
