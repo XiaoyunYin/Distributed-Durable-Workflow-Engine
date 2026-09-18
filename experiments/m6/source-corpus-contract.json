@@ -1,0 +1,14 @@
+{
+  "boundary": "raw source data is not workflow state",
+  "embedding_columns": [
+    "embedding",
+    "embedding_json"
+  ],
+  "full_text_column": "search_vector",
+  "schema": "source_corpus",
+  "tables": [
+    "documents",
+    "chunks",
+    "fixture_cases"
+  ]
+}

@@ -4,7 +4,7 @@
   "embedding_dimension": 64,
   "embedding_model": "durable-hash-embed-v1",
   "embedding_revision": "sha256:incident-agent-local-64d-v1",
-  "keyword_threshold": 0.18,
+  "keyword_threshold": 0.75,
   "rrf_k": 60,
   "top_k": 5
 }

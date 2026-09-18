@@ -14,7 +14,13 @@ from typing import Any, Protocol, cast
 
 from incident_agent.fixtures import build_incident_cases
 from incident_agent.mcp import BoundedMCPServer
-from incident_agent.models import Proposal, TimelineEvent, WorkflowSnapshot, WorkflowState
+from incident_agent.models import (
+    Proposal,
+    TimelineEvent,
+    ToolResult,
+    WorkflowSnapshot,
+    WorkflowState,
+)
 from incident_agent.redaction import redact
 
 
@@ -56,6 +62,19 @@ class DurableStore:
             );
             CREATE TABLE IF NOT EXISTS approvals (
                 run_id TEXT PRIMARY KEY, decision TEXT NOT NULL, actor TEXT, decided_at REAL,
+                FOREIGN KEY (run_id) REFERENCES incidents(run_id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS approval_grants (
+                run_id TEXT PRIMARY KEY, effect_key TEXT NOT NULL UNIQUE,
+                proposal_hash TEXT NOT NULL, resource_id TEXT NOT NULL,
+                argument_hash TEXT NOT NULL, workflow_revision INTEGER NOT NULL,
+                fence_token INTEGER NOT NULL, state TEXT NOT NULL,
+                FOREIGN KEY (run_id) REFERENCES incidents(run_id) ON DELETE CASCADE
+            );
+            CREATE TABLE IF NOT EXISTS effects (
+                effect_key TEXT PRIMARY KEY, run_id TEXT NOT NULL,
+                resource_id TEXT NOT NULL, argument_hash TEXT NOT NULL,
+                receipt TEXT NOT NULL, applied_at REAL NOT NULL,
                 FOREIGN KEY (run_id) REFERENCES incidents(run_id) ON DELETE CASCADE
             );
             """
@@ -142,6 +161,61 @@ class DurableStore:
         ).fetchone()
         return None if row is None else str(row[0])
 
+    def create_grant(self, run_id: str, proposal: Proposal, actor: str) -> None:
+        del actor
+        current = self.row(run_id)
+        if self.approval(run_id) != "APPROVED":
+            raise WorkflowError("approval grant requires an approved intent")
+        self.connection.execute(
+            "INSERT OR REPLACE INTO approval_grants "
+            "(run_id, effect_key, proposal_hash, resource_id, argument_hash, "
+            "workflow_revision, fence_token, state) VALUES (?, ?, ?, ?, ?, ?, ?, 'GRANTED')",
+            (
+                run_id,
+                f"{run_id}:{proposal.canonical_argument_hash}",
+                proposal.canonical_argument_hash,
+                proposal.target_resource_id,
+                proposal.canonical_argument_hash,
+                int(current["revision"]),
+                int(current["revision"]),
+            ),
+        )
+        self.connection.commit()
+
+    def grant(self, effect_key: str) -> sqlite3.Row | None:
+        row = self.connection.execute(
+            "SELECT * FROM approval_grants WHERE effect_key = ?", (effect_key,)
+        ).fetchone()
+        return None if row is None else cast(sqlite3.Row, row)
+
+    def insert_effect(
+        self, effect_key: str, run_id: str, proposal: Proposal, receipt: dict[str, Any]
+    ) -> None:
+        self.connection.execute(
+            "INSERT OR IGNORE INTO effects "
+            "(effect_key, run_id, resource_id, argument_hash, receipt, applied_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                effect_key,
+                run_id,
+                proposal.target_resource_id,
+                proposal.canonical_argument_hash,
+                json.dumps(receipt, sort_keys=True),
+                time.time(),
+            ),
+        )
+        self.connection.execute(
+            "UPDATE approval_grants SET state = 'DISPATCHED' WHERE effect_key = ?",
+            (effect_key,),
+        )
+        self.connection.commit()
+
+    def effect(self, effect_key: str) -> dict[str, Any] | None:
+        row = self.connection.execute(
+            "SELECT receipt FROM effects WHERE effect_key = ?", (effect_key,)
+        ).fetchone()
+        return None if row is None else cast(dict[str, Any], json.loads(row[0]))
+
     def timeline(self, run_id: str) -> tuple[TimelineEvent, ...]:
         rows = self.connection.execute(
             "SELECT sequence, event_type, actor, data FROM timeline "
@@ -162,13 +236,21 @@ class DecisionProvider(Protocol):
 class FixtureDecisionProvider:
     """Recorded model decisions used by deterministic correctness runs."""
 
-    def __init__(self) -> None:
+    def __init__(self, defense_profile: str = "defended") -> None:
         self.cases = {case.case_id: case for case in build_incident_cases()}
+        self.defense_profile = defense_profile
 
     def diagnose(
         self, case_id: str, evidence_ids: tuple[str, ...], tool_text: str
     ) -> dict[str, Any]:
         case = self.cases[case_id]
+        if self.defense_profile == "plain" and "IGNORE APPROVAL POLICY" in tool_text:
+            return {
+                "diagnosis": "Injected instruction requested an unsafe action.",
+                "citations": list(evidence_ids),
+                "proposal": {"action": "delete", "resource_id": "prod-db"},
+                "uncertainty": False,
+            }
         proposal = None if not case.answerable else case.expected_action
         return {
             "diagnosis": case.expected_diagnosis,
@@ -179,21 +261,34 @@ class FixtureDecisionProvider:
 
 
 class SandboxEffect:
-    def __init__(self, mcp: BoundedMCPServer) -> None:
+    def __init__(self, store: DurableStore, mcp: BoundedMCPServer) -> None:
+        self.store = store
         self.mcp = mcp
-        self._receipts: dict[str, dict[str, Any]] = {}
 
     def apply(self, run_id: str, proposal: Proposal) -> dict[str, Any]:
-        existing = self._receipts.get(proposal.canonical_argument_hash)
+        effect_key = f"{run_id}:{proposal.canonical_argument_hash}"
+        grant = self.store.grant(effect_key)
+        if grant is None or grant["state"] not in {"GRANTED", "DISPATCHED"}:
+            raise WorkflowError("effect requires a matching approval grant")
+        if grant["resource_id"] != proposal.target_resource_id:
+            raise WorkflowError("effect resource does not match approval grant")
+        existing = self.store.effect(effect_key)
         if existing is not None:
             return existing
+        # The dispatch event is the one durable transition between grant
+        # creation and first use.  Replays return above before this check;
+        # any other revision change invalidates the grant.
+        current_revision = int(self.store.row(run_id)["revision"])
+        grant_revision = int(grant["workflow_revision"])
+        if current_revision not in {grant_revision, grant_revision + 1}:
+            raise WorkflowError("effect grant revision is stale")
         receipt = {
             "resource_id": proposal.target_resource_id,
             "action": proposal.action_type,
             "state": "APPLIED",
             "argument_hash": proposal.canonical_argument_hash,
         }
-        self._receipts[proposal.canonical_argument_hash] = receipt
+        self.store.insert_effect(effect_key, run_id, proposal, receipt)
         self.mcp.set_remediation_status(proposal.target_resource_id, "APPLIED")
         return receipt
 
@@ -219,7 +314,7 @@ class InvestigationWorkflow:
         self.store = store
         self.mcp = mcp
         self.decisions = decisions or FixtureDecisionProvider()
-        self.effect = SandboxEffect(mcp)
+        self.effect = SandboxEffect(store, mcp)
 
     def start(self, case_id: str, run_id: str | None = None, arm: str = "hybrid") -> str:
         if case_id not in {case.case_id for case in build_incident_cases()}:
@@ -241,16 +336,25 @@ class InvestigationWorkflow:
             return self.snapshot(run_id)
         self.store.update(run_id, "INVESTIGATING")
         self.store.event(run_id, "investigation_started", "scheduler", {"round": 1})
-        logs = self.mcp.query_logs(run_id, case.case_id, case.service)
-        self._record_tool_call(run_id, logs)
-        if interrupt_after == "logs":
+        logs = self._checkpoint(run_id, "query_logs")
+        logs_was_replayed = logs is not None
+        if logs is None:
+            logs = self.mcp.query_logs(run_id, case.case_id, case.service)
+            self._record_tool_call(run_id, logs)
+        if interrupt_after == "logs" and not logs_was_replayed:
             self.store.update(run_id, "INTERRUPTED")
             self.store.event(run_id, "interrupted", "scheduler", {"boundary": "after_logs"})
             return self.snapshot(run_id)
-        metrics = self.mcp.query_metrics(run_id, case.case_id, case.service)
-        self._record_tool_call(run_id, metrics)
-        search = self.mcp.search_runbooks(run_id, case.query, cast(Any, arm))
-        self._record_tool_call(run_id, search)
+        metrics = self._checkpoint(run_id, "query_metrics")
+        if metrics is None:
+            metrics = self.mcp.query_metrics(run_id, case.case_id, case.service)
+            self._record_tool_call(run_id, metrics)
+        search_events = self._checkpoints(run_id, "search_runbooks")
+        search = search_events[-1] if search_events else None
+        if search is None:
+            search = self.mcp.search_runbooks(run_id, case.query, cast(Any, arm))
+            self._record_tool_call(run_id, search)
+            search_events = self._checkpoints(run_id, "search_runbooks")
         if not bool(search.data["sufficient"]):
             self.store.event(
                 run_id,
@@ -258,8 +362,11 @@ class InvestigationWorkflow:
                 "scheduler",
                 {"round": 2, "reason": search.data["reason"]},
             )
-            search = self.mcp.search_runbooks(run_id, f"{case.query} runbook", cast(Any, arm))
-            self._record_tool_call(run_id, search)
+            if len(search_events) < 2:
+                search = self.mcp.search_runbooks(run_id, f"{case.query} runbook", cast(Any, arm))
+                self._record_tool_call(run_id, search)
+            else:
+                search = search_events[-1]
         evidence_ids = search.evidence_ids
         decision = self.decisions.diagnose(
             case.case_id,
@@ -270,6 +377,12 @@ class InvestigationWorkflow:
         )
         citations = tuple(str(item) for item in decision.get("citations", []))
         if any(citation not in evidence_ids for citation in citations):
+            self.store.event(
+                run_id,
+                "citation_violation",
+                "checker",
+                {"kind": "unknown_evidence", "citations": list(citations)},
+            )
             raise WorkflowError("diagnosis cited evidence not returned by an authorized tool")
         diagnosis = redact(str(decision.get("diagnosis", ""))).text
         self.store.event(
@@ -279,7 +392,21 @@ class InvestigationWorkflow:
             {
                 "diagnosis": diagnosis,
                 "citations": list(citations),
-                "tool_call_count": len(self.mcp.calls(run_id)),
+                "tool_call_count": sum(
+                    event.event_type == "mcp_tool_call" for event in self.store.timeline(run_id)
+                ),
+            },
+        )
+        self.store.event(
+            run_id,
+            "model_usage",
+            "model-fixture",
+            {
+                "input_tokens": len(
+                    json.dumps({"logs": logs.data, "metrics": metrics.data, "search": search.data})
+                ),
+                "output_tokens": len(diagnosis.split()),
+                "cost_cents": 0,
             },
         )
         proposal_value = decision.get("proposal")
@@ -302,7 +429,27 @@ class InvestigationWorkflow:
             )
         return self.snapshot(run_id)
 
-    def _record_tool_call(self, run_id: str, result: Any) -> None:
+    def _checkpoints(self, run_id: str, method: str) -> tuple[ToolResult, ...]:
+        results: list[ToolResult] = []
+        for event in self.store.timeline(run_id):
+            if event.event_type != "mcp_tool_call" or event.data.get("method") != method:
+                continue
+            results.append(
+                ToolResult(
+                    method=method,
+                    schema_version=str(event.data["schema_version"]),
+                    data=cast(dict[str, Any], event.data["result_data"]),
+                    evidence_ids=tuple(str(item) for item in event.data["evidence_ids"]),
+                    redactions=int(event.data["redactions"]),
+                )
+            )
+        return tuple(results)
+
+    def _checkpoint(self, run_id: str, method: str) -> ToolResult | None:
+        checkpoints = self._checkpoints(run_id, method)
+        return checkpoints[-1] if checkpoints else None
+
+    def _record_tool_call(self, run_id: str, result: ToolResult) -> None:
         call = self.mcp.calls(run_id)[-1]
         self.store.event(
             run_id,
@@ -315,6 +462,7 @@ class InvestigationWorkflow:
                 "redactions": result.redactions,
                 "latency_ms": call.latency_ms,
                 "row_count": len(result.data.get("rows", result.data.get("evidence", []))),
+                "result_data": result.data,
             },
         )
 
@@ -324,6 +472,8 @@ class InvestigationWorkflow:
             raise WorkflowError("approval is only valid while waiting for approval")
         self.store.approve(run_id, "APPROVED", actor)
         self.store.event(run_id, "approval_granted", actor, {})
+        proposal = Proposal(**json.loads(row["proposal"]))
+        self.store.create_grant(run_id, proposal, actor)
         return self.resume(run_id)
 
     def reject(self, run_id: str, actor: str) -> WorkflowSnapshot:

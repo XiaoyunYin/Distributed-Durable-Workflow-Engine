@@ -42,6 +42,22 @@
       ],
       "metric": "durable_incident_latency_seconds",
       "title": "Model and tool latency"
+    },
+    {
+      "group_by": [
+        "role",
+        "component"
+      ],
+      "metric": "durable_incident_tokens_total",
+      "title": "Model tokens"
+    },
+    {
+      "group_by": [
+        "role",
+        "component"
+      ],
+      "metric": "durable_incident_cost_cents_total",
+      "title": "Model cost"
     }
   ],
   "schema": "incident-dashboard.v1"

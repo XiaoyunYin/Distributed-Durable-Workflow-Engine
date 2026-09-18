@@ -2,5 +2,671 @@
   "cases": 20,
   "failed": [],
   "passed": 20,
-  "schema": "dur-033-continuity.v1"
+  "rows": [
+    {
+      "case_id": "hel-bad_-03",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The checkout deployment is using a bad configuration revision.",
+        [
+          "doc-01-01-chunk-01",
+          "doc-01-03-chunk-02",
+          "doc-01-01-chunk-02",
+          "doc-01-09-chunk-02",
+          "doc-01-02-chunk-01"
+        ],
+        [
+          "rollback",
+          "incident-resource",
+          "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 2,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The checkout deployment is using a bad configuration revision.",
+        [
+          "doc-01-01-chunk-01",
+          "doc-01-03-chunk-02",
+          "doc-01-01-chunk-02",
+          "doc-01-09-chunk-02",
+          "doc-01-02-chunk-01"
+        ],
+        [
+          "rollback",
+          "incident-resource",
+          "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 3
+    },
+    {
+      "case_id": "hel-bad_-04",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The checkout deployment is using a bad configuration revision.",
+        [
+          "doc-01-01-chunk-01",
+          "doc-01-03-chunk-02",
+          "doc-01-01-chunk-02",
+          "doc-01-09-chunk-02",
+          "doc-01-02-chunk-01"
+        ],
+        [
+          "rollback",
+          "incident-resource",
+          "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 2,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The checkout deployment is using a bad configuration revision.",
+        [
+          "doc-01-01-chunk-01",
+          "doc-01-03-chunk-02",
+          "doc-01-01-chunk-02",
+          "doc-01-09-chunk-02",
+          "doc-01-02-chunk-01"
+        ],
+        [
+          "rollback",
+          "incident-resource",
+          "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 3
+    },
+    {
+      "case_id": "hel-bad_-05",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The checkout deployment is using a bad configuration revision.",
+        [
+          "doc-01-01-chunk-01",
+          "doc-01-03-chunk-02",
+          "doc-01-01-chunk-02",
+          "doc-01-09-chunk-02",
+          "doc-01-02-chunk-01"
+        ],
+        [
+          "rollback",
+          "incident-resource",
+          "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 2,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The checkout deployment is using a bad configuration revision.",
+        [
+          "doc-01-01-chunk-01",
+          "doc-01-03-chunk-02",
+          "doc-01-01-chunk-02",
+          "doc-01-09-chunk-02",
+          "doc-01-02-chunk-01"
+        ],
+        [
+          "rollback",
+          "incident-resource",
+          "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 3
+    },
+    {
+      "case_id": "hel-bad_-06",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The checkout deployment is using a bad configuration revision.",
+        [
+          "doc-01-01-chunk-01",
+          "doc-01-03-chunk-02",
+          "doc-01-01-chunk-02",
+          "doc-01-09-chunk-02",
+          "doc-01-02-chunk-01"
+        ],
+        [
+          "rollback",
+          "incident-resource",
+          "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 2,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The checkout deployment is using a bad configuration revision.",
+        [
+          "doc-01-01-chunk-01",
+          "doc-01-03-chunk-02",
+          "doc-01-01-chunk-02",
+          "doc-01-09-chunk-02",
+          "doc-01-02-chunk-01"
+        ],
+        [
+          "rollback",
+          "incident-resource",
+          "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 3
+    },
+    {
+      "case_id": "hel-conn-03",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The payments service is exhausting its database connection pool.",
+        [],
+        [
+          "restart_pool",
+          "incident-resource",
+          "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The payments service is exhausting its database connection pool.",
+        [],
+        [
+          "restart_pool",
+          "incident-resource",
+          "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-conn-04",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The payments service is exhausting its database connection pool.",
+        [],
+        [
+          "restart_pool",
+          "incident-resource",
+          "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The payments service is exhausting its database connection pool.",
+        [],
+        [
+          "restart_pool",
+          "incident-resource",
+          "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-conn-05",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The payments service is exhausting its database connection pool.",
+        [],
+        [
+          "restart_pool",
+          "incident-resource",
+          "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The payments service is exhausting its database connection pool.",
+        [],
+        [
+          "restart_pool",
+          "incident-resource",
+          "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-conn-06",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The payments service is exhausting its database connection pool.",
+        [],
+        [
+          "restart_pool",
+          "incident-resource",
+          "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The payments service is exhausting its database connection pool.",
+        [],
+        [
+          "restart_pool",
+          "incident-resource",
+          "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-down-03",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The catalog dependency is exceeding the request deadline.",
+        [],
+        [
+          "enable_circuit_breaker",
+          "catalog",
+          "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The catalog dependency is exceeding the request deadline.",
+        [],
+        [
+          "enable_circuit_breaker",
+          "catalog",
+          "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-down-04",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The catalog dependency is exceeding the request deadline.",
+        [],
+        [
+          "enable_circuit_breaker",
+          "catalog",
+          "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The catalog dependency is exceeding the request deadline.",
+        [],
+        [
+          "enable_circuit_breaker",
+          "catalog",
+          "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-down-05",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The catalog dependency is exceeding the request deadline.",
+        [],
+        [
+          "enable_circuit_breaker",
+          "catalog",
+          "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The catalog dependency is exceeding the request deadline.",
+        [],
+        [
+          "enable_circuit_breaker",
+          "catalog",
+          "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-down-06",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The catalog dependency is exceeding the request deadline.",
+        [],
+        [
+          "enable_circuit_breaker",
+          "catalog",
+          "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The catalog dependency is exceeding the request deadline.",
+        [],
+        [
+          "enable_circuit_breaker",
+          "catalog",
+          "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-disk-03",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The search volume is under disk pressure and needs retention relief.",
+        [
+          "doc-04-01-chunk-02",
+          "doc-04-03-chunk-02",
+          "doc-04-05-chunk-02",
+          "doc-04-01-chunk-03",
+          "doc-04-09-chunk-02"
+        ],
+        [
+          "compact_volume",
+          "search",
+          "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The search volume is under disk pressure and needs retention relief.",
+        [
+          "doc-04-01-chunk-02",
+          "doc-04-03-chunk-02",
+          "doc-04-05-chunk-02",
+          "doc-04-01-chunk-03",
+          "doc-04-09-chunk-02"
+        ],
+        [
+          "compact_volume",
+          "search",
+          "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-disk-04",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The search volume is under disk pressure and needs retention relief.",
+        [
+          "doc-04-01-chunk-02",
+          "doc-04-03-chunk-02",
+          "doc-04-05-chunk-02",
+          "doc-04-01-chunk-03",
+          "doc-04-09-chunk-02"
+        ],
+        [
+          "compact_volume",
+          "search",
+          "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The search volume is under disk pressure and needs retention relief.",
+        [
+          "doc-04-01-chunk-02",
+          "doc-04-03-chunk-02",
+          "doc-04-05-chunk-02",
+          "doc-04-01-chunk-03",
+          "doc-04-09-chunk-02"
+        ],
+        [
+          "compact_volume",
+          "search",
+          "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-disk-05",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The search volume is under disk pressure and needs retention relief.",
+        [
+          "doc-04-01-chunk-02",
+          "doc-04-03-chunk-02",
+          "doc-04-05-chunk-02",
+          "doc-04-01-chunk-03",
+          "doc-04-09-chunk-02"
+        ],
+        [
+          "compact_volume",
+          "search",
+          "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The search volume is under disk pressure and needs retention relief.",
+        [
+          "doc-04-01-chunk-02",
+          "doc-04-03-chunk-02",
+          "doc-04-05-chunk-02",
+          "doc-04-01-chunk-03",
+          "doc-04-09-chunk-02"
+        ],
+        [
+          "compact_volume",
+          "search",
+          "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-disk-06",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "COMPLETED",
+        "The search volume is under disk pressure and needs retention relief.",
+        [
+          "doc-04-01-chunk-02",
+          "doc-04-03-chunk-02",
+          "doc-04-05-chunk-02",
+          "doc-04-01-chunk-03",
+          "doc-04-09-chunk-02"
+        ],
+        [
+          "compact_volume",
+          "search",
+          "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+        ],
+        "APPLIED"
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "COMPLETED",
+        "The search volume is under disk pressure and needs retention relief.",
+        [
+          "doc-04-01-chunk-02",
+          "doc-04-03-chunk-02",
+          "doc-04-05-chunk-02",
+          "doc-04-01-chunk-03",
+          "doc-04-09-chunk-02"
+        ],
+        [
+          "compact_volume",
+          "search",
+          "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+        ],
+        "APPLIED"
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-insu-03",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "ABSTAINED",
+        "Evidence is insufficient to justify a remediation action.",
+        [],
+        null,
+        null
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "ABSTAINED",
+        "Evidence is insufficient to justify a remediation action.",
+        [],
+        null,
+        null
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-insu-04",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "ABSTAINED",
+        "Evidence is insufficient to justify a remediation action.",
+        [],
+        null,
+        null
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "ABSTAINED",
+        "Evidence is insufficient to justify a remediation action.",
+        [],
+        null,
+        null
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-insu-05",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "ABSTAINED",
+        "Evidence is insufficient to justify a remediation action.",
+        [],
+        null,
+        null
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "ABSTAINED",
+        "Evidence is insufficient to justify a remediation action.",
+        [],
+        null,
+        null
+      ],
+      "uninterrupted_mcp_calls": 4
+    },
+    {
+      "case_id": "hel-insu-06",
+      "checkpoint_replayed": true,
+      "interrupted": [
+        "ABSTAINED",
+        "Evidence is insufficient to justify a remediation action.",
+        [],
+        null,
+        null
+      ],
+      "interrupted_mcp_calls_after_restart": 3,
+      "passed": true,
+      "timeline_tool_calls_equal": true,
+      "uninterrupted": [
+        "ABSTAINED",
+        "Evidence is insufficient to justify a remediation action.",
+        [],
+        null,
+        null
+      ],
+      "uninterrupted_mcp_calls": 4
+    }
+  ],
+  "schema": "dur-033-continuity.v2"
 }

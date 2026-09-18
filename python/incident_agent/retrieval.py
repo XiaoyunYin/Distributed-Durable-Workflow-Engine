@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import math
 import re
 import time
 from collections.abc import Iterable
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, cast
 
 from incident_agent.models import EvidenceChunk, RetrievalArm, RetrievalHit, RetrievalResponse
@@ -22,9 +23,13 @@ class RetrievalConfig:
     embedding_revision: str = "sha256:incident-agent-local-64d-v1"
     embedding_dimension: int = 64
     top_k: int = 5
-    keyword_threshold: float = 0.18
+    keyword_threshold: float = 0.75
     dense_threshold: float = 0.45
     rrf_k: int = 60
+
+    def fingerprint(self) -> str:
+        payload = json.dumps(asdict(self), sort_keys=True, separators=(",", ":"))
+        return "sha256:" + hashlib.sha256(payload.encode()).hexdigest()
 
 
 def _tokens(value: str) -> tuple[str, ...]:

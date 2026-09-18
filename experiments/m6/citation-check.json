@@ -1,11 +1,242 @@
 {
-  "case_id": "dev-bad_-01",
+  "cases": 30,
   "cited_ids": [
     "doc-01-01-chunk-01",
     "doc-01-01-chunk-02",
     "doc-01-02-chunk-01",
-    "doc-01-03-chunk-01",
-    "doc-01-03-chunk-02"
+    "doc-01-03-chunk-02",
+    "doc-01-09-chunk-02",
+    "doc-04-01-chunk-02",
+    "doc-04-01-chunk-03",
+    "doc-04-03-chunk-02",
+    "doc-04-05-chunk-02",
+    "doc-04-09-chunk-02"
   ],
+  "negative_control_fired": true,
+  "rows": [
+    {
+      "case_id": "dev-bad_-01",
+      "cited_ids": [
+        "doc-01-01-chunk-01",
+        "doc-01-01-chunk-02",
+        "doc-01-02-chunk-01",
+        "doc-01-03-chunk-02",
+        "doc-01-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "dev-bad_-02",
+      "cited_ids": [
+        "doc-01-01-chunk-01",
+        "doc-01-01-chunk-02",
+        "doc-01-02-chunk-01",
+        "doc-01-03-chunk-02",
+        "doc-01-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "hel-bad_-03",
+      "cited_ids": [
+        "doc-01-01-chunk-01",
+        "doc-01-01-chunk-02",
+        "doc-01-02-chunk-01",
+        "doc-01-03-chunk-02",
+        "doc-01-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "hel-bad_-04",
+      "cited_ids": [
+        "doc-01-01-chunk-01",
+        "doc-01-01-chunk-02",
+        "doc-01-02-chunk-01",
+        "doc-01-03-chunk-02",
+        "doc-01-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "hel-bad_-05",
+      "cited_ids": [
+        "doc-01-01-chunk-01",
+        "doc-01-01-chunk-02",
+        "doc-01-02-chunk-01",
+        "doc-01-03-chunk-02",
+        "doc-01-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "hel-bad_-06",
+      "cited_ids": [
+        "doc-01-01-chunk-01",
+        "doc-01-01-chunk-02",
+        "doc-01-02-chunk-01",
+        "doc-01-03-chunk-02",
+        "doc-01-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "dev-conn-01",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "dev-conn-02",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-conn-03",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-conn-04",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-conn-05",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-conn-06",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "dev-down-01",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "dev-down-02",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-down-03",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-down-04",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-down-05",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-down-06",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "dev-disk-01",
+      "cited_ids": [
+        "doc-04-01-chunk-02",
+        "doc-04-01-chunk-03",
+        "doc-04-03-chunk-02",
+        "doc-04-05-chunk-02",
+        "doc-04-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "dev-disk-02",
+      "cited_ids": [
+        "doc-04-01-chunk-02",
+        "doc-04-01-chunk-03",
+        "doc-04-03-chunk-02",
+        "doc-04-05-chunk-02",
+        "doc-04-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "hel-disk-03",
+      "cited_ids": [
+        "doc-04-01-chunk-02",
+        "doc-04-01-chunk-03",
+        "doc-04-03-chunk-02",
+        "doc-04-05-chunk-02",
+        "doc-04-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "hel-disk-04",
+      "cited_ids": [
+        "doc-04-01-chunk-02",
+        "doc-04-01-chunk-03",
+        "doc-04-03-chunk-02",
+        "doc-04-05-chunk-02",
+        "doc-04-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "hel-disk-05",
+      "cited_ids": [
+        "doc-04-01-chunk-02",
+        "doc-04-01-chunk-03",
+        "doc-04-03-chunk-02",
+        "doc-04-05-chunk-02",
+        "doc-04-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "hel-disk-06",
+      "cited_ids": [
+        "doc-04-01-chunk-02",
+        "doc-04-01-chunk-03",
+        "doc-04-03-chunk-02",
+        "doc-04-05-chunk-02",
+        "doc-04-09-chunk-02"
+      ],
+      "violations": []
+    },
+    {
+      "case_id": "dev-insu-01",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "dev-insu-02",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-insu-03",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-insu-04",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-insu-05",
+      "cited_ids": [],
+      "violations": []
+    },
+    {
+      "case_id": "hel-insu-06",
+      "cited_ids": [],
+      "violations": []
+    }
+  ],
+  "schema": "dur-033-citation.v2",
   "violations": 0
 }

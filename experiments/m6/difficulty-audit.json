@@ -1,32 +1,17 @@
 {
-  "criteria": {
-    "minimum_chunks": 300,
-    "minimum_development_queries": 40,
-    "minimum_documents": 60,
-    "minimum_heldout_queries": 120,
-    "near_duplicate_distractors": true,
-    "no_answer_fraction": 0.25
-  },
+  "arm_disagreement_fraction": 0.75625,
   "development_only": true,
+  "development_queries": 40,
+  "distinct_query_strings": 160,
   "frozen_before_heldout": true,
-  "observed": {
-    "chunks": 300,
-    "development_cases": 10,
-    "development_queries": 40,
-    "documents": 60,
-    "families": [
-      "bad_configuration",
-      "connection_pool",
-      "downstream_latency",
-      "disk_pressure",
-      "insufficient_evidence"
-    ],
-    "heldout_cases": 20,
-    "heldout_queries": 120,
-    "incident_cases": 30,
-    "no_answer_development_queries": 10,
-    "no_answer_heldout_queries": 30,
-    "schema": "incident-fixtures.v1"
-  },
-  "schema": "dur-019-difficulty-audit.v1"
+  "heldout_config_fingerprint": "sha256:eecc3871ab5a125b404346f0d843b7e274753f28207adff2b934a96ca1f4a529",
+  "heldout_queries": 120,
+  "maximum_relevant_chunks": 1,
+  "minimum_relevant_chunks": 1,
+  "near_duplicate_pairs": 30,
+  "random_recall_at_k_baseline": 0.016666666666666666,
+  "schema": "dur-019-difficulty-audit.v2",
+  "scoring_split": "heldout",
+  "tuning_config_fingerprint": "sha256:eecc3871ab5a125b404346f0d843b7e274753f28207adff2b934a96ca1f4a529",
+  "tuning_split": "development"
 }

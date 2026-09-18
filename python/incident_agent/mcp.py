@@ -41,13 +41,24 @@ class MCPValidationError(ValueError):
 
 
 class BoundedMCPServer:
-    def __init__(self, index: RetrievalIndex, max_calls: int = 8, max_rows: int = 20) -> None:
+    def __init__(
+        self,
+        index: RetrievalIndex,
+        max_calls: int = 8,
+        max_rows: int = 20,
+        redact_outputs: bool = True,
+        seed_canaries: bool = True,
+    ) -> None:
         self.index = index
         self.max_calls = max_calls
         self.max_rows = max_rows
+        self.redact_outputs = redact_outputs
         self._calls: dict[str, list[MCPCall]] = {}
+        self._results: dict[str, list[ToolResult]] = {}
         self._status: dict[str, dict[str, Any]] = {}
-        self._cases = {case.case_id: case for case in build_incident_cases()}
+        self._cases = {
+            case.case_id: case for case in build_incident_cases(seed_canaries=seed_canaries)
+        }
 
     def call(self, run_id: str, method: str, arguments: dict[str, Any]) -> ToolResult:
         """Dispatch one schema-constrained, allowlisted MCP-style call."""
@@ -77,6 +88,7 @@ class BoundedMCPServer:
             raise MCPValidationError("MCP call budget exceeded")
 
     def _record(self, run_id: str, method: str, started: float, result: ToolResult) -> ToolResult:
+        self._results.setdefault(run_id, []).append(result)
         self._calls.setdefault(run_id, []).append(
             MCPCall(
                 sequence=len(self._calls.get(run_id, [])) + 1,
@@ -87,6 +99,12 @@ class BoundedMCPServer:
             )
         )
         return result
+
+    def _safe_text(self, text: str) -> tuple[str, int]:
+        if not self.redact_outputs:
+            return text, 0
+        result = redact(text)
+        return result.text, result.count
 
     def query_logs(self, run_id: str, case_id: str, service: str, level: str = "") -> ToolResult:
         started = time.perf_counter()
@@ -107,9 +125,8 @@ class BoundedMCPServer:
         redactions = 0
         for row in rows:
             safe = dict(row)
-            result = redact(str(safe.get("message", "")))
-            safe["message"] = result.text
-            redactions += result.count
+            safe["message"], count = self._safe_text(str(safe.get("message", "")))
+            redactions += count
             safe_rows.append(safe)
         return self._record(
             run_id,
@@ -165,17 +182,21 @@ class BoundedMCPServer:
         if arm not in {"keyword", "dense", "hybrid"}:
             raise MCPValidationError("arm must be keyword, dense, or hybrid")
         response: RetrievalResponse = self.index.search(query, arm)
-        evidence = [
-            {
-                "chunk_id": hit.chunk_id,
-                "document_id": hit.document_id,
-                "version": hit.version,
-                "service": hit.service,
-                "score": hit.score,
-                "snippet": redact(hit.snippet).text,
-            }
-            for hit in response.delivered
-        ]
+        evidence: list[dict[str, Any]] = []
+        redactions = 0
+        for hit in response.delivered:
+            snippet, count = self._safe_text(hit.snippet)
+            redactions += count
+            evidence.append(
+                {
+                    "chunk_id": hit.chunk_id,
+                    "document_id": hit.document_id,
+                    "version": hit.version,
+                    "service": hit.service,
+                    "score": hit.score,
+                    "snippet": snippet,
+                }
+            )
         return self._record(
             run_id,
             "search_runbooks",
@@ -190,6 +211,7 @@ class BoundedMCPServer:
                     "evidence": evidence,
                 },
                 tuple(hit.chunk_id for hit in response.delivered),
+                redactions,
             ),
         )
 
@@ -216,6 +238,9 @@ class BoundedMCPServer:
 
     def calls(self, run_id: str) -> tuple[MCPCall, ...]:
         return tuple(self._calls.get(run_id, ()))
+
+    def results(self, run_id: str) -> tuple[ToolResult, ...]:
+        return tuple(self._results.get(run_id, ()))
 
 
 def serialize_tool_result(result: ToolResult) -> str:

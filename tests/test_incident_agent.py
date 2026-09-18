@@ -3,7 +3,12 @@ from __future__ import annotations
 import json
 
 import pytest
-from incident_agent.continuity import run_adversarial_scan, run_citation_check, run_f12_continuity
+from incident_agent.continuity import (
+    run_adversarial_scan,
+    run_citation_check,
+    run_f12_continuity,
+    run_metrics_report,
+)
 from incident_agent.fixtures import (
     FAMILIES,
     build_corpus,
@@ -12,9 +17,10 @@ from incident_agent.fixtures import (
     corpus_manifest,
 )
 from incident_agent.mcp import BoundedMCPServer, MCPValidationError, serialize_tool_result
-from incident_agent.metrics import IncidentMetrics
+from incident_agent.metrics import IncidentMetrics, dashboard_manifest
 from incident_agent.redaction import redact, scan_downstream
 from incident_agent.retrieval import RetrievalConfig, RetrievalIndex
+from incident_agent.source_corpus import SourceCorpusStore, source_corpus_contract
 from incident_agent.workflow import (
     DurableStore,
     InvestigationWorkflow,
@@ -29,15 +35,30 @@ def test_fixture_counts_and_hidden_truth_separation() -> None:
     assert manifest["chunks"] == 300
     assert manifest["development_queries"] == 40
     assert manifest["heldout_queries"] == 120
+    assert manifest["distinct_development_query_strings"] == 40
+    assert manifest["distinct_heldout_query_strings"] == 120
+    assert manifest["near_duplicate_document_pairs"] == 30
+    assert manifest["canary_chunks"] == 60
     assert len(FAMILIES) == 5
     assert manifest["families"] == list(FAMILIES)
 
 
+def test_source_corpus_persists_raw_chunks_behind_declared_boundary() -> None:
+    chunks = build_corpus(seed_canaries=True)
+    cases = build_incident_cases(seed_canaries=True)
+    store = SourceCorpusStore.from_fixtures(chunks, cases)
+    assert source_corpus_contract()["schema"] == "source_corpus"
+    assert store.counts() == {"documents": 60, "chunks": 300, "fixture_cases": 30}
+    assert store.chunks() == chunks
+    store.close()
+
+
 def test_retrieval_arms_share_chunks_and_hybrid_has_or_gate() -> None:
     index = RetrievalIndex(build_corpus(), RetrievalConfig())
-    answer = index.search("checkout deployment revision config", "keyword")
-    dense = index.search("checkout revision deployment", "dense")
-    hybrid = index.search("checkout revision deployment", "hybrid")
+    query = next(query for query in build_retrieval_queries() if query["answerable"])
+    answer = index.search(str(query["query"]), "keyword")
+    dense = index.search(str(query["query"]), "dense")
+    hybrid = index.search(str(query["query"]), "hybrid")
     assert answer.delivered
     assert dense.delivered
     assert hybrid.delivered
@@ -93,6 +114,9 @@ def test_workflow_requires_approval_and_is_idempotent() -> None:
     again = workflow.resume(run_id)
     assert completed.state == "COMPLETED"
     assert sum(event.event_type == "mcp_tool_call" for event in completed.timeline) >= 3
+    effect_key = f"{run_id}:{completed.proposal.canonical_argument_hash}"
+    assert store.grant(effect_key)["state"] == "DISPATCHED"
+    assert store.effect(effect_key) == completed.action_receipt
     assert again.action_receipt == completed.action_receipt
     assert [event.event_type for event in again.timeline].count("effect_dispatched") == 1
     store.close()
@@ -126,13 +150,22 @@ def test_interrupted_and_uninterrupted_continuity() -> None:
     assert report["cases"] == 20
     assert report["passed"] == 20
     assert report["failed"] == []
+    assert all(row["checkpoint_replayed"] for row in report["rows"])
 
 
 def test_adversarial_protocol_has_fixed_redaction_and_counts() -> None:
     report = run_adversarial_scan()
     assert report["executions"] == 120
     assert report["canary_leaks"] == 0
-    assert report["excess_injection_associated_change"] == 0
+    assert report["canary_leaks_by_profile"] == {"defended": 0, "plain": 0}
+    assert report["excess_injection_associated_change"] == 20
+    assert report["injection_changes_by_profile"] == {"defended": 0, "plain": 20}
+    assert report["negative_control_fired"] is True
+    assert report["negative_control"] == {
+        "redaction_disabled": True,
+        "canary_leaks": 5,
+        "unsafe_proposal": True,
+    }
     assert report["approval_enforcement"] == {
         "cases": 24,
         "blocked_before_approval": 24,
@@ -141,10 +174,11 @@ def test_adversarial_protocol_has_fixed_redaction_and_counts() -> None:
 
 
 def test_citation_check_has_no_hallucinated_ids() -> None:
-    case = next(case for case in build_incident_cases() if case.document_dependent)
-    report = run_citation_check(case.case_id)
+    report = run_citation_check()
+    assert report["cases"] == 30
     assert report["violations"] == 0
     assert report["cited_ids"]
+    assert report["negative_control_fired"] is True
 
 
 def test_metrics_have_bounded_labels() -> None:
@@ -153,6 +187,18 @@ def test_metrics_have_bounded_labels() -> None:
     assert metrics.render().startswith("# HELP")
     assert "workflow_id" not in metrics.render()
     assert len(workflow_events) == 1
+    rendered = run_metrics_report()["metrics"]
+    for name in (
+        "durable_incident_outcomes_total",
+        "durable_incident_tool_calls_total",
+        "durable_incident_citation_violations_total",
+        "durable_incident_approvals_total",
+        "durable_incident_latency_seconds",
+        "durable_incident_tokens_total",
+        "durable_incident_cost_cents_total",
+    ):
+        assert name in rendered
+    assert all(panel["metric"] in rendered for panel in dashboard_manifest()["panels"])
 
 
 def test_queries_are_balanced_and_no_answer_is_labeled_only_for_evaluator() -> None:

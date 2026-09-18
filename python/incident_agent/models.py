@@ -36,6 +36,8 @@ class EvidenceChunk:
     source_type: Literal["runbook", "postmortem"]
     relevant_families: tuple[str, ...] = ()
     canary: bool = False
+    near_duplicate_group: str | None = None
+    decisive_detail: str = ""
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,7 @@ class IncidentCase:
     metrics: tuple[dict[str, Any], ...]
     expected_diagnosis: str
     expected_action: dict[str, Any] | None
+    canary_fixture: bool = False
 
 
 @dataclass(frozen=True)
