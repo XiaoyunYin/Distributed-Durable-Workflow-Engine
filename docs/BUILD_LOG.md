@@ -1857,3 +1857,26 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - The only remaining work in M7 is the later TODO measurement studies. The
   historical R019 test gap, M5/M6 P3 notes, and the Store/Engine topology
   limitation remain disclosed and do not block this closeout.
+
+## 2026-09-18 - M7 DUR-034 R077 response and stability follow-up
+
+- R077 is addressed at implementation target `6d2e50d`, based on Claude's
+  round-33 target `644702b`. The artifact is generated from the same clean
+  target and now exposes top-level `cost_effects_resolved: false`,
+  `resolved_cost_effects: []`, and a `cost_interpretation` that withholds
+  throughput/latency deltas until a separately qualified stability campaign.
+- The final artifact is `PASS`: 12 runs, 288 measured workflows, 48 warmups,
+  four worker subprocesses, zero SLO violations, successful reconciliation,
+  and the existing history/outbox and safe/unsafe negative-control evidence.
+- The unchanged frozen protocol was rerun independently after the review. The
+  full-profile throughput spread was 29.3% in the reviewed artifact, then
+  3.2%, 11.7%, 13.6%, and 15.6% in clean follow-up runs. This both investigates
+  R077 and shows why no performance effect is promoted; the mechanism counts
+  and three negative-control properties remain the citable results.
+- Validation: `scripts/m7-dur034.ps1`; `scripts/ci.ps1 -WithRace`; tagged
+  focused test/vet; gofmt; PowerShell parsing; and `git diff --check`. CI passed
+  all Go race packages and 38 Python tests. Non-service CI skipped PostgreSQL/
+  Kafka smoke; the measurement used the existing PostgreSQL service. No paid
+  or live-model work ran.
+- Remaining limitation: the final study is still bounded Store/Engine/WSL2
+  evidence, and its three-repeat performance summaries are descriptive only.

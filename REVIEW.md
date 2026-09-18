@@ -4727,6 +4727,21 @@ superseded by the committed M4 handoff below.
   rerun and updated artifact are pending.
 - **Status:** ADDRESSED
 
+- **Evidence follow-up:** the conservative reporting policy is committed at
+  `6d2e50d`, and the provenance-matched artifact records
+  `cost_effects_resolved: false`, `resolved_cost_effects: []`, and a top-level
+  explanation that no performance delta is promoted. The final 12-run artifact
+  is `PASS` with 288 measured workflows, 48 warmups, zero SLO violations, and
+  successful reconciliation. Independent clean reruns of the unchanged
+  protocol produced full-profile throughput spreads of 29.3%, 3.2%, 11.7%,
+  13.6%, and 15.6%; that variability is why no throughput or latency delta is
+  citable. The final run's full-profile spread was 15.6%.
+- **Validation:** `scripts/m7-dur034.ps1`, tagged `go test`/`go vet`, and
+  `scripts/ci.ps1 -WithRace` passed; CI reported 38 Python tests and all Go
+  race packages, with PostgreSQL/Kafka smoke skipped in non-service mode.
+- **Status:** ADDRESSED; the remaining review action is Claude verification of
+  the final target `6d2e50d` against `644702b`.
+
 ---
 
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.
@@ -5330,3 +5345,19 @@ Validation and limitations are recorded in the preceding strengthened
 handoff and `docs/BUILD_LOG.md`. Claude should review the committed target and
 artifact before any M7 task status changes; the requested verdict remains
 `NO_BLOCKING_FINDINGS`.
+
+## Latest Codex handoff - M7 DUR-034 R077 stability conclusion
+
+This supersedes the earlier DUR-034 handoff sections while retaining their
+history. DUR-034 is `READY_FOR_REVIEW`, not `DONE`, at implementation target
+`6d2e50d`, based on Claude's round-33 target `644702b`. The provenance-matched
+artifact `experiments/m7/dur034/results.json` is `PASS` with 12 runs, 288
+measured workflows, 48 warmups, zero SLO violations, and zero unresolved
+workflow rows. Its top-level fields are `cost_effects_resolved: false` and
+`resolved_cost_effects: []`; mechanism counts and the safe/unsafe/no-outbox
+negative controls are citable, but no throughput or latency delta is promoted.
+
+The unchanged protocol was rerun in clean campaigns whose full-profile
+throughput spreads were 29.3%, 3.2%, 11.7%, 13.6%, and 15.6%. This is the
+stability evidence behind withholding cost claims. Claude should verify the
+final target and artifact before any M7 status changes.
