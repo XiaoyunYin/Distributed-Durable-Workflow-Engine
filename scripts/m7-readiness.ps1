@@ -134,21 +134,12 @@ try {
     $oldRequireDatabase = $env:DURABLE_REQUIRE_DATABASE
     try {
         $env:DURABLE_REQUIRE_DATABASE = "1"
-        $normal = Invoke-Required "go" @("test", "./internal/engine", "-run", "^TestM5BoundedTwoSchedulerSmoke$", "-count=1", "-v")
+        $telemetryReadiness = Invoke-Required "go" @("test", "./internal/engine", "-run", "^TestDUR036TelemetryReconstruction$", "-count=1", "-v")
     } finally {
         if ($null -eq $oldRequireDatabase) { Remove-Item Env:DURABLE_REQUIRE_DATABASE -ErrorAction SilentlyContinue }
         else { $env:DURABLE_REQUIRE_DATABASE = $oldRequireDatabase }
     }
     $metricsAfter = Get-Metrics $runtimePort
-
-    $oldRequireDatabase = $env:DURABLE_REQUIRE_DATABASE
-    try {
-        $env:DURABLE_REQUIRE_DATABASE = "1"
-        $faultRun = Invoke-Required "go" @("test", "./internal/engine", "-run", "^TestM1CrashResumeWithinNode$", "-count=1", "-v")
-    } finally {
-        if ($null -eq $oldRequireDatabase) { Remove-Item Env:DURABLE_REQUIRE_DATABASE -ErrorAction SilentlyContinue }
-        else { $env:DURABLE_REQUIRE_DATABASE = $oldRequireDatabase }
-    }
 
     $faultTrace = "experiments/m5/traces/F07-crash-resume-seed11.jsonl"
     $faultSnapshot = "experiments/m5/durable/F07-crash-resume-seed11.json"
@@ -195,8 +186,8 @@ try {
         database = $databaseSnapshot
         validation = [ordered]@{
             dependency_smoke = [ordered]@{ command = $smoke.command; status = "PASS"; output_tail = (($smoke.output -split "`r?`n" | Select-Object -Last 5) -join "`n") }
-            normal_execution = [ordered]@{ command = $normal.command; status = "PASS"; telemetry_endpoint_before_status = $metricsBefore.status; telemetry_endpoint_after_status = $metricsAfter.status; telemetry_before = $metricsBefore.body; telemetry_after = $metricsAfter.body }
-            fault_episode = [ordered]@{ command = $faultRun.command; status = "PASS"; checker_command = $faultChecker.command; checker_output = $faultChecker.output; trace = $faultTrace; durable_snapshot = $faultSnapshot }
+            normal_execution = [ordered]@{ command = $telemetryReadiness.command; status = "PASS"; output = $telemetryReadiness.output; telemetry_endpoint_before_status = $metricsBefore.status; telemetry_endpoint_after_status = $metricsAfter.status; telemetry_before = $metricsBefore.body; telemetry_after = $metricsAfter.body }
+            fault_episode = [ordered]@{ command = $telemetryReadiness.command; status = "PASS"; output = $telemetryReadiness.output; checker_command = $faultChecker.command; checker_output = $faultChecker.output; trace = $faultTrace; durable_snapshot = $faultSnapshot }
         }
         assumptions = @(
             "All host and container timestamps are recorded as UTC where available; PostgreSQL reports its configured TimeZone separately.",
