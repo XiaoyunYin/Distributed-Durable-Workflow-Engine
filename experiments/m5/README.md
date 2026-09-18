@@ -1,11 +1,18 @@
 # M5 engine correctness evidence
 
-This directory contains the machine-readable results of the bounded F01-F11
-campaign. The campaign uses the same committed PostgreSQL-backed tests that
-exercise the engine's durable state, transport, worker, effect, checkpoint,
-lease, timer, join, and cancellation boundaries. The mapping is explicit in
-`scripts/m5-campaign.ps1`; a requested fault is not counted as executed unless
-the selected test returns zero and its assertions observe the durable outcome.
+This directory contains the machine-readable results of the controller-driven
+F01-F11 campaign and the local outage episodes. The campaign uses committed
+PostgreSQL-backed tests that exercise the engine's durable state, transport,
+worker, effect, checkpoint, lease, timer, join, and cancellation boundaries.
+The mapping is explicit in `scripts/m5-campaign.ps1`; the script forces
+`DURABLE_REQUIRE_DATABASE=1` and rejects any selected test that skips.
+
+The campaign enumerates 16 atomic cases across F01-F11 and runs each with
+seeds 11, 23, and 47: 48 records total, with a controller trace and an
+independent checker verdict for every record. The Go fixture target creates a
+real durable prefix, pauses at the named boundary, and is killed by the
+controller. The checker loads the trace and joins its explicit durable
+identity fields to the PostgreSQL rows before the package assertion runs.
 
 Run from the repository root after PostgreSQL/Kafka services are available:
 
@@ -14,9 +21,14 @@ $env:DURABLE_REQUIRE_DATABASE = "1"
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/m5-campaign.ps1 -StopRuntimeRelays
 ```
 
-The output records the exact package, test pattern, exit code, start time, and
-captured test output for every family. `-StopRuntimeRelays` temporarily stops
+The output records the case ID, ordering, seed, controller/checker/Go status,
+package, test pattern, boundary, durable observation, trace path, and captured
+output for every case/run. `-StopRuntimeRelays` temporarily stops
 only runtime/worker relay services so shared outbox fixtures cannot be consumed
 before the selected test, then restores them. F12 remains the agent-specific
-M6 campaign. The M5 outage/restart evidence is produced separately by
-`scripts/restart-smoke.ps1` and `scripts/smoke.ps1`.
+M6 campaign.
+
+`outage-recovery.json` is the separate DUR-025 artifact. It records dependency
+health and unresolved-work snapshots independently before, during, and after
+Kafka, PostgreSQL, worker, and runtime episodes. A PostgreSQL-down snapshot is
+explicitly unavailable rather than being interpreted as zero outstanding work.

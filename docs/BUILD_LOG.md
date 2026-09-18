@@ -1236,3 +1236,68 @@ experiment by recording what the target acknowledged, what process outcome
 was observed, and whether cleanup completed. The checker then joins that
 evidence to durable engine history independently, while the service gate
 isolates test fixtures from live relays so a green campaign is reproducible.
+
+## 2026-09-18 - M5 round-22 corrections
+
+- Review basis: Claude round 21 requested R050-R054 changes against `c5cd2b8`.
+- Implementation commit: `6ab54ea`; campaign evidence guard and regenerated
+  evidence: `69917db`. M5 remains READY_FOR_REVIEW; no task is DONE.
+
+R050 is addressed by accepting the controller's array-valued `process_started`
+command, validating `fault-trace.v1` schema/run/sequence data, and joining only
+explicit durable identity fields to PostgreSQL-backed workflow, attempt, result,
+outbox, and reconciliation evidence. The checker now rejects cleanup timeouts,
+unbounded cleanup, and contradictory process-exit evidence. `cmd/fault-checker`
+is the executable path used by the campaign, and 48 committed traces were
+parsed by it.
+
+R051 is addressed by `cmd/m5-fixture`, a real PostgreSQL target that pauses at
+the named boundary and is killed by the Python controller. The campaign now
+enumerates 16 atomic cases across F01-F11, runs seeds 11/23/47, records case
+IDs/orderings/observations and trace paths, forces `DURABLE_REQUIRE_DATABASE=1`,
+and fails if the selected Go test emits `--- SKIP`. The final artifact has
+48/48 controller PASS, checker PASS, Go PASS, with zero skips.
+
+R052 is addressed by distinguishing requested cleanup from observed exit:
+cleanup timeout records `cleanup_timeout`/`cleanup_unbounded`, does not invent a
+return code, and leaves `cleaned_up` false. The Python regression test and
+independent Go checker mutation test cover this path.
+
+R053 is addressed by wiring store, lease, outbox, reconciliation, backlog,
+relay, and engine telemetry, moving readiness behind real dependency health and
+re-marking it after recovery. The service-backed M5 smoke observes readiness,
+lease, claim, result, and database-query signals. The runtime binary remains a
+control-plane/relay foundation and does not yet construct a production
+scheduler Engine; that limitation is now explicit rather than presented as
+live engine telemetry.
+
+R054 is addressed by `scripts/m5-outage-report.ps1` and
+`experiments/m5/outage-recovery.json`. Four local episodes (Kafka, PostgreSQL,
+worker, runtime) contain separate before/during/after health and unresolved-
+work snapshots. A dependency-down database snapshot is recorded as unavailable,
+not as zero outstanding obligations; all four after snapshots recovered.
+
+Validation completed after the fixes:
+
+- `scripts/check.ps1 -SerialPackages`: PASS; Go tests, vet/build, Ruff, mypy,
+  and 25 Python tests.
+- Relay-isolated `go test -race -p 1 ./... -count=1` with
+  `DURABLE_REQUIRE_DATABASE=1`: PASS, including the M5 smoke.
+- `scripts/m5-campaign.ps1 -StopRuntimeRelays`: PASS, 16 cases x 3 seeds,
+  48/48 PASS and zero skips.
+- `scripts/m5-outage-report.ps1`: PASS; artifact written and Compose services
+  restored. `git diff --check`: clean before the documentation commit.
+
+Failed approaches and lessons: an initial campaign invocation omitted the
+database-required flag and produced green skipped tests; the campaign now
+guards against both omission and skips. A Windows temp-path invocation also
+created one malformed generated directory that confused Go's `./...` scanner;
+the exact generated directory was removed, and the isolated service race gate
+passed afterward. Earlier live-relay fixture interference remains handled by
+the serial stop/restore isolation.
+
+Interview explanation: the correction turns the M5 report from a collection of
+green commands into an auditable chain: the controller creates the durable
+prefix, records what it actually observed, the independent checker joins that
+identity to persisted state, and the campaign refuses to accept a skipped
+database case.

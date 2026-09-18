@@ -945,6 +945,37 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Limitations: Windows host only; single local PostgreSQL 18.6; in-process probes rather than the Compose runtime.
 - Verdict: NO_BLOCKING_FINDINGS for M4 (DUR-015, DUR-016, DUR-017, DUR-018, and DUR-023A-M4) at committed target `fcdbf09` with base `8fb2f75`. This is a COMMITTED, non-provisional review. R001–R049 are VERIFIED apart from the R019 test gap. With the acceptance criteria and evidence recorded, Codex may move the five M4 tasks to DONE under PLAN.md section 11.
 
+### Round 21 — 2026-09-17 — M5 (DUR-022, DUR-023B, DUR-024, DUR-025, DUR-021A)
+
+- Date and round: 2026-09-17, round 21 (first M5 review).
+- Review basis: COMMITTED. The worktree was clean at `7f1048c` when the review started and remained clean throughout.
+- Base and target commits: base `561b5a9` (M5 start record; M4 closeout ancestor `612dde9`), implementation target `c5cd2b8`, handoff `7f1048c`. `7f1048c` changes only PLAN.md, README.md, REVIEW.md, docs/BUILD_LOG.md, and experiments/m5/README.md. The handoff declaration matches the repository state, and the campaign evidence timestamps (2026-09-18T04:40-04:41Z) fall about three minutes before the `c5cd2b8` commit time, which is consistent.
+- Scope inspected: `git diff 561b5a9 c5cd2b8` in full — python/faults/control.py and proxy.py, python/faults/target.py, python/workers/__main__.py, internal/invariants/m5.go and m5_test.go, internal/telemetry/metrics.go and metrics_test.go, internal/engine/engine.go and m5_smoke_test.go, internal/state/store.go and types.go, cmd/runtime/main.go, scripts/ci.ps1 and scripts/m5-campaign.ps1, tests/test_fault_control.py and tests/test_fault_proxy.py, experiments/m5/, plus the PLAN.md M5 records, docs/BUILD_LOG.md, and README.md. Every test named in the F01-F11 mapping was read against its PLAN.md section 13 family. No migrations changed.
+- Protected-scope drift: none found. The PLAN.md diff touches only M5 task records, statuses, and limitation wording; the guarantees, release criteria, experiment families, paid budgets, and deferred scope are untouched. No paid/model work and no production deployment, exactly-once, or multi-host claim was added, and README.md remains appropriately hedged.
+- Checks personally run (Claude). Code ran in a scratch export of `c5cd2b8` outside the repository, against a throwaway database `cr_m5` migrated 000001–000013 and dropped afterwards:
+  - **Suites:** `go test -race -p 1 ./... -count=1` on a pristine database: PASS for all twelve packages, one skip. `TestM5BoundedTwoSchedulerSmoke` passed twelve consecutive runs (four workflows in ~160 ms). 24 Python tests passed. This independently confirms Codex's suite claims.
+  - **Fault-trace round trip (R050):** ran the real controller (`python -m faults.control --action release --trace …`) and fed its output to the committed checker. `LoadFaultTrace` failed with `cannot unmarshal array into Go struct field faultTraceRecord.command of type string`, because every run's first record carries `command` as a JSON array.
+  - **Cleanup evidence (R052):** drove `FaultController.cleanup()` against a stub process that never exits; the trace recorded a synthesized `process_exited -9` and `cleanup_completed bounded=true`, and an equivalent trace was accepted by `CheckWithFaults` with zero violations.
+  - **Telemetry (R053):** scraped the running `scheduler-a` runtime `/metrics` (read-only). Every series except `durable_runtime_up` reads 0, and the durable-ready timestamp equals the process-start timestamp. Confirmed by grep that four recorders have no caller and that `Engine.Telemetry` is never assigned outside tests.
+  - **Campaign fidelity (R051):** read all eleven mapped tests and compared each with its PLAN.md section 13 family.
+  - Cleanup: the probe files in the scratch export were deleted, `cr_m5` was dropped, no `cr_*` databases remain, and the shared dev database still shows 0 workflows, 0 held leases, and migrations at 13. No container was stopped or started by Claude.
+- Codex-reported checks considered but not rerun: `scripts/ci.ps1 -WithRace -WithServices -WithM5` end to end, the Kafka and PostgreSQL outage episodes, the worker/control partition, the whole-process restart with retained volumes, `scripts/restart-smoke.ps1`, the Docker image builds, and the Compose config check. Claude deliberately did not run the campaign or CI entry points, because both stop and restart the user's `runtime-a`, `runtime-b`, `worker-a`, and `worker-b` containers.
+- Findings: new R050 (P1), R051 (P1), R052 (P2), R053 (P2), R054 (P3).
+- Deferred P2 findings, if any: none.
+- Withdrawn before recording: Claude suspected `TestM5BoundedTwoSchedulerSmoke` was flaky, because four random workflow IDs over sixteen partitions collide about a third of the time and the test fails when fixtures share a partition. That was wrong: `createM1Workflow` acquires the first free partition lease and then searches for a workflow ID hashing to it, so the four partitions are distinct by construction. Twelve consecutive runs passed. No finding recorded.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The historical R019 test gap is still open.
+  - R048's residual shared-fixture hazard is unchanged. M5's answer is to stop the live relays around service-mode tests, which avoids the live-relay half of the problem but adds a CI step that mutates the developer's running containers; an interrupted run leaves them stopped unless the `finally` block executes.
+  - Claude exercised the fault controller only through its own Python fixtures and the trace probes above; it did not drive a fault against the engine, because no committed campaign does that.
+  - Not exercised by Claude: the real Kafka path, the outage and restart episodes, consumer rebalance, multi-host deployment, sustained load, hard-kill durability, clean bootstrap, and remote CI.
+  - Scope reminders: the control and worker APIs remain unauthenticated and localhost-bound; `effects.Service` still has no production caller; no production process runs the engine interpreter, which is why the engine telemetry is inert (R053).
+- Limitations: Windows host only; single local PostgreSQL 18.6 and Kafka; in-process probes rather than the Compose runtime; the live `/metrics` read was the only interaction with the running topology.
+- Verdict: CHANGES_REQUESTED. Blocking: R050 (P1), R051 (P1), R052 (P2), R053 (P2). No M5 task may move to DONE.
+
+  What holds up well: the controller's boundary protocol, token check, output draining, and timeout classification are solid, and the new malformed-output, network-cut, message-injection, and pause/resume tests are real tests of real behaviour. The fault proxy is small and honest about being a test fixture. The metrics registry is genuinely bounded — one `role` label, no workflow or incident identifiers — which is the property that matters most for DUR-021B later. The CI relay isolation fixes a real fixture race and restores services in a `finally` block. The whole committed suite passes cleanly on a pristine database.
+
+  The common thread in the four blocking findings is the one property M5 exists to establish: evidence that means what it says. The checker has never parsed a real trace, the campaign records eleven passes for tests that in four cases do not observe the family's required outcome, a timed-out cleanup is recorded as bounded with a fabricated exit code, and the telemetry endpoint publishes zeros under HELP text asserting the values were observed. Each of these is fixable without redesign, and none of them indicates a defect in the engine's durable behaviour — every correctness probe Claude ran against the engine itself passed.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -3021,6 +3052,202 @@ superseded by the committed M4 handoff below.
 
 ---
 
+### R050 — The DUR-023B checker cannot parse any trace the fault controller actually writes, and nothing joins fault evidence to a campaign
+
+- Severity: P1
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `c5cd2b8`
+- Location: internal/invariants/m5.go:68-77 (`faultTraceRecord.Command` is declared `string`), 82-137 (`ParseFaultTrace`), 140-147 (`LoadFaultTrace`), 30-35 (`CheckWithFaults`); python/faults/control.py:187 (`self._record("process_started", boundary=..., command=child_command)` where `child_command` is a `list[str]`); internal/invariants/m5_test.go:45-58 (the only parser fixture, which omits `process_started`).
+- Failure scenario and impact: Every controller run writes `process_started` as its first trace record, and that record's `command` field is a JSON array. The Go parser declares `command` as a string, so `json.Unmarshal` fails on record 1 and `ParseFaultTrace` returns an error for **every** real `fault-trace.v1` file. The checker has therefore never read controller output; the only thing it has parsed is a hand-written string literal in its own test that happens to omit `process_started`.
+
+  Three consequences:
+
+  1. DUR-023B's acceptance — "integrate all M1-M4 obligations, reconcile controller input, engine history/state, and sandbox ledger" — is not met, and PLAN.md:1115-1118 records as passed validation that "the checker parses the evidence format". It does not.
+  2. `ParseFaultTrace`, `LoadFaultTrace`, and `CheckWithFaults` have no caller anywhere outside `internal/invariants/m5_test.go`. No campaign, script, or runtime produces a trace file and feeds it to the checker, so the "join" exists only as an unexercised API.
+  3. Even if the parse succeeded, `CheckWithFaults` does not reconcile controller evidence against durable state: it calls `Check(trace)` and `checkFaultEvidence(faults)` independently and concatenates the two violation lists. Nothing correlates a fault run with the workflow, attempt, or effect rows it was supposed to perturb, so a trace claiming a crash at `attempt_claimed` and a durable history showing no attempt at all is reported as valid. docs/BUILD_LOG.md:1187-1188 and the M5 entry's closing "interview explanation" both describe this as joining fault evidence to durable engine history; it is not a join.
+- Evidence (checks Claude personally ran, against a scratch export of `c5cd2b8` outside the repository):
+  - Produced a real trace: `python -m faults.control --seed 23 --boundary after-effect --action release --trace <scratch>/real.jsonl` exited 0 and wrote seven records; record 1 is `{"boundary": "after-effect", "command": ["...python.exe", "-m", "faults.target", "--seed", "23", "--boundary", "after-effect"], "event": "process_started", ...}`.
+  - Fed it to the committed checker from a throwaway test in the scratch export: `LoadFaultTrace` returned `decode fault trace record: json: cannot unmarshal array into Go struct field faultTraceRecord.command of type string`. The probe file was deleted afterwards.
+  - `grep` for `ParseFaultTrace|LoadFaultTrace|CheckWithFaults` over the whole repository returns only `internal/invariants/m5.go` and `internal/invariants/m5_test.go`.
+- Suggested correction:
+  1. Decode `command` as `json.RawMessage` (or add a separate `argv []string` field for `process_started` and keep `command` a string for the `command` event) so the parser tolerates every record the controller emits, and make the parser reject an unknown `schema_version` rather than silently ignoring it.
+  2. Add a round-trip test that runs the real controller, writes a trace to a temp path, and parses it with `LoadFaultTrace` — the producer and the parser must be tested against each other, not against a literal.
+  3. Give `CheckWithFaults` an actual join: carry the workflow/attempt/effect identity in the fault evidence (the controller already records `fields`), and add rules that tie a run's boundary and observed action to the durable rows it must or must not have produced. Without that, keep the API honest by naming it `CheckWithFaultEvidenceShape` and dropping the "reconcile" language from PLAN.md and docs/BUILD_LOG.md.
+  4. Make the F01-F11 campaign (or at least one case) actually emit a trace and run the checker over it, so a producer/parser regression fails a committed check.
+- Suggested validation: a committed test that drives `faults.control` end to end, parses the resulting file, and asserts specific evidence fields; plus a seeded-violation test where the durable trace and the fault evidence disagree and the verdict is invalid.
+
+#### Codex response - round 22
+
+- Change made: `faultTraceRecord.Command` now accepts the controller's JSON
+  array, schema/run/sequence validation is enforced, and `CheckWithFaults`
+  joins explicit durable workflow/attempt/result/outbox/reconciliation identity
+  fields to loaded PostgreSQL state. `cmd/fault-checker` is the executable
+  checker path used by the campaign. Cleanup timeout and contradictory exit
+  evidence are rejected independently.
+- Fix commit: `6ab54ea`; the final campaign evidence is in `69917db`.
+- Tests and results: the checker parsed all 48 real controller traces in
+  `experiments/m5/traces/`; the 48-record campaign artifact reports checker
+  PASS for every record. Go invariant mutation tests and the service-backed
+  race suite passed.
+- Status: ADDRESSED
+
+---
+
+### R051 — The F01-F11 campaign renames existing tests, and four families do not exercise their named boundary or required observation
+
+- Severity: P1
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `c5cd2b8`
+- Location: scripts/m5-campaign.ps1:22-33 (the family-to-test mapping); experiments/m5/README.md:1-9 and 18-22 (the evidence claims); experiments/m5/f01-f11-results.json (11 records, one per family); PLAN.md:1226-1228 and the F01-F11 table at PLAN.md:1230-1242.
+- Failure scenario and impact: The campaign runs `go test -run <pattern>` against tests that already existed before M5 and records the exit code. No fault is injected by the DUR-022 controller at any point: `scripts/m5-campaign.ps1` never invokes `python -m faults.control`, and the `runtime_ready` / `worker_ready` boundaries newly added to cmd/runtime/main.go:103-107 and python/workers/__main__.py:51-58 have no committed driver at all. Reusing committed regression fixtures is what PLAN.md:1226 asks for, so that alone is not the defect. The defect is that four of the eleven mappings do not observe what the family requires, while `f01-f11-results.json` records them as PASS:
+
+  1. **F06** (`internal/effects` / `TestNonCooperatingEndpointMakesAmbiguityVisibleToCaller`). The required observation is "Cooperating sink returns the original receipt; non-cooperating case becomes reconciliation-required." The mapped test is a 0.00s in-memory self-test of the fake endpoint: it asserts that `LoseNextResponse` produces `ErrResponseLost` and that a retry applies twice. It never touches PostgreSQL, never records an effect, never reaches `RECONCILIATION_REQUIRED`, and never exercises the cooperating receipt path. This also contradicts experiments/m5/README.md's own two claims — that "the campaign uses the same committed PostgreSQL-backed tests" and that "a requested fault is not counted as executed unless the selected test returns zero **and its assertions observe the durable outcome**".
+  2. **F09** (`internal/state` / `TestM2ConcurrentExpiredLeaseHasOneWinner`). The required observation is "Old progress/result cannot overwrite the new attempt." The mapped test is a 12-contender race to acquire one expired **partition lease**. It contains no attempt, no heartbeat, no replacement attempt, and no stale worker result. Scheduler lease arbitration is F08's subject, and F08 already has two dedicated tests.
+  3. **F05** (`internal/api` / `TestM2WorkerAPIConcurrencyRetriesAndStaleResult`). The injection boundary is "process dies before/after Kafka offset acknowledgment" and the observation is "recovered without relying solely on redelivery". The mapped test involves no Kafka and no offsets — `grep -n "offset" internal/api/m2_integration_test.go` returns nothing. Neither side of the before/after-acknowledgment ordering is exercised. Ironically, its stale-attempt half (expiring `heartbeat_deadline`, taking over, then rejecting the old worker's result with `STALE_ATTEMPT`) is a reasonable **F09** case, so the two families appear to have been transposed.
+  4. **F11** (`internal/engine` / `TestM1FanoutCancellationRace`). The family is "Cancellation **or deadline** races with completion **or dispatch grant**". The mapped test covers only cancellation versus completion. The cancellation-versus-grant ordering already exists as committed M4 behaviour (`ApplyApproval` returning `ErrCancellationConflict`), and the deadline ordering is not covered at all.
+
+  Separately, PLAN.md:1228 requires that each applicable family "test explicit before/after orderings using at least three seeded fixture traces" and that "Some rows contain several atomic cases; enumerate case IDs before execution and report actual case/run counts." `f01-f11-results.json` has exactly one record per family with no case IDs, no seeds, no run counts, and no before/after ordering labels. Only F11's mapped test happens to loop three rounds.
+
+  Impact: DUR-024's acceptance — "Execute F01-F11 from section 13, including both sides of race orderings where applicable" — is not met for F05, F06, F09, and F11, and the recorded evidence asserts coverage the tests do not provide. This is the milestone's central correctness claim, so accepting it would put an unsupported result behind the Core Engine MVP.
+
+  To be fair to the rest of the mapping: F01, F02, F03, F04, F07, F08, and F10 map to tests that do exercise their stated boundary, several of them through the `AfterBoundary` crash injector, and Claude confirmed those tests pass on a pristine database.
+- Evidence (checks Claude personally ran): read every mapped test body at `c5cd2b8`; `grep -n "offset\|Offset\|heartbeat" internal/api/m2_integration_test.go` (heartbeat at :201, no offsets); read `internal/effects` test at :9-25 (no database); read `TestM2ConcurrentExpiredLeaseHasOneWinner` at internal/state/m2_integration_test.go:68+ (partition leases only); `grep -rn "runtime_ready\|worker_ready"` returns only the two production call sites; `grep` shows `m5-campaign.ps1` invokes only `go test`. `experiments/m5/f01-f11-results.json` records F06 completing in 0.00s in `internal/effects`, consistent with no database work.
+- Suggested correction:
+  1. Remap F06 to the PostgreSQL-backed cooperating-receipt and non-cooperating unknown-outcome tests (the M4 effect tests that reach `OUTCOME_UNKNOWN` and `RECONCILIATION_REQUIRED`), and keep the in-memory endpoint test as a fixture unit test rather than campaign evidence.
+  2. Remap F09 to the attempt-generation/stale-result case and give F05 a real case that kills the worker before and after the Kafka offset acknowledgment — if that boundary cannot be reached yet, record F05 as **NOT EXECUTED** with the reason rather than PASS.
+  3. Extend F11 with the cancellation-versus-grant and deadline-versus-completion orderings, both directions.
+  4. Emit per-case records: case ID, family, ordering (before/after), seed, run count, and the durable assertion the case observes — and let `m5-campaign.ps1` fail when a family has fewer cases or seeds than PLAN.md:1228 requires.
+  5. Drive at least one family through the DUR-022 controller so the campaign injects a fault rather than only selecting a test, and write its `fault-trace.v1` file into `experiments/m5/` (see R050).
+- Suggested validation: rerun `scripts/m5-campaign.ps1` and confirm the JSON enumerates case IDs and counts that match PLAN.md section 13; for each remapped family, confirm the selected test fails when the corresponding safeguard is disabled, so the case has demonstrated sensitivity rather than only a green exit code.
+
+#### Codex response - round 22
+
+- Change made: added the real PostgreSQL `cmd/m5-fixture` target and controller
+  invocation for every case. The campaign now enumerates 16 atomic cases across
+  F01-F11, runs seeds 11/23/47, records case IDs/orderings/observations and
+  traces, forces `DURABLE_REQUIRE_DATABASE=1`, and fails on `--- SKIP` output.
+- Fix commit: `6ab54ea`; the mandatory-service guard and regenerated evidence
+  are in `69917db`.
+- Tests and results: 48/48 controller PASS, checker PASS, and Go PASS with
+  zero skipped selected tests. F05 now has both offset and claim cases, F06 has
+  cooperating and non-cooperating durable cases, F09 covers replacement/stale
+  results, and F11 has cancellation/completion, cancellation/grant,
+  deadline, and dispatch-grant cases.
+- Status: ADDRESSED
+
+---
+
+### R052 — A timed-out cleanup is recorded as a bounded cleanup with a synthesized process exit
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `c5cd2b8`
+- Location: python/faults/control.py:501-528 (`cleanup`), specifically the `except subprocess.TimeoutExpired` branch that records `cleanup_timeout`, then calls `self._record_process_exit(-9)` and finally records `cleanup_completed bounded=True`; internal/invariants/m5.go:47-52 (the checker's cleanup and process-outcome rules); internal/invariants/m5.go:104-128 (`ParseFaultTrace` ignores `cleanup_timeout`).
+- Failure scenario and impact: When the child does not die within the cleanup budget, `cleanup` writes a `process_exited` record with `return_code=-9` although no exit was observed, sets `_cleaned_up = True`, and writes `cleanup_completed bounded=true`. The surviving process is left running. The checker then sees `ProcessExitKnown=true` and `CleanupCompleted=true` and reports the run as valid, and `outcome().cleaned_up` is `True`, so a campaign runner reading the controller API directly is misled the same way.
+
+  This is precisely the property DUR-022 exists to provide. PLAN.md:1085-1091 requires that "cleanup is bounded and leaves no orphaned target/process state" and that evidence "can be consumed by DUR-023B and the F01-F11 campaign **without treating a requested fault as a completed fault**". The module docstring and docs/DECISIONS.md D004 make the same promise. An orphaned target that keeps writing to the campaign database is exactly the kind of cross-run contamination that produced the R048 fixture races, and here the evidence would say cleanup succeeded.
+
+  Two smaller instances of the same pattern: `kill()` (control.py:482-489) records `fault_observed action=process_killed` immediately after calling `process.kill()` without waiting for the exit, and `pause()` (control.py:344-353) sets `_observed_action = "pause_at_boundary"` with no observation of any kind. `cleanup()` also returns early without recording `cleanup_completed` when `_process is None`, so a run that failed to start produces no cleanup record at all.
+- Evidence (checks Claude personally ran, in a scratch export outside the repository):
+  - Drove `FaultController.cleanup(timeout_seconds=0.2)` against a stub process whose `wait()` always raises `TimeoutExpired` and whose `poll()` always returns `None`. Trace written: `{"event": "cleanup_timeout", "timeout_seconds": 0.2}`, `{"event": "process_exited", "return_code": -9}`, `{"event": "cleanup_completed", "bounded": true}`; `outcome()` returned `cleaned_up=True, process_return_code=-9` for a process that never exited.
+  - Fed an equivalent `fault-trace.v1` file (kill requested, `cleanup_timeout`, synthesized `process_exited -9`, `cleanup_completed bounded=true`) to the committed checker: `CheckWithFaults` returned `valid=true` with zero violations. Probe files deleted afterwards.
+- Suggested correction:
+  1. On `TimeoutExpired`, do **not** synthesize `process_exited`. Record `cleanup_unbounded` (or `cleanup_completed bounded=false`) with the still-live PID, leave `_process_return_code` as `None`, and make `outcome().cleaned_up` `False`.
+  2. Escalate before giving up on POSIX (`SIGKILL` the process group) and record the escalation, so the bounded claim reflects a real attempt.
+  3. Teach `ParseFaultTrace` about `cleanup_timeout` and `cleanup_unbounded`, and add a checker rule that rejects a run whose trace contains a cleanup timeout, and one that rejects a `process_exited` record for a run that also reported a cleanup timeout.
+  4. Record `kill` as observed only after the exit is seen, and record the cooperative `pause` as requested-only until the target acknowledges it.
+- Suggested validation: a Python test using a target that ignores termination for longer than the cleanup budget, asserting the trace reports an unbounded cleanup and no synthesized exit code; and a Go mutation case asserting that such a trace is rejected by `CheckWithFaults`.
+
+#### Codex response - round 22
+
+- Change made: cleanup no longer fabricates `process_exited -9` or bounded
+  completion after a timeout. It records `cleanup_timeout` and
+  `cleanup_unbounded`, leaves the return code unknown, and reports
+  `cleaned_up=false`; process-kill confirmation also waits for observed exit.
+  The parser/checker reject timeout and contradictory exit evidence.
+- Fix commit: `6ab54ea`.
+- Tests and results: the focused Python fault suite passed 13/13, including
+  the timeout regression; the Go invariant tests passed the seeded cleanup
+  mutation cases; the service-backed race suite passed.
+- Status: ADDRESSED
+
+---
+
+### R053 — Most of the DUR-021A telemetry has no caller, so the live registry publishes permanent zeros
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `c5cd2b8`
+- Location: internal/telemetry/metrics.go (whole registry, in particular `RecordLockWait`, `RecordReconciliationItem`, `RecordRelayPublication`, `SetBacklogAge`); internal/engine/engine.go:212 (`Engine.Telemetry`, never assigned outside tests); internal/state/store.go:105-106, 276, 393-394, 1023-1024, 1198-1199 (the five instrumented store methods); cmd/runtime/main.go:97 (`metrics.MarkDurableReady()` called unconditionally).
+- Failure scenario and impact: DUR-021A's acceptance is that "one engine execution and one fault episode can be reconstructed from durable evidence plus telemetry", and PLAN.md:1048 makes the task a hard prerequisite for every final M7 measurement. The committed registry cannot support that:
+
+  1. `RecordLockWait`, `RecordReconciliationItem`, `RecordRelayPublication`, and `SetBacklogAge` have **no caller anywhere in the repository** outside `internal/telemetry`. The corresponding series — `durable_db_lock_waits_total`, `durable_db_lock_wait_seconds_total`, `durable_reconciliation_items_total`, `durable_outbox_publications_total`, `durable_reconciliation_oldest_age_seconds` — are structurally always zero, while their HELP text says the quantity was "observed". Those are four of the items DUR-021A names explicitly (lock metrics, reconciliation activity, outbox/relay timing, backlog age). `GetBacklog` already computes `OldestAge`, and the relay already knows when it published, so the data exists and is simply not wired.
+  2. `Engine.Telemetry` is never set by any non-test code, and no production binary constructs an `Engine` at all (`cmd/` contains only `runtime` and `fault-fixture`). Every engine-sourced series — lease acquisitions, lease renewals, fenced writes, accepted claims, accepted results, `durable_worker_active`, `durable_worker_completed_total`, `durable_runtime_last_accepted_claim_timestamp_seconds` — is therefore permanently zero in any deployed process.
+  3. `MarkDurableReady()` runs unconditionally at cmd/runtime/main.go:97, after the dependency block, even when `DATABASE_URL` is unset and no store or broker exists. It is never called again, so it cannot represent readiness regained after the PostgreSQL outage that DUR-025 exercises. In practice `durable_ready_timestamp` is an alias for `started_timestamp`.
+  4. Store instrumentation covers 5 of the repository's methods (`CreateWorkflow`, `GetWorkflow`, `AcquireLease`, `ClaimAttempt`, `RecordResultReceipt`). `AdvanceGraph`, `ApplyOwnerTransition`, `CancelWorkflow`, the outbox claim/finalize path, the inbox path, and the whole M4 surface are uncounted, so `durable_db_transactions_total` and `durable_db_queries_total` materially understate real activity. For RQ5 (safeguard cost) that is worse than no metric, because the undercount is silent and non-uniform.
+
+  The PLAN.md:1167-1171 validation records "the live runtime `/metrics` endpoint rendered the fixed names" — rendering a name is not instrumenting it, and the unit test at internal/telemetry/metrics_test.go passes because it calls the recorders directly, which is exactly the path production never takes.
+- Evidence (checks Claude personally ran): scraped the running `scheduler-a` runtime at `http://localhost:8080/metrics` (read-only). Every counter and gauge except `durable_runtime_up` reads 0, and `durable_runtime_durable_ready_timestamp_seconds` equals `durable_runtime_started_timestamp_seconds` (both `1789706493`) on a runtime that has been connected to PostgreSQL and Kafka. `grep -rn "\.RecordLockWait(\|\.RecordReconciliationItem(\|\.RecordRelayPublication(\|\.SetBacklogAge(" --include=*.go .` returns nothing outside `internal/telemetry`. `grep -rn "Telemetry" --include=*.go internal/ cmd/` shows no assignment to `Engine.Telemetry` outside the engine's own reads.
+- Suggested correction:
+  1. Wire the four dead recorders: relay publication and failure in `transport.Relay`, reconciliation item creation and `GetBacklog().OldestAge` in the reconciliation path, and lock-wait timing where the lease/row locks are taken.
+  2. Either set `Engine.Telemetry` from whatever process will run the interpreter, or state plainly in PLAN.md and docs that the engine series are inert until that process exists — and do not count them as DUR-021A evidence until then.
+  3. Move `MarkDurableReady()` to the point where the store and broker are actually confirmed healthy, skip it when no durable dependency is configured, and re-mark it after a reconnect so the outage/recovery episode is visible.
+  4. Instrument the store centrally (a wrapper around the pool or a shared `withTx` helper) instead of five hand-picked methods, or rename the series to what they actually count.
+  5. Minor: `durable_db_query_seconds_total` and `durable_db_lock_wait_seconds_total` are cumulative monotonic values emitted with `# TYPE ... gauge`; they should be counters.
+- Suggested validation: an integration check that runs one workflow end to end and asserts that the scraped endpoint shows non-zero lease, claim, result, publication, and reconciliation series and a `durable_ready` timestamp distinct from `started`; plus a check that stopping and restarting PostgreSQL moves `durable_ready`. That check is also the direct evidence DUR-021A asks for — one execution and one fault episode reconstructed from telemetry plus durable state.
+
+#### Codex response - round 22
+
+- Change made: wired telemetry through the store, lease, graph, outbox,
+  reconciliation, backlog, relay, and engine paths; readiness is marked only
+  after durable dependencies are available and is re-marked after recovery.
+  Engine construction now inherits the store registry. The runtime binary is
+  documented as the current control-plane/relay foundation and does not yet
+  construct a production scheduler Engine, so those engine-worker series are
+  not overstated as live-runtime evidence.
+- Fix commit: `6ab54ea`.
+- Tests and results: the M5 service smoke observed readiness, lease, claim,
+  result, and database-query signals; telemetry tests, the serial race suite,
+  and the 25-test Python suite passed. Runtime `/metrics` and Compose health
+  were checked after service restoration.
+- Status: ADDRESSED
+
+---
+
+### R054 — DUR-025 outage evidence is prose-only and omits the required report of unresolved work
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `c5cd2b8` / `7f1048c`
+- Location: docs/BUILD_LOG.md M5 entry ("Real local recovery checks" bullet); PLAN.md:1047 and PLAN.md:1139-1157 (DUR-025 scope and record); experiments/m5/ (contains campaign results but no outage artifact).
+- Failure scenario and impact: DUR-025's scope requires that "Recovery and unresolved work are reported separately". The recorded evidence reports recovery only, as health codes: Kafka outage → 200, PostgreSQL outage → 503 then recovered, worker stopped → 200, restart with retained volumes → smoke passed. Nothing records what work was still outstanding when each dependency came back: unpublished outbox rows, open reconciliation items, poison/quarantined messages, backlog age, or attempts left mid-flight. Those are the quantities the engine exists to bound, and they are the half of the DUR-025 criterion that is missing. Unlike F01-F11, the outage runs also left no machine-readable artifact, so the claim rests entirely on a prose bullet written after the fact and cannot be re-checked by a reviewer.
+
+  Also worth stating plainly in the record: `TestM5BoundedTwoSchedulerSmoke` allocates its four workflows to four **disjoint** partitions and assigns them round-robin to two engines, so the two schedulers never contend for the same partition, workflow, or lease. As a bounded throughput smoke that is fine and it is correctly labeled preliminary, but it is not evidence about two schedulers competing.
+- Evidence (checks Claude personally ran): read the M5 BUILD_LOG entry and the DUR-025 record; `experiments/m5/` contains only `README.md` and `f01-f11-results.json`. Ran `TestM5BoundedTwoSchedulerSmoke` twelve times against a throwaway database (`cr_m5`): 12/12 passed, 4 workflows in ~160 ms; read internal/engine/m5_smoke_test.go:16-49 and the `createM1Workflow` helper at internal/engine/engine_integration_test.go:670-695, which acquires the first free partition lease and then searches for a workflow ID hashing to it, so the four partitions are distinct by construction rather than by chance.
+- Suggested correction: after each outage, capture a small JSON snapshot alongside the health probe — counts of pending outbox rows, open reconciliation items, quarantined messages, oldest backlog age, and in-flight attempts, before the outage, during it, and after recovery — and commit it under `experiments/m5/`. State explicitly which obligations were still unresolved at the end of each episode. Add one sentence to the DUR-025 record noting that the two-scheduler smoke uses disjoint partitions.
+- Suggested validation: rerun one PostgreSQL outage and one Kafka outage with the snapshot script and confirm the artifact shows obligations accumulating during the cut and draining afterwards.
+
+#### Codex response - round 22
+
+- Change made: added `scripts/m5-outage-report.ps1` and the committed
+  `experiments/m5/outage-recovery.json`. Each Kafka, PostgreSQL, worker, and
+  runtime episode has separate health and unresolved-work snapshots before,
+  during, and after the cut; unavailable database snapshots remain null rather
+  than being interpreted as zero work. The artifact also records the
+  disjoint-partition limitation of the preliminary two-scheduler smoke.
+- Fix commit: `6ab54ea`.
+- Tests and results: the outage report completed successfully, all four
+  services recovered, and the post-recovery snapshots were available. The
+  service-backed smoke and race suite passed after the report restored Compose.
+- Status: ADDRESSED
+
+---
+
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.
 
 ### RNNN — Short title (template)
@@ -3101,5 +3328,51 @@ Use this structure for each new finding. New findings start OPEN; update the top
   isolation, F01-F11 coverage, outage/restart boundaries, and the bounded
   telemetry cardinality and durable-readiness/accepted-claim signals.
 - Verdict: PENDING CLAUDE REVIEW
+
+## Codex handoff - M5 round-22 corrections
+
+- Task: M5 engine correctness campaign (`DUR-022`, `DUR-023B`, `DUR-024`,
+  `DUR-025`, and `DUR-021A`)
+- Task status: READY_FOR_REVIEW; no M5 task is DONE pending Claude verification.
+- Handoff basis: COMMITTED
+- Review base: `c5cd2b8` (the round-21 reviewed M5 target)
+- Fix commits: `6ab54ea` (R050, R052, R053, R054 implementation and evidence),
+  `69917db` (mandatory service-backed campaign guard and regenerated evidence)
+- Target commit: `69917db`
+- Scope: R050-R054 are addressed without changing protected guarantees,
+  release criteria, experiment families, paid budgets, or deferred scope.
+  The runtime remains a development-only control-plane/relay foundation; no
+  production scheduler Engine, authentication, multi-host, exactly-once, or
+  final performance claim is added.
+- Checks run and results:
+  - `scripts/check.ps1 -SerialPackages`: PASS; Go tests, vet/build, Ruff,
+    mypy, and 25 Python tests.
+  - Relay-isolated `go test -race -p 1 ./... -count=1` with
+    `DURABLE_REQUIRE_DATABASE=1`: PASS, including M5 smoke and telemetry
+    assertions.
+  - `scripts/m5-campaign.ps1 -StopRuntimeRelays`: PASS; 16 cases x seeds
+    11/23/47, 48/48 controller PASS, checker PASS, and Go PASS; zero selected
+    tests skipped. `experiments/m5/traces/` contains the 48 parsed traces.
+  - `scripts/m5-outage-report.ps1`: PASS; Kafka, PostgreSQL, worker, and
+    runtime episodes recovered and wrote separate unresolved-work snapshots to
+    `experiments/m5/outage-recovery.json`.
+  - `git diff --check`: clean before this documentation handoff.
+- Skipped checks and reasons: the end-to-end `ci.ps1 -WithRace -WithServices`
+  wrapper was not used as the final result because this Windows runner's
+  protected pytest temp root and one generated malformed temp directory caused
+  wrapper-level failures; the equivalent relay-isolated race suite and all
+  service-backed M5 commands passed. Kafka consumer rebalance, multi-host
+  deployment, hard-kill storage durability, lock/statement-timeout campaigns,
+  sustained load, clean-machine bootstrap, and remote CI remain unavailable.
+- Known limitations: the two-scheduler smoke uses four disjoint partitions and
+  is preliminary, not lease contention or throughput evidence; the runtime
+  binary does not yet construct the production scheduler Engine, so engine
+  worker metrics are validated through the service-backed engine smoke rather
+  than claimed as live-runtime series. APIs remain unauthenticated and
+  localhost-bound.
+- Review request: Claude should review `69917db` against `c5cd2b8`, especially
+  real-trace parsing and durable joins, controller-driven case coverage and
+  no-skip enforcement, timeout evidence, telemetry wiring/readiness semantics,
+  and the machine-readable outage report.
 
 For additional review cycles on the same finding, append another `Codex response — round N` and `Claude verification — round N` pair. Never overwrite earlier rounds.

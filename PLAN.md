@@ -1051,7 +1051,8 @@ contract revision.
 
 - **Status:** READY_FOR_REVIEW.
 - **Base commit:** `561b5a9` (M5 start record; M4 closeout ancestor `612dde9`).
-- **Target commit:** `c5cd2b8` (M5 implementation and evidence).
+- **Target commit:** `69917db` (M5 corrections, campaign guard, and evidence;
+  implementation `6ab54ea`, campaign evidence correction `69917db`).
 - **Active task:** DUR-022 — Complete fault controller.
 - **Protected boundaries:** Preserve the M0 contracts, frozen partition map,
   PostgreSQL ownership and fencing rules, outbox/inbox identity, event
@@ -1097,8 +1098,10 @@ contract revision.
 - **Evidence:** Fault-controller implementation and tests, named-boundary
   fixtures, campaign records, `docs/BUILD_LOG.md`, and the final
   `REVIEW.md` handoff.
-- **Implementation commit:** `c5cd2b8`.
-- **Review:** pending Claude review against `561b5a9`.
+- **Implementation commits:** `6ab54ea`, followed by campaign evidence guard
+  and regeneration in `69917db`.
+- **Review:** pending Claude review of `69917db` against the round-21 target
+  `c5cd2b8`.
 - **Remaining limitations:** The fault proxy is a local test-profile control;
   the real Kafka adapter/rebalance, multi-host deployment, hard-kill storage
   durability, sustained-load measurements, and remote CI remain untested.
@@ -1112,12 +1115,13 @@ contract revision.
   bounded cleanup, and seed mutation tests for identity, duplicate runs,
   missing process outcomes, missing cleanup, contradictory boundaries, and
   missing effect/approval evidence.
-- **Validation:** `go test -race ./...`, focused invariant mutation tests,
-  and the service-backed F01-F11 campaign all passed. The checker parses the
-  evidence format without importing the controller package or transition
-  validators.
+- **Validation:** `go test -race -p 1 ./... -count=1`, focused invariant
+  mutation tests, and the service-backed F01-F11 campaign all passed. The
+  checker parses real controller traces, rejects unsupported schema versions
+  and unbounded cleanup, and joins explicit durable identity fields without
+  importing the controller package or transition validators.
 - **Evidence:** `internal/invariants/m5.go`, `internal/invariants/m5_test.go`,
-  and `experiments/m5/f01-f11-results.json` in `c5cd2b8`.
+  48 traces and `experiments/m5/f01-f11-results.json` in `69917db`.
 - **Review:** pending Claude review.
 
 #### DUR-024 — Engine boundary matrix
@@ -1128,12 +1132,13 @@ contract revision.
   durable PostgreSQL/Kafka tests, including duplicate publication, relay
   failure, worker/effect uncertainty, crash resume, lease takeover, timer/
   join, and cancellation races.
-- **Validation:** `scripts/m5-campaign.ps1 -StopRuntimeRelays` passed all eleven
-  cases and wrote per-case package, pattern, exit code, timestamp, and output
-  evidence. `scripts/ci.ps1 -WithRace -WithServices -WithM5` passed with the
-  same campaign entry point.
-- **Evidence:** `scripts/m5-campaign.ps1`, `experiments/m5/README.md`, and
-  `experiments/m5/f01-f11-results.json` in `c5cd2b8`.
+- **Validation:** `scripts/m5-campaign.ps1 -StopRuntimeRelays` passed 16
+  enumerated cases across F01-F11 with seeds 11, 23, and 47: 48/48 PASS,
+  48/48 controller PASS, 48/48 checker PASS, 48/48 Go PASS, and zero skipped
+  selected tests. The script forces service mode and fails on `--- SKIP`.
+- **Evidence:** `scripts/m5-campaign.ps1`, `experiments/m5/README.md`,
+  `experiments/m5/traces/`, and `experiments/m5/f01-f11-results.json` in
+  `69917db`.
 - **Review:** pending Claude review.
 
 #### DUR-025 — Real dependency outages and Core Engine MVP smoke
@@ -1144,12 +1149,15 @@ contract revision.
   worker/control partition, whole-process restart with retained volumes, and
   a bounded two-scheduler smoke. This is local development evidence, not a
   multi-host availability or final throughput claim.
-- **Validation:** Kafka outage restored and runtime health remained 200;
-  PostgreSQL outage returned runtime 503 and recovered; a stopped worker left
-  runtime health at 200 and recovered; runtime/worker restart retained the
-  dependency volumes and passed smoke. `TestM5BoundedTwoSchedulerSmoke`
-  completed four workflows on two owners in 137 ms and is labeled preliminary.
+- **Validation:** `experiments/m5/outage-recovery.json` records separate
+  health and unresolved-work snapshots for Kafka, PostgreSQL, worker, and
+  runtime episodes; each dependency recovered and the post-recovery snapshot
+  is explicitly available. PostgreSQL-down work is recorded as unavailable,
+  not as an empty backlog. `TestM5BoundedTwoSchedulerSmoke` completed four
+  workflows on two engine owners using four disjoint partitions and is labeled
+  preliminary rather than a contention or throughput claim.
 - **Evidence:** `internal/engine/m5_smoke_test.go`,
+  `scripts/m5-outage-report.ps1`, `experiments/m5/outage-recovery.json`,
   `scripts/restart-smoke.ps1`, `scripts/smoke.ps1`, and the M5 BUILD_LOG entry.
 - **Review:** pending Claude review.
 - **Remaining limitations:** No multi-host deployment, Kafka consumer
@@ -1166,12 +1174,16 @@ contract revision.
   publications/failures, and worker utilization, with only the bounded `role`
   label.
 - **Validation:** `internal/telemetry` unit tests pass; the live runtime
-  `/metrics` endpoint rendered the fixed names; service smoke confirmed both
-  runtimes are scraped. The telemetry fields are joined with durable traces
-  and the parsed fault evidence in the M5 validation record.
+  `/metrics` endpoint renders the fixed names; service-backed M5 smoke wires
+  a store-owned telemetry registry into both engine owners and observes
+  readiness, lease, claim, result, and database-query signals. Runtime
+  binaries are currently the control-plane/relay foundation and do not yet
+  construct a production scheduler Engine, so engine-worker series are not
+  claimed as live-runtime evidence until that process exists.
 - **Evidence:** `internal/telemetry/metrics.go`,
   `internal/telemetry/metrics_test.go`, runtime wiring in
-  `cmd/runtime/main.go` and `internal/state`, and `c5cd2b8`.
+  `cmd/runtime/main.go` and `internal/state`, `internal/engine/m5_smoke_test.go`,
+  and `69917db`.
 - **Review:** pending Claude review.
 - **Remaining limitations:** This is a bounded prerequisite, not the final
   M7 measurement host, dashboard, or performance study.
@@ -1493,10 +1505,11 @@ round-18 review returned `NO_BLOCKING_FINDINGS`; R048 is VERIFIED with a
 nonblocking residual note about manual DB-enabled parallel runs. M4 is DONE
 at reviewed implementation target `fcdbf09` against M3 closeout `8fb2f75`;
 Claude's committed round-20 review returned `NO_BLOCKING_FINDINGS`, and R049
-is VERIFIED. M5 is READY_FOR_REVIEW at implementation target `c5cd2b8`, based
-on M5 start commit `561b5a9` (M4 closeout ancestor `612dde9`). DUR-022,
-DUR-023B, DUR-024, DUR-025, and DUR-021A are READY_FOR_REVIEW. Claude should
-review the committed M5 target against `561b5a9`. Keep the M0 contracts and
+is VERIFIED. M5 is READY_FOR_REVIEW at corrected target `69917db`, based on
+the round-21 reviewed target `c5cd2b8` and M5 start commit `561b5a9` (M4
+closeout ancestor `612dde9`). DUR-022, DUR-023B, DUR-024, DUR-025, and
+DUR-021A are READY_FOR_REVIEW. Claude should review the corrected M5 target
+against `c5cd2b8`. Keep the M0 contracts and
 partition-map version frozen while extending the durable state repository.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.
