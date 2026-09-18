@@ -18,6 +18,7 @@ from incident_agent.fixtures import (
 )
 from incident_agent.mcp import BoundedMCPServer, MCPValidationError, serialize_tool_result
 from incident_agent.metrics import IncidentMetrics, dashboard_manifest
+from incident_agent.models import Proposal
 from incident_agent.redaction import redact, scan_downstream
 from incident_agent.retrieval import RetrievalConfig, RetrievalIndex
 from incident_agent.source_corpus import SourceCorpusStore, source_corpus_contract
@@ -119,6 +120,14 @@ def test_workflow_requires_approval_and_is_idempotent() -> None:
     assert store.effect(effect_key) == completed.action_receipt
     assert again.action_receipt == completed.action_receipt
     assert [event.event_type for event in again.timeline].count("effect_dispatched") == 1
+    forged = Proposal(
+        completed.proposal.action_type,
+        completed.proposal.target_resource_id,
+        {"revision": "forged"},
+        completed.proposal.canonical_argument_hash,
+    )
+    with pytest.raises(WorkflowError, match="arguments do not match"):
+        workflow.effect.apply(run_id, forged)
     store.close()
 
 

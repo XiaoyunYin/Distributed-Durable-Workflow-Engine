@@ -270,8 +270,12 @@ class SandboxEffect:
         grant = self.store.grant(effect_key)
         if grant is None or grant["state"] not in {"GRANTED", "DISPATCHED"}:
             raise WorkflowError("effect requires a matching approval grant")
+        if grant["run_id"] != run_id or grant["proposal_hash"] != proposal.canonical_argument_hash:
+            raise WorkflowError("effect proposal does not match approval grant")
         if grant["resource_id"] != proposal.target_resource_id:
             raise WorkflowError("effect resource does not match approval grant")
+        if grant["argument_hash"] != canonical_proposal_hash(proposal):
+            raise WorkflowError("effect arguments do not match approval grant")
         existing = self.store.effect(effect_key)
         if existing is not None:
             return existing
@@ -293,18 +297,27 @@ class SandboxEffect:
         return receipt
 
 
+def canonical_proposal_hash(proposal: Proposal) -> str:
+    canonical = json.dumps(
+        {
+            "action": proposal.action_type,
+            "target": proposal.target_resource_id,
+            "arguments": proposal.arguments,
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(canonical.encode()).hexdigest()
+
+
 def proposal_from_dict(value: dict[str, Any]) -> Proposal:
     action = str(value["action"])
     target = str(value.get("service", value.get("resource_id", "incident-resource")))
     arguments = {
         key: item for key, item in value.items() if key not in {"action", "service", "resource_id"}
     }
-    canonical = json.dumps(
-        {"action": action, "target": target, "arguments": arguments},
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return Proposal(action, target, arguments, hashlib.sha256(canonical.encode()).hexdigest())
+    proposal = Proposal(action, target, arguments, "")
+    return Proposal(action, target, arguments, canonical_proposal_hash(proposal))
 
 
 class InvestigationWorkflow:
