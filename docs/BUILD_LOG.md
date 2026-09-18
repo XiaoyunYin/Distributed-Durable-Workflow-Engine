@@ -1706,3 +1706,25 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   Engine, so the study invokes the committed Engine/Store harness directly.
   It does not claim multi-host scaling, maximum sustainable throughput, or a
   constant-total-CPU speedup.
+
+## 2026-09-18 - M7 DUR-026 round-30 measurement correction
+
+- Claude's round-30 review rejected the prior `7a0ef95` throughput evidence:
+  scheduler goroutines also executed activities, arrivals were throttled by an
+  unbuffered queue, CPU was not role-separated, and the runs had no frozen
+  warm-up/measurement/SLO record. Those numbers are superseded and are not
+  acceptance or resume evidence.
+- The corrected harness adds a real four-process worker pool, keeps worker
+  capacity fixed while scheduler count changes, measures scheduler and worker
+  CPU separately, and uses a cohort-sized queue so the producer follows the
+  configured open-loop arrival schedule. The pilot now sweeps one-scheduler
+  offered rates and freezes a below-saturation rate plus the next
+  near-saturation rate for the final study.
+- The runner records four discarded warm-up workflows, 24 measured workflows
+  per final run, arrival-window and drain durations, a 120-second completion
+  SLO, a 900-second cap, per-run reconciliation, and the scoped R069 fixture
+  sweep before measurement. It remains explicitly bounded Store/Engine
+  evidence rather than a deployed Kafka/API/relay throughput claim.
+- Static validation after the correction: Go tests and vet for both benchmark
+  commands, gofmt, PowerShell parse validation, and `git diff --check` passed.
+  The corrected pilot and final study remain pending before the next review.

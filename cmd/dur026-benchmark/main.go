@@ -10,8 +10,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -33,6 +35,9 @@ type config struct {
 	Seed           int64
 	RunID          string
 	ActivityWork   int
+	WorkerBinary   string
+	WorkerSlots    int
+	SLOSeconds     int
 	OutputPath     string
 }
 
@@ -40,6 +45,106 @@ type workflowJob struct {
 	ID          string
 	ScheduledAt time.Time
 	CreatedAt   time.Time
+}
+
+type workerRequest struct {
+	Seed      int64  `json:"seed"`
+	NodeID    string `json:"node_id"`
+	WorkUnits int    `json:"work_units"`
+}
+
+type workerResponse struct {
+	OK     bool   `json:"ok"`
+	Digest uint64 `json:"digest,omitempty"`
+	Error  string `json:"error,omitempty"`
+}
+
+type workerProcess struct {
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	encode *json.Encoder
+	decode *json.Decoder
+	mu     sync.Mutex
+}
+
+type workerPool struct {
+	workers []*workerProcess
+	next    atomic.Uint64
+}
+
+func newWorkerPool(binary string, slots int) (*workerPool, error) {
+	pool := &workerPool{workers: make([]*workerProcess, 0, slots)}
+	for index := 0; index < slots; index++ {
+		command := exec.Command(binary)
+		stdin, err := command.StdinPipe()
+		if err != nil {
+			_, _ = pool.Close()
+			return nil, fmt.Errorf("worker %d stdin: %w", index, err)
+		}
+		stdout, err := command.StdoutPipe()
+		if err != nil {
+			_ = stdin.Close()
+			_, _ = pool.Close()
+			return nil, fmt.Errorf("worker %d stdout: %w", index, err)
+		}
+		command.Stderr = os.Stderr
+		if err := command.Start(); err != nil {
+			_ = stdin.Close()
+			_, _ = pool.Close()
+			return nil, fmt.Errorf("start worker %d: %w", index, err)
+		}
+		pool.workers = append(pool.workers, &workerProcess{cmd: command, stdin: stdin,
+			encode: json.NewEncoder(stdin), decode: json.NewDecoder(stdout)})
+	}
+	return pool, nil
+}
+
+func (pool *workerPool) Run(ctx context.Context, seed int64, activity engine.Activity, units int) error {
+	if len(pool.workers) == 0 {
+		return errors.New("worker pool has no workers")
+	}
+	index := (pool.next.Add(1) - 1) % uint64(len(pool.workers))
+	worker := pool.workers[index]
+	worker.mu.Lock()
+	defer worker.mu.Unlock()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	if err := worker.encode.Encode(workerRequest{Seed: seed, NodeID: activity.NodeID, WorkUnits: units}); err != nil {
+		return fmt.Errorf("send activity to worker: %w", err)
+	}
+	var response workerResponse
+	if err := worker.decode.Decode(&response); err != nil {
+		return fmt.Errorf("read worker response: %w", err)
+	}
+	if !response.OK {
+		if response.Error == "" {
+			response.Error = "worker rejected activity"
+		}
+		return errors.New(response.Error)
+	}
+	return nil
+}
+
+func (pool *workerPool) Close() (float64, error) {
+	var closeErr error
+	for _, worker := range pool.workers {
+		if err := worker.stdin.Close(); err != nil && closeErr == nil {
+			closeErr = err
+		}
+	}
+	var cpu time.Duration
+	for _, worker := range pool.workers {
+		if err := worker.cmd.Wait(); err != nil && closeErr == nil {
+			closeErr = err
+		}
+		if worker.cmd.ProcessState != nil {
+			cpu += worker.cmd.ProcessState.UserTime() + worker.cmd.ProcessState.SystemTime()
+		}
+	}
+	return cpu.Seconds(), closeErr
 }
 
 type workflowOutcome struct {
@@ -60,6 +165,7 @@ type result struct {
 	Timing        timingReport      `json:"timing"`
 	Cohort        cohortReport      `json:"cohort"`
 	Telemetry     telemetryReport   `json:"telemetry"`
+	WorkerCPU     float64           `json:"worker_cpu_seconds"`
 	Outcomes      []workflowOutcome `json:"outcomes"`
 	Failure       string            `json:"failure,omitempty"`
 }
@@ -72,6 +178,7 @@ type configReport struct {
 	Seed           int64   `json:"seed"`
 	ActivityWork   int     `json:"activity_work_units"`
 	WorkerSlots    int     `json:"worker_slots"`
+	CompletionSLO  int     `json:"completion_slo_seconds"`
 	Graph          string  `json:"graph_profile"`
 }
 
@@ -79,6 +186,8 @@ type timingReport struct {
 	MeasuredStart  time.Time `json:"measured_start_utc"`
 	MeasuredEnd    time.Time `json:"measured_end_utc"`
 	ElapsedSeconds float64   `json:"elapsed_seconds"`
+	ArrivalWindow  float64   `json:"arrival_window_seconds"`
+	DrainSeconds   float64   `json:"drain_seconds"`
 	Throughput     float64   `json:"terminal_workflows_per_second"`
 	MinLatency     float64   `json:"min_completion_latency_seconds"`
 	MedianLatency  float64   `json:"median_completion_latency_seconds"`
@@ -86,13 +195,14 @@ type timingReport struct {
 }
 
 type cohortReport struct {
-	Scheduled  int `json:"scheduled"`
-	Submitted  int `json:"submitted"`
-	Accepted   int `json:"accepted"`
-	Terminal   int `json:"terminal"`
-	Pending    int `json:"pending"`
-	Ambiguous  int `json:"ambiguous_submissions"`
-	FailedRuns int `json:"failed_runs"`
+	Scheduled     int `json:"scheduled"`
+	Submitted     int `json:"submitted"`
+	Accepted      int `json:"accepted"`
+	Terminal      int `json:"terminal"`
+	Pending       int `json:"pending"`
+	Ambiguous     int `json:"ambiguous_submissions"`
+	FailedRuns    int `json:"failed_runs"`
+	SLOViolations int `json:"completion_slo_violations"`
 }
 
 type telemetryReport struct {
@@ -118,6 +228,9 @@ func main() {
 	flag.Int64Var(&cfg.Seed, "seed", 1, "deterministic seed")
 	flag.StringVar(&cfg.RunID, "run-id", "", "unique run identity")
 	flag.IntVar(&cfg.ActivityWork, "activity-work", 5000, "deterministic CPU work units per activity")
+	flag.StringVar(&cfg.WorkerBinary, "worker-binary", "", "fixed-capacity worker executable")
+	flag.IntVar(&cfg.WorkerSlots, "worker-slots", 4, "fixed number of worker processes")
+	flag.IntVar(&cfg.SLOSeconds, "completion-slo-seconds", 120, "completion SLO from scheduled arrival")
 	flag.StringVar(&cfg.OutputPath, "output", "", "optional JSON output path")
 	flag.Parse()
 
@@ -132,6 +245,12 @@ func main() {
 	}
 	if cfg.RatePerSecond <= 0 || cfg.WorkflowCount <= 0 || cfg.ActivityWork <= 0 {
 		fatal("rate, workflow-count, and activity-work must be positive")
+	}
+	if cfg.WorkerBinary == "" {
+		fatal("worker-binary is required")
+	}
+	if cfg.WorkerSlots < 1 || cfg.SLOSeconds <= 0 {
+		fatal("worker-slots and completion-slo-seconds must be positive")
 	}
 
 	result, err := run(cfg)
@@ -170,6 +289,16 @@ func run(cfg config) (result, error) {
 
 	metrics := telemetry.New("dur026-benchmark")
 	store.SetTelemetry(metrics)
+	workers, err := newWorkerPool(cfg.WorkerBinary, cfg.WorkerSlots)
+	if err != nil {
+		return result{}, err
+	}
+	workersClosed := false
+	defer func() {
+		if !workersClosed {
+			_, _ = workers.Close()
+		}
+	}()
 	namespace := "dur026-bench-" + cfg.RunID
 	definitionID := namespace + "-def"
 	graph, effects, versions, err := benchmarkGraph(cfg.Workload)
@@ -188,13 +317,18 @@ func run(cfg config) (result, error) {
 	}
 	baseline := metrics.Snapshot()
 	measuredStart := time.Now().UTC()
-	jobs := make(chan workflowJob)
+	// The queue is deliberately buffered for the complete measured cohort. The
+	// producer therefore keeps the configured arrival schedule even when all
+	// schedulers are busy; scheduler count changes admission capacity, not the
+	// fixed worker pool below.
+	jobs := make(chan workflowJob, cfg.WorkflowCount)
 	var schedulerWG sync.WaitGroup
 	var outcomesMu sync.Mutex
 	outcomes := make([]workflowOutcome, 0, cfg.WorkflowCount)
-	var workSink atomic.Uint64
 	driver := engine.ActivityDriverFunc(func(ctx context.Context, activity engine.Activity) (engine.ActivityResult, error) {
-		busyWork(ctx, cfg.Seed, activity, cfg.ActivityWork, &workSink)
+		if err := workers.Run(ctx, cfg.Seed, activity, cfg.ActivityWork); err != nil {
+			return engine.ActivityResult{}, err
+		}
 		return engine.ActivityResult{Payload: []byte(`{"ok":true}`)}, nil
 	})
 
@@ -256,6 +390,11 @@ func run(cfg config) (result, error) {
 	close(jobs)
 	schedulerWG.Wait()
 	measuredEnd := time.Now().UTC()
+	workerCPU, workerCloseErr := workers.Close()
+	workersClosed = true
+	if workerCloseErr != nil {
+		return result{}, fmt.Errorf("close worker pool: %w", workerCloseErr)
+	}
 
 	outcomesMu.Lock()
 	stableOutcomes := append([]workflowOutcome(nil), outcomes...)
@@ -263,20 +402,21 @@ func run(cfg config) (result, error) {
 	if len(stableOutcomes) != cfg.WorkflowCount {
 		return result{}, fmt.Errorf("scheduler completed %d of %d workflows", len(stableOutcomes), cfg.WorkflowCount)
 	}
-	cohort, timing, reconcileErr := summarize(ctx, store, stableOutcomes, measuredStart, measuredEnd)
+	cohort, timing, reconcileErr := summarize(ctx, store, stableOutcomes, measuredStart, measuredEnd, cfg.RatePerSecond, cfg.SLOSeconds)
 	if reconcileErr != nil {
 		return result{}, reconcileErr
 	}
-	if cohort.Pending != 0 || cohort.FailedRuns != 0 || cohort.Terminal != cohort.Accepted {
+	if cohort.Pending != 0 || cohort.FailedRuns != 0 || cohort.Terminal != cohort.Accepted || cohort.SLOViolations != 0 {
 		return result{}, fmt.Errorf("cohort did not reconcile: %+v", cohort)
 	}
 	return result{
 		SchemaVersion: "dur026-run.v1", Status: "PASS", GeneratedAt: time.Now().UTC(),
 		Config: configReport{Workload: cfg.Workload, SchedulerCount: cfg.SchedulerCount,
 			RatePerSecond: cfg.RatePerSecond, WorkflowCount: cfg.WorkflowCount, Seed: cfg.Seed,
-			ActivityWork: cfg.ActivityWork, WorkerSlots: 4, Graph: cfg.Workload},
+			ActivityWork: cfg.ActivityWork, WorkerSlots: cfg.WorkerSlots, CompletionSLO: cfg.SLOSeconds, Graph: cfg.Workload},
 		Timing: timing, Cohort: cohort, Telemetry: deltaTelemetry(metrics.Snapshot(), baseline),
-		Outcomes: stableOutcomes,
+		WorkerCPU: workerCPU,
+		Outcomes:  stableOutcomes,
 	}, nil
 }
 
@@ -309,9 +449,13 @@ func executeJob(ctx context.Context, runner *engine.Engine, store *state.Store, 
 	return outcome
 }
 
-func summarize(ctx context.Context, store *state.Store, outcomes []workflowOutcome, measuredStart, measuredEnd time.Time) (cohortReport, timingReport, error) {
+func summarize(ctx context.Context, store *state.Store, outcomes []workflowOutcome, measuredStart, measuredEnd time.Time, rate float64, sloSeconds int) (cohortReport, timingReport, error) {
 	cohort := cohortReport{Scheduled: len(outcomes), Submitted: len(outcomes), Accepted: len(outcomes)}
 	latencies := make([]float64, 0, len(outcomes))
+	arrivalWindow := 0.0
+	if len(outcomes) > 1 {
+		arrivalWindow = float64(len(outcomes)-1) / rate
+	}
 	for index := range outcomes {
 		workflow, err := store.GetWorkflow(ctx, outcomes[index].WorkflowID)
 		if err != nil {
@@ -327,7 +471,11 @@ func summarize(ctx context.Context, store *state.Store, outcomes []workflowOutco
 			cohort.FailedRuns++
 		}
 		if !outcomes[index].FinishedAt.IsZero() {
-			latencies = append(latencies, outcomes[index].FinishedAt.Sub(outcomes[index].ScheduledAt).Seconds())
+			latency := outcomes[index].FinishedAt.Sub(outcomes[index].ScheduledAt).Seconds()
+			latencies = append(latencies, latency)
+			if latency > float64(sloSeconds) {
+				cohort.SLOViolations++
+			}
 		}
 	}
 	if len(latencies) == 0 {
@@ -346,8 +494,13 @@ func summarize(ctx context.Context, store *state.Store, outcomes []workflowOutco
 	if elapsed <= 0 {
 		return cohort, timingReport{}, errors.New("measured interval was not positive")
 	}
+	drain := measuredEnd.Sub(measuredStart).Seconds() - arrivalWindow
+	if drain < 0 {
+		drain = 0
+	}
 	return cohort, timingReport{MeasuredStart: measuredStart, MeasuredEnd: measuredEnd,
-		ElapsedSeconds: elapsed, Throughput: float64(cohort.Terminal) / elapsed,
+		ElapsedSeconds: elapsed, ArrivalWindow: arrivalWindow, DrainSeconds: drain,
+		Throughput: float64(cohort.Terminal) / elapsed,
 		MinLatency: latencies[0], MedianLatency: latencies[len(latencies)/2], MaxLatency: latencies[len(latencies)-1]}, nil
 }
 
@@ -396,23 +549,6 @@ func benchmarkGraph(workload string) (json.RawMessage, json.RawMessage, json.Raw
 	effectJSON, _ := json.Marshal(effects)
 	versionJSON, _ := json.Marshal(versions)
 	return graph, effectJSON, versionJSON, nil
-}
-
-func busyWork(ctx context.Context, seed int64, activity engine.Activity, units int, sink *atomic.Uint64) {
-	var value = uint64(seed) ^ uint64(len(activity.NodeID))
-	for index := 0; index < units; index++ {
-		value ^= value << 13
-		value ^= value >> 7
-		value ^= value << 17
-		if index%4096 == 0 {
-			select {
-			case <-ctx.Done():
-				return
-			default:
-			}
-		}
-	}
-	sink.Add(value)
 }
 
 func deltaTelemetry(after, before telemetry.Snapshot) telemetryReport {
