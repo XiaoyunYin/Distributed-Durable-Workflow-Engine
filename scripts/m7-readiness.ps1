@@ -12,6 +12,9 @@ $composeArgs = @("compose", "--env-file", ".env", "-f", "deploy/local/compose.ya
 $expectedServices = @("postgres", "kafka", "runtime-a", "runtime-b", "worker-a", "worker-b", "otel-collector", "prometheus")
 $startedAt = (Get-Date).ToUniversalTime()
 $previousEngineMode = $env:RUNTIME_ENGINE_MODE
+$cleanupEnabled = $false
+$preRunWorkflowSweep = 0
+$preRunDefinitionSweep = 0
 
 function Invoke-Captured([string]$FilePath, [string[]]$Arguments) {
     $previousErrorAction = $ErrorActionPreference
@@ -135,6 +138,18 @@ try {
     $databaseSnapshot = ($databaseProbe.output -split "`r?`n" | Where-Object { $_.Trim() } | Select-Object -Last 1) | ConvertFrom-Json
     $filesystemProbe = Invoke-Required "docker" ($composeArgs + @("exec", "-T", "postgres", "sh", "-c", "df -T /var/lib/postgresql; stat -f -c '%T' /var/lib/postgresql"))
 
+    $cleanupEnabled = $true
+    $preRunWorkflowProbe = Invoke-Required "docker" ($composeArgs + @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-At", "-U", $databaseUser, "-d", $databaseName, "-c", "SELECT count(*) FROM engine.workflow_executions WHERE workflow_id LIKE 'dur036-runtime-%';"))
+    $preRunDefinitionProbe = Invoke-Required "docker" ($composeArgs + @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-At", "-U", $databaseUser, "-d", $databaseName, "-c", "SELECT count(*) FROM engine.workflow_definitions WHERE definition_id LIKE 'dur036-runtime-def-%';"))
+    $preRunWorkflowSweep = [int]$preRunWorkflowProbe.output.Trim()
+    $preRunDefinitionSweep = [int]$preRunDefinitionProbe.output.Trim()
+    if ($preRunWorkflowSweep -gt 0) {
+        Invoke-Required "docker" ($composeArgs + @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", $databaseUser, "-d", $databaseName, "-c", "DELETE FROM engine.workflow_executions WHERE workflow_id LIKE 'dur036-runtime-%';")) | Out-Null
+    }
+    if ($preRunDefinitionSweep -gt 0) {
+        Invoke-Required "docker" ($composeArgs + @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", $databaseUser, "-d", $databaseName, "-c", "DELETE FROM engine.workflow_definitions WHERE definition_id LIKE 'dur036-runtime-def-%';")) | Out-Null
+    }
+
     $runtimePort = EnvValue "RUNTIME_A_PORT" "8080"
     $prometheusPort = EnvValue "PROMETHEUS_PORT" "9090"
     $metricsBefore = Get-Metrics $runtimePort
@@ -205,9 +220,6 @@ try {
     }
     $faultChecker = Invoke-Required "go" @("run", "./cmd/fault-checker", "-offline", "-trace", $faultTrace, "-durable-trace", $faultSnapshot)
 
-    $cleanupSQL = "DELETE FROM engine.workflow_executions WHERE workflow_id IN ('$($deployedRun.workflow_id)', '$($faultRun.workflow_id)'); DELETE FROM engine.workflow_definitions WHERE definition_id IN ('$($deployedRun.definition_id)', '$($faultRun.definition_id)');"
-    Invoke-Required "docker" ($composeArgs + @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", $databaseUser, "-d", $databaseName, "-c", $cleanupSQL)) | Out-Null
-
     $volumeDrivers = @($volumes | ForEach-Object { $_.driver } | Where-Object { $_ } | Select-Object -Unique)
     $artifact = [ordered]@{
         schema_version = "dur036-readiness.v1"
@@ -258,6 +270,7 @@ try {
             normal_execution = [ordered]@{ command = $readinessURL; status = "PASS"; response = $deployedRun; telemetry_metric_delta = $metricDelta; durable_ready_before = $readyBefore; durable_ready_after = $readyAfter; telemetry_endpoint_before = $metricsBefore.body; telemetry_endpoint_after = $metricsAfter.body }
             fault_episode = [ordered]@{ command = $faultURL; status = "PASS"; response = $faultRun; telemetry_metric_delta = $faultMetricDelta; durable_ready_before = $readyAfter; durable_ready_after = $faultReadyAfter; telemetry_endpoint_before = $faultBefore.body; telemetry_endpoint_after = $faultAfter.body; checker_command = $faultChecker.command; checker_output = $faultChecker.output; trace = $faultTrace; durable_snapshot = $faultSnapshot }
             local_regression = [ordered]@{ command = $telemetryReadiness.command; status = "PASS"; output = $telemetryReadiness.output }
+            fixture_sweep = [ordered]@{ pre_run_workflows = $preRunWorkflowSweep; pre_run_definitions = $preRunDefinitionSweep; cleanup = "reserved dur036-runtime namespace deleted in outer finally" }
         }
         assumptions = @(
             "All host and container timestamps are recorded as UTC where available; PostgreSQL reports its configured TimeZone separately.",
@@ -271,6 +284,10 @@ try {
     $artifact | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $OutputPath -Encoding utf8
     Write-Host "DUR-036 readiness passed; evidence written to $OutputPath"
 } finally {
+    if ($cleanupEnabled) {
+        $cleanupSQL = "DELETE FROM engine.workflow_executions WHERE workflow_id LIKE 'dur036-runtime-%'; DELETE FROM engine.workflow_definitions WHERE definition_id LIKE 'dur036-runtime-def-%';"
+        Invoke-Required "docker" ($composeArgs + @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", $databaseUser, "-d", $databaseName, "-c", $cleanupSQL)) | Out-Null
+    }
     if ($null -eq $previousEngineMode) { Remove-Item Env:RUNTIME_ENGINE_MODE -ErrorAction SilentlyContinue }
     else { $env:RUNTIME_ENGINE_MODE = $previousEngineMode }
     Pop-Location
