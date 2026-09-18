@@ -1747,3 +1747,15 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   `scripts/ci.ps1 -WithRace` passed all Go race packages, formatting, Ruff,
   mypy, and 38 Python tests; its live PostgreSQL/Kafka smoke phase remains
   intentionally skipped. This handoff is READY_FOR_REVIEW, not DONE.
+
+## 2026-09-18 - M7 DUR-026 closeout
+
+- Claude's committed round-31 review of target `50d4b13` returned
+  `NO_BLOCKING_FINDINGS` and verified R069-R073. DUR-026 is now `DONE` in
+  PLAN.md. The corrected evidence remains bounded to the single-node WSL2
+  Store/Engine harness with a fixed four-process worker pool; it makes no
+  deployed Kafka/API/relay, multi-host, maximum-throughput, or production
+  scale claim.
+- The only remaining work in M7 is the later TODO measurement studies. The
+  historical R019 test gap, M5/M6 P3 notes, and the Store/Engine topology
+  limitation remain disclosed and do not block this closeout.

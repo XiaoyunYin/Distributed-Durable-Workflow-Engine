@@ -1264,6 +1264,41 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   None of this is hard to fix, and none of it implies a defect in the engine. Separate the scheduler role from the worker pool, run through the deployed topology the DUR-036 gate exists to certify, generate load open-loop, calibrate the rates from a real one-scheduler sweep, and attribute CPU per role. The reconciliation discipline already in place is the part that makes the rest worth doing.
 
+### Round 31 — 2026-09-18 — DUR-026 corrected throughput study
+
+- Date and round: 2026-09-18, round 31.
+- Review basis: COMMITTED. The worktree was clean at `4a1d9af` when the review started and remained clean throughout.
+- Base and target commits: base `7a0ef95` for this round, implementation target `50d4b13` (with `1e54bc6` recording the calibration pilot), handoff `4a1d9af`, which changes only documentation. The handoff declaration matches the repository state.
+- Scope inspected: `git diff 7a0ef95 50d4b13` — the reworked `cmd/dur026-benchmark/main.go` (shared fixed worker pool, buffered open-loop queue, role-separated CPU, SLO and drain accounting), the new `cmd/dur026-worker/main.go`, `scripts/m7-dur026.ps1` (warmup runs and protocol capture), the regenerated `pilot.json` and `results.json`, and the PLAN.md and BUILD_LOG.md updates. No migrations and no engine or product code changed. No protected-scope drift: PLAN.md section 14A is unchanged, and no experiment family, guarantee, release criterion, or budget was altered.
+- Checks personally run (Claude), read-only against the committed artifacts, the source, and the live database:
+  - Read the worker process and confirmed it has no repository access and only executes the CPU burn over stdin/stdout.
+  - Confirmed the worker pool is constructed once at :292, before the scheduler goroutines, and is shared — so execution capacity is fixed at four processes independent of scheduler count.
+  - Confirmed the job queue is buffered for the full cohort at :324, making submission open-loop.
+  - Checked the calibrated rates against the measured data: at rate 1 the median throughput is 1.006, 1.017, 1.012, 1.015 — tracking the offered rate at both scheduler counts; at rate 2 one scheduler yields 1.370 and 1.636 while two yield 1.967 and 1.984.
+  - Checked that worker CPU per workflow is constant across scheduler counts (0.0020 to 0.0039) while scheduler CPU is 0.0788 to 0.0981, which both confirms the fixed pool and corrects Claude's round-30 assumption about which term dominated.
+  - Computed the spread across repeats for all eight configurations: 0.5 to 3.9 percent of the median.
+  - Confirmed the SLO is enforced at :409 and that the study reports zero violations over 576 workflows, and read the warmup wiring in the script.
+  - Queried the declared measurement database: zero `dur036-runtime-%`, zero `dur026-bench-%`, and zero workflow rows in total.
+- Codex-reported checks considered but not rerun: `ci.ps1 -WithRace`, the Go tests and vet, formatting, the PowerShell parse check, and the 24-run study itself. Claude did not rerun the study, because it writes to the developer database and takes several minutes.
+- Findings resolved: R069, R070, R071, R072, and R073 are VERIFIED.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Correction to Claude's own earlier reasoning: round 30's R072 asserted that the published whole-process CPU figure was "dominated by the synthetic activity burn". The role-separated measurement disproves that — worker CPU is a few percent of scheduler CPU. The defect as reported (a whole-process figure published under a scheduler-only name) was real and is fixed, but Claude's stated magnitude was wrong and is corrected in the R072 verification block.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The study drives the in-process `Store`/`Engine` path; there is no runtime container, API, relay, or Kafka in the loop. This is disclosed in the protocol and limitations and does not violate section 14A, but it bounds how the result may be described.
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - Three repeats of 24 workflows is a modest sample; the dispersion is small but the study supports bounded comparisons rather than precise capacity figures.
+  - Not exercised by Claude: the study run itself, the calibration sweep, the Compose rebuild path, and any multi-host configuration.
+  - DUR-033A remains TODO.
+- Limitations: protocol and harness review plus arithmetic on the committed results and a live database check, not an independent execution of the study.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-026 at committed target `50d4b13` with base `6325d1f`. This is a COMMITTED, non-provisional review. R001–R073 are VERIFIED apart from the P3 residuals R057 and the recorded M6 notes, plus the historical R019 test gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-026 to DONE under PLAN.md section 11.
+
+  The rework turned a confounded harness into a study that answers its question. Execution now happens in four fixed worker processes that exist independently of scheduler count, so the scheduler-count factor finally varies admission capacity alone — and I checked that in the data as well as the code, since worker CPU per workflow stays flat at 0.002 to 0.004 seconds while scheduler count changes. Submission is open-loop against a queue buffered for the whole cohort, and the rates were calibrated rather than assumed: at 1 workflow per second every configuration tracks the offered rate, which is a genuine below-saturation point, and at 2 per second one scheduler falls short at 1.37 and 1.64 while two keep up at 1.97 and 1.98. That contrast is the result DUR-026 exists to produce, and it is now supported rather than an artifact of two CPU-bound goroutines. Warmup is separated, drain is reported apart from the arrival window, a frozen 120-second completion SLO is enforced rather than merely recorded, dispersion across repeats fell to at most 3.9 percent, and the reconciliation discipline from the first attempt carried over — 576 of 576 terminal, zero pending, zero SLO violations, with the run failing if any of those were untrue.
+
+  One correction belongs to me rather than to Codex. I claimed in round 30 that the whole-process CPU figure was dominated by the synthetic activity burn; the separated measurement shows the burn was only a few percent and the figure was mostly scheduler and persistence work. The finding's substance — publishing a whole-process number under the name of a scheduler-only metric — was still right, and separating the roles was still the correct fix, but my stated magnitude was wrong and the verification block records that.
+
+  What the evidence now supports is bounded and clearly scoped: on the declared single-node WSL2 host, for these two synthetic workloads driven through the in-process engine path against a fixed four-process worker pool, a second scheduler is what lets the system meet a 2-per-second offered rate that one scheduler cannot. It does not establish maximum sustainable throughput, end-to-end system throughput through the API and Kafka, or any multi-host property, and the artifact says so.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -4231,7 +4266,7 @@ superseded by the committed M4 handoff below.
 ### R069 — Readiness fixtures are not cleaned up when a run aborts, and a stranded workflow is sitting in the declared measurement database
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `6325d1f`
 - Location: scripts/m7-readiness.ps1:208-209 (the fixture `DELETE` runs in the main `try` body, after the metric assertions at :162 and :168 and the F07 evidence check at :203, rather than in the outer `finally` at :273); cmd/runtime/main.go (the readiness handler creates a definition and a workflow and never removes them itself).
@@ -4280,12 +4315,18 @@ superseded by the committed M4 handoff below.
   passed.
 - Status: ADDRESSED
 
+#### Claude verification – round 31
+
+- Verification commit: `50d4b13`.
+- Evidence and remaining concerns: fixed. Claude queried the declared measurement database directly: zero `dur036-runtime-%` rows, zero `dur026-bench-%` rows, and zero rows in `engine.workflow_executions` overall. The stranded `dur036-runtime-d5eb0e80-…` workflow that Claude left in place as evidence in round 29 is gone, and the DUR-026 study — which submits 576 workflows plus warmups — left nothing behind either.
+- Status: VERIFIED
+
 ---
 
 ### R070 — Scheduler count is confounded with execution concurrency, so the throughput result measures added CPU workers rather than added scheduler capacity
 
 - Severity: P1
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `7a0ef95`
 - Location: cmd/dur026-benchmark/main.go:196-199 (the activity driver burns CPU with `busyWork`, defined at :401), :201-219 (each "scheduler" is a goroutine that both runs the interpreter and executes that driver), :191 and :254 (one unbuffered `jobs` channel feeds them), :277 (`WorkerSlots: 4` is a hardcoded literal in the report); experiments/m7/dur026/results.json (`summary`, `protocol.worker_slots`).
@@ -4314,12 +4355,20 @@ superseded by the committed M4 handoff below.
 - Tests and results: command-level Go tests, vet, gofmt, PowerShell parsing, and `git diff --check` pass. The corrected pilot and final runs pass; the final artifact records 24 runs and 576 terminal workflows.
 - Status: ADDRESSED
 
+#### Claude verification – round 31
+
+- Verification commit: `50d4b13` (base `7a0ef95`).
+- Evidence and remaining concerns: the confound is removed, which was the substance of this finding. A new `cmd/dur026-worker` is a separate OS process that does nothing but execute the deterministic CPU burn over stdin/stdout, and `cmd/dur026-benchmark` creates **one** `newWorkerPool(binary, 4)` at :292, before the scheduler goroutines are started, so the pool is shared and fixed at four processes regardless of scheduler count. `worker_slots` is now a real flag rather than a literal in the report writer. Scheduler goroutines no longer execute activity CPU; they delegate to the pool.
+- Claude checked that the fix holds in the data, not only in the code. Worker CPU per terminal workflow is essentially constant across both scheduler counts and both workloads (0.0020 to 0.0039 seconds), which is what a fixed execution pool looks like, while scheduler count now changes admission capacity only. The scheduler-count effect is consequently interpretable for the first time: at the below-saturation rate both counts track the offered rate, and at the near-saturation rate one scheduler falls short while two keep up (see R071).
+- Residual, recorded rather than blocking: the study still drives the in-process `Store`/`Engine` path, with no runtime container, API, relay, or Kafka in the loop, and the protocol says so in `database_and_broker_capacity` and in the limitations. PLAN.md section 14A requires those capacities to be held fixed across scheduler counts, which is trivially true when they are absent, so the protocol is not violated — but the result is engine-path throughput on a fixed worker pool, not end-to-end system throughput. Any report sentence built on these numbers should say so, and the deployed-topology version remains the more valuable measurement now that the readiness endpoint shows the runtime can host an engine.
+- Status: VERIFIED
+
 ---
 
 ### R071 — The arrival process is closed-loop and no configuration is below saturation, so the rate factor does not test what the protocol specifies
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `7a0ef95`
 - Location: cmd/dur026-benchmark/main.go:116 (the flag is described as an "open-loop workflow arrival rate"), :191 (unbuffered `jobs` channel), :232-254 (the submitter waits until the scheduled instant, creates the workflow, then blocks on `jobs <-`); experiments/m7/dur026/pilot.json and results.json (`arrival_rates_per_second: [2, 8]`).
@@ -4343,12 +4392,21 @@ superseded by the committed M4 handoff below.
 - Tests and results: the calibration pilot passed 12 cases and 96 terminal workflows; the final run then passed 24 cases and 576 terminal workflows.
 - Status: ADDRESSED
 
+#### Claude verification – round 31
+
+- Verification commit: `50d4b13`.
+- Evidence and remaining concerns: both halves are fixed, and the data now shows the regime distinction the protocol asks for.
+  - **Open-loop.** The job queue is buffered for the entire measured cohort (`make(chan workflowJob, cfg.WorkflowCount)` at :324), with a comment stating that the producer keeps its arrival schedule even when every scheduler is busy. Submission therefore no longer throttles itself against completion.
+  - **Calibrated rates.** The rates are now 1 and 2 workflows per second, derived from the one-scheduler baseline rather than preset. Claude checked them against the measured results: at rate 1 the median throughput is 1.006, 1.017, 1.012 and 1.015 across the four configurations — tracking the offered rate almost exactly, which is what a genuinely below-saturation point looks like and which no configuration achieved in round 30.
+  - **The near-saturation point discriminates.** At rate 2, one scheduler falls short (T1 1.370, T2 1.636) while two schedulers keep up (T1 1.967, T2 1.984). That is a real capacity result: in this regime the second scheduler is what allows the offered rate to be met, and at rate 1 it changes nothing because one scheduler already suffices. This is precisely the "whether adding scheduler capacity helps in the tested regime" statement PLAN.md section 14A describes, and it is now supported rather than confounded.
+- Status: VERIFIED
+
 ---
 
 ### R072 — The reported CPU-seconds per completed workflow is whole-process CPU dominated by the synthetic activity burn
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `7a0ef95`
 - Location: cmd/dur026-benchmark/main.go:196-199 and :401 (`busyWork` with `activity_work_units` executes in the measured process); scripts/m7-dur026.ps1 (process CPU capture); experiments/m7/dur026/results.json (`cpu_seconds_per_terminal_workflow`, `mean_process_cpu_seconds`).
@@ -4368,12 +4426,19 @@ superseded by the committed M4 handoff below.
 - Tests and results: command-level Go tests, vet, gofmt, PowerShell parsing, `git diff --check`, and `scripts/ci.ps1 -WithRace` pass; role-separated CPU fields are present in the final artifact.
 - Status: ADDRESSED
 
+#### Claude verification – round 31
+
+- Verification commit: `50d4b13`.
+- Evidence and remaining concerns: fixed. Scheduler and worker CPU are now measured and reported separately — `scheduler_cpu_seconds_per_terminal_workflow` and `worker_cpu_seconds_per_terminal_workflow` — with the worker burn executed in separate processes whose CPU is collected by `workerPool.Close()` and excluded from the scheduler figure. The protocol records the model explicitly: "four fixed subprocess workers; scheduler CPU excludes worker process CPU". DUR-026's named metric is now a scheduler-only figure, which is what the task asks for.
+- **Correction to Claude's own reasoning, recorded for the record.** The finding asserted that the previously published whole-process figure was "dominated by the synthetic activity burn". The separated measurement shows that was wrong: worker CPU is 0.0020 to 0.0039 seconds per workflow against 0.0788 to 0.0981 for the scheduler, so the activity burn was only a few percent of the total and the earlier number was in fact mostly scheduler and persistence work. The defect Claude reported — that a whole-process figure was published under the name of a scheduler-only metric — was accurate and is now resolved, and the separation is worth having because the attribution is measured instead of assumed. But the magnitude claim in the original finding was not borne out, and the round-30 wording overstated it.
+- Status: VERIFIED
+
 ---
 
 ### R073 — Runs are too short and too small to characterise throughput, and the protocol record omits the frozen durations and SLOs
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `7a0ef95`
 - Location: experiments/m7/dur026/results.json (`protocol.workflow_count_per_run: 12`, per-run `process_wall_seconds` around 9.6 seconds, no duration or SLO fields); PLAN.md:1288 ("Freeze workloads, arrival rates, capacity, durations, SLOs and seeds").
@@ -4392,6 +4457,13 @@ superseded by the committed M4 handoff below.
 - Fix commit: `50d4b13`; calibration artifact: `1e54bc6`.
 - Tests and results: the final artifact records the warm-up, arrival-window, drain, SLO, and run-cap fields, with zero SLO violations.
 - Status: ADDRESSED
+
+#### Claude verification – round 31
+
+- Verification commit: `50d4b13`.
+- Evidence and remaining concerns: fixed. Each case now runs a separate four-workflow warmup whose result is recorded but excluded from the measurement (scripts/m7-dur026.ps1:147, :172-183), the measured cohort doubled to 24 workflows per run, and the protocol records `warmup_workflows`, `measured_workflows_per_run`, `measurement_window`, `maximum_run_seconds`, `queue_capacity`, and the frozen `completion_slo_seconds: 120` that PLAN.md:1288 requires. Drain is computed and reported separately from the arrival window, so the ramp is no longer folded silently into the throughput figure. The SLO is enforced, not merely recorded: the run fails when `cohort.SLOViolations != 0` (:409), and the study reports 0 violations across 576 workflows.
+- The stability improved accordingly. Claude computed the spread across repeats for every configuration: 0.5 to 3.9 percent of the median, against roughly 15 percent for the worst case in round 30. Three repeats of 24 workflows is still a modest sample, but the dispersion is now small enough to support the bounded comparisons the study makes.
+- Status: VERIFIED
 
 ---
 

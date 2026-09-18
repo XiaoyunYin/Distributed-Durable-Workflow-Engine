@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 IN_PROGRESS; DUR-034 TODO; DUR-035 TODO; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 TODO; DUR-035 TODO; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1306,7 +1306,7 @@ contract revision.
 
 #### DUR-026 implementation record
 
-- **Status:** READY_FOR_REVIEW; the round-30 measurement defects are addressed and the corrected pilot/final evidence is committed. DUR-026 remains pending Claude review and is not DONE.
+- **Status:** DONE; Claude's committed round-31 review of target `50d4b13` returned `NO_BLOCKING_FINDINGS`, and R069-R073 are VERIFIED. M7 remains IN_PROGRESS for the later measurement studies.
 - **Base commit:** `7a0ef95` (the reviewed but rejected DUR-026 handoff; DUR-036 remains accepted at `6325d1f`).
 - **Implementation target:** `50d4b13` (corrected worker-separated harness, calibration pilot, and final evidence; code/protocol fix began at `543b9f5`).
 - **Dependencies:** DUR-036, the existing M5 correctness campaign, and the protocol freeze in section 14.
@@ -1321,6 +1321,7 @@ contract revision.
 - **Validation:** `scripts/m7-dur026.ps1 -Pilot`; `scripts/m7-dur026.ps1`; `ci.ps1 -WithRace`; `go test ./cmd/dur026-benchmark ./cmd/dur026-worker`; PowerShell parse validation; `git diff --check`; and post-run PostgreSQL queries for zero `dur036-runtime-*`, `dur026-bench-*` workflows and definitions. The study must record that the R069 namespace sweep occurred before measurement. The old `7a0ef95` evidence is not reused.
 - **Evidence paths:** `experiments/m7/dur026/pilot.json` and `experiments/m7/dur026/results.json` will contain the corrected calibration/protocol, raw per-run records, reconciliation counts, role-separated CPU, and grouped summary; `docs/BUILD_LOG.md` and the final handoff will contain exact commands and limitations.
 - **Known limits:** the declared host is the single-node Docker Desktop/WSL2 development VM from DUR-036, so results are bounded local evidence and do not claim multi-host durability, production scale, or maximum sustainable throughput.
+- **Closeout:** Claude's committed round-31 review at target `50d4b13` returned `NO_BLOCKING_FINDINGS` and verified R069-R073. The remaining Store/Engine-only topology limitation is disclosed and non-blocking; no end-to-end deployed-runtime or multi-host claim is made.
 
 **Exit:** Each stated question has actual evidence and an appropriately limited verdict. Failed/incomplete runs remain in the registry.
 
