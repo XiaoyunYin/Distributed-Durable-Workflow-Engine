@@ -1,5 +1,33 @@
 # Build log
 
+## 2026-09-17 - M3 round-18 R048 test isolation fix and review handoff
+
+- Review base: `9412f3e` (M2 closeout and original M3 review base).
+- Committed test-infrastructure target: `b1e11bb`.
+- Task status: DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3 remain
+  READY_FOR_REVIEW pending Claude verification of R048.
+- Fixed the shared-database test race at both Go test entry points used by
+  service CI: `ci.ps1 -WithServices` passes `-SerialPackages` to `check.ps1`,
+  and its race phase runs `go test -race -p 1 ./...`. Non-service checks keep
+  their existing parallel execution. This prevents package test binaries from
+  competing for the same PostgreSQL partition leases and fixture rows.
+- Validation passed against the local services: serial
+  `DURABLE_REQUIRE_DATABASE=1 go test -race -p 1 ./... -count=1`, followed by
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+  scripts/ci.ps1 -WithRace -WithServices` after the fix. The latter passed
+  shared checks, 19 Python tests, all Go race packages, PostgreSQL integration,
+  real Kafka task/event round trips, and smoke checks. `git diff --check` is
+  clean.
+- Direct database-enabled `go test -race ./...` remains intentionally outside
+  the supported service validation path because it bypasses the isolation
+  switch; use the documented `ci.ps1 -WithRace -WithServices` command instead.
+  No product guarantees, protected scope, budgets, or runtime code changed.
+
+Interview explanation: the shared PostgreSQL lease table makes package-level
+parallelism an invalid fixture assumption. Serializing only the service-mode
+package processes preserves fast parallel unit checks while making the
+database-backed acceptance command deterministic.
+
 ## 2026-09-17 - M3 round-17 fixes and review handoff
 
 - Review base: `9412f3e` (M2 closeout and original M3 review base).

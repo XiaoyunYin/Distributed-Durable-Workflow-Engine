@@ -842,6 +842,31 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Limitations: Windows host only; single local PostgreSQL 18.6 and Kafka; probes used in-memory transport adapters.
 - Verdict: CHANGES_REQUESTED. Blocking: R045 (P1) and R046 (P2). No M3 task may move to DONE. The rest of the M3 transport core verified well: outbox claiming and publication evidence, duplicate-delivery deduplication, contiguous per-topic offsets, poison-record acknowledgement, relay contention, fallback polling, and idempotent reconciliation all behaved correctly under Claude's probes.
 
+### Round 17 — 2026-09-17 — M3 fix verification
+
+- Date and round: 2026-09-17, round 17.
+- Review basis: COMMITTED. Worktree was clean at `148f20b` when the review started.
+- Base and target commits: base `9412f3e`, final code target `fb70d41`. Handoff commit `148f20b` changes only PLAN.md, REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff be835f3 fb70d41`, i.e. the shared event registry and normalization in internal/state/m3.go and store.go, the relay registry lookup and error reporting in internal/transport, poison obligations and backlog age in internal/state/m3.go, the reconciler poison scan, checker rules, migration 000009, api/server.go error mapping, api/README.md, docs/CONTRACTS.md, and the new tests. No protected-scope drift.
+- Checks personally run (Claude). Code ran in a scratch export of `fb70d41`, against throwaway databases (`cr_m3b`, then a clean `cr_m3c`) migrated 000001–000009 and dropped afterwards. Probes used partitions 0–7:
+  - **R045:** an empty `event_type` now yields `activity.result` on the events topic and publishes (`quarantined=0`); an unknown type is rejected at the repository.
+  - **R046:** a quarantined outbox row produced an open `POISON_RECORD` item, appeared in the backlog, and reported a non-zero oldest age; a consumer poison record with an unknown event ID produced a global obligation plus raw evidence and still advanced the offset; the reconciler surfaced it; the checker failed only when Claude deleted the obligation.
+  - **R047:** verified by code and the committed relay tests.
+  - Migration 000009 applied twice without error.
+  - `go test -race -p 1 ./... -count=1`: three consecutive runs, zero failures. `go vet`, `gofmt -l`, `go build ./cmd/runtime`, and pytest (19 tests): clean.
+  - **Suite determinism:** five runs of the documented `go test -race ./... -count=1` against a clean database produced failures in three runs (R048).
+  - Cleanup: no `cr_*` databases remain; the shared dev database has 0 workflow rows, no held leases, and migrations 1–9.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices`, the real Kafka round trip, and the runtime Docker builds. Claude's transport probes again used the in-memory broker and source, so the Kafka adapter rests on Codex's evidence.
+- Findings resolved: R045, R046, and R047 are VERIFIED.
+- New findings: R048 (P2, blocking) — the committed database-backed tests are not isolated across packages, so `go test -race ./...`, which PLAN.md names as the validation command and `ci.ps1` runs, fails intermittently. Serial execution is clean.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The historical R019 test gap is still open.
+  - Not exercised by Claude: the real Kafka broker path, consumer rebalance and kill-after-claim (DUR-012 acceptance), multi-host deployment, sustained load, hard-kill durability, clean bootstrap and restart smoke, and remote CI.
+  - Scope: the local single-node Kafka/PostgreSQL topology supports no exactly-once or availability claim.
+- Limitations: Windows host only; single local PostgreSQL 18.6 and Kafka; in-memory transport adapters in Claude's probes.
+- Verdict: CHANGES_REQUESTED. Blocking: R048 (P2). The M3 transport and reconciliation behavior itself is now verified end to end — event routing, poison visibility, duplicate delivery, contiguous offsets, relay contention, fallback polling, and idempotent reconciliation all behaved correctly — so the remaining work is test isolation, not engine behavior. If the user prefers, R048 could instead be deferred with a recorded reason and a follow-up that closes before M4 relies on these suites; the smallest immediate mitigation is running database-backed packages serially in `ci.ps1`.
+
 For each round, record:
 
 - Date and round:
@@ -2520,7 +2545,7 @@ round-16 verification.
 ### R045 — A worker result posted without `event_type` is silently quarantined and never recovered
 
 - Severity: P1
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `bc1b68b`
 - Location: internal/state/store.go:1167 (`RecordResultReceipt` defaults `EventType` to `attempt.result`); internal/state/store.go:1604-1614 (`insertOutbox` derives the topic from the `attempt.` prefix); internal/transport/transport.go:278-287 (`supportedEventType` allow-list, which omits `attempt.result`); internal/api/server.go (`recordResult` forwards an empty `event_type` unchanged).
@@ -2546,10 +2571,16 @@ round-16 verification.
 - Tests and results: `go test -race ./internal/state ./internal/transport ./internal/reconciliation ./internal/invariants` passed against PostgreSQL; the full `scripts/ci.ps1 -WithRace -WithServices` passed, including the real Kafka task/event round trip and smoke checks. The shared-registry tests pass, and `go vet ./...`, `gofmt`, and `git diff --check` are clean.
 - Status: ADDRESSED
 
+#### Claude verification – round 17
+
+- Verification commit: `148f20b` (target `fb70d41`)
+- Evidence and remaining concerns: internal/state/m3.go now holds one `eventDefinitions` registry mapping each event type to its topic; `insertOutbox` resolves the topic from it instead of the `attempt.` prefix; `RecordResultReceipt` normalizes an empty type to `activity.result` and rejects unknown types with `ErrInvalidEventType`; the relay's `supportedEventType` consults the same registry; and the API maps the new error to `422 INVALID_EVENT_TYPE`. Claude's scratch probe on a throwaway database (migrations 000001–000009): a result recorded with an empty `EventType` produced `activity.result` on the events topic and the relay published all three rows with `quarantined=0`; an explicit `totally.unknown` type was rejected at the repository with `unknown transport event type`. The committed `TestRelayUsesSharedEventRegistry` and `m3_event_test.go` cover the registry.
+- Status: VERIFIED
+
 ### R046 — Quarantined transport obligations are invisible to reconciliation, backlog, and the checker
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `bc1b68b`
 - Location: internal/state/m3.go:392-429 (`QuarantineOutbox`), 533-570 (`QuarantineMessage`), 1083-1097 (`GetBacklog`), 120 (`ReconcilePoisonRecord`, defined but never written); internal/reconciliation/reconciler.go (no poison-record scan); internal/invariants/checker.go:205-240 (`QUARANTINED` accepted with no obligation).
@@ -2571,10 +2602,16 @@ round-16 verification.
 - Tests and results: The M3 state/transport/reconciliation/invariant suites passed with race detection after applying migration 000009. The committed tests cover global broker poison evidence, workflow-linked relay quarantine, backlog visibility, and checker rejection when a quarantine obligation is missing. The full service CI command passed and migration 000009 was safely skipped on its rerun.
 - Status: ADDRESSED
 
+#### Claude verification – round 17
+
+- Verification commit: `148f20b` (target `fb70d41`)
+- Evidence and remaining concerns: Both quarantine paths now create obligations. `QuarantineOutbox` writes a workflow-linked `POISON_RECORD` item in the same transaction; `QuarantineMessage` stores the raw record, links a known event ID to its workflow/partition, and creates a `POISON_RECORD` item (global, with NULL workflow/partition, when the ID is untrustworthy). `GetBacklog` now counts quarantined outbox rows and poison records, includes global items, and reports `OldestAge`; the reconciler surfaces poison records; `ListGlobalReconciliationItems` and `ListTransportQuarantine` expose the evidence. Migration 000009 adds the links and relaxes the workflow/partition columns for global rows, and applied twice without error in Claude's run. Claude's probe: a quarantined outbox row produced one open `POISON_RECORD` item with `backlog quarantinedOutbox=1` and `oldestAge>0`; a consumer poison record with an unknown event ID produced one global item plus one quarantine row and still committed its offset; the reconciler reported `poisonRecords=1`; the checker passed with the obligation present and failed with `quarantined outbox event lacks a poison reconciliation item` once Claude deleted it.
+- Status: VERIFIED
+
 ### R047 — Smaller M3 gaps
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `bc1b68b`
 - Location: internal/transport/transport.go:230-250 (`Run` discards `RunOnce` results and errors), 278-287 (allow-list) versus internal/state/store.go:1608-1610 (prefix-based topic rule) and internal/invariants/checker.go:224-229 (prefix-based topic expectation).
@@ -2592,6 +2629,99 @@ round-16 verification.
 - Fix commit: `fb70d41`.
 - Tests and results: The relay registry and error-reporting tests pass. Full race-enabled service CI, `go vet ./...`, `gofmt`, and `git diff --check` pass.
 - Status: ADDRESSED
+
+#### Claude verification – round 17
+
+- Verification commit: `148f20b` (target `fb70d41`)
+- Evidence and remaining concerns: The event registry is now the single source of truth for producer, relay, and checker. `Relay.Run` routes every pass through `runOnceAndReportError`, which counts failures (`ErrorCount`) and invokes an optional `OnError` hook, with the runtime wiring supplying logging. `TestRelayRunReportsPassErrors` and `TestRelayUsesSharedEventRegistry` cover both.
+- Status: VERIFIED
+
+---
+
+### R048 — Database-backed tests are not isolated across packages, so the documented validation command fails intermittently
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `fb70d41`
+- Location: scripts/ci.ps1:30 (`go test -race ./...`, packages run in parallel by default); internal/state/m2_integration_test.go, internal/api/m2_integration_test.go:204-206, internal/engine/engine_integration_test.go, internal/state/m3_integration_test.go, internal/transport/m3_integration_test.go, internal/reconciliation/m3_integration_test.go (all acquire partition leases and workflows in one shared database).
+- Failure scenario and impact: Go runs package test binaries in parallel, and every database-backed package uses the same PostgreSQL database and the same 16-partition lease table. Fixtures in different packages therefore compete for partitions and leases. The M3 work narrowed M3 fixtures to partitions 8–15, but M1/M2 fixtures still scan from partition 0 and the packages still collide.
+
+  Concrete failures Claude observed, each on a freshly migrated database with no probe data:
+  - `TestM3TransportPersistenceAndFencing` (internal/state);
+  - `TestM1InterpreterTimersAndRestart` (internal/engine);
+  - `TestM2ConcurrentExpiredLeaseHasOneWinner`, failing with `expired lease winners = 0, want one`, because another package's fixture took the partition first;
+  - `TestM2WorkerAPIConcurrencyRetriesAndStaleResult`, failing with `new row for relation "partition_leases" violates check constraint "partition_leases_check" (SQLSTATE 23514)` at internal/api/m2_integration_test.go:205. That raw `UPDATE ... SET lease_expires_at = ...` breaks the `(owner_id IS NULL) = (lease_expires_at IS NULL)` invariant when a concurrent package has already released the lease.
+
+  The consequence is evidential rather than a product defect: PLAN.md names `go test -race ./...` as the validation command for DUR-007 through DUR-014, and `ci.ps1` runs it, so a green run is partly luck. A reviewer cannot distinguish a real regression from interference, and a genuine future regression can be dismissed as "just flaky". Codex's own handoff notes describe repeated reruns for this reason.
+- Evidence (Claude): five `go test -race ./... -count=1` runs against a clean database produced failures in three of them (the four tests listed above, one run failing two tests); three runs of `go test -race -p 1 ./... -count=1` on the same database passed with zero failures. Isolated runs of each failing test also passed.
+- Suggested correction: Pick one of these and apply it consistently:
+  - run database-backed packages serially in `ci.ps1` (`go test -race -p 1 ./...`) and document why; or
+  - give each package (or each test) its own database or schema, created from a template and dropped afterwards; or
+  - centralize fixture allocation in one shared helper that leases a disjoint partition range per package and uses per-package ID prefixes, and make the raw cleanup SQL owner-scoped (`WHERE partition_id = $1 AND owner_id::text = $2`) so it cannot violate the lease invariant.
+
+  The last option is the smallest change that also fixes the constraint violation at internal/api/m2_integration_test.go:205.
+- Suggested validation: Ten consecutive `go test -race ./...` runs against one database with zero failures, plus the same under `ci.ps1 -WithRace -WithServices`.
+
+#### Codex response — round 18
+
+- Change made: `ci.ps1 -WithServices` now runs the shared Go checks through
+  `check.ps1 -SerialPackages`, which uses `go test -p 1 ./...`, and runs the
+  race phase as `go test -race -p 1 ./...`. Non-service invocations retain
+  their existing parallel execution. This closes both package-test entry
+  points that previously allowed database-backed fixtures to overlap. PLAN.md
+  now records the serial service-mode command and the reason for it.
+- Affected files: `scripts/ci.ps1`, `scripts/check.ps1`, `PLAN.md`, and
+  `docs/BUILD_LOG.md`.
+- Fix commit: `b1e11bb`.
+- Tests and results: `DURABLE_REQUIRE_DATABASE=1 go test -race -p 1 ./...
+  -count=1` passed for all packages. The full
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1
+  -WithRace -WithServices` path passed shared checks, 19 Python tests, all Go
+  race packages, PostgreSQL integration, the real Kafka task/event round trip,
+  and service smoke. `git diff --check` is clean. The direct parallel
+  database-enabled command was not used as acceptance evidence because it
+  bypasses the supported service-mode isolation switch.
+- Status: ADDRESSED
+
+## Codex handoff — M3 round-18 R048 fix
+
+- Task: M3 Kafka and reconciliation (DUR-011, DUR-012, DUR-013, DUR-014, and
+  DUR-023A-M3)
+- Task status: READY_FOR_REVIEW; R048 is ADDRESSED and pending Claude
+  verification. No M3 task is DONE pending that review.
+- Handoff basis: COMMITTED
+- Base commit: `9412f3e` (M2 closeout and exact M3 review base)
+- Target commit: `b1e11bb` (service-mode test isolation fix; product code is
+  unchanged from the reviewed M3 target `fb70d41`)
+- Scope: R048 only. Service-mode shared Go checks and race tests now serialize
+  package test binaries so PostgreSQL-backed fixtures cannot compete for the
+  same partition leases or cleanup rows. Non-service race checks remain
+  parallel. No runtime behavior, protected guarantee, budget, or milestone
+  scope changed.
+- Checks run: `DURABLE_REQUIRE_DATABASE=1 go test -race -p 1 ./...
+  -count=1`; and
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1
+  -WithRace -WithServices`. The latter passed migrations, shared checks, 19
+  Python tests, all Go race packages, PostgreSQL integration, real Kafka
+  task/event round trips, and service smoke. `go vet`, `gofmt`, and
+  `git diff --check` passed.
+- Skipped checks and reasons: Ten direct parallel database-enabled
+  `go test -race ./...` runs were not used because that command intentionally
+  bypasses the service-mode isolation switch and is the unsafe invocation R048
+  identified. Use `ci.ps1 -WithRace -WithServices` for the supported
+  database-backed validation. Multi-host deployment/rebalance, sustained
+  load, database outage/lock-timeout campaigns, hard-kill durability, clean
+  bootstrap/restart smoke, and remote CI remain untested or outside M3.
+- Known limitations: The service CI uses one local PostgreSQL/Kafka topology;
+  direct package-level parallelism against that shared database is not a
+  supported test mode. The historical R019 test gap remains nonblocking, and
+  the real Kafka, consumer rebalance, and hard-kill limitations from prior
+  handoff evidence remain unchanged.
+- Review request: Claude should review target `b1e11bb` against base
+  `9412f3e`, with special attention to both `check.ps1` and `ci.ps1` service
+  paths and confirmation that non-service checks retain their prior behavior.
+- Verdict: PENDING CLAUDE REVIEW
 
 ---
 

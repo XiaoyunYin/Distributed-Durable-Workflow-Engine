@@ -563,7 +563,7 @@ contract revision.
 - **Goal:** Execute a small versioned workflow graph from durable state, resume across process restarts, and create each downstream action once while timers and bounded fan-out/join branches converge safely.
 - **Scope:** Implement the interpreter over the reviewed repository transitions; persist accepted node results; support durable retry timers and bounded fan-out/join; restart between nodes; race final branch completions; and exercise a test-only activity driver until Kafka integration. Include the DUR-005 R028 follow-up: cancellation settles every active fan-out node/attempt, preserves `OUTCOME_UNKNOWN` for claimed effects, retains late reports as evidence without progress, and prevents post-terminal branch advancement. Do not add Kafka relay, paid/model work, or final production effect services here.
 - **Acceptance:** A versioned graph advances from a submitted workflow through persisted results to downstream work; restart between every node does not duplicate progress; retry timers are durable and enforced; fan-out creates bounded branches once and joins them once; concurrent final branch completion produces one downstream action and one terminal outcome; cancellation settles all active branches and preserves uncertain claimed effects; invariant checks derive their verdicts independently from persisted evidence.
-- **Validation:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`; focused Go interpreter/repository tests with `go test -race ./...`; PostgreSQL integration tests covering restart, timers, fan-out/join, duplicate delivery, cancellation races, and final-branch races; fault/recovery campaigns; `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur007-check .`; `git diff --check`.
+- **Validation:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`; focused Go interpreter/repository tests with `go test -race -p 1 ./...` when database integration is enabled; PostgreSQL integration tests covering restart, timers, fan-out/join, duplicate delivery, cancellation races, and final-branch races; fault/recovery campaigns; `docker build -f deploy/local/Dockerfile.runtime -t durable-agent-runtime:dur007-check .`; `git diff --check`. Service-mode package tests are serialized because they share the lease database.
 - **Evidence:** interpreter and transition code, test-only activity fixtures, integration/fault tests, the independent M1 invariant checker work, `docs/CONTRACTS.md`, `docs/BUILD_LOG.md`, and the committed `REVIEW.md` handoff. Claude's committed review uses `6bc0e2f` as the exact base and `600726f` as the final code target.
 - **Remaining limitations:** No Kafka relay, production activity/effect service, paid/model evaluation, clean-machine bootstrap, hard-kill durability, or remote CI claim unless separately tested and recorded. A lost activity result may cause one re-execution after the claim lease expires; this is declared at-least-once behavior, not exactly-once execution.
 
@@ -603,7 +603,8 @@ contract revision.
   A's later owner-authorized writes fail; release never clears a newer owner;
   and concurrent lock/expiry orderings have one durable winner.
 - **Validation:** PostgreSQL integration tests with two owners and controlled
-  lease times; `go test -race ./...`; `go vet ./...`; `gofmt`; and
+  lease times; `go test -race -p 1 ./...` when database integration is enabled;
+  `go vet ./...`; `gofmt`; and
   `git diff --check`. No M2 completion or multi-host claim is made until the
   fixed target receives Claude review.
 - **Evidence:** `internal/state/`, lease integration tests, `docs/CONTRACTS.md`,
@@ -628,7 +629,8 @@ contract revision.
   overwrite state; and worker calls cannot change workflow state or create
   retries.
 - **Validation:** API unit tests plus PostgreSQL concurrency/retry tests,
-  `go test -race ./...`, `go vet ./...`, `gofmt`, and `git diff --check`.
+  `go test -race -p 1 ./...` when database integration is enabled, `go vet ./...`,
+  `gofmt`, and `git diff --check`.
 - **Evidence:** `internal/api/`, `internal/state/`, worker control tests,
   `docs/CONTRACTS.md`, and the committed review handoff.
 - **Remaining limitations:** No authentication or Kafka transport; the API is
@@ -670,7 +672,7 @@ contract revision.
   old-owner epoch, duplicate-current-attempt, incomplete-claim, generation
   gap, and stale-result traces fail with rule-specific violations.
 - **Validation:** Independent table-driven checker tests, a persisted-attempt
-  loader test, and `go test -race ./...`.
+  loader test, and `go test -race -p 1 ./...` when database integration is enabled.
 - **Evidence:** `internal/invariants/`, `internal/state/`, M2 integration
   tests, and the committed review handoff.
 - **Remaining limitations:** Outbox/inbox reconciliation, effect-ledger, and
@@ -692,7 +694,7 @@ contract revision.
 
 #### DUR-011 — Outbox and relay
 
-- **Status:** READY_FOR_REVIEW; implementation target is `fb70d41`.
+- **Status:** READY_FOR_REVIEW; implementation target is `b1e11bb`.
 - **Dependencies:** M2 DONE; review base is the M2 closeout commit
   `9412f3e`.
 - **Goal:** Publish durable workflow obligations through Kafka without making
@@ -719,7 +721,8 @@ contract revision.
   acknowledgement; expired-claim recovery; duplicate-publication assertions;
   notification-loss plus fallback-poll tests; `powershell.exe -NoProfile
   -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithRace -WithServices`;
-  `go test -race ./...`; `go vet ./...`; `gofmt`; runtime Docker build; and
+  `go test -race -p 1 ./...` when database integration is enabled; `go vet ./...`;
+  `gofmt`; runtime Docker build; and
   `git diff --check`.
 - **Evidence:** outbox/relay implementation and migrations, PostgreSQL/Kafka
   integration and fault tests, `docs/CONTRACTS.md`, `docs/BUILD_LOG.md`, and
@@ -735,7 +738,7 @@ contract revision.
 
 #### DUR-012 - Task consumer and acknowledgment
 
-- **Status:** READY_FOR_REVIEW; implementation target is `fb70d41`.
+- **Status:** READY_FOR_REVIEW; implementation target is `b1e11bb`.
 - **Dependencies:** DUR-011 implementation; review base is `9412f3e`.
 - **Goal:** Consume task notifications through a bounded worker adapter while
   making PostgreSQL the durable disposition and acknowledgment boundary.
@@ -749,7 +752,7 @@ contract revision.
   offsets cannot be skipped by a higher concurrent completion; a consumer can
   retry after a lost commit; malformed/unknown records are durably quarantined;
   and the bounded pool does not create unbounded in-flight work.
-- **Validation:** `go test -race ./...`; focused M3 state/transport tests;
+- **Validation:** `go test -race -p 1 ./...` when database integration is enabled; focused M3 state/transport tests;
   real Kafka task and event round trip under
   `DURABLE_KAFKA_BROKERS=127.0.0.1:9092`; `go vet ./...`; `gofmt`; and
   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1
@@ -761,7 +764,7 @@ contract revision.
 
 #### DUR-013 - Event inbox and scheduler wake-ups
 
-- **Status:** READY_FOR_REVIEW; implementation target is `fb70d41`.
+- **Status:** READY_FOR_REVIEW; implementation target is `b1e11bb`.
 - **Dependencies:** DUR-011 and DUR-012 implementation; review base is
   `9412f3e`.
 - **Goal:** Persist event deduplication and scheduler hints without treating
@@ -774,7 +777,7 @@ contract revision.
   creates no second wake-up; a wake-up can be claimed only under the current
   partition lease; a stale wake-up owner cannot consume it; and a hint on a
   non-owning replica remains durable for the current owner to discover.
-- **Validation:** `go test -race ./...`; M3 inbox/offset and wake-up tests;
+- **Validation:** `go test -race -p 1 ./...` when database integration is enabled; M3 inbox/offset and wake-up tests;
   real Kafka task/event round trip; `go vet ./...`; `gofmt`; and the full
   race-enabled service CI command. Focused fallback-poll evidence covers a
   directly inserted outbox row with no notification.
@@ -784,7 +787,7 @@ contract revision.
 
 #### DUR-014 - Database reconciliation and backpressure
 
-- **Status:** READY_FOR_REVIEW; implementation target is `fb70d41`.
+- **Status:** READY_FOR_REVIEW; implementation target is `b1e11bb`.
 - **Dependencies:** DUR-011 through DUR-013 implementation; review base is
   `9412f3e`.
 - **Goal:** Make unfinished database obligations discoverable and recoverable
@@ -799,7 +802,7 @@ contract revision.
   deadline; non-cooperating unknown work remains reconciliation-required;
   due/obligation rows are visible to the current partition owner; and a
   configured backlog limit rejects the scan before it performs more work.
-- **Validation:** `go test -race ./...`; reconciliation integration coverage
+- **Validation:** `go test -race -p 1 ./...` when database integration is enabled; reconciliation integration coverage
   for an expired attempt and durable redispatch; relay fallback-poll and
   backpressure tests; `go vet ./...`; `gofmt`; and full service CI. Sustained
   load, database outages, lock timeouts, and hard-kill durability remain
@@ -810,7 +813,7 @@ contract revision.
 
 #### DUR-023A-M3 - Invariant-checker transport/reconciliation extension
 
-- **Status:** READY_FOR_REVIEW; implementation target is `fb70d41`.
+- **Status:** READY_FOR_REVIEW; implementation target is `b1e11bb`.
 - **Dependencies:** DUR-023A-M2 DONE and M3 transport/reconciliation
   implementation; review base is `9412f3e`.
 - **Goal:** Independently check transport identity, dispositions, wake-ups,
@@ -824,7 +827,7 @@ contract revision.
   evidence, wrong task/event topic placement, open obligations that contradict
   durable publication, and a required state-change outbox omission while
   accepting a valid transport trace.
-- **Validation:** `go test ./internal/invariants`; `go test -race ./...`;
+- **Validation:** `go test ./internal/invariants`; `go test -race -p 1 ./...` when database integration is enabled;
   real M3 PostgreSQL integration tests; `go vet ./...`; `gofmt`; and
   `git diff --check`.
 - **Evidence:** `internal/invariants/checker.go`,
@@ -1169,7 +1172,7 @@ R019 test gap is nonblocking. M2 is DONE at reviewed code target `0d663c3`
 with base `600726f`; Claude's committed round-15 verdict is
 `NO_BLOCKING_FINDINGS`, and R040-R044 are VERIFIED. M3 implementation tasks
 DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3 are READY_FOR_REVIEW at
-target `fb70d41`, all based on M2 closeout `9412f3e`. The next Claude review
+target `b1e11bb`, all based on M2 closeout `9412f3e`. The next Claude review
 must use `9412f3e` as its exact base and cover the committed M3 target.
 Keep the M0 contracts and partition-map version frozen while extending the
 durable state repository.
