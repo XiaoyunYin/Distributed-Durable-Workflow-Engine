@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 IN_PROGRESS; DUR-035 TODO; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 READY_FOR_REVIEW; DUR-035 TODO; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1325,14 +1325,14 @@ contract revision.
 
 #### DUR-034 implementation record
 
-- **Status:** IN_PROGRESS; round-32 blockers are addressed in implementation commit `897e6d9`; the strengthened evidence run is pending.
-- **Base commit:** `611ff26` (DUR-026 closeout).
-- **Implementation target:** `897e6d9` (measured lease read-back, strengthened protocol, CPU summary, and build-tag boundary).
+- **Status:** READY_FOR_REVIEW; round-32 blockers are addressed and the strengthened evidence is committed, pending Claude's committed review.
+- **Base commit:** `8cd9687` (prior DUR-034 handoff).
+- **Implementation target:** `7ad863d` (measured lease read-back, strengthened protocol, CPU summary, build-tag boundary, and warmup CPU isolation).
 - **Scope:** execute section 14B's four test-only profiles over the fixed T1 workload and fixed near-saturation rate: full safeguards, history disabled, unsafe lease validation with a check-to-commit takeover failpoint, and no-outbox with a bounded reconciliation-delayed dispatch profile. Pair each weakened profile with its intended negative control and never present it as deployable runtime configuration.
 - **Acceptance:** three repeats per profile (12 measured runs); every run records terminal/pending reconciliation, four-workflow warmup, 24-workflow measured cohort, 120-second SLO, four fixed worker subprocesses, completion latency, scheduler/worker CPU, database query/transaction/lock telemetry, history and outbox evidence; history-disabled demonstrates missing audit rows, unsafe validation permits the stale-owner negative control while the normal protocol rejects it by persisted commit ordering, and no-outbox records a nonzero recovery delay without claiming a safety failure. Failed or incomplete runs remain visible and block acceptance.
 - **Protected boundaries:** do not change section-14 configuration counts, workload, fixed rate, release criteria, paid budgets, or correctness guarantees. The weakened profiles are context-scoped test seams and are not enabled by runtime binaries. This task does not start DUR-035, DUR-027, DUR-028, DUR-029, or DUR-033A.
-- **Evidence:** the prior `00d4dd4` artifact is superseded by the strengthened run. The replacement `experiments/m7/dur034/results.json` must be `PASS`, generated from clean target `897e6d9`, and contain 12 measured runs (four profiles x three repeats), 288 measured terminal workflows plus 48 discarded warmup workflows, zero workflow-pending rows, warmup/SLO fields, scheduler/worker CPU, summary dispersion, history/outbox counts, DB query/transaction/query-time/lock telemetry, a measured no-outbox reconciliation-scan delay, and persisted lease-order observations. The runner must sweep only the reserved DUR-034 namespaces before and after the study; the post-run counts must be zero.
-- **Validation:** `scripts/m7-dur034.ps1`; `ci.ps1 -WithRace` with isolated Go/UV/Python temporary caches; default and `dur034_ablation`-tagged focused race tests; `go vet`; `gofmt`; PowerShell parse validation; `git diff --check`; and read-only PostgreSQL namespace checks. The default CI run remains non-service and therefore skips PostgreSQL/Kafka smoke; the measurement itself uses the existing PostgreSQL service.
+- **Evidence:** the prior `00d4dd4` artifact is superseded. `experiments/m7/dur034/results.json` is `PASS`, generated from clean measurement target `9e60b02`, and contains 12 measured runs (four profiles x three repeats), 288 measured terminal workflows plus 48 discarded warmup workflows, zero workflow-pending rows, warmup/SLO fields, scheduler/worker CPU, summary dispersion, history/outbox counts, DB query/transaction/query-time/lock telemetry, a measured no-outbox reconciliation-scan delay, and persisted lease-order observations. The runner swept only the reserved DUR-034 namespaces before and after the study; the post-run counts are zero.
+- **Validation:** `scripts/m7-dur034.ps1`; `ci.ps1 -WithRace` with isolated Go/UV/Python temporary caches; default and `dur034_ablation`-tagged focused race tests; `go vet`; `gofmt`; PowerShell parse validation; `git diff --check`; and read-only PostgreSQL namespace checks. The default CI run remains non-service and therefore skips PostgreSQL/Kafka smoke; the measurement itself uses the existing PostgreSQL service. The final artifact's persisted controls show safe `old_rejected_after_takeover` and unsafe `old_mutation_after_takeover`, and all measured SLO values are zero violations.
 - **Known limits:** the measurement uses the committed Store/Engine harness on the single-node Docker Desktop/WSL2 host; it does not claim deployed API/relay/Kafka throughput, multi-host behavior, or production alternatives for the weakened profiles.
 
 **Exit:** Each stated question has actual evidence and an appropriately limited verdict. Failed/incomplete runs remain in the registry.
@@ -1647,11 +1647,12 @@ DUR-026, DUR-027, DUR-028, DUR-034, and DUR-035. The readiness evidence is
 bounded Docker Desktop/WSL2 development-host evidence and does not claim
 multi-host durability, production scale, or hard-kill equivalence.
 
-DUR-034 is READY_FOR_REVIEW at implementation target `00d4dd4`, based on
-`611ff26`. Its four-profile, three-repeat safeguard-cost protocol produced a
-PASS artifact at `experiments/m7/dur034/results.json`; Claude should review
-the implementation and evidence before DUR-034 moves to DONE. The immediate
-next action after that review is to address any findings, then continue with
+DUR-034 is READY_FOR_REVIEW at implementation target `7ad863d`, based on
+`8cd9687`; its final evidence was generated at measurement target `9e60b02`.
+The four-profile, three-repeat safeguard-cost protocol produced a PASS
+artifact at `experiments/m7/dur034/results.json`. Claude should review the
+implementation and evidence before DUR-034 moves to DONE. The immediate next
+action after that review is to address any findings, then continue with
 DUR-035.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

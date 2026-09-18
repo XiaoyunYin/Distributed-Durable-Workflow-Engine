@@ -4540,6 +4540,12 @@ superseded by the committed M4 handoff below.
   PowerShell parsing, and diff checks passed. The strengthened 12-run study
   has not yet been rerun; its resulting artifact will be handed off with the
   next response.
+- **Evidence follow-up:** the final run is recorded in `9e60b02`'s generated
+  artifact and shows the safe arm's persisted order as
+  `old_rejected_after_takeover` with `old_owner_mutation_after_takeover: false`;
+  the unsafe arm shows `old_mutation_after_takeover: true`, owner epochs 173
+  to 174, and history/takeover timestamps proving the inversion. The safe and
+  unsafe verdicts are now derived from those database rows.
 
 ---
 
@@ -4576,6 +4582,12 @@ superseded by the committed M4 handoff below.
 - **Validation:** the tagged harness, default build surface, race tests, vet,
   and formatting pass. The 12 strengthened runs and final cost summary remain
   pending and will be recorded before the next review handoff.
+- **Evidence follow-up:** the final artifact records 12 runs with four warmup
+  workflows and 24 measured workflows per run, four worker subprocesses, a
+  120-second SLO, zero SLO violations, scheduler/worker CPU, and per-profile
+  medians plus min/max dispersion. It reports 288 measured terminal workflows
+  and 48 discarded warmups; overlapping spread is explicitly not treated as a
+  resolved cost effect.
 
 ---
 
@@ -4611,6 +4623,11 @@ superseded by the committed M4 handoff below.
 - **Validation:** both default and `dur034_ablation`-tagged builds/tests and
   vet pass. The default repository CI and the tagged measurement build will be
   rerun as part of the final evidence pass.
+- **Evidence follow-up:** `ci.ps1 -WithRace` passed the default build surface,
+  all Go race packages and 38 Python tests. The measurement script explicitly
+  builds `dur034_ablation`; the default command is an inert stub and the
+  default `internal/state` package contains only no-op helpers, so the unsafe
+  transition and suppression implementations are absent from normal builds.
 
 ---
 
@@ -4851,6 +4868,52 @@ Use this structure for each new finding. New findings start OPEN; update the top
   negative controls, approval grant/effect binding, timeline reconstruction,
   source-corpus adapter, independent continuity/citation checks, and the limits
   stated above. Review `1048ad0` against `db8b462`.
+- **Verdict:** PENDING CLAUDE REVIEW.
+
+## Codex handoff - M7 DUR-034 strengthened safeguard-cost ablation
+
+- **Task:** DUR-034 safeguard-cost ablation.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-034 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `8cd9687` (prior DUR-034 handoff).
+- **Exact implementation target:** `7ad863d`.
+- **Exact measurement target:** `9e60b02`; the artifact records this commit as
+  its source and is included with this handoff.
+- **Scope and fixes:** the safe and unsafe lease controls now share a tagged
+  check-to-commit barrier, and the verdict is derived from PostgreSQL lease and
+  transition-history timestamps/epochs. The study now uses four fixed worker
+  subprocesses, four discarded warmups, 24 measured workflows, a frozen
+  120-second SLO, role-separated scheduler/worker CPU, and a per-profile
+  median/min-max dispersion summary. The actual weakened profile code and
+  harness are compiled only with `dur034_ablation`; the default state/runtime
+  build has no profile constructor or weakened implementation.
+- **Measured evidence:** `experiments/m7/dur034/results.json` is `PASS` with
+  12 runs (four profiles x three repeats), 288/288 measured workflows
+  terminal, 48 discarded warmups, zero workflow-pending rows, zero measured
+  SLO violations, and four worker subprocesses. The safe control observed
+  `old_rejected_after_takeover`; the unsafe control observed
+  `old_mutation_after_takeover`, with persisted epochs 173→174 and ordered
+  timestamps. The history-disabled arm has zero history rows; no-outbox has
+  zero outbox rows and a durable reconciliation-scan delay; CPU, throughput,
+  latency, query/transaction/query-time, lock, history and outbox summaries are
+  present. Repeat-spread overlap is explicitly not promoted to a causal cost
+  claim.
+- **Checks run:** `scripts/m7-dur034.ps1`; default and tagged focused
+  `go test -race`; default and tagged vet; `gofmt`; PowerShell parse
+  validation; `git diff --check`; `ci.ps1 -WithRace` with isolated task caches;
+  and read-only PostgreSQL namespace checks. CI passed all Go race packages and
+  38 Python tests. Non-service CI skipped PostgreSQL/Kafka smoke; the measured
+  study used the existing PostgreSQL service.
+- **Skipped or not claimed:** no separate service-mode CI rerun, Kafka/API/
+  relay dispatch, multi-host deployment, sustained load, hard-kill durability,
+  remote CI, paid provider, or live-model work. This remains bounded
+  single-node Docker Desktop/WSL2 Store/Engine evidence, with one scheduler.
+- **Review request:** verify the persisted safe/unsafe commit-order evidence,
+  the per-profile summary and CPU accounting, the DUR-026-aligned warmup/
+  cohort/worker/SLO discipline, and the normal-build exclusion of the weakened
+  seams. Do not mark DUR-034 DONE until the committed review returns
+  `NO_BLOCKING_FINDINGS`.
 - **Verdict:** PENDING CLAUDE REVIEW.
 
 ## Codex closeout - M6

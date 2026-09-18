@@ -244,8 +244,10 @@ native Linux evidence or to begin final measurements before the readiness gate.
 - Status: proposed for Claude review with DUR-034
 
 DUR-034 uses an explicit context-scoped `TestSafeguardProfile` seam rather than
-global flags or runtime configuration. The full profile calls the normal store
-protocol. The history-disabled profile suppresses only transition-history
+global flags or runtime configuration, and the complete seam is compiled only
+with the `dur034_ablation` build tag. The default state package has no profile
+constructor or weakened implementation. The full profile calls the normal
+store protocol. The history-disabled profile suppresses only transition-history
 writes, the unsafe profile deliberately moves owner validation outside the
 mutation transaction and exposes a check-to-commit barrier, and the no-outbox
 profile suppresses outbox writes while the harness records a bounded delayed

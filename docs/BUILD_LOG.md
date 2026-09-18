@@ -1788,6 +1788,35 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - Static default/tagged tests, race tests, vet, gofmt, PowerShell parsing and
   diff checks passed. The strengthened 12-run measurement is pending.
 
+## 2026-09-18 - M7 DUR-034 round-33 strengthened evidence handoff
+
+- DUR-034 is `READY_FOR_REVIEW` at implementation target `7ad863d`, based on
+  the prior handoff `8cd9687`; the final evidence run was generated from clean
+  measurement target `9e60b02`.
+- The replacement artifact `experiments/m7/dur034/results.json` is `PASS`:
+  four profiles x three repeats, 4 discarded warmups and 24 measured
+  workflows per run, 288/288 measured workflows terminal, zero measured SLO
+  violations, four fixed worker subprocesses, scheduler/worker CPU, and
+  per-profile median/min-max dispersion summaries. The no-outbox recovery scan
+  and history/outbox counts remain visible.
+- R074 is now measured from PostgreSQL commit evidence. The safe control reads
+  `old_rejected_after_takeover` with no old-owner history row; the unsafe
+  control reads `old_mutation_after_takeover` with old epoch 173, takeover epoch
+  174, and ordered history/takeover timestamps.
+- R076 is closed in the implementation boundary: the weakened seam and
+  ablation command require `dur034_ablation`; the default runtime/state build
+  contains only no-op helpers and an inert command stub. The script explicitly
+  builds the tagged command and the four worker subprocesses.
+- Validation: `scripts/m7-dur034.ps1`; default and tagged focused race tests;
+  `ci.ps1 -WithRace`; vet; gofmt; PowerShell parsing; `git diff --check`; and
+  read-only PostgreSQL cleanup checks. CI passed all Go race packages and 38
+  Python tests; non-service CI skipped PostgreSQL/Kafka smoke, while the study
+  used existing PostgreSQL. No paid/live-model work ran.
+- Known limits: bounded single-node Docker Desktop/WSL2 Store/Engine evidence,
+  one scheduler, no deployed API/relay/Kafka path, and no production claim for
+  weakened profiles. Differences overlapping repeat dispersion are reported as
+  unresolved rather than promoted to a causal cost claim.
+
 ## 2026-09-18 - M7 DUR-034 safeguard ablation handoff
 
 - DUR-034 is `READY_FOR_REVIEW` at implementation target `00d4dd4`, based on
