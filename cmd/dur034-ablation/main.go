@@ -281,6 +281,7 @@ func run(ctx context.Context, cfg config) (artifact, error) {
 			"activity_work_units":    cfg.ActivityWork,
 			"near_saturation_rate":   "inherited from DUR-026 calibration: 2 workflows/second",
 			"negative_controls":      "history evidence loss, unsafe check-to-commit takeover, and no-outbox delayed recovery",
+			"cost_claim_policy":      "No performance delta is promoted from this fixed three-repeat campaign; cross-campaign stability evidence is required.",
 		},
 	}
 	for _, profile := range profiles {
@@ -307,13 +308,9 @@ func run(ctx context.Context, cfg config) (artifact, error) {
 		NoOutboxRecovery:    anyManualRecovery(result.Runs),
 	}
 	result.Summary = summarizeRuns(result.Runs)
-	result.ResolvedCostEffects = resolvedCostEffects(result.Runs)
-	result.CostEffectsResolved = len(result.ResolvedCostEffects) > 0
-	if result.CostEffectsResolved {
-		result.CostInterpretation = "The listed profile comparisons have disjoint throughput or latency ranges; treat those separated deltas as descriptive and bounded by this protocol."
-	} else {
-		result.CostInterpretation = "No safeguard-cost delta is resolved by disjoint throughput or latency ranges. Mechanism controls are measured separately; performance differences remain descriptive and unresolved at this sample size."
-	}
+	result.ResolvedCostEffects = []string{}
+	result.CostEffectsResolved = false
+	result.CostInterpretation = "No safeguard-cost delta is resolved or promoted by this fixed three-repeat campaign. Mechanism controls are measured separately; performance differences remain descriptive until a separately qualified stability campaign supports a comparison."
 	result.Validation = map[string]any{
 		"expected_runs":                   12,
 		"measured_runs":                   len(result.Runs),
@@ -754,51 +751,6 @@ func summarizeRuns(runs []runReport) map[string]any {
 	}
 	result["interpretation"] = "Descriptive medians and min/max spread are reported per profile. Differences whose intervals overlap the within-profile spread are not treated as resolved safeguard-cost effects."
 	return result
-}
-
-func resolvedCostEffects(runs []runReport) []string {
-	type profileRange struct {
-		throughputMin float64
-		throughputMax float64
-		latencyMin    float64
-		latencyMax    float64
-	}
-	profiles := make(map[string][]runReport)
-	for _, run := range runs {
-		profiles[run.Profile] = append(profiles[run.Profile], run)
-	}
-	fullValues, ok := profiles["full"]
-	if !ok {
-		return nil
-	}
-	toRange := func(values []runReport) profileRange {
-		throughput := make([]float64, 0, len(values))
-		latency := make([]float64, 0, len(values))
-		for _, value := range values {
-			throughput = append(throughput, value.Throughput)
-			latency = append(latency, value.MedianLatency)
-		}
-		return profileRange{
-			throughputMin: minFloat(throughput), throughputMax: maxFloat(throughput),
-			latencyMin: minFloat(latency), latencyMax: maxFloat(latency)}
-	}
-	full := toRange(fullValues)
-	resolved := make([]string, 0)
-	for _, name := range []string{"history_disabled", "unsafe_lease_check", "no_outbox"} {
-		values, ok := profiles[name]
-		if !ok {
-			continue
-		}
-		peer := toRange(values)
-		pair := "full_vs_" + name
-		if full.throughputMax < peer.throughputMin || peer.throughputMax < full.throughputMin {
-			resolved = append(resolved, pair+":throughput")
-		}
-		if full.latencyMax < peer.latencyMin || peer.latencyMax < full.latencyMin {
-			resolved = append(resolved, pair+":latency")
-		}
-	}
-	return resolved
 }
 
 func minFloat(values []float64) float64 {
