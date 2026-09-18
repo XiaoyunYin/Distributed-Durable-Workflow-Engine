@@ -1,13 +1,19 @@
 [CmdletBinding()]
 param(
     [switch]$WithServices,
-    [switch]$WithRace
+    [switch]$WithRace,
+    [switch]$WithM5
 )
 
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $previousRequireDatabase = $env:DURABLE_REQUIRE_DATABASE
 $previousKafkaBrokers = $env:DURABLE_KAFKA_BROKERS
+$ciRelaysStopped = $false
+$composeArgs = @("--env-file", ".env", "-f", "deploy/local/compose.yaml")
+if ($WithM5 -and -not $WithServices) {
+    throw "-WithM5 requires -WithServices so the campaign cannot silently skip database-backed cases."
+}
 if ($WithServices) {
     $env:DURABLE_REQUIRE_DATABASE = "1"
     $kafkaPort = (Get-Content -LiteralPath (Join-Path $RepoRoot ".env") |
@@ -21,6 +27,14 @@ try {
         Write-Host "Applying numbered migrations before database-backed checks."
         & $PSScriptRoot/migrate.ps1
         if ($LASTEXITCODE -ne 0) { throw "Database migrations failed." }
+
+        # Database-backed package tests create claimable outbox rows. Keep
+        # live relays/workers from consuming those fixtures while the shared
+        # and race suites run; restore them before smoke and campaign checks.
+        Write-Host "Stopping runtime/worker relays to isolate service-backed test fixtures."
+        & docker compose @composeArgs stop runtime-a runtime-b worker-a worker-b
+        if ($LASTEXITCODE -ne 0) { throw "Could not isolate runtime/worker relays." }
+        $ciRelaysStopped = $true
     }
 
     if ($WithServices) {
@@ -64,14 +78,34 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "M4 engine integration tests failed." }
         & go test ./internal/invariants -run '^TestM4' -count=1 -v
         if ($LASTEXITCODE -ne 0) { throw "M4 invariant integration tests failed." }
+        if ($ciRelaysStopped) {
+            Write-Host "Restoring runtime/worker services before dependency smoke checks."
+            & docker compose @composeArgs up -d --wait runtime-a runtime-b worker-a worker-b
+            if ($LASTEXITCODE -ne 0) { throw "Could not restore runtime/worker services." }
+            $ciRelaysStopped = $false
+        }
         & $PSScriptRoot/smoke.ps1
         if ($LASTEXITCODE -ne 0) { throw "Real dependency smoke checks failed." }
+        if ($WithM5) {
+            Write-Host "Running M5 bounded two-scheduler smoke."
+            & go test ./internal/engine -run '^TestM5BoundedTwoSchedulerSmoke$' -count=1 -v
+            if ($LASTEXITCODE -ne 0) { throw "M5 two-scheduler smoke failed." }
+            Write-Host "Running M5 F01-F11 correctness campaign."
+            & $PSScriptRoot/m5-campaign.ps1 -StopRuntimeRelays
+            if ($LASTEXITCODE -ne 0) { throw "M5 F01-F11 campaign failed." }
+        }
     } else {
         Write-Host "Skipped PostgreSQL/Kafka smoke checks; rerun with -WithServices."
     }
 
     Write-Host "CI checks passed. Model and paid-provider checks are not part of this entry point."
 } finally {
+    if ($ciRelaysStopped) {
+        & docker compose @composeArgs up -d --wait runtime-a runtime-b worker-a worker-b
+        if ($LASTEXITCODE -ne 0) {
+            Write-Error "Could not restore runtime/worker services after CI failure."
+        }
+    }
     if ($null -eq $previousRequireDatabase) {
         Remove-Item Env:DURABLE_REQUIRE_DATABASE -ErrorAction SilentlyContinue
     } else {

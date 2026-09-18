@@ -10,10 +10,12 @@ from __future__ import annotations
 
 import argparse
 import contextlib
+import ctypes
 import json
 import os
 import queue
 import secrets
+import signal
 import socket
 import subprocess
 import sys
@@ -51,6 +53,22 @@ class ProcessExited:
     return_code: int
 
 
+@dataclass(frozen=True)
+class FaultOutcome:
+    """Observed result of a requested fault action.
+
+    A requested command is not considered successful until the trace contains
+    the corresponding observation.  Campaign runners use this object rather
+    than inferring success from a timeout or a process return code alone.
+    """
+
+    boundary_reached: bool
+    requested_action: str | None
+    observed_action: str | None
+    process_return_code: int | None
+    cleaned_up: bool
+
+
 ControllerEvent = BoundaryReached | ProtocolEvent | ProcessExited
 
 
@@ -79,6 +97,11 @@ class FaultController:
         self._connection: socket.socket | None = None
         self._token = secrets.token_hex(16)
         self._run_id = secrets.token_hex(16)
+        self._boundary_reached = False
+        self._requested_action: str | None = None
+        self._observed_action: str | None = None
+        self._process_return_code: int | None = None
+        self._cleaned_up = False
 
     def _prepare_trace(self) -> None:
         if self.trace_path is None:
@@ -229,6 +252,8 @@ class FaultController:
             return
         if event == "boundary_reached":
             self._record("boundary_reached", boundary=boundary, fields=fields)
+            if boundary == self.boundary and seed == self.seed:
+                self._boundary_reached = True
             self._events.put(BoundaryReached(boundary, seed, fields))
         else:
             self._record(event, boundary=boundary, fields=fields)
@@ -244,6 +269,7 @@ class FaultController:
             if self._exit_recorded:
                 return
             self._exit_recorded = True
+            self._process_return_code = return_code
             self._record("process_exited", return_code=return_code)
             self._events.put(ProcessExited(return_code))
             server = self._server
@@ -267,6 +293,7 @@ class FaultController:
                     boundary=self.boundary,
                     timeout_seconds=timeout_seconds,
                 )
+                self._observed_action = "boundary_not_reached"
                 return None
             try:
                 event = self._events.get(timeout=remaining)
@@ -276,6 +303,7 @@ class FaultController:
                     boundary=self.boundary,
                     timeout_seconds=timeout_seconds,
                 )
+                self._observed_action = "boundary_not_reached"
                 return None
             if isinstance(event, ProcessExited):
                 self._record(
@@ -293,6 +321,7 @@ class FaultController:
                         reported_seed=event.seed,
                     )
                     raise RuntimeError("target reported an unexpected boundary")
+                self._boundary_reached = True
                 return event
 
     def wait_for_event(self, name: str, timeout_seconds: float) -> bool:
@@ -313,9 +342,91 @@ class FaultController:
                 continue
 
     def pause(self) -> None:
-        """Record that the target remains blocked at its reported barrier."""
+        """Record that the target remains blocked at its reported barrier.
+
+        This is the portable cooperative pause.  ``pause_process`` below is
+        the process-level variant used by POSIX campaign hosts.
+        """
         self._require_process()
+        self._requested_action = "pause"
         self._record("command", command="pause", boundary=self.boundary)
+        self._observed_action = "pause_at_boundary"
+
+    def pause_process(self) -> bool:
+        """Pause the child when the host exposes SIGSTOP; otherwise report a
+        portable cooperative pause without pretending an OS pause occurred.
+        """
+        process = self._require_process()
+        self._requested_action = "pause_process"
+        self._record("command", command="pause_process", boundary=self.boundary)
+        if os.name == "nt":
+            if self._windows_process_control("NtSuspendProcess"):
+                self._observed_action = "process_paused"
+                self._record("fault_observed", action="process_paused", pid=process.pid)
+                return True
+            self._observed_action = "pause_at_boundary"
+            self._record("fault_observed", action="pause_at_boundary", supported=False)
+            return False
+        sigstop = getattr(signal, "SIGSTOP", None)
+        if not isinstance(sigstop, int):
+            self._observed_action = "pause_at_boundary"
+            self._record("fault_observed", action="pause_at_boundary", supported=False)
+            return False
+        if process.poll() is not None:
+            self._observed_action = "process_already_exited"
+            self._record("fault_observed", action=self._observed_action)
+            return False
+        os.kill(process.pid, sigstop)
+        self._observed_action = "process_paused"
+        self._record("fault_observed", action="process_paused", pid=process.pid)
+        return True
+
+    def resume_process(self) -> bool:
+        """Resume a process paused by :meth:`pause_process` on POSIX."""
+        process = self._require_process()
+        if os.name == "nt":
+            resumed = self._windows_process_control("NtResumeProcess")
+            if resumed:
+                self._record("fault_observed", action="process_resumed", pid=process.pid)
+                self._observed_action = "process_resumed"
+            else:
+                self._record("fault_observed", action="resume_unsupported", supported=False)
+            return resumed
+        sigcont = getattr(signal, "SIGCONT", None)
+        if not isinstance(sigcont, int):
+            self._record("fault_observed", action="resume_unsupported", supported=False)
+            return False
+        os.kill(process.pid, sigcont)
+        self._record("fault_observed", action="process_resumed", pid=process.pid)
+        self._observed_action = "process_resumed"
+        return True
+
+    def _windows_process_control(self, operation: str) -> bool:
+        process = self._require_process()
+        loader = getattr(ctypes, "WinDLL", None)
+        if not callable(loader) or process.poll() is not None:
+            return False
+        try:
+            ntdll = loader("ntdll")
+            kernel32 = loader("kernel32", use_last_error=True)
+            open_process = kernel32.OpenProcess
+            open_process.argtypes = [ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32]
+            open_process.restype = ctypes.c_void_p
+            close_handle = kernel32.CloseHandle
+            close_handle.argtypes = [ctypes.c_void_p]
+            close_handle.restype = ctypes.c_int
+            handle = open_process(0x0800 | 0x0400, 0, process.pid)
+            if not handle:
+                return False
+            try:
+                function = getattr(ntdll, operation)
+                function.argtypes = [ctypes.c_void_p]
+                function.restype = ctypes.c_long
+                return bool(function(handle) == 0)
+            finally:
+                close_handle(handle)
+        except (AttributeError, OSError):
+            return False
 
     def release(self) -> None:
         self._require_process()
@@ -323,6 +434,7 @@ class FaultController:
             connection = self._connection
         if connection is None:
             raise RuntimeError("target has not opened the fault channel")
+        self._requested_action = "release"
         payload = {
             "command": "release",
             "boundary": self.boundary,
@@ -332,11 +444,49 @@ class FaultController:
         connection.sendall((json.dumps(payload, sort_keys=True) + "\n").encode("utf-8"))
         self._record("command", command="release", boundary=self.boundary)
 
+    def inject_message(self, payload: dict[str, object]) -> None:
+        """Send a deliberately manipulated protocol command to the target.
+
+        The target is expected to reject or record the command.  The method
+        never calls that rejection success; the resulting trace is the
+        evidence consumed by a campaign.
+        """
+        self._require_process()
+        with self._connection_lock:
+            connection = self._connection
+        if connection is None:
+            raise RuntimeError("target has not opened the fault channel")
+        message = dict(payload)
+        message.setdefault("boundary", self.boundary)
+        message.setdefault("token", self._token)
+        message.setdefault("seed", self.seed)
+        connection.sendall((json.dumps(message, sort_keys=True) + "\n").encode("utf-8"))
+        self._requested_action = "message_injection"
+        self._record("command", command="message_injection", payload=message)
+
+    def cut_network(self) -> None:
+        """Cut the controller channel and record the observed channel fault."""
+        self._require_process()
+        self._requested_action = "network_cut"
+        with self._connection_lock:
+            connection = self._connection
+        if connection is not None:
+            with contextlib.suppress(OSError):
+                connection.shutdown(socket.SHUT_RDWR)
+            with contextlib.suppress(OSError):
+                connection.close()
+        self._observed_action = "network_cut"
+        self._record("command", command="network_cut", boundary=self.boundary)
+        self._record("fault_observed", action="network_cut", channel_closed=True)
+
     def kill(self) -> None:
         process = self._require_process()
+        self._requested_action = "kill"
         if process.poll() is None:
             process.kill()
         self._record("command", command="kill", boundary=self.boundary)
+        self._observed_action = "process_killed"
+        self._record("fault_observed", action="process_killed", pid=process.pid)
 
     def finish(self) -> int:
         process = self._require_process()
@@ -347,6 +497,44 @@ class FaultController:
             return_code = process.wait(timeout=5)
         self._record_process_exit(return_code)
         return return_code
+
+    def cleanup(self, timeout_seconds: float = 5.0) -> int | None:
+        """Bounded, idempotent cleanup used by campaign runners."""
+        if self._cleaned_up:
+            return self._process_return_code
+        process = self._process
+        if process is None:
+            self._cleaned_up = True
+            return None
+        if process.poll() is None:
+            with contextlib.suppress(OSError):
+                process.kill()
+        try:
+            return_code = process.wait(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired:
+            self._record("cleanup_timeout", timeout_seconds=timeout_seconds)
+            return_code = None
+        self._record_process_exit(return_code if return_code is not None else -9)
+        with self._connection_lock:
+            connection = self._connection
+        if connection is not None:
+            with contextlib.suppress(OSError):
+                connection.close()
+        if self._server is not None:
+            with contextlib.suppress(OSError):
+                self._server.close()
+        self._cleaned_up = True
+        self._record("cleanup_completed", bounded=True)
+        return return_code
+
+    def outcome(self) -> FaultOutcome:
+        return FaultOutcome(
+            self._boundary_reached,
+            self._requested_action,
+            self._observed_action,
+            self._process_return_code,
+            self._cleaned_up,
+        )
 
     def trace(self) -> list[dict[str, object]]:
         with self._trace_lock:
@@ -366,6 +554,7 @@ def _run_command(args: argparse.Namespace) -> int:
     if reached is None:
         controller.kill()
         controller.finish()
+        controller.cleanup()
         print(json.dumps({"status": "boundary_not_reached", "boundary": args.boundary}))
         return 2
     if args.action == "release":
@@ -373,11 +562,25 @@ def _run_command(args: argparse.Namespace) -> int:
         if not controller.wait_for_event("released", 5):
             controller.kill()
             controller.finish()
+            controller.cleanup()
             print(json.dumps({"status": "release_ack_missing", "boundary": args.boundary}))
             return 3
-    else:
+    elif args.action == "kill":
         controller.kill()
+    elif args.action == "pause":
+        controller.pause_process()
+        time.sleep(min(args.pause_seconds, 1.0))
+        controller.resume_process()
+        controller.release()
+        controller.wait_for_event("released", 5)
+    elif args.action == "cut-network":
+        controller.cut_network()
+    elif args.action == "message":
+        controller.inject_message(
+            {"command": "release", "boundary": args.boundary, "fields": {"injected": True}}
+        )
     controller.finish()
+    controller.cleanup()
     print(json.dumps({"status": "completed", "action": args.action, "boundary": args.boundary}))
     return 0
 
@@ -386,7 +589,12 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--boundary", default="after-effect")
-    parser.add_argument("--action", choices=("release", "kill"), default="release")
+    parser.add_argument(
+        "--action",
+        choices=("release", "kill", "pause", "cut-network", "message"),
+        default="release",
+    )
+    parser.add_argument("--pause-seconds", type=float, default=0.1)
     parser.add_argument("--timeout-seconds", type=float, default=5.0)
     parser.add_argument("--trace")
     parser.add_argument("--skip-boundary", action="store_true")

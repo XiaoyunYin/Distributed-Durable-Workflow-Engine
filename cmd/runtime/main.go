@@ -16,7 +16,9 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/api"
+	"durable-agent-execution-engine/internal/faults"
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
 	"durable-agent-execution-engine/internal/transport"
 )
 
@@ -42,7 +44,8 @@ func main() {
 	_ = serve.Parse(os.Args[1:])
 
 	role := envOrDefault("RUNTIME_ROLE", "runtime")
-	handler := newHandler(role)
+	metrics := telemetry.New(role)
+	handler := newHandlerWithMetrics(role, nil, metrics)
 	var store *state.Store
 	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
 		databaseContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -53,8 +56,9 @@ func main() {
 			slog.Error("runtime database initialization failed", "error", err)
 			os.Exit(1)
 		}
+		store.SetTelemetry(metrics)
 		defer store.Close()
-		handler = newHandlerWithStore(role, store)
+		handler = newHandlerWithMetrics(role, store, metrics)
 	}
 	server := &http.Server{
 		Addr:              *addr,
@@ -78,7 +82,10 @@ func main() {
 				os.Exit(1)
 			}
 			relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID(),
-				OnError: func(err error) { slog.Warn("runtime Kafka relay pass failed", "error", err) }})
+				OnError: func(err error) {
+					metrics.RecordRelayFailure()
+					slog.Warn("runtime Kafka relay pass failed", "error", err)
+				}})
 			go func() {
 				if err := relay.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
 					slog.Error("runtime Kafka relay stopped", "error", err)
@@ -86,6 +93,18 @@ func main() {
 			}()
 			defer broker.Close()
 		}
+	}
+	metrics.MarkDurableReady()
+	if controller, err := faults.FromEnvironment(); err != nil {
+		slog.Error("fault controller initialization failed", "error", err)
+		os.Exit(1)
+	} else if controller != nil {
+		defer controller.Close()
+		if err := controller.Hit("runtime_ready", map[string]any{"role": role}); err != nil {
+			slog.Error("runtime fault boundary failed", "error", err)
+			os.Exit(1)
+		}
+		_ = controller.Emit("released", "runtime_ready", map[string]any{"role": role})
 	}
 
 	go func() {
@@ -105,10 +124,14 @@ func main() {
 }
 
 func newHandler(role string) http.Handler {
-	return newHandlerWithStore(role, nil)
+	return newHandlerWithMetrics(role, nil, telemetry.New(role))
 }
 
 func newHandlerWithStore(role string, store *state.Store) http.Handler {
+	return newHandlerWithMetrics(role, store, telemetry.New(role))
+}
+
+func newHandlerWithMetrics(role string, store *state.Store, metrics *telemetry.Metrics) http.Handler {
 	mux := http.NewServeMux()
 	health := func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -120,16 +143,24 @@ func newHandlerWithStore(role string, store *state.Store) http.Handler {
 	}
 	mux.HandleFunc("GET /healthz", health)
 	mux.HandleFunc("GET /readyz", health)
-	mux.HandleFunc("GET /metrics", func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
-		_, _ = fmt.Fprintln(w, "# HELP durable_runtime_up Whether the runtime process is up.")
-		_, _ = fmt.Fprintln(w, "# TYPE durable_runtime_up gauge")
-		_, _ = fmt.Fprintf(w, "durable_runtime_up{role=%s} 1\n", strconv.Quote(role))
-	})
+	mux.Handle("GET /metrics", metricsHandler(role, metrics))
 	if store != nil {
 		mux.Handle("/v1/", api.NewServer(store).Handler())
 	}
 	return mux
+}
+
+func metricsHandler(role string, metrics *telemetry.Metrics) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain; version=0.0.4")
+		_, _ = fmt.Fprintln(w, "# HELP durable_runtime_up Whether the runtime process is up.")
+		_, _ = fmt.Fprintln(w, "# TYPE durable_runtime_up gauge")
+		_, _ = fmt.Fprintf(w, "durable_runtime_up{role=%s} 1\n", strconv.Quote(role))
+		if metrics != nil {
+			_, _ = w.Write([]byte(metrics.Render()))
+		}
+		_ = r
+	})
 }
 
 func checkHealth() error {

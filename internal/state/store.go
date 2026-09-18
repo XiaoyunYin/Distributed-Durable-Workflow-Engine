@@ -101,6 +101,9 @@ func (s *Store) CreateDefinition(ctx context.Context, input DefinitionInput) err
 }
 
 func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (CreateWorkflowResult, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.Namespace == "" || input.SubmissionKey == "" ||
 		input.SubmissionPayloadHash == "" || input.DefinitionID == "" || input.InitialNodeID == "" {
 		return CreateWorkflowResult{}, errors.New("workflow identity and initial node are required")
@@ -269,6 +272,8 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 }
 
 func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (Workflow, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	workflow, err := scanWorkflow(s.pool.QueryRow(ctx, `
 		SELECT workflow_id, namespace, submission_key, submission_payload_hash,
 			definition_id, definition_version, partition_id, state, revision,
@@ -384,6 +389,9 @@ func scanWorkflow(row pgx.Row) (Workflow, error) {
 }
 
 func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID string, ttl time.Duration) (Lease, bool, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if ttl <= 0 || ownerID == "" {
 		return Lease{}, false, errors.New("owner ID and positive lease TTL are required")
 	}
@@ -1011,6 +1019,9 @@ func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt,
 }
 
 func (s *Store) ClaimAttempt(ctx context.Context, input ClaimInput) (ClaimResult, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.WorkerID == "" || input.RequestID == "" {
 		return ClaimResult{}, errors.New("claim identity is required")
 	}
@@ -1183,6 +1194,9 @@ func (s *Store) RecordResult(ctx context.Context, input ResultInput) error {
 // A retry of an already committed result returns the same receipt without
 // writing another outbox event.
 func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (ResultReceipt, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.ClaimToken == "" {
 		return ResultReceipt{}, errors.New("result identity is required")
 	}

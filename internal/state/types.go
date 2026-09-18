@@ -11,6 +11,7 @@ import (
 	"errors"
 	"time"
 
+	"durable-agent-execution-engine/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -101,7 +102,8 @@ const (
 )
 
 type Store struct {
-	pool *pgxpool.Pool
+	pool      *pgxpool.Pool
+	telemetry *telemetry.Metrics
 }
 
 type DefinitionInput struct {
@@ -586,6 +588,27 @@ type GrantValidationInput struct {
 
 func New(pool *pgxpool.Pool) *Store {
 	return &Store{pool: pool}
+}
+
+// SetTelemetry attaches the bounded process registry used for operational
+// evidence. It does not make telemetry part of the durable transaction or a
+// source of correctness decisions.
+func (s *Store) SetTelemetry(metrics *telemetry.Metrics) {
+	if s != nil {
+		s.telemetry = metrics
+	}
+}
+
+func (s *Store) observeQuery(start time.Time) {
+	if s != nil && s.telemetry != nil {
+		s.telemetry.RecordDBQuery(time.Since(start))
+	}
+}
+
+func (s *Store) observeTransaction() {
+	if s != nil && s.telemetry != nil {
+		s.telemetry.RecordDBTransaction()
+	}
 }
 
 func (s *Store) Pool() *pgxpool.Pool {

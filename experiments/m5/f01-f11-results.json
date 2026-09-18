@@ -1,0 +1,101 @@
+﻿[
+    {
+        "id":  "F01",
+        "package":  "./internal/api",
+        "pattern":  "^TestWorkflowAPIResponseLossHistoryAndRetention$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:40:37.2311200Z",
+        "output":  "=== RUN   TestWorkflowAPIResponseLossHistoryAndRetention\r\n--- PASS: TestWorkflowAPIResponseLossHistoryAndRetention (0.30s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.684s"
+    },
+    {
+        "id":  "F02",
+        "package":  "./internal/state",
+        "pattern":  "^TestPostgresStateRepository$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:40:41.8995195Z",
+        "output":  "=== RUN   TestPostgresStateRepository\r\n=== RUN   TestPostgresStateRepository/submission_idempotency_and_conflict\r\n=== RUN   TestPostgresStateRepository/timeout_branches_and_late_evidence\r\n=== RUN   TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts\r\n=== RUN   TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure\r\n=== RUN   TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines\r\n=== RUN   TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner\r\n=== RUN   TestPostgresStateRepository/result_receipts_and_owner_result_consumption\r\n=== RUN   TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work\r\n=== RUN   TestPostgresStateRepository/stale_owner_is_fenced_after_takeover\r\n--- PASS: TestPostgresStateRepository (4.29s)\r\n    --- PASS: TestPostgresStateRepository/submission_idempotency_and_conflict (0.03s)\r\n    --- PASS: TestPostgresStateRepository/timeout_branches_and_late_evidence (0.34s)\r\n    --- PASS: TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts (0.04s)\r\n    --- PASS: TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure (0.24s)\r\n    --- PASS: TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines (0.24s)\r\n    --- PASS: TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner (2.41s)\r\n    --- PASS: TestPostgresStateRepository/result_receipts_and_owner_result_consumption (0.48s)\r\n    --- PASS: TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work (0.28s)\r\n    --- PASS: TestPostgresStateRepository/stale_owner_is_fenced_after_takeover (0.03s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t5.648s"
+    },
+    {
+        "id":  "F03",
+        "package":  "./internal/transport",
+        "pattern":  "^TestM3RelayFailureIsDurablyRetryable$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:40:50.3604315Z",
+        "output":  "=== RUN   TestM3RelayFailureIsDurablyRetryable\r\n--- PASS: TestM3RelayFailureIsDurablyRetryable (0.13s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.572s"
+    },
+    {
+        "id":  "F04",
+        "package":  "./internal/transport",
+        "pattern":  "^TestM3RelayCrashAfterBrokerAckRepublishesStableEvent$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:40:54.9023595Z",
+        "output":  "=== RUN   TestM3RelayCrashAfterBrokerAckRepublishesStableEvent\r\n--- PASS: TestM3RelayCrashAfterBrokerAckRepublishesStableEvent (0.15s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.528s"
+    },
+    {
+        "id":  "F05",
+        "package":  "./internal/api",
+        "pattern":  "^TestM2WorkerAPIConcurrencyRetriesAndStaleResult$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:40:59.0851114Z",
+        "output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.28s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.641s"
+    },
+    {
+        "id":  "F06",
+        "package":  "./internal/effects",
+        "pattern":  "^TestNonCooperatingEndpointMakesAmbiguityVisibleToCaller$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:41:03.1185902Z",
+        "output":  "=== RUN   TestNonCooperatingEndpointMakesAmbiguityVisibleToCaller\r\n--- PASS: TestNonCooperatingEndpointMakesAmbiguityVisibleToCaller (0.00s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/effects\t1.266s"
+    },
+    {
+        "id":  "F07",
+        "package":  "./internal/engine",
+        "pattern":  "^TestM1CrashResumeWithinNode$|^TestM4CheckpointSurvivesCrashBeforeResult$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:41:06.6506810Z",
+        "output":  "=== RUN   TestM1CrashResumeWithinNode\r\n=== RUN   TestM1CrashResumeWithinNode/activity_scheduled\r\n=== RUN   TestM1CrashResumeWithinNode/result_recorded\r\n=== RUN   TestM1CrashResumeWithinNode/result_consumed\r\n--- PASS: TestM1CrashResumeWithinNode (0.54s)\r\n    --- PASS: TestM1CrashResumeWithinNode/activity_scheduled (0.20s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_recorded (0.18s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_consumed (0.13s)\r\n=== RUN   TestM4CheckpointSurvivesCrashBeforeResult\r\n--- PASS: TestM4CheckpointSurvivesCrashBeforeResult (0.33s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.243s"
+    },
+    {
+        "id":  "F08",
+        "package":  "./internal/state",
+        "pattern":  "^TestM2LeaseRenewalAndTakeoverFence$|^TestM2TakeoverWaitsForLockedLeaseTransaction$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:41:11.1553637Z",
+        "output":  "=== RUN   TestM2LeaseRenewalAndTakeoverFence\r\n--- PASS: TestM2LeaseRenewalAndTakeoverFence (0.05s)\r\n=== RUN   TestM2TakeoverWaitsForLockedLeaseTransaction\r\n--- PASS: TestM2TakeoverWaitsForLockedLeaseTransaction (0.09s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.603s"
+    },
+    {
+        "id":  "F09",
+        "package":  "./internal/state",
+        "pattern":  "^TestM2ConcurrentExpiredLeaseHasOneWinner$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:41:15.0930210Z",
+        "output":  "=== RUN   TestM2ConcurrentExpiredLeaseHasOneWinner\r\n--- PASS: TestM2ConcurrentExpiredLeaseHasOneWinner (0.06s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.445s"
+    },
+    {
+        "id":  "F10",
+        "package":  "./internal/engine",
+        "pattern":  "^TestM1InterpreterTimersAndRestart$|^TestM1ConcurrentBranchCompletionCreatesJoinOnce$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:41:18.9506709Z",
+        "output":  "=== RUN   TestM1InterpreterTimersAndRestart\r\n--- PASS: TestM1InterpreterTimersAndRestart (0.87s)\r\n=== RUN   TestM1ConcurrentBranchCompletionCreatesJoinOnce\r\n--- PASS: TestM1ConcurrentBranchCompletionCreatesJoinOnce (0.29s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.566s"
+    },
+    {
+        "id":  "F11",
+        "package":  "./internal/engine",
+        "pattern":  "^TestM1FanoutCancellationRace$",
+        "status":  "PASS",
+        "exit_code":  0,
+        "started_at":  "2026-09-18T04:41:23.8157670Z",
+        "output":  "=== RUN   TestM1FanoutCancellationRace\r\n=== RUN   TestM1FanoutCancellationRace/round-0\r\n=== RUN   TestM1FanoutCancellationRace/round-1\r\n=== RUN   TestM1FanoutCancellationRace/round-2\r\n--- PASS: TestM1FanoutCancellationRace (0.50s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-0 (0.21s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-1 (0.14s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-2 (0.11s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t1.933s"
+    }
+]

@@ -11,6 +11,8 @@ import threading
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+from faults.client import FailpointClient
+
 from workers import __version__
 from workers.registry import default_registry
 from workers.runner import ActivityTask, runner_for_url
@@ -43,6 +45,17 @@ class HealthHandler(BaseHTTPRequestHandler):
 def run() -> None:
     host, port_text = os.getenv("WORKER_ADDR", "0.0.0.0:8081").rsplit(":", 1)
     server = ThreadingHTTPServer((host, int(port_text)), HealthHandler)
+    # A worker process can participate in deterministic M5 campaigns without
+    # making fault control a production dependency. With no endpoint this is a
+    # no-op; with one, startup is acknowledged at a named boundary.
+    failpoint = FailpointClient.from_environment()
+    if failpoint is not None:
+        fields: dict[str, object] = {"worker_id": os.getenv("WORKER_ID", "worker")}
+        try:
+            failpoint.hit("worker_ready", fields)
+            failpoint.emit("released", "worker_ready", fields)
+        finally:
+            failpoint.close()
 
     def stop(_signum: int, _frame: object) -> None:
         threading.Thread(target=server.shutdown, daemon=True).start()

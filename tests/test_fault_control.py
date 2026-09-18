@@ -120,6 +120,20 @@ def test_non_protocol_stdout_does_not_hide_boundary() -> None:
     assert any(event["event"] == "target_stdout" for event in controller.trace())
 
 
+def test_malformed_target_output_is_recorded_without_losing_boundary() -> None:
+    controller = FaultController(seed=23, boundary="after-effect")
+    controller.start(command=_python_target("--malformed-output"))
+    assert controller.wait_for_boundary(timeout_seconds=5) is not None
+    controller.release()
+    assert controller.wait_for_event("released", timeout_seconds=5)
+    assert controller.finish() == 0
+    assert any(
+        "not-json" in str(event.get("line"))
+        for event in controller.trace()
+        if event["event"] == "target_stdout"
+    )
+
+
 def test_heavy_stderr_is_drained() -> None:
     controller = FaultController(seed=23, boundary="after-effect")
     controller.start(command=_python_target("--stderr-lines", "2000"))
@@ -140,3 +154,46 @@ def test_timeout_is_recorded_when_boundary_is_not_reported(tmp_path: Path) -> No
     controller.finish()
     assert any(event["event"] == "boundary_timeout" for event in controller.trace())
     assert trace_path.read_text(encoding="utf-8").count("boundary_timeout") == 1
+
+
+def test_network_cut_records_observed_fault_after_boundary() -> None:
+    controller = FaultController(seed=23, boundary="after-effect")
+    controller.start()
+    assert controller.wait_for_boundary(timeout_seconds=5) is not None
+    controller.cut_network()
+    assert controller.finish() != 0
+    controller.cleanup()
+    outcome = controller.outcome()
+    assert outcome.boundary_reached
+    assert outcome.requested_action == "network_cut"
+    assert outcome.observed_action == "network_cut"
+    assert outcome.cleaned_up
+    assert "boundary_timeout" not in [event["event"] for event in controller.trace()]
+
+
+def test_message_injection_and_cleanup_are_observable() -> None:
+    controller = FaultController(seed=23, boundary="after-effect")
+    controller.start()
+    assert controller.wait_for_boundary(timeout_seconds=5) is not None
+    controller.inject_message({"command": "release", "fields": {"altered": True}})
+    assert controller.wait_for_event("released", timeout_seconds=5)
+    assert controller.finish() == 0
+    controller.cleanup()
+    outcome = controller.outcome()
+    assert outcome.requested_action == "message_injection"
+    assert outcome.cleaned_up
+    assert any(event["event"] == "cleanup_completed" for event in controller.trace())
+
+
+def test_pause_process_is_distinguished_from_cooperative_pause() -> None:
+    controller = FaultController(seed=23, boundary="after-effect")
+    controller.start()
+    assert controller.wait_for_boundary(timeout_seconds=5) is not None
+    supported = controller.pause_process()
+    if supported:
+        assert controller.resume_process()
+    controller.release()
+    assert controller.wait_for_event("released", timeout_seconds=5)
+    assert controller.finish() == 0
+    controller.cleanup()
+    assert controller.outcome().cleaned_up

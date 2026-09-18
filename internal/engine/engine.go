@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
 )
 
 type Graph struct {
@@ -208,6 +209,7 @@ type Engine struct {
 	AttemptLease time.Duration
 	RetryBackoff time.Duration
 	MaxSteps     int
+	Telemetry    *telemetry.Metrics
 	// AfterBoundary is a test-only crash injector. Returning an error models a
 	// process crash immediately after the named repository transaction commits.
 	AfterBoundary func(string) error
@@ -261,7 +263,13 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (RunResult, error) 
 		return RunResult{}, err
 	}
 	if !acquired {
+		if e.Telemetry != nil {
+			e.Telemetry.RecordFencedWrite()
+		}
 		return RunResult{Workflow: wf, Blocked: true}, state.ErrLeaseNotOwned
+	}
+	if e.Telemetry != nil {
+		e.Telemetry.RecordLeaseAcquired()
 	}
 	ownedLease := lease
 	defer func() {
@@ -281,6 +289,9 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (RunResult, error) 
 		}
 		lease = renewedLease
 		ownedLease = renewedLease
+		if e.Telemetry != nil {
+			e.Telemetry.RecordLeaseRenewed()
+		}
 		wf, err = e.Store.GetWorkflow(ctx, workflowID)
 		if err != nil {
 			return RunResult{}, err
@@ -478,12 +489,19 @@ func (e *Engine) executeAttempt(ctx context.Context, wf state.Workflow, node sta
 		if err != nil {
 			return err
 		}
+		if e.Telemetry != nil {
+			e.Telemetry.RecordClaimAccepted()
+		}
 		if err := e.boundary("attempt_claimed"); err != nil {
 			return err
 		}
 	}
 	if claim.ClaimToken == "" {
 		return state.ErrStaleClaim
+	}
+	if e.Telemetry != nil {
+		e.Telemetry.WorkerStarted()
+		defer e.Telemetry.WorkerFinished()
 	}
 	activity := Activity{WorkflowID: wf.WorkflowID, NodeID: node.NodeID,
 		Iteration: node.Iteration, AttemptNumber: claim.AttemptNumber, EffectClass: claim.EffectClass,
@@ -521,6 +539,9 @@ func (e *Engine) executeAttempt(ctx context.Context, wf state.Workflow, node sta
 		Iteration: node.Iteration, AttemptNumber: claim.AttemptNumber, ClaimToken: claim.ClaimToken,
 		AttemptState: result.AttemptState, Payload: result.Payload, EventType: "activity.result"}); err != nil {
 		return err
+	}
+	if e.Telemetry != nil {
+		e.Telemetry.RecordResultAccepted()
 	}
 	if err := e.boundary("result_recorded"); err != nil {
 		return err
