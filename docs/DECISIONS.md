@@ -191,3 +191,23 @@ properties reproducible without paid calls or importing model behavior into
 the engine correctness claim. The rejected alternative was to make M6's
 acceptance depend on network credentials or a semantic model whose weights and
 latency could change between runs.
+
+## D010 - Keep M6 local while naming the production integration boundary
+
+- Date: 2026-09-18
+- Status: accepted as the R064 follow-up boundary pending Claude review
+
+M6's deterministic acceptance evidence remains local and reproducible. Its
+SQLite workflow/source adapter mirrors the M4 approval/effect semantics and is
+tested for approval-before-dispatch, resource and proposal binding, revision
+fencing, and idempotent receipts, but it does not replace the production Go
+engine, PostgreSQL workflow state, or `effects.Service`. The production path is
+named `DUR-033A`: before any external or live-model incident execution is
+claimed, it must route an incident remediation through the versioned submission
+API, scheduler-owned approval intent/grant, production effect service, and
+seeded/queryable `source_corpus` boundary, then repeat the R049 attack matrix.
+
+This keeps the M6 evidence honest without expanding the current milestone into
+a second production integration project. The rejected alternative was to call
+the local adapter the verified engine path or to leave the integration gap
+unnamed.

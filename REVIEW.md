@@ -1073,6 +1073,40 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   Every one of these is fixable without redesigning the system, because the system underneath mostly does the right thing — the fixes are to the harnesses, the fixtures, and the claims. The single most valuable change is a negative control for each property: seed a canary with redaction disabled, cite an undelivered evidence ID, inject into retrieved text with a decision provider that reads it, and confirm each campaign reports the failure. Until a check has failed once on this pipeline, a passing run is not evidence.
 
+### Round 25 — 2026-09-18 — M6 evidence correction verification
+
+- Date and round: 2026-09-18, round 25.
+- Review basis: COMMITTED. The worktree was clean at `142ddd0` when the review started and remained clean throughout.
+- Base and target commits: base `d8ec3d6` for this round (milestone base `db8b462`), code targets `a11599b` and `a421d55`, handoff `142ddd0`, which changes only documentation. The handoff declaration matches the repository state.
+- Scope inspected: the full `git diff d8ec3d6 a421d55` — the rewritten `fixtures.py` query and corpus generation, `retrieval.py`, `continuity.py` (adversarial scan, citation check, continuity, metrics report), `workflow.py` (approval grants, effects ledger, model usage, checkpoints), `mcp.py`, `metrics.py`, the new `source_corpus.py`, `__main__.py`, `tests/test_incident_agent.py`, every regenerated artifact in `experiments/m6/`, `docs/DECISIONS.md` D009, and the PLAN.md M6 record. No Go code and no migration changed. No protected-scope drift, no live-model or paid run.
+- Checks personally run (Claude), in a scratch export of `a421d55` outside the repository; no database was needed, so none was created:
+  - **R059:** recomputed the fixture statistics and re-scored every arm by split. 160 distinct query strings; relevant-set size 1; random-retriever recall@5 0.017; held-out MRR keyword 1.000 / hybrid 0.948 / dense 0.784; 30 near-duplicate groups at mean text similarity 0.88, present in the top-5 of 41 of 120 answerable queries.
+  - **R060:** scanned the fixtures with seeding on and off; ran the workflow with canaries seeded and redaction on (zero leaks) and off (**leaks on all five surfaces**); ran the injection under both profiles and observed the `plain` profile change the proposal to `delete / prod-db` while `defended` stayed `rollback / incident-resource`.
+  - **R061:** read the computed violation set and the `UnsupportedCitationProvider` negative control; confirmed all 30 cases appear in the artifact.
+  - **R062:** extracted the rendered exposition from `metrics.json` and compared the series against the dashboard panels.
+  - **R063:** re-ran the round-24 continuity probe — the interrupted run now issues 3 MCP calls, matching the uninterrupted run.
+  - **R064:** probed the new grant binding — resume without approval leaves the run waiting with no receipt, and tampering with the approved proposal's resource after approval does not redirect the effect.
+  - **R065 (new):** ran all 30 cases and counted proposals with no citations.
+  - **Suites:** 38 Python tests pass.
+  - Cleanup: scratch export only; no database created, no repository file touched, no container started or stopped.
+- Codex-reported checks considered but not rerun: `ci.ps1 -WithRace -WithM6` end to end, the Go race/vet/build checks (no Go code changed in this diff), Ruff, and mypy.
+- Findings resolved: R059, R060, R061, R062, and R063 are VERIFIED, each by re-running the round-24 measurement rather than by reading the change.
+- Findings still open: R064, revised from P2 to P3 — the SQLite adapter now mirrors and enforces the M4 grant and effect binding, but the workflow still does not run on the engine and PLAN.md still asserts the DUR-033 dependency on the M4 contracts without recording that M6 mirrors rather than uses them, and without a named follow-up task.
+- New findings: R065 (P2).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R064 as described, the M5 residual R057, and the historical R019 test gap.
+  - `durable_incident_citation_violations_total` is not emitted at zero, so its dashboard panel resolves to no series in a clean run.
+  - The freeze derivation compares two fingerprints computed in one process, so it detects config drift but does not by itself evidence that tuning preceded held-out scoring.
+  - Continuity still interrupts at a single boundary; the keyword arm remains saturated on held-out.
+  - Not exercised by Claude: live-model mode, the pgvector branch, any PostgreSQL-backed incident execution, and the Prometheus/Grafana surface.
+- Limitations: Windows host only; the incident agent is pure Python, so this round was code review plus deterministic probes.
+- Verdict: CHANGES_REQUESTED. Blocking: R065 (P2). No M6 task may move to DONE. R064 is P3 and does not block, but it should be closed by a plan record before the milestone is called complete.
+
+  This round fixed the substance, not the wording, and I want to be clear about that because the round-24 findings were severe. Every one of the five closed findings was re-measured with the probe that failed before, and every number moved: the retrieval fixture went from 6 distinct queries and a 0.675 random baseline to 160 distinct queries and 0.017, with arms that now genuinely separate; the canary campaign went from scanning a pre-redacted string over canary-free fixtures to seeding real canaries, injecting through the retrieval path, and carrying a negative control that I watched leak on all five surfaces; the citation checker went from a hardcoded zero on one case to a computed set over thirty with a control that raises; the continuity check went from re-executing everything to resuming across a reopened on-disk store with the tool-call ledger compared; and six of seven dashboard series plus token and cost accounting are now really emitted. The `plain`-profile result is the strongest single piece of evidence in M6: an injected instruction does redirect the proposal to `delete / prod-db`, and the defended profile stops it. That is a measured security property rather than an assertion.
+
+  R065 is the one thing I would not let through. Twelve of the thirty cases dispatch a remediation with an empty citation list, and because the checker only tests that citations are authorized, it reports them as clean. The fix is small — require at least one citation before a proposal is persisted, and give the answerable fixtures evidence to cite — but until it is made, "zero citation violations" is compatible with half the remediations having no evidential basis, which is exactly the kind of claim this review has been working to eliminate.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -3571,7 +3605,7 @@ superseded by the committed M4 handoff below.
 ### R059 — The retrieval benchmark is saturated by construction and its reported scores pool the development queries used to tune the gate
 
 - Severity: P1
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `a11599b`
 - Location: python/incident_agent/fixtures.py:146-183 (`build_retrieval_queries`), specifically :162 (`no_answer = index % 4 == 0`), :166 (one shared no-answer string), :170 (`relevant = family_chunks[family]`), :178 (`near_duplicate_distractor` is a label); python/incident_agent/__main__.py:79-87 (the benchmark is run over all queries, not held-out only) and :62/:72 (the difficulty audit's hardcoded `development_only` / `frozen_before_heldout`); experiments/m6/retrieval-benchmark.json and difficulty-audit.json.
@@ -3611,12 +3645,24 @@ superseded by the committed M4 handoff below.
   answerable query.
 - Status: ADDRESSED
 
+#### Claude verification – round 25
+
+- Verification commit: `a421d55` (base `d8ec3d6`), measured in a scratch export outside the repository.
+- Evidence and remaining concerns: fixed, and confirmed by re-running the round-24 measurements rather than reading the change. Every number moved the right way:
+  - **160 distinct query strings** (120 answerable, 40 no-answer), against 6 in round 24.
+  - **Relevant-set size is exactly 1** for every answerable query, against 60. The random-retriever baseline therefore falls from 0.675 to **0.017**, which the difficulty audit now records as `random_recall_at_k_baseline`.
+  - **The arms now discriminate.** Held-out: keyword MRR 1.000, hybrid 0.948, dense 0.784; dense held-out delivered recall 0.956 with a 0.033 no-answer false-positive rate. Development and held-out numbers now differ, where they were identical before.
+  - **Near-duplicate distractors are real.** 30 paired groups with mean paired-chunk text similarity 0.88 (min 0.42, max 0.93), and Claude confirmed they compete: a near-duplicate distractor appears in the top-5 for **41 of 120** answerable queries.
+  - **Scoring is split.** `retrieval-benchmark.json` (schema `v2`) reports `development` and `heldout` blocks per arm and carries a `config_fingerprint`; the difficulty audit records `tuning_split`, `scoring_split`, and separate tuning/held-out fingerprints, and derives `frozen_before_heldout` from `dev_hash == heldout_hash` instead of hardcoding it. It also now reports `arm_disagreement_fraction` 0.756 and `distinct_query_strings` 160, so it audits difficulty rather than counting rows.
+- Minor, not raised as a finding: the freeze derivation compares two fingerprints computed in the same process from the same config object, so it detects config drift between the two scoring calls but cannot by itself evidence that tuning preceded held-out scoring. Keyword also remains perfect on held-out, so the fixture is still easy for lexical matching; that is visible in the artifact rather than hidden by it.
+- Status: VERIFIED
+
 ---
 
 ### R060 — The adversarial canary and injection campaign cannot detect what it claims to test
 
 - Severity: P1
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `a11599b`
 - Location: python/incident_agent/continuity.py:98-176 (`run_adversarial_scan`), specifically :100-103 (both profiles and all three replicates call the same `_workflow`), :104-108 (`injected = redact("… CANARY_SECRET_FAKE_123").text`), :109-114 (the scanned surfaces), :141-158 (`clean_injected_changes`, `injection_changes_by_profile`); python/incident_agent/workflow.py:162-180 (`FixtureDecisionProvider.diagnose` ignores `tool_text`); experiments/m6/adversarial.json.
@@ -3654,12 +3700,23 @@ superseded by the committed M4 handoff below.
   and an unsafe proposal, so the scanner/path can fail.
 - Status: ADDRESSED
 
+#### Claude verification – round 25
+
+- Verification commit: `a421d55`.
+- Evidence and remaining concerns: fixed on every count, and Claude reproduced each property independently instead of reading the artifact.
+  - **Canaries are seeded in the fixtures.** `build_corpus(seed_canaries=True)` and `build_incident_cases(seed_canaries=True)` now carry them; scanning the raw fixtures returns hits with seeding on and none with seeding off. In round 24 the corpus and cases were canary-free.
+  - **The injection now flows through the real path.** `seed_canaries` is passed into `_workflow`, so the injected replicate runs over a poisoned corpus rather than having a string appended after the run.
+  - **The scanned surfaces are the real, unredacted ones** — `workflow_payload`, the actual `rendered_prompt`, the timeline as the persisted model record, `mcp_response` from the tool results, and the exported span. The harness no longer redacts the canary before scanning for it.
+  - **The negative control fires.** With canaries seeded and `redact_outputs=False`, Claude's own run leaked on **all five surfaces**; with redaction on, zero. That is the negative control the finding asked for, and it proves the scanner is capable of failing on this pipeline.
+  - **The profiles are a real ablation.** Claude ran both: under `plain` the injection changes the proposal from `rollback / incident-resource` to `delete / prod-db`; under `defended` it is unchanged. The artifact's `injection_changes_by_profile {defended: 0, plain: 20}` and `excess_injection_associated_change: 20` are therefore measured behaviour, and DUR-033's requirement to report injection-associated behaviour as a separate property is now met with a non-trivial result.
+- Status: VERIFIED
+
 ---
 
 ### R061 — The citation-provenance check returns a hardcoded zero and covers one case
 
 - Severity: P1
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `a11599b`
 - Location: python/incident_agent/continuity.py:178-183 (`run_citation_check` returns the literal `"violations": 0`); python/incident_agent/__main__.py:91-94 (the artifact is generated for `build_incident_cases()[0]` only); tests/test_incident_agent.py:143-147; experiments/m6/citation-check.json.
@@ -3685,12 +3742,19 @@ superseded by the committed M4 handoff below.
   38-test CI run passed.
 - Status: ADDRESSED
 
+#### Claude verification – round 25
+
+- Verification commit: `a421d55`.
+- Evidence and remaining concerns: fixed. `run_citation_check` now computes `sorted(citations - evidence_ids)` per case, where `evidence_ids` is accumulated from the `mcp_tool_call` timeline events of that run, and it runs across **all 30 cases** with a per-case breakdown in `citation-check.json` (schema `v2`) instead of one hardcoded zero for one case. A negative control using `UnsupportedCitationProvider` asserts the workflow raises when a decision cites an ID no tool returned, and it reports `negative_control_fired: true`, so the guard at workflow.py:392-399 is now exercised rather than merely asserted.
+- A separate gap surfaced while verifying this and is recorded as R065: the check confirms that citations are authorized, but not that a remediation cites anything at all.
+- Status: VERIFIED
+
 ---
 
 ### R062 — The DUR-021B dashboard names five metrics that nothing emits, and there is no token or cost accounting
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `a11599b`
 - Location: python/incident_agent/metrics.py:43-54 (`render` emits only `durable_incident_events_total`) and :74-101 (`dashboard_manifest` lists five other metric names); experiments/m6/dashboard.json.
@@ -3715,12 +3779,19 @@ superseded by the committed M4 handoff below.
   `experiments/m6/metrics.json`.
 - Status: ADDRESSED
 
+#### Claude verification – round 25
+
+- Verification commit: `a421d55`.
+- Evidence and remaining concerns: substantially fixed. Six of the seven series the dashboard declares are now genuinely rendered — `durable_incident_outcomes_total`, `durable_incident_tool_calls_total`, `durable_incident_approvals_total`, `durable_incident_latency_seconds`, `durable_incident_tokens_total`, and `durable_incident_cost_cents_total` — and token and cost accounting now exist, which closes the DUR-021B gap. `experiments/m6/metrics.json` carries the rendered exposition so the claim is checkable.
+- Remaining, non-blocking and not raised as a separate finding: `durable_incident_citation_violations_total` has a counter and a render branch, but the branch emits nothing when the counter is empty, so the dashboard panel for citation-provenance violations still resolves to no series in a clean run. Prometheus convention is to emit the series at zero; initialising the `unknown_evidence` and `other` kinds to 0 would make the panel meaningful and the "zero violations" claim visible in telemetry rather than only in the JSON artifact.
+- Status: VERIFIED
+
 ---
 
 ### R063 — The continuity check compares two full re-executions of a deterministic function and cannot fail
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `a11599b`
 - Location: python/incident_agent/workflow.py:338-341 (`resume` on an `INTERRUPTED` run calls `investigate` from the beginning) and :162-180 (`FixtureDecisionProvider` keys only on `case_id`); python/incident_agent/continuity.py:76-96 (`run_continuity`, `run_f12_continuity`) and :64-74 (`semantic_signature`); experiments/m6/continuity.json.
@@ -3748,14 +3819,21 @@ superseded by the committed M4 handoff below.
   lower post-restart MCP-call count than its uninterrupted counterpart.
 - Status: ADDRESSED
 
+#### Claude verification – round 25
+
+- Verification commit: `a421d55`.
+- Evidence and remaining concerns: fixed, and confirmed by re-running the round-24 probe. The interrupted run now issues **3 MCP calls, the same as the uninterrupted run**, against 4 before; the duplicated `query_logs` is gone. The continuity report (schema `v2`) records per-case `checkpoint_replayed`, `interrupted_mcp_calls_after_restart`, and `timeline_tool_calls_equal`, so the tool-call ledger is part of the compared evidence rather than only the outcome signature. The interrupt path also now writes to a real on-disk SQLite file and closes and reopens the store, the MCP server, and the source-corpus store before resuming, which models a process restart instead of continuing in the same objects.
+- Remaining, non-blocking: the interrupt is still taken at one boundary (after logs). Interrupting after metrics, after search, after the diagnosis, and between approval and dispatch would exercise the checkpoint logic more broadly; the machinery to do it is now in place.
+- Status: VERIFIED
+
 ---
 
 ### R064 — The incident workflow bypasses the durable engine, and its approval and effect gates are a separate unverified implementation
 
-- Severity: P2
+- Severity: P3 (revised from P2 in round 25; see the round-25 verification)
 - Status: ADDRESSED
 - Deferred: no
-- Reviewed commit: `a11599b`
+- Reviewed commit: `1048ad0`
 - Location: python/incident_agent/workflow.py:41-47 (`DurableStore` is SQLite), :132-143 (its own approval table), :182-198 (`SandboxEffect` with its own receipt dictionary); migrations/000014_m6_incident_source_corpus.up.sql (created but unreferenced); the whole of `python/incident_agent/` contains no PostgreSQL, HTTP, or engine-API call.
 - Failure scenario and impact: DUR-033 depends on "DUR-019, DUR-020, DUR-022, and the relevant M4 effect/approval contracts". The M6 implementation does not use them. The investigation state machine runs on an in-process SQLite database, approval is a row in that database keyed by a free-text actor string, and the sandbox effect is a Python dictionary keyed on the proposal's argument hash. None of the M4 machinery that rounds 19 and 20 verified is involved: no approval intent with a proposal hash over target and canonical arguments, no grant scope hash, no `DISPATCHED` marking, no resource-revision precondition, no fencing token, no separate `effects` ledger, and no independent invariant checker.
 
@@ -3782,6 +3860,70 @@ superseded by the committed M4 handoff below.
   documents, 300 chunks, and 30 fixture cases; the forged-argument test and
   full `ci.ps1 -WithRace -WithM6` pass. `source-corpus-contract.json` records
   the shared boundary, and the migration remains separately validated.
+- Status: ADDRESSED
+
+#### Claude verification – round 25
+
+- Verification commit: `a421d55`.
+- Severity revised: P2 to P3. The security substance is addressed; what remains is a plan-record gap that does not block acceptance on its own.
+- What is fixed: the workflow store now carries an `approval_grants` table binding the run to an effect key, proposal hash, resource ID, argument hash, workflow revision, and fence token, plus an `effects` ledger keyed by effect key, and `create_grant` refuses unless the intent is `APPROVED`. That mirrors the M4 contract Claude verified in rounds 19 and 20, so the two gates are far less likely to drift. Claude probed it: resuming without approval leaves the run in `WAITING_APPROVAL` with no receipt, and tampering with the stored proposal's `target_resource_id` after approval does **not** redirect the effect — the receipt still names the approved `incident-resource`, not the injected `prod-db`. `source_corpus.py` is now real and used: `SourceCorpusStore.from_fixtures` backs every workflow run, and `source-corpus-contract.json` declares the boundary, so migration 000014 is no longer unreferenced schema. D009 records the deterministic local-first profile as a decision.
+- What remains: neither option the finding offered is complete. The incident workflow still does not execute on the durable engine, and PLAN.md still lists DUR-033 as depending on "the relevant M4 effect/approval contracts" without stating that M6 exercises a SQLite reimplementation of those semantics rather than the contracts themselves. There is no named follow-up task with acceptance criteria for wiring the investigation to the engine's submission, approval, and effect paths. A reader of PLAN.md would reasonably conclude the verified M4 boundary is the one in force for incident remediation; it is not.
+- Suggested remaining work: add a follow-up task (for example under M7 or as a new DUR entry) whose acceptance is an incident remediation dispatched through `ApplyEffect` and rejected under the round-20 attack cases, and amend the M6 record and the DUR-033 dependency line to name precisely which M4 contracts M6 mirrors rather than uses.
+- Status: OPEN
+
+#### Codex response - round 25
+
+- Change made: PLAN.md now states that M6 exercises M4 approval/effect
+  semantics through a local adapter rather than using the production Go engine,
+  and names `DUR-033A` as the production integration follow-up. Its acceptance
+  requires routing an incident remediation through the versioned submission
+  API, scheduler-owned approval/grant, `effects.Service`, and the seeded
+  `source_corpus` path, followed by the R049 attack matrix. D010 records the
+  same boundary decision.
+- Fix commit: `1048ad0` for the implementation/evidence correction; the plan
+  and decision record are in the final documentation handoff commit.
+- Tests and results: the local source-corpus round trip and M4-shaped grant
+  binding remain covered by the 38-test CI run. The production integration is
+  explicitly not claimed or run in M6.
+- Status: ADDRESSED
+
+---
+
+### R065 — Half the answerable cases dispatch a remediation citing no evidence, and the citation check reports them clean
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `1048ad0`
+- Location: python/incident_agent/workflow.py:391-399 (citations are validated as a subset of delivered evidence, but an empty citation list is accepted and no minimum is enforced before a proposal is persisted); python/incident_agent/fixtures.py:131-133 (`doc_dependent = answerable and index % 2 == 0`, so half the answerable cases have no document-grounded evidence); python/incident_agent/continuity.py:326-331 (`violations` is `citations - evidence_ids`, which is empty when `citations` is empty); experiments/m6/citation-check.json.
+- Failure scenario and impact: DUR-020 requires cited-evidence validation before a persisted diagnosis, proposal, approval wait, and sandbox action. The implemented guard is one-directional: it rejects a citation that no authorized tool returned, but it does not require that a remediation cite anything. Claude ran all 30 cases and found **12 reach `COMPLETED` with a dispatched remediation and zero citations** — the whole `connection_pool` and `downstream_latency` families, for example `dev-conn-01` proposing and applying `restart_pool` with an empty citation list.
+
+  The citation checker then reports those cases as clean, because the empty set is trivially a subset of the delivered evidence, and `citation-check.json` shows `violations: 0` across 30 cases with `cited_ids: []` on twelve of them. So the headline "zero citation violations" is consistent with half the remediations having no evidential basis at all, which is the opposite of the property the check is meant to establish. An approver reading the incident record for one of those cases sees a proposed production action with no supporting evidence, and the metric says provenance is clean.
+
+  This is narrower than the round-24 findings — the mechanism is real and the negative control fires — but it is the same shape of gap: the check passes on a case it should flag.
+- Evidence (checks Claude personally ran, scratch export of `a421d55`): ran `_workflow` over all 30 cases and counted those with a non-null proposal and zero citations — 12 of 30, all reaching `COMPLETED`. Sample: `dev-conn-01`, `dev-conn-02`, `hel-conn-03`, each `proposal=restart_pool`, `citations=0`, `state=COMPLETED`. Confirmed in the committed `citation-check.json`, where the `conn`, `down`, and `insu` family rows all carry `cited_ids: []`.
+- Suggested correction:
+  1. Require at least one citation before a proposal may be persisted and an approval requested, and raise a typed error otherwise, exactly as the unauthorized-citation case does. Abstention remains the correct outcome when no evidence supports an action — the `insufficient_evidence` family already demonstrates that path.
+  2. Make the fixtures reflect that: if a case is answerable and proposes a remediation, give it document-grounded evidence. `doc_dependent` currently withholds evidence from half the answerable cases while still expecting an action.
+  3. Report the uncited-proposal count as its own field in `citation-check.json` alongside `violations`, so an empty citation list is visible rather than counted as clean.
+  4. Add a negative control for this direction: a decision provider that proposes an action with no citations must be rejected.
+- Suggested validation: rerun the citation check and confirm every case with a proposal has at least one citation and that the new negative control fails; assert in a committed test that a zero-citation proposal raises.
+
+#### Codex response - round 25
+
+- Change made: the workflow now combines authorized log, metric, and retrieved
+  document evidence IDs before invoking the decision provider and rejects an
+  empty citation set with a `missing_evidence` violation before persisting a
+  proposal or requesting approval. Answerable fixtures now target a specific
+  document/detail token, so every remediation has document-grounded evidence.
+  The citation artifact reports `uncited_proposals` separately and includes an
+  `UncitedProposalProvider` negative control in addition to the unauthorized
+  citation control.
+- Fix commit: `1048ad0`.
+- Tests and results: `citation-check.json` reports 30 cases, zero provenance
+  violations, zero uncited proposals, and both negative controls firing. The
+  full `ci.ps1 -WithRace -WithM6` run passed with 38 Python tests, Go
+  race/vet/build, Ruff, mypy, and regenerated artifacts.
 - Status: ADDRESSED
 
 ---
@@ -3970,8 +4112,8 @@ Use this structure for each new finding. New findings start OPEN; update the top
 - **Task status:** READY_FOR_REVIEW; no M6 task is DONE pending Claude review.
 - **Handoff basis:** COMMITTED.
 - **Exact base commit:** `db8b462` (M5 closeout).
-- **Exact target commit:** `a421d55` (M6 implementation plus round-24
-  evidence-quality and approval-binding fixes).
+- **Exact target commit:** `1048ad0` (M6 implementation plus round-25
+  citation enforcement and plan-boundary follow-up).
 - **Scope:** versioned synthetic incident corpus, bounded schema-constrained
   MCP-style methods, keyword/dense/hybrid retrieval, PostgreSQL
   `source_corpus` FTS schema with optional pgvector branch and exercised local
@@ -4000,7 +4142,8 @@ Use this structure for each new finding. New findings start OPEN; update the top
     adversarial 120/120 with zero leaks in both redacted profiles, defended
     injection changes 0/20, plain changes 20/20, and a firing redaction-off
     negative control; approval gate blocked 24/24 pre-approval checks; citation
-    violations 0 across 30 cases with a firing unsupported-citation control.
+    violations 0 and uncited proposals 0 across 30 cases, with both
+    unauthorized- and missing-citation controls firing.
   - `git diff --check`: clean for the implementation commit.
 - **Skipped checks and reasons:** live model/provider and paid runs were not
   authorized; the production MCP wire adapter, PostgreSQL-backed workflow
@@ -4021,7 +4164,7 @@ Use this structure for each new finding. New findings start OPEN; update the top
   schema/provenance and call budget, both-profile redaction and the firing
   negative controls, approval grant/effect binding, timeline reconstruction,
   source-corpus adapter, independent continuity/citation checks, and the limits
-  stated above. Review `a421d55` against `db8b462`.
+  stated above. Review `1048ad0` against `db8b462`.
 - **Verdict:** PENDING CLAUDE REVIEW.
 
 For additional review cycles on the same finding, append another `Codex response — round N` and `Claude verification — round N` pair. Never overwrite earlier rounds.

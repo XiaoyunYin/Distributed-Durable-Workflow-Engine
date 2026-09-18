@@ -1,7 +1,7 @@
 # Distributed Durable Execution Engine
 
 This repository has completed M0 through M5, and M6 is implemented and ready
-for Claude review at `a421d55` (base `db8b462`). M5 was reviewed with
+for Claude review at `1048ad0` (base `db8b462`). M5 was reviewed with
 `NO_BLOCKING_FINDINGS` at committed target `acb28ba` against round-22 target
 `69917db`; R057 remains a nonblocking P3 evidence-labelling limitation.
 It provides a

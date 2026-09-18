@@ -1489,3 +1489,30 @@ Interview explanation: a benchmark is evidence only when a random baseline,
 held-out split, seeded canary, failing negative control, and persisted
 checkpoint give the reviewer a way to distinguish a measured property from a
 fixture that always returns the desired number.
+
+## 2026-09-18 - M6 citation-enforcement follow-up
+
+- Task status: READY_FOR_REVIEW; R064's plan-record gap and R065's citation
+  enforcement are addressed at code target `1048ad0`; the review response and
+  handoff will be committed separately.
+- Base and target: correction starts from `a421d55` and ends at `1048ad0`;
+  M6 remains based on M5 closeout `db8b462`.
+
+R065 is closed in the implementation: the workflow now combines authorized
+log, metric, and retrieved-document evidence IDs, rejects an empty citation
+set before persisting a remediation proposal or approval request, and records
+`missing_evidence` as a citation violation. Every answerable fixture now has a
+document target whose detail token passes the frozen retrieval gate. The
+citation artifact reports 30 cases, zero uncited proposals, and separate
+negative controls for unauthorized and missing citations; both controls fire.
+
+R064's remaining scope issue is now explicit in PLAN.md and D010. M6 remains a
+portable local adapter that mirrors the M4 grant/effect boundary. Named
+follow-up `DUR-033A` must route an incident remediation through the production
+submission, scheduler approval/grant, `effects.Service`, and seeded/queryable
+`source_corpus` path before any production or live-model incident claim.
+
+Validation: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+./scripts/ci.ps1 -WithRace -WithM6` PASS with 38 Python tests, Go race/vet/build,
+Ruff, mypy, and regenerated M6 artifacts. No live-model, paid-provider,
+PostgreSQL-backed incident workflow, or production engine integration was run.

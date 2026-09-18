@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 READY_FOR_REVIEW; DUR-019 READY_FOR_REVIEW; DUR-020 READY_FOR_REVIEW; DUR-021B READY_FOR_REVIEW; DUR-033 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 READY_FOR_REVIEW; DUR-019 READY_FOR_REVIEW; DUR-020 READY_FOR_REVIEW; DUR-021B READY_FOR_REVIEW; DUR-033 READY_FOR_REVIEW; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1198,14 +1198,14 @@ contract revision.
 
 ### M6 — Incident workflow, observability, and agent-specific correctness
 
-**Dependencies:** M5 for Portfolio MVP completion. DUR-019 and DUR-020 may begin after M4, but they cannot weaken or delay the engine correctness gate. DUR-021B requires DUR-021A. DUR-033 requires DUR-019, DUR-020, DUR-022, and the relevant M4 effect/approval contracts before executing F12 and continuity checks.
+**Dependencies:** M5 for Portfolio MVP completion. DUR-019 and DUR-020 may begin after M4, but they cannot weaken or delay the engine correctness gate. DUR-021B requires DUR-021A. DUR-033 requires DUR-019, DUR-020, DUR-022, and the relevant M4 effect/approval semantics before executing F12 and continuity checks. M6 exercises those semantics through a local adapter; production engine wiring is the named DUR-033A follow-up.
 
 | Task | Scope and acceptance |
 |---|---|
 | DUR-019 — Incident fixtures, MCP tools, and retrieval benchmark | Versioned logs/metrics/runbooks/postmortems, end-to-end ground truth, schema-constrained MCP methods, clean/prompt-injection fixtures, synthetic secret/PII canaries, a declared `source_corpus` boundary, PostgreSQL FTS + pgvector schema/index, one pinned local embedding model, stable chunk/evidence IDs, and the difficulty audit from section 9. Build at least 40 labeled development queries plus 120 held-out queries over at least 60 documents/300 chunks, including no-answer and near-duplicate distractors. Use only development queries to choose chunking, top-k, hybrid constants, keyword/dense sufficiency thresholds, and the frozen hybrid OR-sufficiency rule under the pre-registered objective; freeze all settings before held-out scoring. Implement keyword, dense, and hybrid retrieval behind the same `search_runbooks` method and expose both pre-gate rankings and post-gate delivered evidence for evaluation. |
 | DUR-020 — Durable investigation workflow | Evidence collection through bounded MCP calls, experiment-selected document retrieval, bounded model/tool steps, cited-evidence validation, persisted diagnosis/abstention/proposal, approval wait, sandbox action, verification, final report. Tool outputs are provenance-tagged and synthetic secrets/PII are redacted before workflow persistence, prompts, or telemetry. Deterministic mode executes real local retrieval/tool paths; live mode is budget-gated. |
 | DUR-021B — Incident timeline, model-behavior metrics, and dashboard | Depends on DUR-021A. Extend the engine telemetry foundation with incident/model/retrieval/MCP-tool/approval spans, retrieval arm/evidence IDs/scores, token/cost accounting, and a readable workflow timeline. Export bounded-cardinality Prometheus metrics and a Grafana dashboard for abstention rate, invalid/denied tool-call rate, citation-provenance violations, approver rejection rate, model/tool latency, and cost per incident. Do not use incident IDs, prompts, or evidence text as metric labels. One incident execution can be reconstructed from retrieval query through tool calls and final effect without inferring success from logs alone. |
-| DUR-033 — Agent-specific correctness, security, and continuity | Depends on DUR-019, DUR-020, DUR-022, and the relevant M4 effect/approval contracts. Execute F12 plus deterministic interrupted/uninterrupted continuity checks using frozen recorded/scripted model outputs while running real retrieval/tool paths. Add programmatic citation provenance/evidence-label checks, canonical proposal-signature comparison, and a canary scanner over workflow payloads, rendered model prompts, persisted model/tool records, MCP/retrieval responses, and exported spans. Raw source files plus declared `source_corpus` tables are the only excluded surfaces; redaction is applied and scanned in **both** adversarial defense profiles, and any seeded secret/PII elsewhere is a failure. Approval authority, redaction, and injection-associated model behavior are reported as separate properties. |
+| DUR-033 — Agent-specific correctness, security, and continuity | Depends on DUR-019, DUR-020, DUR-022, and the relevant M4 effect/approval semantics. Execute F12 plus deterministic interrupted/uninterrupted continuity checks using frozen recorded/scripted model outputs while running real retrieval/tool paths. Add programmatic citation provenance/evidence-label checks, canonical proposal-signature comparison, and a canary scanner over workflow payloads, rendered model prompts, persisted model/tool records, MCP/retrieval responses, and exported spans. Raw source files plus declared `source_corpus` tables are the only excluded surfaces; redaction is applied and scanned in **both** adversarial defense profiles, and any seeded secret/PII elsewhere is a failure. Approval authority, redaction, and injection-associated model behavior are reported as separate properties. M6's deterministic adapter mirrors and tests the M4 grant/effect boundary; it does not claim production Go-engine integration. |
 
 **Exit:** Portfolio MVP evidence is complete: a human can inspect, approve, interrupt, and resume a synthetic incident investigation; keyword/dense/hybrid retrieval and MCP tool paths are reproducible; the separate retrieval benchmark, programmatic citation checks, adversarial-evidence checks, canary redaction scan, and model-behavior dashboard run from a clean setup; and agent-specific safety/continuity cases are independently checked.
 
@@ -1213,7 +1213,7 @@ contract revision.
 
 - **Status:** READY_FOR_REVIEW; Claude review pending.
 - **Base commit:** `db8b462` (M5 closeout).
-- **Target commit:** `a421d55` (M6 evidence-quality fixes and approval-boundary tests).
+- **Target commit:** `1048ad0` (M6 citation enforcement and plan-boundary follow-up).
 - **Tasks:** DUR-019, DUR-020, DUR-021B, and DUR-033.
 - **Protected boundaries:** M0-M5 contracts, PostgreSQL workflow authority,
   approval/effect authorization, independent invariant checking, frozen
@@ -1265,7 +1265,13 @@ contract revision.
   labels. Raw source files and the declared `source_corpus` boundary remain
   excluded from downstream canary scanning as required by the plan; the local
   adapter persists and reads those raw rows before MCP redaction, while the
-  production engine integration remains a later deployment concern.
+  production engine integration is explicitly deferred to DUR-033A.
+
+### Named follow-up from R064
+
+| Task | Scope and acceptance |
+|---|---|
+| DUR-033A — Production incident-engine integration | TODO; depends on M6/DUR-033 and the M4 engine/effect contracts. Route one incident remediation through the versioned workflow submission/API, scheduler-owned investigation and approval intent/grant, and the production `effects.Service`/receipt path. Re-run the R049 resource, canonical-argument, revision, grant-reuse, and approval-before-dispatch attacks through that path; seed/query the production `source_corpus` boundary rather than the local adapter. Record the exact engine, migration, and service evidence before any external or live-model incident execution is claimed. |
 
 ### M7 — Controlled measurements
 
@@ -1576,7 +1582,7 @@ DUR-023B, DUR-024, DUR-025, and DUR-021A are DONE. R057 remains open as a
 nonblocking P3 evidence-labelling limitation. Keep the M0 contracts and
 partition-map version frozen while extending the durable state repository.
 
-M6 implementation is READY_FOR_REVIEW at target `a421d55`, based on the M5
+M6 implementation is READY_FOR_REVIEW at target `1048ad0`, based on the M5
 closeout `db8b462`. DUR-019, DUR-020, DUR-021B, and DUR-033 are
 READY_FOR_REVIEW; Claude review is pending. The implementation is a
 deterministic local-first profile: it provides the versioned incident corpus,
