@@ -81,6 +81,7 @@ try {
         -not [bool]$artifact.validation.all_slo_values_within_limit -or
         $null -eq $artifact.cost_effects_resolved -or
         [string]::IsNullOrWhiteSpace([string]$artifact.cost_interpretation) -or
+        $null -eq $artifact.resolved_cost_effects -or
         $null -eq $artifact.summary) {
         throw "DUR-034 artifact failed its independent acceptance checks."
     }

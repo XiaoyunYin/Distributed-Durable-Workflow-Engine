@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -90,6 +91,7 @@ type artifact struct {
 	Summary             map[string]any `json:"summary,omitempty"`
 	CostEffectsResolved bool           `json:"cost_effects_resolved"`
 	CostInterpretation  string         `json:"cost_interpretation"`
+	ResolvedCostEffects []string       `json:"resolved_cost_effects"`
 }
 
 type config struct {
@@ -306,11 +308,12 @@ func run(ctx context.Context, cfg config) (artifact, error) {
 		NoOutboxRecovery:    anyManualRecovery(result.Runs),
 	}
 	result.Summary = summarizeRuns(result.Runs)
-	result.CostEffectsResolved = safeguardCostEffectResolved(result.Runs)
+	result.ResolvedCostEffects = resolvedCostEffects(result.Runs)
+	result.CostEffectsResolved = len(result.ResolvedCostEffects) > 0
 	if result.CostEffectsResolved {
-		result.CostInterpretation = "At least one profile's throughput median is outside every peer profile's observed range; treat the separated delta as descriptive and bounded by this protocol."
+		result.CostInterpretation = "The listed profile comparisons have disjoint throughput or latency ranges; treat those separated deltas as descriptive and bounded by this protocol."
 	} else {
-		result.CostInterpretation = "No safeguard-cost delta is resolved by the measured throughput ranges. Mechanism controls are measured separately; performance differences remain descriptive and unresolved at this sample size."
+		result.CostInterpretation = "No safeguard-cost delta is resolved by disjoint throughput or latency ranges. Mechanism controls are measured separately; performance differences remain descriptive and unresolved at this sample size."
 	}
 	result.Validation = map[string]any{
 		"expected_runs":                   12,
@@ -754,35 +757,49 @@ func summarizeRuns(runs []runReport) map[string]any {
 	return result
 }
 
-func safeguardCostEffectResolved(runs []runReport) bool {
-	profiles := make(map[string][]float64)
+func resolvedCostEffects(runs []runReport) []string {
+	type profileRange struct {
+		name          string
+		throughputMin float64
+		throughputMax float64
+		latencyMin    float64
+		latencyMax    float64
+	}
+	profiles := make(map[string][]runReport)
 	for _, run := range runs {
-		profiles[run.Profile] = append(profiles[run.Profile], run.Throughput)
+		profiles[run.Profile] = append(profiles[run.Profile], run)
 	}
-	type interval struct {
-		median float64
-		min    float64
-		max    float64
+	names := make([]string, 0, len(profiles))
+	for name := range profiles {
+		names = append(names, name)
 	}
-	intervals := make([]interval, 0, len(profiles))
-	for _, values := range profiles {
-		intervals = append(intervals, interval{
-			median: median(append([]float64(nil), values...)),
-			min:    minFloat(values),
-			max:    maxFloat(values),
-		})
+	sort.Strings(names)
+	ranges := make([]profileRange, 0, len(names))
+	for _, name := range names {
+		values := profiles[name]
+		throughput := make([]float64, 0, len(values))
+		latency := make([]float64, 0, len(values))
+		for _, value := range values {
+			throughput = append(throughput, value.Throughput)
+			latency = append(latency, value.MedianLatency)
+		}
+		ranges = append(ranges, profileRange{name: name,
+			throughputMin: minFloat(throughput), throughputMax: maxFloat(throughput),
+			latencyMin: minFloat(latency), latencyMax: maxFloat(latency)})
 	}
-	for index, current := range intervals {
-		for peerIndex, peer := range intervals {
-			if index == peerIndex {
-				continue
+	resolved := make([]string, 0)
+	for index, current := range ranges {
+		for _, peer := range ranges[index+1:] {
+			pair := current.name + "_vs_" + peer.name
+			if current.throughputMax < peer.throughputMin || peer.throughputMax < current.throughputMin {
+				resolved = append(resolved, pair+":throughput")
 			}
-			if current.median < peer.min || current.median > peer.max {
-				return true
+			if current.latencyMax < peer.latencyMin || peer.latencyMax < current.latencyMin {
+				resolved = append(resolved, pair+":latency")
 			}
 		}
 	}
-	return false
+	return resolved
 }
 
 func minFloat(values []float64) float64 {
