@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 IN_PROGRESS; DUR-034 TODO; DUR-035 TODO; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 READY_FOR_REVIEW; DUR-034 TODO; DUR-035 TODO; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1306,16 +1306,18 @@ contract revision.
 
 #### DUR-026 implementation record
 
-- **Status:** IN_PROGRESS; the DUR-036 gate is DONE and the R069 cleanup follow-up has been exercised, but no final throughput measurement has started.
+- **Status:** READY_FOR_REVIEW; the DUR-036 gate is DONE and the final throughput measurement is complete. M7 remains IN_PROGRESS until Claude reviews this target.
 - **Base commit:** `f45ba7f` (R069 cleanup follow-up; the accepted DUR-036 implementation remains `6325d1f`).
+- **Implementation target:** `7a0ef95` (DUR-026 harness, corrected aggregation, and frozen pilot evidence).
 - **Dependencies:** DUR-036, the existing M5 correctness campaign, and the protocol freeze in section 14.
 - **Goal:** freeze and execute the reduced engine-throughput study, then reconcile every measured arrival, accepted workflow, and terminal outcome before reporting scheduler CPU-seconds per completed workflow.
 - **Scope:** use the existing section-14 design: scheduler counts 1 and 2; workloads T1 short sequential and T2 bounded fan-out/fan-in; two calibrated fixed arrival rates; three repeats per configuration; four workers and the declared database, broker, partition, API, and relay capacities held fixed. Use deterministic CPU/synthetic activities and exclude LLM latency.
 - **Protected boundaries:** do not change the section-14 configuration count, workloads, release criteria, paid budgets, or correctness guarantees. Do not start DUR-034, DUR-035, DUR-027, DUR-028, DUR-029, or DUR-033A as part of this task.
 - **Acceptance scenarios:** a pilot freezes exact graph, payload, activity-cost, concurrency, rate, SLO, seed, reset/warm-up, measured-window, drain, and reconciliation rules; 24 measured runs are recorded with case/config IDs; each run reports submitted, accepted, rejected/ambiguous, terminal, pending, latency, throughput, scheduler CPU-seconds, database/broker/resource metrics where available, and failed-run status; any incomplete or unreconciled run remains visible and is excluded from unsupported claims.
 - **Pilot evidence:** `scripts/m7-dur026.ps1 -Pilot` passed 8 pilot configurations at `9a7824d`; all 96 pilot workflows reached `SUCCEEDED` with zero pending work. The final study freezes the pilot's two rates, 2 and 8 workflows/second, and its 5,000 deterministic activity work units.
-- **Validation plan:** run the repository checks applicable to changed code with `ci.ps1 -WithRace`; run the frozen throughput harness against the declared Compose profile; independently query durable workflow state after each run; compare the run registry and checker output with the expected 8 configurations × 3 repeats; run `git diff --check` and preserve raw results and failures.
-- **Evidence paths:** `experiments/m7/dur026/` for the frozen protocol, raw run registry, per-run outputs, reconciliation reports, and summary; update `docs/BUILD_LOG.md` and this handoff with exact commits and commands.
+- **Final evidence:** `scripts/m7-dur026.ps1` passed 24 measured runs (8 configurations × 3 repeats) at `7a0ef95`; all 288 workflows reached `SUCCEEDED`, zero remained pending, and every run was marked `PASS`. The artifact groups the three repeats per configuration and reports throughput, completion latency, process CPU-seconds, database query/transaction time, lock waits, and reconciliation counts.
+- **Validation:** `scripts/m7-dur026.ps1 -Pilot`; `scripts/m7-dur026.ps1`; `ci.ps1 -WithRace`; `go test ./cmd/dur026-benchmark`; PowerShell parse validation; `git diff --check`; and a post-run PostgreSQL query for zero `dur026-bench-*` workflows and definitions. The CI run passed race tests, Ruff, mypy, formatting, and 38 Python tests; its service smoke phase was intentionally skipped.
+- **Evidence paths:** `experiments/m7/dur026/pilot.json` and `experiments/m7/dur026/results.json` contain the frozen protocol, raw per-run records, reconciliation counts, and grouped summary; `docs/BUILD_LOG.md` and this handoff contain the exact commands and limitations.
 - **Known limits:** the declared host is the single-node Docker Desktop/WSL2 development VM from DUR-036, so results are bounded local evidence and do not claim multi-host durability, production scale, or maximum sustainable throughput.
 
 **Exit:** Each stated question has actual evidence and an appropriately limited verdict. Failed/incomplete runs remain in the registry.

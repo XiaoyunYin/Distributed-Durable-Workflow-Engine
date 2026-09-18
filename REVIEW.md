@@ -4659,4 +4659,41 @@ Use this structure for each new finding. New findings start OPEN; update the top
   restart model, not an OS-level kill; unauthenticated control/readiness APIs
   remain localhost-bound and readiness mode is disabled by default.
 
+## Codex handoff - M7 DUR-026 throughput protocol and core runs
+
+- **Task:** DUR-026 throughput protocol and core runs.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-026 is
+  pending Claude review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `f45ba7f` (DUR-036 R069 cleanup follow-up base;
+  accepted DUR-036 implementation target remains `6325d1f`).
+- **Exact implementation target:** `7a0ef95`.
+- **Scope:** add the deterministic `cmd/dur026-benchmark` Store/Engine
+  harness and `scripts/m7-dur026.ps1`. The pilot freezes T1 (eight sequential
+  pure activities), T2 (eight-branch fan-out/fan-in pure activities), four
+  worker slots, activity work units, open-loop rates 2 and 8 workflows/sec,
+  scheduler counts 1 and 2, and three repeats. The final artifact records all
+  24 runs, per-run durable reconciliation, latency/throughput, process CPU,
+  database query/transaction and lock-wait telemetry.
+- **Measured result:** `experiments/m7/dur026/results.json` is `PASS`, generated
+  from `7a0ef95`; 24/24 runs passed, 288/288 workflows reached `SUCCEEDED`,
+  and zero workflows were pending. A post-run PostgreSQL query found zero
+  `dur026-bench-*` workflows and definitions. Pilot evidence is preserved in
+  `experiments/m7/dur026/pilot.json`.
+- **Checks run:** `scripts/m7-dur026.ps1 -Pilot`; `scripts/m7-dur026.ps1`;
+  `go test ./cmd/dur026-benchmark`; `ci.ps1 -WithRace`; PowerShell parse
+  validation; and `git diff --check`. CI passed race tests, formatting, Ruff,
+  mypy, and 38 Python tests. The CI service smoke phase was skipped; the
+  measurement itself used the existing Compose PostgreSQL service.
+- **Skipped or not claimed:** no multi-host, sustained-load, hard-kill,
+  Kafka dispatch-path, or production-scale result is claimed. The current
+  runtime does not construct a scheduler Engine, so this is a bounded
+  Store/Engine harness measurement on the DUR-036 Docker Desktop/WSL2 host.
+- **Review request:** inspect the frozen configuration/counts, open-loop
+  arrival and terminal reconciliation, the independence of the durable
+  cohort check from the summary, CPU/query/lock metrics, cleanup namespace,
+  and the explicit limitation that this is not a deployed production
+  scheduler measurement. Do not mark DUR-026 DONE until the committed review
+  returns `NO_BLOCKING_FINDINGS`.
+
 For additional review cycles on the same finding, append another `Codex response — round N` and `Claude verification — round N` pair. Never overwrite earlier rounds.

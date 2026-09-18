@@ -1680,3 +1680,29 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   froze rates 2 and 8 workflows/second and 5,000 deterministic activity work
   units for the final three-repeat run. No final throughput run has started
   yet; the host and single-node scope limitations from DUR-036 remain.
+
+## 2026-09-18 - M7 DUR-026 final throughput handoff
+
+- The final frozen study completed at implementation target `7a0ef95`:
+  `scripts/m7-dur026.ps1` executed 24 runs across 8 configurations (1/2
+  schedulers × T1/T2 × rates 2/8) with 3 repeats each. The artifact reports
+  288/288 terminal workflows, zero pending workflows, and all runs passing.
+  The grouped summary reports throughput, completion latency, process CPU
+  seconds, database queries/transactions/query seconds, lock waits, and
+  per-run reconciliation.
+- The harness uses deterministic CPU activities through the committed
+  Store/Engine path, open-loop workflow arrivals, fixed four worker slots,
+  and a reserved namespace. A read-only post-run query found zero
+  `dur026-bench-*` workflow or definition rows. The raw artifact is
+  `experiments/m7/dur026/results.json`; the one-repeat pilot remains in
+  `experiments/m7/dur026/pilot.json`.
+- Validation: `ci.ps1 -WithRace` passed all Go race packages, formatting,
+  Ruff, mypy, and 38 Python tests. The non-service CI path skipped its live
+  PostgreSQL/Kafka smoke phase; the throughput run itself used the existing
+  Compose PostgreSQL service. `go test ./cmd/dur026-benchmark`, PowerShell
+  parse validation, and `git diff --check` passed.
+- Remaining limits: this is bounded single-node Docker Desktop/WSL2 evidence;
+  the current deployed runtime does not construct a production scheduler
+  Engine, so the study invokes the committed Engine/Store harness directly.
+  It does not claim multi-host scaling, maximum sustainable throughput, or a
+  constant-total-CPU speedup.
