@@ -16,7 +16,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -759,7 +758,6 @@ func summarizeRuns(runs []runReport) map[string]any {
 
 func resolvedCostEffects(runs []runReport) []string {
 	type profileRange struct {
-		name          string
 		throughputMin float64
 		throughputMax float64
 		latencyMin    float64
@@ -769,34 +767,35 @@ func resolvedCostEffects(runs []runReport) []string {
 	for _, run := range runs {
 		profiles[run.Profile] = append(profiles[run.Profile], run)
 	}
-	names := make([]string, 0, len(profiles))
-	for name := range profiles {
-		names = append(names, name)
+	fullValues, ok := profiles["full"]
+	if !ok {
+		return nil
 	}
-	sort.Strings(names)
-	ranges := make([]profileRange, 0, len(names))
-	for _, name := range names {
-		values := profiles[name]
+	toRange := func(values []runReport) profileRange {
 		throughput := make([]float64, 0, len(values))
 		latency := make([]float64, 0, len(values))
 		for _, value := range values {
 			throughput = append(throughput, value.Throughput)
 			latency = append(latency, value.MedianLatency)
 		}
-		ranges = append(ranges, profileRange{name: name,
+		return profileRange{
 			throughputMin: minFloat(throughput), throughputMax: maxFloat(throughput),
-			latencyMin: minFloat(latency), latencyMax: maxFloat(latency)})
+			latencyMin: minFloat(latency), latencyMax: maxFloat(latency)}
 	}
+	full := toRange(fullValues)
 	resolved := make([]string, 0)
-	for index, current := range ranges {
-		for _, peer := range ranges[index+1:] {
-			pair := current.name + "_vs_" + peer.name
-			if current.throughputMax < peer.throughputMin || peer.throughputMax < current.throughputMin {
-				resolved = append(resolved, pair+":throughput")
-			}
-			if current.latencyMax < peer.latencyMin || peer.latencyMax < current.latencyMin {
-				resolved = append(resolved, pair+":latency")
-			}
+	for _, name := range []string{"history_disabled", "unsafe_lease_check", "no_outbox"} {
+		values, ok := profiles[name]
+		if !ok {
+			continue
+		}
+		peer := toRange(values)
+		pair := "full_vs_" + name
+		if full.throughputMax < peer.throughputMin || peer.throughputMax < full.throughputMin {
+			resolved = append(resolved, pair+":throughput")
+		}
+		if full.latencyMax < peer.latencyMin || peer.latencyMax < full.latencyMin {
+			resolved = append(resolved, pair+":latency")
 		}
 	}
 	return resolved
