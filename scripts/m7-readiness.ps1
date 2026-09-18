@@ -13,7 +13,13 @@ $expectedServices = @("postgres", "kafka", "runtime-a", "runtime-b", "worker-a",
 $startedAt = (Get-Date).ToUniversalTime()
 
 function Invoke-Captured([string]$FilePath, [string[]]$Arguments) {
-    $output = & $FilePath @Arguments 2>&1 | Out-String
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & $FilePath @Arguments 2>&1 | Out-String
+    } finally {
+        $ErrorActionPreference = $previousErrorAction
+    }
     [pscustomobject]@{
         command = (($FilePath + " " + ($Arguments -join " ")).Trim())
         exit_code = $LASTEXITCODE
