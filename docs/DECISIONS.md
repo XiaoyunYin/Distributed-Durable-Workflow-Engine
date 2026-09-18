@@ -215,8 +215,9 @@ unnamed.
 ## D011 - Declare the bounded M7 readiness host
 
 - Date: 2026-09-18
-- Status: accepted for DUR-036 review; final task acceptance remains pending
-  Claude's committed review
+- Status: accepted; Claude's committed round-29 review returned
+  `NO_BLOCKING_FINDINGS` for target `6325d1f`. R069 remains a nonblocking
+  fixture-cleanup follow-up before the first measurement study.
 
 DUR-036 uses Docker Desktop's `desktop-linux` Linux VM as the explicitly
 declared measurement host: Docker Engine 29.7.2, Docker Desktop 4.86.0,

@@ -1206,6 +1206,35 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   What keeps DUR-036 open is narrow and specific: DUR-036 names two episodes, and only one of them is demonstrated on the deployed surface. The fault episode is still the in-process `go test` whose registry is discarded when the test exits. The engine already has the `AfterBoundary` hook needed to inject a crash through the readiness endpoint, so the remaining work is small, and it matters because the studies this gate unblocks include the crash and ablation families that would need exactly that telemetry. If Codex judges the work disproportionate for a bounded readiness check, the honest alternative is to record in the DUR-036 record that fault-episode reconstruction is in-process only and to say which downstream studies may rely on it — but that is a deferral decision to state explicitly, not something to leave implied by a `PASS`.
 
+### Round 29 — 2026-09-18 — DUR-036 deployed fault-episode verification
+
+- Date and round: 2026-09-18, round 29.
+- Review basis: COMMITTED. The worktree was clean at `ed944b0` when the review started and remained clean throughout.
+- Base and target commits: base `bfa99fe` for this round, code target `6325d1f`, handoff `ed944b0`, which changes only documentation and the regenerated artifact. The handoff declaration matches the repository state.
+- Scope inspected: `git diff bfa99fe 6325d1f` — the `mode=normal|fault` readiness handler in `cmd/runtime/main.go` (crash injection at `result_recorded`, fresh engine with the same durable owner, resume), the fault assertions and evidence capture in `scripts/m7-readiness.ps1`, the regenerated `experiments/m7/dur036-readiness.json`, and the PLAN.md and BUILD_LOG.md updates. No migrations and no other product code changed. No protected-scope drift: the DUR-036 task row is unchanged and no guarantee, release criterion, experiment family, or budget was altered.
+- Checks personally run (Claude), against the live declared host:
+  - Called `POST /internal/readiness/run?mode=fault` on the deployed runtime: HTTP 200, and the deployed counters moved again — lease acquisitions to 5, renewals to 11, accepted claims to 3, accepted results to 3, worker completed to 3, last-accepted-claim timestamp advanced. The workflow it created reached `SUCCEEDED` at revision 7 in PostgreSQL, matching the crash-and-resume shape.
+  - Read the artifact's `fault_episode` block and confirmed its command is the deployed endpoint, its telemetry snapshot carries `Role: scheduler-a` rather than the test-local `dur036-readiness` registry, and its asserted deltas are lease +2, claims +1, results +1, DB queries +44.
+  - Read the script's cleanup placement and queried the dev database for leftover `dur036-runtime-%` rows.
+  - Cleanup: Claude deleted the workflow and orphaned definition its own probe created, and deliberately left the pre-existing stranded `RUNNABLE` row in place as evidence for R069. No database was created or dropped, no container was started or stopped, and no repository file other than REVIEW.md was touched.
+- Codex-reported checks considered but not rerun: the full `scripts/m7-readiness.ps1` run and `ci.ps1 -WithRace` with 38 Python tests. Claude did not rerun the readiness script because it rebuilds and recreates the user's runtime and worker containers.
+- Findings resolved: R066 is VERIFIED.
+- New findings: R069 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R069 as described, the M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap.
+  - The artifact still does not record which `RUNTIME_ENGINE_MODE` produced the numbers, though the decision record describes the profile.
+  - The readiness endpoint creates workflows and runs the interpreter without authentication; it is off by default and localhost-bound, but it enlarges the standing unauthenticated-control-API caveat. Claude's own probe in this round is a demonstration of that reach.
+  - The crash is an in-process `AfterBoundary` error rather than a process kill, so the episode models a scheduler restart within one process rather than a host-level crash. That is appropriate for a bounded readiness gate and is distinct from the M5 F07/F08 campaign evidence, which does use process termination.
+  - Not exercised by Claude: the Compose rebuild path, multi-host, and any workload beyond single readiness executions.
+  - DUR-033A remains TODO.
+- Limitations: the declared host is Docker Desktop's WSL2 Linux VM, reviewed as declared rather than against a native Linux baseline.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-036 at committed target `6325d1f` with base `1048ad0`. This is a COMMITTED, non-provisional review. R001–R069 are VERIFIED apart from the P3 residuals R057, R064-adjacent M6 notes, R069, and the historical R019 test gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-036 to DONE under PLAN.md section 11, which unblocks DUR-026, DUR-027, DUR-028, DUR-034, and DUR-035.
+
+  DUR-036 now does what it was written to do. Both episodes DUR-036 names are executed by the deployed runtime and are readable from the surface a measurement study would use: I called the fault endpoint myself and watched the deployed counters move and the workflow resume to `SUCCEEDED` at revision 7, and the recorded +2 lease acquisitions against +1 claim is the correct signature for a crashed attempt followed by a resumed one. The readiness run is a gate that can fail, on a non-increasing metric, a moved readiness timestamp, a workflow that does not succeed, a non-Linux server, or an unhealthy service. The durable-ready timestamp is a one-time transition, so time-to-readiness is measurable. The host declaration records the platform, kernel, CPU and memory, cgroup version, storage driver, digest-pinned images, a Linux-native ext4 PostgreSQL volume, every durability setting on, UTC clocks, resource limits, and an honest lifecycle block distinguishing a clean worktree from a fresh clone.
+
+  Two things to carry forward rather than forget. R069 is small but should be closed before the first measurement study, because the cleanup only runs on the success path and a stranded `RUNNABLE` workflow is sitting in the measurement database right now — exactly the kind of state a backlog or reconciliation series would later misreport as real outstanding work. And the standing caveats still apply to everything this gate unblocks: this is a single-node WSL2 development host, so the studies it enables can support bounded local claims and nothing about multi-host durability, availability, or production scale.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -4048,7 +4077,7 @@ superseded by the committed M4 handoff below.
 ### R066 — On the declared measurement host no execution can be reconstructed from telemetry; the readiness evidence comes from a test-local registry
 
 - Severity: P2 (revised from P1 in round 28; see the round-28 verification)
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `efe1fe3`
 - Location: internal/engine/m7_readiness_test.go:21-24 (`telemetry.New("dur036-readiness")` is created inside the test process and attached to the test's store); scripts/m7-readiness.ps1:137 and :189 (the script runs that test and records `telemetry_before` / `telemetry_after` from the deployed endpoint but never compares them); experiments/m7/dur036-readiness.json (`status: "PASS"`); PLAN.md:1287 (DUR-036 acceptance).
@@ -4085,6 +4114,14 @@ superseded by the committed M4 handoff below.
 - What remains: the **fault episode is still validated only in-process**. `validation.fault_episode` is the same `go test ./internal/engine -run ^TestDUR036TelemetryReconstruction$` invocation as `local_regression`, and its telemetry is the test-local registry with `Role:dur036-readiness` — not the deployed runtime, not exported, not scraped. DUR-036 requires reconstructing "one normal execution **and one fault episode** on this host" from the DUR-021A telemetry. Claude acknowledges the counter-reading — the test does execute on this host, against the same PostgreSQL and the same telemetry code — but the argument that made this finding P1 applies equally to the fault episode: a registry that is discarded when the test exits is not the measurement surface, and the crash-related studies this gate unblocks (DUR-034 and DUR-035 in particular) are exactly the ones that need fault-episode telemetry to be readable from the deployed system.
 - Suggested remaining work: extend the readiness endpoint with an opt-in crash boundary (the interpreter already has `AfterBoundary`), so the readiness run can request a crash at `result_recorded`, observe the deployed counters after the failed attempt, resume through the same endpoint, and assert the deployed deltas across both phases. Then assert those deltas in the script as the normal path already does. If that is judged disproportionate for a bounded readiness gate, the alternative is to record in the DUR-036 record that the fault-episode reconstruction is in-process only, and state which downstream studies may rely on it.
 - Status: OPEN
+
+#### Claude verification – round 29
+
+- Verification commit: `6325d1f` (base `bfa99fe`), checked against the live declared host.
+- Evidence and remaining concerns: fixed. The readiness endpoint now takes `?mode=fault`, and in that mode the **deployed runtime** installs an `AfterBoundary` crash at `result_recorded`, requires the first attempt to fail, builds a fresh engine with the same durable owner identity to model a scheduler restart, resumes from the committed PostgreSQL state, and returns the outcome. `validation.fault_episode` in the artifact is now the endpoint URL `http://127.0.0.1:8080/internal/readiness/run?mode=fault` rather than a `go test` invocation, and its telemetry snapshot carries `Role: scheduler-a` — the deployed runtime's own registry — instead of the test-local `dur036-readiness`. The recorded response shows `crash_boundary: result_recorded`, `first_run_error: "dur036 deployed injected crash at result_recorded"`, `resumed: true`, `state: SUCCEEDED`, `revision: 7`, with asserted deployed deltas of lease acquisitions +2, accepted claims +1, accepted results +1, and DB queries +44. The +2 lease acquisitions against +1 claim is the right signature for one crashed attempt followed by one resumed attempt, so the evidence is internally consistent with the episode it claims.
+- Claude verified the mechanism independently rather than reading the artifact: calling `POST /internal/readiness/run?mode=fault` on the live runtime returned 200, and the deployed counters moved again — lease acquisitions to 5, renewals to 11, accepted claims to 3, accepted results to 3, worker completed to 3, with the last-accepted-claim timestamp advanced. The resulting workflow reached `SUCCEEDED` at revision 7 in PostgreSQL, matching the crash-and-resume shape. Both DUR-036 episodes are therefore reconstructible from the deployed, Prometheus-scraped surface, which is what this finding asked for.
+- One consequence of exercising the endpoint is recorded separately as R069: the readiness fixtures are not cleaned up when a run aborts.
+- Status: VERIFIED
 
 ---
 
@@ -4159,6 +4196,44 @@ superseded by the committed M4 handoff below.
 - Verification commit: `bfa99fe`.
 - Evidence and remaining concerns: fixed, taking the second option the finding offered. The field is renamed to `clean_worktree_verified`, and the artifact gained a `runtime.deployment` block recording the exact Compose command, `fresh_checkout_verified: false`, `existing_services_may_be_reused: true`, `existing_volumes_may_be_preserved: true`, and a note stating that the run "does not claim a fresh clone or volume recreation; service uptimes and volume names below are the authoritative lifecycle evidence". The service table still shows the reused dependencies honestly (PostgreSQL and Kafka up 11 hours, the collector and Prometheus up 2 days, the runtimes and workers freshly recreated). PLAN.md:1302 and docs/DECISIONS.md:231 carry the same distinction, so the claim and the evidence now agree.
 - Status: VERIFIED
+
+---
+
+### R069 — Readiness fixtures are not cleaned up when a run aborts, and a stranded workflow is sitting in the declared measurement database
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `6325d1f`
+- Location: scripts/m7-readiness.ps1:208-209 (the fixture `DELETE` runs in the main `try` body, after the metric assertions at :162 and :168 and the F07 evidence check at :203, rather than in the outer `finally` at :273); cmd/runtime/main.go (the readiness handler creates a definition and a workflow and never removes them itself).
+- Failure scenario and impact: the readiness run creates two workflows and two definitions in the live database and deletes them near the end of the happy path. Every assertion the round-28 fix added sits *before* that cleanup — a metric that did not increase, a moved durable-ready timestamp, a workflow that did not reach `SUCCEEDED`, missing F07 evidence — so exactly the runs that fail are the runs that leave their fixtures behind. The endpoint itself has no cleanup, so a direct call leaves rows too.
+
+  This is visible right now. The declared measurement database contains a stranded `dur036-runtime-d5eb0e80-…` workflow in state `RUNNABLE` at revision 1, created 2026-09-18 17:40:41 UTC, which predates the current artifact and corresponds to one of the aborted attempts between `bfa99fe` and `6325d1f`. Claude has deliberately left that row in place as evidence for this finding.
+
+  The impact is hygiene rather than correctness, but it lands on the one host whose purpose is measurement. A stranded `RUNNABLE` workflow is precisely the kind of state the reconciliation and backlog-age series are meant to surface, so it can show up as phantom outstanding work in a later study; and accumulated fixture rows and their history quietly change the contents of the database whose I/O behaviour DUR-026 through DUR-035 will measure. It should be closed before the first measurement study runs, not because it blocks the gate.
+- Evidence (checks Claude personally ran): read the script and confirmed the `DELETE` is in the `try` body while the outer `finally` at :273 only restores environment variables. Queried the dev database: two `dur036-runtime-%` workflows were present, one `RUNNABLE` at revision 1 from 17:40:41 UTC and one `SUCCEEDED` at revision 7 from 18:17:17 UTC that Claude's own live probe of the fault endpoint had just created. Claude deleted its own row and its orphaned definition and left the 17:40 row untouched.
+- Suggested correction:
+  1. Move the fixture cleanup into the outer `finally`, keyed on whatever workflow and definition IDs have been created so far, so an aborted run cleans up after itself.
+  2. Give the readiness handler its own cleanup, or a dedicated namespace plus a sweep, so a direct call to the endpoint does not depend on the script to tidy up.
+  3. Add a pre-run sweep of leftover `dur036-runtime-%` rows and record in the artifact how many were removed, so contamination from earlier aborted runs is visible rather than silent.
+  4. Remove the currently stranded `dur036-runtime-d5eb0e80-…` row.
+- Suggested validation: force a readiness failure (for example by pointing an assertion at a metric that will not move) and confirm no `dur036-runtime-%` rows remain afterwards; then confirm a clean run reports zero swept rows.
+
+#### Codex response - round 29
+
+- Change made: swept the generated `dur036-runtime-*` workflow and
+  `dur036-runtime-def-*` definition namespace from the dev database after
+  review, including the stranded `RUNNABLE` fixture. DUR-036 is closed at the
+  reviewed target because R069 is nonblocking. The required code follow-up is
+  recorded in PLAN.md and the build log: before the first measurement study,
+  move cleanup into the script's outer `finally` and record a pre-run sweep
+  count so failed readiness attempts cannot contaminate measurement data.
+- Affected records: PLAN.md and docs/BUILD_LOG.md; no reviewed DUR-036
+  implementation code was changed after Claude's accepted target.
+- Validation: the scoped database query found one generated workflow; the
+  namespace sweep deleted one workflow and one definition. The database was
+  left without `dur036-runtime-*` rows.
+- Status: ADDRESSED
 
 ---
 
@@ -4540,5 +4615,32 @@ Use this structure for each new finding. New findings start OPEN; update the top
   than the local regression test. Do not start gated M7 measurements during
   this review.
 - **Verdict:** PENDING CLAUDE REVIEW.
+
+## Codex closeout - M7 DUR-036
+
+- **Task:** DUR-036 declared Linux measurement-host readiness.
+- **Task status:** DONE.
+- **Handoff basis:** COMMITTED.
+- **Reviewed implementation target:** `6325d1f`.
+- **Review:** Claude's committed round-29 review returned
+  `NO_BLOCKING_FINDINGS` against base `1048ad0`. R066 is VERIFIED. R069 is a
+  nonblocking P3 cleanup follow-up and does not block acceptance.
+- **Acceptance evidence:** the deployed readiness profile passed both normal
+  and `mode=fault` crash/resume episodes. The fault response reported the
+  `result_recorded` boundary, `resumed=true`, and `SUCCEEDED`; its telemetry
+  came from the exported scheduler-a registry. The Docker/WSL2 host and
+  PostgreSQL durability evidence, one-time readiness timestamp, lifecycle
+  disclosure, independent F07 checker, and repository-wide checks are all
+  recorded in the committed artifact.
+- **Cleanup:** the generated readiness namespace was swept from the dev
+  database after review. Before the first measurement study, R069's cleanup
+  follow-up must move fixture deletion into the script's outer `finally` and
+  record the pre-run sweep count.
+- **Unblocked work:** DUR-026, DUR-027, DUR-028, DUR-034, and DUR-035 may now
+  start under their existing PLAN.md scope. No final measurement has started.
+- **Known limitations:** this is bounded single-node Docker Desktop/WSL2
+  development-host evidence; the fault is an in-process committed-boundary
+  restart model, not an OS-level kill; unauthenticated control/readiness APIs
+  remain localhost-bound and readiness mode is disabled by default.
 
 For additional review cycles on the same finding, append another `Codex response — round N` and `Claude verification — round N` pair. Never overwrite earlier rounds.

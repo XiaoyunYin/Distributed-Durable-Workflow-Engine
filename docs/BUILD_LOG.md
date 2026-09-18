@@ -1642,3 +1642,19 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   remains from that host restriction. PostgreSQL/Kafka service checks were
   already covered by the Docker-backed readiness run and were not duplicated
   by this non-service CI invocation.
+
+## 2026-09-18 - M7 DUR-036 closeout
+
+- Task status: DONE at reviewed implementation target `6325d1f`, based on
+  `bfa99fe`. Claude's committed round-29 review returned
+  `NO_BLOCKING_FINDINGS`; R066 is VERIFIED and DUR-026, DUR-027, DUR-028,
+  DUR-034, and DUR-035 are now unblocked.
+- The review identified R069 as a nonblocking P3 cleanup follow-up. The
+  generated `dur036-runtime-*` namespace was swept from the dev database
+  after review, including the stranded `RUNNABLE` fixture. Before the first
+  measurement study, move readiness cleanup into the script's outer `finally`
+  and record a pre-run sweep/count in the artifact.
+- The accepted evidence remains bounded Docker Desktop/WSL2 development-host
+  evidence: it does not claim multi-host durability, production scale, or
+  equivalence to an OS-level process kill. The readiness endpoint is disabled
+  by default and localhost-bound.
