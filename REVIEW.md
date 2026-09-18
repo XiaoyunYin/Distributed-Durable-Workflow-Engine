@@ -2793,6 +2793,53 @@ round-16 verification.
   until stronger fixture isolation is implemented.
 - Verdict: M4 STARTED; DUR-015 IMPLEMENTATION PENDING
 
+This start record is historical; the implementation and final handoff are
+superseded by the committed M4 handoff below.
+
+## Codex handoff — M4 implementation
+
+- Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
+  DUR-017, DUR-018, and DUR-023A-M4)
+- Task status: READY_FOR_REVIEW; all five M4 implementation tasks are
+  addressed in one co-delivered target. No M4 task is DONE pending Claude's
+  committed review.
+- Handoff basis: COMMITTED
+- Base commit: `8fb2f75` (M3 closeout)
+- Target commit: `92f3f14` (M4 implementation)
+- Scope: durable retry policies/budgets and timer enforcement, compatible pure
+  activity checkpoints and crash resume, cancellation and ambiguous-outcome
+  reconciliation, a grant-bound cooperating effect ledger with scoped fencing,
+  the non-cooperating endpoint fixture, exact approval decisions and bounded
+  grants, rejected approval/no-action, atomic cancellation application, and the
+  independent M4 checker extension. No paid/model, production authentication,
+  multi-host, or production-remediation scope was added.
+- Checks run: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+  scripts/ci.ps1 -WithRace -WithServices` passed migrations, shared Go/Python
+  checks, 19 Python tests, serial Go race packages, DUR-005 through DUR-014
+  integration suites, all M4 state/engine/invariant suites, and service smoke.
+  Focused race-enabled M4 tests passed for retry exhaustion, checkpoint crash
+  resume, approval/cancellation ordering, cooperating effect dedupe/fencing,
+  non-cooperating reconciliation, and loaded checker evidence. `go vet`,
+  `gofmt`, Ruff, mypy, `git diff --check`, Compose config, and the runtime
+  Docker build passed.
+- Skipped checks and reasons: hard-kill durability, PostgreSQL outage and
+  lock/statement-timeout campaigns, sustained load, multi-host deployment or
+  broker rebalance, clean bootstrap/restart smoke, and remote CI were not run
+  or are outside M4. The R019 claim-retry-after-replacement committed-test
+  gap remains nonblocking. The R048 manual parallel database-fixture hazard
+  remains nonblocking; supported service validation uses serial packages.
+- Known limitations: approval and worker control remain unauthenticated,
+  localhost-bound development APIs; the non-cooperating endpoint is a
+  deterministic fixture; no exactly-once or production-remediation claim is
+  made. The effect ledger is a local development service/table family and is
+  not a cross-database transaction with workflow state.
+- Review request: Claude should review target `92f3f14` against base
+  `8fb2f75`, with special attention to checkpoint compatibility and crash
+  resume, no automatic retry for uncertain non-cooperating effects, the
+  grant/action/resource-version binding, cancellation-vs-grant serialization,
+  operator audit evidence, and independent checker verdicts.
+- Verdict: PENDING CLAUDE REVIEW
+
 ---
 
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.

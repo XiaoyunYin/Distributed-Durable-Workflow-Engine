@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 IN_PROGRESS; DUR-015 IN_PROGRESS; DUR-016 TODO; DUR-017 TODO; DUR-018 TODO; DUR-023A-M4 TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 IN_PROGRESS; DUR-015 READY_FOR_REVIEW; DUR-016 READY_FOR_REVIEW; DUR-017 READY_FOR_REVIEW; DUR-018 READY_FOR_REVIEW; DUR-023A-M4 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -861,16 +861,17 @@ contract revision.
   `go test -race -p 1 ./...` through
   `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1
   -WithRace -WithServices`; non-service checks may remain parallel. The
-  residual manual parallel-fixture hazard from R048 is nonblocking but should
-  be closed before M4 adds substantial database-backed suites.
+  residual manual parallel-fixture hazard from R048 remains nonblocking; the
+  supported service command serializes the M4 database-backed suites.
 - **Milestone review:** Claude reviews each committed M4 implementation
   target against the preceding task's closeout commit. M4 is not DONE until
   all five task reviews and the M4 exit evidence are complete.
 
 #### DUR-015 — Retry policy and checkpoints
 
-- **Status:** IN_PROGRESS.
-- **Dependencies:** M3 DONE; review base is M3 closeout commit `8fb2f75`.
+- **Status:** READY_FOR_REVIEW.
+- **Dependencies:** M3 DONE; this M4 implementation is co-delivered with
+  DUR-016 through DUR-023A-M4; review base is M3 closeout commit `8fb2f75`.
 - **Goal:** Make retryability, retry budgets, backoff, and pure-work
   checkpoint progress durable and explicit without weakening effect safety.
 - **Scope:** Persist retry policy and attempt budgets; classify retryable,
@@ -893,7 +894,9 @@ contract revision.
 - **Evidence:** `internal/state/`, `internal/engine/`, retry/checkpoint
   migrations, `docs/CONTRACTS.md`, `docs/INTERPRETER.md`, tests, and
   `docs/BUILD_LOG.md`.
-- **Implementation/review commits:** pending; Claude review round pending.
+- **Implementation commit:** `92f3f14`; final handoff target is recorded in
+  `REVIEW.md`.
+- **Review:** Claude review pending.
 - **Remaining limitations:** This task does not authorize external-effect
   retries, approval application, production checkpoint scaling, or final
   performance claims. Hard-kill and sustained-load evidence remain later
@@ -901,9 +904,9 @@ contract revision.
 
 #### DUR-016 — Cancellation and ambiguous outcomes
 
-- **Status:** TODO.
-- **Dependencies:** DUR-015; review base is the DUR-015 closeout commit to be
-  recorded before implementation starts.
+- **Status:** READY_FOR_REVIEW.
+- **Dependencies:** DUR-015 implementation is co-delivered in the M4 target;
+  review base is M3 closeout commit `8fb2f75`.
 - **Goal:** Preserve one durable outcome when cancellation, completion, and
   timeout race, especially when an external effect may already have happened.
 - **Scope:** Extend the reviewed cancellation/effect classification to
@@ -921,15 +924,17 @@ contract revision.
 - **Evidence:** `internal/state/`, `internal/engine/`,
   `internal/reconciliation/`, `docs/CONTRACTS.md`, failure fixtures, and
   `docs/BUILD_LOG.md`.
-- **Implementation/review commits:** pending; review round pending.
+- **Implementation commit:** `92f3f14`; final handoff target is recorded in
+  `REVIEW.md`.
+- **Review:** Claude review pending.
 - **Remaining limitations:** No sandbox effect ledger or approval endpoint is
   included until DUR-017 and DUR-018.
 
 #### DUR-017 — Sandbox effect service
 
-- **Status:** TODO.
-- **Dependencies:** DUR-016; review base is the DUR-016 closeout commit to be
-  recorded before implementation starts.
+- **Status:** READY_FOR_REVIEW.
+- **Dependencies:** DUR-016 implementation is co-delivered in the M4 target;
+  review base is M3 closeout commit `8fb2f75`.
 - **Goal:** Provide a cooperating sink with an independent transactional
   effect/receipt ledger and a separately testable non-cooperating endpoint.
 - **Scope:** Effect identity and grant-scope binding, transactional mutation
@@ -948,15 +953,17 @@ contract revision.
   checker fixtures.
 - **Evidence:** effect-service package, migrations, API documentation,
   `docs/CONTRACTS.md`, `docs/BUILD_LOG.md`, and fault-campaign records.
-- **Implementation/review commits:** pending; review round pending.
+- **Implementation commit:** `92f3f14`; final handoff target is recorded in
+  `REVIEW.md`.
+- **Review:** Claude review pending.
 - **Remaining limitations:** The endpoint remains development-only until
   DUR-018 authentication and approval authority requirements are complete.
 
 #### DUR-018 — Approval gates
 
-- **Status:** TODO.
-- **Dependencies:** DUR-016 and DUR-017; review base is the preceding M4
-  closeout commit to be recorded before implementation starts.
+- **Status:** READY_FOR_REVIEW.
+- **Dependencies:** DUR-016 and DUR-017 implementation is co-delivered in the
+  M4 target; review base is M3 closeout commit `8fb2f75`.
 - **Goal:** Ensure no remediation action can dispatch without a matching,
   bounded, authorized approval grant.
 - **Scope:** Exact proposal persistence and signatures, approver decisions,
@@ -974,17 +981,18 @@ contract revision.
   `gofmt`, and `git diff --check`.
 - **Evidence:** approval schema/service, API documentation, contract and
   transition records, tests, `docs/BUILD_LOG.md`, and checker fixtures.
-- **Implementation/review commits:** pending; review round pending.
+- **Implementation commit:** `92f3f14`; final handoff target is recorded in
+  `REVIEW.md`.
+- **Review:** Claude review pending.
 - **Remaining limitations:** Authentication is a prerequisite, not implied by
   the current development-only localhost control API; no paid/model work is
   part of M4.
 
 #### DUR-023A-M4 — Independent checkpoint/effect/approval checker extension
 
-- **Status:** TODO.
-- **Dependencies:** DUR-023A-M3 and DUR-015 through DUR-018; review base is
-  the relevant M4 implementation closeout commit to be recorded before
-  implementation starts.
+- **Status:** READY_FOR_REVIEW.
+- **Dependencies:** DUR-023A-M3 and DUR-015 through DUR-018 are co-delivered
+  in the M4 target; review base is M3 closeout commit `8fb2f75`.
 - **Goal:** Extend independent persisted-evidence checking across retry,
   checkpoint, effect-ledger, unknown-effect, and approval/action rules.
 - **Scope:** Checker-owned checkpoint monotonicity, engine-to-effect-ledger
@@ -999,7 +1007,9 @@ contract revision.
   integration is enabled, `go vet ./...`, `gofmt`, and `git diff --check`.
 - **Evidence:** `internal/invariants/`, M4 state/effect records, checker
   fixtures, `docs/CONTRACTS.md`, and `docs/BUILD_LOG.md`.
-- **Implementation/review commits:** pending; review round pending.
+- **Implementation commit:** `92f3f14`; final handoff target is recorded in
+  `REVIEW.md`.
+- **Review:** Claude review pending.
 - **Remaining limitations:** Final all-milestone checker integration and
   mutation testing remain DUR-023B in M5.
 

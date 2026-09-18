@@ -1001,3 +1001,50 @@ Interview explanation: M0 is complete when the setup, contracts, deterministic
 fault controls, and shared checks are reviewed as a fixed target. It does not
 claim that the durable engine exists; DUR-005 begins that implementation under
 the frozen v4 contract.
+
+## 2026-09-17 - M4 implementation handoff
+
+- Base commit: `8fb2f75` (M3 closeout); implementation commit: `92f3f14`.
+- Task status: DUR-015, DUR-016, DUR-017, DUR-018, and DUR-023A-M4 are
+  READY_FOR_REVIEW. M4 remains IN_PROGRESS pending Claude's committed review.
+
+M4 adds durable retry policies and checkpoint progress, retry-budget and timer
+enforcement, actor-audited unknown-effect resolution, a grant-bound
+cooperating effect ledger with request-attempt evidence and resource-local
+fencing, a deliberately non-cooperating endpoint fixture, exact approval
+proposal/decision/grant handling, rejection/no-action application, and an
+atomic cancellation-request owner path. The independent checker now loads and
+validates checkpoint, effect, call-attempt, and approval evidence. Migrations
+000010 and 000011 add the M4 tables and resolution audit.
+
+Validation actually run:
+
+- `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1
+  -WithRace -WithServices`: PASS. Migrations 000010 and 000011 were already
+  applied idempotently, shared Go/Python checks passed, 19 Python tests passed,
+  serial Go race packages passed, all DUR-005 through DUR-014 focused suites
+  passed, all M4 state/engine/checker integration suites passed, and service
+  smoke passed for PostgreSQL/Kafka/runtime/workers/telemetry.
+- Focused race-enabled M4 suites: checkpoint crash resume, retry exhaustion,
+  approval grant/rejection, cancellation-before-grant, cooperating dedupe and
+  scoped fencing, non-cooperating timeout reconciliation, and loaded
+  independent checker evidence all passed against local PostgreSQL.
+- `go vet ./...`, `gofmt`, Ruff, mypy, and 19 Python tests passed through CI.
+- `docker compose --env-file .env -f deploy/local/compose.yaml config --quiet`,
+  `git diff --check`, and
+  `docker build -f deploy/local/Dockerfile.runtime
+  -t durable-agent-runtime:dur004-m4-check .`: PASS.
+
+Known limitations: the approval/worker API remains localhost-bound and
+development-only without production authentication; the non-cooperating
+endpoint is a deterministic fixture; hard-kill durability, database outage and
+lock-timeout campaigns, multi-host deployment, sustained load, clean
+bootstrap/restart smoke, and remote CI remain untested or outside this
+milestone. No exactly-once or production-remediation claim is made.
+
+Interview explanation: a checkpoint preserves committed pure work but cannot
+make an external call atomic. The effect service therefore needs a separate
+stable-key receipt and resource fence, while an unobservable endpoint must stop
+at reconciliation. Approval is a durable capability bound to the exact action,
+and cancellation/grant races are serialized by the scheduler lease and
+workflow row.
