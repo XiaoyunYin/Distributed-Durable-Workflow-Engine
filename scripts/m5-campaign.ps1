@@ -10,7 +10,9 @@ Push-Location $RepoRoot
 $relaysStopped = $false
 $composeArgs = @("--env-file", ".env", "-f", "deploy/local/compose.yaml")
 $previousCampaignSeed = $env:DURABLE_CAMPAIGN_SEED
+$previousRequireDatabase = $env:DURABLE_REQUIRE_DATABASE
 $previousPythonPath = $env:PYTHONPATH
+$env:DURABLE_REQUIRE_DATABASE = "1"
 $env:PYTHONPATH = Join-Path $RepoRoot "python"
 
 function Write-Results([object[]]$Items, [string]$Path) {
@@ -102,7 +104,8 @@ try {
             $env:DURABLE_CAMPAIGN_SEED = "$seed"
             $goOutput = & go test -race -p 1 $case.Package -run $case.Pattern -count=1 -v 2>&1 | Out-String
             $goExit = $LASTEXITCODE
-            $status = if ($goExit -eq 0) { "PASS" } else { "FAIL" }
+            $skipped = $goOutput -match '(?m)^--- SKIP'
+            $status = if ($goExit -eq 0 -and -not $skipped) { "PASS" } else { "FAIL" }
             $results += [pscustomobject]@{
                 case_id = $case.Id
                 family = $case.Family
@@ -122,9 +125,9 @@ try {
                 checker_output = $checkerOutput.Trim()
                 go_output = $goOutput.Trim()
             }
-            if ($goExit -ne 0) {
+            if ($goExit -ne 0 -or $skipped) {
                 Write-Results $results $OutputPath
-                throw "$($case.Id) Go case failed for seed $seed. See $OutputPath"
+                throw "$($case.Id) Go case failed or skipped for seed $seed. See $OutputPath"
             }
         }
     }
@@ -135,6 +138,11 @@ try {
         Remove-Item Env:DURABLE_CAMPAIGN_SEED -ErrorAction SilentlyContinue
     } else {
         $env:DURABLE_CAMPAIGN_SEED = $previousCampaignSeed
+    }
+    if ($null -eq $previousRequireDatabase) {
+        Remove-Item Env:DURABLE_REQUIRE_DATABASE -ErrorAction SilentlyContinue
+    } else {
+        $env:DURABLE_REQUIRE_DATABASE = $previousRequireDatabase
     }
     if ($relaysStopped) {
         & docker compose @composeArgs up -d --wait runtime-a runtime-b worker-a worker-b
