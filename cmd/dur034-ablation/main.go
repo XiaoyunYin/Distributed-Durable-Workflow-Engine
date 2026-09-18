@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -66,6 +67,7 @@ type controlReport struct {
 type artifact struct {
 	SchemaVersion string         `json:"schema_version"`
 	Status        string         `json:"status"`
+	GitCommit     string         `json:"git_commit"`
 	GeneratedAt   time.Time      `json:"generated_at_utc"`
 	Protocol      map[string]any `json:"protocol"`
 	Runs          []runReport    `json:"runs"`
@@ -122,6 +124,10 @@ func run(ctx context.Context, cfg config) (artifact, error) {
 		return artifact{}, err
 	}
 	defer store.Close()
+	commit, err := currentCommit()
+	if err != nil {
+		return artifact{}, err
+	}
 	metrics := telemetry.New("dur034-ablation")
 	store.SetTelemetry(metrics)
 	profiles := []state.TestSafeguardProfile{
@@ -133,6 +139,7 @@ func run(ctx context.Context, cfg config) (artifact, error) {
 	result := artifact{
 		SchemaVersion: "dur034-ablation.v1",
 		Status:        "PASS",
+		GitCommit:     commit,
 		GeneratedAt:   time.Now().UTC(),
 		Protocol: map[string]any{
 			"profiles":             []string{"full", "history_disabled", "unsafe_lease_check", "no_outbox"},
@@ -537,6 +544,18 @@ func databaseURL() (string, error) {
 		}
 	}
 	return "", errors.New("set DURABLE_DATABASE_URL or provide .env")
+}
+
+func currentCommit() (string, error) {
+	output, err := exec.Command("git", "rev-parse", "HEAD").Output()
+	if err != nil {
+		return "", fmt.Errorf("resolve measurement commit: %w", err)
+	}
+	commit := strings.TrimSpace(string(output))
+	if commit == "" {
+		return "", errors.New("git returned an empty measurement commit")
+	}
+	return commit, nil
 }
 
 func fatal(message string) {
