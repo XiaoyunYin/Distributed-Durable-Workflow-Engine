@@ -1,5 +1,22 @@
 # Build log
 
+## 2026-09-17 - M4 start
+
+- M3 closeout/base: `8fb2f75`; M4 status: IN_PROGRESS.
+- DUR-015 status: IN_PROGRESS. DUR-016, DUR-017, DUR-018, and DUR-023A-M4
+  remain TODO with start records in PLAN.md.
+- DUR-015 scope is limited to durable retry classification/budgets,
+  backoff/timer enforcement, compatible pure-work checkpoints, stale-update
+  rejection, and measured repeated work. Effect ledgers, ambiguous-effect
+  remediation, approvals, and their checker extension remain later M4 tasks.
+- No M4 implementation code has been added yet. The next implementation
+  review must use `8fb2f75` as its exact base.
+
+Interview explanation: M4 separates pure-work recovery from external-effect
+recovery. Retry budgets and checkpoints can be measured directly, while
+cooperating and non-cooperating effects require distinct receipt and
+reconciliation rules before any approval-controlled remediation is dispatched.
+
 ## 2026-09-17 - M3 closeout after round-18 review
 
 - M3 implementation target: `b1e11bb`; review base: `9412f3e`.

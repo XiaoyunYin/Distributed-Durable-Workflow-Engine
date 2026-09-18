@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 IN_PROGRESS; DUR-015 IN_PROGRESS; DUR-016 TODO; DUR-017 TODO; DUR-018 TODO; DUR-023A-M4 TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -848,6 +848,161 @@ contract revision.
 
 **Exit:** Demonstrate both a safely retried cooperating effect and an explicitly unresolved non-cooperating effect. Produce a transaction-boundary diagram for each; the checker detects seeded M4 violations.
 
+#### M4 implementation record
+
+- **Status:** IN_PROGRESS.
+- **Dependencies:** M3 is DONE at closeout commit `8fb2f75`; the M4
+  implementation starts with DUR-015.
+- **Protected boundaries:** Preserve the M0 contract, frozen partition map,
+  PostgreSQL ownership rules, event registry, outbox/inbox identity, and the
+  M3 rule that uncertain non-cooperating effects do not receive automatic
+  retries. No paid/model work or production deployment claim is added.
+- **Validation policy:** Database-backed package tests use
+  `go test -race -p 1 ./...` through
+  `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/ci.ps1
+  -WithRace -WithServices`; non-service checks may remain parallel. The
+  residual manual parallel-fixture hazard from R048 is nonblocking but should
+  be closed before M4 adds substantial database-backed suites.
+- **Milestone review:** Claude reviews each committed M4 implementation
+  target against the preceding task's closeout commit. M4 is not DONE until
+  all five task reviews and the M4 exit evidence are complete.
+
+#### DUR-015 — Retry policy and checkpoints
+
+- **Status:** IN_PROGRESS.
+- **Dependencies:** M3 DONE; review base is M3 closeout commit `8fb2f75`.
+- **Goal:** Make retryability, retry budgets, backoff, and pure-work
+  checkpoint progress durable and explicit without weakening effect safety.
+- **Scope:** Persist retry policy and attempt budgets; classify retryable,
+  permanent, and unknown outcomes; enforce durable retry timers; persist
+  compatible checkpoint progress; reject stale or incompatible checkpoint
+  updates; and measure repeated pure work after an injected crash. Keep effect
+  ledgers, approval grants, and remediation actions in DUR-016 through
+  DUR-018.
+- **Acceptance:** A retryable failure consumes a bounded budget and creates
+  only a due retry; a permanent or exhausted failure does not loop forever; a
+  checkpoint retry is idempotent and stale progress is rejected; a chunked
+  pure activity resumes from the last compatible checkpoint; output and
+  recomputed work are recorded; and a lost response does not invent progress.
+- **Validation:** Focused PostgreSQL/engine tests with
+  `go test -race -p 1 ./...` when database integration is enabled; explicit
+  retry-budget, timer, checkpoint-conflict, restart, and lost-response tests;
+  F07 checkpoint/recovery cases; `go vet ./...`; `gofmt`; `git diff --check`;
+  and the full service CI command. Record measured repeated work separately
+  from correctness outcomes.
+- **Evidence:** `internal/state/`, `internal/engine/`, retry/checkpoint
+  migrations, `docs/CONTRACTS.md`, `docs/INTERPRETER.md`, tests, and
+  `docs/BUILD_LOG.md`.
+- **Implementation/review commits:** pending; Claude review round pending.
+- **Remaining limitations:** This task does not authorize external-effect
+  retries, approval application, production checkpoint scaling, or final
+  performance claims. Hard-kill and sustained-load evidence remain later
+  campaign work unless explicitly run.
+
+#### DUR-016 — Cancellation and ambiguous outcomes
+
+- **Status:** TODO.
+- **Dependencies:** DUR-015; review base is the DUR-015 closeout commit to be
+  recorded before implementation starts.
+- **Goal:** Preserve one durable outcome when cancellation, completion, and
+  timeout race, especially when an external effect may already have happened.
+- **Scope:** Extend the reviewed cancellation/effect classification to
+  ambiguous outcomes; stop unsafe automatic retries; retain operator evidence;
+  and record audited resolution without claiming cancellation undid an effect.
+- **Acceptance:** Each race ordering has one durable winner; pure work may be
+  cancelled without false effect evidence; claimed effect work becomes
+  `OUTCOME_UNKNOWN` when appropriate; non-cooperating unknown work enters
+  reconciliation-required; operator resolution is audited and cannot dispatch
+  without the later approval/effect rules; and late reports remain evidence
+  without reopening terminal workflows.
+- **Validation:** PostgreSQL race tests, F11 before/after orderings, crash and
+  lost-response campaigns for all effect classes, checker fixtures, service
+  CI, `go vet ./...`, `gofmt`, and `git diff --check`.
+- **Evidence:** `internal/state/`, `internal/engine/`,
+  `internal/reconciliation/`, `docs/CONTRACTS.md`, failure fixtures, and
+  `docs/BUILD_LOG.md`.
+- **Implementation/review commits:** pending; review round pending.
+- **Remaining limitations:** No sandbox effect ledger or approval endpoint is
+  included until DUR-017 and DUR-018.
+
+#### DUR-017 — Sandbox effect service
+
+- **Status:** TODO.
+- **Dependencies:** DUR-016; review base is the DUR-016 closeout commit to be
+  recorded before implementation starts.
+- **Goal:** Provide a cooperating sink with an independent transactional
+  effect/receipt ledger and a separately testable non-cooperating endpoint.
+- **Scope:** Effect identity and grant-scope binding, transactional mutation
+  and receipt lookup, argument-conflict detection, status lookup, scoped
+  fencing, crash-after-mutation-before-receipt recovery, and the explicit
+  non-cooperating control endpoint. The engine remains the authority for
+  workflow state; the sink is not treated as a second workflow store.
+- **Acceptance:** A cooperating retry with the same key returns one receipt;
+  a conflicting payload or grant is rejected; a crash after mutation cannot
+  duplicate the protected effect; fencing blocks stale workers; and a
+  non-cooperating effect that loses its response is reconciliation-required
+  with no automatic second mutation.
+- **Validation:** PostgreSQL effect-ledger integration and concurrency tests;
+  F06 and F11 crash boundaries; duplicate/conflict/grant-scope tests;
+  service CI, `go vet ./...`, `gofmt`, `git diff --check`, and independent
+  checker fixtures.
+- **Evidence:** effect-service package, migrations, API documentation,
+  `docs/CONTRACTS.md`, `docs/BUILD_LOG.md`, and fault-campaign records.
+- **Implementation/review commits:** pending; review round pending.
+- **Remaining limitations:** The endpoint remains development-only until
+  DUR-018 authentication and approval authority requirements are complete.
+
+#### DUR-018 — Approval gates
+
+- **Status:** TODO.
+- **Dependencies:** DUR-016 and DUR-017; review base is the preceding M4
+  closeout commit to be recorded before implementation starts.
+- **Goal:** Ensure no remediation action can dispatch without a matching,
+  bounded, authorized approval grant.
+- **Scope:** Exact proposal persistence and signatures, approver decisions,
+  grant scope and expiry, workflow/definition version preconditions,
+  duplicate decisions, altered/expired proposal rejection, durable approval
+  wait/restart, and worker identity/authentication prerequisites.
+- **Acceptance:** Only the exact approved proposal and grant can authorize
+  its action; altered, stale, duplicate, or expired decisions cannot mutate;
+  approval wait survives control-process restart; rejected approval is a
+  distinct terminal/no-action outcome; and unauthenticated caller-supplied
+  worker identity is not accepted as production authorization.
+- **Validation:** API and PostgreSQL concurrency/restart tests, approval
+  decision races, F12 approval-wait and altered/expired-proposal cases,
+  checker fixtures for proposal/action mismatch, service CI, `go vet ./...`,
+  `gofmt`, and `git diff --check`.
+- **Evidence:** approval schema/service, API documentation, contract and
+  transition records, tests, `docs/BUILD_LOG.md`, and checker fixtures.
+- **Implementation/review commits:** pending; review round pending.
+- **Remaining limitations:** Authentication is a prerequisite, not implied by
+  the current development-only localhost control API; no paid/model work is
+  part of M4.
+
+#### DUR-023A-M4 — Independent checkpoint/effect/approval checker extension
+
+- **Status:** TODO.
+- **Dependencies:** DUR-023A-M3 and DUR-015 through DUR-018; review base is
+  the relevant M4 implementation closeout commit to be recorded before
+  implementation starts.
+- **Goal:** Extend independent persisted-evidence checking across retry,
+  checkpoint, effect-ledger, unknown-effect, and approval/action rules.
+- **Scope:** Checker-owned checkpoint monotonicity, engine-to-effect-ledger
+  reconciliation, unknown-effect classification, proposal/grant/action
+  matching, duplicate-effect detection, and seeded invalid traces. Do not
+  call production transition validators to decide checker verdicts.
+- **Acceptance:** Valid M4 traces pass; seeded stale checkpoints, duplicate
+  effects, missing receipts, mismatched grants, altered proposals, and
+  unauthorized actions fail with rule-specific independent violations.
+- **Validation:** Independent table-driven checker tests, loaded PostgreSQL
+  traces, M4 fault fixtures, `go test -race -p 1 ./...` when database
+  integration is enabled, `go vet ./...`, `gofmt`, and `git diff --check`.
+- **Evidence:** `internal/invariants/`, M4 state/effect records, checker
+  fixtures, `docs/CONTRACTS.md`, and `docs/BUILD_LOG.md`.
+- **Implementation/review commits:** pending; review round pending.
+- **Remaining limitations:** Final all-milestone checker integration and
+  mutation testing remain DUR-023B in M5.
+
 ### M5 — Engine correctness campaign
 
 **Dependencies:** M4. The incident agent is not a dependency. Relevant failpoints and checker obligations should already exist from earlier milestones.
@@ -1174,9 +1329,10 @@ with base `600726f`; Claude's committed round-15 verdict is
 DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3 are DONE at reviewed
 implementation target `b1e11bb`, based on M2 closeout `9412f3e`. Claude's
 round-18 review returned `NO_BLOCKING_FINDINGS`; R048 is VERIFIED with a
-nonblocking residual note about manual DB-enabled parallel runs. M4 is the
-next milestone and its start record will use the M3 closeout commit as its
-exact review base.
+nonblocking residual note about manual DB-enabled parallel runs. M4 is now
+IN_PROGRESS against M3 closeout commit `8fb2f75`; DUR-015 is the active task
+and its review must use `8fb2f75` as the exact base. DUR-016 through
+DUR-018 and DUR-023A-M4 remain TODO until their preceding M4 work is closed.
 Keep the M0 contracts and partition-map version frozen while extending the
 durable state repository.
 

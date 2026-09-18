@@ -2773,6 +2773,26 @@ round-16 verification.
 - M4 start: the next milestone is recovery semantics, effects, and approvals;
   its exact review base will be this M3 closeout commit.
 
+## M4 start record
+
+- Task: M4 recovery semantics, effects, and approvals; active implementation
+  task DUR-015 (retry policy and checkpoints).
+- Task status: IN_PROGRESS. DUR-016, DUR-017, DUR-018, and DUR-023A-M4 remain
+  TODO.
+- Start basis: COMMITTED M3 closeout.
+- Exact base commit for the DUR-015 review: `8fb2f75`.
+- Scope: durable retry classification and budgets, backoff/timer enforcement,
+  compatible pure-work checkpoints, stale-update rejection, and measured
+  repeated work. External-effect ledgers, ambiguous-effect remediation,
+  approvals, and their independent checker extension are staged in later M4
+  task records.
+- No M4 implementation target exists yet. When DUR-015 is ready, Claude should
+  review its committed target against `8fb2f75`.
+- Known limitations: M3's nonblocking manual parallel-fixture hazard remains
+  recorded; M4 service validation must use the serial database-backed command
+  until stronger fixture isolation is implemented.
+- Verdict: M4 STARTED; DUR-015 IMPLEMENTATION PENDING
+
 ---
 
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.
