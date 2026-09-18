@@ -211,7 +211,9 @@ func readinessHandler(store *state.Store, metrics *telemetry.Metrics, role strin
 		runner := engine.New(store, engine.ActivityDriverFunc(func(context.Context, engine.Activity) (engine.ActivityResult, error) {
 			return engine.ActivityResult{Payload: json.RawMessage(`{"ok":true}`)}, nil
 		}))
-		runner.OwnerID = "dur036-runtime-" + role
+		// Partition lease ownership is persisted as a UUID. Keep the runtime
+		// role in telemetry, but use a valid durable owner identity here.
+		runner.OwnerID = state.NewID()
 		runner.WorkerID = "dur036-runtime-worker"
 		runner.ActorID = "dur036-runtime-engine"
 		runner.MaxSteps = 20
