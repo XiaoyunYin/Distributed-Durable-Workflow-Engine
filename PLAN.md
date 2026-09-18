@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 READY_FOR_REVIEW; DUR-012 READY_FOR_REVIEW; DUR-013 READY_FOR_REVIEW; DUR-014 READY_FOR_REVIEW; DUR-023A-M3 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -694,7 +694,7 @@ contract revision.
 
 #### DUR-011 — Outbox and relay
 
-- **Status:** READY_FOR_REVIEW; implementation target is `b1e11bb`.
+- **Status:** DONE; reviewed implementation target is `b1e11bb`.
 - **Dependencies:** M2 DONE; review base is the M2 closeout commit
   `9412f3e`.
 - **Goal:** Publish durable workflow obligations through Kafka without making
@@ -738,7 +738,7 @@ contract revision.
 
 #### DUR-012 - Task consumer and acknowledgment
 
-- **Status:** READY_FOR_REVIEW; implementation target is `b1e11bb`.
+- **Status:** DONE; reviewed implementation target is `b1e11bb`.
 - **Dependencies:** DUR-011 implementation; review base is `9412f3e`.
 - **Goal:** Consume task notifications through a bounded worker adapter while
   making PostgreSQL the durable disposition and acknowledgment boundary.
@@ -764,7 +764,7 @@ contract revision.
 
 #### DUR-013 - Event inbox and scheduler wake-ups
 
-- **Status:** READY_FOR_REVIEW; implementation target is `b1e11bb`.
+- **Status:** DONE; reviewed implementation target is `b1e11bb`.
 - **Dependencies:** DUR-011 and DUR-012 implementation; review base is
   `9412f3e`.
 - **Goal:** Persist event deduplication and scheduler hints without treating
@@ -787,7 +787,7 @@ contract revision.
 
 #### DUR-014 - Database reconciliation and backpressure
 
-- **Status:** READY_FOR_REVIEW; implementation target is `b1e11bb`.
+- **Status:** DONE; reviewed implementation target is `b1e11bb`.
 - **Dependencies:** DUR-011 through DUR-013 implementation; review base is
   `9412f3e`.
 - **Goal:** Make unfinished database obligations discoverable and recoverable
@@ -813,7 +813,7 @@ contract revision.
 
 #### DUR-023A-M3 - Invariant-checker transport/reconciliation extension
 
-- **Status:** READY_FOR_REVIEW; implementation target is `b1e11bb`.
+- **Status:** DONE; reviewed implementation target is `b1e11bb`.
 - **Dependencies:** DUR-023A-M2 DONE and M3 transport/reconciliation
   implementation; review base is `9412f3e`.
 - **Goal:** Independently check transport identity, dispositions, wake-ups,
@@ -1171,9 +1171,12 @@ is `NO_BLOCKING_FINDINGS`, R034-R039 and R028 are VERIFIED, and the remaining
 R019 test gap is nonblocking. M2 is DONE at reviewed code target `0d663c3`
 with base `600726f`; Claude's committed round-15 verdict is
 `NO_BLOCKING_FINDINGS`, and R040-R044 are VERIFIED. M3 implementation tasks
-DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3 are READY_FOR_REVIEW at
-target `b1e11bb`, all based on M2 closeout `9412f3e`. The next Claude review
-must use `9412f3e` as its exact base and cover the committed M3 target.
+DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3 are DONE at reviewed
+implementation target `b1e11bb`, based on M2 closeout `9412f3e`. Claude's
+round-18 review returned `NO_BLOCKING_FINDINGS`; R048 is VERIFIED with a
+nonblocking residual note about manual DB-enabled parallel runs. M4 is the
+next milestone and its start record will use the M3 closeout commit as its
+exact review base.
 Keep the M0 contracts and partition-map version frozen while extending the
 durable state repository.
 

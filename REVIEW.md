@@ -867,6 +867,30 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 - Limitations: Windows host only; single local PostgreSQL 18.6 and Kafka; in-memory transport adapters in Claude's probes.
 - Verdict: CHANGES_REQUESTED. Blocking: R048 (P2). The M3 transport and reconciliation behavior itself is now verified end to end — event routing, poison visibility, duplicate delivery, contiguous offsets, relay contention, fallback polling, and idempotent reconciliation all behaved correctly — so the remaining work is test isolation, not engine behavior. If the user prefers, R048 could instead be deferred with a recorded reason and a follow-up that closes before M4 relies on these suites; the smallest immediate mitigation is running database-backed packages serially in `ci.ps1`.
 
+### Round 18 — 2026-09-17 — M3 test-isolation fix verification
+
+- Date and round: 2026-09-17, round 18.
+- Review basis: COMMITTED. Worktree was clean at `0835721` when the review started.
+- Base and target commits: base `9412f3e`, final code target `b1e11bb`. Handoff commit `0835721` changes only PLAN.md, REVIEW.md, and docs/BUILD_LOG.md. The handoff declaration matches the repository state.
+- Scope inspected: `git diff 148f20b b1e11bb`, i.e. scripts/check.ps1 (new `-SerialPackages` switch), scripts/ci.ps1 (service mode passes the switch and runs `go test -race -p 1 ./...`), and the PLAN.md validation entries for DUR-007 through DUR-014 and the checker subtasks. No product code changed.
+- Checks personally run (Claude). Code ran in a scratch export of `b1e11bb` against a fresh throwaway database `cr_m3d` (migrations 000001–000009), dropped afterwards:
+  - `DURABLE_REQUIRE_DATABASE=1 go test -race -p 1 ./... -count=1`, the command service-mode CI now runs: four consecutive runs, zero failures. This is the same database and code that produced failures in three of five parallel runs in round 17.
+  - Non-service parallel `go test ./... -count=1` with no `DURABLE_*` variables: clean, and the database-backed tests skip as designed, so the remaining parallel path cannot contend for leases.
+  - `powershell.exe -File scripts/check.ps1 -SerialPackages`: exit 0, with the serial notice printed, all Go packages passing, and 19 Python tests passing.
+  - PLAN.md now records `go test -race -p 1 ./...` for the database-backed tasks and states that service-mode package tests are serialized because they share the lease database.
+  - Cleanup: no `cr_*` databases remain; the shared dev database has 0 workflow rows and no held leases.
+- Codex-reported checks considered but not rerun: the full `ci.ps1 -WithRace -WithServices` against the shared development services, including the real Kafka round trip and smoke checks.
+- Findings resolved: R048 is VERIFIED.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The historical R019 test gap is still open.
+  - Residual, non-blocking: serialization removes the failure path from the documented commands, but the underlying fixtures still share one database and one 16-partition lease table. A developer running `go test -race ./...` with `DURABLE_RUN_INTEGRATION=1` can still hit interference, and the raw cleanup SQL at internal/api/m2_integration_test.go:205 remains owner-unscoped, which is what produced the `partition_leases` check-constraint violation in round 17. Per-package partition ranges, per-package databases, or owner-scoped cleanup would remove the hazard rather than avoid it; worth doing when M4 adds more database-backed suites.
+  - Not exercised by Claude: the real Kafka broker path, consumer rebalance and kill-after-claim (DUR-012 acceptance), multi-host deployment, sustained load, hard-kill durability, clean bootstrap and restart smoke, and remote CI.
+  - Scope: the single-node local Kafka/PostgreSQL topology supports no exactly-once or availability claim.
+- Limitations: Windows host only; single local PostgreSQL 18.6 and Kafka; Claude's transport probes in rounds 16–17 used the in-memory broker and source.
+- Verdict: NO_BLOCKING_FINDINGS for M3 (DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3) at committed target `b1e11bb` with base `9412f3e`. This is a COMMITTED, non-provisional review. R001–R048 are VERIFIED apart from the R019 test gap. With the acceptance criteria and evidence recorded, Codex may move the five M3 tasks to DONE under PLAN.md section 11.
+
 For each round, record:
 
 - Date and round:
@@ -2641,7 +2665,7 @@ round-16 verification.
 ### R048 — Database-backed tests are not isolated across packages, so the documented validation command fails intermittently
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `fb70d41`
 - Location: scripts/ci.ps1:30 (`go test -race ./...`, packages run in parallel by default); internal/state/m2_integration_test.go, internal/api/m2_integration_test.go:204-206, internal/engine/engine_integration_test.go, internal/state/m3_integration_test.go, internal/transport/m3_integration_test.go, internal/reconciliation/m3_integration_test.go (all acquire partition leases and workflows in one shared database).
@@ -2722,6 +2746,32 @@ round-16 verification.
   `9412f3e`, with special attention to both `check.ps1` and `ci.ps1` service
   paths and confirmation that non-service checks retain their prior behavior.
 - Verdict: PENDING CLAUDE REVIEW
+
+#### Claude verification – round 18
+
+- Verification commit: `0835721` (target `b1e11bb`)
+- Evidence and remaining concerns: `check.ps1` gained a `-SerialPackages` switch that runs `go test -p 1 ./...`, and `ci.ps1 -WithServices` now uses it for the shared checks and runs the race phase as `go test -race -p 1 ./...`; non-service invocations stay parallel, where the database tests skip. PLAN.md records the serial command and the reason. Claude's verification on a fresh throwaway database (the same database and code that failed three of five parallel runs in round 17): four consecutive `go test -race -p 1 ./... -count=1` runs with zero failures; a non-service parallel `go test ./...` clean, with the database tests skipping; and `scripts/check.ps1 -SerialPackages` exiting 0 with all Go packages and 19 Python tests passing.
+
+  Residual, non-blocking: this avoids the hazard rather than removing it. The fixtures still share one database and one 16-partition lease table, so a manual parallel run with `DURABLE_RUN_INTEGRATION=1` can still interfere, and the owner-unscoped cleanup SQL at internal/api/m2_integration_test.go:205 (the source of the round-17 `partition_leases` check-constraint violation) is unchanged. Worth closing with per-package partition ranges or per-package databases before M4 adds more database-backed suites.
+- Status: VERIFIED
+
+## Codex closeout — M3
+
+- Task: M3 Kafka and reconciliation (DUR-011, DUR-012, DUR-013, DUR-014, and
+  DUR-023A-M3)
+- Task status: DONE.
+- Handoff basis: COMMITTED.
+- Base commit: `9412f3e` (M2 closeout and exact M3 review base)
+- Reviewed implementation target: `b1e11bb`.
+- Review: Claude's committed round-18 review returned
+  `NO_BLOCKING_FINDINGS`; R045-R048 are VERIFIED. The residual manual
+  DB-enabled parallel-run hazard and owner-unscoped test cleanup are
+  nonblocking and remain a follow-up before M4 adds more database suites.
+- Scope closed: transactional Kafka outbox/relay, consumer disposition and
+  offsets, inbox/wake-ups, reconciliation/backpressure, poison obligations,
+  independent M3 invariants, and deterministic service-mode test isolation.
+- M4 start: the next milestone is recovery semantics, effects, and approvals;
+  its exact review base will be this M3 closeout commit.
 
 ---
 

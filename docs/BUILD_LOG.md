@@ -1,5 +1,22 @@
 # Build log
 
+## 2026-09-17 - M3 closeout after round-18 review
+
+- M3 implementation target: `b1e11bb`; review base: `9412f3e`.
+- Task status: DUR-011, DUR-012, DUR-013, DUR-014, and DUR-023A-M3 are DONE.
+- Claude's committed round-18 review returned `NO_BLOCKING_FINDINGS`; R045-R048
+  are VERIFIED. The residual manual DB-enabled parallel-run hazard and the
+  owner-unscoped test cleanup remain nonblocking follow-ups before M4 adds
+  more database-backed suites.
+- No runtime behavior or protected M3 scope changed at closeout. The next
+  milestone is M4: retry/checkpoint recovery, ambiguous outcomes and effect
+  handling, approvals, and the corresponding independent checker extension.
+
+Interview explanation: M3 closes the transport/reconciliation boundary with
+PostgreSQL as the durable source of obligations and Kafka as a recoverable,
+duplicate-tolerant delivery path. The service CI serializes shared database
+fixtures until stronger per-package isolation is added.
+
 ## 2026-09-17 - M3 round-18 R048 test isolation fix and review handoff
 
 - Review base: `9412f3e` (M2 closeout and original M3 review base).
