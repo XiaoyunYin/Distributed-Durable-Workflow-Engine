@@ -1880,3 +1880,18 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   or live-model work ran.
 - Remaining limitation: the final study is still bounded Store/Engine/WSL2
   evidence, and its three-repeat performance summaries are descriptive only.
+
+## 2026-09-18 - M7 DUR-034 closeout
+
+- Claude's committed round-34 review of target `6d2e50d` against base
+  `50d4b13` returned `NO_BLOCKING_FINDINGS`; R077 is VERIFIED. DUR-034 is now
+  `DONE` in PLAN.md.
+- The closeout claim is deliberately narrow: history rows 1176 to 0, outbox
+  rows 952 to 0, reduced unsafe-profile query/transaction counts, and the
+  safe lease, unsafe lease, and no-outbox negative controls are supported.
+  Throughput, latency, and CPU safeguard-cost deltas are not claimed because
+  the five clean full-profile spreads ranged from 3.2% to 29.3%.
+- The remaining M7 work starts with DUR-035, whose protocol must explain or
+  control this harness variability before making comparative performance
+  claims. The historical R057/R019 and other nonblocking residuals remain
+  recorded; no paid/live-model work was run.

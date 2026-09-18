@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 READY_FOR_REVIEW; DUR-035 TODO; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 TODO; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1325,8 +1325,8 @@ contract revision.
 
 #### DUR-034 implementation record
 
-- **Status:** READY_FOR_REVIEW; R077 is addressed with an explicit no-cost-claim conclusion and a final provenance-matched artifact, pending Claude's committed review.
-- **Base commit:** `644702b` (Claude's round-33 review target).
+- **Status:** DONE; Claude's committed round-34 review returned `NO_BLOCKING_FINDINGS` and verified R077.
+- **Base commit:** `50d4b13` (Claude's round-33 review base).
 - **Implementation target:** `6d2e50d` (top-level cost conclusion, conservative resolved-effects policy, and final measurement provenance).
 - **Scope:** execute section 14B's four test-only profiles over the fixed T1 workload and fixed near-saturation rate: full safeguards, history disabled, unsafe lease validation with a check-to-commit takeover failpoint, and no-outbox with a bounded reconciliation-delayed dispatch profile. Pair each weakened profile with its intended negative control and never present it as deployable runtime configuration.
 - **Acceptance:** three repeats per profile (12 measured runs); every run records terminal/pending reconciliation, four-workflow warmup, 24-workflow measured cohort, 120-second SLO, four fixed worker subprocesses, completion latency, scheduler/worker CPU, database query/transaction/lock telemetry, history and outbox evidence; history-disabled demonstrates missing audit rows, unsafe validation permits the stale-owner negative control while the normal protocol rejects it by persisted commit ordering, and no-outbox records a nonzero recovery delay without claiming a safety failure. Failed or incomplete runs remain visible and block acceptance.
@@ -1647,12 +1647,11 @@ DUR-026, DUR-027, DUR-028, DUR-034, and DUR-035. The readiness evidence is
 bounded Docker Desktop/WSL2 development-host evidence and does not claim
 multi-host durability, production scale, or hard-kill equivalence.
 
-DUR-034 is READY_FOR_REVIEW at implementation target `6d2e50d`, based on
-Claude's round-33 target `644702b`; its final evidence was generated from the
-same target. The four-profile, three-repeat protocol produced a PASS artifact,
-but its top-level conclusion withholds all performance deltas because clean
-reruns showed unstable spread. Claude should review the implementation and
-evidence before DUR-034 moves to DONE. The immediate next action after that
-review is to address any findings, then continue with DUR-035.
+DUR-034 is DONE at reviewed target `6d2e50d`, based on `50d4b13`. Claude's
+committed round-34 review returned `NO_BLOCKING_FINDINGS` and verified R077.
+The artifact supports mechanism counts and negative-control properties, but
+explicitly withholds performance-cost deltas because clean reruns showed
+unstable spread. The immediate next action is to start DUR-035 using this
+closeout as its review base.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

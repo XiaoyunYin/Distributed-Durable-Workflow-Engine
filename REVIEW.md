@@ -1361,6 +1361,37 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   What that honesty reveals is R077, and it is worth stating plainly rather than burying: once the spreads are visible, nothing separates. The `full` baseline has a 29 percent spread and its range contains every other profile's median, and the outbox effect that read as 21 percent in round 32 reads as 10 percent here. So the study's citable results today are the mechanism counts and the three negative-control properties, not any cost delta — and the artifact should say so at top level before those medians travel anywhere. The wide baseline spread is also worth chasing on its own, because DUR-027, DUR-028 and DUR-035 will lean on the same harness and DUR-026 showed this host can do much better.
 
+### Round 34 — 2026-09-18 — DUR-034 stability conclusion verification
+
+- Date and round: 2026-09-18, round 34.
+- Review basis: COMMITTED. The worktree was clean at `b7882ce` when the review started and remained clean throughout.
+- Base and target commits: base `644702b` for this round, code and evidence target `6d2e50d` (with `acbeb97` adding the baseline comparison), handoff `b7882ce`, which changes only documentation. The handoff declaration matches the repository state.
+- Scope inspected: `git diff 644702b 6d2e50d` — the new top-level result fields in `cmd/dur034-ablation/main.go`, `scripts/m7-dur034.ps1`, the regenerated `experiments/m7/dur034/results.json`, and the BUILD_LOG entry recording the stability reruns. No migrations, no engine or product code, and no protected-scope drift: PLAN.md sections 13 and 14B are unchanged.
+- Checks personally run (Claude), read-only against the committed artifacts and source:
+  - Confirmed `cost_effects_resolved: false`, `resolved_cost_effects: []` and `cost_interpretation` are present at the top level and that `cost_effects_resolved` is mirrored into `validation`.
+  - Recomputed the per-profile medians and spreads from the regenerated summary: full 1.176 at 15.6 percent, history_disabled 1.224 at 11.7, unsafe_lease_check 1.079 at 12.5, no_outbox 1.237 at 13.2 — every median inside the others' ranges, consistent with the withheld conclusion.
+  - Confirmed the five clean rerun spreads (29.3, 3.2, 11.7, 13.6, 15.6 percent) are recorded in docs/BUILD_LOG.md rather than only in the handoff message.
+  - Read the assignment sites for the new fields and confirmed they are constants, and judged the direction of that conservatism.
+  - Confirmed the negative-control block and the reconciliation and SLO validation are unchanged from the round-33 verification.
+- Codex-reported checks considered but not rerun: `ci.ps1 -WithRace`, the tagged tests and vet, and the DUR-034 harness run.
+- Findings resolved: R077 is VERIFIED.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The promotion rule for cost effects is a constant rather than a data-derived comparison; harmless today because it only withholds, but it should become data-driven with the stability campaign. Recorded in the R077 verification rather than as a separate finding.
+  - The harness's run-to-run variability (3.2 to 29.3 percent on the same profile) is characterised but not explained. DUR-027, DUR-028 and DUR-035 will use the same harness, and DUR-026 reached 0.5 to 3.9 percent on this host, so the cause is worth finding before those studies make comparisons.
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - As in DUR-026, the study drives the in-process `Store`/`Engine` path with four worker subprocesses rather than the deployed runtime, API, relay and Kafka; this is disclosed.
+  - DUR-033A remains TODO.
+- Limitations: artifact and source review; Claude did not rerun the ablation study or the stability reruns.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-034 at committed target `6d2e50d` with base `50d4b13`. This is a COMMITTED, non-provisional review. R001–R077 are VERIFIED apart from the P3 residual R057, the recorded M6 notes, and the historical R019 test gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-034 to DONE under PLAN.md section 11.
+
+  This round closes DUR-034 on the right footing. The study's conclusion is now the first thing a reader meets — `cost_effects_resolved: false` with an empty resolved list and a sentence explaining that a fixed three-repeat campaign does not promote performance deltas — rather than a table of medians that invites the wrong reading. The stability question I raised was answered honestly and in the more useful direction: instead of one tidier rerun, five clean runs are recorded spanning 3.2 to 29.3 percent on the same profile, which establishes that the variability is real and that withholding the cost comparison is the correct call rather than a temporary caution.
+
+  What DUR-034 now supports is precise and worth stating: the mechanism counts are resolved — history rows 1176 to 0, outbox rows 952 to 0, and the unsafe profile's reduced query and transaction counts — and all three negative controls demonstrate the property each safeguard buys, with the F08 arms carrying observed commit timestamps and epochs. What it does not support is any statement about what those safeguards cost in throughput, latency or CPU on this host, and the artifact now says so itself.
+
+  Two things to carry into the remaining M7 studies. The variability should be explained before DUR-027, DUR-028 and DUR-035 make comparisons on the same harness, since DUR-026 demonstrated this host can hold 0.5 to 3.9 percent. And when a stability campaign does support a comparison, the promotion rule should be computed from the intervals rather than left as the constant it is today.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -4693,7 +4724,7 @@ superseded by the committed M4 handoff below.
 ### R077 — With dispersion now reported, no safeguard cost separates from the noise, and the artifact does not say so
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `644702b`
 - Location: experiments/m7/dur034/results.json (`summary` per-profile medians and `throughput_spread_percent`, the `interpretation` key nested among the profile entries, `status: "PASS"`, `validation`, `limitations`).
@@ -4741,6 +4772,17 @@ superseded by the committed M4 handoff below.
   race packages, with PostgreSQL/Kafka smoke skipped in non-service mode.
 - **Status:** ADDRESSED; the remaining review action is Claude verification of
   the final target `6d2e50d` against `644702b`.
+
+#### Claude verification – round 34
+
+- Verification commit: `6d2e50d` (base `644702b`).
+- Evidence and remaining concerns: all four parts of the finding are addressed.
+  1. **The conclusion is stated at top level.** The artifact now carries `cost_effects_resolved: false`, `resolved_cost_effects: []`, and a `cost_interpretation` reading "No safeguard-cost delta is resolved or promoted by this fixed three-repeat campaign… performance differences remain descriptive until a separately qualified stability campaign supports a comparison." The flag is mirrored into `validation`, so a reader checking the validation block alone still sees it.
+  2. **The baseline spread was investigated, and the result is recorded durably.** docs/BUILD_LOG.md records five clean follow-up runs of the `full` profile at 29.3, 3.2, 11.7, 13.6 and 15.6 percent throughput spread. That range is itself the finding: the harness's run-to-run variability is not a one-off artifact of the reviewed run, and it is wide enough to rule out the cost comparison rather than merely to delay it. Recording the sequence is more useful than a single improved number would have been.
+  3. **No claim was raised on thin data.** Repeats were not inflated to manufacture separation; the study withholds instead. In the current run the medians are full 1.176, history_disabled 1.224, unsafe_lease_check 1.079 and no_outbox 1.237, with spreads of 11.7 to 15.6 percent, so nothing separates and nothing is promoted.
+  4. **No delta can travel.** With the top-level fields in place, the citable results are the mechanism counts and the three negative-control properties, which is what the finding asked for.
+- One note for the eventual stability campaign, not a defect today: `CostEffectsResolved` and `ResolvedCostEffects` are assigned as constants at cmd/dur034-ablation/main.go:311-312 rather than computed from the per-profile intervals. That is safe in the conservative direction — a hardcoded "nothing resolved" can only withhold a claim, never overstate one, which is the opposite of the hardcoded-verdict problems found earlier in this review — but it does mean a future campaign that genuinely separates an effect would still report `false` until the promotion rule is derived from the data. Make the rule data-driven at the same time as the stability work, so the artifact can report a resolved effect when one exists.
+- Status: VERIFIED
 
 ---
 
@@ -5361,3 +5403,15 @@ The unchanged protocol was rerun in clean campaigns whose full-profile
 throughput spreads were 29.3%, 3.2%, 11.7%, 13.6%, and 15.6%. This is the
 stability evidence behind withholding cost claims. Claude should verify the
 final target and artifact before any M7 status changes.
+
+## Codex closeout - M7 DUR-034
+
+- **Task status:** DONE.
+- **Reviewed target:** `6d2e50d`; base `50d4b13`.
+- **Review:** Claude's committed round-34 verdict is
+  `NO_BLOCKING_FINDINGS`; R077 is VERIFIED.
+- **Accepted evidence:** mechanism counts and the three negative-control
+  properties. The artifact intentionally makes no throughput, latency, or CPU
+  safeguard-cost claim because the clean rerun spread is unstable.
+- **Next:** DUR-035 starts from this closeout; the variability explanation and
+  interval-derived promotion rule are carried forward as review constraints.
