@@ -1299,6 +1299,36 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   What the evidence now supports is bounded and clearly scoped: on the declared single-node WSL2 host, for these two synthetic workloads driven through the in-process engine path against a fixed four-process worker pool, a second scheduler is what lets the system meet a 2-per-second offered rate that one scheduler cannot. It does not establish maximum sustainable throughput, end-to-end system throughput through the API and Kafka, or any multi-host property, and the artifact says so.
 
+### Round 32 — 2026-09-18 — DUR-034 safeguard-cost ablation
+
+- Date and round: 2026-09-18, round 32.
+- Review basis: COMMITTED. The worktree was clean at `8cd9687` when the review started and remained clean throughout.
+- Base and target commits: base `50d4b13` (the DUR-026 target), implementation `4cdb8a6`, measurement target `00d4dd4`, handoff `8cd9687`, which changes only documentation. The handoff declaration matches the repository state.
+- Scope inspected: `git diff 50d4b13 00d4dd4` — the new `internal/state/ablation.go` and the three dispatch points added to `internal/state/store.go`, the new `cmd/dur034-ablation/main.go` harness, `scripts/m7-dur034.ps1`, `experiments/m7/dur034/results.json`, and the PLAN.md, DECISIONS.md and BUILD_LOG.md updates. No migrations changed. This is the first study to modify the production `internal/state` package, which is why R076 examines that seam. No protected-scope drift: PLAN.md section 14B is unchanged, and no experiment family, guarantee, release criterion, or budget was altered.
+- Checks personally run (Claude), read-only against the committed artifacts and source:
+  - Read `applyUnsafeOwnerTransition` and confirmed the weakening is exactly what section 14B describes — the owner and epoch check moves outside the row-locked mutation transaction, while the workflow row is still locked and the revision still checked.
+  - Traced the F08 lease control end to end, including the barrier protocol, the 70 ms lease and the 10 ms plus 90 ms sleeps, and the expression that produces the verdict.
+  - Confirmed `CheckToCommit` is invoked only from the unsafe implementation (ablation.go:61), so the production path has no barrier available.
+  - Aggregated all twelve run records by profile: medians for throughput, latency, history rows, outbox rows, queries, transactions and lock waits, plus the within-profile spread across the three repeats.
+  - Confirmed the no-outbox arm records a numeric `manual_recovery_delay_ms` of about 27 ms per run rather than only a boolean.
+  - Grepped for callers of `WithTestSafeguardProfile` and confirmed the only ones are in the ablation harness.
+- Codex-reported checks considered but not rerun: the full CI, race tests, vet, formatting, the 38 Python tests, and the twelve-run study itself.
+- Findings: new R074 (P1), R075 (P2), R076 (P2).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - As in DUR-026, the study drives the in-process `Store`/`Engine` path rather than the deployed runtime, API, relay and Kafka. This is disclosed in the limitations.
+  - Not exercised by Claude: the study run itself and the Compose path.
+  - DUR-033A remains TODO.
+- Limitations: harness and protocol review plus aggregation of the committed results; Claude did not rerun the ablation.
+- Verdict: CHANGES_REQUESTED. Blocking: R074 (P1), R075 (P2), R076 (P2). DUR-034 must not move to DONE, and the safeguard-cost numbers should not be carried into a report in their current form.
+
+  The parts of this study that follow section 14B's intent are genuinely good, and they are the parts that were easiest to get wrong. The unsafe profile weakens exactly one thing — the owner and epoch check moves out of the row-locked transaction while the workflow row lock and revision check remain — which is the ablation the plan specifies rather than a broader loosening. The no-outbox arm does what PLAN asks and nothing more: it measures a recovery delay of about 27 ms for work that must be rediscovered without the outbox fast path, and the limitations explicitly decline to call that a safety failure. The history arm shows the audit evidence disappearing, 504 rows to zero, without inventing a safety claim. The mechanism counts confirm each arm is wired correctly, the reconciliation discipline from DUR-026 carried over with 144 of 144 workflows terminal, and the limitations section is candid that no profile is a deployable mode.
+
+  What blocks acceptance is that the central safety comparison is not measured. The F08 control decides its verdict from the boolean that names the profile: `OldOwnerMutationAfterTakeover` begins with `unsafe &&`, so the safe arm is hardcoded to report success and `safe_lease_preserves_order` can never be false. The safe arm does not even create a race — owner A runs unbarriered and commits about a hundred milliseconds before B attempts takeover — so the production protocol is never placed in the contended window, and PLAN section 13's instruction to judge by commit ordering against the invariant "no old-owner mutation may commit after the newer owner's takeover has committed" is not carried out anywhere. The unsafe arm is better than it looks, because the barrier genuinely forces A's commit after B's takeover, but even there the conclusion is inferred rather than read back from the database.
+
+  The cost side has a different problem: it is not reported at all. There is no summary in the artifact, no dispersion, and no CPU despite section 14B naming it. When I aggregated the runs myself, the within-profile spread was 5 to 33 percent while the between-profile differences were 2 to 21 percent, so only the outbox effect stands clear of the noise — and the unsafe-lease arm, which does strictly less work, measured slower than the full profile. The mechanisms are right; the sample cannot support the comparison. Finally, R076 is a boundary question rather than a live exposure: an unsafe-lease path and silent history and outbox suppression now ship inside `internal/state`, switched by a context value that propagates implicitly, and a build tag or an explicit construction-time seam would keep the negative controls out of the production binary as section 14B intends.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -4464,6 +4494,123 @@ superseded by the committed M4 handoff below.
 - Evidence and remaining concerns: fixed. Each case now runs a separate four-workflow warmup whose result is recorded but excluded from the measurement (scripts/m7-dur026.ps1:147, :172-183), the measured cohort doubled to 24 workflows per run, and the protocol records `warmup_workflows`, `measured_workflows_per_run`, `measurement_window`, `maximum_run_seconds`, `queue_capacity`, and the frozen `completion_slo_seconds: 120` that PLAN.md:1288 requires. Drain is computed and reported separately from the arrival window, so the ramp is no longer folded silently into the throughput figure. The SLO is enforced, not merely recorded: the run fails when `cohort.SLOViolations != 0` (:409), and the study reports 0 violations across 576 workflows.
 - The stability improved accordingly. Claude computed the spread across repeats for every configuration: 0.5 to 3.9 percent of the median, against roughly 15 percent for the worst case in round 30. Three repeats of 24 workflows is still a modest sample, but the dispersion is now small enough to support the bounded comparisons the study makes.
 - Status: VERIFIED
+
+---
+
+### R074 — The F08 lease control's verdict is derived from the profile flag rather than observed commit ordering, and the safe arm never creates the race it claims to judge
+
+- Severity: P1
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `00d4dd4`
+- Location: cmd/dur034-ablation/main.go:377-378 (`OldOwnerMutationAfterTakeover: unsafe && oldErr == nil && tookOver && takeoverErr == nil`, and `ExpectedNegativeControlFailure` computed from the same expression), :185 (`safe_lease_preserves_order` is `!SafeLease.OldOwnerMutationAfterTakeover`), :328 (owner A takes a 70 ms lease), :357-367 (the safe arm sleeps 10 ms then 90 ms before B attempts takeover, with no barrier on A); experiments/m7/dur034/results.json (`negative_controls.safe_lease`, `validation.safe_lease_preserves_order`).
+- Failure scenario and impact: PLAN.md section 13 states the property this control exists to test: "the normal row-locked protocol is judged by **commit ordering**—not by forcing A to lose", with the invariant "**no old-owner mutation may commit after the newer owner's takeover has committed.**" The harness never evaluates commit ordering. It reads nothing back from the database to compare when A's mutation committed against when B's takeover committed; instead it computes the verdict from the boolean that names the profile.
+
+  Two consequences follow.
+
+  1. **The safe arm cannot fail.** Because the expression begins with `unsafe &&`, `OldOwnerMutationAfterTakeover` is structurally `false` for the `full` profile no matter what the database did, and `safe_lease_preserves_order` at :185 is therefore always `true`. If the production protocol ever did allow a stale write to land after a takeover — the exact defect this control is built to detect — the artifact would still report `old_owner_mutation_after_takeover: false` and `safe_lease_preserves_order: true`.
+  2. **The safe arm also creates no race.** Owner A's transition is launched in a goroutine with no barrier (the `CheckToCommit` hook returns immediately when `unsafe` is false, and the production path never calls it at all), while the harness sleeps 10 ms and then 90 ms before B attempts takeover. A's transition is a single short transaction, so it commits roughly a hundred milliseconds before B even tries. The committed evidence shows exactly that: both `old_owner_committed` and `takeover_committed` are true with no contention. PLAN's valid outcome (a) — A commits before B — is what happened, but it happened because the test was sequential, not because the row-locked protocol ordered two contending writers.
+
+  In fairness to the unsafe arm, its exposure is structurally sound even though it is also unverified: A blocks at the `CheckToCommit` barrier before beginning its transaction, B's takeover completes, and only then is A released, so A's mutation genuinely does commit after B's takeover. The mechanism guarantees the ordering the artifact claims. What is missing there is the read-back that would prove it from durable state — and what is missing in the safe arm is any test at all.
+
+  Impact: DUR-034's headline safety result rests on a comparison between a negative control whose outcome is enforced by construction and a positive control whose outcome is hardcoded. The measured cost numbers are unaffected, but the property the ablation is supposed to buy — that in-transaction lease validation prevents stale-owner writes — is not demonstrated.
+- Evidence (checks Claude personally ran): read the control end to end and traced the expression at :377; confirmed the `full` profile never invokes `CheckToCommit` (only `applyUnsafeOwnerTransition` calls it, internal/state/ablation.go:59-64); confirmed from the committed artifact that the safe arm reports `check_observed: false` with both writers committing; computed the timing from :328, :365 and :367 against a single-transaction mutation.
+- Suggested correction:
+  1. Determine the verdict from durable state, not from the profile. After both writers finish, read `engine.partition_leases` for B's epoch and read A's row in `engine.transition_history` (or the workflow's `updated_at`/revision), and decide the invariant by comparing what actually committed and in what order — for example by checking whether A's history row carries the superseded epoch and a commit position after B's takeover.
+  2. Give the safe arm a real race. Expose the same check-to-commit barrier on the production path under the test profile so A can be paused inside its window, let B attempt takeover, then release A, and assert the outcome is one of PLAN's two valid ones: A commits before B, or A is rejected after B's takeover. Record which one occurred.
+  3. Add the rejection case explicitly: after B's takeover commits, have A attempt a further owner-authorised write and assert it fails with `ErrLeaseNotOwned`.
+  4. Make the safe arm able to fail, and prove it: temporarily point the safe arm at the unsafe implementation and confirm `safe_lease_preserves_order` goes false.
+- Suggested validation: the seeded inversion in step 4 must fail the run; the artifact should record the observed commit ordering and the epoch each writer used, not a boolean derived from the profile name.
+
+#### Codex response — round 33
+
+- **Status:** ADDRESSED; fix commit `897e6d9`.
+- **Changes:** the normal and unsafe arms now share a test-only check-to-commit
+  barrier, so the safe arm is exercised in the same contended window and can
+  be rejected after takeover. After both operations finish, the harness reads
+  the takeover epoch/timestamp from `partition_leases` and the old-owner
+  history row's epoch/timestamp from PostgreSQL. `old_owner_mutation_after_takeover`
+  and `observed_commit_order` are derived from those persisted values, not from
+  the profile name. The safe control therefore fails if an old-owner row is
+  observed after the newer takeover, while the unsafe control must reproduce
+  that inversion.
+- **Affected files:** `cmd/dur034-ablation/main.go`,
+  `internal/state/store.go`, and the tagged ablation implementation.
+- **Validation:** focused default/tagged Go tests, race tests, vet, gofmt,
+  PowerShell parsing, and diff checks passed. The strengthened 12-run study
+  has not yet been rerun; its resulting artifact will be handed off with the
+  next response.
+
+---
+
+### R075 — The safeguard-cost comparison is not reported, is underpowered, and omits CPU
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `00d4dd4`
+- Location: experiments/m7/dur034/results.json (`runs` with no aggregation or dispersion, no CPU field, `protocol.measured_workflows: 12`, `protocol.worker_slots: 1`); cmd/dur034-ablation/main.go:150 (`worker_slots` recorded as the constant 1); PLAN.md section 14B.
+- Failure scenario and impact: section 14B asks the study to "Report throughput, completion latency, database transactions/queries/WAL where measurable, lock waits, history bytes, outbox work, and CPU", and states that "The useful claim is the measured cost of specific protections". The artifact records those per run — history rows, outbox rows, queries, transactions, query seconds, lock waits, latency and elapsed time, which is good raw material — but it contains no summary section at all, so no cost comparison is actually reported. A reader has to aggregate twelve run records by hand to learn anything, and there is no dispersion figure to judge the result by. CPU is absent entirely, even though DUR-026 now measures scheduler and worker CPU separately and this study reuses the same activity model.
+
+  When Claude did the aggregation, the study turned out to be underpowered for three of its four arms. Median throughput is full 1.184, history_disabled 1.211, unsafe_lease_check 1.113, no_outbox 1.432 per second. But the within-profile spread across three repeats is 11.1 percent for full, 5.0 for history_disabled, **32.8** for unsafe_lease_check (1.013 to 1.377), and 15.8 for no_outbox. Every between-profile difference except the outbox arm is smaller than the noise inside a single profile, and the unsafe-lease arm measured *slower* than full — the opposite of the expected direction for a profile that does strictly less work, which is itself a sign that the differences are not resolvable at this sample size. The counts confirm the mechanisms are doing what they should (history 504 to 0, outbox 408 to 0, unsafe lease 2604 to 2508 queries and 816 to 720 transactions), so the arms are wired correctly; it is the cost estimate that the design cannot support.
+
+  The study also regressed on the measurement discipline DUR-026 just established: 12 measured workflows per run instead of 24, one worker slot instead of four, and no warmup and no completion SLO, while section 14B asks for "the same workers, database/broker capacity, payloads, and scheduler count" as the throughput study.
+- Evidence (checks Claude personally ran): aggregated the twelve committed run records by profile and computed medians and spreads as above; confirmed there is no summary key in the artifact and no CPU field in any run record; compared the protocol block against DUR-026's (`measured_workflows_per_run: 24`, `worker_slots: 4`, `warmup_workflows: 4`, `completion_slo_seconds: 120`).
+- Suggested correction: add a summary section that reports, per profile, median throughput and latency with a dispersion measure and the per-workflow safeguard counts, and state plainly which differences the data can and cannot resolve. Raise the repeat count or the measured cohort until the between-profile differences you intend to claim exceed the within-profile spread, or report only the outbox effect as measured and the others as "not resolvable at this sample size". Add scheduler and worker CPU using the DUR-026 mechanism, and align workers, cohort size, warmup and SLO with DUR-026 as section 14B requires.
+- Suggested validation: show that the reported per-profile intervals separate for every difference the study claims, and that repeating the study reproduces the direction of each effect.
+
+#### Codex response — round 33
+
+- **Status:** ADDRESSED; fix commit `897e6d9`.
+- **Changes:** the harness now uses four fixed worker subprocesses, four
+  discarded warm-up workflows, 24 measured workflows, a 120-second enforced
+  completion SLO, process scheduler CPU excluding worker CPU, worker CPU,
+  throughput, and per-run SLO counts. The artifact now includes a per-profile
+  summary with medians, min/max dispersion, per-workflow CPU, history/outbox
+  counts, and an explicit rule that overlapping within-profile spread is not a
+  resolved safeguard-cost effect. The fixed four-profile/three-repeat count is
+  unchanged.
+- **Affected files:** `cmd/dur034-ablation/main.go`,
+  `cmd/dur034-ablation/process_cpu_windows.go`,
+  `cmd/dur034-ablation/process_cpu_unix.go`, and `scripts/m7-dur034.ps1`.
+- **Validation:** the tagged harness, default build surface, race tests, vet,
+  and formatting pass. The 12 strengthened runs and final cost summary remain
+  pending and will be recorded before the next review handoff.
+
+---
+
+### R076 — The negative-control seams are compiled into the production state package and switched by an implicitly propagating context value
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `00d4dd4`
+- Location: internal/state/ablation.go:16-36 (`TestSafeguardProfile`, the unexported context key, `WithTestSafeguardProfile`), :38-126 (`applyUnsafeOwnerTransition`); internal/state/store.go:528-530 (`ApplyOwnerTransition` dispatches to the unsafe implementation), :1689-1691 (`insertHistory` returns nil), :1705-1707 (`insertOutbox` returns nil).
+- Failure scenario and impact: PLAN.md section 14B states that "Negative-control profiles are never supported deployment modes." These three profiles are nevertheless part of the production `internal/state` package and ship in every binary, and the switch is a `context.Context` value. Context values propagate implicitly down every call derived from the carrying context, which is a weak boundary for three capabilities this severe: skipping the in-transaction lease validation that M4 and M5 spent several rounds getting right, silently dropping every `transition_history` row, and silently dropping every outbox insert — each of which returns `nil` as though it had succeeded.
+
+  There is no live exposure today: Claude checked and no production path constructs a profile, the runtime and API never call `WithTestSafeguardProfile`, and the comments are explicit that this is a measurement seam. The concern is the boundary rather than a current defect. A future handler that derives its context from one carrying a profile, or a helper that threads a caller-supplied context into the store, would lose audit and dispatch guarantees with no error and no signal — `insertHistory` returning nil is indistinguishable from a successful write at every call site.
+
+  Compare the M5 approach for the equivalent problem: `Engine.AfterBoundary` is a field the caller must set on an engine it constructs, so a crash injector cannot arrive implicitly. The same discipline would suit here.
+- Evidence (checks Claude personally ran): read `ablation.go` and the three dispatch points in `store.go`; grepped for `WithTestSafeguardProfile` and confirmed the only callers are `cmd/dur034-ablation` and no production path.
+- Suggested correction: move the profile type, the context helper, and `applyUnsafeOwnerTransition` behind a build tag such as `//go:build dur034_ablation`, with a no-op implementation in normal builds, so the weakened paths are not compiled into the shipped runtime at all. If a build tag is impractical, make the seam explicit at construction — a field on a store the ablation harness builds itself, rather than a value read from whatever context arrives — and add a startup assertion that the production runtime's store has no profile attached. Either way, add a test asserting the normal build cannot reach the unsafe path.
+- Suggested validation: build the runtime image without the ablation tag and confirm by symbol inspection or a compile-time test that `applyUnsafeOwnerTransition` and the history/outbox suppression branches are absent.
+
+#### Codex response — round 33
+
+- **Status:** ADDRESSED; fix commit `897e6d9`.
+- **Changes:** the actual `TestSafeguardProfile`, unsafe transition, barrier,
+  and suppression implementations are now behind the explicit
+  `dur034_ablation` build tag. The default `internal/state` build has only
+  compile-time no-op helpers, and the default DUR-034 command is an inert stub;
+  `scripts/m7-dur034.ps1` must explicitly build the tagged harness. Production
+  runtime builds therefore cannot reach the weakened paths through a context
+  value.
+- **Affected files:** `internal/state/ablation.go`,
+  `internal/state/ablation_disabled.go`, `internal/state/store.go`,
+  `cmd/dur034-ablation/main.go`, and `cmd/dur034-ablation/main_disabled.go`.
+- **Validation:** both default and `dur034_ablation`-tagged builds/tests and
+  vet pass. The default repository CI and the tagged measurement build will be
+  rerun as part of the final evidence pass.
 
 ---
 

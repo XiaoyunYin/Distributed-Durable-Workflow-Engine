@@ -1768,6 +1768,26 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - Static checks so far: `gofmt`, focused Go tests, and `go vet` for the changed
   packages pass. The measurement and repository-wide CI remain pending.
 
+## 2026-09-18 - M7 DUR-034 round-32 blocker response
+
+- Claude's round-32 review requested R074-R076. The implementation response is
+  `ADDRESSED` at `897e6d9`; DUR-034 remains `IN_PROGRESS` until a new measured
+  artifact is generated and reviewed.
+- R074 is corrected with a shared test-only barrier on the normal and unsafe
+  paths. The control reads the takeover epoch/timestamp and old-owner history
+  epoch/timestamp from PostgreSQL and derives commit ordering from those rows;
+  the safe arm can now fail and the unsafe arm must expose the inversion.
+- R075 is corrected with four fixed worker subprocesses, four discarded warmup
+  workflows, 24 measured workflows per run, a frozen 120-second SLO, scheduler
+  process CPU, worker CPU, per-profile medians and min/max dispersion, and an
+  explicit statement that overlapping spread is not a resolved effect.
+- R076 is corrected with `dur034_ablation` build tags. The default state
+  package has no unsafe implementation or profile constructor; the measurement
+  command is an inert default stub and the script explicitly builds the tagged
+  harness. The production runtime build therefore cannot enable these seams.
+- Static default/tagged tests, race tests, vet, gofmt, PowerShell parsing and
+  diff checks passed. The strengthened 12-run measurement is pending.
+
 ## 2026-09-18 - M7 DUR-034 safeguard ablation handoff
 
 - DUR-034 is `READY_FOR_REVIEW` at implementation target `00d4dd4`, based on
