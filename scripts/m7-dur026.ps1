@@ -114,9 +114,10 @@ try {
                     Add-Property $run "repeat" $repeat | Out-Null
                     Add-Property $run "process_cpu_seconds" $cpuSeconds | Out-Null
                     Add-Property $run "process_wall_seconds" (($finished - $started).TotalSeconds) | Out-Null
+                    Add-Property $run "child_exit_code" $process.ExitCode | Out-Null
                     Add-Property $run "stderr" $stderrText.Trim() | Out-Null
                     $results += $run
-                    if ($process.ExitCode -ne 0 -or $run.status -ne "PASS") {
+                    if (($null -ne $process.ExitCode -and $process.ExitCode -ne 0) -or $run.status -ne "PASS") {
                         $partialParent = Split-Path -Parent $OutputPath
                         if ($partialParent) { New-Item -ItemType Directory -Force -Path $partialParent | Out-Null }
                         [ordered]@{ status = "FAIL"; commit = $commit; case_id = $caseID; run = $run; runs = $results } | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $OutputPath -Encoding utf8
