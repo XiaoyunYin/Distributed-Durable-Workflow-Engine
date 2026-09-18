@@ -279,6 +279,9 @@ func (s *Store) ClaimOutboxForPartition(ctx context.Context, ownerID string, lim
 
 func (s *Store) claimOutbox(ctx context.Context, ownerID string, limit int, lease time.Duration,
 	partitionID *int16) ([]OutboxEvent, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if ownerID == "" || limit <= 0 || limit > 1000 || lease <= 0 {
 		return nil, errors.New("relay owner, bounded limit, and positive claim lease are required")
 	}
@@ -334,6 +337,8 @@ func (s *Store) claimOutbox(ctx context.Context, ownerID string, limit int, leas
 }
 
 func (s *Store) ListOutbox(ctx context.Context, workflowID string, limit int) ([]OutboxEvent, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if limit <= 0 || limit > 10000 {
 		return nil, errors.New("outbox limit must be between 1 and 10000")
 	}
@@ -366,6 +371,8 @@ func (s *Store) ListOutbox(ctx context.Context, workflowID string, limit int) ([
 }
 
 func (s *Store) ListPendingOutbox(ctx context.Context, partitionID int16, limit int) ([]OutboxEvent, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if partitionID < 0 || partitionID >= 16 || limit <= 0 || limit > 10000 {
 		return nil, errors.New("partition and bounded pending-outbox limit are required")
 	}
@@ -393,6 +400,9 @@ func (s *Store) ListPendingOutbox(ctx context.Context, partitionID int16, limit 
 }
 
 func (s *Store) FinalizeOutboxPublication(ctx context.Context, eventID, ownerID string, relayAttempt int, acknowledged bool, publishErr string, retryAfter time.Duration) error {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if eventID == "" || ownerID == "" || relayAttempt <= 0 {
 		return errors.New("event, relay owner, and positive relay attempt are required")
 	}
@@ -459,7 +469,13 @@ func (s *Store) FinalizeOutboxPublication(ctx context.Context, eventID, ownerID 
 			return fmt.Errorf("release failed outbox claim: %w", err)
 		}
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if acknowledged && s.telemetry != nil {
+		s.telemetry.RecordRelayPublication()
+	}
+	return nil
 }
 
 func (s *Store) MarkOutboxPublished(ctx context.Context, eventID, ownerID string, relayAttempt int) error {
@@ -467,6 +483,9 @@ func (s *Store) MarkOutboxPublished(ctx context.Context, eventID, ownerID string
 }
 
 func (s *Store) QuarantineOutbox(ctx context.Context, eventID, ownerID string, relayAttempt int, reason string) error {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if reason == "" {
 		return errors.New("quarantine reason is required")
 	}
@@ -520,10 +539,19 @@ func (s *Store) QuarantineOutbox(ctx context.Context, eventID, ownerID string, r
 		json.RawMessage(fmt.Sprintf(`{"event_type":%q,"reason":%q}`, eventType, reason))); err != nil {
 		return fmt.Errorf("record quarantined outbox obligation: %w", err)
 	}
-	return tx.Commit(ctx)
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	if s.telemetry != nil {
+		s.telemetry.RecordReconciliationItem()
+	}
+	return nil
 }
 
 func (s *Store) RecordInbox(ctx context.Context, message InboxMessage) (InboxResult, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if message.ConsumerID == "" || message.EventID == "" || message.Topic == "" || message.Partition < 0 ||
 		message.Offset < 0 || message.SchemaVersion < 0 {
 		return InboxResult{}, ErrInvalidEvent
@@ -631,6 +659,9 @@ func (s *Store) RecordInbox(ctx context.Context, message InboxMessage) (InboxRes
 // a normal inbox row, allowing a poison record to be acknowledged without
 // pretending it was an executable event.
 func (s *Store) QuarantineMessage(ctx context.Context, message InboxMessage, reason string) (InboxResult, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if message.ConsumerID == "" || message.Topic == "" || message.Partition < 0 || message.Offset < 0 || reason == "" {
 		return InboxResult{}, ErrInvalidEvent
 	}
@@ -699,6 +730,8 @@ func (s *Store) QuarantineMessage(ctx context.Context, message InboxMessage, rea
 // are intentionally global obligations and must be handled by an operator
 // scan rather than guessed onto an unrelated partition.
 func (s *Store) ListTransportQuarantine(ctx context.Context, limit int) ([]TransportQuarantineRecord, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if limit <= 0 || limit > 10000 {
 		return nil, errors.New("bounded transport quarantine limit is required")
 	}
@@ -734,6 +767,8 @@ func (s *Store) ListTransportQuarantine(ctx context.Context, limit int) ([]Trans
 }
 
 func (s *Store) EnsureConsumerOffset(ctx context.Context, consumerID, topic string, partition int, nextOffset int64) error {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if consumerID == "" || topic == "" || partition < 0 || nextOffset < 0 {
 		return errors.New("consumer offset identity and non-negative offset are required")
 	}
@@ -745,6 +780,8 @@ func (s *Store) EnsureConsumerOffset(ctx context.Context, consumerID, topic stri
 }
 
 func (s *Store) GetConsumerOffset(ctx context.Context, consumerID, topic string, partition int) (ConsumerOffset, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	var offset ConsumerOffset
 	err := s.pool.QueryRow(ctx, `
 		SELECT consumer_id, topic, kafka_partition, next_offset, updated_at
@@ -835,6 +872,8 @@ func advanceDuplicateConsumerOffset(ctx context.Context, tx pgx.Tx, consumerID, 
 }
 
 func (s *Store) ListInbox(ctx context.Context, consumerID string, limit int) ([]InboxMessage, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if consumerID == "" || limit <= 0 || limit > 10000 {
 		return nil, errors.New("consumer and bounded inbox limit are required")
 	}
@@ -860,6 +899,8 @@ func (s *Store) ListInbox(ctx context.Context, consumerID string, limit int) ([]
 }
 
 func (s *Store) ListInboxForWorkflow(ctx context.Context, workflowID string, limit int) ([]InboxMessage, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if workflowID == "" || limit <= 0 || limit > 10000 {
 		return nil, errors.New("workflow and bounded inbox limit are required")
 	}
@@ -885,6 +926,9 @@ func (s *Store) ListInboxForWorkflow(ctx context.Context, workflowID string, lim
 }
 
 func (s *Store) ClaimWakeups(ctx context.Context, lease LeaseRef, ownerID string, limit int, claimLease time.Duration) ([]SchedulerWakeup, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if ownerID == "" || limit <= 0 || limit > 1000 || claimLease <= 0 {
 		return nil, errors.New("wake-up owner, bounded limit, and positive claim lease are required")
 	}
@@ -950,6 +994,9 @@ func (s *Store) ClaimWakeups(ctx context.Context, lease LeaseRef, ownerID string
 }
 
 func (s *Store) ConsumeWakeup(ctx context.Context, lease LeaseRef, wakeupID, ownerID string) error {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if wakeupID == "" || ownerID == "" {
 		return errors.New("wake-up, owner, and lease are required")
 	}
@@ -999,6 +1046,8 @@ func (s *Store) ConsumeWakeup(ctx context.Context, lease LeaseRef, wakeupID, own
 }
 
 func (s *Store) ListWakeups(ctx context.Context, workflowID string, limit int) ([]SchedulerWakeup, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if workflowID == "" || limit <= 0 || limit > 10000 {
 		return nil, errors.New("workflow and bounded wake-up limit are required")
 	}
@@ -1033,6 +1082,8 @@ func (s *Store) ListWakeups(ctx context.Context, workflowID string, limit int) (
 }
 
 func (s *Store) ListPendingWakeups(ctx context.Context, partitionID int16, limit int) ([]SchedulerWakeup, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if partitionID < 0 || partitionID >= 16 || limit <= 0 || limit > 10000 {
 		return nil, errors.New("partition and bounded pending-wakeup limit are required")
 	}
@@ -1069,6 +1120,8 @@ func (s *Store) ListPendingWakeups(ctx context.Context, partitionID int16, limit
 }
 
 func (s *Store) ListDueAttempts(ctx context.Context, partitionID int16, limit int) ([]DueAttempt, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if partitionID < 0 || partitionID >= 16 || limit <= 0 || limit > 1000 {
 		return nil, errors.New("partition and bounded due-attempt limit are required")
 	}
@@ -1101,6 +1154,8 @@ func (s *Store) ListDueAttempts(ctx context.Context, partitionID int16, limit in
 }
 
 func (s *Store) ListDueTimers(ctx context.Context, partitionID int16, limit int) ([]DueTimer, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if partitionID < 0 || partitionID >= 16 || limit <= 0 || limit > 1000 {
 		return nil, errors.New("partition and bounded due-timer limit are required")
 	}
@@ -1127,6 +1182,8 @@ func (s *Store) ListDueTimers(ctx context.Context, partitionID int16, limit int)
 }
 
 func (s *Store) UpsertReconciliationItem(ctx context.Context, item ReconciliationItem) (ReconciliationItem, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	global := item.WorkflowID == "" && item.PartitionID == -1
 	if (!global && (item.WorkflowID == "" || item.PartitionID < 0 || item.PartitionID >= 16)) ||
 		item.Kind == "" || item.Reference == "" {
@@ -1169,10 +1226,15 @@ func (s *Store) UpsertReconciliationItem(ctx context.Context, item Reconciliatio
 	}
 	result.Iteration = iteration
 	result.AttemptNumber = attemptNumber
+	if s.telemetry != nil {
+		s.telemetry.RecordReconciliationItem()
+	}
 	return result, nil
 }
 
 func (s *Store) ResolveReconciliationItem(ctx context.Context, itemID, status string) error {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if itemID == "" || (status != "RESOLVED" && status != "ABANDONED") {
 		return errors.New("item ID and RESOLVED or ABANDONED status are required")
 	}
@@ -1190,6 +1252,8 @@ func (s *Store) ResolveReconciliationItem(ctx context.Context, itemID, status st
 }
 
 func (s *Store) ListReconciliationItems(ctx context.Context, partitionID int16, limit int) ([]ReconciliationItem, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if partitionID < 0 || partitionID >= 16 || limit <= 0 || limit > 10000 {
 		return nil, errors.New("partition and bounded reconciliation limit are required")
 	}
@@ -1224,6 +1288,8 @@ func (s *Store) ListReconciliationItems(ctx context.Context, partitionID int16, 
 // partition-scoped operational listing above intentionally returns OPEN rows
 // only for bounded work queues.
 func (s *Store) ListReconciliationItemsForWorkflow(ctx context.Context, workflowID string, limit int) ([]ReconciliationItem, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if workflowID == "" || limit <= 0 || limit > 10000 {
 		return nil, errors.New("workflow and bounded reconciliation limit are required")
 	}
@@ -1256,6 +1322,8 @@ func (s *Store) ListReconciliationItemsForWorkflow(ctx context.Context, workflow
 // ListGlobalReconciliationItems returns poison obligations that cannot be
 // assigned to a workflow because the broker event identity is untrusted.
 func (s *Store) ListGlobalReconciliationItems(ctx context.Context, limit int) ([]ReconciliationItem, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if limit <= 0 || limit > 10000 {
 		return nil, errors.New("bounded global reconciliation limit is required")
 	}
@@ -1287,6 +1355,8 @@ func (s *Store) ListGlobalReconciliationItems(ctx context.Context, limit int) ([
 }
 
 func (s *Store) GetBacklog(ctx context.Context, partitionID int16) (Backlog, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if partitionID < 0 || partitionID >= 16 {
 		return Backlog{}, errors.New("partition is outside the frozen map")
 	}
@@ -1325,6 +1395,9 @@ func (s *Store) GetBacklog(ctx context.Context, partitionID int16) (Backlog, err
 		&backlog.PendingOutbox, &backlog.PendingWakeups, &backlog.OpenItems,
 		&backlog.QuarantinedOutbox, &backlog.PoisonRecords, &oldestAgeSeconds)
 	backlog.OldestAge = time.Duration(oldestAgeSeconds * float64(time.Second))
+	if err == nil && s.telemetry != nil {
+		s.telemetry.SetBacklogAge(backlog.OldestAge)
+	}
 	return backlog, err
 }
 

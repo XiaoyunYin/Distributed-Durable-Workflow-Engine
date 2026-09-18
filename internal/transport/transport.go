@@ -138,6 +138,10 @@ type RelayConfig struct {
 	// OnError observes durable relay-loop failures while the loop remains
 	// alive for a later retry. Runtime wiring uses this for logs/metrics.
 	OnError func(error)
+	// OnSuccess observes a completed relay pass. It is intentionally separate
+	// from row-level publication metrics so a runtime can re-mark readiness
+	// after a temporary dependency outage.
+	OnSuccess func(RelayReport)
 }
 
 type Relay struct {
@@ -218,6 +222,9 @@ func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
 			return report, err
 		}
 		report.Failed++
+	}
+	if r.Config.OnSuccess != nil {
+		r.Config.OnSuccess(report)
 	}
 	return report, nil
 }

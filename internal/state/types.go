@@ -599,6 +599,16 @@ func (s *Store) SetTelemetry(metrics *telemetry.Metrics) {
 	}
 }
 
+// Telemetry returns the process registry attached to this store.  Engines
+// created from a runtime-owned store inherit the same registry, so durable
+// repository activity and scheduler activity appear in one bounded series.
+func (s *Store) Telemetry() *telemetry.Metrics {
+	if s == nil {
+		return nil
+	}
+	return s.telemetry
+}
+
 func (s *Store) observeQuery(start time.Time) {
 	if s != nil && s.telemetry != nil {
 		s.telemetry.RecordDBQuery(time.Since(start))

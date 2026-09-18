@@ -1,0 +1,6 @@
+{"boundary": "outbox_insert", "command": ["go", "run", "./cmd/m5-fixture", "--case-id", "F02-rollback", "--seed", "47", "--boundary", "outbox_insert"], "event": "process_started", "run_id": "e4bdb5d1e932ce1a18def5705f86730c", "schema_version": "fault-trace.v1", "seed": 47, "sequence": 1}
+{"boundary": "outbox_insert", "event": "boundary_reached", "fields": {"durable_node_id": "root", "durable_workflow_id": "m5-fixture-F02-rollback-47", "fixture_case_id": "F02-rollback", "fixture_seed": 47}, "run_id": "e4bdb5d1e932ce1a18def5705f86730c", "schema_version": "fault-trace.v1", "seed": 47, "sequence": 2}
+{"boundary": "outbox_insert", "command": "kill", "event": "command", "run_id": "e4bdb5d1e932ce1a18def5705f86730c", "schema_version": "fault-trace.v1", "seed": 47, "sequence": 3}
+{"action": "process_killed", "event": "fault_observed", "pid": 39512, "run_id": "e4bdb5d1e932ce1a18def5705f86730c", "schema_version": "fault-trace.v1", "seed": 47, "sequence": 4}
+{"event": "process_exited", "return_code": 1, "run_id": "e4bdb5d1e932ce1a18def5705f86730c", "schema_version": "fault-trace.v1", "seed": 47, "sequence": 5}
+{"bounded": true, "event": "cleanup_completed", "run_id": "e4bdb5d1e932ce1a18def5705f86730c", "schema_version": "fault-trace.v1", "seed": 47, "sequence": 6}

@@ -85,6 +85,9 @@ func main() {
 				OnError: func(err error) {
 					metrics.RecordRelayFailure()
 					slog.Warn("runtime Kafka relay pass failed", "error", err)
+				},
+				OnSuccess: func(transport.RelayReport) {
+					metrics.MarkDurableReady()
 				}})
 			go func() {
 				if err := relay.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
@@ -94,7 +97,13 @@ func main() {
 			defer broker.Close()
 		}
 	}
-	metrics.MarkDurableReady()
+	if store != nil && broker != nil {
+		// NewFromURL has already pinged PostgreSQL and Kafka relay construction
+		// has succeeded. A periodic PostgreSQL ping and successful relay pass
+		// below re-mark readiness after a dependency recovers.
+		metrics.MarkDurableReady()
+		go markDurableReadyOnRecovery(ctx, store, broker, metrics)
+	}
 	if controller, err := faults.FromEnvironment(); err != nil {
 		slog.Error("fault controller initialization failed", "error", err)
 		os.Exit(1)
@@ -120,6 +129,27 @@ func main() {
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("runtime server failed", "error", err)
 		os.Exit(1)
+	}
+}
+
+func markDurableReadyOnRecovery(ctx context.Context, store *state.Store, broker transport.Broker, metrics *telemetry.Metrics) {
+	if store == nil || broker == nil || metrics == nil {
+		return
+	}
+	ticker := time.NewTicker(2 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			pingContext, cancel := context.WithTimeout(ctx, time.Second)
+			err := store.Ping(pingContext)
+			cancel()
+			if err == nil {
+				metrics.MarkDurableReady()
+			}
+		}
 	}
 }
 

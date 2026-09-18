@@ -102,6 +102,8 @@ class FaultController:
         self._observed_action: str | None = None
         self._process_return_code: int | None = None
         self._cleaned_up = False
+        self._cleanup_attempted = False
+        self._cleanup_bounded = False
 
     def _prepare_trace(self) -> None:
         if self.trace_path is None:
@@ -350,7 +352,6 @@ class FaultController:
         self._require_process()
         self._requested_action = "pause"
         self._record("command", command="pause", boundary=self.boundary)
-        self._observed_action = "pause_at_boundary"
 
     def pause_process(self) -> bool:
         """Pause the child when the host exposes SIGSTOP; otherwise report a
@@ -479,32 +480,47 @@ class FaultController:
         self._record("command", command="network_cut", boundary=self.boundary)
         self._record("fault_observed", action="network_cut", channel_closed=True)
 
-    def kill(self) -> None:
+    def kill(self) -> bool:
         process = self._require_process()
         self._requested_action = "kill"
-        if process.poll() is None:
-            process.kill()
         self._record("command", command="kill", boundary=self.boundary)
+        if process.poll() is not None:
+            self._observed_action = "process_already_exited"
+            self._record("fault_observed", action=self._observed_action, pid=process.pid)
+            return False
+        with contextlib.suppress(OSError):
+            process.kill()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            self._observed_action = "process_kill_unconfirmed"
+            self._record("fault_observed", action=self._observed_action, pid=process.pid)
+            return False
         self._observed_action = "process_killed"
         self._record("fault_observed", action="process_killed", pid=process.pid)
+        return True
 
     def finish(self) -> int:
         process = self._require_process()
         try:
             return_code = process.wait(timeout=5)
         except subprocess.TimeoutExpired:
-            self.kill()
+            if not self.kill():
+                raise RuntimeError("target process did not exit after kill") from None
             return_code = process.wait(timeout=5)
         self._record_process_exit(return_code)
         return return_code
 
     def cleanup(self, timeout_seconds: float = 5.0) -> int | None:
         """Bounded, idempotent cleanup used by campaign runners."""
-        if self._cleaned_up:
+        if self._cleanup_attempted:
             return self._process_return_code
+        self._cleanup_attempted = True
         process = self._process
         if process is None:
             self._cleaned_up = True
+            self._cleanup_bounded = True
+            self._record("cleanup_completed", bounded=True, process_present=False)
             return None
         if process.poll() is None:
             with contextlib.suppress(OSError):
@@ -513,8 +529,15 @@ class FaultController:
             return_code = process.wait(timeout=timeout_seconds)
         except subprocess.TimeoutExpired:
             self._record("cleanup_timeout", timeout_seconds=timeout_seconds)
+            self._record("cleanup_unbounded", pid=process.pid, process_alive=process.poll() is None)
+            self._cleanup_bounded = False
+            self._cleaned_up = False
             return_code = None
-        self._record_process_exit(return_code if return_code is not None else -9)
+        else:
+            assert return_code is not None
+            self._record_process_exit(return_code)
+            self._cleanup_bounded = True
+            self._cleaned_up = True
         with self._connection_lock:
             connection = self._connection
         if connection is not None:
@@ -523,8 +546,8 @@ class FaultController:
         if self._server is not None:
             with contextlib.suppress(OSError):
                 self._server.close()
-        self._cleaned_up = True
-        self._record("cleanup_completed", bounded=True)
+        if self._cleanup_bounded:
+            self._record("cleanup_completed", bounded=True)
         return return_code
 
     def outcome(self) -> FaultOutcome:

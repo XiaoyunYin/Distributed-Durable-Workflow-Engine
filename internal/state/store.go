@@ -50,6 +50,9 @@ func NewID() string {
 }
 
 func (s *Store) CreateDefinition(ctx context.Context, input DefinitionInput) error {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.DefinitionID == "" || input.Version <= 0 || input.DefinitionHash == "" {
 		return errors.New("definition ID, positive version, and hash are required")
 	}
@@ -287,6 +290,8 @@ func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (Workflow, e
 }
 
 func (s *Store) GetAttempt(ctx context.Context, workflowID, nodeID string, iteration int, attemptNumber int64) (Attempt, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	var attempt Attempt
 	var claimToken *string
 	var workerID *string
@@ -329,6 +334,8 @@ func (s *Store) GetAttempt(ctx context.Context, workflowID, nodeID string, itera
 }
 
 func (s *Store) HistoryCount(ctx context.Context, workflowID string) (int, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	var count int
 	err := s.pool.QueryRow(ctx, `
 		SELECT count(*) FROM engine.transition_history WHERE workflow_id = $1`, workflowID).Scan(&count)
@@ -336,6 +343,8 @@ func (s *Store) HistoryCount(ctx context.Context, workflowID string) (int, error
 }
 
 func (s *Store) ListHistory(ctx context.Context, workflowID string, afterRevision int64, limit int) ([]TransitionRecord, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	if afterRevision < 0 {
 		return nil, errors.New("history revision cursor must not be negative")
 	}
@@ -404,12 +413,16 @@ func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID str
 	var currentExpiry *time.Time
 	var epoch int64
 	var databaseNow time.Time
+	lockStarted := time.Now()
 	if err := tx.QueryRow(ctx, `
 		SELECT owner_id::text, epoch, lease_expires_at, clock_timestamp()
 		FROM engine.partition_leases
 		WHERE partition_id = $1
 		FOR UPDATE`, partitionID).Scan(&currentOwner, &epoch, &currentExpiry, &databaseNow); err != nil {
 		return Lease{}, false, fmt.Errorf("lock partition lease: %w", err)
+	}
+	if s.telemetry != nil {
+		s.telemetry.RecordLockWait(time.Since(lockStarted))
 	}
 	if currentOwner != nil && currentExpiry != nil && currentExpiry.After(databaseNow) && *currentOwner != ownerID {
 		lease := Lease{PartitionID: partitionID, OwnerID: *currentOwner, Epoch: epoch, LeaseExpiresAt: *currentExpiry}
@@ -436,6 +449,9 @@ func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID str
 }
 
 func (s *Store) ReleaseLease(ctx context.Context, ref LeaseRef) error {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return err
@@ -456,6 +472,9 @@ func (s *Store) ReleaseLease(ctx context.Context, ref LeaseRef) error {
 // RenewLease extends an unexpired lease without changing its epoch. Renewal
 // is separate from AcquireLease so an expired owner cannot revive a lease.
 func (s *Store) RenewLease(ctx context.Context, ref LeaseRef, ttl time.Duration) (Lease, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if ref.OwnerID == "" || ref.Epoch <= 0 || ttl <= 0 {
 		return Lease{}, errors.New("lease owner, positive epoch, and positive TTL are required")
 	}
@@ -506,6 +525,9 @@ func lockLease(ctx context.Context, tx pgx.Tx, ref LeaseRef) (Lease, error) {
 }
 
 func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionInput) error {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.ActorID == "" || input.Reason == "" {
 		return errors.New("workflow, actor, and reason are required")
 	}
@@ -669,6 +691,9 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 // clears the node's current attempt or permits a result-dependent workflow
 // transition.
 func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (ConsumeResult, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.ActorID == "" || input.AttemptNumber <= 0 {
 		return ConsumeResult{}, errors.New("result-consumption identity is required")
 	}
@@ -866,6 +891,9 @@ func nullableIteration(nodeID string, iteration int) *int {
 }
 
 func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.ActorID == "" {
 		return Attempt{}, errors.New("attempt identity and actor are required")
 	}
@@ -1127,6 +1155,9 @@ func (s *Store) ClaimAttempt(ctx context.Context, input ClaimInput) (ClaimResult
 }
 
 func (s *Store) HeartbeatAttempt(ctx context.Context, input HeartbeatInput) (time.Time, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.ClaimToken == "" {
 		return time.Time{}, errors.New("heartbeat identity is required")
 	}
@@ -1334,6 +1365,9 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 }
 
 func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (TimeoutResult, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return TimeoutResult{}, err
@@ -1493,6 +1527,9 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 }
 
 func (s *Store) RecordLateEvidence(ctx context.Context, input LateEvidenceInput) (LateEvidence, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.ReconciliationRef == "" || len(input.Payload) == 0 {
 		return LateEvidence{}, errors.New("reconciliation reference and evidence payload are required")
 	}

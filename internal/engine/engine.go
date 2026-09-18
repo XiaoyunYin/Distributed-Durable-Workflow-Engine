@@ -223,7 +223,13 @@ type RunResult struct {
 
 func New(store *state.Store, driver ActivityDriver) *Engine {
 	return &Engine{Store: store, Driver: driver, LeaseTTL: time.Minute,
-		AttemptLease: time.Minute, RetryBackoff: 25 * time.Millisecond, MaxSteps: 100}
+		AttemptLease: time.Minute, RetryBackoff: 25 * time.Millisecond, MaxSteps: 100,
+		Telemetry: func() *telemetry.Metrics {
+			if store == nil {
+				return nil
+			}
+			return store.Telemetry()
+		}()}
 }
 
 func (e *Engine) Run(ctx context.Context, workflowID string) (RunResult, error) {

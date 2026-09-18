@@ -191,6 +191,8 @@ func sameStrings(left, right []string) bool {
 }
 
 func (s *Store) GetDefinition(ctx context.Context, definitionID string, version int) (Definition, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	var definition Definition
 	var graph, activityVersions, effectClasses []byte
 	err := s.pool.QueryRow(ctx, `
@@ -214,6 +216,8 @@ func (s *Store) GetDefinition(ctx context.Context, definitionID string, version 
 }
 
 func (s *Store) GetNode(ctx context.Context, workflowID, nodeID string, iteration int) (NodeInstance, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	return scanNode(s.pool.QueryRow(ctx, `
 		SELECT workflow_id, node_id, iteration, state, dependencies, input,
 			accepted_result, current_attempt_number, retry_count, deadline_at, timer_fired, revision
@@ -222,6 +226,8 @@ func (s *Store) GetNode(ctx context.Context, workflowID, nodeID string, iteratio
 }
 
 func (s *Store) ListNodes(ctx context.Context, workflowID string) ([]NodeInstance, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	rows, err := s.pool.Query(ctx, `
 		SELECT workflow_id, node_id, iteration, state, dependencies, input,
 			accepted_result, current_attempt_number, retry_count, deadline_at, timer_fired, revision
@@ -250,6 +256,8 @@ func (s *Store) ListNodes(ctx context.Context, workflowID string) ([]NodeInstanc
 // diagnostics. It intentionally exposes a snapshot rather than a mutable
 // production decision object.
 func (s *Store) ListAttempts(ctx context.Context, workflowID string) ([]Attempt, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	rows, err := s.pool.Query(ctx, `
 		SELECT workflow_id, node_id, iteration, attempt_number, state, effect_class,
 			claim_token::text, worker_id, worker_request_id, heartbeat_deadline,
@@ -299,6 +307,8 @@ func (s *Store) ListAttempts(ctx context.Context, workflowID string) ([]Attempt,
 }
 
 func (s *Store) PendingTimer(ctx context.Context, workflowID, nodeID string, iteration int) (time.Time, string, bool, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	var dueAt time.Time
 	var purpose string
 	err := s.pool.QueryRow(ctx, `
@@ -318,6 +328,9 @@ func (s *Store) PendingTimer(ctx context.Context, workflowID, nodeID string, ite
 }
 
 func (s *Store) ScheduleTimer(ctx context.Context, input ScheduleTimerInput) (string, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.ActorID == "" || input.DueAt.IsZero() {
 		return "", errors.New("timer identity, due time, and actor are required")
 	}
@@ -407,6 +420,9 @@ func (s *Store) ScheduleTimer(ctx context.Context, input ScheduleTimerInput) (st
 // lease. Claimed effect attempts remain durable as OUTCOME_UNKNOWN so a late
 // worker report can be retained as evidence without reopening the workflow.
 func (s *Store) CancelWorkflow(ctx context.Context, input CancelWorkflowInput) (Workflow, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.ActorID == "" {
 		return Workflow{}, errors.New("workflow and actor are required")
 	}
@@ -535,6 +551,9 @@ func (s *Store) CancelWorkflow(ctx context.Context, input CancelWorkflowInput) (
 // lease-fenced transaction. A repeated call must use a new workflow revision,
 // so it cannot duplicate downstream nodes after a response loss.
 func (s *Store) AdvanceGraph(ctx context.Context, input AdvanceGraphInput) (AdvanceGraphResult, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.FromNodeID == "" || input.ActorID == "" {
 		return AdvanceGraphResult{}, errors.New("graph advancement identity is required")
 	}

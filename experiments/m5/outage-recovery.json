@@ -1,0 +1,419 @@
+﻿{
+    "schema_version":  "m5-outage-recovery.v1",
+    "generated_at":  "2026-09-18T06:54:57.4236844Z",
+    "runtime_probe":  "http://127.0.0.1:8080/v1/workflows/m5-outage-probe",
+    "episodes":  [
+                     {
+                         "id":  "kafka-outage",
+                         "dependency":  "kafka",
+                         "before":  {
+                                        "label":  "kafka-outage:before",
+                                        "captured_at":  "2026-09-18T06:53:36.0595262Z",
+                                        "status":  "available",
+                                        "unresolved_work":  {
+                                                                "pending_outbox_rows":  0,
+                                                                "open_reconciliation_items":  0,
+                                                                "quarantined_outbox_rows":  0,
+                                                                "poison_records":  0,
+                                                                "inflight_attempts":  0,
+                                                                "oldest_backlog_age_seconds":  0
+                                                            }
+                                    },
+                         "during":  {
+                                        "label":  "kafka-outage:during",
+                                        "captured_at":  "2026-09-18T06:53:41.0332251Z",
+                                        "status":  "available",
+                                        "unresolved_work":  {
+                                                                "pending_outbox_rows":  0,
+                                                                "open_reconciliation_items":  0,
+                                                                "quarantined_outbox_rows":  0,
+                                                                "poison_records":  0,
+                                                                "inflight_attempts":  0,
+                                                                "oldest_backlog_age_seconds":  0
+                                                            }
+                                    },
+                         "after":  {
+                                       "label":  "kafka-outage:after",
+                                       "captured_at":  "2026-09-18T06:54:00.2587749Z",
+                                       "status":  "available",
+                                       "unresolved_work":  {
+                                                               "pending_outbox_rows":  0,
+                                                               "open_reconciliation_items":  0,
+                                                               "quarantined_outbox_rows":  0,
+                                                               "poison_records":  0,
+                                                               "inflight_attempts":  0,
+                                                               "oldest_backlog_age_seconds":  0
+                                                           }
+                                   },
+                         "probe":  {
+                                       "dependency_before":  {
+                                                                 "status":  200,
+                                                                 "dependency":  "reachable"
+                                                             },
+                                       "dependency_during":  {
+                                                                 "status":  503,
+                                                                 "dependency":  "unavailable"
+                                                             },
+                                       "dependency_after":  {
+                                                                "status":  200,
+                                                                "dependency":  "reachable"
+                                                            },
+                                       "runtime_during":  {
+                                                              "status":  404,
+                                                              "dependency":  "reachable"
+                                                          },
+                                       "runtime_after":  {
+                                                             "status":  404,
+                                                             "dependency":  "reachable"
+                                                         }
+                                   },
+                         "unresolved_work_report":  {
+                                                        "before":  {
+                                                                       "pending_outbox_rows":  0,
+                                                                       "open_reconciliation_items":  0,
+                                                                       "quarantined_outbox_rows":  0,
+                                                                       "poison_records":  0,
+                                                                       "inflight_attempts":  0,
+                                                                       "oldest_backlog_age_seconds":  0
+                                                                   },
+                                                        "during":  {
+                                                                       "pending_outbox_rows":  0,
+                                                                       "open_reconciliation_items":  0,
+                                                                       "quarantined_outbox_rows":  0,
+                                                                       "poison_records":  0,
+                                                                       "inflight_attempts":  0,
+                                                                       "oldest_backlog_age_seconds":  0
+                                                                   },
+                                                        "after":  {
+                                                                      "pending_outbox_rows":  0,
+                                                                      "open_reconciliation_items":  0,
+                                                                      "quarantined_outbox_rows":  0,
+                                                                      "poison_records":  0,
+                                                                      "inflight_attempts":  0,
+                                                                      "oldest_backlog_age_seconds":  0
+                                                                  },
+                                                        "after_status":  "available"
+                                                    }
+                     },
+                     {
+                         "id":  "postgres-outage",
+                         "dependency":  "postgres",
+                         "before":  {
+                                        "label":  "postgres-outage:before",
+                                        "captured_at":  "2026-09-18T06:54:00.8331042Z",
+                                        "status":  "available",
+                                        "unresolved_work":  {
+                                                                "pending_outbox_rows":  0,
+                                                                "open_reconciliation_items":  0,
+                                                                "quarantined_outbox_rows":  0,
+                                                                "poison_records":  0,
+                                                                "inflight_attempts":  0,
+                                                                "oldest_backlog_age_seconds":  0
+                                                            }
+                                    },
+                         "during":  {
+                                        "label":  "postgres-outage:during",
+                                        "captured_at":  "2026-09-18T06:54:07.7551357Z",
+                                        "status":  "unavailable",
+                                        "unresolved_work":  null
+                                    },
+                         "after":  {
+                                       "label":  "postgres-outage:after",
+                                       "captured_at":  "2026-09-18T06:54:19.2213167Z",
+                                       "status":  "available",
+                                       "unresolved_work":  {
+                                                               "pending_outbox_rows":  0,
+                                                               "open_reconciliation_items":  0,
+                                                               "quarantined_outbox_rows":  0,
+                                                               "poison_records":  0,
+                                                               "inflight_attempts":  0,
+                                                               "oldest_backlog_age_seconds":  0
+                                                           }
+                                   },
+                         "probe":  {
+                                       "dependency_before":  {
+                                                                 "status":  200,
+                                                                 "dependency":  "available"
+                                                             },
+                                       "dependency_during":  {
+                                                                 "status":  503,
+                                                                 "dependency":  "unavailable"
+                                                             },
+                                       "dependency_after":  {
+                                                                "status":  200,
+                                                                "dependency":  "available"
+                                                            },
+                                       "runtime_during":  {
+                                                              "status":  0,
+                                                              "dependency":  "error"
+                                                          },
+                                       "runtime_after":  {
+                                                             "status":  404,
+                                                             "dependency":  "reachable"
+                                                         }
+                                   },
+                         "unresolved_work_report":  {
+                                                        "before":  {
+                                                                       "pending_outbox_rows":  0,
+                                                                       "open_reconciliation_items":  0,
+                                                                       "quarantined_outbox_rows":  0,
+                                                                       "poison_records":  0,
+                                                                       "inflight_attempts":  0,
+                                                                       "oldest_backlog_age_seconds":  0
+                                                                   },
+                                                        "during":  null,
+                                                        "after":  {
+                                                                      "pending_outbox_rows":  0,
+                                                                      "open_reconciliation_items":  0,
+                                                                      "quarantined_outbox_rows":  0,
+                                                                      "poison_records":  0,
+                                                                      "inflight_attempts":  0,
+                                                                      "oldest_backlog_age_seconds":  0
+                                                                  },
+                                                        "after_status":  "available"
+                                                    }
+                     },
+                     {
+                         "id":  "worker-partition",
+                         "dependency":  "worker-a",
+                         "before":  {
+                                        "label":  "worker-partition:before",
+                                        "captured_at":  "2026-09-18T06:54:19.4667865Z",
+                                        "status":  "available",
+                                        "unresolved_work":  {
+                                                                "pending_outbox_rows":  0,
+                                                                "open_reconciliation_items":  0,
+                                                                "quarantined_outbox_rows":  0,
+                                                                "poison_records":  0,
+                                                                "inflight_attempts":  0,
+                                                                "oldest_backlog_age_seconds":  0
+                                                            }
+                                    },
+                         "during":  {
+                                        "label":  "worker-partition:during",
+                                        "captured_at":  "2026-09-18T06:54:26.6459171Z",
+                                        "status":  "available",
+                                        "unresolved_work":  {
+                                                                "pending_outbox_rows":  0,
+                                                                "open_reconciliation_items":  0,
+                                                                "quarantined_outbox_rows":  0,
+                                                                "poison_records":  0,
+                                                                "inflight_attempts":  0,
+                                                                "oldest_backlog_age_seconds":  0
+                                                            }
+                                    },
+                         "after":  {
+                                       "label":  "worker-partition:after",
+                                       "captured_at":  "2026-09-18T06:54:42.6177448Z",
+                                       "status":  "available",
+                                       "unresolved_work":  {
+                                                               "pending_outbox_rows":  0,
+                                                               "open_reconciliation_items":  0,
+                                                               "quarantined_outbox_rows":  0,
+                                                               "poison_records":  0,
+                                                               "inflight_attempts":  0,
+                                                               "oldest_backlog_age_seconds":  0
+                                                           }
+                                   },
+                         "probe":  {
+                                       "dependency_before":  {
+                                                                 "status":  200,
+                                                                 "dependency":  "reachable"
+                                                             },
+                                       "dependency_during":  {
+                                                                 "status":  0,
+                                                                 "dependency":  "unavailable"
+                                                             },
+                                       "dependency_after":  {
+                                                                "status":  200,
+                                                                "dependency":  "reachable"
+                                                            },
+                                       "runtime_during":  {
+                                                              "status":  404,
+                                                              "dependency":  "reachable"
+                                                          },
+                                       "runtime_after":  {
+                                                             "status":  404,
+                                                             "dependency":  "reachable"
+                                                         }
+                                   },
+                         "unresolved_work_report":  {
+                                                        "before":  {
+                                                                       "pending_outbox_rows":  0,
+                                                                       "open_reconciliation_items":  0,
+                                                                       "quarantined_outbox_rows":  0,
+                                                                       "poison_records":  0,
+                                                                       "inflight_attempts":  0,
+                                                                       "oldest_backlog_age_seconds":  0
+                                                                   },
+                                                        "during":  {
+                                                                       "pending_outbox_rows":  0,
+                                                                       "open_reconciliation_items":  0,
+                                                                       "quarantined_outbox_rows":  0,
+                                                                       "poison_records":  0,
+                                                                       "inflight_attempts":  0,
+                                                                       "oldest_backlog_age_seconds":  0
+                                                                   },
+                                                        "after":  {
+                                                                      "pending_outbox_rows":  0,
+                                                                      "open_reconciliation_items":  0,
+                                                                      "quarantined_outbox_rows":  0,
+                                                                      "poison_records":  0,
+                                                                      "inflight_attempts":  0,
+                                                                      "oldest_backlog_age_seconds":  0
+                                                                  },
+                                                        "after_status":  "available"
+                                                    }
+                     },
+                     {
+                         "id":  "runtime-restart",
+                         "dependency":  "runtime-a",
+                         "before":  {
+                                        "label":  "runtime-restart:before",
+                                        "captured_at":  "2026-09-18T06:54:42.8985468Z",
+                                        "status":  "available",
+                                        "unresolved_work":  {
+                                                                "pending_outbox_rows":  0,
+                                                                "open_reconciliation_items":  0,
+                                                                "quarantined_outbox_rows":  0,
+                                                                "poison_records":  0,
+                                                                "inflight_attempts":  0,
+                                                                "oldest_backlog_age_seconds":  0
+                                                            }
+                                    },
+                         "during":  {
+                                        "label":  "runtime-restart:during",
+                                        "captured_at":  "2026-09-18T06:54:46.9989045Z",
+                                        "status":  "available",
+                                        "unresolved_work":  {
+                                                                "pending_outbox_rows":  0,
+                                                                "open_reconciliation_items":  0,
+                                                                "quarantined_outbox_rows":  0,
+                                                                "poison_records":  0,
+                                                                "inflight_attempts":  0,
+                                                                "oldest_backlog_age_seconds":  0
+                                                            }
+                                    },
+                         "after":  {
+                                       "label":  "runtime-restart:after",
+                                       "captured_at":  "2026-09-18T06:54:57.4231821Z",
+                                       "status":  "available",
+                                       "unresolved_work":  {
+                                                               "pending_outbox_rows":  0,
+                                                               "open_reconciliation_items":  0,
+                                                               "quarantined_outbox_rows":  0,
+                                                               "poison_records":  0,
+                                                               "inflight_attempts":  0,
+                                                               "oldest_backlog_age_seconds":  0
+                                                           }
+                                   },
+                         "probe":  {
+                                       "dependency_before":  {
+                                                                 "status":  404,
+                                                                 "dependency":  "reachable"
+                                                             },
+                                       "dependency_during":  {
+                                                                 "status":  404,
+                                                                 "dependency":  "reachable"
+                                                             },
+                                       "dependency_after":  {
+                                                                "status":  404,
+                                                                "dependency":  "reachable"
+                                                            },
+                                       "runtime_during":  {
+                                                              "status":  404,
+                                                              "dependency":  "reachable"
+                                                          },
+                                       "runtime_after":  {
+                                                             "status":  404,
+                                                             "dependency":  "reachable"
+                                                         }
+                                   },
+                         "unresolved_work_report":  {
+                                                        "before":  {
+                                                                       "pending_outbox_rows":  0,
+                                                                       "open_reconciliation_items":  0,
+                                                                       "quarantined_outbox_rows":  0,
+                                                                       "poison_records":  0,
+                                                                       "inflight_attempts":  0,
+                                                                       "oldest_backlog_age_seconds":  0
+                                                                   },
+                                                        "during":  {
+                                                                       "pending_outbox_rows":  0,
+                                                                       "open_reconciliation_items":  0,
+                                                                       "quarantined_outbox_rows":  0,
+                                                                       "poison_records":  0,
+                                                                       "inflight_attempts":  0,
+                                                                       "oldest_backlog_age_seconds":  0
+                                                                   },
+                                                        "after":  {
+                                                                      "pending_outbox_rows":  0,
+                                                                      "open_reconciliation_items":  0,
+                                                                      "quarantined_outbox_rows":  0,
+                                                                      "poison_records":  0,
+                                                                      "inflight_attempts":  0,
+                                                                      "oldest_backlog_age_seconds":  0
+                                                                  },
+                                                        "after_status":  "available"
+                                                    }
+                     }
+                 ],
+    "unresolved_work_report":  [
+                                   {
+                                       "id":  "kafka-outage",
+                                       "dependency":  "kafka",
+                                       "after_status":  "available",
+                                       "after":  {
+                                                     "pending_outbox_rows":  0,
+                                                     "open_reconciliation_items":  0,
+                                                     "quarantined_outbox_rows":  0,
+                                                     "poison_records":  0,
+                                                     "inflight_attempts":  0,
+                                                     "oldest_backlog_age_seconds":  0
+                                                 }
+                                   },
+                                   {
+                                       "id":  "postgres-outage",
+                                       "dependency":  "postgres",
+                                       "after_status":  "available",
+                                       "after":  {
+                                                     "pending_outbox_rows":  0,
+                                                     "open_reconciliation_items":  0,
+                                                     "quarantined_outbox_rows":  0,
+                                                     "poison_records":  0,
+                                                     "inflight_attempts":  0,
+                                                     "oldest_backlog_age_seconds":  0
+                                                 }
+                                   },
+                                   {
+                                       "id":  "worker-partition",
+                                       "dependency":  "worker-a",
+                                       "after_status":  "available",
+                                       "after":  {
+                                                     "pending_outbox_rows":  0,
+                                                     "open_reconciliation_items":  0,
+                                                     "quarantined_outbox_rows":  0,
+                                                     "poison_records":  0,
+                                                     "inflight_attempts":  0,
+                                                     "oldest_backlog_age_seconds":  0
+                                                 }
+                                   },
+                                   {
+                                       "id":  "runtime-restart",
+                                       "dependency":  "runtime-a",
+                                       "after_status":  "available",
+                                       "after":  {
+                                                     "pending_outbox_rows":  0,
+                                                     "open_reconciliation_items":  0,
+                                                     "quarantined_outbox_rows":  0,
+                                                     "poison_records":  0,
+                                                     "inflight_attempts":  0,
+                                                     "oldest_backlog_age_seconds":  0
+                                                 }
+                                   }
+                               ],
+    "notes":  [
+                  "Counts are captured separately from dependency health so recovery does not imply that obligations were resolved.",
+                  "The two-scheduler throughput smoke uses four disjoint partitions and is preliminary, not a lease-contention measurement."
+              ]
+}

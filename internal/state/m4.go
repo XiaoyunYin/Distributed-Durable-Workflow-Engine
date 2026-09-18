@@ -17,6 +17,9 @@ import (
 const defaultRetryBudget = 3
 
 func (s *Store) SetRetryPolicy(ctx context.Context, input RetryPolicyInput) error {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.ActorID == "" || input.MaxRetries < 0 {
 		return errors.New("retry policy identity and non-negative budget are required")
 	}
@@ -96,6 +99,8 @@ func retryPolicyTx(ctx context.Context, tx pgx.Tx, workflowID, nodeID string, it
 }
 
 func (s *Store) GetRetryPolicy(ctx context.Context, workflowID, nodeID string, iteration int) (RetryPolicy, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	var policy RetryPolicy
 	err := s.pool.QueryRow(ctx, `
 		SELECT max_retries, retries_used, total_deadline_at, checkpoint_schema_version
@@ -131,6 +136,9 @@ func canonicalPayloadHash(payload json.RawMessage) (string, error) {
 }
 
 func (s *Store) RecordCheckpoint(ctx context.Context, input CheckpointInput) (Checkpoint, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.ClaimToken == "" || input.AttemptNumber <= 0 || input.Sequence < 0 || input.SchemaVersion <= 0 {
 		return Checkpoint{}, errors.New("checkpoint identity, sequence, and schema version are required")
 	}
@@ -244,6 +252,8 @@ func (s *Store) RecordCheckpoint(ctx context.Context, input CheckpointInput) (Ch
 }
 
 func (s *Store) GetLatestCheckpoint(ctx context.Context, workflowID, nodeID string, iteration int) (Checkpoint, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	var checkpoint Checkpoint
 	err := s.pool.QueryRow(ctx, `
 		SELECT workflow_id, node_id, iteration, sequence, schema_version,
@@ -264,6 +274,8 @@ func (s *Store) GetLatestCheckpoint(ctx context.Context, workflowID, nodeID stri
 }
 
 func (s *Store) ListCheckpoints(ctx context.Context, workflowID string) ([]Checkpoint, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	rows, err := s.pool.Query(ctx, `
 		SELECT workflow_id, node_id, iteration, sequence, schema_version,
 			source_attempt_number, payload, payload_hash, created_at
@@ -304,6 +316,9 @@ func grantScopeHash(proposalHashValue, expectedResourceRevision, logicalEffectKe
 }
 
 func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentInput) (ApprovalIntent, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.ActorID == "" || input.ValidUntil.IsZero() || !input.ValidUntil.After(time.Now()) {
 		return ApprovalIntent{}, errors.New("approval identity and future validity are required")
 	}
@@ -441,6 +456,8 @@ func scanApproval(row rowScanner, result *ApprovalIntent) error {
 }
 
 func (s *Store) GetApprovalIntent(ctx context.Context, intentID string) (ApprovalIntent, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	var result ApprovalIntent
 	if err := scanApproval(s.pool.QueryRow(ctx, approvalSelect+` WHERE intent_id = $1`, intentID), &result); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -452,6 +469,8 @@ func (s *Store) GetApprovalIntent(ctx context.Context, intentID string) (Approva
 }
 
 func (s *Store) ListApprovalIntents(ctx context.Context, workflowID string) ([]ApprovalIntent, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	rows, err := s.pool.Query(ctx, approvalSelect+` WHERE workflow_id = $1 ORDER BY created_at`, workflowID)
 	if err != nil {
 		return nil, err
@@ -469,6 +488,9 @@ func (s *Store) ListApprovalIntents(ctx context.Context, workflowID string) ([]A
 }
 
 func (s *Store) RecordApprovalDecision(ctx context.Context, input ApprovalDecisionInput) (ApprovalIntent, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.IntentID == "" || input.ApproverID == "" || (input.Decision != "APPROVED" && input.Decision != "REJECTED") || input.ProposalHash == "" {
 		return ApprovalIntent{}, ErrApprovalUnauthorized
 	}
@@ -514,6 +536,9 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, input ApprovalDecisi
 }
 
 func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (ApprovalGrant, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.IntentID == "" || input.ActorID == "" {
 		return ApprovalGrant{}, errors.New("approval application identity is required")
 	}
@@ -626,6 +651,8 @@ func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (Ap
 }
 
 func (s *Store) ValidateApprovalGrant(ctx context.Context, input GrantValidationInput) (ApprovalIntent, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	var intent ApprovalIntent
 	if err := scanApproval(s.pool.QueryRow(ctx, approvalSelect+` WHERE intent_id = $1 AND grant_token = $2 AND workflow_id = $3 AND node_id = $4 AND iteration = $5`, input.IntentID, input.GrantToken, input.WorkflowID, input.NodeID, input.Iteration), &intent); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -648,6 +675,9 @@ func (s *Store) ValidateApprovalGrant(ctx context.Context, input GrantValidation
 }
 
 func (s *Store) RequestCancellation(ctx context.Context, input CancellationRequestInput) (CancellationRequest, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.ClientKey == "" || input.ObservedRevision < 0 {
 		return CancellationRequest{}, errors.New("cancellation workflow, key, and revision are required")
 	}
@@ -674,6 +704,9 @@ func (s *Store) RequestCancellation(ctx context.Context, input CancellationReque
 }
 
 func (s *Store) ApplyCancellationRequest(ctx context.Context, lease LeaseRef, requestID, actorID string) (Workflow, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if requestID == "" || actorID == "" {
 		return Workflow{}, errors.New("cancellation request and actor are required")
 	}
@@ -835,6 +868,9 @@ func cancelWorkflowTx(ctx context.Context, tx pgx.Tx, lease LeaseRef, workflow *
 }
 
 func (s *Store) ApplyEffect(ctx context.Context, input EffectApplyInput) (EffectReceipt, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if input.WorkflowID == "" || input.NodeID == "" || input.Iteration < 0 || input.LogicalEffectKey == "" || input.ArgumentHash == "" || input.RequestID == "" || input.AttemptNumber <= 0 || input.ResourceID == "" || input.FenceToken <= 0 {
 		return EffectReceipt{}, errors.New("effect identity, request, resource, and fence are required")
 	}
@@ -1050,6 +1086,8 @@ func recordEffectCallTx(ctx context.Context, tx pgx.Tx, input EffectApplyInput, 
 }
 
 func (s *Store) LookupEffect(ctx context.Context, workflowID, logicalEffectKey string) (EffectRecord, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	var record EffectRecord
 	var receipt []byte
 	err := s.pool.QueryRow(ctx, `
@@ -1071,6 +1109,9 @@ func (s *Store) LookupEffect(ctx context.Context, workflowID, logicalEffectKey s
 }
 
 func (s *Store) RecordUnknownEffect(ctx context.Context, workflowID, logicalEffectKey, argumentHash, grantScopeHash string, attemptNumber int64) (EffectRecord, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if workflowID == "" || logicalEffectKey == "" || argumentHash == "" || attemptNumber <= 0 {
 		return EffectRecord{}, errors.New("unknown effect identity is required")
 	}
@@ -1096,6 +1137,9 @@ func (s *Store) RecordUnknownEffect(ctx context.Context, workflowID, logicalEffe
 }
 
 func (s *Store) ResolveUnknownEffect(ctx context.Context, actorID, workflowID, logicalEffectKey, argumentHash string, receipt json.RawMessage, abandon bool) error {
+	started := time.Now()
+	defer s.observeQuery(started)
+	defer s.observeTransaction()
 	if actorID == "" || workflowID == "" || logicalEffectKey == "" || argumentHash == "" {
 		return errors.New("effect resolution identity is required")
 	}
@@ -1160,6 +1204,8 @@ func (s *Store) ResolveUnknownEffect(ctx context.Context, actorID, workflowID, l
 }
 
 func (s *Store) ListEffectRecords(ctx context.Context, workflowID string) ([]EffectRecord, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	rows, err := s.pool.Query(ctx, `
 		SELECT workflow_id, COALESCE(intent_id::text,''), logical_effect_key, argument_hash,
 			attempt_number, COALESCE(grant_scope_hash,''), COALESCE(resource_id,''),
@@ -1183,6 +1229,8 @@ func (s *Store) ListEffectRecords(ctx context.Context, workflowID string) ([]Eff
 }
 
 func (s *Store) ListEffectCallAttempts(ctx context.Context, workflowID string) ([]EffectCallAttempt, error) {
+	started := time.Now()
+	defer s.observeQuery(started)
 	rows, err := s.pool.Query(ctx, `
 		SELECT call_id::text, workflow_id, logical_effect_key, argument_hash,
 			attempt_number, request_id, outcome, receipt, created_at

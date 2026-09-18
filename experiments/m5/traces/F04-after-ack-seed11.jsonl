@@ -1,0 +1,6 @@
+{"boundary": "after_broker_ack", "command": ["go", "run", "./cmd/m5-fixture", "--case-id", "F04-after-ack", "--seed", "11", "--boundary", "after_broker_ack"], "event": "process_started", "run_id": "c70e8f4460ecd42e5cc683d8d3be7ac9", "schema_version": "fault-trace.v1", "seed": 11, "sequence": 1}
+{"boundary": "after_broker_ack", "event": "boundary_reached", "fields": {"durable_attempt_number": 1, "durable_node_id": "root", "durable_workflow_id": "m5-fixture-F04-after-ack-11", "fixture_case_id": "F04-after-ack", "fixture_seed": 11}, "run_id": "c70e8f4460ecd42e5cc683d8d3be7ac9", "schema_version": "fault-trace.v1", "seed": 11, "sequence": 2}
+{"boundary": "after_broker_ack", "command": "kill", "event": "command", "run_id": "c70e8f4460ecd42e5cc683d8d3be7ac9", "schema_version": "fault-trace.v1", "seed": 11, "sequence": 3}
+{"action": "process_killed", "event": "fault_observed", "pid": 33588, "run_id": "c70e8f4460ecd42e5cc683d8d3be7ac9", "schema_version": "fault-trace.v1", "seed": 11, "sequence": 4}
+{"event": "process_exited", "return_code": 1, "run_id": "c70e8f4460ecd42e5cc683d8d3be7ac9", "schema_version": "fault-trace.v1", "seed": 11, "sequence": 5}
+{"bounded": true, "event": "cleanup_completed", "run_id": "c70e8f4460ecd42e5cc683d8d3be7ac9", "schema_version": "fault-trace.v1", "seed": 11, "sequence": 6}

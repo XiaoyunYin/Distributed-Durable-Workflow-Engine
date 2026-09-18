@@ -1,4 +1,5 @@
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -197,3 +198,28 @@ def test_pause_process_is_distinguished_from_cooperative_pause() -> None:
     assert controller.finish() == 0
     controller.cleanup()
     assert controller.outcome().cleaned_up
+
+
+def test_cleanup_timeout_is_not_reported_as_bounded_or_exited() -> None:
+    class NeverExits:
+        pid = 99123
+
+        def poll(self) -> None:
+            return None
+
+        def kill(self) -> None:
+            return None
+
+        def wait(self, timeout: float | None = None) -> int:
+            raise subprocess.TimeoutExpired("never-exits", timeout or 0)
+
+    controller = FaultController(seed=23, boundary="after-effect")
+    controller._process = NeverExits()  # type: ignore[assignment]
+    assert controller.cleanup(timeout_seconds=0.01) is None
+    outcome = controller.outcome()
+    assert not outcome.cleaned_up
+    events = [event["event"] for event in controller.trace()]
+    assert "cleanup_timeout" in events
+    assert "cleanup_unbounded" in events
+    assert "cleanup_completed" not in events
+    assert "process_exited" not in events

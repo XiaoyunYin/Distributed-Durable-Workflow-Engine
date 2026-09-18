@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
 )
 
 // TestM5BoundedTwoSchedulerSmoke is a small service-backed recovery/throughput
@@ -16,6 +17,12 @@ import (
 func TestM5BoundedTwoSchedulerSmoke(t *testing.T) {
 	ctx, store := openM1Database(t)
 	defer store.Close()
+	metrics := telemetry.New("m5-smoke")
+	store.SetTelemetry(metrics)
+	// Keep the readiness timestamp distinct from the second-resolution process
+	// start timestamp even on a fast local database.
+	time.Sleep(1100 * time.Millisecond)
+	metrics.MarkDurableReady()
 
 	type fixture struct {
 		workflowID string
@@ -78,6 +85,11 @@ func TestM5BoundedTwoSchedulerSmoke(t *testing.T) {
 		if result.Blocked || result.Workflow.State != state.StateSucceeded {
 			t.Fatalf("workflow %d result = %+v, want succeeded", i, result)
 		}
+	}
+	snapshot := metrics.Snapshot()
+	if snapshot.DurableReadyUnix <= snapshot.StartedUnix || snapshot.LeaseAcquires == 0 ||
+		snapshot.AcceptedClaims == 0 || snapshot.AcceptedResults == 0 || snapshot.DBQueries == 0 {
+		t.Fatalf("engine telemetry did not observe the smoke: %+v", snapshot)
 	}
 	t.Logf("two-scheduler smoke completed %d workflows in %s; preliminary only", len(fixtures), time.Since(start).Round(time.Millisecond))
 }
