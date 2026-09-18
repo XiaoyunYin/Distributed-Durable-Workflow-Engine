@@ -4,7 +4,10 @@
 package invariants
 
 import (
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -97,10 +100,12 @@ type CheckpointRecord struct {
 
 type EffectRecordSnapshot struct {
 	WorkflowID       string
+	IntentID         string
 	LogicalEffectKey string
 	ArgumentHash     string
 	AttemptNumber    int64
 	GrantScopeHash   string
+	ResourceID       string
 	Outcome          string
 	ReceiptPresent   bool
 }
@@ -115,17 +120,19 @@ type EffectCallRecord struct {
 }
 
 type ApprovalRecord struct {
-	IntentID       string
-	WorkflowID     string
-	NodeID         string
-	Iteration      int
-	ProposalHash   string
-	Target         string
-	ArgumentsValid bool
-	Decision       string
-	DispatchStatus string
-	GrantScopeHash string
-	GrantToken     string
+	IntentID                 string
+	WorkflowID               string
+	NodeID                   string
+	Iteration                int
+	ProposalHash             string
+	Target                   string
+	ArgumentsValid           bool
+	CanonicalArgumentHash    string
+	ExpectedResourceRevision string
+	Decision                 string
+	DispatchStatus           string
+	GrantScopeHash           string
+	GrantToken               string
 }
 
 type Trace struct {
@@ -249,9 +256,9 @@ func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace,
 		}
 		for _, effect := range effects {
 			trace.Effects = append(trace.Effects, EffectRecordSnapshot{
-				WorkflowID: effect.WorkflowID, LogicalEffectKey: effect.LogicalEffectKey,
+				WorkflowID: effect.WorkflowID, IntentID: effect.IntentID, LogicalEffectKey: effect.LogicalEffectKey,
 				ArgumentHash: effect.ArgumentHash, AttemptNumber: effect.AttemptNumber,
-				GrantScopeHash: effect.GrantScopeHash, Outcome: effect.Outcome,
+				GrantScopeHash: effect.GrantScopeHash, ResourceID: effect.ResourceID, Outcome: effect.Outcome,
 				ReceiptPresent: len(effect.Receipt) != 0,
 			})
 		}
@@ -271,12 +278,14 @@ func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace,
 			return Trace{}, err
 		}
 		for _, approval := range approvals {
+			canonicalArgumentHash, _ := canonicalJSONHash(approval.CanonicalArguments)
 			trace.Approvals = append(trace.Approvals, ApprovalRecord{
 				IntentID: approval.IntentID, WorkflowID: approval.WorkflowID,
 				NodeID: approval.NodeID, Iteration: approval.Iteration,
 				ProposalHash: approval.ProposalHash, Target: approval.Target,
-				ArgumentsValid: json.Valid(approval.CanonicalArguments),
-				Decision:       approval.Decision, DispatchStatus: approval.DispatchStatus,
+				ArgumentsValid: json.Valid(approval.CanonicalArguments), CanonicalArgumentHash: canonicalArgumentHash,
+				ExpectedResourceRevision: approval.ExpectedResourceRevision,
+				Decision:                 approval.Decision, DispatchStatus: approval.DispatchStatus,
 				GrantScopeHash: approval.GrantScopeHash, GrantToken: approval.GrantToken,
 			})
 		}
@@ -303,6 +312,32 @@ func Check(trace Trace) Verdict {
 	checkTransport(trace, &violations)
 	checkM4(trace, &violations)
 	return Verdict{Valid: len(violations) == 0, Violations: violations}
+}
+
+// canonicalJSONHash intentionally duplicates the small canonicalization rule
+// used by the persisted approval protocol instead of calling a state-package
+// validator. The checker must derive its verdict independently.
+func canonicalJSONHash(payload json.RawMessage) (string, error) {
+	if len(payload) == 0 || !json.Valid(payload) {
+		return "", fmt.Errorf("invalid canonical JSON")
+	}
+	decoder := json.NewDecoder(bytes.NewReader(payload))
+	decoder.UseNumber()
+	var value any
+	if err := decoder.Decode(&value); err != nil {
+		return "", err
+	}
+	canonical, err := json.Marshal(value)
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(canonical)
+	return hex.EncodeToString(sum[:]), nil
+}
+
+func independentHash(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }
 
 func checkM4(trace Trace, violations *[]string) {
@@ -364,6 +399,7 @@ func checkM4(trace Trace, violations *[]string) {
 			*violations = append(*violations, "effect call has unknown outcome: "+key)
 		}
 	}
+	approvalsByID := make(map[string]ApprovalRecord)
 	for _, approval := range trace.Approvals {
 		if approval.IntentID == "" || approval.WorkflowID == "" || approval.NodeID == "" || approval.Iteration < 0 || approval.ProposalHash == "" || approval.Target == "" || !approval.ArgumentsValid {
 			*violations = append(*violations, "approval intent is incomplete")
@@ -378,6 +414,36 @@ func checkM4(trace Trace, violations *[]string) {
 			if approval.Decision != "APPROVED" || approval.GrantScopeHash == "" || approval.GrantToken == "" {
 				*violations = append(*violations, "approval grant lacks matching approved decision: "+approval.IntentID)
 			}
+		}
+		if approval.ArgumentsValid && approval.CanonicalArgumentHash != "" {
+			expectedProposal := independentHash(approval.Target + "\x00" + approval.CanonicalArgumentHash + "\x00" + approval.ExpectedResourceRevision)
+			if approval.ProposalHash != expectedProposal {
+				*violations = append(*violations, "approval proposal hash does not cover its target and arguments: "+approval.IntentID)
+			}
+		}
+		approvalsByID[approval.IntentID] = approval
+	}
+	for _, effect := range trace.Effects {
+		if effect.Outcome != "APPLIED" {
+			continue
+		}
+		approval, exists := approvalsByID[effect.IntentID]
+		if !exists || effect.IntentID == "" {
+			*violations = append(*violations, "applied effect lacks an approving intent: "+effect.LogicalEffectKey)
+			continue
+		}
+		if approval.Decision != "APPROVED" || approval.DispatchStatus != "DISPATCHED" {
+			*violations = append(*violations, "applied effect approval is not dispatched: "+effect.LogicalEffectKey)
+		}
+		if effect.ResourceID == "" || effect.ResourceID != approval.Target {
+			*violations = append(*violations, "applied effect resource does not match approval: "+effect.LogicalEffectKey)
+		}
+		if approval.CanonicalArgumentHash == "" || effect.ArgumentHash != approval.CanonicalArgumentHash {
+			*violations = append(*violations, "applied effect arguments do not match approval: "+effect.LogicalEffectKey)
+		}
+		expectedScope := independentHash(approval.ProposalHash + "\x00" + approval.ExpectedResourceRevision + "\x00" + effect.LogicalEffectKey + "\x00" + approval.Target)
+		if effect.GrantScopeHash == "" || effect.GrantScopeHash != approval.GrantScopeHash || effect.GrantScopeHash != expectedScope {
+			*violations = append(*violations, "applied effect grant scope does not match approval: "+effect.LogicalEffectKey)
 		}
 	}
 }

@@ -58,9 +58,14 @@ lookup. Timeout handling and retry eligibility use this declared class; a
 worker claim or heartbeat cannot change it.
 
 The cooperating effect service validates a bounded approval grant covering the
-canonical action and stable logical effect key before mutating protected state.
-A missing, expired, or key-mismatched grant is rejected before the sink ledger
-changes; the grant is separate from the effect receipt and resource fence.
+approved target resource, canonical action/state hash, and stable logical
+effect key before mutating protected state. It recomputes the argument hash
+from the submitted effect state and rejects a resource or argument that is not
+in the approval. The first successful application marks the grant
+`DISPATCHED`; a retry may return the existing receipt but cannot alter the
+approved resource or arguments. A missing, expired, or mismatched grant is
+rejected before the sink ledger changes; the grant is separate from the effect
+receipt and resource fence.
 
 ## Workflow state machine
 
@@ -239,7 +244,7 @@ commits any workflow transition and outbox row together.
 | Apply approval + create grant | Matching lease, current workflow revision, approved decision, exact proposal, and grant scope | Stale lease/revision, rejected/expired decision, or changed proposal |
 | Record cancellation request | Client key and observed workflow revision | Duplicate/conflicting request or terminal workflow |
 | Apply cancellation | Matching lease, current workflow state, and durable request | Stale lease/revision or an already-issued grant/effect that cannot be undone |
-| Apply effect | Stable effect key, canonical argument hash, valid fence/grant | Key conflict or lower sink fence token |
+| Apply effect | Stable effect key, approved target resource, recomputed canonical argument hash, valid fence/grant | Resource/argument mismatch, key conflict, or lower sink fence token |
 
 ## Required ordering traces
 

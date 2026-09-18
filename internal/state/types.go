@@ -47,6 +47,8 @@ var (
 	ErrApprovalMismatch       = errors.New("approval does not match the requested action")
 	ErrGrantInvalid           = errors.New("dispatch grant is invalid")
 	ErrEffectConflict         = errors.New("effect key conflicts with durable effect record")
+	ErrEffectResource         = errors.New("effect resource does not match approval")
+	ErrEffectArguments        = errors.New("effect arguments do not match approval")
 	ErrEffectFence            = errors.New("effect fence token is stale")
 	ErrEffectVersion          = errors.New("effect resource revision does not match approval")
 	ErrEffectNotFound         = errors.New("effect record not found")
@@ -521,10 +523,12 @@ type CancellationRequest struct {
 
 type EffectRecord struct {
 	WorkflowID       string
+	IntentID         string
 	LogicalEffectKey string
 	ArgumentHash     string
 	AttemptNumber    int64
 	GrantScopeHash   string
+	ResourceID       string
 	Outcome          string
 	Receipt          json.RawMessage
 	CreatedAt        time.Time
@@ -574,6 +578,7 @@ type GrantValidationInput struct {
 	GrantToken       string
 	GrantScopeHash   string
 	LogicalEffectKey string
+	ResourceID       string
 	WorkflowID       string
 	NodeID           string
 	Iteration        int

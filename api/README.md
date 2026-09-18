@@ -32,7 +32,8 @@ Claim retries reuse
 M4 approval/cancellation control is lease-fenced and development-only:
 
 - `POST /v1/workflows/{workflow_id}/nodes/{node_id}/iterations/{iteration}/approval`
-  creates an exact canonical proposal while the scheduler holds the lease.
+  creates an exact canonical proposal, including the target resource and the
+  state/arguments to apply, while the scheduler holds the lease.
 - `POST /v1/approvals/{intent_id}/decision` records an approver decision for
   the exact proposal hash. The approver identity is explicit in the request;
   production authentication and identity binding are required before exposing
@@ -47,8 +48,11 @@ M4 approval/cancellation control is lease-fenced and development-only:
 Approval decisions are idempotent only when the intent, proposal hash,
 approver, and decision match. Changed, expired, or duplicate conflicting
 decisions are rejected. A grant is not an effect receipt: the cooperating
-effect ledger still validates its stable key, argument hash, grant scope, and
-resource fence before applying a mutation.
+effect ledger still validates its stable key, approved target resource,
+canonical argument hash, grant scope, and resource fence before applying a
+mutation. The first successful application consumes the grant as `DISPATCHED`;
+a retry may return the same receipt but cannot change the resource or
+arguments.
 
 Unknown non-cooperating outcomes are never retried automatically. An operator
 must attach independently verified receipt evidence or explicitly abandon the

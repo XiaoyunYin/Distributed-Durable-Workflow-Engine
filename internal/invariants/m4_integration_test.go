@@ -2,6 +2,8 @@ package invariants
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -71,20 +73,32 @@ func TestM4LoadIncludesEffectAndApprovalEvidence(t *testing.T) {
 		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, definitionID)
 		_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch})
 	}()
+	argumentHash := invariantHash(`{"value":1}`)
+	proposalHash := invariantHash("resource-1\x00" + argumentHash + "\x000")
+	grantScopeHash := invariantHash(proposalHash + "\x000\x00effect-1\x00resource-1")
+	intentID := state.NewID()
 	if _, err := store.Pool().Exec(ctx, `
-		INSERT INTO effects.effect_records (workflow_id, logical_effect_key, argument_hash, attempt_number, outcome, receipt)
-		VALUES ($1, 'effect-1', 'args-1', 1, 'APPLIED', '{"receipt":true}')`, workflowID); err != nil {
+		INSERT INTO effects.effect_records
+			(workflow_id, intent_id, logical_effect_key, argument_hash, attempt_number,
+			 grant_scope_hash, resource_id, outcome, receipt)
+		VALUES ($1, $2, 'effect-1', $3, 1, $4, 'resource-1', 'APPLIED', '{"receipt":true}')`,
+		workflowID, intentID, argumentHash, grantScopeHash); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Pool().Exec(ctx, `
 		INSERT INTO effects.effect_call_attempts (call_id, workflow_id, logical_effect_key, argument_hash, attempt_number, request_id, outcome)
-		VALUES ($1, $2, 'effect-1', 'args-1', 1, 'request-1', 'APPLIED')`, state.NewID(), workflowID); err != nil {
+		VALUES ($1, $2, 'effect-1', $3, 1, 'request-1', 'APPLIED')`, state.NewID(), workflowID, argumentHash); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Pool().Exec(ctx, `
 		INSERT INTO engine.approval_action_intents
-			(intent_id, workflow_id, node_id, iteration, proposal_hash, target, canonical_arguments, valid_until)
-		VALUES ($1, $2, 'root', 0, 'proposal-1', 'sandbox.write', '{"resource":"r"}', clock_timestamp() + interval '1 hour')`, state.NewID(), workflowID); err != nil {
+			(intent_id, workflow_id, node_id, iteration, proposal_hash, target,
+			 canonical_arguments, expected_resource_revision, decision, approver_id,
+			 valid_until, dispatch_status, grant_scope_hash, grant_token, grant_expires_at)
+		VALUES ($1, $2, 'root', 0, $3, 'resource-1', '{"value":1}', '0',
+			'APPROVED', 'approver-1', clock_timestamp() + interval '1 hour',
+			'DISPATCHED', $4, $5, clock_timestamp() + interval '1 hour')`,
+		intentID, workflowID, proposalHash, grantScopeHash, state.NewID()); err != nil {
 		t.Fatal(err)
 	}
 	trace, err := Load(ctx, store, []string{workflowID})
@@ -97,6 +111,11 @@ func TestM4LoadIncludesEffectAndApprovalEvidence(t *testing.T) {
 	if verdict := Check(trace); !verdict.Valid {
 		t.Fatalf("loaded M4 trace rejected: %v", verdict.Violations)
 	}
+}
+
+func invariantHash(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
 }
 
 func invariantDatabaseURL(t *testing.T) string {

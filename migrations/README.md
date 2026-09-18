@@ -30,3 +30,6 @@ Migration `000012` creates the independently owned `effects` schema for the
 cooperating effect service ledger. It has no foreign keys into `engine`, so
 effect commits and workflow transactions are never one cross-service
 transaction.
+Migration `000013` records the approving intent and approved resource on each
+new effect receipt so the checker can reconcile applied sink mutations with
+their authorization evidence.

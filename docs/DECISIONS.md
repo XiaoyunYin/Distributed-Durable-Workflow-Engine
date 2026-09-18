@@ -132,9 +132,11 @@ owned `effects` schema. Grant validation reads the engine grant before the
 effect transaction, while the effect transaction writes only the effect
 schema; this is intentionally local-development infrastructure rather than a
 cross-database transaction. The effect service requires a grant bound to the
-exact proposal, resource revision, and logical effect key before a mutation; a
-non-cooperating endpoint has no runtime lookup or deduplication capability and
-therefore remains reconciliation-only after an uncertain call.
+exact approved target resource, canonical state/argument hash, resource
+revision, and logical effect key before a mutation; first use consumes the
+grant as `DISPATCHED`. A non-cooperating endpoint has no runtime lookup or
+deduplication capability and therefore remains reconciliation-only after an
+uncertain call.
 
 The rejected alternative was to let the engine infer approval from a caller's
 actor string or to make cancellation and grant application separate commits.

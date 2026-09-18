@@ -132,11 +132,16 @@ func TestM4EffectLedgerAndFencing(t *testing.T) {
 	workflowID, definitionID, lease := createM4Fixture(t, ctx, store, EffectPure)
 	resourceID := "m4-resource-" + NewID()
 	defer cleanupM4Fixture(t, ctx, store, workflowID, definitionID, lease, resourceID)
-	grant := createM4Grant(t, ctx, store, workflowID, lease, "effect-1", 1, "0")
+	grant := createM4Grant(t, ctx, store, workflowID, lease, resourceID, "effect-1", 1, "0")
+	stateValue := m4EffectArguments("effect-1", 1)
+	argumentHash, err := canonicalPayloadHash(stateValue)
+	if err != nil {
+		t.Fatal(err)
+	}
 
-	input := EffectApplyInput{WorkflowID: workflowID, NodeID: "root", Iteration: 0, LogicalEffectKey: "effect-1", ArgumentHash: "args-1",
+	input := EffectApplyInput{WorkflowID: workflowID, NodeID: "root", Iteration: 0, LogicalEffectKey: "effect-1", ArgumentHash: argumentHash,
 		AttemptNumber: 1, RequestID: NewID(), ResourceID: resourceID, FenceToken: 7,
-		State: []byte(`{"value":1}`), IntentID: grant.IntentID, GrantToken: grant.GrantToken, GrantScopeHash: grant.GrantScopeHash,
+		State: stateValue, IntentID: grant.IntentID, GrantToken: grant.GrantToken, GrantScopeHash: grant.GrantScopeHash,
 		ExpectedResourceRevision: "0"}
 	unapproved := input
 	unapproved.IntentID, unapproved.GrantToken, unapproved.GrantScopeHash = "", "", ""
@@ -157,23 +162,46 @@ func TestM4EffectLedgerAndFencing(t *testing.T) {
 	if effectRows != 1 || legacyRows != 0 {
 		t.Fatalf("effect service ledger rows = %d, legacy engine rows = %d", effectRows, legacyRows)
 	}
+	var dispatchStatus string
+	if err := store.Pool().QueryRow(ctx, `SELECT dispatch_status FROM engine.approval_action_intents WHERE intent_id = $1`, grant.IntentID).Scan(&dispatchStatus); err != nil {
+		t.Fatal(err)
+	}
+	if dispatchStatus != "DISPATCHED" {
+		t.Fatalf("grant status = %s, want DISPATCHED", dispatchStatus)
+	}
 	duplicate := input
 	duplicate.RequestID = NewID()
-	duplicate.State = []byte(`{"value":999}`)
 	retry, err := store.ApplyEffect(ctx, duplicate)
 	if err != nil || string(retry.Receipt) != string(receipt.Receipt) {
 		t.Fatalf("duplicate effect = %+v, err=%v", retry, err)
 	}
-	conflict := duplicate
-	conflict.RequestID = NewID()
-	conflict.ArgumentHash = "args-2"
-	if _, err := store.ApplyEffect(ctx, conflict); !errors.Is(err, ErrEffectConflict) {
-		t.Fatalf("effect conflict = %v, want %v", err, ErrEffectConflict)
+	wrongResource := input
+	wrongResource.RequestID = NewID()
+	wrongResource.ResourceID = "m4-resource-different-" + NewID()
+	if _, err := store.ApplyEffect(ctx, wrongResource); !errors.Is(err, ErrEffectResource) {
+		t.Fatalf("effect resource mismatch = %v, want %v", err, ErrEffectResource)
 	}
-	grant2 := createM4Grant(t, ctx, store, workflowID, lease, "effect-2", 1, "1")
+	wrongArguments := input
+	wrongArguments.RequestID = NewID()
+	wrongArguments.State = m4EffectArguments("effect-1", 99)
+	if _, err := store.ApplyEffect(ctx, wrongArguments); !errors.Is(err, ErrEffectArguments) {
+		t.Fatalf("effect argument mismatch = %v, want %v", err, ErrEffectArguments)
+	}
+	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM effects.effect_records WHERE workflow_id = $1`, workflowID).Scan(&effectRows); err != nil {
+		t.Fatal(err)
+	}
+	if effectRows != 1 {
+		t.Fatalf("mismatched effect attempts created %d effect records, want one original", effectRows)
+	}
+	grant2 := createM4Grant(t, ctx, store, workflowID, lease, resourceID, "effect-2", 1, "1")
 	stale := input
 	stale.RequestID = NewID()
 	stale.LogicalEffectKey = "effect-2"
+	stale.State = m4EffectArguments("effect-2", 1)
+	stale.ArgumentHash, err = canonicalPayloadHash(stale.State)
+	if err != nil {
+		t.Fatal(err)
+	}
 	stale.FenceToken = 6
 	stale.IntentID = grant2.IntentID
 	stale.GrantToken = grant2.GrantToken
@@ -182,16 +210,22 @@ func TestM4EffectLedgerAndFencing(t *testing.T) {
 	if _, err := store.ApplyEffect(ctx, stale); !errors.Is(err, ErrEffectFence) {
 		t.Fatalf("effect fence = %v, want %v", err, ErrEffectFence)
 	}
-	grant3 := createM4Grant(t, ctx, store, workflowID, lease, "effect-3", 2, "1")
-	unknown, err := store.RecordUnknownEffect(ctx, workflowID, "effect-3", "args-3", grant3.GrantScopeHash, 2)
+	grant3 := createM4Grant(t, ctx, store, workflowID, lease, resourceID, "effect-3", 2, "1")
+	unknownState := m4EffectArguments("effect-3", 2)
+	unknownHash, err := canonicalPayloadHash(unknownState)
+	if err != nil {
+		t.Fatal(err)
+	}
+	unknown, err := store.RecordUnknownEffect(ctx, workflowID, "effect-3", unknownHash, grant3.GrantScopeHash, 2)
 	if err != nil || unknown.Outcome != "OUTCOME_UNKNOWN" {
 		t.Fatalf("unknown effect = %+v, err=%v", unknown, err)
 	}
 	ambiguous := input
 	ambiguous.RequestID = NewID()
 	ambiguous.LogicalEffectKey = "effect-3"
-	ambiguous.ArgumentHash = "args-3"
+	ambiguous.ArgumentHash = unknownHash
 	ambiguous.AttemptNumber = 2
+	ambiguous.State = unknownState
 	ambiguous.IntentID = grant3.IntentID
 	ambiguous.GrantToken = grant3.GrantToken
 	ambiguous.GrantScopeHash = grant3.GrantScopeHash
@@ -199,15 +233,16 @@ func TestM4EffectLedgerAndFencing(t *testing.T) {
 	if _, err := store.ApplyEffect(ctx, ambiguous); !errors.Is(err, ErrAmbiguousEffect) {
 		t.Fatalf("ambiguous effect = %v, want %v", err, ErrAmbiguousEffect)
 	}
-	if err := store.ResolveUnknownEffect(ctx, "operator-1", workflowID, "effect-3", "args-3", []byte(`{"confirmed":true}`), false); err != nil {
+	if err := store.ResolveUnknownEffect(ctx, "operator-1", workflowID, "effect-3", unknownHash, []byte(`{"confirmed":true}`), false); err != nil {
 		t.Fatal(err)
 	}
 	resolved, err := store.LookupEffect(ctx, workflowID, "effect-3")
-	if err != nil || resolved.Outcome != "APPLIED" || len(resolved.Receipt) == 0 {
+	if err != nil || resolved.Outcome != "APPLIED" || len(resolved.Receipt) == 0 ||
+		resolved.IntentID != grant3.IntentID || resolved.ResourceID != resourceID {
 		t.Fatalf("resolved effect = %+v, err=%v", resolved, err)
 	}
 	calls, err := store.ListEffectCallAttempts(ctx, workflowID)
-	if err != nil || len(calls) != 5 {
+	if err != nil || len(calls) != 4 {
 		t.Fatalf("effect call evidence = %+v, err=%v", calls, err)
 	}
 }
@@ -390,7 +425,7 @@ func TestM4NonCooperatingTimeoutIsReconciliationOnly(t *testing.T) {
 	}
 }
 
-func createM4Grant(t *testing.T, ctx context.Context, store *Store, workflowID string, lease Lease, logicalKey string, attemptNumber int64, expectedResourceRevision string) ApprovalGrant {
+func createM4Grant(t *testing.T, ctx context.Context, store *Store, workflowID string, lease Lease, resourceID, logicalKey string, attemptNumber int64, expectedResourceRevision string) ApprovalGrant {
 	t.Helper()
 	wf, err := store.GetWorkflow(ctx, workflowID)
 	if err != nil {
@@ -398,7 +433,7 @@ func createM4Grant(t *testing.T, ctx context.Context, store *Store, workflowID s
 	}
 	intent, err := store.CreateApprovalIntent(ctx, ApprovalIntentInput{
 		Lease: leaseRef(lease), WorkflowID: workflowID, NodeID: "root", ExpectedRevision: wf.Revision,
-		Target: "sandbox.write", CanonicalArguments: []byte(fmt.Sprintf(`{"logical_key":%q,"attempt":%d}`, logicalKey, attemptNumber)),
+		Target: resourceID, CanonicalArguments: m4EffectArguments(logicalKey, attemptNumber),
 		ExpectedResourceRevision: expectedResourceRevision, ValidUntil: time.Now().Add(time.Hour), ActorID: "m4-scheduler",
 	})
 	if err != nil {
@@ -421,6 +456,10 @@ func createM4Grant(t *testing.T, ctx context.Context, store *Store, workflowID s
 		t.Fatal(err)
 	}
 	return grant
+}
+
+func m4EffectArguments(logicalKey string, attemptNumber int64) []byte {
+	return []byte(fmt.Sprintf(`{"logical_key":%q,"attempt":%d}`, logicalKey, attemptNumber))
 }
 
 func createM4Fixture(t *testing.T, ctx context.Context, store *Store, class EffectClass) (string, string, Lease) {

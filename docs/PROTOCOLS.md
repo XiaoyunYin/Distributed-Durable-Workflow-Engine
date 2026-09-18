@@ -21,15 +21,19 @@ external-effect receipt.
 ## Effect protocol
 
 The cooperating sandbox accepts an `EffectApplyInput` only with a matching
-approved grant, canonical argument hash, stable logical effect key, expected
-resource revision, request ID, and resource-local fence token. The grant scope
-is derived from the exact proposal, expected resource revision, and logical
+approved grant, canonical argument hash recomputed from the submitted state,
+stable logical effect key, expected resource revision, request ID, and
+resource-local fence token. The grant scope is derived from the exact
+proposal, approved target resource, expected resource revision, and logical
 effect key. Grant validation reads the engine's grant record before the sink
 transaction begins; the sink transaction itself writes only the independently
 owned `effects` schema. It locks the resource fence, checks the expected
 revision and token, updates sandbox state, stores one effect receipt, and
-stores a separate call-attempt row. There is deliberately no foreign key or
-cross-table transaction from the effect ledger back into `engine`.
+stores a separate call-attempt row. The first successful application marks the
+engine grant `DISPATCHED` in a separate best-effort update; a retry can return
+the receipt but cannot change the approved resource or arguments. There is
+deliberately no foreign key or cross-table transaction from the effect ledger
+back into `engine`.
 
 Same-key/same-argument calls return the stored receipt; a different argument or
 grant scope is a conflict. A lower resource token is rejected. An

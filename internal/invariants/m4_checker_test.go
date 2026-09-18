@@ -6,18 +6,23 @@ import (
 )
 
 func validM4Trace() Trace {
+	argumentHash, _ := canonicalJSONHash([]byte(`{"value":1}`))
+	proposalHash := independentHash("resource-1\x00" + argumentHash + "\x000")
+	grantScopeHash := independentHash(proposalHash + "\x000\x00effect-1\x00resource-1")
 	return Trace{
 		Checkpoints: []CheckpointRecord{{WorkflowID: "wf", NodeID: "root", Iteration: 0,
 			Sequence: 0, SchemaVersion: 1, SourceAttempt: 1, PayloadValid: true, PayloadHash: "hash-0"},
 			{WorkflowID: "wf", NodeID: "root", Iteration: 0,
 				Sequence: 1, SchemaVersion: 1, SourceAttempt: 1, PayloadValid: true, PayloadHash: "hash-1"}},
-		Effects: []EffectRecordSnapshot{{WorkflowID: "wf", LogicalEffectKey: "effect-1",
-			ArgumentHash: "args-1", AttemptNumber: 1, Outcome: "APPLIED", ReceiptPresent: true}},
+		Effects: []EffectRecordSnapshot{{WorkflowID: "wf", IntentID: "intent-1", LogicalEffectKey: "effect-1",
+			ArgumentHash: argumentHash, AttemptNumber: 1, GrantScopeHash: grantScopeHash,
+			ResourceID: "resource-1", Outcome: "APPLIED", ReceiptPresent: true}},
 		EffectCalls: []EffectCallRecord{{WorkflowID: "wf", LogicalEffectKey: "effect-1",
-			ArgumentHash: "args-1", AttemptNumber: 1, RequestID: "request-1", Outcome: "APPLIED"}},
+			ArgumentHash: argumentHash, AttemptNumber: 1, RequestID: "request-1", Outcome: "APPLIED"}},
 		Approvals: []ApprovalRecord{{IntentID: "intent-1", WorkflowID: "wf", NodeID: "root", Iteration: 0,
-			ProposalHash: "proposal-1", Target: "sandbox.write", ArgumentsValid: true,
-			Decision: "APPROVED", DispatchStatus: "GRANTED", GrantScopeHash: "scope-1", GrantToken: "token-1"}},
+			ProposalHash: proposalHash, Target: "resource-1", ArgumentsValid: true,
+			CanonicalArgumentHash: argumentHash, ExpectedResourceRevision: "0",
+			Decision: "APPROVED", DispatchStatus: "DISPATCHED", GrantScopeHash: grantScopeHash, GrantToken: "token-1"}},
 	}
 }
 
@@ -48,6 +53,12 @@ func TestCheckRejectsM4EvidenceIndependently(t *testing.T) {
 		{name: "grant without approval", mutate: func(trace *Trace) {
 			trace.Approvals[0].Decision = "REJECTED"
 		}, message: "matching approved decision"},
+		{name: "effect resource mismatch", mutate: func(trace *Trace) {
+			trace.Effects[0].ResourceID = "resource-2"
+		}, message: "resource does not match approval"},
+		{name: "effect arguments mismatch", mutate: func(trace *Trace) {
+			trace.Effects[0].ArgumentHash = "different-arguments"
+		}, message: "arguments do not match approval"},
 	}
 	for _, testCase := range cases {
 		t.Run(testCase.name, func(t *testing.T) {

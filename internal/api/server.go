@@ -849,6 +849,10 @@ func writeRepositoryError(w http.ResponseWriter, err error) {
 		writeError(w, http.StatusConflict, "APPROVAL_CONFLICT", "approval does not match the exact proposal", nil)
 	case errors.Is(err, state.ErrGrantInvalid):
 		writeError(w, http.StatusForbidden, "INVALID_GRANT", "dispatch grant is missing, expired, or mismatched", nil)
+	case errors.Is(err, state.ErrEffectResource):
+		writeError(w, http.StatusForbidden, "EFFECT_RESOURCE_NOT_APPROVED", "effect resource is not covered by the approval", nil)
+	case errors.Is(err, state.ErrEffectArguments):
+		writeError(w, http.StatusForbidden, "EFFECT_ARGUMENTS_NOT_APPROVED", "effect arguments are not covered by the approval", nil)
 	case errors.Is(err, state.ErrEffectConflict):
 		writeError(w, http.StatusConflict, "EFFECT_CONFLICT", "effect key conflicts with a prior argument", nil)
 	case errors.Is(err, state.ErrEffectFence):
