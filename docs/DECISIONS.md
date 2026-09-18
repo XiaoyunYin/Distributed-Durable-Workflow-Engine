@@ -237,3 +237,24 @@ bare-metal Linux performance claim. Final I/O-sensitive results remain labeled
 Docker Desktop/WSL2 evidence unless reproduced on a separately declared host.
 The rejected alternative was to silently treat Windows-hosted Docker output as
 native Linux evidence or to begin final measurements before the readiness gate.
+
+## D012 - Keep DUR-034 safeguard ablations test-only and independently paired
+
+- Date: 2026-09-18
+- Status: proposed for Claude review with DUR-034
+
+DUR-034 uses an explicit context-scoped `TestSafeguardProfile` seam rather than
+global flags or runtime configuration. The full profile calls the normal store
+protocol. The history-disabled profile suppresses only transition-history
+writes, the unsafe profile deliberately moves owner validation outside the
+mutation transaction and exposes a check-to-commit barrier, and the no-outbox
+profile suppresses outbox writes while the harness records a bounded delayed
+recovery before dispatch. None of these profiles is constructed by a runtime
+binary.
+
+Each weakened profile is paired with an independent observable property: audit
+rows disappear when history is disabled, a stale owner can commit after a
+takeover only under the unsafe negative control, and the no-outbox arm reports
+recovery delay without treating direct dispatch as a safety replacement for
+the transactional outbox. The rejected alternative was to change production
+defaults or report a synthetic profile comparison without a negative control.

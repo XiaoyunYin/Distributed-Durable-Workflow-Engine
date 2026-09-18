@@ -1748,6 +1748,26 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   mypy, and 38 Python tests; its live PostgreSQL/Kafka smoke phase remains
   intentionally skipped. This handoff is READY_FOR_REVIEW, not DONE.
 
+## 2026-09-18 - M7 DUR-034 safeguard-cost ablation start
+
+- DUR-034 is `IN_PROGRESS` from base `611ff26`, the accepted DUR-026 closeout.
+- The implementation adds a context-scoped, test-only profile seam to the
+  state store and a deterministic four-profile ablation command. The profiles
+  are full safeguards, history-disabled, unsafe lease validation with a
+  check-to-commit takeover barrier, and no-outbox with an explicit bounded
+  recovery delay. No runtime binary enables a weakened profile.
+- The fixed protocol is T1, one scheduler, one near-saturation rate, four
+  profiles, and three repeats (12 measured runs). Each run records terminal
+  reconciliation, latency, query/transaction/lock telemetry, history rows,
+  outbox rows, and pending outbox work. The negative controls are required to
+  fail independently of the throughput comparison.
+- Added `cmd/dur034-ablation` and `scripts/m7-dur034.ps1`. The runner sweeps
+  only reserved DUR-034 namespaces before and after measurement and refuses a
+  dirty worktree. The study remains bounded Store/Engine evidence on the
+  DUR-036 Docker Desktop/WSL2 host, not deployed API/relay/Kafka throughput.
+- Static checks so far: `gofmt`, focused Go tests, and `go vet` for the changed
+  packages pass. The measurement and repository-wide CI remain pending.
+
 ## 2026-09-18 - M7 DUR-026 closeout
 
 - Claude's committed round-31 review of target `50d4b13` returned

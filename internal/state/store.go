@@ -525,6 +525,9 @@ func lockLease(ctx context.Context, tx pgx.Tx, ref LeaseRef) (Lease, error) {
 }
 
 func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionInput) error {
+	if profile := testSafeguardProfile(ctx); profile.UnsafeLeaseValidation {
+		return s.applyUnsafeOwnerTransition(ctx, input)
+	}
 	started := time.Now()
 	defer s.observeQuery(started)
 	defer s.observeTransaction()
@@ -1683,6 +1686,9 @@ func updateRevisionAndHistory(ctx context.Context, tx pgx.Tx, input TimeoutInput
 func insertHistory(ctx context.Context, tx pgx.Tx, workflowID string, revision int64, actorKind, actorID string,
 	epoch *int64, nodeID string, iteration *int, attemptNumber *int64, oldState *WorkflowState,
 	newState WorkflowState, reason string) error {
+	if testSafeguardProfile(ctx).DisableHistory {
+		return nil
+	}
 	if _, err := tx.Exec(ctx, `
 		INSERT INTO engine.transition_history
 			(transition_id, workflow_id, revision, actor_kind, actor_id, scheduler_epoch,
@@ -1696,6 +1702,9 @@ func insertHistory(ctx context.Context, tx pgx.Tx, workflowID string, revision i
 }
 
 func insertOutbox(ctx context.Context, tx pgx.Tx, workflowID string, revision int64, eventType string, payload json.RawMessage) error {
+	if testSafeguardProfile(ctx).DisableOutbox {
+		return nil
+	}
 	if len(payload) == 0 {
 		payload = json.RawMessage(`{}`)
 	}
