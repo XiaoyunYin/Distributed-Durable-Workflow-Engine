@@ -2,12 +2,13 @@
 
 M6 uses a deterministic local fixture generator so correctness checks do not
 depend on paid model credentials. `python -m incident_agent fixtures` records
-the corpus counts and dashboard label policy. `benchmark` evaluates keyword,
-dense, and hybrid retrieval over the same generated chunks. `continuity`
-executes the 20 held-out interrupted/uninterrupted pairs and citation checks.
-`adversarial` runs the 20 cases x 2 profiles x (`clean-A`, `clean-B`,
-`injected`) protocol with fixed redaction and records proposal-change and
-canary-leakage results, with approval enforcement reported separately.
+the corpus counts, source-corpus contract, and dashboard label policy.
+`benchmark` evaluates keyword, dense, and hybrid retrieval with development and
+held-out results kept separate. `continuity` executes the 20 held-out
+interrupted/uninterrupted pairs and citation checks. `adversarial` runs the 20
+cases x 2 redacted profiles x (`clean-A`, `clean-B`, `injected`) protocol and
+records proposal-change and canary-leakage results, with approval enforcement
+reported separately. A redaction-off run is a separate negative control.
 
 The corpus generator creates 60 versioned documents and 300 chunks across five
 synthetic families. Ground-truth labels are evaluator-only and never returned
@@ -19,13 +20,19 @@ changing the retrieval contract. This deterministic hash adapter is a
 reproducibility fixture, not a claim of semantic embedding quality.
 
 `fixtures` also writes the evaluator-only case labels, frozen retrieval
-configuration, the MCP schema, and a development-only difficulty audit.
-Held-out labels are not returned by MCP methods or used by the workflow.
+configuration, the MCP schema, and a derived development-only difficulty
+audit. Held-out labels are not returned by MCP methods or used by the workflow.
+The local workflow materializes these rows into the attached `source_corpus`
+SQLite adapter and reads them back before constructing the retrieval index.
 
 The repository gate can reproduce all artifacts with
 `powershell.exe -ExecutionPolicy Bypass -File scripts/ci.ps1 -WithM6`.
 
-The workflow is SQLite-backed for a portable deterministic demo. Its durable
-timeline, approval wait, effect receipt, idempotent resume, citation validator,
-and bounded MCP call budget are the same seams a PostgreSQL/engine adapter can
-implement. No live model or paid-provider claim is made by these artifacts.
+The workflow state is SQLite-backed for a portable deterministic demo. Its
+approval grant/effect ledger binds the resource, canonical proposal hash,
+workflow revision, and one-use receipt; its durable timeline, approval wait,
+idempotent resume, citation validator, and bounded MCP call budget are the
+same seams a PostgreSQL/engine adapter can implement. The source adapter and
+grant ledger are local correctness evidence, not a claim of production engine
+or PostgreSQL availability. No live model or paid-provider claim is made by
+these artifacts.

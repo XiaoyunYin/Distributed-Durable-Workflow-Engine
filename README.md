@@ -1,7 +1,7 @@
 # Distributed Durable Execution Engine
 
 This repository has completed M0 through M5, and M6 is implemented and ready
-for Claude review at `d8ec3d6` (base `db8b462`). M5 was reviewed with
+for Claude review at `a421d55` (base `db8b462`). M5 was reviewed with
 `NO_BLOCKING_FINDINGS` at committed target `acb28ba` against round-22 target
 `69917db`; R057 remains a nonblocking P3 evidence-labelling limitation.
 It provides a
@@ -14,9 +14,11 @@ inbox/offset consumer, scheduler wake-ups, retry/checkpoint recovery,
 approval-gated cooperating effects, and bounded reconciliation paths are
 covered by focused integration tests. M4 and M5 are reviewed and closed; M5's
 controller-driven fault campaign, outage checks, and telemetry prerequisite
-remain development evidence. M6's retrieval, MCP, workflow, redaction, and
-continuity artifacts are synthetic local evidence, not live-model quality or
-production agent claims. This is not a claim of
+remain development evidence. M6's retrieval, MCP, workflow, source-corpus,
+redaction, and continuity artifacts are synthetic local evidence, not live-model
+quality or production agent claims. Its portable SQLite adapter exercises the
+approval/effect contract seams but is not the production PostgreSQL engine.
+This is not a claim of
 production authentication, multi-host durability, or final performance.
 
 ## Local topology

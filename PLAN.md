@@ -1213,7 +1213,7 @@ contract revision.
 
 - **Status:** READY_FOR_REVIEW; Claude review pending.
 - **Base commit:** `db8b462` (M5 closeout).
-- **Target commit:** `d8ec3d6` (M6 deterministic incident workflow and evidence).
+- **Target commit:** `a421d55` (M6 evidence-quality fixes and approval-boundary tests).
 - **Tasks:** DUR-019, DUR-020, DUR-021B, and DUR-033.
 - **Protected boundaries:** M0-M5 contracts, PostgreSQL workflow authority,
   approval/effect authorization, independent invariant checking, frozen
@@ -1222,33 +1222,40 @@ contract revision.
 - **Delivered:** 60 synthetic documents and 300 stable chunks across five
   families; 30 incident cases (10 development, 20 held-out); 40 development
   and 120 held-out retrieval queries with 25% no-answer labels and
-  near-duplicate metadata; schema-constrained bounded MCP methods; keyword,
+  near-duplicate document pairs; schema-constrained bounded MCP methods; keyword,
   dense, and hybrid retrieval with frozen config plus pre-gate and delivered
   evidence; `source_corpus` PostgreSQL full-text schema with an optional
-  pgvector index and deterministic JSON embedding fallback; approval-gated
-  investigation state, citations, sandbox receipt idempotence, redaction,
-  timeline events, bounded metrics, dashboard manifest, and live-mode budget
-  authorization.
+  pgvector index and deterministic JSON embedding fallback, plus a persisted
+  attached-SQLite source adapter used by the local workflow; approval-gated
+  investigation state, citations, resource/hash/revision-bound effect grants,
+  idempotent receipts, redaction, timeline events, bounded metrics, dashboard
+  panel manifest, and live-mode budget authorization.
 - **Evidence:** `experiments/m6/` contains the corpus manifest, evaluator-only
-  cases, retrieval config and benchmark, difficulty audit, MCP schema,
-  dashboard, 20/20 continuity report, citation report, and 120-execution
-  adversarial report. The M6 source schema is
+  cases, retrieval config and separate development/held-out benchmark,
+  derived difficulty audit, source-corpus contract, MCP schema, dashboard and
+  emitted metrics, 20/20 continuity report, 30-case citation report, and
+  120-execution adversarial report with a separate redaction-off negative
+  control. The M6 source schema is
   `migrations/000014_m6_incident_source_corpus.up.sql`.
-- **Measured deterministic results:** keyword and hybrid delivered recall
-  1.0 with zero no-answer false positives on the 160-query fixture; dense
-  ranking recall is 1.0 and its delivered recall is 0.4 under the frozen
-  development-tuned gate; continuity is 20/20; adversarial execution is
-  120/120 with zero canary leaks, zero clean/injected proposal changes, and
-  approval enforcement blocking 24/24 pre-approval actions.
+- **Measured deterministic results:** on held-out queries, keyword/dense/
+  hybrid delivered recall is 1.0/0.9556/1.0, ranking MRR is 1.0/0.7835/
+  0.9481, and no-answer false-positive rate is 0/0.0333/0.0333; the config
+  fingerprint is equal between development tuning and held-out scoring.
+  Continuity is 20/20 with checkpoint replay and fewer post-restart MCP calls;
+  the 120-run adversarial protocol has zero canary leaks in either redacted
+  profile, defended injection changes 0/20, plain-profile changes 20/20, and
+  its redaction-off negative control fires. Approval enforcement blocks 24/24
+  pre-approval actions.
 - **Validation:** `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
   ./scripts/ci.ps1 -WithRace -WithM6` passed Go race checks, Go vet/build,
-  Ruff, mypy, all 37 Python tests, and artifact generation. `migrate.ps1`
+  Ruff, mypy, all 38 Python tests, and artifact generation. `migrate.ps1`
   applied migration 000014 to the local PostgreSQL service and a second run
   skipped it as already applied. `git diff --check` is clean for the
   implementation target.
 - **Skipped or untested:** live model/provider runs and paid budgets;
-  production MCP wire transport; a PostgreSQL-backed workflow adapter and
-  source-corpus seeding; pgvector native execution on the pinned image when
+  production MCP wire transport; the production PostgreSQL engine/effects
+  adapter (the local SQLite adapter exercises the same grant/resource/hash/
+  revision/receipt contract); pgvector native execution on the pinned image when
   the extension is unavailable; clean-machine bootstrap/restart, hard-kill
   storage durability, multi-host deployment, sustained load, Kafka rebalance,
   and remote CI. The SQLite workflow and hash embedding are deterministic
@@ -1256,7 +1263,9 @@ contract revision.
 - **Known limitations:** M5 residual P3 R057 and the historical R019 test gap
   remain nonblocking. Incident IDs, prompts, and evidence text are not metric
   labels. Raw source files and the declared `source_corpus` boundary remain
-  excluded from downstream canary scanning as required by the plan.
+  excluded from downstream canary scanning as required by the plan; the local
+  adapter persists and reads those raw rows before MCP redaction, while the
+  production engine integration remains a later deployment concern.
 
 ### M7 — Controlled measurements
 
@@ -1567,14 +1576,14 @@ DUR-023B, DUR-024, DUR-025, and DUR-021A are DONE. R057 remains open as a
 nonblocking P3 evidence-labelling limitation. Keep the M0 contracts and
 partition-map version frozen while extending the durable state repository.
 
-M6 implementation is READY_FOR_REVIEW at target `d8ec3d6`, based on the M5
+M6 implementation is READY_FOR_REVIEW at target `a421d55`, based on the M5
 closeout `db8b462`. DUR-019, DUR-020, DUR-021B, and DUR-033 are
 READY_FOR_REVIEW; Claude review is pending. The implementation is a
 deterministic local-first profile: it provides the versioned incident corpus,
-bounded MCP-style tools, keyword/dense/hybrid retrieval, an approval-gated
-SQLite workflow adapter, incident timeline/metrics artifacts, citation checks,
-and F12 continuity and redaction evidence. It does not claim live-model
-quality, paid execution, production MCP transport, or a production scheduler
-integration.
+an exercised `source_corpus` adapter, bounded MCP-style tools,
+keyword/dense/hybrid retrieval, an approval-gated SQLite workflow adapter,
+incident timeline/metrics artifacts, citation checks, and F12 continuity and
+redaction evidence. It does not claim live-model quality, paid execution,
+production MCP transport, or a production scheduler integration.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

@@ -170,12 +170,21 @@ is lost, the stable effect receipt makes the retry safe.
 
 M6 correctness evidence uses a pinned deterministic local embedding adapter,
 scripted fixture decisions, bounded schema-constrained MCP calls, and a
-portable SQLite workflow store. The PostgreSQL `source_corpus` schema owns the
-raw-source boundary and full-text index; a native pgvector column/index is
-created only when the pinned development image exposes the extension, while
-the JSON embedding column remains the explicit fallback. Live provider use is
-not implied by deterministic evidence: any future provider adapter must pass a
-positive budget and an explicit `INCIDENT_LIVE_APPROVED=1` gate.
+portable SQLite workflow store. The local workflow materializes and reads an
+attached `source_corpus` database with the same documents/chunks/fixture-cases
+boundary as the PostgreSQL migration; the migration owns the production
+schema/full-text index, while the native pgvector column/index is created only
+when the pinned development image exposes the extension. The JSON embedding
+column remains the explicit fallback. Live provider use is not implied by
+deterministic evidence: any future provider adapter must pass a positive
+budget and an explicit `INCIDENT_LIVE_APPROVED=1` gate.
+
+The local approval/effect adapter deliberately mirrors the M4 authorization
+boundary: a grant binds the run, target resource, canonical proposal hash,
+workflow revision, and fence token; first use records a receipt and marks the
+grant dispatched, and retries return only that receipt. This is evidence for
+the contract seam, not a claim that the Python fixture has replaced the
+production PostgreSQL engine or Go effect service.
 
 This keeps retrieval, citation, approval, redaction, and interruption
 properties reproducible without paid calls or importing model behavior into

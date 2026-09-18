@@ -1447,3 +1447,45 @@ call into the durable timeline, see that a human approval is required before
 the sandbox receipt, resume the same SQLite state after an interruption, and
 re-run redaction/citation/continuity checks without credentials or a live
 model.
+
+## 2026-09-18 - M6 evidence-quality correction
+
+- Task status: READY_FOR_REVIEW; the round-24 P1/P2 findings are addressed in
+  implementation targets `a11599b` and `a421d55`; Claude review is pending.
+- Base and target: correction work starts from the reviewed M6 target `d8ec3d6`
+  and ends at `a421d55`; M6 remains based on M5 closeout `db8b462`.
+
+The correction makes the evidence falsifiable. Retrieval now uses distinct
+development and held-out query strings, one-chunk labels, plausible no-answer
+queries, real paired near-duplicate documents, derived configuration hashes,
+and a random-retriever baseline. The published benchmark reports each split
+separately instead of pooling tuning and evaluation rows.
+
+The adversarial protocol seeds canaries in source chunks and logs, scans the
+actual downstream surfaces, keeps redaction enabled in both measured profiles,
+and varies the evidence-handling decision path. A separate redaction-off
+negative control now leaks and changes the scripted proposal, proving that the
+scanner and injection path can fail. Citation checking covers all 30 cases and
+has an unsupported-citation negative control. Continuity uses file-backed
+SQLite, persists MCP result checkpoints, and verifies that restart replays
+stored results rather than issuing the calls again.
+
+The local workflow now materializes and reads the declared `source_corpus`
+tables through an attached SQLite adapter. Its approval grant/effect ledger
+binds the resource, canonical proposal hash, workflow revision and dispatched
+receipt, with a regression test for forged arguments. This is an explicit
+portable correctness adapter, not a claim that the Python fixture is the
+production PostgreSQL engine or Go effect service.
+
+Validation: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
+./scripts/ci.ps1 -WithRace -WithM6` PASS with 38 Python tests, Go race/vet/build,
+Ruff, mypy and regenerated artifacts. The host's global pytest temp directory
+was inaccessible, so the same CI command used a workspace-local `--basetemp`
+for the successful run. The normal pytest cache still emitted one non-fatal
+permission warning. No live-model, paid-provider or production transport run
+was performed.
+
+Interview explanation: a benchmark is evidence only when a random baseline,
+held-out split, seeded canary, failing negative control, and persisted
+checkpoint give the reviewer a way to distinguish a measured property from a
+fixture that always returns the desired number.
