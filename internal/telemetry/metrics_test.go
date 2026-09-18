@@ -58,3 +58,17 @@ func TestMetricsConcurrentUpdates(t *testing.T) {
 		t.Fatalf("accepted claims = %d, want 800", got)
 	}
 }
+
+func TestDurableReadyTimestampIsStable(t *testing.T) {
+	m := New("scheduler-a")
+	m.MarkDurableReady()
+	first := m.Snapshot().DurableReadyUnix
+	if first == 0 {
+		t.Fatal("durable-ready timestamp was not recorded")
+	}
+	time.Sleep(1100 * time.Millisecond)
+	m.MarkDurableReady()
+	if got := m.Snapshot().DurableReadyUnix; got != first {
+		t.Fatalf("durable-ready timestamp changed from %d to %d", first, got)
+	}
+}

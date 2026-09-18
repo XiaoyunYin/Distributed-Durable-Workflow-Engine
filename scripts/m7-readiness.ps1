@@ -11,6 +11,7 @@ Push-Location $RepoRoot
 $composeArgs = @("compose", "--env-file", ".env", "-f", "deploy/local/compose.yaml")
 $expectedServices = @("postgres", "kafka", "runtime-a", "runtime-b", "worker-a", "worker-b", "otel-collector", "prometheus")
 $startedAt = (Get-Date).ToUniversalTime()
+$previousEngineMode = $env:RUNTIME_ENGINE_MODE
 
 function Invoke-Captured([string]$FilePath, [string[]]$Arguments) {
     $previousErrorAction = $ErrorActionPreference
@@ -66,6 +67,13 @@ function Get-Metrics([string]$Port) {
     }
 }
 
+function MetricValue([string]$Text, [string]$Name, [string]$Role) {
+    $pattern = "(?m)^" + [regex]::Escape($Name) + "\{role=\"" + [regex]::Escape($Role) + "\"\}\s+([0-9.eE+-]+)$"
+    $match = [regex]::Match($Text, $pattern)
+    if (-not $match.Success) { throw "Metric '$Name' for role '$Role' was not exported." }
+    return [double]::Parse($match.Groups[1].Value, [Globalization.CultureInfo]::InvariantCulture)
+}
+
 try {
     if (-not (Test-Path -LiteralPath ".env")) {
         throw ".env is missing; run scripts/bootstrap.ps1 before DUR-036 readiness."
@@ -74,11 +82,12 @@ try {
     $status = & git status --porcelain --untracked-files=all
     if ($LASTEXITCODE -ne 0) { throw "Could not inspect Git status." }
     if (-not [string]::IsNullOrWhiteSpace(($status | Out-String))) {
-        throw "DUR-036 readiness requires a clean checkout before deployment."
+        throw "DUR-036 readiness requires a clean working tree before deployment."
     }
     $commit = (Invoke-Required "git" @("rev-parse", "HEAD")).output.Trim()
 
     if ($StartServices) {
+        $env:RUNTIME_ENGINE_MODE = "readiness"
         Invoke-Required "docker" ($composeArgs + @("up", "-d", "--build", "--wait")) | Out-Null
         Invoke-Required "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "migrate.ps1")) | Out-Null
     }
@@ -131,6 +140,34 @@ try {
     $metricsBefore = Get-Metrics $runtimePort
     $smoke = Invoke-Required "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "smoke.ps1"))
 
+    if ($metricsBefore.status -ne 200) { throw "Deployed runtime metrics endpoint was not available before the readiness workload." }
+    $readinessURL = "http://127.0.0.1:{0}/internal/readiness/run" -f $runtimePort
+    $readinessHTTP = Invoke-WebRequest -UseBasicParsing -Method Post -Uri $readinessURL -TimeoutSec 30
+    if ($readinessHTTP.StatusCode -ne 200) { throw "Deployed readiness workload returned HTTP $($readinessHTTP.StatusCode)." }
+    $deployedRun = $readinessHTTP.Content | ConvertFrom-Json
+    if ($deployedRun.state -ne "SUCCEEDED") { throw "Deployed readiness workflow state was '$($deployedRun.state)'." }
+    $metricsAfter = Get-Metrics $runtimePort
+    if ($metricsAfter.status -ne 200) { throw "Deployed runtime metrics endpoint was not available after the readiness workload." }
+    $metricRole = "scheduler-a"
+    $metricNames = @(
+        "durable_scheduler_lease_acquisitions_total",
+        "durable_worker_claims_accepted_total",
+        "durable_worker_results_accepted_total",
+        "durable_db_queries_total"
+    )
+    $metricDelta = [ordered]@{}
+    foreach ($metricName in $metricNames) {
+        $before = MetricValue $metricsBefore.body $metricName $metricRole
+        $after = MetricValue $metricsAfter.body $metricName $metricRole
+        if ($after -le $before) { throw "Deployed metric '$metricName' did not increase: before=$before after=$after." }
+        $metricDelta[$metricName] = [ordered]@{ before = $before; after = $after; delta = ($after - $before) }
+    }
+    $readyBefore = MetricValue $metricsBefore.body "durable_runtime_durable_ready_timestamp_seconds" $metricRole
+    $readyAfter = MetricValue $metricsAfter.body "durable_runtime_durable_ready_timestamp_seconds" $metricRole
+    if ($readyBefore -gt 0 -and $readyAfter -ne $readyBefore) {
+        throw "Deployed durable-ready timestamp changed after readiness: before=$readyBefore after=$readyAfter."
+    }
+
     $oldRequireDatabase = $env:DURABLE_REQUIRE_DATABASE
     try {
         $env:DURABLE_REQUIRE_DATABASE = "1"
@@ -139,8 +176,6 @@ try {
         if ($null -eq $oldRequireDatabase) { Remove-Item Env:DURABLE_REQUIRE_DATABASE -ErrorAction SilentlyContinue }
         else { $env:DURABLE_REQUIRE_DATABASE = $oldRequireDatabase }
     }
-    $metricsAfter = Get-Metrics $runtimePort
-
     $faultTrace = "experiments/m5/traces/F07-crash-resume-seed11.jsonl"
     $faultSnapshot = "experiments/m5/durable/F07-crash-resume-seed11.json"
     if (-not (Test-Path -LiteralPath $faultTrace) -or -not (Test-Path -LiteralPath $faultSnapshot)) {
@@ -148,12 +183,15 @@ try {
     }
     $faultChecker = Invoke-Required "go" @("run", "./cmd/fault-checker", "-offline", "-trace", $faultTrace, "-durable-trace", $faultSnapshot)
 
+    $cleanupSQL = "DELETE FROM engine.workflow_executions WHERE workflow_id = '$($deployedRun.workflow_id)'; DELETE FROM engine.workflow_definitions WHERE definition_id = '$($deployedRun.definition_id)';"
+    Invoke-Required "docker" ($composeArgs + @("exec", "-T", "postgres", "psql", "-v", "ON_ERROR_STOP=1", "-U", $databaseUser, "-d", $databaseName, "-c", $cleanupSQL)) | Out-Null
+
     $volumeDrivers = @($volumes | ForEach-Object { $_.driver } | Where-Object { $_ } | Select-Object -Unique)
     $artifact = [ordered]@{
         schema_version = "dur036-readiness.v1"
         status = "PASS"
         generated_at_utc = (Get-Date).ToUniversalTime().ToString("o")
-        git = [ordered]@{ commit = $commit; clean_checkout_verified = $true }
+        git = [ordered]@{ commit = $commit; clean_worktree_verified = $true }
         host = [ordered]@{
             platform = $version.Server.Platform.Name
             docker_server_version = $version.Server.Version
@@ -173,6 +211,14 @@ try {
         runtime = [ordered]@{
             docker_client = $version.Client.Version
             compose_file = "deploy/local/compose.yaml"
+            deployment = [ordered]@{
+                command = "docker compose --env-file .env -f deploy/local/compose.yaml up -d --build --wait"
+                fresh_checkout_verified = $false
+                clean_worktree_verified = $true
+                existing_services_may_be_reused = $true
+                existing_volumes_may_be_preserved = $true
+                note = "This readiness run verifies a clean version-controlled worktree. It does not claim a fresh clone or volume recreation; service uptimes and volume names below are the authoritative lifecycle evidence."
+            }
             services = $serviceSummary
             compose_services = @($compose.services.PSObject.Properties.Name)
             compose_volumes = @($compose.volumes.PSObject.Properties.Name)
@@ -186,8 +232,9 @@ try {
         database = $databaseSnapshot
         validation = [ordered]@{
             dependency_smoke = [ordered]@{ command = $smoke.command; status = "PASS"; output_tail = (($smoke.output -split "`r?`n" | Select-Object -Last 5) -join "`n") }
-            normal_execution = [ordered]@{ command = $telemetryReadiness.command; status = "PASS"; output = $telemetryReadiness.output; telemetry_endpoint_before_status = $metricsBefore.status; telemetry_endpoint_after_status = $metricsAfter.status; telemetry_before = $metricsBefore.body; telemetry_after = $metricsAfter.body }
+            normal_execution = [ordered]@{ command = $readinessURL; status = "PASS"; response = $deployedRun; telemetry_metric_delta = $metricDelta; durable_ready_before = $readyBefore; durable_ready_after = $readyAfter; telemetry_endpoint_before = $metricsBefore.body; telemetry_endpoint_after = $metricsAfter.body }
             fault_episode = [ordered]@{ command = $telemetryReadiness.command; status = "PASS"; output = $telemetryReadiness.output; checker_command = $faultChecker.command; checker_output = $faultChecker.output; trace = $faultTrace; durable_snapshot = $faultSnapshot }
+            local_regression = [ordered]@{ command = $telemetryReadiness.command; status = "PASS"; output = $telemetryReadiness.output }
         }
         assumptions = @(
             "All host and container timestamps are recorded as UTC where available; PostgreSQL reports its configured TimeZone separately.",
@@ -201,5 +248,7 @@ try {
     $artifact | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $OutputPath -Encoding utf8
     Write-Host "DUR-036 readiness passed; evidence written to $OutputPath"
 } finally {
+    if ($null -eq $previousEngineMode) { Remove-Item Env:RUNTIME_ENGINE_MODE -ErrorAction SilentlyContinue }
+    else { $env:RUNTIME_ENGINE_MODE = $previousEngineMode }
     Pop-Location
 }

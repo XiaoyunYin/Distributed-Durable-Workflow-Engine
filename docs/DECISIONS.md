@@ -224,9 +224,12 @@ WSL2 kernel 6.6.87.2, amd64, overlayfs, and Docker-managed local volumes for
 the PostgreSQL and Kafka services. The readiness artifact records the host,
 container/runtime versions, resource limits, filesystem/volume probe,
 PostgreSQL durability settings, UTC/timestamp assumptions, and the no-paid-
-resource cost control. It also runs the real dependency smoke, the
-service-backed telemetry smoke, crash recovery, and the independent F07 fault
-checker from a clean checkout.
+resource cost control. It runs the real dependency smoke and a bounded
+readiness workload through the deployed runtime's explicit readiness profile;
+the runtime constructs the interpreter and exports the resulting engine
+metrics. The artifact distinguishes a clean version-controlled worktree from
+a fresh clone and records when Compose may have reused services or volumes.
+It also records crash recovery and the independent F07 fault checker.
 
 This is a bounded development readiness host, not replicated storage or a
 bare-metal Linux performance claim. Final I/O-sensitive results remain labeled

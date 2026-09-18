@@ -6,7 +6,8 @@ DUR-019, DUR-020, DUR-021B, and DUR-033 are closed. M5 was reviewed with
 `NO_BLOCKING_FINDINGS` at committed target `acb28ba` against round-22 target
 `69917db`; R057 remains a nonblocking P3 evidence-labelling limitation.
 M7 has started with DUR-036, the declared Linux measurement-host readiness
-gate, READY_FOR_REVIEW at implementation target `efe1fe3`; no final
+gate, READY_FOR_REVIEW while the deployed-readiness fixes are being reviewed;
+no final
 measurement has started.
 It provides a
 reproducible Go/Python development

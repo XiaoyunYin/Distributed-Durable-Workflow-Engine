@@ -81,6 +81,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      RUNTIME_ENGINE_MODE: ${RUNTIME_ENGINE_MODE:-disabled}
     ports:
       - 127.0.0.1:${RUNTIME_A_PORT:-8080}:8080
     depends_on:

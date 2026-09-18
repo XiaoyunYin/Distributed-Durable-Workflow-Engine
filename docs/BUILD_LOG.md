@@ -1581,3 +1581,31 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   sustained load, final performance, live-model, or paid-provider claim is
   made. DUR-026, DUR-034, DUR-035, DUR-027, DUR-028, and DUR-029 remain gated
   on DUR-036 acceptance.
+
+## 2026-09-18 - M7 DUR-036 R066-R068 response
+
+- Task status: IN_PROGRESS; DUR-036 remains READY_FOR_REVIEW and is not DONE.
+- Addressed Claude's round-27 findings without expanding the protected M7
+  scope. The Compose runtime now has an explicit readiness profile in which
+  `runtime-a` exposes a bounded internal workload that constructs the engine,
+  runs a pure activity through PostgreSQL, and returns its durable result plus
+  the process registry snapshot. The readiness script calls that deployed
+  endpoint and fails unless lease, claim, result, and database-query metrics
+  all increase in the scraped runtime endpoint.
+- `MarkDurableReady` is now a one-time compare-and-swap transition. Recovery
+  and relay success no longer overwrite the first-ready timestamp; liveness is
+  left to health endpoints and other counters. The telemetry unit test covers
+  timestamp stability.
+- The artifact now calls the checked condition a clean worktree, explicitly
+  records that the run is not a fresh clone, and records that healthy services
+  and Docker-managed volumes may have been reused. Service uptimes and volume
+  metadata remain the lifecycle evidence.
+- Focused validation: `gofmt`; `go test ./cmd/runtime ./internal/telemetry
+  ./internal/engine` passed. The Docker-backed readiness run is still pending
+  the committed fix target and will be recorded with its exact output.
+- Alternatives considered: a separate scheduler container would have added a
+  second production-like process and another ownership path; the bounded
+  readiness profile keeps the measured runtime path explicit while remaining
+  disabled by default. Destroying developer volumes would make the probe more
+  destructive, so lifecycle reuse is disclosed rather than mislabeled as a
+  fresh deployment.

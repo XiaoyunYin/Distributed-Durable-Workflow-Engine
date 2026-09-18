@@ -62,7 +62,10 @@ func (m *Metrics) roleLabel() string {
 
 func (m *Metrics) MarkDurableReady() {
 	if m != nil {
-		m.durableReadyUnix.Store(time.Now().Unix())
+		// This is the first durable-dependency transition, not a liveness
+		// heartbeat. Keeping the first value makes time-to-readiness
+		// measurable and leaves recovery/liveness to health checks.
+		m.durableReadyUnix.CompareAndSwap(0, time.Now().Unix())
 	}
 }
 

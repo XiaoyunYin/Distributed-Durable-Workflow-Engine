@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -16,7 +17,9 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/api"
+	"durable-agent-execution-engine/internal/engine"
 	"durable-agent-execution-engine/internal/faults"
+	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
 	"durable-agent-execution-engine/internal/telemetry"
 	"durable-agent-execution-engine/internal/transport"
@@ -87,6 +90,9 @@ func main() {
 					slog.Warn("runtime Kafka relay pass failed", "error", err)
 				},
 				OnSuccess: func(transport.RelayReport) {
+					// Readiness is a one-time dependency transition, not a
+					// heartbeat. The first successful relay pass is still valid
+					// evidence when startup readiness was not yet observable.
 					metrics.MarkDurableReady()
 				}})
 			go func() {
@@ -99,10 +105,9 @@ func main() {
 	}
 	if store != nil && broker != nil {
 		// NewFromURL has already pinged PostgreSQL and Kafka relay construction
-		// has succeeded. A periodic PostgreSQL ping and successful relay pass
-		// below re-mark readiness after a dependency recovers.
+		// has succeeded. This is the one-time durable dependency transition;
+		// the timestamp is never overwritten by a recovery heartbeat.
 		metrics.MarkDurableReady()
-		go markDurableReadyOnRecovery(ctx, store, broker, metrics)
 	}
 	if controller, err := faults.FromEnvironment(); err != nil {
 		slog.Error("fault controller initialization failed", "error", err)
@@ -132,27 +137,6 @@ func main() {
 	}
 }
 
-func markDurableReadyOnRecovery(ctx context.Context, store *state.Store, broker transport.Broker, metrics *telemetry.Metrics) {
-	if store == nil || broker == nil || metrics == nil {
-		return
-	}
-	ticker := time.NewTicker(2 * time.Second)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-ticker.C:
-			pingContext, cancel := context.WithTimeout(ctx, time.Second)
-			err := store.Ping(pingContext)
-			cancel()
-			if err == nil {
-				metrics.MarkDurableReady()
-			}
-		}
-	}
-}
-
 func newHandler(role string) http.Handler {
 	return newHandlerWithMetrics(role, nil, telemetry.New(role))
 }
@@ -176,8 +160,85 @@ func newHandlerWithMetrics(role string, store *state.Store, metrics *telemetry.M
 	mux.Handle("GET /metrics", metricsHandler(role, metrics))
 	if store != nil {
 		mux.Handle("/v1/", api.NewServer(store).Handler())
+		if envOrDefault("RUNTIME_ENGINE_MODE", "disabled") == "readiness" {
+			mux.Handle("POST /internal/readiness/run", readinessHandler(store, metrics, role))
+		}
 	}
 	return mux
+}
+
+type readinessResponse struct {
+	WorkflowID   string              `json:"workflow_id"`
+	DefinitionID string              `json:"definition_id"`
+	State        state.WorkflowState `json:"state"`
+	Revision     int64               `json:"revision"`
+	Metrics      telemetry.Snapshot  `json:"metrics"`
+}
+
+func readinessHandler(store *state.Store, metrics *telemetry.Metrics, role string) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if store == nil {
+			writeReadinessError(w, http.StatusServiceUnavailable, "readiness engine requires a database")
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 30*time.Second)
+		defer cancel()
+		workflowID := "dur036-runtime-" + state.NewID()
+		definitionID := "dur036-runtime-def-" + state.NewID()
+		graph := json.RawMessage(`{"entry":"root","nodes":[{"id":"root","kind":"activity","next":"done"},{"id":"done","kind":"success"}]}`)
+		if err := store.CreateDefinition(ctx, state.DefinitionInput{
+			DefinitionID: definitionID, Version: 1, DefinitionHash: definitionID,
+			Graph: graph, ActivityVersions: json.RawMessage(`{"root":"1"}`),
+			EffectClasses: json.RawMessage(`{"root":"PURE_ACTIVITY"}`),
+		}); err != nil {
+			writeReadinessError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		partitionID, err := partition.ID(workflowID)
+		if err != nil {
+			writeReadinessError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if _, err := store.CreateWorkflow(ctx, state.CreateWorkflowInput{
+			WorkflowID: workflowID, Namespace: "dur036-runtime", SubmissionKey: workflowID,
+			SubmissionPayloadHash: readinessPayloadHash(workflowID), DefinitionID: definitionID,
+			DefinitionVersion: 1, PartitionID: int16(partitionID), InitialNodeID: "root",
+			InitialInput: json.RawMessage(`{"readiness":true}`), ActorID: "dur036-readiness",
+		}); err != nil {
+			writeReadinessError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		runner := engine.New(store, engine.ActivityDriverFunc(func(context.Context, engine.Activity) (engine.ActivityResult, error) {
+			return engine.ActivityResult{Payload: json.RawMessage(`{"ok":true}`)}, nil
+		}))
+		runner.OwnerID = "dur036-runtime-" + role
+		runner.WorkerID = "dur036-runtime-worker"
+		runner.ActorID = "dur036-runtime-engine"
+		runner.MaxSteps = 20
+		result, err := runner.Run(ctx, workflowID)
+		if err != nil {
+			writeReadinessError(w, http.StatusInternalServerError, err.Error())
+			return
+		}
+		if result.Blocked || result.Workflow.State != state.StateSucceeded {
+			writeReadinessError(w, http.StatusInternalServerError, fmt.Sprintf("readiness workflow did not succeed: %+v", result))
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(readinessResponse{WorkflowID: workflowID,
+			DefinitionID: definitionID, State: result.Workflow.State,
+			Revision: result.Workflow.Revision, Metrics: metrics.Snapshot()})
+	})
+}
+
+func writeReadinessError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
+func readinessPayloadHash(workflowID string) string {
+	return fmt.Sprintf("sub-v1:%x", sha256.Sum256([]byte(workflowID)))
 }
 
 func metricsHandler(role string, metrics *telemetry.Metrics) http.Handler {
