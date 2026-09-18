@@ -533,6 +533,8 @@ type EffectRecord struct {
 
 type EffectApplyInput struct {
 	WorkflowID               string
+	NodeID                   string
+	Iteration                int
 	LogicalEffectKey         string
 	ArgumentHash             string
 	AttemptNumber            int64

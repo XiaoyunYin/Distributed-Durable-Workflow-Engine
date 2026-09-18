@@ -372,9 +372,12 @@ rejects a quarantined outbox row that lacks its poison obligation.
 **Cooperating sink:**
 
 1. The worker calls EL outside EDB with the stable logical effect key. EL
-   transaction E_effect atomically applies the sandbox change and inserts the
-   effect receipt, then commits. The response is lost before the worker writes
-   the EDB result, leaving the current attempt `OUTCOME_UNKNOWN` in EDB.
+   validates the grant against EDB before starting transaction E_effect.
+   E_effect then writes only the independently owned effect-service ledger:
+   it atomically applies the sandbox change and inserts the effect receipt,
+   then commits. There is no cross-table transaction with EDB. The response is
+   lost before the worker writes the EDB result, leaving the current attempt
+   `OUTCOME_UNKNOWN` in EDB.
 2. Recovery calls EL with the same key/payload or its receipt lookup. EL returns
    the existing receipt; it does not apply a second mutation. EDB transaction
    T_receipt locks `workflow`, then `node/attempt`, records the receipt/result

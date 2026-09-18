@@ -125,14 +125,16 @@ owner-applied transitions separately.
 - Date: 2026-09-17
 - Status: accepted as the implementation boundary pending Claude review
 
-M4 keeps retry policy, checkpoint progress, approval intents, effect call
-evidence, and operator resolution audit in durable PostgreSQL tables. The
-cooperating sandbox ledger is exposed through a separate service package and
-table family, but it is intentionally local-development infrastructure rather
-than a cross-database transaction. The effect service requires a grant bound
-to the exact proposal, resource revision, and logical effect key before a
-mutation; a non-cooperating endpoint has no runtime lookup or deduplication
-capability and therefore remains reconciliation-only after an uncertain call.
+M4 keeps retry policy, checkpoint progress, approval intents, and engine-side
+transition evidence in durable PostgreSQL tables. The cooperating sandbox
+ledger is exposed through a separate service package and the independently
+owned `effects` schema. Grant validation reads the engine grant before the
+effect transaction, while the effect transaction writes only the effect
+schema; this is intentionally local-development infrastructure rather than a
+cross-database transaction. The effect service requires a grant bound to the
+exact proposal, resource revision, and logical effect key before a mutation; a
+non-cooperating endpoint has no runtime lookup or deduplication capability and
+therefore remains reconciliation-only after an uncertain call.
 
 The rejected alternative was to let the engine infer approval from a caller's
 actor string or to make cancellation and grant application separate commits.

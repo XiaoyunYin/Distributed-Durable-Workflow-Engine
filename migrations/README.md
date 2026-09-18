@@ -26,3 +26,7 @@ Migration `000010` adds durable retry policies, effect call/resource-fence
 evidence, sandbox state, and bounded approval grant metadata for M4.
 Migration `000011` records actor-attributed operator confirmation or
 abandonment of an unknown effect.
+Migration `000012` creates the independently owned `effects` schema for the
+cooperating effect service ledger. It has no foreign keys into `engine`, so
+effect commits and workflow transactions are never one cross-service
+transaction.

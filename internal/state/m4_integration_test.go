@@ -134,7 +134,7 @@ func TestM4EffectLedgerAndFencing(t *testing.T) {
 	defer cleanupM4Fixture(t, ctx, store, workflowID, definitionID, lease, resourceID)
 	grant := createM4Grant(t, ctx, store, workflowID, lease, "effect-1", 1, "0")
 
-	input := EffectApplyInput{WorkflowID: workflowID, LogicalEffectKey: "effect-1", ArgumentHash: "args-1",
+	input := EffectApplyInput{WorkflowID: workflowID, NodeID: "root", Iteration: 0, LogicalEffectKey: "effect-1", ArgumentHash: "args-1",
 		AttemptNumber: 1, RequestID: NewID(), ResourceID: resourceID, FenceToken: 7,
 		State: []byte(`{"value":1}`), IntentID: grant.IntentID, GrantToken: grant.GrantToken, GrantScopeHash: grant.GrantScopeHash,
 		ExpectedResourceRevision: "0"}
@@ -146,6 +146,16 @@ func TestM4EffectLedgerAndFencing(t *testing.T) {
 	receipt, err := store.ApplyEffect(ctx, input)
 	if err != nil || len(receipt.Receipt) == 0 || receipt.ResourceRevision != 1 {
 		t.Fatalf("first effect = %+v, err=%v", receipt, err)
+	}
+	var effectRows, legacyRows int
+	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM effects.effect_records WHERE workflow_id = $1`, workflowID).Scan(&effectRows); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM engine.effect_records WHERE workflow_id = $1`, workflowID).Scan(&legacyRows); err != nil {
+		t.Fatal(err)
+	}
+	if effectRows != 1 || legacyRows != 0 {
+		t.Fatalf("effect service ledger rows = %d, legacy engine rows = %d", effectRows, legacyRows)
 	}
 	duplicate := input
 	duplicate.RequestID = NewID()
@@ -467,14 +477,23 @@ func createM4Fixture(t *testing.T, ctx context.Context, store *Store, class Effe
 
 func cleanupM4Fixture(t *testing.T, ctx context.Context, store *Store, workflowID, definitionID string, lease Lease, resourceID string) {
 	t.Helper()
+	for _, statement := range []string{
+		`DELETE FROM effects.effect_resolution_audit WHERE workflow_id = $1`,
+		`DELETE FROM effects.effect_call_attempts WHERE workflow_id = $1`,
+		`DELETE FROM effects.effect_records WHERE workflow_id = $1`,
+	} {
+		if _, err := store.Pool().Exec(ctx, statement, workflowID); err != nil {
+			t.Errorf("cleanup M4 effect service evidence: %v", err)
+		}
+	}
 	if _, err := store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE workflow_id = $1`, workflowID); err != nil {
 		t.Errorf("cleanup M4 workflow: %v", err)
 	}
 	if resourceID != "" {
-		if _, err := store.Pool().Exec(ctx, `DELETE FROM engine.sandbox_effect_state WHERE resource_id = $1`, resourceID); err != nil {
+		if _, err := store.Pool().Exec(ctx, `DELETE FROM effects.sandbox_effect_state WHERE resource_id = $1`, resourceID); err != nil {
 			t.Errorf("cleanup sandbox state: %v", err)
 		}
-		if _, err := store.Pool().Exec(ctx, `DELETE FROM engine.effect_resource_fences WHERE resource_id = $1`, resourceID); err != nil {
+		if _, err := store.Pool().Exec(ctx, `DELETE FROM effects.effect_resource_fences WHERE resource_id = $1`, resourceID); err != nil {
 			t.Errorf("cleanup effect fence: %v", err)
 		}
 	}

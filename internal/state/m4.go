@@ -829,7 +829,7 @@ func cancelWorkflowTx(ctx context.Context, tx pgx.Tx, lease LeaseRef, workflow *
 }
 
 func (s *Store) ApplyEffect(ctx context.Context, input EffectApplyInput) (EffectReceipt, error) {
-	if input.WorkflowID == "" || input.LogicalEffectKey == "" || input.ArgumentHash == "" || input.RequestID == "" || input.AttemptNumber <= 0 || input.ResourceID == "" || input.FenceToken <= 0 {
+	if input.WorkflowID == "" || input.NodeID == "" || input.Iteration < 0 || input.LogicalEffectKey == "" || input.ArgumentHash == "" || input.RequestID == "" || input.AttemptNumber <= 0 || input.ResourceID == "" || input.FenceToken <= 0 {
 		return EffectReceipt{}, errors.New("effect identity, request, resource, and fence are required")
 	}
 	if input.IntentID == "" || input.GrantToken == "" || input.GrantScopeHash == "" {
@@ -838,34 +838,47 @@ func (s *Store) ApplyEffect(ctx context.Context, input EffectApplyInput) (Effect
 	if len(input.State) == 0 || !json.Valid(input.State) {
 		return EffectReceipt{}, errors.New("effect state must be valid JSON")
 	}
+	var decision, dispatchStatus, scopeHash, proposalHash, expectedResourceRevision string
+	var expiresAt *time.Time
+	if err := s.pool.QueryRow(ctx, `
+		SELECT decision, dispatch_status, grant_scope_hash, grant_expires_at,
+			proposal_hash, COALESCE(expected_resource_revision, '')
+		FROM engine.approval_action_intents
+		WHERE intent_id = $1 AND grant_token = $2 AND workflow_id = $3
+			AND node_id = $4 AND iteration = $5`,
+		input.IntentID, input.GrantToken, input.WorkflowID, input.NodeID, input.Iteration).Scan(
+		&decision, &dispatchStatus, &scopeHash, &expiresAt, &proposalHash, &expectedResourceRevision); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return EffectReceipt{}, ErrGrantInvalid
+		}
+		return EffectReceipt{}, err
+	}
+	if decision != "APPROVED" || (dispatchStatus != "GRANTED" && dispatchStatus != "DISPATCHED") ||
+		scopeHash != input.GrantScopeHash || expiresAt == nil || !expiresAt.After(time.Now()) {
+		return EffectReceipt{}, ErrGrantInvalid
+	}
+	if input.ExpectedResourceRevision != expectedResourceRevision {
+		return EffectReceipt{}, ErrEffectVersion
+	}
+	scopeSum := sha256.Sum256([]byte(proposalHash + "\x00" + expectedResourceRevision + "\x00" + input.LogicalEffectKey))
+	if hex.EncodeToString(scopeSum[:]) != input.GrantScopeHash {
+		return EffectReceipt{}, ErrGrantInvalid
+	}
+
+	// The effect service transaction owns only effects.*. The grant is
+	// validated above, but never changed here: the engine's workflow/grant
+	// transaction and the cooperating service ledger are separate boundaries.
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return EffectReceipt{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	{
-		var decision, dispatchStatus, scopeHash, proposalHash, expectedResourceRevision string
-		var expiresAt *time.Time
-		if err := tx.QueryRow(ctx, `SELECT decision, dispatch_status, grant_scope_hash, grant_expires_at, proposal_hash, COALESCE(expected_resource_revision,'') FROM engine.approval_action_intents WHERE intent_id = $1 AND grant_token = $2 FOR UPDATE`, input.IntentID, input.GrantToken).Scan(&decision, &dispatchStatus, &scopeHash, &expiresAt, &proposalHash, &expectedResourceRevision); err != nil {
-			return EffectReceipt{}, ErrGrantInvalid
-		}
-		if decision != "APPROVED" || (dispatchStatus != "GRANTED" && dispatchStatus != "DISPATCHED") || scopeHash != input.GrantScopeHash || expiresAt == nil || !expiresAt.After(time.Now()) {
-			return EffectReceipt{}, ErrGrantInvalid
-		}
-		if input.ExpectedResourceRevision != expectedResourceRevision {
-			return EffectReceipt{}, ErrEffectVersion
-		}
-		scopeSum := sha256.Sum256([]byte(proposalHash + "\x00" + expectedResourceRevision + "\x00" + input.LogicalEffectKey))
-		if hex.EncodeToString(scopeSum[:]) != input.GrantScopeHash {
-			return EffectReceipt{}, ErrGrantInvalid
-		}
-	}
 	var existing EffectRecord
 	var existingReceipt []byte
 	err = tx.QueryRow(ctx, `
 		SELECT workflow_id, logical_effect_key, argument_hash, attempt_number,
 			COALESCE(grant_scope_hash,''), outcome, receipt, created_at, updated_at
-		FROM engine.effect_records
+		FROM effects.effect_records
 		WHERE workflow_id = $1 AND logical_effect_key = $2 FOR UPDATE`,
 		input.WorkflowID, input.LogicalEffectKey).Scan(&existing.WorkflowID, &existing.LogicalEffectKey,
 		&existing.ArgumentHash, &existing.AttemptNumber, &existing.GrantScopeHash, &existing.Outcome,
@@ -889,9 +902,6 @@ func (s *Store) ApplyEffect(ctx context.Context, input EffectApplyInput) (Effect
 			}
 			return EffectReceipt{}, ErrAmbiguousEffect
 		}
-		if err := markGrantDispatchedTx(ctx, tx, input.IntentID); err != nil {
-			return EffectReceipt{}, err
-		}
 		if err := recordEffectCallTx(ctx, tx, input, "DUPLICATE", existingReceipt); err != nil {
 			return EffectReceipt{}, err
 		}
@@ -905,13 +915,13 @@ func (s *Store) ApplyEffect(ctx context.Context, input EffectApplyInput) (Effect
 		return EffectReceipt{}, fmt.Errorf("read effect record: %w", err)
 	}
 	_, err = tx.Exec(ctx, `
-		INSERT INTO engine.effect_resource_fences (resource_id, next_token, observed_token)
+		INSERT INTO effects.effect_resource_fences (resource_id, next_token, observed_token)
 		VALUES ($1, $2, $2) ON CONFLICT (resource_id) DO NOTHING`, input.ResourceID, input.FenceToken)
 	if err != nil {
 		return EffectReceipt{}, err
 	}
 	var observedToken int64
-	if err := tx.QueryRow(ctx, `SELECT observed_token FROM engine.effect_resource_fences WHERE resource_id = $1 FOR UPDATE`, input.ResourceID).Scan(&observedToken); err != nil {
+	if err := tx.QueryRow(ctx, `SELECT observed_token FROM effects.effect_resource_fences WHERE resource_id = $1 FOR UPDATE`, input.ResourceID).Scan(&observedToken); err != nil {
 		return EffectReceipt{}, err
 	}
 	if input.FenceToken < observedToken {
@@ -923,11 +933,11 @@ func (s *Store) ApplyEffect(ctx context.Context, input EffectApplyInput) (Effect
 		}
 		return EffectReceipt{}, ErrEffectFence
 	}
-	if _, err := tx.Exec(ctx, `UPDATE engine.effect_resource_fences SET next_token = GREATEST(next_token, $2), observed_token = $2, updated_at = clock_timestamp() WHERE resource_id = $1`, input.ResourceID, input.FenceToken); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE effects.effect_resource_fences SET next_token = GREATEST(next_token, $2), observed_token = $2, updated_at = clock_timestamp() WHERE resource_id = $1`, input.ResourceID, input.FenceToken); err != nil {
 		return EffectReceipt{}, err
 	}
 	var resourceRevision int64
-	err = tx.QueryRow(ctx, `SELECT resource_revision FROM engine.sandbox_effect_state WHERE resource_id = $1 FOR UPDATE`, input.ResourceID).Scan(&resourceRevision)
+	err = tx.QueryRow(ctx, `SELECT resource_revision FROM effects.sandbox_effect_state WHERE resource_id = $1 FOR UPDATE`, input.ResourceID).Scan(&resourceRevision)
 	if errors.Is(err, pgx.ErrNoRows) {
 		resourceRevision = 0
 		if input.ExpectedResourceRevision != "0" {
@@ -939,7 +949,7 @@ func (s *Store) ApplyEffect(ctx context.Context, input EffectApplyInput) (Effect
 			}
 			return EffectReceipt{}, ErrEffectVersion
 		}
-		if _, err := tx.Exec(ctx, `INSERT INTO engine.sandbox_effect_state (resource_id, state, resource_revision) VALUES ($1, $2, 0)`, input.ResourceID, json.RawMessage(`{}`)); err != nil {
+		if _, err := tx.Exec(ctx, `INSERT INTO effects.sandbox_effect_state (resource_id, state, resource_revision) VALUES ($1, $2, 0)`, input.ResourceID, json.RawMessage(`{}`)); err != nil {
 			return EffectReceipt{}, err
 		}
 	} else if err != nil {
@@ -954,22 +964,19 @@ func (s *Store) ApplyEffect(ctx context.Context, input EffectApplyInput) (Effect
 		return EffectReceipt{}, ErrEffectVersion
 	}
 	resourceRevision++
-	if _, err := tx.Exec(ctx, `UPDATE engine.sandbox_effect_state SET state = $2, resource_revision = $3, updated_at = clock_timestamp() WHERE resource_id = $1`, input.ResourceID, input.State, resourceRevision); err != nil {
+	if _, err := tx.Exec(ctx, `UPDATE effects.sandbox_effect_state SET state = $2, resource_revision = $3, updated_at = clock_timestamp() WHERE resource_id = $1`, input.ResourceID, input.State, resourceRevision); err != nil {
 		return EffectReceipt{}, err
 	}
 	receipt, _ := json.Marshal(map[string]any{"resource_id": input.ResourceID, "resource_revision": resourceRevision, "logical_effect_key": input.LogicalEffectKey})
 	var storedReceipt []byte
 	if err := tx.QueryRow(ctx, `
-		INSERT INTO engine.effect_records (workflow_id, logical_effect_key, argument_hash, attempt_number, grant_scope_hash, outcome, receipt)
+		INSERT INTO effects.effect_records (workflow_id, logical_effect_key, argument_hash, attempt_number, grant_scope_hash, outcome, receipt)
 		VALUES ($1, $2, $3, $4, $5, 'APPLIED', $6)
 		RETURNING receipt`, input.WorkflowID, input.LogicalEffectKey,
 		input.ArgumentHash, input.AttemptNumber, nullableString(input.GrantScopeHash), receipt).Scan(&storedReceipt); err != nil {
 		return EffectReceipt{}, err
 	}
 	receipt = storedReceipt
-	if err := markGrantDispatchedTx(ctx, tx, input.IntentID); err != nil {
-		return EffectReceipt{}, err
-	}
 	if err := recordEffectCallTx(ctx, tx, input, "APPLIED", receipt); err != nil {
 		return EffectReceipt{}, err
 	}
@@ -981,20 +988,9 @@ func (s *Store) ApplyEffect(ctx context.Context, input EffectApplyInput) (Effect
 		Receipt: receipt}, nil
 }
 
-func markGrantDispatchedTx(ctx context.Context, tx pgx.Tx, intentID string) error {
-	if intentID == "" {
-		return nil
-	}
-	_, err := tx.Exec(ctx, `
-		UPDATE engine.approval_action_intents
-		SET dispatch_status = 'DISPATCHED'
-		WHERE intent_id = $1 AND dispatch_status = 'GRANTED'`, intentID)
-	return err
-}
-
 func recordEffectCallTx(ctx context.Context, tx pgx.Tx, input EffectApplyInput, outcome string, receipt []byte) error {
 	_, err := tx.Exec(ctx, `
-		INSERT INTO engine.effect_call_attempts
+		INSERT INTO effects.effect_call_attempts
 			(call_id, workflow_id, logical_effect_key, argument_hash, attempt_number, request_id, outcome, receipt)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 		ON CONFLICT (workflow_id, request_id) DO NOTHING`, NewID(), input.WorkflowID,
@@ -1008,7 +1004,7 @@ func (s *Store) LookupEffect(ctx context.Context, workflowID, logicalEffectKey s
 	err := s.pool.QueryRow(ctx, `
 		SELECT workflow_id, logical_effect_key, argument_hash, attempt_number,
 			COALESCE(grant_scope_hash,''), outcome, receipt, created_at, updated_at
-		FROM engine.effect_records WHERE workflow_id = $1 AND logical_effect_key = $2`,
+		FROM effects.effect_records WHERE workflow_id = $1 AND logical_effect_key = $2`,
 		workflowID, logicalEffectKey).Scan(&record.WorkflowID, &record.LogicalEffectKey,
 		&record.ArgumentHash, &record.AttemptNumber, &record.GrantScopeHash, &record.Outcome,
 		&receipt, &record.CreatedAt, &record.UpdatedAt)
@@ -1029,7 +1025,7 @@ func (s *Store) RecordUnknownEffect(ctx context.Context, workflowID, logicalEffe
 	var record EffectRecord
 	var receipt []byte
 	err := s.pool.QueryRow(ctx, `
-		INSERT INTO engine.effect_records
+		INSERT INTO effects.effect_records
 			(workflow_id, logical_effect_key, argument_hash, attempt_number, grant_scope_hash, outcome)
 		VALUES ($1, $2, $3, $4, $5, 'OUTCOME_UNKNOWN')
 		ON CONFLICT (workflow_id, logical_effect_key) DO UPDATE SET updated_at = clock_timestamp()
@@ -1066,7 +1062,7 @@ func (s *Store) ResolveUnknownEffect(ctx context.Context, actorID, workflowID, l
 	defer func() { _ = tx.Rollback(ctx) }()
 	var existingOutcome string
 	if err := tx.QueryRow(ctx, `
-		SELECT outcome FROM engine.effect_records
+		SELECT outcome FROM effects.effect_records
 		WHERE workflow_id = $1 AND logical_effect_key = $2 AND argument_hash = $3
 		FOR UPDATE`, workflowID, logicalEffectKey, argumentHash).Scan(&existingOutcome); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
@@ -1078,7 +1074,7 @@ func (s *Store) ResolveUnknownEffect(ctx context.Context, actorID, workflowID, l
 		return ErrEffectConflict
 	}
 	if _, err := tx.Exec(ctx, `
-		UPDATE engine.effect_records SET outcome = $4,
+		UPDATE effects.effect_records SET outcome = $4,
 			receipt = CASE WHEN $4 = 'APPLIED' THEN $5 ELSE receipt END,
 			updated_at = clock_timestamp()
 		WHERE workflow_id = $1 AND logical_effect_key = $2 AND argument_hash = $3`,
@@ -1090,7 +1086,7 @@ func (s *Store) ResolveUnknownEffect(ctx context.Context, actorID, workflowID, l
 		disposition = "ABANDONED_UNKNOWN"
 	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO engine.effect_resolution_audit
+		INSERT INTO effects.effect_resolution_audit
 			(resolution_id, workflow_id, logical_effect_key, argument_hash, actor_id, disposition, receipt)
 		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
 		NewID(), workflowID, logicalEffectKey, argumentHash, actorID, disposition, receipt); err != nil {
@@ -1103,7 +1099,7 @@ func (s *Store) ListEffectRecords(ctx context.Context, workflowID string) ([]Eff
 	rows, err := s.pool.Query(ctx, `
 		SELECT workflow_id, logical_effect_key, argument_hash, attempt_number,
 			COALESCE(grant_scope_hash,''), outcome, receipt, created_at, updated_at
-		FROM engine.effect_records WHERE workflow_id = $1 ORDER BY logical_effect_key`, workflowID)
+		FROM effects.effect_records WHERE workflow_id = $1 ORDER BY logical_effect_key`, workflowID)
 	if err != nil {
 		return nil, err
 	}
@@ -1125,7 +1121,7 @@ func (s *Store) ListEffectCallAttempts(ctx context.Context, workflowID string) (
 	rows, err := s.pool.Query(ctx, `
 		SELECT call_id::text, workflow_id, logical_effect_key, argument_hash,
 			attempt_number, request_id, outcome, receipt, created_at
-		FROM engine.effect_call_attempts WHERE workflow_id = $1 ORDER BY created_at`, workflowID)
+		FROM effects.effect_call_attempts WHERE workflow_id = $1 ORDER BY created_at`, workflowID)
 	if err != nil {
 		return nil, err
 	}

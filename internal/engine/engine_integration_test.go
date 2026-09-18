@@ -689,7 +689,10 @@ func createM1Workflow(t *testing.T, ctx context.Context, store *state.Store, def
 	if !acquired {
 		t.Fatal("could not acquire a test partition lease")
 	}
-	for attempt := 0; attempt < 100; attempt++ {
+	// Keep fixture allocation deterministic enough for a shared test database:
+	// the candidate ID is random, so a short cap can rarely miss the lease's
+	// partition even when the lease itself was acquired successfully.
+	for attempt := 0; attempt < 1000; attempt++ {
 		workflowID := "dur007-" + state.NewID()
 		mapped, _ := partition.ID(workflowID)
 		if int16(mapped) != lease.PartitionID {

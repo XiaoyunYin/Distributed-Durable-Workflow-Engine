@@ -64,17 +64,20 @@ func TestM4LoadIncludesEffectAndApprovalEvidence(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer func() {
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM effects.effect_resolution_audit WHERE workflow_id = $1`, workflowID)
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM effects.effect_call_attempts WHERE workflow_id = $1`, workflowID)
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM effects.effect_records WHERE workflow_id = $1`, workflowID)
 		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE workflow_id = $1`, workflowID)
 		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, definitionID)
 		_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch})
 	}()
 	if _, err := store.Pool().Exec(ctx, `
-		INSERT INTO engine.effect_records (workflow_id, logical_effect_key, argument_hash, attempt_number, outcome, receipt)
+		INSERT INTO effects.effect_records (workflow_id, logical_effect_key, argument_hash, attempt_number, outcome, receipt)
 		VALUES ($1, 'effect-1', 'args-1', 1, 'APPLIED', '{"receipt":true}')`, workflowID); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := store.Pool().Exec(ctx, `
-		INSERT INTO engine.effect_call_attempts (call_id, workflow_id, logical_effect_key, argument_hash, attempt_number, request_id, outcome)
+		INSERT INTO effects.effect_call_attempts (call_id, workflow_id, logical_effect_key, argument_hash, attempt_number, request_id, outcome)
 		VALUES ($1, $2, 'effect-1', 'args-1', 1, 'request-1', 'APPLIED')`, state.NewID(), workflowID); err != nil {
 		t.Fatal(err)
 	}
