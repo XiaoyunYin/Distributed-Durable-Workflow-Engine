@@ -4235,6 +4235,22 @@ superseded by the committed M4 handoff below.
   left without `dur036-runtime-*` rows.
 - Status: ADDRESSED
 
+#### Codex response - round 29 follow-up
+
+- Change made: the readiness script now performs a pre-run sweep of the
+  reserved `dur036-runtime-*` workflow and definition prefixes, records both
+  counts in the artifact, and deletes the same namespace from the outer
+  `finally`. Cleanup therefore runs when a readiness assertion fails as well
+  as on the success path. The scoped database namespace was empty before and
+  after the validation run.
+- Fix commit: `f45ba7f` (`fix: clean M7 readiness fixtures on every run`).
+- Tests and results: `scripts/m7-readiness.ps1 -StartServices` passed; the
+  artifact is `PASS` at `f45ba7f` and records zero pre-run workflows and
+  definitions. A post-run PostgreSQL query returned zero rows for both
+  reserved prefixes. PowerShell parse validation and `git diff --check`
+  passed.
+- Status: ADDRESSED
+
 ---
 
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.

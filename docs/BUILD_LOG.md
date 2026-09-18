@@ -1658,3 +1658,22 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   evidence: it does not claim multi-host durability, production scale, or
   equivalence to an OS-level process kill. The readiness endpoint is disabled
   by default and localhost-bound.
+
+## 2026-09-18 - M7 R069 cleanup follow-up and DUR-026 start
+
+- R069 follow-up commit `f45ba7f` moves readiness fixture deletion into the
+  script's outer `finally`, sweeps only the reserved `dur036-runtime-*`
+  namespace before a run, and records pre-run workflow/definition counts in
+  `experiments/m7/dur036-readiness.json`. This prevents failed assertions or
+  direct endpoint probes from contaminating the declared measurement database.
+- Validation: `scripts/m7-readiness.ps1 -StartServices` passed from the clean
+  committed worktree. The artifact records `PASS`, commit `f45ba7f`, and zero
+  pre-run workflows and definitions. A follow-up database query found zero
+  rows in both reserved prefixes after the run. PowerShell parse validation
+  and `git diff --check` also passed.
+- DUR-026 is now `IN_PROGRESS` from base `f45ba7f`. Its implementation record
+  freezes the existing section-14 throughput protocol: 8 configurations and
+  24 measured runs, with deterministic synthetic activities, fixed capacity,
+  explicit reconciliation, and scheduler CPU-seconds per completed workflow.
+  No final throughput run has started yet; the host and single-node scope
+  limitations from DUR-036 remain.
