@@ -211,3 +211,24 @@ This keeps the M6 evidence honest without expanding the current milestone into
 a second production integration project. The rejected alternative was to call
 the local adapter the verified engine path or to leave the integration gap
 unnamed.
+
+## D011 - Declare the bounded M7 readiness host
+
+- Date: 2026-09-18
+- Status: proposed for DUR-036 review
+
+DUR-036 uses Docker Desktop's `desktop-linux` Linux VM as the explicitly
+declared measurement host: Docker Engine 29.7.2, Docker Desktop 4.86.0,
+WSL2 kernel 6.6.87.2, amd64, overlayfs, and Docker-managed local volumes for
+the PostgreSQL and Kafka services. The readiness artifact records the host,
+container/runtime versions, resource limits, filesystem/volume probe,
+PostgreSQL durability settings, UTC/timestamp assumptions, and the no-paid-
+resource cost control. It also runs the real dependency smoke, the
+service-backed telemetry smoke, crash recovery, and the independent F07 fault
+checker from a clean checkout.
+
+This is a bounded development readiness host, not replicated storage or a
+bare-metal Linux performance claim. Final I/O-sensitive results remain labeled
+Docker Desktop/WSL2 evidence unless reproduced on a separately declared host.
+The rejected alternative was to silently treat Windows-hosted Docker output as
+native Linux evidence or to begin final measurements before the readiness gate.

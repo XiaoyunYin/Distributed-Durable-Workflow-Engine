@@ -1538,3 +1538,19 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   saturated on held-out data, M5 R057 and the historical R019 test gap remain
   open, and DUR-033A is TODO. No live-model, paid-provider, or production
   engine integration claim is made.
+
+## 2026-09-18 - M7 DUR-036 readiness implementation
+
+- Task status: IN_PROGRESS; M7 starts with the DUR-036 readiness gate from
+  M6 closeout `421b1cb`.
+- The new `scripts/m7-readiness.ps1` declares Docker Desktop `desktop-linux`
+  (WSL2) as the explicit Linux VM/volume boundary, records host/runtime,
+  filesystem, resource, clock, PostgreSQL durability, and cost-control facts,
+  and validates the real Compose topology plus one normal telemetry smoke and
+  one crash-recovery/checker episode.
+- `experiments/m7/README.md` defines the evidence boundary. No final
+  throughput, safeguard, dispatch-path, lease, checkpoint, live-model, or
+  paid-provider measurement is started by DUR-036.
+- Validation is pending the clean-checkout run of
+  `scripts/m7-readiness.ps1 -StartServices`; the generated artifact and exact
+  command results will be added before the review handoff.
