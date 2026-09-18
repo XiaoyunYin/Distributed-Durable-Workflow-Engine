@@ -380,7 +380,9 @@ class InvestigationWorkflow:
                 self._record_tool_call(run_id, search)
             else:
                 search = search_events[-1]
-        evidence_ids = search.evidence_ids
+        evidence_ids = tuple(
+            dict.fromkeys((*logs.evidence_ids, *metrics.evidence_ids, *search.evidence_ids))
+        )
         decision = self.decisions.diagnose(
             case.case_id,
             evidence_ids,
@@ -427,6 +429,14 @@ class InvestigationWorkflow:
             self.store.update(run_id, "ABSTAINED", diagnosis, citations)
             self.store.event(run_id, "abstained", "scheduler", {"reason": "no_safe_proposal"})
         else:
+            if not citations:
+                self.store.event(
+                    run_id,
+                    "citation_violation",
+                    "checker",
+                    {"kind": "missing_evidence", "proposal": proposal_value},
+                )
+                raise WorkflowError("remediation proposals require at least one citation")
             if redact(json.dumps(proposal_value, sort_keys=True)).count:
                 raise WorkflowError("proposal contains sensitive material")
             proposal = proposal_from_dict(proposal_value)

@@ -10,11 +10,14 @@
         "COMPLETED",
         "The checkout deployment is using a bad configuration revision.",
         [
+          "log:hel-bad_-03:2026-09-18T00:02:00Z",
+          "log:hel-bad_-03:2026-09-18T00:02:05Z",
+          "metric:hel-bad_-03:incident_signal:2026-09-18T00:02:00Z",
+          "doc-01-05-chunk-01",
+          "doc-01-06-chunk-01",
           "doc-01-01-chunk-01",
-          "doc-01-03-chunk-02",
-          "doc-01-01-chunk-02",
-          "doc-01-09-chunk-02",
-          "doc-01-02-chunk-01"
+          "doc-01-09-chunk-01",
+          "doc-01-03-chunk-01"
         ],
         [
           "rollback",
@@ -30,11 +33,14 @@
         "COMPLETED",
         "The checkout deployment is using a bad configuration revision.",
         [
+          "log:hel-bad_-03:2026-09-18T00:02:00Z",
+          "log:hel-bad_-03:2026-09-18T00:02:05Z",
+          "metric:hel-bad_-03:incident_signal:2026-09-18T00:02:00Z",
+          "doc-01-05-chunk-01",
+          "doc-01-06-chunk-01",
           "doc-01-01-chunk-01",
-          "doc-01-03-chunk-02",
-          "doc-01-01-chunk-02",
-          "doc-01-09-chunk-02",
-          "doc-01-02-chunk-01"
+          "doc-01-09-chunk-01",
+          "doc-01-03-chunk-01"
         ],
         [
           "rollback",
@@ -52,11 +58,14 @@
         "COMPLETED",
         "The checkout deployment is using a bad configuration revision.",
         [
+          "log:hel-bad_-04:2026-09-18T00:03:00Z",
+          "log:hel-bad_-04:2026-09-18T00:03:05Z",
+          "metric:hel-bad_-04:incident_signal:2026-09-18T00:03:00Z",
+          "doc-01-07-chunk-02",
+          "doc-01-07-chunk-01",
+          "doc-01-09-chunk-01",
           "doc-01-01-chunk-01",
-          "doc-01-03-chunk-02",
-          "doc-01-01-chunk-02",
-          "doc-01-09-chunk-02",
-          "doc-01-02-chunk-01"
+          "doc-01-01-chunk-02"
         ],
         [
           "rollback",
@@ -72,11 +81,14 @@
         "COMPLETED",
         "The checkout deployment is using a bad configuration revision.",
         [
+          "log:hel-bad_-04:2026-09-18T00:03:00Z",
+          "log:hel-bad_-04:2026-09-18T00:03:05Z",
+          "metric:hel-bad_-04:incident_signal:2026-09-18T00:03:00Z",
+          "doc-01-07-chunk-02",
+          "doc-01-07-chunk-01",
+          "doc-01-09-chunk-01",
           "doc-01-01-chunk-01",
-          "doc-01-03-chunk-02",
-          "doc-01-01-chunk-02",
-          "doc-01-09-chunk-02",
-          "doc-01-02-chunk-01"
+          "doc-01-01-chunk-02"
         ],
         [
           "rollback",
@@ -94,11 +106,14 @@
         "COMPLETED",
         "The checkout deployment is using a bad configuration revision.",
         [
+          "log:hel-bad_-05:2026-09-18T00:04:00Z",
+          "log:hel-bad_-05:2026-09-18T00:04:05Z",
+          "metric:hel-bad_-05:incident_signal:2026-09-18T00:04:00Z",
+          "doc-01-09-chunk-01",
           "doc-01-01-chunk-01",
-          "doc-01-03-chunk-02",
-          "doc-01-01-chunk-02",
           "doc-01-09-chunk-02",
-          "doc-01-02-chunk-01"
+          "doc-01-01-chunk-02",
+          "doc-01-03-chunk-01"
         ],
         [
           "rollback",
@@ -114,11 +129,14 @@
         "COMPLETED",
         "The checkout deployment is using a bad configuration revision.",
         [
+          "log:hel-bad_-05:2026-09-18T00:04:00Z",
+          "log:hel-bad_-05:2026-09-18T00:04:05Z",
+          "metric:hel-bad_-05:incident_signal:2026-09-18T00:04:00Z",
+          "doc-01-09-chunk-01",
           "doc-01-01-chunk-01",
-          "doc-01-03-chunk-02",
-          "doc-01-01-chunk-02",
           "doc-01-09-chunk-02",
-          "doc-01-02-chunk-01"
+          "doc-01-01-chunk-02",
+          "doc-01-03-chunk-01"
         ],
         [
           "rollback",
@@ -136,11 +154,14 @@
         "COMPLETED",
         "The checkout deployment is using a bad configuration revision.",
         [
+          "log:hel-bad_-06:2026-09-18T00:05:00Z",
+          "log:hel-bad_-06:2026-09-18T00:05:05Z",
+          "metric:hel-bad_-06:incident_signal:2026-09-18T00:05:00Z",
+          "doc-01-11-chunk-01",
+          "doc-01-12-chunk-01",
           "doc-01-01-chunk-01",
-          "doc-01-03-chunk-02",
-          "doc-01-01-chunk-02",
-          "doc-01-09-chunk-02",
-          "doc-01-02-chunk-01"
+          "doc-01-09-chunk-01",
+          "doc-01-01-chunk-02"
         ],
         [
           "rollback",
@@ -156,11 +177,14 @@
         "COMPLETED",
         "The checkout deployment is using a bad configuration revision.",
         [
+          "log:hel-bad_-06:2026-09-18T00:05:00Z",
+          "log:hel-bad_-06:2026-09-18T00:05:05Z",
+          "metric:hel-bad_-06:incident_signal:2026-09-18T00:05:00Z",
+          "doc-01-11-chunk-01",
+          "doc-01-12-chunk-01",
           "doc-01-01-chunk-01",
-          "doc-01-03-chunk-02",
-          "doc-01-01-chunk-02",
-          "doc-01-09-chunk-02",
-          "doc-01-02-chunk-01"
+          "doc-01-09-chunk-01",
+          "doc-01-01-chunk-02"
         ],
         [
           "rollback",
@@ -177,7 +201,16 @@
       "interrupted": [
         "COMPLETED",
         "The payments service is exhausting its database connection pool.",
-        [],
+        [
+          "log:hel-conn-03:2026-09-18T00:02:00Z",
+          "log:hel-conn-03:2026-09-18T00:02:05Z",
+          "metric:hel-conn-03:incident_signal:2026-09-18T00:02:00Z",
+          "doc-02-05-chunk-02",
+          "doc-02-03-chunk-02",
+          "doc-02-05-chunk-01",
+          "doc-02-03-chunk-04",
+          "doc-02-05-chunk-03"
+        ],
         [
           "restart_pool",
           "incident-resource",
@@ -185,13 +218,22 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The payments service is exhausting its database connection pool.",
-        [],
+        [
+          "log:hel-conn-03:2026-09-18T00:02:00Z",
+          "log:hel-conn-03:2026-09-18T00:02:05Z",
+          "metric:hel-conn-03:incident_signal:2026-09-18T00:02:00Z",
+          "doc-02-05-chunk-02",
+          "doc-02-03-chunk-02",
+          "doc-02-05-chunk-01",
+          "doc-02-03-chunk-04",
+          "doc-02-05-chunk-03"
+        ],
         [
           "restart_pool",
           "incident-resource",
@@ -199,7 +241,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-conn-04",
@@ -207,7 +249,16 @@
       "interrupted": [
         "COMPLETED",
         "The payments service is exhausting its database connection pool.",
-        [],
+        [
+          "log:hel-conn-04:2026-09-18T00:03:00Z",
+          "log:hel-conn-04:2026-09-18T00:03:05Z",
+          "metric:hel-conn-04:incident_signal:2026-09-18T00:03:00Z",
+          "doc-02-07-chunk-02",
+          "doc-02-07-chunk-01",
+          "doc-02-03-chunk-02",
+          "doc-02-07-chunk-03",
+          "doc-02-05-chunk-02"
+        ],
         [
           "restart_pool",
           "incident-resource",
@@ -215,13 +266,22 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The payments service is exhausting its database connection pool.",
-        [],
+        [
+          "log:hel-conn-04:2026-09-18T00:03:00Z",
+          "log:hel-conn-04:2026-09-18T00:03:05Z",
+          "metric:hel-conn-04:incident_signal:2026-09-18T00:03:00Z",
+          "doc-02-07-chunk-02",
+          "doc-02-07-chunk-01",
+          "doc-02-03-chunk-02",
+          "doc-02-07-chunk-03",
+          "doc-02-05-chunk-02"
+        ],
         [
           "restart_pool",
           "incident-resource",
@@ -229,7 +289,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-conn-05",
@@ -237,7 +297,16 @@
       "interrupted": [
         "COMPLETED",
         "The payments service is exhausting its database connection pool.",
-        [],
+        [
+          "log:hel-conn-05:2026-09-18T00:04:00Z",
+          "log:hel-conn-05:2026-09-18T00:04:05Z",
+          "metric:hel-conn-05:incident_signal:2026-09-18T00:04:00Z",
+          "doc-02-09-chunk-02",
+          "doc-02-09-chunk-04",
+          "doc-02-09-chunk-01",
+          "doc-02-03-chunk-02",
+          "doc-02-05-chunk-02"
+        ],
         [
           "restart_pool",
           "incident-resource",
@@ -245,13 +314,22 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The payments service is exhausting its database connection pool.",
-        [],
+        [
+          "log:hel-conn-05:2026-09-18T00:04:00Z",
+          "log:hel-conn-05:2026-09-18T00:04:05Z",
+          "metric:hel-conn-05:incident_signal:2026-09-18T00:04:00Z",
+          "doc-02-09-chunk-02",
+          "doc-02-09-chunk-04",
+          "doc-02-09-chunk-01",
+          "doc-02-03-chunk-02",
+          "doc-02-05-chunk-02"
+        ],
         [
           "restart_pool",
           "incident-resource",
@@ -259,7 +337,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-conn-06",
@@ -267,7 +345,16 @@
       "interrupted": [
         "COMPLETED",
         "The payments service is exhausting its database connection pool.",
-        [],
+        [
+          "log:hel-conn-06:2026-09-18T00:05:00Z",
+          "log:hel-conn-06:2026-09-18T00:05:05Z",
+          "metric:hel-conn-06:incident_signal:2026-09-18T00:05:00Z",
+          "doc-02-11-chunk-02",
+          "doc-02-03-chunk-02",
+          "doc-02-11-chunk-01",
+          "doc-02-11-chunk-03",
+          "doc-02-12-chunk-01"
+        ],
         [
           "restart_pool",
           "incident-resource",
@@ -275,13 +362,22 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The payments service is exhausting its database connection pool.",
-        [],
+        [
+          "log:hel-conn-06:2026-09-18T00:05:00Z",
+          "log:hel-conn-06:2026-09-18T00:05:05Z",
+          "metric:hel-conn-06:incident_signal:2026-09-18T00:05:00Z",
+          "doc-02-11-chunk-02",
+          "doc-02-03-chunk-02",
+          "doc-02-11-chunk-01",
+          "doc-02-11-chunk-03",
+          "doc-02-12-chunk-01"
+        ],
         [
           "restart_pool",
           "incident-resource",
@@ -289,7 +385,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-down-03",
@@ -297,7 +393,16 @@
       "interrupted": [
         "COMPLETED",
         "The catalog dependency is exceeding the request deadline.",
-        [],
+        [
+          "log:hel-down-03:2026-09-18T00:02:00Z",
+          "log:hel-down-03:2026-09-18T00:02:05Z",
+          "metric:hel-down-03:incident_signal:2026-09-18T00:02:00Z",
+          "doc-03-03-chunk-02",
+          "doc-03-01-chunk-01",
+          "doc-03-01-chunk-02",
+          "doc-03-05-chunk-02",
+          "doc-03-03-chunk-01"
+        ],
         [
           "enable_circuit_breaker",
           "catalog",
@@ -305,13 +410,22 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The catalog dependency is exceeding the request deadline.",
-        [],
+        [
+          "log:hel-down-03:2026-09-18T00:02:00Z",
+          "log:hel-down-03:2026-09-18T00:02:05Z",
+          "metric:hel-down-03:incident_signal:2026-09-18T00:02:00Z",
+          "doc-03-03-chunk-02",
+          "doc-03-01-chunk-01",
+          "doc-03-01-chunk-02",
+          "doc-03-05-chunk-02",
+          "doc-03-03-chunk-01"
+        ],
         [
           "enable_circuit_breaker",
           "catalog",
@@ -319,7 +433,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-down-04",
@@ -327,7 +441,16 @@
       "interrupted": [
         "COMPLETED",
         "The catalog dependency is exceeding the request deadline.",
-        [],
+        [
+          "log:hel-down-04:2026-09-18T00:03:00Z",
+          "log:hel-down-04:2026-09-18T00:03:05Z",
+          "metric:hel-down-04:incident_signal:2026-09-18T00:03:00Z",
+          "doc-03-07-chunk-02",
+          "doc-03-01-chunk-02",
+          "doc-03-07-chunk-01",
+          "doc-03-03-chunk-02",
+          "doc-03-01-chunk-01"
+        ],
         [
           "enable_circuit_breaker",
           "catalog",
@@ -335,13 +458,22 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The catalog dependency is exceeding the request deadline.",
-        [],
+        [
+          "log:hel-down-04:2026-09-18T00:03:00Z",
+          "log:hel-down-04:2026-09-18T00:03:05Z",
+          "metric:hel-down-04:incident_signal:2026-09-18T00:03:00Z",
+          "doc-03-07-chunk-02",
+          "doc-03-01-chunk-02",
+          "doc-03-07-chunk-01",
+          "doc-03-03-chunk-02",
+          "doc-03-01-chunk-01"
+        ],
         [
           "enable_circuit_breaker",
           "catalog",
@@ -349,7 +481,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-down-05",
@@ -357,7 +489,16 @@
       "interrupted": [
         "COMPLETED",
         "The catalog dependency is exceeding the request deadline.",
-        [],
+        [
+          "log:hel-down-05:2026-09-18T00:04:00Z",
+          "log:hel-down-05:2026-09-18T00:04:05Z",
+          "metric:hel-down-05:incident_signal:2026-09-18T00:04:00Z",
+          "doc-03-09-chunk-02",
+          "doc-03-01-chunk-02",
+          "doc-03-09-chunk-01",
+          "doc-03-03-chunk-02",
+          "doc-03-01-chunk-01"
+        ],
         [
           "enable_circuit_breaker",
           "catalog",
@@ -365,13 +506,22 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The catalog dependency is exceeding the request deadline.",
-        [],
+        [
+          "log:hel-down-05:2026-09-18T00:04:00Z",
+          "log:hel-down-05:2026-09-18T00:04:05Z",
+          "metric:hel-down-05:incident_signal:2026-09-18T00:04:00Z",
+          "doc-03-09-chunk-02",
+          "doc-03-01-chunk-02",
+          "doc-03-09-chunk-01",
+          "doc-03-03-chunk-02",
+          "doc-03-01-chunk-01"
+        ],
         [
           "enable_circuit_breaker",
           "catalog",
@@ -379,7 +529,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-down-06",
@@ -387,7 +537,16 @@
       "interrupted": [
         "COMPLETED",
         "The catalog dependency is exceeding the request deadline.",
-        [],
+        [
+          "log:hel-down-06:2026-09-18T00:05:00Z",
+          "log:hel-down-06:2026-09-18T00:05:05Z",
+          "metric:hel-down-06:incident_signal:2026-09-18T00:05:00Z",
+          "doc-03-11-chunk-02",
+          "doc-03-03-chunk-02",
+          "doc-03-11-chunk-01",
+          "doc-03-01-chunk-01",
+          "doc-03-05-chunk-02"
+        ],
         [
           "enable_circuit_breaker",
           "catalog",
@@ -395,13 +554,22 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The catalog dependency is exceeding the request deadline.",
-        [],
+        [
+          "log:hel-down-06:2026-09-18T00:05:00Z",
+          "log:hel-down-06:2026-09-18T00:05:05Z",
+          "metric:hel-down-06:incident_signal:2026-09-18T00:05:00Z",
+          "doc-03-11-chunk-02",
+          "doc-03-03-chunk-02",
+          "doc-03-11-chunk-01",
+          "doc-03-01-chunk-01",
+          "doc-03-05-chunk-02"
+        ],
         [
           "enable_circuit_breaker",
           "catalog",
@@ -409,7 +577,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-disk-03",
@@ -418,11 +586,14 @@
         "COMPLETED",
         "The search volume is under disk pressure and needs retention relief.",
         [
-          "doc-04-01-chunk-02",
-          "doc-04-03-chunk-02",
+          "log:hel-disk-03:2026-09-18T00:02:00Z",
+          "log:hel-disk-03:2026-09-18T00:02:05Z",
+          "metric:hel-disk-03:incident_signal:2026-09-18T00:02:00Z",
+          "doc-04-05-chunk-05",
+          "doc-04-03-chunk-05",
+          "doc-04-05-chunk-01",
           "doc-04-05-chunk-02",
-          "doc-04-01-chunk-03",
-          "doc-04-09-chunk-02"
+          "doc-04-07-chunk-01"
         ],
         [
           "compact_volume",
@@ -431,18 +602,21 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The search volume is under disk pressure and needs retention relief.",
         [
-          "doc-04-01-chunk-02",
-          "doc-04-03-chunk-02",
+          "log:hel-disk-03:2026-09-18T00:02:00Z",
+          "log:hel-disk-03:2026-09-18T00:02:05Z",
+          "metric:hel-disk-03:incident_signal:2026-09-18T00:02:00Z",
+          "doc-04-05-chunk-05",
+          "doc-04-03-chunk-05",
+          "doc-04-05-chunk-01",
           "doc-04-05-chunk-02",
-          "doc-04-01-chunk-03",
-          "doc-04-09-chunk-02"
+          "doc-04-07-chunk-01"
         ],
         [
           "compact_volume",
@@ -451,7 +625,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-disk-04",
@@ -460,11 +634,14 @@
         "COMPLETED",
         "The search volume is under disk pressure and needs retention relief.",
         [
+          "log:hel-disk-04:2026-09-18T00:03:00Z",
+          "log:hel-disk-04:2026-09-18T00:03:05Z",
+          "metric:hel-disk-04:incident_signal:2026-09-18T00:03:00Z",
+          "doc-04-01-chunk-01",
+          "doc-04-07-chunk-01",
           "doc-04-01-chunk-02",
-          "doc-04-03-chunk-02",
-          "doc-04-05-chunk-02",
-          "doc-04-01-chunk-03",
-          "doc-04-09-chunk-02"
+          "doc-04-07-chunk-05",
+          "doc-04-01-chunk-03"
         ],
         [
           "compact_volume",
@@ -473,18 +650,21 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The search volume is under disk pressure and needs retention relief.",
         [
+          "log:hel-disk-04:2026-09-18T00:03:00Z",
+          "log:hel-disk-04:2026-09-18T00:03:05Z",
+          "metric:hel-disk-04:incident_signal:2026-09-18T00:03:00Z",
+          "doc-04-01-chunk-01",
+          "doc-04-07-chunk-01",
           "doc-04-01-chunk-02",
-          "doc-04-03-chunk-02",
-          "doc-04-05-chunk-02",
-          "doc-04-01-chunk-03",
-          "doc-04-09-chunk-02"
+          "doc-04-07-chunk-05",
+          "doc-04-01-chunk-03"
         ],
         [
           "compact_volume",
@@ -493,7 +673,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-disk-05",
@@ -502,11 +682,14 @@
         "COMPLETED",
         "The search volume is under disk pressure and needs retention relief.",
         [
-          "doc-04-01-chunk-02",
-          "doc-04-03-chunk-02",
-          "doc-04-05-chunk-02",
-          "doc-04-01-chunk-03",
-          "doc-04-09-chunk-02"
+          "log:hel-disk-05:2026-09-18T00:04:00Z",
+          "log:hel-disk-05:2026-09-18T00:04:05Z",
+          "metric:hel-disk-05:incident_signal:2026-09-18T00:04:00Z",
+          "doc-04-09-chunk-02",
+          "doc-04-09-chunk-05",
+          "doc-04-09-chunk-04",
+          "doc-04-09-chunk-01",
+          "doc-04-07-chunk-05"
         ],
         [
           "compact_volume",
@@ -515,18 +698,21 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The search volume is under disk pressure and needs retention relief.",
         [
-          "doc-04-01-chunk-02",
-          "doc-04-03-chunk-02",
-          "doc-04-05-chunk-02",
-          "doc-04-01-chunk-03",
-          "doc-04-09-chunk-02"
+          "log:hel-disk-05:2026-09-18T00:04:00Z",
+          "log:hel-disk-05:2026-09-18T00:04:05Z",
+          "metric:hel-disk-05:incident_signal:2026-09-18T00:04:00Z",
+          "doc-04-09-chunk-02",
+          "doc-04-09-chunk-05",
+          "doc-04-09-chunk-04",
+          "doc-04-09-chunk-01",
+          "doc-04-07-chunk-05"
         ],
         [
           "compact_volume",
@@ -535,7 +721,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-disk-06",
@@ -544,11 +730,14 @@
         "COMPLETED",
         "The search volume is under disk pressure and needs retention relief.",
         [
-          "doc-04-01-chunk-02",
-          "doc-04-03-chunk-02",
-          "doc-04-05-chunk-02",
-          "doc-04-01-chunk-03",
-          "doc-04-09-chunk-02"
+          "log:hel-disk-06:2026-09-18T00:05:00Z",
+          "log:hel-disk-06:2026-09-18T00:05:05Z",
+          "metric:hel-disk-06:incident_signal:2026-09-18T00:05:00Z",
+          "doc-04-11-chunk-01",
+          "doc-04-11-chunk-05",
+          "doc-04-12-chunk-01",
+          "doc-04-07-chunk-05",
+          "doc-04-11-chunk-02"
         ],
         [
           "compact_volume",
@@ -557,18 +746,21 @@
         ],
         "APPLIED"
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "COMPLETED",
         "The search volume is under disk pressure and needs retention relief.",
         [
-          "doc-04-01-chunk-02",
-          "doc-04-03-chunk-02",
-          "doc-04-05-chunk-02",
-          "doc-04-01-chunk-03",
-          "doc-04-09-chunk-02"
+          "log:hel-disk-06:2026-09-18T00:05:00Z",
+          "log:hel-disk-06:2026-09-18T00:05:05Z",
+          "metric:hel-disk-06:incident_signal:2026-09-18T00:05:00Z",
+          "doc-04-11-chunk-01",
+          "doc-04-11-chunk-05",
+          "doc-04-12-chunk-01",
+          "doc-04-07-chunk-05",
+          "doc-04-11-chunk-02"
         ],
         [
           "compact_volume",
@@ -577,7 +769,7 @@
         ],
         "APPLIED"
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-insu-03",
@@ -585,21 +777,39 @@
       "interrupted": [
         "ABSTAINED",
         "Evidence is insufficient to justify a remediation action.",
-        [],
+        [
+          "log:hel-insu-03:2026-09-18T00:02:00Z",
+          "log:hel-insu-03:2026-09-18T00:02:05Z",
+          "metric:hel-insu-03:incident_signal:2026-09-18T00:02:00Z",
+          "doc-05-05-chunk-01",
+          "doc-05-11-chunk-01",
+          "doc-05-01-chunk-01",
+          "doc-05-09-chunk-01",
+          "doc-05-03-chunk-01"
+        ],
         null,
         null
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "ABSTAINED",
         "Evidence is insufficient to justify a remediation action.",
-        [],
+        [
+          "log:hel-insu-03:2026-09-18T00:02:00Z",
+          "log:hel-insu-03:2026-09-18T00:02:05Z",
+          "metric:hel-insu-03:incident_signal:2026-09-18T00:02:00Z",
+          "doc-05-05-chunk-01",
+          "doc-05-11-chunk-01",
+          "doc-05-01-chunk-01",
+          "doc-05-09-chunk-01",
+          "doc-05-03-chunk-01"
+        ],
         null,
         null
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-insu-04",
@@ -607,21 +817,39 @@
       "interrupted": [
         "ABSTAINED",
         "Evidence is insufficient to justify a remediation action.",
-        [],
+        [
+          "log:hel-insu-04:2026-09-18T00:03:00Z",
+          "log:hel-insu-04:2026-09-18T00:03:05Z",
+          "metric:hel-insu-04:incident_signal:2026-09-18T00:03:00Z",
+          "doc-05-07-chunk-01",
+          "doc-05-07-chunk-02",
+          "doc-05-09-chunk-01",
+          "doc-05-01-chunk-01",
+          "doc-05-11-chunk-01"
+        ],
         null,
         null
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "ABSTAINED",
         "Evidence is insufficient to justify a remediation action.",
-        [],
+        [
+          "log:hel-insu-04:2026-09-18T00:03:00Z",
+          "log:hel-insu-04:2026-09-18T00:03:05Z",
+          "metric:hel-insu-04:incident_signal:2026-09-18T00:03:00Z",
+          "doc-05-07-chunk-01",
+          "doc-05-07-chunk-02",
+          "doc-05-09-chunk-01",
+          "doc-05-01-chunk-01",
+          "doc-05-11-chunk-01"
+        ],
         null,
         null
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-insu-05",
@@ -629,21 +857,39 @@
       "interrupted": [
         "ABSTAINED",
         "Evidence is insufficient to justify a remediation action.",
-        [],
+        [
+          "log:hel-insu-05:2026-09-18T00:04:00Z",
+          "log:hel-insu-05:2026-09-18T00:04:05Z",
+          "metric:hel-insu-05:incident_signal:2026-09-18T00:04:00Z",
+          "doc-05-09-chunk-01",
+          "doc-05-01-chunk-01",
+          "doc-05-03-chunk-01",
+          "doc-05-09-chunk-02",
+          "doc-05-05-chunk-01"
+        ],
         null,
         null
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "ABSTAINED",
         "Evidence is insufficient to justify a remediation action.",
-        [],
+        [
+          "log:hel-insu-05:2026-09-18T00:04:00Z",
+          "log:hel-insu-05:2026-09-18T00:04:05Z",
+          "metric:hel-insu-05:incident_signal:2026-09-18T00:04:00Z",
+          "doc-05-09-chunk-01",
+          "doc-05-01-chunk-01",
+          "doc-05-03-chunk-01",
+          "doc-05-09-chunk-02",
+          "doc-05-05-chunk-01"
+        ],
         null,
         null
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     },
     {
       "case_id": "hel-insu-06",
@@ -651,21 +897,39 @@
       "interrupted": [
         "ABSTAINED",
         "Evidence is insufficient to justify a remediation action.",
-        [],
+        [
+          "log:hel-insu-06:2026-09-18T00:05:00Z",
+          "log:hel-insu-06:2026-09-18T00:05:05Z",
+          "metric:hel-insu-06:incident_signal:2026-09-18T00:05:00Z",
+          "doc-05-11-chunk-01",
+          "doc-05-01-chunk-01",
+          "doc-05-12-chunk-01",
+          "doc-05-03-chunk-01",
+          "doc-05-09-chunk-01"
+        ],
         null,
         null
       ],
-      "interrupted_mcp_calls_after_restart": 3,
+      "interrupted_mcp_calls_after_restart": 2,
       "passed": true,
       "timeline_tool_calls_equal": true,
       "uninterrupted": [
         "ABSTAINED",
         "Evidence is insufficient to justify a remediation action.",
-        [],
+        [
+          "log:hel-insu-06:2026-09-18T00:05:00Z",
+          "log:hel-insu-06:2026-09-18T00:05:05Z",
+          "metric:hel-insu-06:incident_signal:2026-09-18T00:05:00Z",
+          "doc-05-11-chunk-01",
+          "doc-05-01-chunk-01",
+          "doc-05-12-chunk-01",
+          "doc-05-03-chunk-01",
+          "doc-05-09-chunk-01"
+        ],
         null,
         null
       ],
-      "uninterrupted_mcp_calls": 4
+      "uninterrupted_mcp_calls": 3
     }
   ],
   "schema": "dur-033-continuity.v2"

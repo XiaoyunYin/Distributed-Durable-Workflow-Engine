@@ -114,6 +114,7 @@ def test_workflow_requires_approval_and_is_idempotent() -> None:
     completed = workflow.approve(run_id, "human-1")
     again = workflow.resume(run_id)
     assert completed.state == "COMPLETED"
+    assert completed.citations
     assert sum(event.event_type == "mcp_tool_call" for event in completed.timeline) >= 3
     effect_key = f"{run_id}:{completed.proposal.canonical_argument_hash}"
     assert store.grant(effect_key)["state"] == "DISPATCHED"
@@ -186,8 +187,10 @@ def test_citation_check_has_no_hallucinated_ids() -> None:
     report = run_citation_check()
     assert report["cases"] == 30
     assert report["violations"] == 0
+    assert report["uncited_proposals"] == 0
     assert report["cited_ids"]
     assert report["negative_control_fired"] is True
+    assert report["uncited_proposal_negative_control_fired"] is True
 
 
 def test_metrics_have_bounded_labels() -> None:

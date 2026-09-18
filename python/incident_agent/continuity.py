@@ -29,6 +29,21 @@ class UnsupportedCitationProvider:
         }
 
 
+class UncitedProposalProvider:
+    def diagnose(
+        self, case_id: str, evidence_ids: tuple[str, ...], tool_text: str
+    ) -> dict[str, Any]:
+        del evidence_ids, tool_text
+        case = next(case for case in build_incident_cases() if case.case_id == case_id)
+        if case.expected_action is None:
+            raise WorkflowError("negative control requires an answerable case")
+        return {
+            "diagnosis": case.expected_diagnosis,
+            "citations": [],
+            "proposal": case.expected_action,
+        }
+
+
 def _workflow(
     case_id: str,
     run_id: str,
@@ -328,6 +343,8 @@ def run_citation_check(case_id: str | None = None) -> dict[str, Any]:
                 "case_id": case.case_id,
                 "violations": sorted(citations - evidence_ids),
                 "cited_ids": sorted(citations),
+                "proposal": result["proposal"] is not None,
+                "uncited_proposal": result["proposal"] is not None and not citations,
             }
         )
     store = DurableStore()
@@ -336,7 +353,8 @@ def run_citation_check(case_id: str | None = None) -> dict[str, Any]:
         BoundedMCPServer(RetrievalIndex(build_corpus())),
         UnsupportedCitationProvider(),
     )
-    run_id = workflow.start(cases[0].case_id, "citation-negative-control")
+    answerable_case = next(case for case in build_incident_cases() if case.expected_action)
+    run_id = workflow.start(answerable_case.case_id, "citation-negative-control")
     try:
         workflow.investigate(run_id)
     except WorkflowError:
@@ -344,12 +362,30 @@ def run_citation_check(case_id: str | None = None) -> dict[str, Any]:
     else:
         negative_control_fired = False
     store.close()
+    uncited_store = DurableStore()
+    uncited_workflow = InvestigationWorkflow(
+        uncited_store,
+        BoundedMCPServer(RetrievalIndex(build_corpus())),
+        UncitedProposalProvider(),
+    )
+    uncited_run_id = uncited_workflow.start(
+        answerable_case.case_id, "citation-uncited-negative-control"
+    )
+    try:
+        uncited_workflow.investigate(uncited_run_id)
+    except WorkflowError as error:
+        uncited_proposal_negative_control_fired = "at least one citation" in str(error)
+    else:
+        uncited_proposal_negative_control_fired = False
+    uncited_store.close()
     return {
         "schema": "dur-033-citation.v2",
         "cases": len(rows),
         "violations": sum(bool(row["violations"]) for row in rows),
         "rows": rows,
         "negative_control_fired": negative_control_fired,
+        "uncited_proposals": sum(row["uncited_proposal"] for row in rows),
+        "uncited_proposal_negative_control_fired": uncited_proposal_negative_control_fired,
         "cited_ids": sorted({item for row in rows for item in row["cited_ids"]}),
     }
 

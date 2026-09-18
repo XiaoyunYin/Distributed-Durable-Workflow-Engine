@@ -128,9 +128,12 @@ def _case(
     service = SERVICES[family]
     terms = TERMS[family]
     answerable = family != "insufficient_evidence"
-    doc_dependent = answerable and index % 2 == 0
-    document_id = f"doc-{FAMILIES.index(family) + 1:02d}-{(index % 12) + 1:02d}"
-    relevant = tuple(f"{document_id}-chunk-{i:02d}" for i in (1, 2)) if doc_dependent else ()
+    doc_dependent = answerable
+    family_index = FAMILIES.index(family)
+    document_index = (index % 6) * 2
+    document_id = f"doc-{family_index + 1:02d}-{document_index + 1:02d}"
+    primary_detail = _detail_token(family_index, document_index)
+    relevant = tuple(f"{document_id}-chunk-{i:02d}" for i in (1, 2)) if answerable else ()
     logs = (
         {
             "timestamp": f"2026-09-18T00:{index:02d}:00Z",
@@ -173,7 +176,7 @@ def _case(
         family=family,
         split=split,  # type: ignore[arg-type]
         service=service,
-        query=f"Investigate {service}: {' '.join(terms[:3])} and recent symptoms",
+        query=f"{service} {terms[0]} {terms[1]} {primary_detail}",
         answerable=answerable,
         document_dependent=doc_dependent,
         relevant_chunk_ids=relevant,
