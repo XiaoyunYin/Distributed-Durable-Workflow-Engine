@@ -1,3 +1,8 @@
+[CmdletBinding()]
+param(
+    [switch]$SerialPackages
+)
+
 $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Push-Location $RepoRoot
@@ -7,7 +12,12 @@ try {
     if ($unformatted) { throw "Go files need formatting: $($unformatted -join ', ')" }
     & go vet ./...
     if ($LASTEXITCODE -ne 0) { throw "go vet failed." }
-    & go test ./...
+    if ($SerialPackages) {
+        Write-Host "Running shared Go checks serially to isolate database-backed fixtures."
+        & go test -p 1 ./...
+    } else {
+        & go test ./...
+    }
     if ($LASTEXITCODE -ne 0) { throw "Go tests failed." }
     & go build ./cmd/runtime
     if ($LASTEXITCODE -ne 0) { throw "Go build failed." }

@@ -23,11 +23,24 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "Database migrations failed." }
     }
 
-    & $PSScriptRoot/check.ps1
+    if ($WithServices) {
+        & $PSScriptRoot/check.ps1 -SerialPackages
+    } else {
+        & $PSScriptRoot/check.ps1
+    }
     if ($LASTEXITCODE -ne 0) { throw "Shared checks failed." }
 
     if ($WithRace) {
-        & go test -race ./...
+        if ($WithServices) {
+            # Database-backed tests in several packages share the local
+            # PostgreSQL lease table. Serialize package test binaries in
+            # service mode so fixture cleanup and lease races cannot make the
+            # required validation nondeterministic.
+            Write-Host "Running race tests serially in service mode to isolate shared database fixtures."
+            & go test -race -p 1 ./...
+        } else {
+            & go test -race ./...
+        }
         if ($LASTEXITCODE -ne 0) { throw "Go race checks failed." }
     } else {
         Write-Host "Skipped Go race checks; rerun with -WithRace."
