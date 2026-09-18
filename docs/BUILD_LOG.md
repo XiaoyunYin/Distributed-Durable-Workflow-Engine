@@ -1516,3 +1516,25 @@ Validation: `powershell.exe -NoProfile -ExecutionPolicy Bypass -File
 ./scripts/ci.ps1 -WithRace -WithM6` PASS with 38 Python tests, Go race/vet/build,
 Ruff, mypy, and regenerated M6 artifacts. No live-model, paid-provider,
 PostgreSQL-backed incident workflow, or production engine integration was run.
+
+## 2026-09-18 - M6 closeout after Claude review
+
+- Task status: DONE for M6 and DUR-019, DUR-020, DUR-021B, and DUR-033.
+- Review: Claude's committed round-26 review returned `NO_BLOCKING_FINDINGS` for
+  target `1048ad0` against milestone base `db8b462`; R064 and R065 are VERIFIED.
+- The closeout records the reviewer's measured citation evidence: 0 uncited
+  proposals across 30 cases, 24 answerable cases with eight citations each, six
+  abstentions, both citation negative controls firing, and no retrieval
+  regression after the case-query update. The review also verifies the DUR-033A
+  plan record: production engine wiring remains an explicit TODO and is not part
+  of M6 acceptance.
+- Closeout changes are documentation/status metadata only; the reviewed code
+  remains exactly `1048ad0`. REVIEW.md's round history is preserved.
+- Validation evidence carried into closeout: 38 Python tests and the previously
+  recorded race/vet/build, Ruff, mypy, and artifact-generation checks passed.
+- Remaining nonblocking limitations: the zero-valued citation metric has no
+  sample line, freeze derivation compares fingerprints in one process,
+  continuity covers one interruption boundary, keyword retrieval remains
+  saturated on held-out data, M5 R057 and the historical R019 test gap remain
+  open, and DUR-033A is TODO. No live-model, paid-provider, or production
+  engine integration claim is made.

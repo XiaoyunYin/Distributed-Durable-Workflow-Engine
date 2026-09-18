@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 READY_FOR_REVIEW; DUR-019 READY_FOR_REVIEW; DUR-020 READY_FOR_REVIEW; DUR-021B READY_FOR_REVIEW; DUR-033 READY_FOR_REVIEW; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1211,10 +1211,11 @@ contract revision.
 
 #### M6 implementation record
 
-- **Status:** READY_FOR_REVIEW; Claude review pending.
+- **Status:** DONE after Claude's committed round-26 `NO_BLOCKING_FINDINGS` review.
 - **Base commit:** `db8b462` (M5 closeout).
 - **Target commit:** `1048ad0` (M6 citation enforcement and plan-boundary follow-up).
 - **Tasks:** DUR-019, DUR-020, DUR-021B, and DUR-033.
+- **Review:** Claude round 26 reviewed `1048ad0` against milestone base `db8b462`; R064 and R065 are VERIFIED and no blocking findings remain.
 - **Protected boundaries:** M0-M5 contracts, PostgreSQL workflow authority,
   approval/effect authorization, independent invariant checking, frozen
   experiment families, paid-run approval, and the distinction between
@@ -1261,11 +1262,15 @@ contract revision.
   and remote CI. The SQLite workflow and hash embedding are deterministic
   correctness fixtures, not production availability or model-quality claims.
 - **Known limitations:** M5 residual P3 R057 and the historical R019 test gap
-  remain nonblocking. Incident IDs, prompts, and evidence text are not metric
-  labels. Raw source files and the declared `source_corpus` boundary remain
-  excluded from downstream canary scanning as required by the plan; the local
-  adapter persists and reads those raw rows before MCP redaction, while the
-  production engine integration is explicitly deferred to DUR-033A.
+  remain nonblocking. The citation-violation counter emits its type header but
+  no zero-valued sample, freeze derivation compares fingerprints within one
+  process, continuity currently interrupts at one boundary, and the keyword
+  arm remains saturated on held-out data. Incident IDs, prompts, and evidence
+  text are not metric labels. Raw source files and the declared `source_corpus`
+  boundary remain excluded from downstream canary scanning as required by the
+  plan; the local adapter persists and reads those raw rows before MCP
+  redaction, while production engine integration is explicitly deferred to
+  DUR-033A.
 
 ### Named follow-up from R064
 
@@ -1582,9 +1587,9 @@ DUR-023B, DUR-024, DUR-025, and DUR-021A are DONE. R057 remains open as a
 nonblocking P3 evidence-labelling limitation. Keep the M0 contracts and
 partition-map version frozen while extending the durable state repository.
 
-M6 implementation is READY_FOR_REVIEW at target `1048ad0`, based on the M5
-closeout `db8b462`. DUR-019, DUR-020, DUR-021B, and DUR-033 are
-READY_FOR_REVIEW; Claude review is pending. The implementation is a
+M6 is DONE at reviewed target `1048ad0`, based on the M5 closeout `db8b462`.
+Claude's committed round-26 review returned `NO_BLOCKING_FINDINGS`, and
+DUR-019, DUR-020, DUR-021B, and DUR-033 are DONE. The implementation is a
 deterministic local-first profile: it provides the versioned incident corpus,
 an exercised `source_corpus` adapter, bounded MCP-style tools,
 keyword/dense/hybrid retrieval, an approval-gated SQLite workflow adapter,

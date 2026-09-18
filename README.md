@@ -1,7 +1,8 @@
 # Distributed Durable Execution Engine
 
-This repository has completed M0 through M5, and M6 is implemented and ready
-for Claude review at `1048ad0` (base `db8b462`). M5 was reviewed with
+This repository has completed M0 through M6. M6 was reviewed with
+`NO_BLOCKING_FINDINGS` at committed target `1048ad0` (base `db8b462`), and
+DUR-019, DUR-020, DUR-021B, and DUR-033 are closed. M5 was reviewed with
 `NO_BLOCKING_FINDINGS` at committed target `acb28ba` against round-22 target
 `69917db`; R057 remains a nonblocking P3 evidence-labelling limitation.
 It provides a

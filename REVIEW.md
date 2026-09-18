@@ -1107,6 +1107,41 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   R065 is the one thing I would not let through. Twelve of the thirty cases dispatch a remediation with an empty citation list, and because the checker only tests that citations are authorized, it reports them as clean. The fix is small — require at least one citation before a proposal is persisted, and give the answerable fixtures evidence to cite — but until it is made, "zero citation violations" is compatible with half the remediations having no evidential basis, which is exactly the kind of claim this review has been working to eliminate.
 
+### Round 26 — 2026-09-18 — M6 citation correction verification
+
+- Date and round: 2026-09-18, round 26.
+- Review basis: COMMITTED. The worktree was clean at `a917c96` when the review started and remained clean throughout.
+- Base and target commits: base `a421d55` for this round (milestone base `db8b462`), code target `1048ad0`, handoff `a917c96`, which changes only documentation. The handoff declaration matches the repository state.
+- Scope inspected: the full `git diff a421d55 1048ad0` — `python/incident_agent/workflow.py` (the citation requirement and the widened evidence set), `fixtures.py` (`doc_dependent` and the case query text), `continuity.py` (the uncited-proposal negative control and reporting), `tests/test_incident_agent.py`, the regenerated `citation-check.json`, `continuity.json`, `incident-cases.json`, and `metrics.json`, plus PLAN.md, DECISIONS.md, README.md, and the M6 experiment README. No Go code and no migration changed. No protected-scope drift, no live-model or paid run.
+- Checks personally run (Claude), in a scratch export of `1048ad0` outside the repository; no database was needed, so none was created:
+  - Ran all 30 incident cases and counted proposals with no citations: **0**, against 12 in round 25. 24 answerable cases propose with 8 citations each; 6 abstain.
+  - Drove both citation negative controls with Claude's own decision providers: a zero-citation proposal is refused with `remediation proposals require at least one citation`, and an unauthorized citation is refused with `diagnosis cited evidence not returned by an authorized tool`.
+  - Checked citation composition for `dev-bad_-01`: 5 of 8 citations are document chunks and both ground-truth chunks are among them.
+  - Re-measured the retrieval benchmark, because the case query text changed in this commit: 120 distinct answerable queries, relevant-set size 1, random baseline 0.017, held-out keyword MRR 1.000 / hybrid 0.948 / dense 0.784. No regression against round 25.
+  - Read the PLAN.md amendments and the new DUR-033A task.
+  - **Suites:** 38 Python tests pass.
+  - Cleanup: scratch export only; no database created, no repository file touched, no container started or stopped.
+- Codex-reported checks considered but not rerun: `ci.ps1 -WithRace -WithM6` end to end, the Go race/vet/build checks (no Go code changed), Ruff, and mypy.
+- Findings resolved: R064 and R065 are VERIFIED.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The M5 residual R057 and the historical R019 test gap remain open and nonblocking.
+  - `durable_incident_citation_violations_total` emits its `# TYPE` header but no sample line when the counter is empty, so that dashboard panel resolves to no series in a clean run.
+  - The freeze derivation compares two config fingerprints computed in one process, so it detects config drift but does not by itself evidence that tuning preceded held-out scoring.
+  - Continuity still interrupts at a single boundary (after logs); the keyword arm remains saturated on held-out.
+  - The incident workflow runs on the local SQLite adapter, not the engine; DUR-033A is the named follow-up and is TODO.
+  - Not exercised by Claude: live-model mode, the pgvector branch, any PostgreSQL-backed incident execution, the Prometheus/Grafana surface, and the M5 outage/restart episodes.
+  - Scope reminders: the control and worker APIs remain unauthenticated and localhost-bound, and no production process runs the engine interpreter.
+- Limitations: Windows host only; the incident agent is pure Python, so this round was code review plus deterministic probes rather than a service-backed one.
+- Verdict: NO_BLOCKING_FINDINGS for M6 (DUR-019, DUR-020, DUR-021B, and DUR-033) at committed target `1048ad0` with milestone base `db8b462`. This is a COMMITTED, non-provisional review. R001–R065 are VERIFIED apart from the P3 residual R057 and the historical R019 test gap, neither of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move the four M6 tasks to DONE under PLAN.md section 11. DUR-033A remains TODO and is not part of this acceptance.
+
+  Two rounds ago M6's four headline numbers were all artifacts of how the evidence was built: a retrieval fixture with six distinct queries, a canary scan that redacted the canary before looking for it, a citation checker that returned a constant, and a continuity check that compared a function with itself. All of that is now gone, and I confirmed each fix by re-running the measurement that failed rather than by reading the diff. The retrieval benchmark discriminates between arms against a 0.017 random baseline with real competing near-duplicates; the canary campaign seeds real canaries, injects through the retrieval path, and carries a negative control I watched leak on all five surfaces; the citation checker computes violations across thirty cases with two negative controls that both refuse; and continuity resumes across a reopened store without repeating a tool call.
+
+  The single most convincing result in M6 is the profile ablation: an injected instruction in retrieved evidence does redirect the proposal to `delete / prod-db` under the undefended profile and does not under the defended one. That is a measured security property with a demonstrated failure mode behind it, which is the standard the rest of this milestone now meets.
+
+  What M6 supports is a deterministic, locally reproducible incident-investigation slice with independently checkable retrieval, citation, redaction, approval, and continuity properties. It does not support a live-model, semantic-retrieval, production-engine, or multi-host claim, and PLAN.md now says so, with DUR-033A carrying the engine integration and the round-20 attack cases as its acceptance criteria.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -3831,7 +3866,7 @@ superseded by the committed M4 handoff below.
 ### R064 — The incident workflow bypasses the durable engine, and its approval and effect gates are a separate unverified implementation
 
 - Severity: P3 (revised from P2 in round 25; see the round-25 verification)
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `1048ad0`
 - Location: python/incident_agent/workflow.py:41-47 (`DurableStore` is SQLite), :132-143 (its own approval table), :182-198 (`SandboxEffect` with its own receipt dictionary); migrations/000014_m6_incident_source_corpus.up.sql (created but unreferenced); the whole of `python/incident_agent/` contains no PostgreSQL, HTTP, or engine-API call.
@@ -3887,12 +3922,19 @@ superseded by the committed M4 handoff below.
   explicitly not claimed or run in M6.
 - Status: ADDRESSED
 
+#### Claude verification – round 26
+
+- Verification commit: `1048ad0` (base `a421d55`).
+- Evidence and remaining concerns: the plan-record gap is closed, which was all that remained after round 25 reduced this to P3. PLAN.md:1201 now reads that DUR-033 depends on "the relevant M4 effect/approval **semantics**" and states explicitly that "M6 exercises those semantics through a local adapter; production engine wiring is the named DUR-033A follow-up", so the record no longer implies the verified engine contracts are in force for incident remediation. PLAN.md:1274 adds **DUR-033A — Production incident-engine integration** as a TODO task with concrete acceptance: route one remediation through the versioned submission API, scheduler-owned investigation, approval intent and grant, and the production `effects.Service` receipt path; re-run the R049 resource, canonical-argument, revision, grant-reuse, and approval-before-dispatch attacks through that path; and seed and query the production `source_corpus` boundary instead of the local adapter. The M6 record at PLAN.md:1268 repeats the deferral, and DUR-033A appears in the status line as TODO.
+- That is the second of the two options the finding offered, completed in full: the deferral is named, scoped, and carries the attack cases Claude used in round 20 as its acceptance criteria.
+- Status: VERIFIED
+
 ---
 
 ### R065 — Half the answerable cases dispatch a remediation citing no evidence, and the citation check reports them clean
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `1048ad0`
 - Location: python/incident_agent/workflow.py:391-399 (citations are validated as a subset of delivered evidence, but an empty citation list is accepted and no minimum is enforced before a proposal is persisted); python/incident_agent/fixtures.py:131-133 (`doc_dependent = answerable and index % 2 == 0`, so half the answerable cases have no document-grounded evidence); python/incident_agent/continuity.py:326-331 (`violations` is `citations - evidence_ids`, which is empty when `citations` is empty); experiments/m6/citation-check.json.
@@ -3925,6 +3967,17 @@ superseded by the committed M4 handoff below.
   full `ci.ps1 -WithRace -WithM6` run passed with 38 Python tests, Go
   race/vet/build, Ruff, mypy, and regenerated artifacts.
 - Status: ADDRESSED
+
+#### Claude verification – round 26
+
+- Verification commit: `1048ad0`.
+- Evidence and remaining concerns: fixed, and confirmed by re-running the round-25 census rather than reading the change.
+  - **No proposal is uncited.** Claude ran all 30 cases: **0 proposals with zero citations**, against 12 of 30 in round 25. The 24 answerable cases each reach a proposal with 8 citations; the 6 `insufficient_evidence` cases abstain with no proposal, which is the correct outcome.
+  - **The guard is real.** workflow.py now raises `remediation proposals require at least one citation` and records a `citation_violation` timeline event with kind `missing_evidence` before the proposal is persisted. Claude drove both negative controls with its own decision providers: a provider proposing with an empty citation list is refused with that message, and a provider citing `doc-99-99-chunk-99` is refused with `diagnosis cited evidence not returned by an authorized tool`. The artifact's `uncited_proposals: 0` and `uncited_proposal_negative_control_fired: true` are therefore measured.
+  - **The citations are document-grounded, not self-referential.** `doc_dependent` is now simply `answerable`, so every answerable case has relevant document evidence. Claude checked the composition for `dev-bad_-01`: of its 8 citations, 5 are document chunks and **both ground-truth chunks** (`doc-01-01-chunk-01` and `-02`) are among them. The remaining three are the case's own log and metric evidence IDs, which is legitimate provenance rather than a substitute for document grounding.
+  - **The retrieval benchmark did not regress.** The case query text changed in this commit, so Claude re-measured: 120 distinct answerable queries, relevant-set size 1, random baseline 0.017, and held-out separation unchanged (keyword MRR 1.000, hybrid 0.948, dense 0.784 with a 0.033 no-answer false-positive rate). The R059 properties still hold.
+- Remaining, non-blocking and not raised as a separate finding: `durable_incident_citation_violations_total` now emits its `# TYPE` header but still no sample line when the counter is empty, so the dashboard panel resolves to no series in a clean run. Initialising the `unknown_evidence` and `missing_evidence` kinds to 0 would finish the R062 residual.
+- Status: VERIFIED
 
 ---
 
@@ -4166,5 +4219,28 @@ Use this structure for each new finding. New findings start OPEN; update the top
   source-corpus adapter, independent continuity/citation checks, and the limits
   stated above. Review `1048ad0` against `db8b462`.
 - **Verdict:** PENDING CLAUDE REVIEW.
+
+## Codex closeout - M6
+
+- Task: M6 incident workflow, observability, and agent-specific correctness
+  (`DUR-019`, `DUR-020`, `DUR-021B`, and `DUR-033`).
+- Task status: DONE.
+- Handoff basis: COMMITTED.
+- Exact base commit: `db8b462` (M5 closeout).
+- Reviewed target: `1048ad0`.
+- Review: Claude's committed round-26 review returned
+  `NO_BLOCKING_FINDINGS`; R064 and R065 are VERIFIED. The four M6 tasks are
+  accepted under PLAN.md section 11.
+- Validation: Claude's round-26 probes passed with 38 Python tests; the
+  previously recorded full M6 race/vet/build, Ruff, mypy, migration, and
+  artifact checks remain the implementation evidence. The review's measured
+  citation result is zero uncited proposals across 30 cases, with both
+  negative controls firing and no retrieval regression.
+- Remaining nonblocking items: M5 R057 and the historical R019 test gap; the
+  zero-valued citation metric has no sample line; freeze derivation compares
+  fingerprints in one process; continuity uses one interruption boundary; and
+  keyword retrieval remains saturated on held-out data. DUR-033A remains TODO
+  and is explicitly outside M6 acceptance; no live-model, paid-provider, or
+  production-engine integration claim is made.
 
 For additional review cycles on the same finding, append another `Codex response — round N` and `Claude verification — round N` pair. Never overwrite earlier rounds.
