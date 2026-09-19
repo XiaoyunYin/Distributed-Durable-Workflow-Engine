@@ -8,8 +8,9 @@ DUR-019, DUR-020, DUR-021B, and DUR-033 are closed. M5 was reviewed with
 `69917db`; R057 remains a nonblocking P3 evidence-labelling limitation.
 M7's bounded studies and DUR-033A production-path integration are reviewed and
 closed; their evidence is summarized in [the technical report](docs/TECHNICAL_REPORT.md).
-M8/DUR-030 is reviewed and closed; the remaining M8 work is interview evidence
-and final reproduction/release validation. The results remain bounded to their
+M8/DUR-030 is reviewed and closed; DUR-031's interview-evidence pack is in
+progress and its three personal walkthroughs remain pending before final
+reproduction/release validation. The results remain bounded to their
 declared fixtures and host, not to production scale or multi-host durability.
 It provides a
 reproducible Go/Python development

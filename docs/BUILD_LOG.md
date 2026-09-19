@@ -2489,3 +2489,22 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   notes, remain nonblocking residuals.
 - No code, migration, experiment, provider call, external action, or budget
   changed during closeout.
+
+## 2026-09-19 - DUR-031 interview evidence pack
+
+- Started DUR-031 from base `242cdcb`, the DUR-030 closeout. Added
+  `docs/INTERVIEW_EVIDENCE.md` with a claim-to-evidence map for the accepted
+  M5-M7 artifacts, exact reproduction commands, bounded resume wording, and
+  three personal walkthroughs: lease ownership mutation, ambiguous
+  non-cooperating effects, and an independent DUR-028 ratio reproduction.
+- The pack records the proposed resume findings with their implementation
+  targets, populations, configurations, limits, and artifact paths. It keeps
+  the adversarial counts visible as 2/20 defended versus 6/20 plain, rather
+  than repeating R089's rates without denominators.
+- Codex independently recomputed the committed DUR-028 checkpoint ratio as
+  `7.5552` from `experiments/m7/dur028/results.json`. This is a sanity check,
+  not the user's independent walkthrough evidence.
+- No code, migration, experiment rerun, provider call, paid budget, external
+  action, or protected guarantee changed. The user walkthroughs, their
+  observations, and Claude's review remain pending. R057, R083, R088, R089,
+  and the historical R019 gap remain visible as nonblocking residuals.
