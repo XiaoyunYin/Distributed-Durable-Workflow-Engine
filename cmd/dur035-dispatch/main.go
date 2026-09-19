@@ -616,9 +616,6 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 		relay := transport.NewRelay(store, observed, transport.RelayConfig{OwnerID: state.NewID(), BatchSize: 32, ClaimLease: claimLease,
 			PollInterval: selected.FallbackPoll, OnError: func(err error) { _ = err }, OnSuccess: func(report transport.RelayReport) {
 				if metrics != nil {
-					for i := 0; i < report.Published; i++ {
-						metrics.RecordRelayPublication()
-					}
 					for i := 0; i < report.Failed; i++ {
 						metrics.RecordRelayFailure()
 					}
@@ -712,7 +709,9 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 		report.Transport.BrokerCommitCount = kafkaD.commits.Load()
 		report.Transport.Failures += kafkaD.failures.Load()
 	}
-	report.Transport.BrokerPublications = telemetryDelta.RelayPublications
+	if kafkaD != nil {
+		report.Transport.BrokerPublications = telemetryDelta.RelayPublications
+	}
 	report.Transport.Failures += telemetryDelta.RelayFailures
 	if selected.Mode != "kafka" {
 		report.Transport.Notifications = d.notifications.Load()
