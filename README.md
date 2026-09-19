@@ -12,6 +12,24 @@ M8/DUR-030 is reviewed and closed; DUR-031's interview-evidence pack and three
 personal walkthroughs are reviewed and closed. DUR-032 remains for final
 reproduction/release validation. The results remain bounded to their
 declared fixtures and host, not to production scale or multi-host durability.
+
+## Three bounded comparative findings
+
+- DUR-026: with a fixed four-process worker pool, two schedulers kept up with
+  the tested 2/s offered rate where one scheduler did not on the engine path.
+- DUR-035: direct notification was faster than Kafka at the resolved terminal
+  stage in the quoted campaign; ready-to-claim direct versus Kafka was
+  unresolved and varied across campaigns.
+- DUR-028: at one SHA-256 work unit per chunk, every-chunk checkpointing took
+  7.5552 times the boundary-only median for the recorded in-process panic
+  workload. This is not a general checkpoint policy or crossover estimate.
+
+The M5 48/48 named-fault campaign is a separate bounded validation result, not
+a comparative headline. DUR-034 resolved no safeguard-cost effect because its
+clean reruns were too variable. The RQ8 adversarial rates retain their counts:
+2/20 defended cases versus 6/20 plain cases above each profile's clean-clean
+baseline. See the [technical report](docs/TECHNICAL_REPORT.md) and
+[final release checklist](docs/RELEASE_CHECKLIST.md) for evidence and limits.
 It provides a
 reproducible Go/Python development
 environment, frozen foundation contracts, deterministic named-boundary fault

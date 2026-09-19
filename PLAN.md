@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 DONE; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 DONE; DUR-032 IN_PROGRESS; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1553,6 +1553,34 @@ contract revision.
   pack does not turn bounded local studies into production or multi-host
   claims.
 
+#### DUR-032 implementation record
+
+- **Status:** IN_PROGRESS; final reproduction and release validation are
+  underway.
+- **Base commit:** `c0757e4` (DUR-031 closeout).
+- **Implementation target:** pending until the final checklist and validation
+  records are committed.
+- **Goal:** provide a clean-checkout reproduction path, run applicable checks,
+  verify migrations and service lifecycle where safe, position the final
+  comparative findings correctly, and prepare the final Claude review of code
+  and claims. Release/tag creation remains authorization-gated.
+- **Scope:** documentation and validation records only. No new paid run,
+  provider call, external action, engine guarantee, experiment matrix, budget,
+  or protected-scope change.
+- **Evidence target:** `docs/RELEASE_CHECKLIST.md`, README measured-finding
+  section, `docs/BUILD_LOG.md`, and the final `REVIEW.md` handoff.
+- **Acceptance validation:** clean disposable checkout bootstraps with frozen
+  dependencies; applicable checks pass; migrations and safe smoke checks are
+  recorded; restart smoke is run or explicitly recorded as skipped; R090 is
+  addressed with three comparative findings and separate 48/48 validation;
+  R089 counts travel with rates; and Claude reviews the final code/claims
+  before any release/tag.
+- **Known limitations:** local Docker Desktop/WSL2 evidence remains bounded;
+  no clean checkout can establish multi-host durability, production scale,
+  remote CI, arbitrary external-effect exactly-once behavior, or live-model
+  quality. R057, R083, R088, R089, and R090 remain nonblocking residuals until
+  explicitly closed.
+
 ## 13. Deterministic failure campaign
 
 A deterministic crash schedule specifies a named barrier and acknowledgment from the target process. It does not promise identical operating-system timing.
@@ -1879,6 +1907,7 @@ pack is `docs/INTERVIEW_EVIDENCE.md` and its three walkthroughs are recorded.
 R090 remains a nonblocking P3 positioning follow-up: DUR-032 should separate
 the bounded validation campaign from the three comparative headline findings,
 use DUR-028 as the third comparative result, and preserve R089's counts with
-rates. The next planned M8 task is DUR-032.
+rates. DUR-032 is now IN_PROGRESS from this closeout, with its checklist in
+`docs/RELEASE_CHECKLIST.md`.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

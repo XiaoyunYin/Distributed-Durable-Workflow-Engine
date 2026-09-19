@@ -2549,3 +2549,19 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   rates.
 - No code, migration, experiment rerun, provider call, paid budget, external
   action, or protected guarantee changed during closeout.
+
+## 2026-09-19 - DUR-032 final reproduction and release validation
+
+- Started DUR-032 from base `c0757e4`, the reviewed DUR-031 closeout. Added
+  `docs/RELEASE_CHECKLIST.md` and updated README.md to address R090: the three
+  comparative findings are DUR-026, DUR-035 terminal dispatch, and DUR-028;
+  the M5 48/48 campaign is a separate bounded validation result; DUR-034's
+  unresolved safeguard-cost comparison is stated as a non-result; and the
+  RQ8 rates carry their 2/20 defended and 6/20 plain counts.
+- The checklist distinguishes clean-checkout bootstrap, non-service checks,
+  service-mode CI, migrations, smoke, and restart smoke. It records that
+  release/tag creation is not authorized by this task.
+- No code, migration, experiment rerun, provider call, paid budget, external
+  action, or protected guarantee changed in this start pass. Validation
+  results and any deliberately skipped lifecycle checks will be appended after
+  execution.
