@@ -634,3 +634,10 @@ func (s *Store) Close() {
 func (s *Store) Ping(ctx context.Context) error {
 	return s.pool.Ping(ctx)
 }
+
+// CanonicalPayloadHash returns the canonical JSON hash used by approval
+// proposals and cooperating effects. Effect callers must derive it from the
+// submitted state rather than trusting a caller-supplied hash.
+func CanonicalPayloadHash(payload json.RawMessage) (string, error) {
+	return canonicalPayloadHash(payload)
+}

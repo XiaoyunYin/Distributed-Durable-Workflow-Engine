@@ -79,6 +79,9 @@ try {
         if ($LASTEXITCODE -ne 0) { throw "M4 engine integration tests failed." }
         & go test ./internal/invariants -run '^TestM4' -count=1 -v
         if ($LASTEXITCODE -ne 0) { throw "M4 invariant integration tests failed." }
+        Write-Host "Running DUR-033A production incident-engine integration tests."
+        & go test ./internal/incident -run '^TestDUR033AProductionPath$' -count=1 -v
+        if ($LASTEXITCODE -ne 0) { throw "DUR-033A production integration tests failed." }
         if ($ciRelaysStopped) {
             Write-Host "Restoring runtime/worker services before dependency smoke checks."
             & docker compose @composeArgs up -d --wait runtime-a runtime-b worker-a worker-b

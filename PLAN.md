@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A IN_PROGRESS; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1276,7 +1276,18 @@ contract revision.
 
 | Task | Scope and acceptance |
 |---|---|
-| DUR-033A — Production incident-engine integration | TODO; depends on M6/DUR-033 and the M4 engine/effect contracts. Route one incident remediation through the versioned workflow submission/API, scheduler-owned investigation and approval intent/grant, and the production `effects.Service`/receipt path. Re-run the R049 resource, canonical-argument, revision, grant-reuse, and approval-before-dispatch attacks through that path; seed/query the production `source_corpus` boundary rather than the local adapter. Record the exact engine, migration, and service evidence before any external or live-model incident execution is claimed. |
+| DUR-033A — Production incident-engine integration | IN_PROGRESS; depends on M6/DUR-033 and the M4 engine/effect contracts. Route one incident remediation through the versioned workflow submission/API, scheduler-owned investigation and approval intent/grant, and the production `effects.Service`/receipt path. Re-run the R049 resource, canonical-argument, revision, grant-reuse, and approval-before-dispatch attacks through that path; seed/query the production `source_corpus` boundary rather than the local adapter. Record the exact engine, migration, and service evidence before any external or live-model incident execution is claimed. |
+
+#### DUR-033A implementation record
+
+- **Status:** IN_PROGRESS; implementation is being prepared for Claude review.
+- **Base commit:** `670fcd2` (DUR-029 closeout; DUR-033A was the next TODO).
+- **Goal:** exercise one bounded incident remediation through the PostgreSQL-backed submission API, the real scheduler/interpreter, the scheduler-owned approval grant, and the production cooperating effect service, with source evidence read from PostgreSQL `source_corpus`.
+- **Scope:** add a versioned two-node investigation/remediation definition, a production source-corpus seed/query helper, production engine activity drivers, and a service-mode integration campaign. The campaign is deterministic and synthetic; it makes no provider calls and performs no external action.
+- **Acceptance validation:** submit through `POST /v1/workflows`; run the investigation through `internal/engine`; create/approve/apply the grant through the approval API while holding the partition lease; apply the remediation through `internal/effects.Service`; verify terminal success, durable receipt, source-corpus citation, and history. Re-run R049 resource, canonical-argument/self-asserted-hash, resource-revision, grant-reuse, and approval-before-dispatch attacks, each with a typed rejection and no unauthorized receipt.
+- **Service/migration evidence:** uses migration `000014_m6_incident_source_corpus.up.sql` and existing M4 effect/approval migrations `000010`–`000013`; no schema migration is added. `scripts/ci.ps1 -WithServices` now runs `TestDUR033AProductionPath` after the service-backed suites.
+- **Protected boundaries:** no live-model/provider calls, external actions, new budget, or changes to the M4 guarantees. The local SQLite incident adapter remains a deterministic M6 fixture and is not used by this path.
+- **Known limits:** this is a PostgreSQL-backed integration campaign using the production Go handler, engine, and effect service in a test HTTP server; it does not claim a deployed scheduler role, Kafka transport, multi-host behavior, authentication, or live-model quality.
 
 ### M7 — Controlled measurements
 
@@ -1788,9 +1799,10 @@ bounded to the terminal-stage result: notification-direct is faster than Kafka
 there, while the ready-to-claim increment was unresolved in the quoted run and
 varied across campaigns. DUR-028 is DONE at reviewed target `7f66d88`, based
 on the DUR-027 closeout `b09095c`; Claude's round-42 review returned
-`NO_BLOCKING_FINDINGS` and verified R084/R085. The immediate next action is to
-prepare the DUR-029 implementation record. DUR-033A remains TODO until its
-own implementation record and validation plan are added here. R057 and R083
-remain nonblocking P3 findings carried forward.
+`NO_BLOCKING_FINDINGS` and verified R084/R085. DUR-029 is DONE at reviewed
+target `5b9d65c`, based on `000ec83`; Claude's round-44 review returned
+`NO_BLOCKING_FINDINGS` and verified R086/R087. The immediate next action is
+to complete DUR-033A's production integration record and validation. R057 and
+R083 remain nonblocking P3 findings carried forward.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

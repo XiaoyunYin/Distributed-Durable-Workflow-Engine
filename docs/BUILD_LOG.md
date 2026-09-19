@@ -2402,3 +2402,28 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   plain, computed from 2/4 clean-clean and 4/10 clean-injected case changes.
 - Remaining project items are the nonblocking R057/R083 record residuals,
   historical R019 gap, recorded M6 notes, DUR-033A, and the M8 report work.
+
+## 2026-09-19 - DUR-033A production incident-engine integration
+
+- Started from `670fcd2` after DUR-029 closeout. Added the PostgreSQL-backed
+  `internal/incident` integration: a versioned investigation/remediation graph,
+  a `source_corpus` seed/query boundary, an engine investigation driver, and a
+  cooperating effect driver that calls the production `effects.Service`.
+- The integration campaign submits through the real workflow HTTP handler,
+  runs the investigation through `internal/engine`, creates and applies an
+  approval grant through the approval API while holding a scheduler lease, and
+  verifies the production effect receipt and durable history. It replays R049
+  resource, canonical-argument/self-asserted-hash, resource revision,
+  grant-reuse, and approval-before-dispatch attacks.
+- No migration was added: the source boundary is migration 000014 and the
+  effect/approval contracts are migrations 000010-000013. No live-model call,
+  external action, or paid-provider budget is used.
+- Validation so far: focused Go tests pass with a task-local cache; the real
+  PostgreSQL-backed `DURABLE_REQUIRE_DATABASE=1 go test
+  ./internal/incident -run '^TestDUR033AProductionPath$' -count=1 -v` passes
+  and cleans its workflow, effect, definition, lease, and source rows.
+- Remaining validation: full Go race/vet suite, final service-mode CI command,
+  and exact target-commit handoff remain before READY_FOR_REVIEW. The path is
+  bounded to a test HTTP server on PostgreSQL; it does not claim deployed
+  scheduler roles, Kafka, multi-host behavior, authentication, or live-model
+  quality.
