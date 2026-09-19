@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 TODO; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 IN_PROGRESS; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1336,6 +1336,18 @@ contract revision.
 - **Known limits:** the measurement uses the committed Store/Engine harness on the single-node Docker Desktop/WSL2 host; it does not claim deployed API/relay/Kafka throughput, multi-host behavior, or production alternatives for the weakened profiles.
 
 **Exit:** Each stated question has actual evidence and an appropriately limited verdict. Failed/incomplete runs remain in the registry.
+
+#### DUR-035 implementation record
+
+- **Status:** IN_PROGRESS; implementation starts from the accepted DUR-034 closeout.
+- **Base commit:** `81927c5` (DUR-034 closeout).
+- **Goal:** compare two frozen PostgreSQL polling intervals, a `LISTEN/NOTIFY` direct path, and the production `LISTEN/NOTIFY` -> outbox relay -> Kafka path while keeping the committed task outbox row, worker claim API, workload, worker capacity, and terminal reconciliation fixed.
+- **Scope:** add a bounded dispatch-path runner and reproduction script. Each arm creates the same durable workflow and `attempt.dispatch` outbox record, dispatches it through its declared path, claims through `Store.ClaimAttempt`, records a result, and consumes it through the scheduler-owned state transition. Capture outbox-ready-to-claim delay, stage timings, PostgreSQL query/transaction/lock telemetry, dispatcher CPU, broker publication/receive/commit counts where applicable, backlog age, retry/failure counts, and terminal correctness.
+- **Protected boundaries:** retain four configurations (two polling intervals, direct notification, Kafka relay), three measured repeats per configuration, one fixed synthetic workload/rate, and the existing section-14 correctness guarantees. Do not start DUR-027, DUR-028, DUR-029, or DUR-033A. Do not promote cost deltas if the repeated-run spread does not separate them; the DUR-034 variability is a stated input to this study.
+- **Acceptance scenarios:** all four configurations have frozen protocol records and 12 measured runs; each run has a non-empty durable cohort, per-workflow ready/claim/terminal timestamps, no pending or non-terminal workflows, no stranded reserved namespace rows after cleanup, and an explicit PASS/FAIL result. The direct arms must use the same task outbox and claim API, and the Kafka arm must use the production relay and Kafka source rather than a second in-process broker implementation. Any dependency failure or incomplete run remains visible and fails the script.
+- **Validation:** run the focused command tests, `scripts/m7-dur035.ps1` against PostgreSQL/Kafka, `scripts/ci.ps1 -WithRace`, `go vet ./...`, `gofmt`, PowerShell parse validation, `git diff --check`, and post-run namespace checks. Do not claim a run unless the command and artifact were actually produced.
+- **Evidence paths:** `experiments/m7/dur035/results.json`, `scripts/m7-dur035.ps1`, `cmd/dur035-dispatch`, and this implementation record/build-log entry.
+- **Known limits:** evidence is bounded to the single-node Docker Desktop/WSL2 host and an in-process worker fixture; it is not a multi-host or maximum-throughput claim. Direct-dispatch CPU and Kafka overhead are descriptive unless repeated runs separate them from the observed variability.
 
 ### M8 — Report and portfolio release
 

@@ -1895,3 +1895,27 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   control this harness variability before making comparative performance
   claims. The historical R057/R019 and other nonblocking residuals remain
   recorded; no paid/live-model work was run.
+
+## 2026-09-18 - M7 DUR-035 dispatch-path study implementation
+
+- DUR-035 is `IN_PROGRESS` from the accepted DUR-034 closeout `81927c5`.
+- Added `cmd/dur035-dispatch` and `scripts/m7-dur035.ps1`. The runner freezes
+  four configurations: PostgreSQL polling at 250 ms and 1 s, PostgreSQL
+  `LISTEN/NOTIFY` direct delivery, and the production outbox relay to Kafka.
+  Each case creates the same `attempt.dispatch` outbox record and ends at the
+  same `ClaimAttempt`/`RecordResultReceipt`/`ConsumeResult` APIs.
+- The protocol uses one pure-activity workload, a fixed four-worker in-process
+  fixture, four warmups, 12 measured workflows, a 2/s open-loop arrival
+  schedule, and three repeats per configuration. The artifact records stage
+  timing, query/transaction/lock telemetry, backlog reconciliation, process
+  CPU with its full-command scope, direct notification counts, Kafka receive
+  and commit counts, and all failures.
+- `KafkaSource` now starts a newly-created study group at the latest offset;
+  existing committed groups still resume from their offsets. This prevents a
+  fresh bounded measurement group from consuming historical task notifications
+  from earlier runs.
+- Initial validation: `gofmt` and focused `go test ./cmd/dur035-dispatch
+  ./internal/transport` pass. The database-backed script and full race suite
+  remain to be run after the implementation is committed. No performance
+  result is claimed yet; DUR-034's observed run-to-run variability is carried
+  into the DUR-035 interpretation policy.
