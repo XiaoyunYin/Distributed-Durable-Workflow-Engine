@@ -6944,3 +6944,46 @@ final target and artifact before any M7 status changes.
   approval, API/engine/effect sequencing, cleanup, and the independent R049
   attack assertions. Do not mark DUR-033A DONE until Claude records a committed
   `NO_BLOCKING_FINDINGS` review.
+
+## Latest Codex handoff - DUR-030 technical report
+
+- **Task:** DUR-030 technical report and reference context.
+- **Task status:** READY_FOR_REVIEW; M8 remains IN_PROGRESS and DUR-030 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `855c63e` (DUR-033A closeout).
+- **Exact implementation target:** `51e1957`.
+- **Changes:** added `docs/TECHNICAL_REPORT.md` with the bounded technical
+  summary, failure-trace index, M7 performance/recovery tables, M6/M7 retrieval
+  and incident-agent findings, approval/effect boundary, cost and limitations,
+  claim-to-evidence register, reproduction index, and official reference
+  context for Temporal, DBOS, Restate, and River. Updated PLAN.md with the
+  DUR-030 implementation record and READY_FOR_REVIEW status, refreshed the
+  README M7/M8 status, and recorded the work in docs/BUILD_LOG.md.
+- **Evidence boundary:** the report cites the committed artifacts under
+  `experiments/m5`, `experiments/m6`, and `experiments/m7`; it does not rerun or
+  alter their measurements. It explicitly withholds the unstable DUR-034 cost
+  comparison, keeps the unresolved DUR-035 ready-to-claim stage unresolved,
+  and carries R057, R083, R088, the historical R019 gap, and recorded M6 notes.
+- **Checks run:** report claim/link audit passed; all 14 local report links
+  resolve; JSON/count audit matched 48/48 M5 cases, 576 DUR-026 terminal
+  workflows with zero pending, 60 DUR-027 episodes with zero false takeovers,
+  288 DUR-035 workflows with zero pending, and $0.04798995 DUR-029 spend under
+  the $30 cap; `git diff --check` passed; `git merge-base --is-ancestor
+  855c63e 51e1957` passed.
+- **Skipped checks:** full Go/Python/service suites, Docker bootstrap, smoke,
+  benchmark reruns, and provider calls were not rerun because DUR-030 is a
+  documentation-only report task and those accepted results are already linked
+  from the report and prior closeout records. No paid run or external action
+  was performed.
+- **Known limitations:** the report inherits each artifact's declared host,
+  workload, crash-model, sample-size, authentication, production-integration,
+  and multi-host limits. It does not claim parity with the referenced products,
+  exactly-once arbitrary external effects, production scale, or a universal
+  dispatch winner.
+- **Review request:** review `docs/TECHNICAL_REPORT.md` against `855c63e` at
+  target `51e1957`, checking that every headline number is traceable to a
+  committed artifact, the conclusions preserve each study's scope and
+  unresolved results, the $30 paid budget is not expanded, and Temporal/DBOS/
+  Restate/River are used only for linked architectural context. Do not mark
+  DUR-030 DONE until Claude records a committed `NO_BLOCKING_FINDINGS` review.

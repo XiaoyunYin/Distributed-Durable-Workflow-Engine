@@ -2448,9 +2448,10 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   bounded claims and carry R057, R083, R088, the historical R019 gap, and the
   recorded M6 notes as nonblocking limitations until explicitly resolved.
 
-## 2026-09-19 - DUR-030 technical report draft
+## 2026-09-19 - DUR-030 technical report
 
-- Started DUR-030 from base `855c63e` after the DUR-033A closeout. Added
+- Started DUR-030 from base `855c63e` after the DUR-033A closeout. Commit
+  `51e1957` adds
   `docs/TECHNICAL_REPORT.md`, a claim-bounded report covering the M5 fault
   campaign, DUR-036 readiness, DUR-033A production-path integration, all M7
   measurement studies, the M6/M7 retrieval and incident-agent evidence, cost,

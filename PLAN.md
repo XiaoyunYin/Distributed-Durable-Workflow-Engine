@@ -1497,7 +1497,8 @@ contract revision.
 - **Status:** READY_FOR_REVIEW; report and evidence audit complete; Claude review pending.
 - **Base commit:** `855c63e` (DUR-033A closeout; M8/DUR-030 was the next
   planned task).
-- **Implementation target:** pending until the report handoff commit is created.
+- **Implementation target:** `51e1957` (report, plan record, README status, and
+  build-log entry).
 - **Goal:** publish one claim-bounded technical report covering the failure
   campaign, runtime readiness and production-path integration, M7 performance
   and recovery measurements, M6/M7 retrieval and incident-agent evidence,
