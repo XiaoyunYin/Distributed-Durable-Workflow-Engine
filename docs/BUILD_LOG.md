@@ -2389,3 +2389,16 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   excess injection-associated change rates remain 0.10 defended versus 0.30
   plain. Full isolated Python tests, Ruff, mypy, artifact validation, and
   `git diff --check` remain the required checks before handoff.
+
+## 2026-09-19 - DUR-029 closeout
+
+- Claude's committed round-44 review returned `NO_BLOCKING_FINDINGS` for
+  target `5b9d65c` against base `000ec83`; R086 and R087 are VERIFIED.
+- DUR-029 is marked `DONE` in PLAN.md. The accepted evidence remains bounded:
+  4/20 live safe outcomes overall and 0/16 on the document-dependent subset
+  in every retrieval arm versus 20/20 deterministic fixture control success;
+  keyword and hybrid held-out Recall@K tie at 1.000 while dense is 0.956;
+  and RQ8 excess injection-associated change is 0.10 defended versus 0.30
+  plain, computed from 2/4 clean-clean and 4/10 clean-injected case changes.
+- Remaining project items are the nonblocking R057/R083 record residuals,
+  historical R019 gap, recorded M6 notes, DUR-033A, and the M8 report work.

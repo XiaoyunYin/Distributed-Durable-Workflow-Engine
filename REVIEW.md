@@ -1682,6 +1682,39 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   What is missing is the study's own voice. No DUR-029 artifact contains a conclusion or a limitations list, so three results go unreported — the RQ8 guardrail effect above; the live agent's 0 of 16 safe end-to-end successes on the document-dependent subset in every arm, against 20 of 20 for the fixture control, which isolates the model rather than the harness; and the fact that no retrieval arm changed that outcome despite keyword and hybrid scoring a perfect held-out Recall@K. That last pairing is precisely the comparative Applied-AI finding PLAN.md:1571 tells the README to lead with, and it is currently derivable only by recomputing from row data. For a study whose cost was authorized specifically to produce these answers, writing them down is the remaining work.
 
+### Round 44 — 2026-09-19 — DUR-029 conclusions and final retrieval evidence
+
+- Date and round: 2026-09-19, round 44.
+- Review basis: COMMITTED. The worktree was clean at `be7642b` when the review started and remained clean throughout.
+- Base and target commits: base `a015d26` for this round, fix target `5b9d65c`, handoff `be7642b`. Both declared commits resolve as ancestors of HEAD.
+- Scope inspected: `git diff a015d26 5b9d65c` — the conclusion and limitations generation in `python/incident_agent/continuity.py`, `evaluation.py` and `__main__.py`, the extended tests, `scripts/m7-dur029-preflight.ps1`, the rename of `retrieval-preflight.json` to `retrieval-final.json`, the regenerated DUR-029 artifacts, and the PLAN.md and BUILD_LOG.md updates.
+- Paid-scope check: no provider calls were made in this pass, as the handoff states. The ledger in the regenerated artifacts is unchanged at `budget_cents: 3000`, `spent_cents: 4.798995`, `reserved_cents: 0`, consistent with D013 and with round 43. No protected-scope drift.
+- Checks personally run (Claude), read-only:
+  - Confirmed `live-evaluation.json` now has `conclusions` and `limitations`, and traced the conclusion assembly to the computed per-study reports rather than to literals.
+  - **Recomputed the adversarial rates independently from the 120 raw rows** by comparing canonical proposal signatures per case and replicate: defended 2 clean-clean flips and 4 clean-injected changes of 20 cases, plain 4 and 10, giving excess rates of 0.10 and 0.30 and a difference of 0.20 — matching the published conclusion exactly.
+  - Confirmed the `agent_quality` conclusion reports the fixture control at 20 of 20 per arm against the live model's 4 of 20 overall and 0 of 16 document-dependent per arm, with the attribution statement.
+  - Confirmed `retrieval_arm_pairing` pairs each arm's held-out Recall@K with its live outcome and promotes no winner.
+  - Confirmed the new aggregate `approval_enforcement` block, including `completed_without_approval: 0` across 120 executions.
+  - Confirmed `retrieval-final.json` carries `status: "PASS"`, the `dur-029-retrieval-final.v1` schema, the unchanged frozen `config_fingerprint`, its own conclusions and limitations, and no `live_model: NOT_RUN` block; checked for stale references to the old filename and found only the BUILD_LOG note describing the promotion.
+- Codex-reported checks considered but not rerun: the 41 tests, Ruff, mypy, the artifact checks, and `git diff --check`.
+- Findings resolved: R086 and R087 are VERIFIED.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The DUR-029 limitations list is terse; the specific caveat worth carrying into the report is that the 0.10-versus-0.30 guardrail difference is four cases out of twenty per profile. Recorded in the R086 verification rather than as a new finding, because PLAN.md's own variability control — the clean-clean replicate baseline — is satisfied and the counts are all present in the artifact.
+  - The standing P3 residuals R057 and R083, the M6 notes recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - Claude cannot verify provider responses themselves; this review covers the recorded evidence, the harness, and the authorization boundary.
+  - The DUR-034 harness variability remains unexplained.
+  - DUR-033A remains TODO.
+- Limitations: artifact and source review plus independent recomputation from the committed rows; no paid calls were made by Claude.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-029 at committed target `5b9d65c` with base `000ec83`. This is a COMMITTED, non-provisional review. R001–R087 are VERIFIED apart from the P3 residuals R057 and R083, the recorded M6 notes, and the historical R019 test gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-029 to DONE under PLAN.md section 11.
+
+  DUR-029 now says what it found, and it found two things worth saying. The defended evidence profile cuts excess injection-associated proposal change from 0.30 to 0.10 against its own clean-clean baseline, with zero canary leaks in both profiles and a redaction-off control that produces five — so the guardrail claim rests on a measurement whose failure mode has been demonstrated rather than assumed. I recomputed that decomposition from the 120 raw rows and it matches the published figures exactly. Alongside it, the live agent reaches zero safe end-to-end successes on the document-dependent subset in every retrieval arm while the deterministic fixture control reaches twenty of twenty, which localises the gap to the model rather than to retrieval, the harness, or the approval path — and the conclusion now states that attribution instead of leaving it to be inferred.
+
+  The approval block is the quiet result I would not want lost: across 120 live executions with an adversarially injected corpus, 27 proposals were made, 27 were approved, and **zero completed without approval**. That is the engine-side guarantee holding under a live model that was otherwise behaving poorly, which is exactly the separation PLAN asks for between model behaviour and enforcement.
+
+  With this, every M7 measurement study — DUR-036, DUR-026, DUR-034, DUR-035, DUR-027, DUR-028 and DUR-029 — carries committed evidence whose conclusions are computed from its own intervals or rates rather than asserted, and whose scope is recorded alongside the numbers. The two open items across the whole review are P3 record-keeping and labelling residuals. What remains substantively is DUR-033A, the production engine integration deferred from M6, and the M8 report, where the main risk shifts from measurement to how these results are summarised.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -3178,7 +3211,7 @@ For each round, record:
 ### R086 — DUR-029 states no conclusions and no limitations, leaving its two headline live-model results unreported
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `a015d26`
 - Location: experiments/m7/dur029/live-evaluation.json, live-agent.json, live-adversarial.json and retrieval-preflight.json (none contains a `conclusions`, `statement` or `limitations` key); PLAN.md:1293 (DUR-029 acceptance) and PLAN.md:1571 (report guidance).
@@ -3218,12 +3251,23 @@ For each round, record:
 - Fix commit: `5b9d65c`.
 - Status: ADDRESSED
 
+#### Claude verification – round 44
+
+- Verification commit: `5b9d65c` (base `a015d26`).
+- Evidence and remaining concerns: fixed. `live-evaluation.json` now carries a `conclusions` block with all three results the finding named, and each is assembled from the computed per-study reports rather than written as prose constants — `continuity.py:593-595` pulls `agent_quality`, `retrieval_arm_pairing` and `adversarial_guardrail` from the agent and adversarial reports' own computed conclusion structures.
+  1. **RQ8 guardrail.** Reported as excess injection-associated change of 0.10 defended against 0.30 plain, difference 0.20, with the finding text stating it is "after subtracting each profile's clean-clean baseline". Claude recomputed this independently from the 120 raw rows by comparing canonical proposal signatures per case: defended 2 clean-clean flips and 4 clean-injected changes of 20 cases, plain 4 and 10 — giving baselines of 0.10 and 0.20 and excess rates of 0.10 and 0.30. The published figures match exactly.
+  2. **Model-versus-fixture attribution.** `agent_quality` now reports fixture safe end-to-end success of 20 of 20 in each arm beside the live model's 4 of 20 overall and 0 of 16 on the document-dependent subset in each arm, and states that this "localizes the observed quality gap to the live model/configuration rather than treating the fixture result as a live-model result". That is the contrast the finding said was the most informative fact in the study.
+  3. **Retrieval pairing.** `retrieval_arm_pairing` places each arm's held-out ranking and delivered Recall@K beside its live safe end-to-end success and declines to promote a winner from this sample.
+- The two smaller items are also closed. `live-adversarial.json` now carries an aggregate `approval_enforcement` block — 120 executions, 27 proposal rows, 27 approvals granted, 27 completed, and **0 completed without approval** — reported separately from the injection metrics as PLAN.md:1293 requires, with the zero being the meaningful safety figure. A `limitations` list is present.
+- One note for the report rather than an open finding: the limitations are terse, and the one caveat worth spelling out is arithmetic. The headline 0.10-versus-0.30 difference is 2 versus 6 excess cases out of 20 per profile, so it turns on four cases. PLAN.md's own variability control for this — estimating baseline sampling variability with a clean-versus-clean replicate before interpreting the injected comparison — is satisfied by design and is what makes the number meaningful, but the README should quote the counts alongside the rates so the sample size is visible wherever the claim travels.
+- Status: VERIFIED
+
 ---
 
 ### R087 — The final held-out retrieval evidence is stored in an artifact labelled a non-final preflight
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `a015d26`
 - Location: experiments/m7/dur029/retrieval-preflight.json (`status: "PREPARED_NOT_FINAL"`, `live_model: {status: "NOT_RUN", reason: "separate provider, cost-cap, and INCIDENT_LIVE_APPROVED=1 authorization required"}`), which nonetheless contains the complete `heldout` results for all three arms.
@@ -3252,6 +3296,12 @@ For each round, record:
   suite, Ruff, and mypy pass.
 - Fix commit: `5b9d65c`.
 - Status: ADDRESSED
+
+#### Claude verification – round 44
+
+- Verification commit: `5b9d65c`.
+- Evidence and remaining concerns: fixed. The file is renamed to `experiments/m7/dur029/retrieval-final.json` with schema `dur-029-retrieval-final.v1` and `status: "PASS"`, replacing `PREPARED_NOT_FINAL`. The misleading `live_model: {status: "NOT_RUN"}` block is gone, so the artifact no longer reads as work that was prepared and abandoned. The frozen `config_fingerprint` is retained unchanged, along with the 40 development and 120 held-out query counts, and the file gained its own `conclusions` and `limitations`. The only remaining mention of the old filename is an explanatory line in docs/BUILD_LOG.md describing the promotion, which is appropriate rather than stale.
+- Status: VERIFIED
 
 ---
 
@@ -6759,3 +6809,23 @@ final target and artifact before any M7 status changes.
   whether the retrieval artifact now clearly represents final evidence. Do not
   mark DUR-029 DONE until Claude records a committed `NO_BLOCKING_FINDINGS`
   review.
+
+## Codex closeout - M7 DUR-029
+
+- **Task status:** DONE; M7 remains IN_PROGRESS.
+- **Handoff basis:** COMMITTED.
+- **Base commit:** `000ec83` (DUR-028 closeout state reviewed by Claude).
+- **Reviewed target:** `5b9d65c`.
+- **Review:** Claude's round-44 committed review returned
+  `NO_BLOCKING_FINDINGS`; R086 and R087 are VERIFIED.
+- **Accepted evidence:** final retrieval evidence with frozen fingerprint and
+  40/120 development/held-out queries; 60 live agent executions across three
+  arms; 120 adversarial executions plus one redaction-off control; aggregate
+  cost $0.04798995 under the authorized $30 cap; 4/20 live safe outcomes
+  overall and 0/16 document-dependent in every arm versus 20/20 fixture
+  control success; and computed RQ8 excess rates 0.10 defended versus 0.30
+  plain. Approval enforcement recorded 27/27 adversarial proposals granted
+  and zero completed without approval.
+- **Remaining nonblocking:** R057 and R083, the historical R019 test gap,
+  recorded M6 notes, and the bounded synthetic/local-host limitations. DUR-033A
+  and the M8 report remain TODO.

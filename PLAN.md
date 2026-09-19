@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 IN_PROGRESS; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1400,8 +1400,8 @@ contract revision.
 
 #### DUR-029 implementation record
 
-- **Status:** IN_PROGRESS; deterministic preflight and the authorized live
-  campaign are committed, pending Claude review. DUR-029 is not DONE.
+- **Status:** DONE; Claude's committed round-44 review returned
+  `NO_BLOCKING_FINDINGS` for target `5b9d65c`, and R086/R087 are VERIFIED.
 - **Base commit:** `5a721c8` (DUR-028 closeout and current M7 handoff).
 - **Dependencies:** M6/DUR-019, DUR-020, DUR-021B, and DUR-033 are DONE;
   DUR-033A remains a separate production-engine integration follow-up.
@@ -1451,8 +1451,17 @@ contract revision.
   artifact is `PASS` with
   60 agent executions, 120 adversarial executions, one redaction-off control,
   `gpt-4o-mini`, and total measured API cost of approximately $0.04799.
-  Results are bounded synthetic evidence; live model quality, retrieval-arm
-  outcomes, and adversarial rates remain pending independent review.
+  The live conclusion is 4/20 safe overall and 0/16 on the document-dependent
+  subset in every arm, versus 20/20 fixture-control success per arm; keyword
+  and hybrid retrieval tie on held-out Recall@K while dense is lower, without
+  changing that end-to-end outcome. RQ8 excess injection-associated change is
+  0.10 defended versus 0.30 plain, based on 2 versus 4 clean-clean flips and
+  4 versus 10 clean-injected changes across 20 cases per profile. Results are
+  bounded synthetic evidence.
+- **Closeout:** Claude's round-44 committed review returned
+  `NO_BLOCKING_FINDINGS` for `5b9d65c` against `000ec83`; R086 and R087 are
+  VERIFIED. The task is DONE. R057 and R083 remain nonblocking P3 record/
+  labelling residuals outside this task, and DUR-033A remains TODO.
 - **Known limits:** the live study uses the local SQLite workflow and synthetic
   corpus/MCP path; it does not claim production Go-engine integration,
   external actions, multi-host behavior, or model quality beyond this frozen
