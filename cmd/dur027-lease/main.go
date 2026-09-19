@@ -443,6 +443,12 @@ func runCase(ctx context.Context, store *state.Store, arm leaseArm, namespace, d
 		}
 		result.FencedOldOwner++
 	}
+	// The stale-owner probes are deliberate database round trips. Re-arm the
+	// new owner's short lease before recording the useful recovery transition.
+	if takeoverLease, err = store.RenewLease(ctx, refB, arm.TTL); err != nil {
+		_ = store.ReleaseLease(ctx, refB)
+		return result, fmt.Errorf("%s new-owner renewal: %w", caseID, err)
+	}
 	if err := applyTransition(ctx, store, refB, workflowID, "takeover recovery"); err != nil {
 		_ = store.ReleaseLease(ctx, refB)
 		return result, fmt.Errorf("%s post-takeover transition: %w", caseID, err)
