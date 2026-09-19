@@ -20,6 +20,7 @@ import (
 	"durable-agent-execution-engine/internal/engine"
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
 
 	"github.com/jackc/pgx/v5"
 )
@@ -231,6 +232,7 @@ func main() {
 		return
 	}
 	defer store.Close()
+	store.SetTelemetry(telemetry.New("dur028-checkpoint"))
 	count := *repeats
 	if *pilot {
 		count = 1
