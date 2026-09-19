@@ -2130,6 +2130,12 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   `owner_crash_armed` boundary after the parent signals `crash`; the parent
   kills only after that renewal has finished. This remains a real process-tree
   crash while making the injected ordering explicit and reproducible.
+- A final short-TTL probe exposed that a sequential post-takeover renew loop
+  could lose a 100 ms lease under ordinary database scheduling jitter. The
+  recovery path now runs a scheduler-style background renewal loop through the
+  useful replacement transition, records its successful renewals, and surfaces
+  any genuine renewal error. This keeps the lease setting fixed while removing
+  the harness's own sleep/renew scheduling artifact.
 - Focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`
   and `go build` pass. The real PostgreSQL pilot/final campaign and the
   repository-wide checks remain required before the next review handoff.

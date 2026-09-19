@@ -506,6 +506,15 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 		return report, err
 	}
 	report.LockWaits, report.LockWaitSeconds = waits, waitSeconds
+	stopRenewal := startLeaseRenewal(ctx, store, newRef, arm.TTL)
+	defer func() {
+		count, renewalErr := stopRenewal()
+		report.RenewalsAfterTakeover += count
+		if renewalErr != nil && runErr == nil {
+			runErr = renewalErr
+			report.Failure = renewalErr.Error()
+		}
+	}()
 	attempt, err := store.GetAttempt(ctx, ready.WorkflowID, "root", 0, ready.AttemptNumber)
 	if err != nil {
 		_ = store.ReleaseLease(ctx, newRef)
@@ -517,17 +526,7 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 	}
 	for time.Now().Before(deadline) {
 		time.Sleep(maxDuration(5*time.Millisecond, arm.TTL/3))
-		if _, err := store.RenewLease(ctx, newRef, arm.TTL); err != nil {
-			_ = store.ReleaseLease(ctx, newRef)
-			return report, err
-		}
-		report.RenewalsAfterTakeover++
 	}
-	if _, err := store.RenewLease(ctx, newRef, arm.TTL); err != nil {
-		_ = store.ReleaseLease(ctx, newRef)
-		return report, err
-	}
-	report.RenewalsAfterTakeover++
 	workflow, err := store.GetWorkflow(ctx, ready.WorkflowID)
 	if err != nil {
 		_ = store.ReleaseLease(ctx, newRef)
@@ -604,6 +603,50 @@ func startFixture(cfg config, arm leaseArm, faultType, episodeID, resumeFile str
 		close(done)
 	}()
 	return fixtureProcess{cmd: cmd, records: records, wait: wait, done: done}, nil
+}
+
+func startLeaseRenewal(ctx context.Context, store *state.Store, ref state.LeaseRef, ttl time.Duration) func() (int, error) {
+	interval := ttl / 3
+	if interval < 5*time.Millisecond {
+		interval = 5 * time.Millisecond
+	}
+	renewCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	renewed := make(chan struct{}, 256)
+	errorsCh := make(chan error, 1)
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if _, err := store.RenewLease(renewCtx, ref, ttl); err != nil {
+					select {
+					case errorsCh <- err:
+					default:
+					}
+					return
+				}
+				select {
+				case renewed <- struct{}{}:
+				default:
+				}
+			case <-renewCtx.Done():
+				return
+			}
+		}
+	}()
+	return func() (int, error) {
+		cancel()
+		<-done
+		var renewalErr error
+		select {
+		case renewalErr = <-errorsCh:
+		default:
+		}
+		return len(renewed), renewalErr
+	}
 }
 
 func awaitBoundary(ctx context.Context, records <-chan boundaryRecord, wanted string) (boundaryRecord, error) {
