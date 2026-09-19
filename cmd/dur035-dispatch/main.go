@@ -13,6 +13,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/url"
 	"os"
 	"os/exec"
@@ -54,24 +55,26 @@ var arms = []arm{
 }
 
 type config struct {
-	OutputPath string
-	Repeats    int
+	OutputPath   string
+	Repeats      int
+	WorkerBinary string
 }
 
 type protocolReport struct {
-	SchemaVersion       string   `json:"schema_version"`
-	Workload            string   `json:"workload"`
-	ArrivalRatePerSec   float64  `json:"arrival_rate_per_second"`
-	MeasuredWorkflows   int      `json:"measured_workflows"`
-	WarmupWorkflows     int      `json:"warmup_workflows"`
-	WorkerSlots         int      `json:"worker_slots"`
-	AttemptLeaseSeconds int      `json:"attempt_lease_seconds"`
-	ClaimLeaseSeconds   int      `json:"claim_lease_seconds"`
-	WorkerSelection     string   `json:"worker_selection"`
-	FallbackPolls       []string `json:"fallback_poll_intervals"`
-	SameTaskOutbox      bool     `json:"same_task_outbox_record"`
-	SameClaimAPI        bool     `json:"same_worker_claim_api"`
-	HostLimit           string   `json:"host_limit"`
+	SchemaVersion        string   `json:"schema_version"`
+	Workload             string   `json:"workload"`
+	ArrivalRatePerSec    float64  `json:"arrival_rate_per_second"`
+	MeasuredWorkflows    int      `json:"measured_workflows"`
+	WarmupWorkflows      int      `json:"warmup_workflows"`
+	WorkerSlots          int      `json:"worker_slots"`
+	AttemptLeaseSeconds  int      `json:"attempt_lease_seconds"`
+	ClaimLeaseSeconds    int      `json:"claim_lease_seconds"`
+	WorkerSelection      string   `json:"worker_selection"`
+	WorkerModelRationale string   `json:"worker_model_rationale"`
+	FallbackPolls        []string `json:"fallback_poll_intervals"`
+	SameTaskOutbox       bool     `json:"same_task_outbox_record"`
+	SameClaimAPI         bool     `json:"same_worker_claim_api"`
+	HostLimit            string   `json:"host_limit"`
 }
 
 type artifact struct {
@@ -161,6 +164,7 @@ type runReport struct {
 	Telemetry               telemetryReport `json:"telemetry"`
 	Transport               transportReport `json:"transport"`
 	ProcessCPUSeconds       float64         `json:"process_cpu_seconds"`
+	WorkerCPUSeconds        float64         `json:"worker_cpu_seconds"`
 	CPUDescription          string          `json:"cpu_description"`
 	Failure                 string          `json:"failure,omitempty"`
 }
@@ -275,14 +279,16 @@ func (t *cohortTracker) snapshot(ids []string) []taskTiming {
 }
 
 type workerPool struct {
-	store     *state.Store
-	metrics   *telemetry.Metrics
-	jobs      chan dispatchJob
-	tracker   *cohortTracker
-	wg        sync.WaitGroup
-	seed      int64
-	workerSeq atomic.Uint64
-	failures  atomic.Uint64
+	store        *state.Store
+	metrics      *telemetry.Metrics
+	jobs         chan dispatchJob
+	tracker      *cohortTracker
+	wg           sync.WaitGroup
+	seed         int64
+	external     []*externalWorker
+	nextExternal atomic.Uint64
+	failures     atomic.Uint64
+	closed       bool
 }
 
 type dispatchJob struct {
@@ -290,13 +296,57 @@ type dispatchJob struct {
 	claimedAt time.Time
 }
 
-func newWorkerPool(store *state.Store, metrics *telemetry.Metrics, tracker *cohortTracker, slots int, seed int64) *workerPool {
+type workerRequest struct {
+	Seed      int64  `json:"seed"`
+	NodeID    string `json:"node_id"`
+	WorkUnits int    `json:"work_units"`
+}
+
+type workerResponse struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
+
+type externalWorker struct {
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	encode *json.Encoder
+	decode *json.Decoder
+	mu     sync.Mutex
+}
+
+func newWorkerPool(store *state.Store, metrics *telemetry.Metrics, tracker *cohortTracker, slots int, seed int64, workerBinary string) (*workerPool, error) {
 	p := &workerPool{store: store, metrics: metrics, jobs: make(chan dispatchJob, slots), tracker: tracker, seed: seed}
+	if workerBinary != "" {
+		p.external = make([]*externalWorker, 0, slots)
+		for index := 0; index < slots; index++ {
+			command := exec.Command(workerBinary)
+			stdin, err := command.StdinPipe()
+			if err != nil {
+				_ = p.close()
+				return nil, fmt.Errorf("worker %d stdin: %w", index, err)
+			}
+			stdout, err := command.StdoutPipe()
+			if err != nil {
+				_ = stdin.Close()
+				_ = p.close()
+				return nil, fmt.Errorf("worker %d stdout: %w", index, err)
+			}
+			command.Stderr = os.Stderr
+			if err := command.Start(); err != nil {
+				_ = stdin.Close()
+				_ = p.close()
+				return nil, fmt.Errorf("start worker %d: %w", index, err)
+			}
+			p.external = append(p.external, &externalWorker{cmd: command, stdin: stdin,
+				encode: json.NewEncoder(stdin), decode: json.NewDecoder(stdout)})
+		}
+	}
 	for i := 0; i < slots; i++ {
 		p.wg.Add(1)
 		go p.run(fmt.Sprintf("dur035-worker-%d", i))
 	}
-	return p
+	return p, nil
 }
 
 func (p *workerPool) submit(job dispatchJob) { p.jobs <- job }
@@ -311,7 +361,52 @@ func (p *workerPool) run(workerID string) {
 	}
 }
 
-func (p *workerPool) close() { close(p.jobs); p.wg.Wait() }
+func (p *workerPool) close() float64 {
+	if p == nil || p.closed {
+		return 0
+	}
+	p.closed = true
+	close(p.jobs)
+	p.wg.Wait()
+	var cpu time.Duration
+	for _, worker := range p.external {
+		if err := worker.stdin.Close(); err != nil {
+			continue
+		}
+		if err := worker.cmd.Wait(); err != nil {
+			continue
+		}
+		if worker.cmd.ProcessState != nil {
+			cpu += worker.cmd.ProcessState.UserTime() + worker.cmd.ProcessState.SystemTime()
+		}
+	}
+	return cpu.Seconds()
+}
+
+func (p *workerPool) runActivity(seed int64, nodeID string, units int) error {
+	if len(p.external) == 0 {
+		busyWork(seed, nodeID, units)
+		return nil
+	}
+	index := (p.nextExternal.Add(1) - 1) % uint64(len(p.external))
+	worker := p.external[index]
+	worker.mu.Lock()
+	defer worker.mu.Unlock()
+	if err := worker.encode.Encode(workerRequest{Seed: seed, NodeID: nodeID, WorkUnits: units}); err != nil {
+		return fmt.Errorf("send activity to worker: %w", err)
+	}
+	var response workerResponse
+	if err := worker.decode.Decode(&response); err != nil {
+		return fmt.Errorf("read worker response: %w", err)
+	}
+	if !response.OK {
+		if response.Error == "" {
+			response.Error = "worker rejected activity"
+		}
+		return errors.New(response.Error)
+	}
+	return nil
+}
 
 func (p *workerPool) process(workerID string, job dispatchJob) error {
 	var task struct {
@@ -345,7 +440,9 @@ func (p *workerPool) process(workerID string, job dispatchJob) error {
 	})
 	// The fixture does a fixed, small amount of deterministic work so the
 	// measured path includes a stable worker handoff but not LLM latency.
-	busyWork(p.seed, task.WorkflowID, 3000)
+	if err := p.runActivity(p.seed, task.WorkflowID, 3000); err != nil {
+		return fmt.Errorf("run activity: %w", err)
+	}
 	resultAt := time.Now().UTC()
 	if _, err := p.store.RecordResultReceipt(context.Background(), state.ResultInput{WorkflowID: task.WorkflowID, NodeID: task.NodeID,
 		Iteration: task.Iteration, AttemptNumber: claim.AttemptNumber, ClaimToken: claim.ClaimToken,
@@ -598,7 +695,7 @@ func scheduleActivity(ctx context.Context, store *state.Store, workflowID, actor
 		ExpectedRevision: wf.Revision, EffectClass: state.EffectPure, HeartbeatDeadline: time.Now().Add(attemptLease), ActorID: actorID})
 }
 
-func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics, selected arm, repeat int, seed int64) (runReport, error) {
+func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics, selected arm, repeat int, seed int64, workerBinary string) (runReport, error) {
 	runID := fmt.Sprintf("%s-r%d-%s", selected.Name, repeat, state.NewID())
 	namespace := "dur035-dispatch-" + runID
 	definitionID := namespace + "-def"
@@ -615,8 +712,16 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 	if err != nil {
 		return runReport{}, err
 	}
-	pool := newWorkerPool(store, metrics, tracker, workerSlots, seed)
-	defer pool.close()
+	pool, err := newWorkerPool(store, metrics, tracker, workerSlots, seed, workerBinary)
+	if err != nil {
+		return runReport{}, err
+	}
+	workerClosed := false
+	defer func() {
+		if !workerClosed {
+			_ = pool.close()
+		}
+	}()
 	caseCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	d := &dispatcher{store: store, namespace: namespace, ownerID: state.NewID(), arm: selected, pool: pool, metrics: metrics}
@@ -721,6 +826,8 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 		_ = kafkaD.source.Close()
 		_ = kafkaD.relay.Broker.Close()
 	}
+	workerCPUSeconds := pool.close()
+	workerClosed = true
 	cpuEnd, cpuErr := processCPUSeconds()
 	if cpuErr != nil {
 		return runReport{}, cpuErr
@@ -743,7 +850,7 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 		WorkflowCount: workflowCount, WarmupCount: warmupCount, Terminal: workflowCount, Pending: pending, ArrivalRate: arrivalRate,
 		ElapsedSeconds: measuredEnd.Sub(measuredStart).Seconds(), DrainSeconds: maxFloat(0, measuredEnd.Sub(measuredStart).Seconds()-float64(workflowCount-1)/arrivalRate), Throughput: float64(workflowCount) / measuredEnd.Sub(measuredStart).Seconds(),
 		BacklogOldestAgeSeconds: oldest, Timings: makeTimings(rows), Telemetry: telemetryDelta, ProcessCPUSeconds: cpuEnd - cpuStart,
-		CPUDescription: "whole command process; includes the fixed in-process worker fixture; not dispatcher-only", Transport: transportReport{Failures: pool.failures.Load()}}
+		WorkerCPUSeconds: workerCPUSeconds, CPUDescription: "dispatcher process CPU; worker CPU is measured from four fixed subprocesses", Transport: transportReport{Failures: pool.failures.Load()}}
 	if kafkaD != nil {
 		report.Transport.BrokerReceiveCount = kafkaD.receives.Load()
 		report.Transport.BrokerCommitCount = kafkaD.commits.Load()
@@ -865,6 +972,7 @@ func main() {
 	var cfg config
 	flag.StringVar(&cfg.OutputPath, "output", "experiments/m7/dur035/results.json", "artifact output path")
 	flag.IntVar(&cfg.Repeats, "repeats", 3, "measured repeats per configuration")
+	flag.StringVar(&cfg.WorkerBinary, "worker-binary", "", "fixed-capacity worker executable")
 	flag.Parse()
 	if cfg.Repeats <= 0 {
 		fatal("repeats must be positive")
@@ -903,14 +1011,15 @@ func runStudy(ctx context.Context, cfg config) (artifact, error) {
 	result := artifact{SchemaVersion: "dur035-dispatch.v1", Status: "PASS", GeneratedAt: time.Now().UTC(), GitCommit: gitCommit(),
 		Protocol: protocolReport{SchemaVersion: "dur035-dispatch.v1", Workload: "one pure activity", ArrivalRatePerSec: arrivalRate, MeasuredWorkflows: workflowCount,
 			WarmupWorkflows: warmupCount, WorkerSlots: workerSlots, AttemptLeaseSeconds: int(attemptLease.Seconds()), ClaimLeaseSeconds: int(claimLease.Seconds()),
-			WorkerSelection: "fixed round-robin pool; four in-process workers", FallbackPolls: []string{"250ms", "1s"}, SameTaskOutbox: true, SameClaimAPI: true,
+			WorkerSelection: "fixed round-robin pool; four worker subprocesses", WorkerModelRationale: "worker CPU is kept outside the dispatcher process so the four dispatch arms compare the same execution capacity without mixing worker burn into dispatcher CPU",
+			FallbackPolls: []string{"250ms", "1s"}, SameTaskOutbox: true, SameClaimAPI: true,
 			HostLimit: "single-node Docker Desktop/WSL2 host; bounded fixture"}}
 	for _, selected := range arms {
 		result.Configurations = append(result.Configurations, armReport{Name: selected.Name, Mode: selected.Mode, PollInterval: selected.PollInterval.String(), FallbackPoll: selected.FallbackPoll.String(), Interpretation: interpretation(selected.Name)})
 	}
 	for _, selected := range arms {
 		for repeat := 1; repeat <= cfg.Repeats; repeat++ {
-			run, runErr := runCase(ctx, store, metrics, selected, repeat, int64(repeat))
+			run, runErr := runCase(ctx, store, metrics, selected, repeat, int64(repeat), cfg.WorkerBinary)
 			if runErr != nil {
 				result.Status = "FAIL"
 				result.Failure = fmt.Sprintf("%s repeat %d: %v", selected.Name, repeat, runErr)
@@ -1032,8 +1141,17 @@ func deriveConclusions(runs []runReport) conclusionReport {
 	if transportEffect.Comparisons[0].IntervalsSeparated {
 		resolved = append(resolved, "kafka_dispatch_stage_ready_to_claim")
 	}
+	transportInterpretation := "The incremental Kafka transport effect is unresolved at the observed run dispersion. Notification-direct and Kafka are therefore not distinguished as a latency winner at this scale."
+	if transportEffect.Comparisons[0].IntervalsSeparated || transportEffect.Comparisons[1].IntervalsSeparated {
+		transportInterpretation = transportEffect.Summary
+	} else if direct, ok := grouped["notify_direct"]; ok {
+		kafka, kafkaOK := grouped["notify_kafka"]
+		if kafkaOK && runMetricRange(direct, "ready").Median <= runMetricRange(kafka, "ready").Median {
+			transportInterpretation = "Notification-direct matches or beats Kafka on the measured ready-to-claim median, but the transport effect is unresolved by the observed intervals."
+		}
+	}
 	result := conclusionReport{WakeMechanism: wake, TransportEffect: transportEffect, CostEffectsResolved: len(resolved) > 0,
-		ResolvedCostEffects: resolved, Interpretation: "At this four-worker, single-host scale, notification-driven dispatch removes the polling delay. Kafka is not a latency optimization relative to direct notification; this does not address decoupling, retained backlog, connection count, or multi-host scaling."}
+		ResolvedCostEffects: resolved, Interpretation: "At this four-worker, single-host scale, notification-driven dispatch removes the polling delay. " + transportInterpretation + " This does not address decoupling, retained backlog, connection count, or multi-host scaling."}
 	return result
 }
 

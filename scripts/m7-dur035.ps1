@@ -8,6 +8,7 @@ $ErrorActionPreference = "Stop"
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $buildRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("durable-dur035-" + [guid]::NewGuid().ToString("N"))
 $dispatchBinary = Join-Path $buildRoot "dur035-dispatch.exe"
+$workerBinary = Join-Path $buildRoot "dur026-worker.exe"
 $composeArgs = @("compose", "--env-file", ".env", "-f", "deploy/local/compose.yaml")
 $relaysStopped = $false
 
@@ -59,8 +60,9 @@ try {
 
     New-Item -ItemType Directory -Force -Path $buildRoot | Out-Null
     Invoke-Sweep
+    Invoke-Required "go" @("build", "-o", $workerBinary, "./cmd/dur026-worker")
     Invoke-Required "go" @("build", "-o", $dispatchBinary, "./cmd/dur035-dispatch")
-    Invoke-Required $dispatchBinary @("-output", $OutputPath, "-repeats", "3")
+    Invoke-Required $dispatchBinary @("-output", $OutputPath, "-repeats", "3", "-worker-binary", $workerBinary)
 
     if (-not (Test-Path -LiteralPath $OutputPath)) { throw "DUR-035 did not write $OutputPath." }
     $artifact = Get-Content -Raw -LiteralPath $OutputPath | ConvertFrom-Json
