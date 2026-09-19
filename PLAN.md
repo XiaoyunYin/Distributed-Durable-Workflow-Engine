@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 IN_PROGRESS; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1528,11 +1528,11 @@ contract revision.
 
 #### DUR-031 implementation record
 
-- **Status:** IN_PROGRESS; the evidence pack is prepared, but the three user
-  walkthrough actions and Claude review are pending.
+- **Status:** READY_FOR_REVIEW; the three user walkthrough actions are
+  recorded, and Claude review is pending.
 - **Base commit:** `242cdcb` (DUR-030 closeout).
-- **Implementation target:** pending until the user walkthrough evidence is
-  recorded and the pack is committed.
+- **Implementation target:** pending until the completed walkthrough evidence
+  is committed.
 - **Goal:** map proposed resume claims to reviewed implementation commits,
   exact artifacts, populations, configurations, limits, and reproduction
   commands; prepare personal explanations for lease fencing, ambiguous
@@ -1541,11 +1541,12 @@ contract revision.
   migration, experiment rerun, provider call, paid budget, external action,
   or protected-scope change. The user must make the lease mutation only in a
   disposable scratch copy.
-- **Acceptance validation:** the claim map is complete; the user performs and
-  records the scratch lease/attempt mutation, walks through the
-  non-cooperating ambiguous-effect rule, independently reproduces the DUR-028
-  ratio, and explains the scope of each result. The final pack must preserve
-  the pending limitations and then receive Claude review.
+- **Acceptance validation:** the claim map is complete; the scratch
+  lease/attempt mutation produced the expected borrowed-lease failure; the
+  non-cooperating ambiguous-effect rule was walked through against its
+  database test; the DUR-028 ratio was independently reproduced as `7.5552`
+  with its scope explained; and the final pack preserves the remaining
+  limitations before Claude review.
 - **Evidence target:** `docs/INTERVIEW_EVIDENCE.md`, linked to the accepted
   M5-M7 artifacts and `docs/TECHNICAL_REPORT.md`.
 - **Known limitations:** user walkthroughs are not yet evidence; R057, R083,
@@ -1873,12 +1874,11 @@ round-46 review returned `NO_BLOCKING_FINDINGS`. Its report is
 M5-M7 artifacts and the DUR-033A integration. R057, R083, R088, and R089 remain
 nonblocking P3 findings carried forward. The next planned M8 task is DUR-031.
 
-DUR-031 is IN_PROGRESS from base `242cdcb`. Its documentation pack is
-`docs/INTERVIEW_EVIDENCE.md`; the claim map and Codex's offline DUR-028 sanity
-check are recorded, while the user lease-mutation, ambiguous-effect
-walkthrough, and independent reproduction remain pending. Keep the pack's
-bounded-study limits and the R057/R083/R088/R089 residuals visible. After the
-three user actions are recorded, commit the pack and hand it to Claude for
-review before changing the task to DONE.
+DUR-031 is READY_FOR_REVIEW from base `242cdcb`. Its documentation pack is
+`docs/INTERVIEW_EVIDENCE.md`; the user lease mutation, ambiguous-effect
+walkthrough, and independent DUR-028 reproduction are recorded. Keep the
+pack's bounded-study limits and the R057/R083/R088/R089 residuals visible.
+Commit the completed evidence and hand it to Claude for review before changing
+the task to DONE.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

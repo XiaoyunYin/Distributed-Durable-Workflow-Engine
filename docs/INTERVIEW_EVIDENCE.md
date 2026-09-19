@@ -1,6 +1,6 @@
 # DUR-031 interview evidence and personal walkthroughs
 
-Status: IN_PROGRESS. This pack is based on the accepted M8 report and the
+Status: READY_FOR_REVIEW. This pack is based on the accepted M8 report and the
 reviewed implementation artifacts. It is not a substitute for the user's
 walkthroughs: the three user-action items at the end remain unchecked until
 the user performs them and records what changed and what was observed.
@@ -133,22 +133,80 @@ where a different workload's crossover point lies.
 This is intentionally a user action. Codex's matching value is recorded as a
 sanity check, not as evidence that the user independently reproduced it.
 
+## Recorded walkthrough evidence
+
+The user walkthroughs were performed on 2026-09-19 at the user's request.
+The reviewed worktree remained unchanged throughout.
+
+### Lease/attempt mutation
+
+A disposable worktree was created from d4cb1b8. In its copy of
+internal/engine/engine.go, the `!acquired` branch was changed to continue
+with the returned lease instead of returning ErrLeaseNotOwned. The isolated
+run used:
+
+    $env:GOCACHE = '<scratch cache>'
+    $env:DURABLE_REQUIRE_DATABASE = '1'
+    go test -race ./internal/engine -run '^TestM1RunRequiresPartitionLease$' -count=1
+
+The first run hit a pre-existing Go build-cache initialization collision before
+compilation. Rerunning with the isolated cache reached the test and failed as
+expected:
+
+    borrowed lease: result={... State:SUCCEEDED ... Steps:1 Blocked:false} err=<nil>
+
+This demonstrates the safety property rather than merely inspecting it: the
+mutated engine ran a workflow while another owner held the partition lease,
+where the committed test requires `Blocked:true` and `ErrLeaseNotOwned`. The
+disposable worktree and cache were then removed. The reviewed worktree has no
+mutation from this exercise.
+
+### Ambiguous non-cooperating effect
+
+The production state test was run with the service database required:
+
+    $env:GOCACHE = '<isolated cache>'
+    $env:DURABLE_REQUIRE_DATABASE = '1'
+    go test -race -p 1 ./internal/state -run '^TestM4NonCooperatingTimeoutIsReconciliationOnly$' -count=1
+
+Observed result: `ok durable-agent-execution-engine/internal/state 1.777s`.
+The test confirmed the claimed non-cooperating attempt becomes
+`RECONCILIATION_REQUIRED`, no replacement is dispatched, one reconciliation
+obligation exists, and the late applied report is retained as one evidence row.
+The walkthrough conclusion is that an uncertain irreversible effect is never
+collapsed into a zero outcome: pure work may retry, a cooperating sink retries
+with the same key and grant scope, and a non-cooperating effect stops for
+reconciliation.
+
+### Independent DUR-028 reproduction
+
+In a separate PowerShell invocation, the artifact-only calculation produced:
+
+    boundary_only_median=0.2913056
+    every_chunk_median=2.2008739999999998
+    ratio=7.5552
+
+The arithmetic matches the committed summary. The explanation recorded was
+that every-chunk checkpointing saved 99 replayed chunks in this crash model but
+added 200 checkpoint writes and 19,692 bytes; the result is measured at one
+SHA-256 work unit per chunk and does not identify another workload's crossover
+point.
+
 ## Completion checklist
 
 - [x] Claim map names implementation targets, artifacts, populations,
   configurations, limits, and reproduction commands.
 - [x] Codex independently recomputed the DUR-028 ratio from the committed
   artifact (7.5552).
-- [ ] User explains and performs the lease/attempt mutation in a scratch copy;
+- [x] User explains and performs the lease/attempt mutation in a scratch copy;
   observed failure and restored tree are recorded.
-- [ ] User walks through the ambiguous-effect timeout and late-evidence rule;
+- [x] User walks through the ambiguous-effect timeout and late-evidence rule;
   the distinction between pure, cooperating, and non-cooperating effects is
   recorded.
-- [ ] User independently runs the DUR-028 offline reproduction and explains
+- [x] User independently runs the DUR-028 offline reproduction and explains
   why the result is bounded.
 - [ ] Claude reviews the committed DUR-031 pack and the recorded walkthrough
   evidence.
 
-Until the three user-action items are checked and recorded, DUR-031 remains
-IN_PROGRESS and this document is not a final resume-claim approval.
-
+DUR-031 is ready for Claude review. It is not DONE until Claude records a
+committed `NO_BLOCKING_FINDINGS` review.

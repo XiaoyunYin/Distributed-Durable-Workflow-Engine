@@ -2490,6 +2490,30 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - No code, migration, experiment, provider call, external action, or budget
   changed during closeout.
 
+## 2026-09-19 - DUR-031 walkthrough completion
+
+- Completed the three personal walkthroughs requested by DUR-031 in a
+  disposable worktree. Removing the `Engine.Run` return on `acquired == false`
+  caused `TestM1RunRequiresPartitionLease` to fail with a successful
+  `SUCCEEDED` workflow and `Blocked:false` while another owner held the lease;
+  this demonstrates the borrowed-lease safety boundary. The scratch tree and
+  isolated Go cache were removed afterward, and the reviewed worktree was
+  unchanged.
+- Ran the non-cooperating timeout regression with the service database
+  required: `go test -race -p 1 ./internal/state -run
+  '^TestM4NonCooperatingTimeoutIsReconciliationOnly$' -count=1` passed. The
+  walkthrough recorded reconciliation-required state, no replacement, one
+  obligation, and one late-evidence row.
+- Independently recomputed the DUR-028 ratio from the committed artifact:
+  boundary-only median `0.2913056`, every-chunk median
+  `2.2008739999999998`, ratio `7.5552`. The scope explanation records one
+  SHA-256 work unit per chunk, 200 writes, 19,692 bytes, and an in-process
+  panic rather than a general checkpoint policy.
+- The initial mutated test attempt hit a Go build-cache initialization
+  collision before compilation; rerunning with an isolated task cache reached
+  and failed the intended test. No production code or reviewed artifact was
+  changed by the mutation.
+
 ## 2026-09-19 - DUR-031 interview evidence pack
 
 - Started DUR-031 from base `242cdcb`, the DUR-030 closeout. Added
