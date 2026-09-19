@@ -297,7 +297,12 @@ func (p *workerPool) process(workerID string, job dispatchJob) error {
 	if p.metrics != nil {
 		p.metrics.RecordClaimAccepted()
 	}
-	p.tracker.update(task.WorkflowID, func(item *taskTiming) { item.WorkerClaimedAt = claimedAt })
+	p.tracker.update(task.WorkflowID, func(item *taskTiming) {
+		if item.OutboxClaimedAt.IsZero() {
+			item.OutboxClaimedAt = job.claimedAt
+		}
+		item.WorkerClaimedAt = claimedAt
+	})
 	// The fixture does a fixed, small amount of deterministic work so the
 	// measured path includes a stable worker handoff but not LLM latency.
 	busyWork(p.seed, task.WorkflowID, 3000)
@@ -387,12 +392,14 @@ func (d *dispatcher) pass(ctx context.Context) error {
 		d.claimed.Add(1)
 		if event.EventType == "attempt.dispatch" {
 			workflowID := stringPayloadID(event.Payload)
+			claimedAt := time.Now().UTC()
 			d.pool.tracker.update(workflowID, func(item *taskTiming) {
 				if !event.CreatedAt.IsZero() {
 					item.ReadyAt = event.CreatedAt
 				}
+				item.OutboxClaimedAt = claimedAt
 			})
-			d.pool.submit(dispatchJob{event: event, claimedAt: time.Now().UTC()})
+			d.pool.submit(dispatchJob{event: event, claimedAt: claimedAt})
 		} // Non-task rows are drained to keep the comparison's backlog honest.
 		if err := d.store.FinalizeOutboxPublication(ctx, event.EventID, d.ownerID, event.RelayAttempts, true, "", 0); err != nil {
 			d.failures.Add(1)
@@ -475,12 +482,13 @@ func (d *kafkaDispatcher) consume(ctx context.Context) {
 		}
 		d.receives.Add(1)
 		event := state.OutboxEvent{EventID: message.EventID, EventType: message.EventType, Payload: message.Payload}
+		receivedAt := time.Now().UTC()
 		var createdAt time.Time
 		if err := d.store.Pool().QueryRow(ctx, `SELECT created_at FROM engine.outbox WHERE event_id = $1`, message.EventID).Scan(&createdAt); err == nil {
 			workflowID := stringPayloadID(message.Payload)
-			d.pool.tracker.update(workflowID, func(item *taskTiming) { item.ReadyAt = createdAt })
+			d.pool.tracker.update(workflowID, func(item *taskTiming) { item.ReadyAt = createdAt; item.OutboxClaimedAt = receivedAt })
 		}
-		d.pool.submit(dispatchJob{event: event, claimedAt: time.Now().UTC()})
+		d.pool.submit(dispatchJob{event: event, claimedAt: receivedAt})
 		// Kafka offset commit is done after the job is accepted by the fixed
 		// worker pool. Durable result/terminal state is still written by the
 		// worker and scheduler APIs, not by offset advancement.
@@ -502,12 +510,9 @@ func scheduleActivity(ctx context.Context, store *state.Store, workflowID, actor
 		return state.Attempt{}, err
 	}
 	ownerID := state.NewID()
-	lease, acquired, err := store.AcquireLease(ctx, int16(partitionID), ownerID, claimLease)
+	lease, err := acquireLeaseWithRetry(ctx, store, int16(partitionID), ownerID, claimLease)
 	if err != nil {
 		return state.Attempt{}, err
-	}
-	if !acquired {
-		return state.Attempt{}, state.ErrLeaseNotOwned
 	}
 	ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
 	defer func() { _ = store.ReleaseLease(context.Background(), ref) }()
