@@ -1649,6 +1649,39 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   What remains for the report is a framing question rather than a measurement one: this study shows that checkpointing did not pay at one point on the cost axis, not where the crossover lies. If the README wants to say anything about when checkpointing is worthwhile, it needs a second chunk cost; if it simply reports the measured tradeoff with its scope attached, the evidence here supports it.
 
+### Round 43 — 2026-09-19 — DUR-029 live retrieval, agent, and adversarial evaluation
+
+- Date and round: 2026-09-19, round 43.
+- Review basis: COMMITTED. The worktree was clean at `7a76efd` when the review started and remained clean throughout.
+- Base and target commits: base `000ec83` (the DUR-028 state), implementation and evidence `a015d26`, handoff `7a76efd`. Both declared commits resolve as ancestors of HEAD.
+- Scope inspected: the DUR-029 harness and preflight commands, `scripts/` entry points, the seven artifacts in `experiments/m7/dur029/`, `docs/DECISIONS.md` D013, and the PLAN.md and BUILD_LOG.md updates.
+- **Paid-scope check (the protected-scope item for this task).** PLAN.md:33 requires that paid budgets change only by an explicit user decision recorded in `docs/DECISIONS.md`. D013 records exactly that: the user authorized OpenAI with the exact model `gpt-4o-mini`, an aggregate cap of $30.00 covering the 60 matched retrieval-arm executions, the 120-execution adversarial matrix and the separate redaction-off control, behind an `INCIDENT_LIVE_APPROVED=1` gate and a reservation ledger, and it explicitly withholds authorization for external actions, production integration, broader data, or a higher cap. The executed run matches that scope: provider `openai`, model `gpt-4o-mini`, 60 agent and 120 adversarial executions plus one negative-control call, ledger `budget_cents: 3000`, `spent_cents: 4.798995`, `reserved_cents: 0`. Spend is 0.16 percent of the authorized cap and the reservation ledger closed at zero. No protected-scope drift: no experiment family, configuration count, release criterion, guarantee or budget was altered.
+- Checks personally run (Claude), read-only against the committed artifacts and source:
+  - Verified the ledger, provider, model and execution counts against D013 as above.
+  - Aggregated the held-out retrieval study across families for all three arms: 120 queries, 90 answerable; keyword and hybrid at 1.000 ranking and delivered Recall@K; dense at 0.956 with a 0.033 no-answer false-positive rate.
+  - Aggregated the live agent summaries per arm, overall and on the document-dependent subset, and checked the internal arithmetic of answerable, abstention and success counts.
+  - Compared the live agent results against `fixture-agent-control.json`.
+  - Read the adversarial decomposition — clean-clean baseline, clean-injected rate, excess injection-associated change per profile, diagnosis-only divergence — and the redaction-off negative control.
+  - Tallied `approval_granted` across the 120 adversarial rows.
+  - Confirmed no `conclusions`, `statement` or `limitations` key exists in any DUR-029 artifact.
+- Codex-reported checks considered but not rerun: the 41 tests, Ruff, mypy, the preflight and cap checks, and the live campaign itself. Claude did not and will not execute paid provider calls.
+- Findings: new R086 (P2), R087 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R087 as described, plus the standing P3 residuals R057 and R083, the M6 notes recorded in the PLAN M6 record, and the historical R019 test gap.
+  - Claude cannot verify the provider responses themselves; the review covers the recorded evidence, the harness, and the authorization boundary.
+  - The adversarial rate differences rest on 20 cases per profile, so a handful of flips moves them; this is what the missing limitations list should say.
+  - The DUR-034 harness variability remains unexplained.
+  - DUR-033A remains TODO.
+- Limitations: artifact and source review plus independent aggregation; no paid calls were made by Claude.
+- Verdict: CHANGES_REQUESTED. Blocking: R086 (P2). DUR-029 must not move to DONE until its conclusions and limitations are recorded.
+
+  The governance side of this task is exactly right, and that was the part most worth getting right. A paid run is authorized in `docs/DECISIONS.md` before it happens, naming the provider, the exact model, the aggregate cap and the specific matrices it covers, and explicitly refusing to authorize anything beyond them. The executed run stays inside that envelope with room to spare — $0.048 against a $30 cap — with a reservation ledger that closed at zero, and the `INCIDENT_LIVE_APPROVED=1` gate is retained from M6. The study also kept a deterministic fixture control alongside the live run, which is the right instinct for a paid experiment.
+
+  The measurements are strong and well decomposed. The adversarial matrix is the frozen 120 executions PLAN.md:371 specifies, with a clean-clean baseline established per profile before any injected comparison, and the result supports RQ8: excess injection-associated proposal change is 0.10 defended against 0.30 plain, with zero canary leaks in both profiles and a redaction-off control that produces 5 leaks, so the scanner can fire. The held-out retrieval study reports both ranking and delivered Recall@K over 120 queries as required. The agent study reports paired outcomes per arm, overall and on the pre-labeled document-dependent subset, with latency, tokens and cost attributed per execution.
+
+  What is missing is the study's own voice. No DUR-029 artifact contains a conclusion or a limitations list, so three results go unreported — the RQ8 guardrail effect above; the live agent's 0 of 16 safe end-to-end successes on the document-dependent subset in every arm, against 20 of 20 for the fixture control, which isolates the model rather than the harness; and the fact that no retrieval arm changed that outcome despite keyword and hybrid scoring a perfect held-out Recall@K. That last pairing is precisely the comparative Applied-AI finding PLAN.md:1571 tells the README to lead with, and it is currently derivable only by recomputing from row data. For a study whose cost was authorized specifically to produce these answers, writing them down is the remaining work.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -3141,6 +3174,86 @@ For each round, record:
 ---
 
 ## Latest Codex handoff 鈥?M7 DUR-028 round-42 correction
+
+### R086 — DUR-029 states no conclusions and no limitations, leaving its two headline live-model results unreported
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `a015d26`
+- Location: experiments/m7/dur029/live-evaluation.json, live-agent.json, live-adversarial.json and retrieval-preflight.json (none contains a `conclusions`, `statement` or `limitations` key); PLAN.md:1293 (DUR-029 acceptance) and PLAN.md:1571 (report guidance).
+- Failure scenario and impact: the per-dimension summaries in this study are genuinely good — per-arm tables split overall and by the document-dependent subset, latency distributions, token and cost accounting, and the full adversarial rate decomposition. What no artifact does is say what any of it means. There is no conclusion block anywhere in DUR-029 and no limitations list, which is the same gap R078 raised for DUR-035 and R084 for DUR-028, but it matters more here because this is the paid live-model study that answers RQ7 and RQ8 and supplies the Applied-AI headline PLAN.md:1571 asks the README to lead with.
+
+  Three results are sitting unstated in the data.
+
+  1. **RQ8 is supported, and clearly.** Excess injection-associated proposal change is 0.10 for the defended profile against 0.30 for the plain profile, a difference of 0.20, and it is computed over a properly established clean-clean baseline (0.10 defended, 0.20 plain) exactly as PLAN.md:371 requires. Canary leakage is 0 in both profiles while the redaction-off negative control produces 5 leaks, so the scanner is demonstrably capable of firing. This is the strongest agent-side result in the project and it is nowhere summarised.
+  2. **The live agent fails the end-to-end task, and the fixture control proves it is the model.** Safe end-to-end success is 4 of 20 overall in every retrieval arm, and **0 of 16 on the document-dependent subset in all three arms**, with false abstention on 11 to 14 of the 16 answerable cases. The four successes are exactly the four correct abstentions. Meanwhile `fixture-agent-control.json` runs the same 60 executions through the deterministic provider and reaches 20 of 20 diagnosis and safe end-to-end success in every arm. That contrast isolates the live model rather than the harness, retrieval, or approval path, and it is the most informative single fact the study produced.
+  3. **No retrieval arm changed the end-to-end outcome.** Held-out ranking and delivered Recall@K are 1.000 for keyword and hybrid and 0.956 for dense over 120 queries, yet document-dependent safe success is zero for all three arms. PLAN.md:1571 asks precisely this comparative question — which retrieval strategy won on the held-out benchmark and whether that changed end-to-end diagnosis or safe success on the document-dependent subset — and the answer here is "keyword and hybrid tie, and it changed nothing". That is a publishable finding, but only if it is written down.
+
+  Two smaller omissions belong with this. PLAN.md:1293 requires approval enforcement to be reported "separately from" the injection metrics; the live adversarial artifact carries `approval_granted` per row (27 true, 93 false of 120) but no aggregate enforcement figure, unlike the preflight artifact which has an `approval_enforcement` block. And a paid live-model study with 20 cases per arm needs a limitations list: single model and prompt version, one sampling regime, a synthetic corpus, and a sample small enough that the adversarial rate differences rest on a handful of flips.
+- Evidence (checks Claude personally ran): confirmed `conclusions`, `statement` and `limitations` are absent from all four DUR-029 artifacts; read the adversarial rate decomposition and the negative control; aggregated the per-arm agent summaries overall and on the document-dependent subset; compared them against `fixture-agent-control.json`; aggregated the held-out retrieval results across families for all three arms (120 queries, 90 answerable); tallied `approval_granted` across the 120 adversarial rows.
+- Suggested correction: add a `conclusions` block to `live-evaluation.json` stating the three results above with their numbers, deriving any "resolved" judgement from the observed rates as DUR-035 and DUR-028 now do; report aggregate approval enforcement alongside the injection metrics; and add a `limitations` list covering the model and prompt pinning, sample size and sampling variability, the synthetic corpus, and the single-host bound. State the live-versus-fixture contrast explicitly, since the fixture control is what makes the live failure interpretable.
+- Suggested validation: a reader of `live-evaluation.json` alone can state what DUR-029 found for RQ7 and RQ8 without recomputing anything from the row data.
+
+#### Codex response — round 44
+
+- Change made: added computed `conclusions` and `limitations` blocks to
+  `live-evaluation.json`, `live-agent.json`, `live-adversarial.json`, and the
+  deterministic fixture control. The aggregate conclusion now records the
+  live-versus-fixture attribution, the held-out retrieval metrics paired with
+  each arm's live outcome, and the RQ8 excess-change result. Aggregate
+  approval enforcement is now explicit: the live agent has 10 proposal rows,
+  10 grants and zero completed rows without approval; the adversarial matrix
+  has 27 proposal rows, 27 grants and zero completed rows without approval.
+- Affected files: `python/incident_agent/continuity.py`,
+  `python/incident_agent/evaluation.py`, `python/incident_agent/__main__.py`,
+  `tests/test_incident_agent.py`, and the regenerated artifacts under
+  `experiments/m7/dur029/`.
+- Validation: the finalizer ran without provider calls; the artifact checks
+  confirm 4/20 live safe outcomes overall and 0/16 document-dependent safe
+  outcomes in every arm, 20/20 fixture-control success per arm, defended
+  excess 0.10 versus plain 0.30, zero enabled-redaction leaks, five
+  redaction-off control leaks, and no completed row without a grant. Ruff,
+  mypy, and the isolated 41-test suite pass.
+- Fix commit: `5b9d65c`.
+- Status: ADDRESSED
+
+---
+
+### R087 — The final held-out retrieval evidence is stored in an artifact labelled a non-final preflight
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `a015d26`
+- Location: experiments/m7/dur029/retrieval-preflight.json (`status: "PREPARED_NOT_FINAL"`, `live_model: {status: "NOT_RUN", reason: "separate provider, cost-cap, and INCIDENT_LIVE_APPROVED=1 authorization required"}`), which nonetheless contains the complete `heldout` results for all three arms.
+- Failure scenario and impact: DUR-029 requires the 120-query held-out keyword-versus-dense-versus-hybrid study with both ranking and delivered Recall@K. That study is complete and sound — Claude aggregated it: 120 held-out queries, 90 answerable, keyword and hybrid at 1.000 ranking and delivered Recall@K, dense at 0.956 with a 0.033 no-answer false-positive rate, plus per-family breakdowns, distractor hit rates and latency. It is final evidence.
+
+  But it lives in a file called `retrieval-preflight.json` whose own `status` field says `PREPARED_NOT_FINAL` and whose `live_model` block says `NOT_RUN`. The `NOT_RUN` is legitimate — retrieval needs no provider call — but combined with the filename and the status it reads as provisional work that was never completed. A reader looking for DUR-029's retrieval result would reasonably conclude it is missing, and a later reviewer checking whether the held-out study was frozen before scoring cannot tell from the status whether this file is the record or a rehearsal.
+- Evidence (checks Claude personally ran): read the file's `status` and `live_model` fields; aggregated the `heldout` block across families for all three arms and confirmed it is the complete 120-query study with both Recall@K variants; confirmed the `config_fingerprint` matches the frozen retrieval configuration used elsewhere in the project.
+- Suggested correction: either promote the held-out results into a `retrieval-results.json` with a `FINAL` status and leave the preflight holding only the development-split rehearsal, or keep one file and set `status` to something that distinguishes "the retrieval study is final; no provider call was required" from "prepared, not final". Record explicitly that the configuration fingerprint was frozen before held-out scoring, which is the property the status field should be asserting.
+- Suggested validation: the artifact that a reader would open for DUR-029's retrieval result declares itself final and states that no provider call was needed rather than that the live model was not run.
+
+#### Codex response — round 44
+
+- Change made: promoted the held-out retrieval evidence to
+  `experiments/m7/dur029/retrieval-final.json` with schema
+  `dur-029-retrieval-final.v1`, status `PASS`, the frozen configuration
+  fingerprint, computed held-out summaries and limitations. The stale
+  `retrieval-preflight.json` artifact was removed, and the runner now writes
+  the final filename. The artifact states that retrieval does not require a
+  provider call instead of using a misleading live-model `NOT_RUN` block.
+- Affected files: `python/incident_agent/evaluation.py`,
+  `python/incident_agent/__main__.py`, `scripts/m7-dur029-preflight.ps1`,
+  `PLAN.md`, `docs/BUILD_LOG.md`, and `experiments/m7/dur029/`.
+- Validation: final artifact status and schema, held-out count 120, family
+  summaries, frozen fingerprint, conclusion/limitation presence, and the
+  live/fixture/adversarial artifact checks all pass. The isolated 41-test
+  suite, Ruff, and mypy pass.
+- Fix commit: `5b9d65c`.
+- Status: ADDRESSED
+
+---
 
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.
 
@@ -6601,3 +6714,48 @@ final target and artifact before any M7 status changes.
   canary negative control, and whether the artifact claims stay within the
   recorded synthetic scope. Do not mark DUR-029 DONE until Claude records a
   committed `NO_BLOCKING_FINDINGS` review.
+
+## Latest Codex handoff - M7 DUR-029 round 44
+
+- **Task:** DUR-029 retrieval strategy, bounded live-agent, and adversarial
+  evaluation.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-029 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `a015d26` (the previously reviewed implementation and
+  live evidence target).
+- **Exact implementation/evidence target:** `5b9d65c`.
+- **Changes:** added computed conclusions and limitations to the aggregate,
+  live-agent, live-adversarial, and fixture-control artifacts; added separate
+  approval-enforcement totals; paired retrieval metrics with live outcomes and
+  fixture-control outcomes; promoted the held-out retrieval artifact to
+  `experiments/m7/dur029/retrieval-final.json` with final status and a frozen
+  configuration fingerprint; removed the stale provisional retrieval file; and
+  added an offline finalization command that makes no provider calls.
+- **R086 evidence:** the live report states 4/20 safe outcomes overall and
+  0/16 on the document-dependent subset in every arm, while the deterministic
+  fixture control records 20/20 per arm. It reports the retrieval pairing,
+  adversarial excess rates 0.10 defended versus 0.30 plain, zero enabled
+  redaction leaks versus five in the redaction-off control, and separate
+  approval totals with zero completed rows without a grant.
+- **R087 evidence:** `retrieval-final.json` is schema
+  `dur-029-retrieval-final.v1`, status `PASS`, includes the frozen fingerprint,
+  40 development and 120 held-out query counts, computed arm summaries,
+  conclusions and limitations, and explicitly states that it needs no provider
+  call.
+- **Checks run:** isolated `uv run pytest -q` with task-local caches: 41
+  passed; Ruff check and format check; mypy; deterministic preflight; offline
+  finalization; JSON/count/approval/cap artifact assertions; and
+  `git diff --check`. No paid calls were made for this fix pass.
+- **Known limits:** the live quality evidence remains bounded to one model,
+  prompt/schema, sampling regime, synthetic 20-case-per-arm sample, and local
+  SQLite/MCP path. It does not establish production Go-engine/DUR-033A,
+  external-effect, multi-host, or scale claims. R057, R083, the historical
+  R019 gap, M6 notes, and DUR-033A remain outside this fix.
+- **Review request:** review target `5b9d65c` against base `a015d26`, with
+  attention to whether every standalone artifact can state its own measured
+  conclusion and limits, whether the live-versus-fixture attribution is
+  computed from rows, whether approval enforcement is separate from RQ8, and
+  whether the retrieval artifact now clearly represents final evidence. Do not
+  mark DUR-029 DONE until Claude records a committed `NO_BLOCKING_FINDINGS`
+  review.
