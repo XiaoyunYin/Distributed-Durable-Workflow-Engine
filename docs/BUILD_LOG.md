@@ -2235,3 +2235,36 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - No implementation or measurement has run yet. The next change will add the
   focused campaign command, runner, pilot/final artifact paths, and regression
   tests before validation.
+
+## 2026-09-19 - DUR-028 implementation and evidence
+
+- Added `cmd/dur028-checkpoint`, its focused unit tests, and
+  `scripts/m7-dur028.ps1`. The command drives the committed Store/Engine
+  `CheckpointDriver` path with one deterministic pure 200-chunk activity.
+  The frozen crash barrier is before chunk 100's checkpoint; recovery uses a
+  fresh Engine after the 100 ms attempt lease expires.
+- The first pilot exposed two harness defects before acceptance evidence was
+  produced: lease owners must be UUIDs, and the repeated-work oracle initially
+  double-counted the recovery suffix. Those fixes are committed in `ccc568d`
+  and `baaa856`; the Store telemetry attachment is `d9fef13`. Failed pilot
+  artifacts are not acceptance evidence.
+- The final pilot and campaign ran from `d9fef13` against the live PostgreSQL
+  service. The pilot passed 6 rows; the final matrix passed 18 rows (three
+  settings x two conditions x three repeats), with 18/18 `SUCCEEDED`, matching
+  output hashes, valid durable prefixes, and zero reserved workflow/definition
+  rows after cleanup.
+- Measured per-setting checkpoint writes/bytes were 0/0 for
+  `activity_boundary_only`, 40/3,940 for `every_5_chunks`, and 200/19,692 for
+  `every_chunk`. Crash recomputation averaged 200, 105, and 101 chunks in the
+  same order. Average total completion times across no-failure/crash rows were
+  0.108/0.289 s, 0.519/0.640 s, and 1.626/2.059 s; these are bounded local
+  observations, not a production cost model.
+- Validation: the final `scripts/m7-dur028.ps1` run passed and restored
+  runtime/worker services; focused Go tests, `go vet`, gofmt, PowerShell parse,
+  `git diff --check`, `scripts/check.ps1`'s Go/vet/build/Ruff/mypy phases,
+  `go test -race ./...`, and a task-local Python run of 38 tests passed. The
+  default Python check was also attempted but could not scan the host's shared
+  pytest temp directory; the equivalent task-local `--basetemp` run passed.
+- The study remains bounded to the single-node Docker Desktop/WSL2 host and a
+  pure activity. It does not establish process-kill durability, external-effect
+  atomicity, multi-host behavior, or production checkpoint economics.

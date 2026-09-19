@@ -6272,3 +6272,54 @@ final target and artifact before any M7 status changes.
   recoveries, zero false takeovers, 180 fenced stale-owner writes, 60 lock
   cases, 30 crash targets dead, 30 stale pause resumes, and zero cleanup
   residue. Final CI/race checks and 38 Python tests passed.
+
+## Latest Codex handoff 鈥?M7 DUR-028
+
+- **Task:** DUR-028 checkpoint tradeoff study.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-028 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `b09095c` (DUR-027 closeout).
+- **Exact implementation/evidence target:** `d9fef13`. The later handoff
+  metadata commit changes PLAN.md, REVIEW.md, BUILD_LOG.md and adds the
+  generated artifacts only; the campaign source and artifact `git_commit`
+  are `d9fef13`.
+- **Changes:** added `cmd/dur028-checkpoint` and
+  `scripts/m7-dur028.ps1`. The harness runs the section-14 frozen matrix:
+  activity-boundary-only, every five chunks, and every chunk, crossed with
+  no-failure and a crash at chunk 100, three repeats each. It uses the
+  production Store/Engine checkpoint driver, a UUID lease owner, a fresh
+  Engine after the 100 ms attempt lease expires, and one deterministic pure
+  200-chunk workload. The final hash is derived independently from the frozen
+  seed/chunk protocol; checkpoint progress is read from durable rows.
+- **Measured evidence:** `experiments/m7/dur028/pilot.json` is PASS with 6/6
+  pilot rows. `experiments/m7/dur028/results.json` is PASS with 18/18 measured
+  rows, all terminal workflows `SUCCEEDED`, matching final hashes, valid
+  checkpoint prefixes, and zero reserved workflow/definition rows. Average
+  checkpoint writes/bytes are 0/0, 40/3,940, and 200/19,692 for the three
+  settings. Crash recomputation averages 200, 105, and 101 chunks; average
+  total times for no-failure/crash rows are 0.108/0.289 s, 0.519/0.640 s,
+  and 1.626/2.059 s. Store telemetry records nonzero query, transaction and
+  lock observations for each row.
+- **Checks run:** final `scripts/m7-dur028.ps1` against live PostgreSQL;
+  focused `go test ./cmd/dur028-checkpoint`, `go vet`, gofmt, PowerShell parse,
+  `git diff --check`, `go test -race ./...`, `scripts/check.ps1` Go/vet/build,
+  Ruff, mypy, and a task-local `uv run pytest --basetemp=... -p
+  no:cacheprovider` run with 38 Python tests. The runner restored
+  runtime-a/runtime-b/worker-a/worker-b and verified zero namespace residue.
+- **Skipped or not claimed:** the default Python check's pytest phase could
+  not scan the host's protected shared temp directory; its equivalent
+  task-local run passed. No fresh `ci.ps1 -WithServices -WithRace` full suite
+  was claimed after the campaign. No process-kill, external-effect,
+  multi-host, hard-kill storage, production-cost, paid-provider, live-model,
+  or remote-CI claim is made.
+- **Known limitations:** the evidence is bounded to the single-node Docker
+  Desktop/WSL2 PostgreSQL Store/Engine harness and a pure activity. The crash
+  is an in-process boundary failure followed by Engine recovery, not an OS
+  process-kill test. Checkpoint evidence cannot establish atomicity for
+  unrelated external effects.
+- **Review request:** verify the three-setting/two-condition/three-repeat
+  matrix, the durable checkpoint prefix and recovery ordering, the independent
+  repeated-work/final-hash oracle, the measured Store telemetry and checkpoint
+  bytes/writes, and the failure/cleanup gates. Do not mark DUR-028 DONE until
+  Claude records a committed `NO_BLOCKING_FINDINGS` review.
