@@ -568,6 +568,17 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 			_ = broker.Close()
 			return runReport{}, err
 		}
+		// Fetch once with no publication in flight so the new consumer group
+		// completes assignment before the relay can publish the first task.
+		// A timeout is expected; any other startup error is actionable.
+		primeCtx, cancelPrime := context.WithTimeout(caseCtx, 500*time.Millisecond)
+		_, primeErr := source.Receive(primeCtx)
+		cancelPrime()
+		if primeErr != nil && !errors.Is(primeErr, context.DeadlineExceeded) && !errors.Is(primeErr, context.Canceled) {
+			_ = source.Close()
+			_ = broker.Close()
+			return runReport{}, fmt.Errorf("prime Kafka consumer group: %w", primeErr)
+		}
 		relayCtx, cancelRelay := context.WithCancel(caseCtx)
 		relayCancel = cancelRelay
 		relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID(), BatchSize: 32, ClaimLease: claimLease,
