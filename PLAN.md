@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 DONE; DUR-032 IN_PROGRESS; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 DONE; DUR-032 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1555,11 +1555,11 @@ contract revision.
 
 #### DUR-032 implementation record
 
-- **Status:** IN_PROGRESS; final reproduction and release validation are
-  underway.
+- **Status:** READY_FOR_REVIEW; final reproduction and release validation are
+  recorded, and Claude review is pending.
 - **Base commit:** `c0757e4` (DUR-031 closeout).
-- **Implementation target:** pending until the final checklist and validation
-  records are committed.
+- **Implementation target:** `2ea3726` (`fix: stabilize Kafka integration
+  fixture`).
 - **Goal:** provide a clean-checkout reproduction path, run applicable checks,
   verify migrations and service lifecycle where safe, position the final
   comparative findings correctly, and prepare the final Claude review of code
@@ -1904,10 +1904,10 @@ nonblocking P3 findings carried forward. The next planned M8 task is DUR-031.
 DUR-031 is DONE at reviewed target `fab88ac` from base `242cdcb`; Claude's
 committed round-47 review returned `NO_BLOCKING_FINDINGS`. Its documentation
 pack is `docs/INTERVIEW_EVIDENCE.md` and its three walkthroughs are recorded.
-R090 remains a nonblocking P3 positioning follow-up: DUR-032 should separate
+R090 remains a nonblocking P3 positioning follow-up: DUR-032 separates
 the bounded validation campaign from the three comparative headline findings,
 use DUR-028 as the third comparative result, and preserve R089's counts with
-rates. DUR-032 is now IN_PROGRESS from this closeout, with its checklist in
+rates. DUR-032 is READY_FOR_REVIEW at `2ea3726`, with its checklist in
 `docs/RELEASE_CHECKLIST.md`.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

@@ -4,7 +4,8 @@ Status: READY_FOR_REVIEW. This checklist is the final M8 validation record. It
 separates documentation/claim positioning from executable environment checks
 and never treats an unavailable check as passed.
 
-Base commit: c0757e4, the DUR-031 closeout. No paid call, live-model run,
+Base commit: c0757e4, the DUR-031 closeout. Final implementation target:
+2ea3726. No paid call, live-model run,
 external action, protected guarantee change, or experiment rerun is part of
 DUR-032.
 

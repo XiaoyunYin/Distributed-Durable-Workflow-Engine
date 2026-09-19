@@ -2587,3 +2587,16 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   disposable worktree has an ACL that prevents deletion by this session. Git
   has detached the worktree and the main repository remains clean of tracked
   scratch changes. No external action, paid call, or release/tag was made.
+
+## 2026-09-19 - DUR-032 review handoff
+
+- Final implementation target is `2ea3726`, based on DUR-031 closeout
+  `c0757e4`. The target contains the test-only Kafka integration fixture fix,
+  R090 README positioning, the final release checklist, and validation log.
+- Handoff basis is COMMITTED and READY_FOR_REVIEW. The full service-mode race
+  suite, integration checks, 41 Python tests, migration idempotency, restart
+  smoke, and post-restart topology smoke all pass on the final code state.
+- The local cleanup ACL limitation is recorded; `.scratch/` is ignored as
+  disposable validation output, and no tracked scratch files remain. No
+  release/tag was created because explicit release authorization is still
+  required.

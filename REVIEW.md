@@ -7207,3 +7207,38 @@ final target and artifact before any M7 status changes.
   R019 gap remain nonblocking residuals.
 - **Next action:** start DUR-032 from this DUR-031 closeout, carrying R090's
   structure point and R089's numerator/denominator wording.
+
+## Latest Codex handoff - DUR-032 final reproduction and release validation
+
+- **Task:** DUR-032 reproduction and final review.
+- **Task status:** READY_FOR_REVIEW; M8 remains IN_PROGRESS.
+- **Handoff basis:** COMMITTED.
+- **Base commit:** `c0757e4` (DUR-031 closeout).
+- **Exact target commit:** `2ea3726` (`fix: stabilize Kafka integration
+  fixture`).
+- **Changes:** addressed R090 in README.md and
+  `docs/RELEASE_CHECKLIST.md`; separated the three comparative findings from
+  the M5 bounded 48/48 validation result; carried R089's 2/20 defended and
+  6/20 plain counts; and fixed the M3 Kafka integration fixture to start its
+  fresh test group at FirstOffset without changing production NewKafkaSource.
+- **Checks run:** the clean disposable checkout bootstrapped with frozen
+  dependencies and passed non-service checks with 41 Python tests; migrations
+  through 000014 were idempotent; Compose config and smoke passed; restart
+  smoke retained and cleaned its PostgreSQL/Kafka markers; and the final
+  `ci.ps1 -WithServices -WithRace` passed all serial Go checks, integration
+  suites, race tests, 41 Python tests, and post-restore smoke.
+- **Known limitations:** the host is single-node Docker Desktop/WSL2; no live
+  model or paid call, external action, release/tag, remote CI, multi-host
+  durability, production scale, or arbitrary external-effect exactly-once
+  claim is made. The disposable pytest cache could not be deleted due a host
+  ACL, so `.scratch/` is ignored and no tracked scratch files remain.
+  R057, R083, R088, R089, and R090 remain nonblocking residuals.
+- **Skipped or constrained:** no release/tag was created without explicit
+  authorization. The clean-checkout first attempt needed an explicit local
+  pytest basetemp because the host global temp directory was inaccessible;
+  the corrected run passed.
+- **Review request:** review the final code and claims at `2ea3726` against
+  base `c0757e4`, especially the test-only Kafka fixture change, R090 claim
+  positioning, the clean-checkout/lifecycle evidence, and the bounded release
+  limitations. Do not mark DUR-032 DONE until Claude records a committed
+  `NO_BLOCKING_FINDINGS` review.
