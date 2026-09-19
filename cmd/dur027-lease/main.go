@@ -309,18 +309,25 @@ func runCase(ctx context.Context, store *state.Store, arm leaseArm, namespace, d
 	var workflowID string
 	var err error
 	for partitionID := int16(0); partitionID < 16; partitionID++ {
-		candidate := fmt.Sprintf("%s-workflow-p%d", caseID, partitionID)
-		mapped, mapErr := partition.ID(candidate)
-		if mapErr != nil || int16(mapped) != partitionID {
-			continue
-		}
-		lease, acquired, err = store.AcquireLease(ctx, partitionID, ownerA, arm.TTL)
-		if err != nil {
-			return result, fmt.Errorf("%s acquire owner A: %w", caseID, err)
+		// Search a bounded deterministic suffix range. One fixed suffix per
+		// partition would make the campaign depend on a lucky hash mapping.
+		for suffix := 0; suffix < 256; suffix++ {
+			candidate := fmt.Sprintf("%s-workflow-p%d-%d", caseID, partitionID, suffix)
+			mapped, mapErr := partition.ID(candidate)
+			if mapErr != nil || int16(mapped) != partitionID {
+				continue
+			}
+			lease, acquired, err = store.AcquireLease(ctx, partitionID, ownerA, arm.TTL)
+			if err != nil {
+				return result, fmt.Errorf("%s acquire owner A: %w", caseID, err)
+			}
+			if acquired {
+				result.Partition = lease.PartitionID
+				workflowID = candidate
+				break
+			}
 		}
 		if acquired {
-			result.Partition = lease.PartitionID
-			workflowID = candidate
 			break
 		}
 	}
