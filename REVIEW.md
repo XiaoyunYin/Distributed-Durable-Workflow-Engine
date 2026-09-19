@@ -5415,3 +5415,59 @@ final target and artifact before any M7 status changes.
   safeguard-cost claim because the clean rerun spread is unstable.
 - **Next:** DUR-035 starts from this closeout; the variability explanation and
   interval-derived promotion rule are carried forward as review constraints.
+
+## Codex handoff - M7 DUR-035 dispatch-path decomposition
+
+- **Task:** DUR-035 three-arm dispatch-path decomposition.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-035 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `81927c5` (accepted DUR-034 closeout).
+- **Exact implementation target:** `d08fb13`; final handoff/artifact commit:
+  `c295071`.
+- **Scope:** compare the two frozen PostgreSQL polling arms (`250ms` and `1s`),
+  `LISTEN/NOTIFY` direct delivery, and the production `LISTEN/NOTIFY`-woken
+  outbox relay -> Kafka -> worker path. Every arm creates the same durable
+  `attempt.dispatch` row and ends at the same `ClaimAttempt`, result receipt,
+  and scheduler-owned `ConsumeResult` APIs. The fixed fixture uses one pure
+  activity, four workers, four warmups, 12 measured workflows, a 2/s open-loop
+  arrival schedule, and three repeats per arm.
+- **Measured evidence:**
+  `experiments/m7/dur035/results.json` is `PASS` with 12/12 runs passing,
+  144/144 measured workflows terminal, 48 warmups terminal, zero pending rows,
+  finite per-stage timings, and zero reserved namespace rows after cleanup.
+  The final median outbox-ready-to-claim delays are approximately 152ms for
+  250ms polling, 591ms for 1s polling, 4.8ms for direct notification, and
+  7.3ms through relay/Kafka. Kafka recorded 64 outbox publications and 16
+  task receives/commits per repeat; direct arms recorded zero broker traffic.
+  The artifact leaves `cost_effects_resolved: false`, so these are descriptive
+  bounded measurements rather than promoted cost or throughput claims.
+- **Implementation details:** `cmd/dur035-dispatch` records outbox/worker/
+  result/terminal timing, DB query/transaction/lock telemetry, backlog age,
+  process CPU with its whole-command/in-process-worker scope, notification and
+  Kafka counts, and failure counts. `scripts/m7-dur035.ps1` enforces a clean
+  worktree, stops global runtime/worker consumers so they cannot steal study
+  rows, sweeps its namespace, runs the study, validates every run, and restores
+  the consumers in `finally`. The Kafka group is primed before publication and
+  starts at latest offset; relay timing is observed at the broker boundary.
+- **Checks run:** `scripts/m7-dur035.ps1`; focused `go test
+  ./cmd/dur035-dispatch ./internal/transport`; focused `go vet`; `gofmt`;
+  PowerShell parse validation; `git diff --check`; and
+  `scripts/ci.ps1 -WithRace`. The final CI run passed all Go race packages,
+  Ruff, mypy, and 38 Python tests using task-local Go/uv/pytest temp roots.
+  The first CI attempt hit inaccessible host Go/uv/pytest caches and is not
+  represented as a code failure. The study itself used the live Compose
+  PostgreSQL and Kafka services with its consumer isolation and cleanup.
+- **Skipped or not claimed:** no separate `ci.ps1 -WithServices` run was
+  repeated after the final code target; the DUR-035 script exercised the real
+  PostgreSQL/Kafka path directly. No multi-host deployment, sustained load,
+  hard-kill storage durability, maximum-throughput, remote CI, paid-provider,
+  or live-model claim is made. The worker is an in-process fixed fixture and
+  the host is the single-node Docker Desktop/WSL2 measurement environment.
+- **Review request:** inspect that all arms use the same committed task row and
+  claim API, that the direct arms cannot be contaminated by live consumers,
+  that Kafka startup/offset/commit handling cannot skip the first task, that
+  timing and broker counters are independently sourced, that every run is
+  durably reconciled, and that the artifact withholds unsupported comparative
+  cost claims. Do not mark DUR-035 DONE until Claude returns a committed
+  `NO_BLOCKING_FINDINGS` review.
