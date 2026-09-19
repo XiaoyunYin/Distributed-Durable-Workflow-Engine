@@ -337,6 +337,16 @@ func runCase(ctx context.Context, store *state.Store, arm leaseArm, namespace, d
 	if workflowID == "" {
 		return result, fmt.Errorf("%s could not find a free partition with a matching workflow ID", caseID)
 	}
+	if lockCase {
+		waits, seconds, err := measureLockContention(ctx, store, lease.PartitionID, ownerB)
+		if err != nil {
+			_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerA, Epoch: lease.Epoch})
+			return result, fmt.Errorf("%s lock contention: %w", caseID, err)
+		}
+		result.LockContention = true
+		result.LockWaits = waits
+		result.LockWaitSeconds = seconds
+	}
 	created, err := store.CreateWorkflow(ctx, state.CreateWorkflowInput{WorkflowID: workflowID, Namespace: namespace,
 		SubmissionKey: caseID + "-submission", SubmissionPayloadHash: "sub-v1:" + caseID,
 		DefinitionID: definitionID, DefinitionVersion: 1, PartitionID: lease.PartitionID,
@@ -348,17 +358,6 @@ func runCase(ctx context.Context, store *state.Store, arm leaseArm, namespace, d
 	result.WorkflowID = workflowID
 	refA := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerA, Epoch: lease.Epoch}
 	refB := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerB, Epoch: lease.Epoch + 1}
-
-	if lockCase {
-		waits, seconds, err := measureLockContention(ctx, store, lease.PartitionID, ownerB)
-		if err != nil {
-			_ = store.ReleaseLease(ctx, refA)
-			return result, fmt.Errorf("%s lock contention: %w", caseID, err)
-		}
-		result.LockContention = true
-		result.LockWaits = waits
-		result.LockWaitSeconds = seconds
-	}
 
 	if mode == "normal_renewal" {
 		// Workflow creation and the lock-wait fixture happen before the
