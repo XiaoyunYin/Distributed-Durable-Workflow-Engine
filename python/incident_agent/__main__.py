@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from incident_agent.continuity import (
+    finalize_dur029_reports,
     run_adversarial_scan,
     run_citation_check,
     run_dur029_fixture_agent_control,
@@ -17,7 +18,7 @@ from incident_agent.continuity import (
     run_f12_continuity,
     run_metrics_report,
 )
-from incident_agent.evaluation import live_phase_status, run_retrieval_preflight
+from incident_agent.evaluation import live_phase_status, run_retrieval_final
 from incident_agent.fixtures import (
     build_corpus,
     build_incident_cases,
@@ -96,6 +97,7 @@ def main() -> None:
             "continuity",
             "adversarial",
             "dur029-preflight",
+            "dur029-finalize",
             "dur029-live-status",
             "dur029-live",
             "demo",
@@ -180,11 +182,12 @@ def main() -> None:
         write_json(args.output / "adversarial.json", run_adversarial_scan())
     elif args.command == "dur029-preflight":
         config = RetrievalConfig()
+        retrieval_report = run_retrieval_final(
+            RetrievalIndex(build_corpus(), config), build_retrieval_queries(), config
+        )
         write_json(
-            args.output / "retrieval-preflight.json",
-            run_retrieval_preflight(
-                RetrievalIndex(build_corpus(), config), build_retrieval_queries(), config
-            ),
+            args.output / "retrieval-final.json",
+            retrieval_report,
         )
         write_json(
             args.output / "fixture-agent-control.json",
@@ -194,6 +197,24 @@ def main() -> None:
             args.output / "adversarial-preflight.json",
             run_adversarial_scan(),
         )
+    elif args.command == "dur029-finalize":
+        retrieval_path = args.output / "retrieval-final.json"
+        if not retrieval_path.exists():
+            raise SystemExit(f"missing retrieval artifact: {retrieval_path}")
+        retrieval = json.loads(retrieval_path.read_text(encoding="utf-8"))
+        fixture = json.loads(
+            (args.output / "fixture-agent-control.json").read_text(encoding="utf-8")
+        )
+        agent = json.loads((args.output / "live-agent.json").read_text(encoding="utf-8"))
+        adversarial = json.loads(
+            (args.output / "live-adversarial.json").read_text(encoding="utf-8")
+        )
+        evaluation_path = args.output / "live-evaluation.json"
+        root = json.loads(evaluation_path.read_text(encoding="utf-8"))
+        report = finalize_dur029_reports(agent, adversarial, retrieval, fixture, root)
+        write_json(args.output / "live-agent.json", report["agent"])
+        write_json(args.output / "live-adversarial.json", report["adversarial"])
+        write_json(evaluation_path, report)
     elif args.command == "dur029-live-status":
         from incident_agent.workflow import LiveModelConfig
 
@@ -213,7 +234,12 @@ def main() -> None:
             model=os.environ.get("DUR029_MODEL", "gpt-4o-mini"),
             budget_cents=int(os.environ.get("DUR029_BUDGET_CENTS", "3000")),
         )
-        report = run_dur029_live_evaluation(settings)
+        config = RetrievalConfig()
+        retrieval = run_retrieval_final(
+            RetrievalIndex(build_corpus(), config), build_retrieval_queries(), config
+        )
+        fixture = run_dur029_fixture_agent_control()
+        report = run_dur029_live_evaluation(settings, retrieval, fixture)
         write_json(args.output / "live-agent.json", report["agent"])
         write_json(args.output / "live-adversarial.json", report["adversarial"])
         write_json(args.output / "live-evaluation.json", report)

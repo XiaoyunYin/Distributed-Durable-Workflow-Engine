@@ -2317,23 +2317,24 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   work is the gated DUR-029 evaluator and fixture-independent negative-control
   coverage; deterministic checks remain the default validation path.
 
-## 2026-09-19 - DUR-029 deterministic preflight
+## 2026-09-19 - DUR-029 deterministic retrieval finalization
 
 - Added `python/incident_agent/evaluation.py` and
-  `scripts/m7-dur029-preflight.ps1`. The preflight computes ranking and
+  `scripts/m7-dur029-preflight.ps1`. The retrieval runner computes ranking and
   delivered Recall@K, MRR, no-answer false positives, latency quantiles,
   distractor hits, and family breakdowns for the frozen 40-development and
   120-held-out query sets without tuning the held-out split.
 - Wired the retrieval arm through the workflow control path and added a
-  deterministic held-out 20-case x 3-arm agent control. The artifact records
-  60 executions, 20 safe end-to-end fixture outcomes per arm, and
-  `PREPARED_NOT_FINAL` rather than calling this live-model evidence.
+  deterministic held-out 20-case x 3-arm agent control. The final retrieval
+  artifact is `retrieval-final.json` with a computed held-out summary; the
+  separate fixture control records 60 executions and 20 safe outcomes per arm
+  without making a live-model claim.
 - Strengthened adversarial accounting with canonical proposal signatures,
   signed excess-change rates, and diagnosis-only divergence. The generated
   120-execution preflight records zero canary leaks and keeps the live phase
   at `BLOCKED` with zero provider calls.
 - Validation: Ruff and mypy pass for the changed Python modules; the full
-  isolated Python suite passes 40 tests using task-local uv/Go caches; the
+  isolated Python suite passes 41 tests using task-local uv/Go caches; the
   PowerShell preflight passes through `powershell.exe`; and `git diff --check`
   is clean. The host-default cache paths remain unusable due to collisions,
   so the task-local cache paths are part of the reproduction command.
@@ -2366,4 +2367,25 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   full Python suite (41 tests), JSON artifact parsing, and aggregate
   count/cap checks.
   Live artifacts are `experiments/m7/dur029/live-agent.json`,
-  `live-adversarial.json`, and `live-evaluation.json`.
+  `live-adversarial.json`, `live-evaluation.json`, and the final retrieval
+  evidence `retrieval-final.json`.
+
+## 2026-09-19 - DUR-029 R086/R087 evidence closeout
+
+- The live artifacts now carry computed conclusions and limitations. The
+  aggregate evaluation states the model-versus-fixture result, the paired
+  retrieval-arm result, and the adversarial guardrail result; the agent and
+  adversarial artifacts also carry their own conclusions and separate approval
+  enforcement totals. No provider calls were made for this documentation and
+  artifact-finalization pass.
+- The held-out retrieval artifact is now `retrieval-final.json` with schema
+  `dur-029-retrieval-final.v1`, status `PASS`, frozen configuration fingerprint,
+  computed held-out summaries, and an explicit statement that retrieval does
+  not require a provider call. The old provisional `retrieval-preflight.json`
+  artifact was removed to avoid two competing records.
+- The finalization check confirmed: live safe success is 4/20 overall and 0/16
+  on the document-dependent subset in every arm, the fixture control is 20/20
+  per arm, approval completions have no missing grant, and the adversarial
+  excess injection-associated change rates remain 0.10 defended versus 0.30
+  plain. Full isolated Python tests, Ruff, mypy, artifact validation, and
+  `git diff --check` remain the required checks before handoff.

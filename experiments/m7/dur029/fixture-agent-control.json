@@ -16,7 +16,28 @@
       "safe_end_to_end_success": 20
     }
   },
+  "conclusions": {
+    "finding": "The deterministic fixture control succeeds for every held-out case in every retrieval arm; it is a harness control, not live-model quality evidence.",
+    "safe_end_to_end_success_by_arm": {
+      "dense": {
+        "executions": 20,
+        "success": 20
+      },
+      "hybrid": {
+        "executions": 20,
+        "success": 20
+      },
+      "keyword": {
+        "executions": 20,
+        "success": 20
+      }
+    }
+  },
   "executions": 60,
+  "limitations": [
+    "The fixture provider is deterministic and cannot establish live-model quality.",
+    "The control uses the same synthetic cases and local SQLite/MCP path as the live study."
+  ],
   "live_model": {
     "provider_calls": 0,
     "reason": "fixture provider is a control and cannot support a live-model claim",

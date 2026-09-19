@@ -9,7 +9,7 @@ from incident_agent.continuity import (
     run_f12_continuity,
     run_metrics_report,
 )
-from incident_agent.evaluation import live_phase_status, run_retrieval_preflight
+from incident_agent.evaluation import live_phase_status, run_retrieval_final
 from incident_agent.fixtures import (
     FAMILIES,
     build_corpus,
@@ -228,12 +228,13 @@ def test_queries_are_balanced_and_no_answer_is_labeled_only_for_evaluator() -> N
     assert json.loads(json.dumps(queries[0]))["query_id"] == queries[0]["query_id"]
 
 
-def test_dur029_preflight_reports_frozen_split_and_family_metrics() -> None:
+def test_dur029_retrieval_final_reports_frozen_split_and_family_metrics() -> None:
     config = RetrievalConfig()
-    report = run_retrieval_preflight(
+    report = run_retrieval_final(
         RetrievalIndex(build_corpus(), config), build_retrieval_queries(), config
     )
-    assert report["status"] == "PREPARED_NOT_FINAL"
+    assert report["status"] == "PASS"
+    assert report["schema"] == "dur-029-retrieval-final.v1"
     assert report["development_queries"] == 40
     assert report["heldout_queries"] == 120
     assert report["config_fingerprint"] == config.fingerprint()
@@ -241,12 +242,8 @@ def test_dur029_preflight_reports_frozen_split_and_family_metrics() -> None:
         assert set(report["arms"][arm]) == {"development", "heldout"}
         assert set(report["arms"][arm]["heldout"]["by_family"]) == set(FAMILIES)
         assert report["arms"][arm]["heldout"]["summary"]["latency_ms"]["count"] == 120
-    assert report["live_model"] == {
-        "status": "NOT_RUN",
-        "reason": (
-            "separate provider, cost-cap, and INCIDENT_LIVE_APPROVED=1 authorization required"
-        ),
-    }
+    assert report["conclusions"]["heldout_summary_by_arm"]["keyword"]["ranking_mrr"] >= 0
+    assert report["limitations"]
 
 
 def test_dur029_live_phase_fails_closed_without_authorization() -> None:

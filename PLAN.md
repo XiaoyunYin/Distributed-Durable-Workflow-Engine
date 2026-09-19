@@ -1438,15 +1438,17 @@ contract revision.
   an approved provider/model/cost record and the explicit environment gate;
   otherwise the live phase must fail closed without making a provider call.
 - **Evidence paths:** `python/incident_agent/`, `tests/test_incident_agent.py`,
-  `scripts/m6-evidence.ps1`, `experiments/m6/`, a new DUR-029 protocol/runner
-  and artifacts, `docs/BUILD_LOG.md`, and the final `REVIEW.md` handoff.
+  `scripts/m7-dur029-preflight.ps1`, `scripts/m7-dur029-live.ps1`,
+  `experiments/m7/dur029/`, `docs/BUILD_LOG.md`, and the final `REVIEW.md`
+  handoff.
 - **Authorization:** D013 records the user's OpenAI `gpt-4o-mini` authorization
   and aggregate $30.00 cap. The live adapter uses one shared reservation
   ledger, `store:false`, structured JSON output, and the explicit
   `INCIDENT_LIVE_APPROVED=1` gate.
-- **Measured evidence:** deterministic preflight is `PREPARED_NOT_FINAL` with
-  40 development and 120 held-out retrieval queries, 60 fixture-agent controls,
-  and 120 adversarial controls. The authorized live artifact is `PASS` with
+- **Measured evidence:** `retrieval-final.json` is `PASS` with 40 development
+  and 120 held-out retrieval queries and computed arm conclusions. The separate
+  fixture control records 60 deterministic executions, and the authorized live
+  artifact is `PASS` with
   60 agent executions, 120 adversarial executions, one redaction-off control,
   `gpt-4o-mini`, and total measured API cost of approximately $0.04799.
   Results are bounded synthetic evidence; live model quality, retrieval-arm
