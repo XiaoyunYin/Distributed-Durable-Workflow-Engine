@@ -5249,15 +5249,17 @@ superseded by the committed M4 handoff below.
   crash interval while preserving the real held-lease crash boundary. The
   pause fixture now waits for the explicit `resume` command rather than
   treating the earlier `pause` file as a resume signal.
-- Fix commit: pending until the final fixture guard and corrected campaign
-  evidence are committed.
+- Fix commits: `cbf73f3` implements the confirmed-death clock, `afe6fa0`
+  synchronizes the pause fixture's explicit `resume` command, and `bd86b20`
+  starts crash renewal before `owner_ready` and contains the final source
+  target used for measurement.
 - Tests and results: focused Go tests, vet, build, and gofmt pass with a
-  task-local Go cache. The pilot passed; the first campaign rerun exposed the
-  pause control-file race above and failed before acceptance, so the 60-episode
-  campaign will be rerun after this guard is committed. A subsequent rerun
-  exposed a separate 100 ms startup handoff race, now addressed by starting
-  crash renewal before `owner_ready`; its artifact is also preserved as a
-  failed intermediate result.
+  task-local Go cache. Two intermediate reruns exposed and preserved the
+  pause control-file and 100 ms readiness races. The final pilot and
+  PostgreSQL campaign pass with 6 configurations, 60 episodes, 60 takeovers,
+  60 useful recoveries, 180 fenced stale-owner writes, 30 dead crash targets,
+  30 stale pause resumes, and zero cleanup residue. Crash takeover starts at
+  confirmed death; signal-to-death is reported separately.
 - Status: ADDRESSED
 
 ---
@@ -6127,4 +6129,54 @@ final target and artifact before any M7 status changes.
   boundary and target-death evidence, per-episode useful-progress timing,
   pilot provenance, continuous recovery renewal, stale-owner fencing, real
   lock-wait measurement, and artifact cleanup/reconciliation. Do not mark
+  DUR-027 DONE until Claude records a committed `NO_BLOCKING_FINDINGS` review.
+
+## Latest Codex handoff — M7 DUR-027 round 39 R082 correction
+
+- **Task:** DUR-027 lease tradeoff study.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-027 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `bdd8958` (the round-39 reviewed DUR-027 target).
+- **Exact source campaign target:** `bd86b20`; the final pilot and campaign
+  artifacts were generated from this source target. The evidence/handoff
+  commit is the commit containing these notes and regenerated artifacts.
+- **Scope:** R082 is addressed by measuring crash recovery from controller-
+  confirmed non-zero fixture death. The fixture self-exits with status 137
+  immediately after `owner_crash_armed`; it does not run deferred cleanup, so
+  the held lease remains durable. The controller records
+  `death_confirmed_at_utc`, starts crash takeover/useful-progress clocks at
+  that observation, and records `fault_signal_to_death_ms` separately. The
+  pause arm waits for the explicit `resume` command, and crash renewal starts
+  before `owner_ready` so the 100 ms lease remains live at the handoff.
+- **Measured evidence:** `experiments/m7/dur027/pilot.json` is PASS with
+  three samples per TTL. `experiments/m7/dur027/results.json` is
+  `dur027-lease.v2` PASS with 6/6 configurations and 60/60 episodes, 60
+  takeovers, 60 useful replacement transitions, zero false takeovers, 180
+  stale-owner writes rejected, 60 lock-contention cases, 30 non-zero crash
+  targets, 30 paused targets resumed stale, 60 leases held at injection, and
+  zero reserved workflow/definition rows. Crash takeover medians are 69.5,
+  171.7, and 503.4 ms at 100/250/750 ms TTL; pause medians are 77.6, 228.6,
+  and 728.6 ms. Crash signal-to-death medians are 11.4, 59.9, and 229.8 ms
+  and are not included in takeover or useful-progress latency.
+- **Checks run:** the final `scripts/m7-dur027.ps1` pilot/campaign passed
+  against live PostgreSQL and restored runtime-a/runtime-b/worker-a/worker-b;
+  focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`,
+  `go build`, `gofmt`, PowerShell parse validation, and `git diff --check`
+  passed. The two earlier failed reruns are preserved as intermediate audit
+  commits and are not acceptance evidence.
+- **Skipped or not claimed:** the service-backed Kafka fixture timeout noted
+  in the historical build log was not used as DUR-027 evidence or asserted as
+  a new finding. No multi-host, storage-failure, production-throughput,
+  hard-kill durability, remote-CI, paid-provider, or live-model claim is made.
+- **Known limitations:** the crash is a bounded local self-exiting process
+  fixture and the pause is a bounded renewal suspension, both on the
+  single-node Docker Desktop/WSL2 PostgreSQL host. The harness isolates lease
+  recovery mechanics and does not establish host/storage durability, offered-
+  rate scheduler behavior, multi-host behavior, or deployment recommendations
+  for the short TTLs.
+- **Review request:** verify that the crash takeover clock begins only after
+  confirmed non-zero target death, the separate signal-to-death interval is
+  present, the pause synchronization is explicit, and the final 3x2x10
+  artifact remains independently reconciled and cleaned up. Do not mark
   DUR-027 DONE until Claude records a committed `NO_BLOCKING_FINDINGS` review.

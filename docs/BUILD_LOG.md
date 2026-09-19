@@ -2186,3 +2186,23 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   expire during the controller handoff. Renewal now starts before readiness;
   this failed intermediate artifact is retained for audit and is not
   acceptance evidence.
+
+## 2026-09-19 - DUR-027 round-39 corrected campaign evidence
+
+- The final source target is `bd86b20`. The pilot passed with three samples
+  per TTL, and the PostgreSQL campaign passed all six configurations and 60
+  episodes. The runner reconciled 60 takeovers, 60 useful replacement
+  transitions, zero false takeovers, 180 fenced stale-owner writes, 60
+  lock-contention cases, 30 non-zero crash-fixture exits, 30 stale pause
+  resumes, 60 leases held at injection, and zero reserved workflow/definition
+  rows after cleanup.
+- With the R082 clock correction, crash takeover medians are 69.5 ms,
+  171.7 ms, and 503.4 ms for 100/250/750 ms TTLs; pause medians are 77.6 ms,
+  228.6 ms, and 728.6 ms. Crash signal-to-death medians are reported
+  separately as 11.4 ms, 59.9 ms, and 229.8 ms and are excluded from those
+  takeover and useful-progress clocks. The artifact records the per-episode
+  death confirmation timestamp and derives all intervals from observations.
+- Focused tests, vet, build, and gofmt pass. The first two reruns failed on
+  fixture races and are preserved as intermediate audit commits; neither is
+  acceptance evidence. The final runner passed after the pause-control and
+  short-TTL readiness fixes and restored the runtime/worker services.

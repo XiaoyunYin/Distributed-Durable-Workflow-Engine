@@ -1355,8 +1355,9 @@ contract revision.
 
 #### DUR-027 implementation record
 
-- **Status:** IN_PROGRESS; R082 is being addressed before the corrected campaign/evidence are handed back to Claude.
+- **Status:** READY_FOR_REVIEW; R082 is addressed and the corrected campaign/evidence are committed for Claude review.
 - **Measurement clock:** the crash fixture self-exits non-zero after `owner_crash_armed`; the controller confirms death before starting takeover and useful-progress clocks, and records signal-to-death separately.
+- **Current crash-arm rule:** the final campaign uses the fixture's non-zero self-exit and controller-observed death confirmation; the earlier process-tree-kill wording describes the superseded implementation, not the accepted evidence.
 - **Base commit:** `ebb3bef` (the round-38 DUR-027 review target; the next review compares the corrective work from this target).
 - **Dependencies:** DUR-036, the M1-M5 ownership/claim guarantees, and the section-14 measurement discipline.
 - **Goal:** compare frozen lease TTLs under two fault types—owner process crash and owner pause/resume beyond expiry—measuring takeover delay through first useful affected-work progress, renewal traffic, false takeovers, stale-owner fencing, and database lock contention.
@@ -1364,7 +1365,7 @@ contract revision.
 - **Protected boundaries:** preserve the frozen partition map, lease fencing semantics, correctness guarantees, release criteria, and all paid/live-model budgets. Do not start DUR-028, DUR-029, or DUR-033A from this task. Do not present short-TTL negative controls as deployable configurations.
 - **Acceptance scenarios:** the pilot records transaction and scheduling delays for all three TTLs before settings are frozen; the final artifact records six configurations and 60 episodes, per-episode injection/takeover/useful-progress timestamps and delays, renewal interval beside each TTL, stale-owner rejection, post-takeover useful work, lock-wait telemetry, target-death/resume evidence, terminal cleanup, and explicit PASS/FAIL status. Incomplete or unreconciled runs fail the campaign. Conclusions are derived from observed intervals and counts; the process-crash arm is a bounded local process-tree failure and the pause arm is not treated as crash equivalence.
 - **Validation:** focused lease-harness tests, `scripts/m7-dur027.ps1` against PostgreSQL, `scripts/ci.ps1 -WithRace`, `go vet ./...`, `gofmt`, PowerShell parse validation, `git diff --check`, and post-run namespace/lease checks.
-- **Evidence paths:** `cmd/dur027-lease`, `cmd/dur027-crash-fixture`, `scripts/m7-dur027.ps1`, `experiments/m7/dur027/pilot.json`, `experiments/m7/dur027/results.json`, `docs/BUILD_LOG.md`, and this implementation record. The source campaign target is `bdb5508`; the evidence commit is `c75b338`; the final handoff commit is recorded in REVIEW.md.
+- **Evidence paths:** `cmd/dur027-lease`, `cmd/dur027-crash-fixture`, `scripts/m7-dur027.ps1`, `experiments/m7/dur027/pilot.json`, `experiments/m7/dur027/results.json`, `docs/BUILD_LOG.md`, and this implementation record. The final source campaign target is `bd86b20`; the final evidence and handoff commit is recorded in REVIEW.md.
 - **Known limits:** single-node Docker Desktop/WSL2 PostgreSQL evidence; the crash is a bounded local process-tree kill and the pause is a bounded renewal suspension; the harness fixes no scheduler/worker workload or offered-rate claim because it isolates lease mechanics; no multi-host, storage-failure, maximum-throughput, or production scheduler claim.
 
 - **Measured closeout:** the source-target artifact is `PASS` with six
@@ -1375,6 +1376,11 @@ contract revision.
   with task-local caches. The service-backed CI attempt is recorded as
   unaccepted because the existing Kafka M3 fixtures timed out; it restored all
   services and does not invalidate the direct PostgreSQL DUR-027 campaign.
+- **R082 correction:** the final source target is `bd86b20`. Crash takeover and
+  useful-progress intervals begin at controller-confirmed non-zero fixture
+  death, while `fault_signal_to_death_ms` reports the separate control-signal
+  overhead. The final artifact records crash takeover medians of 69.5/171.7/
+  503.4 ms and pause medians of 77.6/228.6/728.6 ms for 100/250/750 ms TTLs.
 
 ### M8 — Report and portfolio release
 

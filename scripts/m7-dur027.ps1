@@ -98,7 +98,7 @@ try {
     if ($artifact.validation.crash_targets_dead -ne 30 -or $artifact.validation.paused_targets_resumed_stale -ne 30 -or $artifact.validation.lease_held_after_injection -ne 60) { throw "DUR-027 fault-boundary counts are incomplete." }
     if ($artifact.validation.clean_workflow_rows -ne 0 -or $artifact.validation.clean_definition_rows -ne 0) { throw "DUR-027 left reserved durable rows behind." }
     Sweep-DUR027 $databaseUser $databaseName
-    Write-Host "DUR-027 PASS at ${commit}: pilot + 6 configurations, 60 episodes, 60 takeovers, 60 useful recoveries, zero false takeovers, 30 crash targets killed, 30 pause targets resumed stale."
+    Write-Host "DUR-027 PASS at ${commit}: pilot + 6 configurations, 60 episodes, 60 takeovers, 60 useful recoveries, zero false takeovers, 30 crash targets dead, 30 pause targets resumed stale."
 } finally {
     if ($servicesStopped) {
         try { Invoke-Required "docker" ($composeArgs + @("up", "-d", "--wait", "runtime-a", "runtime-b", "worker-a", "worker-b")) | Out-Null }
