@@ -2210,3 +2210,14 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   build, Ruff, mypy, and 38 Python tests with task-local Go/uv/pytest paths.
   The first invocation was rejected by the host's protected global pytest
   temp directory after 35 Python tests; the task-local rerun passed all 38.
+
+## 2026-09-19 - DUR-027 closeout
+
+- Claude's round-40 committed review returned `NO_BLOCKING_FINDINGS` for
+  reachable reviewed target `71fd54a`; R082 is VERIFIED. DUR-027 is now DONE
+  in PLAN.md. The campaign source remains `bd86b20`, and the orphaned
+  bookkeeping target `8e06e14` is not used as an acceptance reference.
+- Nonblocking residuals remain recorded in REVIEW.md: R057, R083, the
+  historical R019 test gap, and the M6 notes. The superseded wording in the
+  artifact's pause/crash limitation is not part of the accepted performance
+  conclusion.

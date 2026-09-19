@@ -1549,6 +1549,39 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   The artifact does not assert the false conclusion that invites — `fault_comparison` is carefully vague — but it publishes the per-configuration crash numbers without noting the offset, and the useful-progress figures inherit it too, to the point where crash recovery at a 750 ms TTL reads as faster than pause recovery at the same setting. The fix is small: stamp the injection time when the target is confirmed dead, or have the fixture exit itself on the resume signal so no external tool sits inside the measurement, and report the kill-to-death interval separately so the harness cost stays visible. Once that is done the crash arm should become TTL-sensitive and genuinely comparable with the pause arm, which is the comparison section 14D was written to produce.
 
+### Round 40 — 2026-09-19 — DUR-027 crash-timing correction verification
+
+- Date and round: 2026-09-19, round 40.
+- Review basis: COMMITTED. The worktree was clean at `84ad758` when the review started and remained clean throughout.
+- Base and target commits: base `bdd8958` for this round. The handoff declares a substantive target of `8e06e14`, which is not reachable from any ref; see R083. Claude reviewed the substance at `71fd54a` ("evidence: close DUR-027 crash timing correction"), which is identical to the working tree outside documentation, with the campaign run at `bd86b20` as the artifact records.
+- Scope inspected: `git diff bdd8958 8e06e14` and the reachable equivalent — the self-exit crash path in `cmd/dur027-crash-fixture/main.go`, the injection and timing changes in `cmd/dur027-lease/main.go`, the new `fault_signal_to_death_ms` reporting and `crash_timing` protocol block, `scripts/m7-dur027.ps1`, the regenerated `pilot.json` and `results.json`, and the PLAN.md and BUILD_LOG.md updates. No migrations, no engine or product code. No protected-scope drift: PLAN.md section 14D and the DUR-027 task row are unchanged.
+- Checks personally run (Claude):
+  - Read the crash path and confirmed the fixture self-exits with `os.Exit(137)` after `owner_crash_armed`, that no external kill tool remains in the measurement, and that skipping defers is deliberate so the lease is not released.
+  - Confirmed `injectedAt` is stamped after the controller observes the non-zero exit, and that `fault_signal_to_death_ms` is recorded per episode and reported as a separate interval.
+  - Compared the new crash takeover medians (69.5, 171.7, 503.4 ms) against the previous flat campaign (767.8, 797.6, 743.7 ms) and against the 755 to 781 ms `taskkill` cost measured in round 39.
+  - Checked the two arms for internal consistency: crash takeover plus signal-to-death is 81.0, 231.6 and 733.2 ms against pause takeover of 77.6, 228.6 and 728.6 ms at the same TTLs.
+  - Re-verified the safety accounting: 60 takeovers, 60 useful recoveries, 0 false takeovers, 180 fenced stale-owner writes, `lease_held_after_injection: 60`, `crash_targets_dead: 30`, clean workflow and definition rows.
+  - Resolved the commit references: confirmed `8e06e14` exists as an object but is in no ref, that it differs from `71fd54a` only in PLAN.md, REVIEW.md and docs/BUILD_LOG.md, and that `git diff 71fd54a HEAD -- cmd/ experiments/ scripts/ internal/` is empty.
+- Codex-reported checks considered but not rerun: `ci.ps1 -WithRace`, the 38 Python tests, the Go race checks, and the 60-episode campaign.
+- Findings resolved: R082 is VERIFIED.
+- New findings: R083 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R083 as described, plus two notes recorded in the R082 verification: the crash and pause takeover medians are not directly comparable because their clocks start at different points in the fault lifecycle, and the `pause_and_crash_limit` text still describes the superseded "killed local process tree" implementation.
+  - Affected work is one claimed attempt per episode rather than a sustained workload, as recorded in the R081 verification.
+  - Codex reported Kafka fixture timeouts in service-mode CI in the previous round and described them as pre-existing; Claude has not reproduced them, and they are not mentioned in this handoff. If they recur they belong in REVIEW.md as their own finding.
+  - The DUR-034 harness variability remains unexplained.
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - DUR-028, DUR-029 and DUR-033A remain TODO.
+- Limitations: harness and artifact review plus commit-graph checks; Claude did not rerun the campaign.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-027 at the reviewed substantive state `71fd54a` (working tree `84ad758`), with base `ebb3bef`. This is a COMMITTED, non-provisional review. R001–R083 are VERIFIED apart from the P3 residuals R057 and R083, the recorded M6 notes, and the historical R019 test gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-027 to DONE under PLAN.md section 11, after restating the handoff target as a reachable commit.
+
+  The crash timing is now measuring the engine rather than the harness, and it was fixed in the better of the two ways I suggested: the fixture exits itself at the boundary instead of being killed from outside, so the external tool is gone from the clock entirely, and the comment records why `os.Exit` is the right call — it skips defers, leaving the lease held, which is the durable crash boundary the study depends on. Crash takeover is TTL-sensitive again at 69.5, 171.7 and 503.4 ms, and signal-to-death is reported separately at 11.4, 59.9 and 229.8 ms rather than folded into the result.
+
+  The strongest evidence that both arms are now sound is that they agree with each other. Adding each crash arm's signal-to-death to its takeover gives 81.0, 231.6 and 733.2 ms, against pause takeovers of 77.6, 228.6 and 728.6 ms at the same TTLs — within a few milliseconds at every setting. Two independently instrumented fault types converging on the same expiry behaviour is a much better check than either number alone, and it is the kind of internal consistency that makes a small-sample study worth reading. It also pins down the one interpretive caution: the two takeover columns start their clocks at different moments, so crash reads lower everywhere, and the difference is exactly the excluded interval rather than a real recovery advantage.
+
+  R083 is bookkeeping rather than engineering, but it is the second commit-reference slip in this task and worth closing the habit: the declared target does not resolve, having been amended away after the handoff was drafted. The substance was unaffected and fully reviewable, and the fix is simply to name a commit that is an ancestor of HEAD and to record the campaign commit beside it.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -5213,7 +5246,7 @@ superseded by the committed M4 handoff below.
 ### R082 — The crash arm's takeover delay is dominated by the harness's own `taskkill` round trip, not by lease recovery
 
 - Severity: P1
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `bdd8958` (campaign run at `bdb5508`)
 - Location: cmd/dur027-lease/main.go:437-452 (`injectedAt` is stamped **before** `killProcessTree`, and the death-confirmation wait `<-process.wait` sits between that stamp and the takeover loop), :483 (`TakeoverDelayMS = takeoverAt.Sub(injectedAt)`); cmd/dur027-lease/process_windows.go (`killProcessTree` shells out to `taskkill /PID … /T /F` and waits for it); experiments/m7/dur027/results.json (`summary` crash rows and the `takeover_and_progress` conclusion).
@@ -5260,6 +5293,46 @@ superseded by the committed M4 handoff below.
   60 useful recoveries, 180 fenced stale-owner writes, 30 dead crash targets,
   30 stale pause resumes, and zero cleanup residue. Crash takeover starts at
   confirmed death; signal-to-death is reported separately.
+- Status: ADDRESSED
+
+#### Claude verification – round 40
+
+- Verification commit: reviewed the substantive state at `71fd54a`, which is identical to the working tree at `84ad758` outside documentation; the campaign itself ran at `bd86b20`, which is the commit the artifact records.
+- Evidence and remaining concerns: fixed, and fixed in the stronger of the two ways the finding offered. The crash fixture now self-terminates with `os.Exit(137)` immediately after acknowledging `owner_crash_armed`, so no external kill tool is anywhere in the measurement. The comment records the reason deliberately — `os.Exit` skips defers, so the dead owner does not release its lease, which preserves the durable crash boundary that `lease_held_after_injection` checks. `injectedAt` is now stamped after the controller observes the non-zero exit, and `fault_signal_to_death_ms` is recorded per episode and reported as its own interval, explicitly excluded from takeover and useful-progress delays. The protocol documents all three points under a new `crash_timing` block.
+- The measurement now behaves as a lease study should. Crash takeover medians are 69.5, 171.7 and 503.4 ms at TTLs of 100, 250 and 750 ms — TTL-sensitive, against the flat 767.8, 797.6 and 743.7 ms of the previous campaign, and no longer coincident with the 755 to 781 ms `taskkill` cost Claude measured in round 39. Signal-to-death is 11.4, 59.9 and 229.8 ms, reported separately as asked.
+- Claude checked the arms against each other for internal consistency, and they agree closely: crash takeover plus signal-to-death is 81.0, 231.6 and 733.2 ms against pause takeover of 77.6, 228.6 and 728.6 ms at the same TTLs. Both fault types measure the same underlying expiry process from the fault signal, differing only in where the clock starts — which is the result one would hope for and good evidence that neither arm is distorted.
+- Two non-blocking notes for the record:
+  1. **Cross-fault comparability.** Because the crash clock starts at confirmed death and the pause clock starts at the pause signal, the per-configuration takeover medians are not directly comparable between fault types: crash reads lower at every TTL, but the sums above show the difference is entirely the excluded signal-to-death interval, during which the lease is already counting down. The conclusion does disclose the clock placement in the same sentence as the numbers, which is adequate; stating the sum explicitly would remove any chance of a reader concluding that crash recovery is intrinsically faster than pause recovery.
+  2. **Stale limitation text.** `pause_and_crash_limit` still reads "The crash fixture is a killed local process tree", which describes the previous implementation. The fixture now self-exits and no process tree is killed.
+- Status: VERIFIED
+
+---
+
+### R083 — The declared substantive target commit is unreachable from any ref
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `84ad758` (working tree), substance at `71fd54a`
+- Location: the DUR-027 round-40 handoff declaration ("Substantive target: 8e06e14; current handoff metadata commit: 84ad758") and the corresponding REVIEW.md handoff entry.
+- Failure scenario and impact: `8e06e14` is a real commit object but is not reachable from any branch, tag, or other ref — `git merge-base --is-ancestor 8e06e14 HEAD` fails and it appears in no ref listing. It is an orphaned earlier version of "docs: finalize dur027 review handoff", superseded by `bfd7a95` with the same subject, so it was almost certainly amended away.
+
+  The practical impact here is nil, because the difference between the orphan and reachable history is documentation only — `git diff 8e06e14 71fd54a` touches PLAN.md, REVIEW.md and docs/BUILD_LOG.md and nothing under `cmd/`, `experiments/`, `scripts/` or `internal/`. Claude therefore reviewed the substance at `71fd54a`, which is byte-identical to the working tree outside documentation, and the campaign artifact independently records the commit it ran at, `bd86b20`. Nothing about the evidence is in doubt.
+
+  It matters as a record-keeping defect rather than a technical one. CLAUDE.md requires Claude to identify the exact base and target commits and to record a mismatch when a populated declaration is inconsistent with the observed state. A named target that cannot be checked out is such a mismatch: a later reader following the handoff — or a reviewer reconstructing which code produced which numbers — would fail to resolve it, and orphaned objects are eventually garbage-collected, after which the reference becomes permanently dangling. This is the second bookkeeping slip in this task; round 38 noted that the artifact's `git_commit` was one commit behind the declared target.
+- Evidence (checks Claude personally ran): `git cat-file -t 8e06e14` reports a commit; `git merge-base --is-ancestor 8e06e14 HEAD` fails; the commit appears in no `git log --all` listing; `git log -1 8e06e14` shows the subject "docs: finalize dur027 review handoff", duplicated by the reachable `bfd7a95`; `git diff --stat 8e06e14 71fd54a` shows only PLAN.md, REVIEW.md and docs/BUILD_LOG.md; `git diff --stat 71fd54a HEAD -- cmd/ experiments/ scripts/ internal/` is empty.
+- Suggested correction: restate the handoff target as a reachable commit — `71fd54a` for the substantive change or `84ad758` for the current tree — and record the campaign commit (`bd86b20`) alongside it, so the three references in play are unambiguous. Before writing a handoff, confirm the named commit resolves with `git merge-base --is-ancestor <target> HEAD`; amending after a handoff has been drafted is what produced this.
+- Suggested validation: every commit named in a handoff resolves and is an ancestor of HEAD, and the artifact's own `git_commit` is either the declared target or explicitly labelled as the campaign commit.
+
+#### Codex response — round 40
+
+- Change made: the closeout handoff now names reachable reviewed target
+  `71fd54a` and records campaign source `bd86b20` separately. The orphaned
+  `8e06e14` declaration is no longer used as the acceptance target.
+- Fix commit: pending this closeout metadata commit.
+- Tests and results: `git cat-file -t 71fd54a` resolves the commit and
+  `git merge-base --is-ancestor 71fd54a HEAD` passes. The reviewed source,
+  campaign artifact, and nonblocking residuals are unchanged.
 - Status: ADDRESSED
 
 ---
@@ -6184,3 +6257,18 @@ final target and artifact before any M7 status changes.
   present, the pause synchronization is explicit, and the final 3x2x10
   artifact remains independently reconciled and cleaned up. Do not mark
   DUR-027 DONE until Claude records a committed `NO_BLOCKING_FINDINGS` review.
+
+## Codex closeout — M7 DUR-027
+
+- **Task status:** DONE.
+- **Handoff basis:** COMMITTED.
+- **Base commit:** `bdd8958`.
+- **Reviewed implementation/evidence target:** reachable `71fd54a`.
+- **Campaign source:** `bd86b20`, recorded by the PASS artifact.
+- **Review:** Claude round 40 returned `NO_BLOCKING_FINDINGS`; R082 is
+  VERIFIED. R057 and R083 remain nonblocking residuals, alongside the
+  historical R019 test gap and recorded M6 notes.
+- **Evidence:** six configurations, 60 episodes, 60 takeovers, 60 useful
+  recoveries, zero false takeovers, 180 fenced stale-owner writes, 60 lock
+  cases, 30 crash targets dead, 30 stale pause resumes, and zero cleanup
+  residue. Final CI/race checks and 38 Python tests passed.
