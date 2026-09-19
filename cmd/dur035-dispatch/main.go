@@ -129,11 +129,12 @@ type runReport struct {
 }
 
 type timingReport struct {
-	ReadyToOutboxClaimMS       medianReport `json:"outbox_ready_to_claim_ms"`
-	OutboxClaimToWorkerClaimMS medianReport `json:"outbox_claim_to_worker_claim_ms"`
-	WorkerClaimToResultMS      medianReport `json:"worker_claim_to_result_ms"`
-	ResultToTerminalMS         medianReport `json:"result_to_terminal_ms"`
-	TerminalLatencyMS          medianReport `json:"terminal_latency_ms"`
+	ReadyToOutboxClaimMS         medianReport `json:"outbox_ready_to_claim_ms"`
+	OutboxClaimToWorkerClaimMS   medianReport `json:"outbox_claim_to_worker_claim_ms"`
+	BrokerReceiveToWorkerClaimMS medianReport `json:"broker_receive_to_worker_claim_ms"`
+	WorkerClaimToResultMS        medianReport `json:"worker_claim_to_result_ms"`
+	ResultToTerminalMS           medianReport `json:"result_to_terminal_ms"`
+	TerminalLatencyMS            medianReport `json:"terminal_latency_ms"`
 }
 
 type medianReport struct {
@@ -144,14 +145,16 @@ type medianReport struct {
 }
 
 type telemetryReport struct {
-	LeaseAcquires   uint64  `json:"lease_acquires"`
-	AcceptedClaims  uint64  `json:"accepted_claims"`
-	AcceptedResults uint64  `json:"accepted_results"`
-	DBTransactions  uint64  `json:"db_transactions"`
-	DBQueries       uint64  `json:"db_queries"`
-	QuerySeconds    float64 `json:"query_seconds"`
-	LockWaits       uint64  `json:"lock_waits"`
-	LockWaitSeconds float64 `json:"lock_wait_seconds"`
+	LeaseAcquires     uint64  `json:"lease_acquires"`
+	AcceptedClaims    uint64  `json:"accepted_claims"`
+	AcceptedResults   uint64  `json:"accepted_results"`
+	DBTransactions    uint64  `json:"db_transactions"`
+	DBQueries         uint64  `json:"db_queries"`
+	QuerySeconds      float64 `json:"query_seconds"`
+	LockWaits         uint64  `json:"lock_waits"`
+	LockWaitSeconds   float64 `json:"lock_wait_seconds"`
+	RelayPublications uint64  `json:"relay_publications"`
+	RelayFailures     uint64  `json:"relay_failures"`
 }
 
 type transportReport struct {
@@ -166,13 +169,14 @@ type transportReport struct {
 }
 
 type taskTiming struct {
-	WorkflowID      string
-	ReadyAt         time.Time
-	OutboxClaimedAt time.Time
-	WorkerClaimedAt time.Time
-	ResultAt        time.Time
-	TerminalAt      time.Time
-	Error           string
+	WorkflowID       string
+	ReadyAt          time.Time
+	OutboxClaimedAt  time.Time
+	BrokerReceivedAt time.Time
+	WorkerClaimedAt  time.Time
+	ResultAt         time.Time
+	TerminalAt       time.Time
+	Error            string
 }
 
 type cohortTracker struct {
@@ -467,6 +471,27 @@ type kafkaDispatcher struct {
 	failures atomic.Uint64
 }
 
+type observedBroker struct {
+	inner   transport.Broker
+	tracker *cohortTracker
+}
+
+func (b *observedBroker) Publish(ctx context.Context, event state.OutboxEvent) error {
+	if event.EventType == "attempt.dispatch" {
+		workflowID := stringPayloadID(event.Payload)
+		claimedAt := time.Now().UTC()
+		b.tracker.update(workflowID, func(item *taskTiming) {
+			if !event.CreatedAt.IsZero() {
+				item.ReadyAt = event.CreatedAt
+			}
+			item.OutboxClaimedAt = claimedAt
+		})
+	}
+	return b.inner.Publish(ctx, event)
+}
+
+func (b *observedBroker) Close() error { return b.inner.Close() }
+
 func (d *kafkaDispatcher) consume(ctx context.Context) {
 	for {
 		message, err := d.source.Receive(ctx)
@@ -485,7 +510,13 @@ func (d *kafkaDispatcher) consume(ctx context.Context) {
 		var createdAt time.Time
 		if err := d.store.Pool().QueryRow(ctx, `SELECT created_at FROM engine.outbox WHERE event_id = $1`, message.EventID).Scan(&createdAt); err == nil {
 			workflowID := stringPayloadID(message.Payload)
-			d.pool.tracker.update(workflowID, func(item *taskTiming) { item.ReadyAt = createdAt; item.OutboxClaimedAt = receivedAt })
+			d.pool.tracker.update(workflowID, func(item *taskTiming) {
+				item.ReadyAt = createdAt
+				if item.OutboxClaimedAt.IsZero() {
+					item.OutboxClaimedAt = receivedAt
+				}
+				item.BrokerReceivedAt = receivedAt
+			})
 		}
 		d.pool.submit(dispatchJob{event: event, claimedAt: receivedAt})
 		// Kafka offset commit is done after the job is accepted by the fixed
@@ -581,7 +612,8 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 		}
 		relayCtx, cancelRelay := context.WithCancel(caseCtx)
 		relayCancel = cancelRelay
-		relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID(), BatchSize: 32, ClaimLease: claimLease,
+		observed := &observedBroker{inner: broker, tracker: tracker}
+		relay := transport.NewRelay(store, observed, transport.RelayConfig{OwnerID: state.NewID(), BatchSize: 32, ClaimLease: claimLease,
 			PollInterval: selected.FallbackPoll, OnError: func(err error) { _ = err }, OnSuccess: func(report transport.RelayReport) {
 				if metrics != nil {
 					for i := 0; i < report.Published; i++ {
@@ -672,7 +704,7 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 	telemetryDelta := telemetryDelta(metrics.Snapshot(), baseline)
 	report := runReport{Configuration: selected.Name, Mode: selected.Mode, Repeat: repeat, RunID: runID, Status: "PASS",
 		WorkflowCount: workflowCount, WarmupCount: warmupCount, Terminal: workflowCount, Pending: pending, ArrivalRate: arrivalRate,
-		ElapsedSeconds: measuredEnd.Sub(measuredStart).Seconds(), DrainSeconds: maxFloat(0, measuredEnd.Sub(measuredStart).Seconds()-float64(workflowCount-1)/arrivalRate), Throughput: float64(terminal) / measuredEnd.Sub(measuredStart).Seconds(),
+		ElapsedSeconds: measuredEnd.Sub(measuredStart).Seconds(), DrainSeconds: maxFloat(0, measuredEnd.Sub(measuredStart).Seconds()-float64(workflowCount-1)/arrivalRate), Throughput: float64(workflowCount) / measuredEnd.Sub(measuredStart).Seconds(),
 		BacklogOldestAgeSeconds: oldest, Timings: makeTimings(rows), Telemetry: telemetryDelta, ProcessCPUSeconds: cpuEnd - cpuStart,
 		CPUDescription: "whole command process; includes the fixed in-process worker fixture", Transport: transportReport{Failures: pool.failures.Load()}}
 	if kafkaD != nil {
@@ -680,6 +712,8 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 		report.Transport.BrokerCommitCount = kafkaD.commits.Load()
 		report.Transport.Failures += kafkaD.failures.Load()
 	}
+	report.Transport.BrokerPublications = telemetryDelta.RelayPublications
+	report.Transport.Failures += telemetryDelta.RelayFailures
 	if selected.Mode != "kafka" {
 		report.Transport.Notifications = d.notifications.Load()
 		report.Transport.Failures += d.failures.Load()
@@ -726,14 +760,17 @@ func cleanupNamespace(ctx context.Context, store *state.Store, namespace, defini
 }
 
 func makeTimings(rows []taskTiming) timingReport {
-	ready, handoff, result, terminal := make([]float64, 0, len(rows)), make([]float64, 0, len(rows)), make([]float64, 0, len(rows)), make([]float64, 0, len(rows))
+	ready, handoff, brokerHandoff, result, terminal := make([]float64, 0, len(rows)), make([]float64, 0, len(rows)), make([]float64, 0, len(rows)), make([]float64, 0, len(rows)), make([]float64, 0, len(rows))
 	for _, row := range rows {
 		ready = append(ready, row.OutboxClaimedAt.Sub(row.ReadyAt).Seconds()*1000)
 		handoff = append(handoff, row.WorkerClaimedAt.Sub(row.OutboxClaimedAt).Seconds()*1000)
+		if !row.BrokerReceivedAt.IsZero() {
+			brokerHandoff = append(brokerHandoff, row.WorkerClaimedAt.Sub(row.BrokerReceivedAt).Seconds()*1000)
+		}
 		result = append(result, row.ResultAt.Sub(row.WorkerClaimedAt).Seconds()*1000)
 		terminal = append(terminal, row.TerminalAt.Sub(row.ResultAt).Seconds()*1000)
 	}
-	return timingReport{ReadyToOutboxClaimMS: summarize(ready), OutboxClaimToWorkerClaimMS: summarize(handoff), WorkerClaimToResultMS: summarize(result), ResultToTerminalMS: summarize(terminal), TerminalLatencyMS: summarizeTerminal(rows)}
+	return timingReport{ReadyToOutboxClaimMS: summarize(ready), OutboxClaimToWorkerClaimMS: summarize(handoff), BrokerReceiveToWorkerClaimMS: summarize(brokerHandoff), WorkerClaimToResultMS: summarize(result), ResultToTerminalMS: summarize(terminal), TerminalLatencyMS: summarizeTerminal(rows)}
 }
 
 func summarizeTerminal(rows []taskTiming) medianReport {
@@ -755,7 +792,8 @@ func summarize(values []float64) medianReport {
 func telemetryDelta(after, before telemetry.Snapshot) telemetryReport {
 	return telemetryReport{LeaseAcquires: after.LeaseAcquires - before.LeaseAcquires, AcceptedClaims: after.AcceptedClaims - before.AcceptedClaims, AcceptedResults: after.AcceptedResults - before.AcceptedResults,
 		DBTransactions: after.DBTransactions - before.DBTransactions, DBQueries: after.DBQueries - before.DBQueries, QuerySeconds: after.QuerySeconds - before.QuerySeconds,
-		LockWaits: after.LockWaitCount - before.LockWaitCount, LockWaitSeconds: after.LockWaitSeconds - before.LockWaitSeconds}
+		LockWaits: after.LockWaitCount - before.LockWaitCount, LockWaitSeconds: after.LockWaitSeconds - before.LockWaitSeconds,
+		RelayPublications: after.RelayPublications - before.RelayPublications, RelayFailures: after.RelayFailures - before.RelayFailures}
 }
 
 func maxFloat(left, right float64) float64 {

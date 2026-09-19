@@ -72,8 +72,14 @@ try {
     }
     foreach ($run in $artifact.runs) {
         if ($run.status -ne "PASS" -or [int]$run.terminal -ne [int]$run.workflow_count -or [int]$run.pending -ne 0 -or
-            [int]$run.timings.terminal_latency_ms.count -ne [int]$run.workflow_count) {
+            [int]$run.timings.terminal_latency_ms.count -ne [int]$run.workflow_count -or
+            [double]$run.timings.outbox_ready_to_claim_ms.count -ne [int]$run.workflow_count -or
+            [double]$run.timings.outbox_ready_to_claim_ms.min -lt 0) {
             throw "DUR-035 run $($run.configuration)/$($run.repeat) failed reconciliation."
+        }
+        if ($run.mode -eq "kafka" -and ([int]$run.transport.broker_receive_count -ne ([int]$run.workflow_count + [int]$run.warmup_count) -or
+            [int]$run.transport.broker_commit_count -ne ([int]$run.workflow_count + [int]$run.warmup_count))) {
+            throw "DUR-035 Kafka run $($run.repeat) did not receive and commit every task."
         }
     }
     Invoke-Sweep
