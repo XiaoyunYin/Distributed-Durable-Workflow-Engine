@@ -282,8 +282,9 @@ func main() {
 
 func executeRun(ctx context.Context, store *state.Store, seed int64, setting checkpointSetting, crash bool, repeat int) (runReport, error) {
 	row := runReport{Setting: setting.ID, Interval: setting.Interval, FailureCondition: map[bool]string{true: "crash_mid_activity", false: "no_failure"}[crash], Repeat: repeat, Seed: seed, Status: "FAIL"}
+	row.CaseID = fmt.Sprintf("%s-%s-r%d", setting.ID, row.FailureCondition, repeat)
 	definitionID := "dur028-checkpoint-def-" + state.NewID()
-	ownerID := "dur028-owner-" + state.NewID()
+	ownerID := state.NewID()
 	lease, _, err := acquireFreeLease(ctx, store, ownerID)
 	if err != nil {
 		row.Failure = err.Error()
@@ -298,7 +299,6 @@ func executeRun(ctx context.Context, store *state.Store, seed int64, setting che
 		return row, err
 	}
 	row.WorkflowID = workflowID
-	row.CaseID = fmt.Sprintf("%s-%s-r%d", setting.ID, row.FailureCondition, repeat)
 	defer cleanupFixture(ctx, store, workflowID, definitionID)
 	before := store.Telemetry().Snapshot()
 	driver := &chunkDriver{interval: setting.Interval, seed: seed, crash: crash, barrier: crashChunk}
