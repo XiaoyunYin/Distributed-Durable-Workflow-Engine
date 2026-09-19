@@ -2120,6 +2120,11 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   definition/workflow/attempt, then arms the configured TTL immediately before
   publishing `owner_ready`; setup time is therefore not counted as takeover
   time or misclassified as a false takeover.
+- A subsequent rerun showed that the synthetic lock-wait probe could outlast
+  the newly acquired 100 ms target lease. The lock probe now owns a separate
+  five-second fixture partition, so its real row-lock wait and telemetry are
+  measured without extending or accidentally replacing the target lease that
+  governs useful recovery.
 - Focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`
   and `go build` pass. The real PostgreSQL pilot/final campaign and the
   repository-wide checks remain required before the next review handoff.

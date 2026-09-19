@@ -487,7 +487,13 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 		}
 		report.FencedOldOwnerWrites++
 	}
-	waits, waitSeconds, err := measureLockContention(ctx, store, takeover.PartitionID, state.NewID(), arm.TTL)
+	lockLease, err := acquireLockFixture(ctx, store, ready.Partition)
+	if err != nil {
+		_ = store.ReleaseLease(ctx, newRef)
+		return report, err
+	}
+	waits, waitSeconds, err := measureLockContention(ctx, store, lockLease.PartitionID, state.NewID(), 5*time.Second)
+	_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: lockLease.PartitionID, OwnerID: lockLease.OwnerID, Epoch: lockLease.Epoch})
 	if err != nil {
 		_ = store.ReleaseLease(ctx, newRef)
 		return report, err
@@ -620,6 +626,23 @@ func acquireAvailableLease(ctx context.Context, store *state.Store, owner string
 		}
 	}
 	return state.Lease{}, errors.New("no available partition lease")
+}
+
+func acquireLockFixture(ctx context.Context, store *state.Store, excludedPartition int16) (state.Lease, error) {
+	for partitionID := int16(0); partitionID < 16; partitionID++ {
+		if partitionID == excludedPartition {
+			continue
+		}
+		owner := state.NewID()
+		lease, acquired, err := store.AcquireLease(ctx, partitionID, owner, 5*time.Second)
+		if err != nil {
+			return state.Lease{}, err
+		}
+		if acquired {
+			return lease, nil
+		}
+	}
+	return state.Lease{}, errors.New("no available lock-contention partition")
 }
 
 func leaseRowMatches(ctx context.Context, store *state.Store, partitionID int16, owner string, epoch int64) bool {
