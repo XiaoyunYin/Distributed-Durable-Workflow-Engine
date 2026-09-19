@@ -5246,11 +5246,15 @@ superseded by the committed M4 handoff below.
   and records the control-signal-to-death interval separately as
   `fault_signal_to_death_ms`. The artifact protocol and conclusions now state
   the two clocks explicitly. This removes Windows `taskkill` from the measured
-  crash interval while preserving the real held-lease crash boundary.
-- Fix commit: pending until the corrected campaign and evidence are committed.
+  crash interval while preserving the real held-lease crash boundary. The
+  pause fixture now waits for the explicit `resume` command rather than
+  treating the earlier `pause` file as a resume signal.
+- Fix commit: pending until the final fixture guard and corrected campaign
+  evidence are committed.
 - Tests and results: focused Go tests, vet, build, and gofmt pass with a
-  task-local Go cache. The pilot and 60-episode PostgreSQL campaign will be
-  rerun after this implementation is committed.
+  task-local Go cache. The pilot passed; the first campaign rerun exposed the
+  pause control-file race above and failed before acceptance, so the 60-episode
+  campaign will be rerun after this guard is committed.
 - Status: ADDRESSED
 
 ---

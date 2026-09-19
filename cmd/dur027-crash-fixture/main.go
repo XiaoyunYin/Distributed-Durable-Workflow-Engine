@@ -165,7 +165,7 @@ func main() {
 		time.Sleep(5 * time.Millisecond)
 	}
 	for {
-		if _, err := os.Stat(*resumeFile); err == nil {
+		if data, readErr := os.ReadFile(*resumeFile); readErr == nil && strings.TrimSpace(string(data)) == "resume" {
 			_, renewErr := store.RenewLease(ctx, ref, ttl)
 			if !errors.Is(renewErr, state.ErrLeaseNotOwned) {
 				panic(fmt.Sprintf("paused owner renewal = %v, want ErrLeaseNotOwned", renewErr))
