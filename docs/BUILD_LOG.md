@@ -2037,3 +2037,23 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   is an in-process bounded fixture, not a process-kill or multi-host
   durability claim; the final evidence remains limited to the declared
   single-node WSL2 host.
+
+## 2026-09-19 - DUR-027 lease harness implementation
+
+- Added `cmd/dur027-lease` and `scripts/m7-dur027.ps1`. Each of the three
+  frozen TTL arms runs 12 normal-renewal cases and 12 owner-pause cases per
+  repeat. Cases create durable workflows on the partition selected by the
+  frozen mapping, use the real PostgreSQL lease methods, and require the new
+  owner to apply a durable `WAITING_ACTIVITY` transition after takeover.
+- The harness records renewal traffic, takeover delay, false-takeover probes,
+  three stale-owner fencing operations, and a PostgreSQL row-lock wait case in
+  every run. It derives summary text from observed values and refuses to pass
+  incomplete case counts, missing recoveries, false takeovers, missing lock
+  contention, or cleanup residue.
+- The PowerShell runner requires a clean working tree, stops the foundation
+  runtime/worker processes during measurement, sweeps only its reserved
+  namespace, validates the JSON artifact and fixed cohort totals, and restores
+  those services in `finally`. It does not recreate PostgreSQL or Kafka.
+- Focused tests and static checks pass. No live measurement artifact has been
+  accepted yet; the next step is the PostgreSQL campaign on the declared
+  single-node host.
