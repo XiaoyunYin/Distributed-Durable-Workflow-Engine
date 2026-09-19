@@ -2136,6 +2136,11 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   useful replacement transition, records its successful renewals, and surfaces
   any genuine renewal error. This keeps the lease setting fixed while removing
   the harness's own sleep/renew scheduling artifact.
+- The first background-renewal version also reported an expected stale error
+  after the success path released the replacement lease. Cleanup now stops the
+  renewal loop before releasing that lease; deferred cleanup uses the same
+  ordering on failed episodes, so post-release fencing is not counted as a
+  renewal failure.
 - Focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`
   and `go build` pass. The real PostgreSQL pilot/final campaign and the
   repository-wide checks remain required before the next review handoff.

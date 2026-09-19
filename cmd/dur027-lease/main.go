@@ -484,13 +484,24 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 	newRef := state.LeaseRef{PartitionID: takeover.PartitionID, OwnerID: newOwner, Epoch: takeover.Epoch}
 	oldRef := state.LeaseRef{PartitionID: ready.Partition, OwnerID: ready.OwnerID, Epoch: ready.Epoch}
 	stopRenewal := startLeaseRenewal(ctx, store, newRef, arm.TTL)
-	defer func() {
+	renewalStopped := false
+	stopAndRecordRenewal := func() error {
+		if renewalStopped {
+			return nil
+		}
+		renewalStopped = true
 		count, renewalErr := stopRenewal()
 		report.RenewalsAfterTakeover += count
-		if renewalErr != nil && runErr == nil {
-			runErr = renewalErr
+		if renewalErr != nil {
 			report.Failure = renewalErr.Error()
 		}
+		return renewalErr
+	}
+	defer func() {
+		if renewalErr := stopAndRecordRenewal(); renewalErr != nil && runErr == nil {
+			runErr = renewalErr
+		}
+		_ = store.ReleaseLease(context.Background(), newRef)
 	}()
 	for index, staleErr := range []error{
 		func() error { _, renewErr := store.RenewLease(ctx, oldRef, arm.TTL); return renewErr }(),
@@ -498,26 +509,22 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 		fenceTransition(ctx, store, oldRef, ready.WorkflowID),
 	} {
 		if !errors.Is(staleErr, state.ErrLeaseNotOwned) {
-			_ = store.ReleaseLease(ctx, newRef)
 			return report, fmt.Errorf("%s stale owner operation %d = %v", episodeID, index+1, staleErr)
 		}
 		report.FencedOldOwnerWrites++
 	}
 	lockLease, err := acquireLockFixture(ctx, store, ready.Partition)
 	if err != nil {
-		_ = store.ReleaseLease(ctx, newRef)
 		return report, err
 	}
 	waits, waitSeconds, err := measureLockContention(ctx, store, lockLease.PartitionID, state.NewID(), 5*time.Second)
 	_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: lockLease.PartitionID, OwnerID: lockLease.OwnerID, Epoch: lockLease.Epoch})
 	if err != nil {
-		_ = store.ReleaseLease(ctx, newRef)
 		return report, err
 	}
 	report.LockWaits, report.LockWaitSeconds = waits, waitSeconds
 	attempt, err := store.GetAttempt(ctx, ready.WorkflowID, "root", 0, ready.AttemptNumber)
 	if err != nil {
-		_ = store.ReleaseLease(ctx, newRef)
 		return report, err
 	}
 	deadline := ready.AttemptDeadlineAt
@@ -529,12 +536,10 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 	}
 	workflow, err := store.GetWorkflow(ctx, ready.WorkflowID)
 	if err != nil {
-		_ = store.ReleaseLease(ctx, newRef)
 		return report, err
 	}
 	timeoutResult, err := store.TimeoutAttempt(ctx, state.TimeoutInput{Lease: newRef, WorkflowID: ready.WorkflowID, NodeID: "root", Iteration: 0, AttemptNumber: ready.AttemptNumber, ExpectedRevision: workflow.Revision, ActorID: "dur027-recovery", DispatchLease: 2 * arm.TTL})
 	if err != nil || timeoutResult.ReplacementNumber == nil {
-		_ = store.ReleaseLease(ctx, newRef)
 		return report, fmt.Errorf("%s useful recovery timeout: result=%+v err=%v", episodeID, timeoutResult, err)
 	}
 	progressAt := time.Now().UTC()
@@ -543,11 +548,9 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 	report.UsefulProgressDelayMS = progressAt.Sub(injectedAt).Seconds() * 1000
 	if faultType == "owner_pause" {
 		if err := os.WriteFile(resumeFile, []byte("resume\n"), 0o644); err != nil {
-			_ = store.ReleaseLease(ctx, newRef)
 			return report, err
 		}
 		if _, err := awaitBoundary(ctx, process.records, "owner_resumed_stale"); err != nil {
-			_ = store.ReleaseLease(ctx, newRef)
 			return report, err
 		}
 		report.TargetResumedStale = true
@@ -560,7 +563,7 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 			return report, errors.New("paused target did not exit after resume")
 		}
 	}
-	if err := store.ReleaseLease(ctx, newRef); err != nil {
+	if err := stopAndRecordRenewal(); err != nil {
 		return report, err
 	}
 	if report.FencedOldOwnerWrites != staleWritesPerEpisode || !report.Takeover || !report.UsefulProgress || !report.LeaseHeldAfterInject || !report.LeasePreserved || (faultType == "owner_crash" && !report.TargetDead) || (faultType == "owner_pause" && !report.TargetResumedStale) {
@@ -622,9 +625,11 @@ func startLeaseRenewal(ctx context.Context, store *state.Store, ref state.LeaseR
 			select {
 			case <-ticker.C:
 				if _, err := store.RenewLease(renewCtx, ref, ttl); err != nil {
-					select {
-					case errorsCh <- err:
-					default:
+					if renewCtx.Err() == nil {
+						select {
+						case errorsCh <- err:
+						default:
+						}
 					}
 					return
 				}
