@@ -2405,7 +2405,8 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 
 ## 2026-09-19 - DUR-033A production incident-engine integration
 
-- Started from `670fcd2` after DUR-029 closeout. Added the PostgreSQL-backed
+- Started from `670fcd2` after DUR-029 closeout; implementation target is
+  `95948cb`. Added the PostgreSQL-backed
   `internal/incident` integration: a versioned investigation/remediation graph,
   a `source_corpus` seed/query boundary, an engine investigation driver, and a
   cooperating effect driver that calls the production `effects.Service`.
@@ -2418,12 +2419,12 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - No migration was added: the source boundary is migration 000014 and the
   effect/approval contracts are migrations 000010-000013. No live-model call,
   external action, or paid-provider budget is used.
-- Validation so far: focused Go tests pass with a task-local cache; the real
+- Validation: `go vet ./...`, `go test -race -p 1 ./...`, focused Go tests, and
+  the real
   PostgreSQL-backed `DURABLE_REQUIRE_DATABASE=1 go test
   ./internal/incident -run '^TestDUR033AProductionPath$' -count=1 -v` passes
   and cleans its workflow, effect, definition, lease, and source rows.
-- Remaining validation: full Go race/vet suite, final service-mode CI command,
-  and exact target-commit handoff remain before READY_FOR_REVIEW. The path is
-  bounded to a test HTTP server on PostgreSQL; it does not claim deployed
+- The race-enabled production integration also passed. The path is bounded to
+  a test HTTP server on PostgreSQL; it does not claim deployed
   scheduler roles, Kafka, multi-host behavior, authentication, or live-model
   quality.

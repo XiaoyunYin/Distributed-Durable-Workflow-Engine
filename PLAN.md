@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A IN_PROGRESS; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A READY_FOR_REVIEW; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1280,8 +1280,9 @@ contract revision.
 
 #### DUR-033A implementation record
 
-- **Status:** IN_PROGRESS; implementation is being prepared for Claude review.
+- **Status:** READY_FOR_REVIEW; awaiting Claude's committed review.
 - **Base commit:** `670fcd2` (DUR-029 closeout; DUR-033A was the next TODO).
+- **Implementation target:** `95948cb`.
 - **Goal:** exercise one bounded incident remediation through the PostgreSQL-backed submission API, the real scheduler/interpreter, the scheduler-owned approval grant, and the production cooperating effect service, with source evidence read from PostgreSQL `source_corpus`.
 - **Scope:** add a versioned two-node investigation/remediation definition, a production source-corpus seed/query helper, production engine activity drivers, and a service-mode integration campaign. The campaign is deterministic and synthetic; it makes no provider calls and performs no external action.
 - **Acceptance validation:** submit through `POST /v1/workflows`; run the investigation through `internal/engine`; create/approve/apply the grant through the approval API while holding the partition lease; apply the remediation through `internal/effects.Service`; verify terminal success, durable receipt, source-corpus citation, and history. Re-run R049 resource, canonical-argument/self-asserted-hash, resource-revision, grant-reuse, and approval-before-dispatch attacks, each with a typed rejection and no unauthorized receipt.

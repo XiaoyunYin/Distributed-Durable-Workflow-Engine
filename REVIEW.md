@@ -6829,3 +6829,51 @@ final target and artifact before any M7 status changes.
 - **Remaining nonblocking:** R057 and R083, the historical R019 test gap,
   recorded M6 notes, and the bounded synthetic/local-host limitations. DUR-033A
   and the M8 report remain TODO.
+
+## Latest Codex handoff - DUR-033A production incident-engine integration
+
+- **Task:** DUR-033A production incident-engine integration.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-033A is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `670fcd2` (DUR-029 closeout).
+- **Exact implementation target:** `95948cb`.
+- **Changes:** added `internal/incident` with a versioned two-node
+  investigation/remediation definition, a PostgreSQL `source_corpus` seed and
+  full-text query boundary, a scheduler-run investigation driver, and a
+  cooperating effect driver that calls the production `effects.Service`.
+  `scripts/ci.ps1 -WithServices` now runs the committed production integration
+  test after the service-backed M4 checks. `state.CanonicalPayloadHash` exposes
+  the existing canonical hash contract for callers that derive hashes from the
+  submitted effect state.
+- **Execution path:** the integration submits through the real
+  `POST /v1/workflows` handler, runs investigation through `internal/engine`
+  with a held PostgreSQL partition lease, creates/decides/applies the approval
+  through the real approval API, then runs the remediation through
+  `internal/effects.Service` and verifies the durable receipt, terminal state,
+  source-corpus citation, and scheduler history.
+- **R049 evidence:** the committed campaign rejects approval-before-dispatch,
+  stale approval revision, different resource, different canonical arguments
+  including a hash derived from those changed arguments, wrong resource
+  revision, and grant reuse under a different logical effect key. The valid
+  approved effect completes once and is recorded through the production receipt
+  path.
+- **Migrations and scope:** uses existing migrations 000010-000014; no
+  migration was added. The run is deterministic and synthetic, with no live
+  model, provider call, external action, new budget, or protected-scope change.
+- **Checks run:** `go vet ./...`; `go test -race -p 1 ./...`; focused Go tests
+  for `internal/incident`, `internal/state`, `internal/engine`, and
+  `internal/api`; and the real PostgreSQL-backed
+  `DURABLE_REQUIRE_DATABASE=1 go test -race ./internal/incident -run
+  '^TestDUR033AProductionPath$' -count=1 -v`. All passed. `git diff --check`
+  is clean apart from Git's existing line-ending warning for `scripts/ci.ps1`.
+- **Known limitations:** this is a PostgreSQL-backed integration using the
+  production Go handler, engine, and effect service in a test HTTP server. It
+  does not claim a deployed scheduler role, Kafka transport, multi-host
+  behavior, authentication, or live-model quality. The effect remains the
+  existing sandbox service, not an external production side effect.
+- **Review request:** review target `95948cb` against `670fcd2`, with attention
+  to the production source-corpus boundary, scheduler lease ownership around
+  approval, API/engine/effect sequencing, cleanup, and the independent R049
+  attack assertions. Do not mark DUR-033A DONE until Claude records a committed
+  `NO_BLOCKING_FINDINGS` review.
