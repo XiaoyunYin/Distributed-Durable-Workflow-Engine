@@ -2010,3 +2010,15 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   latency winner is claimed for that run.
 - Focused `go test ./cmd/dur035-dispatch` passed, and the real
   `scripts/m7-dur035.ps1` campaign passed and restored the local services.
+
+## 2026-09-19 - DUR-035 closeout
+
+- Claude's committed round-37 review of target `6679585` returned
+  `NO_BLOCKING_FINDINGS`; R078 and R079 are VERIFIED. DUR-035 is accepted and
+  marked DONE in PLAN.md.
+- The report claim is intentionally bounded: the stable result to carry into
+  M8 is the terminal-stage comparison, where notification-direct is faster
+  than Kafka. The ready-to-claim transport increment overlapped in the final
+  quoted run and changed between campaigns, so it is not presented as a fixed
+  number. The study remains single-node WSL2 evidence, not production-scale or
+  multi-host evidence.

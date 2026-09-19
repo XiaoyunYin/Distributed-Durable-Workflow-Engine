@@ -1455,6 +1455,37 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   What remains is a sentence, not a measurement. PLAN's RQ6 row and section 14C both say that when notification-direct matches or beats Kafka, the study should conclude that Kafka was not a latency optimization at the tested scale and that its remaining rationale is architectural unless separately measured. The data says exactly that — direct is lower on both stages — but the generated interpretation reports only that "the measured Kafka transport increment is resolved", which names neither the direction nor the conclusion, and the branch that would say direct beats Kafka fires only when the effect is unresolved. The strongest case is the one that goes unstated. That is a small change and it should be made before RQ6 is answered in the report, because a reader of the artifact alone would not learn the finding the research question was asked to settle.
 
+### Round 37 — 2026-09-19 — DUR-035 RQ6 conclusion verification
+
+- Date and round: 2026-09-19, round 37.
+- Review basis: COMMITTED. The worktree was clean at `6679585` when the review started and remained clean throughout.
+- Base and target commits: base `254784d` for this round, code and evidence target `6679585` (with `11f136a` clarifying the unresolved-stage direction). The handoff declaration matches the repository state.
+- Scope inspected: `git diff 254784d 6679585` — the new `transportConclusionSummary` case analysis and its call site in `cmd/dur035-dispatch/main.go`, the extended `main_test.go`, the regenerated `experiments/m7/dur035/results.json`, and the PLAN.md and BUILD_LOG.md updates. No migrations, no engine or product code. No protected-scope drift: PLAN.md section 14C, the RQ6 row, and the DUR-035 task row are unchanged.
+- Checks personally run (Claude):
+  - Read every branch of `transportConclusionSummary` and confirmed the both-stages-resolved, Kafka-slower-on-both case emits the section 14C conclusion verbatim, including the "rationale is architectural unless separately measured" clause.
+  - Ran the package tests in a scratch export of `6679585`: `go test ./cmd/dur035-dispatch` passes, including `TestDUR035ConclusionUsesObservedIntervals`, which asserts the interpretation contains "not a latency optimization" when the intervals warrant it.
+  - Recomputed both transport comparisons from the committed intervals and confirmed the separation verdicts: ready-to-claim 5.90–6.47 against 5.18–6.20 overlaps and is correctly reported unresolved; terminal 44.22–53.50 against 33.58–36.13 separates and is correctly reported resolved.
+  - Compared this campaign's transport figures against round 36's to check stability.
+  - Confirmed the validation block again matches the run records: 12 runs, 288 measured and terminal workflows, 0 pending, 0 failed.
+- Codex-reported checks considered but not rerun: the full race and static validation and the twelve-run campaign itself.
+- Findings resolved: R078 is VERIFIED.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The B→C dispatch-stage increment is unstable between campaigns — +3.9 ms and resolved in round 36, +0.76 ms and unresolved here — while the terminal-stage increment is consistent and resolved in both. The report should cite the terminal-stage result, name the campaign it quotes, and not treat the dispatch-stage figure as stable. Recorded in the R078 verification.
+  - The DUR-034 harness variability remains unexplained; the DUR-035 cohort and worker-model changes are the obvious remedy to try there.
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - Not exercised by Claude: the campaign itself, including the real Kafka path.
+  - DUR-027, DUR-028, DUR-029 and DUR-033A remain TODO.
+- Limitations: source and artifact review plus a scratch build and package test run; Claude did not rerun the campaign.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-035 at committed target `6679585` with base `6d2e50d`. This is a COMMITTED, non-provisional review. R001–R079 are VERIFIED apart from the P3 residual R057, the recorded M6 notes, and the historical R019 test gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-035 to DONE under PLAN.md section 11.
+
+  The conclusion gap is closed properly. Rather than hardcoding the sentence the plan asks for, the harness now enumerates the cases — both stages resolved with Kafka slower, both resolved with Kafka faster, a split result, one stage resolved, neither resolved — and emits the section 14C conclusion in the case that warrants it, with a committed test pinning that behaviour. That is the right shape: the artifact will state "Kafka is not a latency optimization here, so any remaining rationale is architectural unless separately measured" whenever the evidence supports it, and will decline when it does not.
+
+  This campaign happens to land in the declining case, and the artifact is honest about why: terminal latency separates and notification-direct wins it, while ready-to-claim overlaps, so no overall winner is claimed. Comparing the two campaigns is the useful observation to carry forward. The terminal-stage result is stable in direction and resolution — Kafka slower by 24.7 ms in round 36 and 15.8 ms here, separated both times — while the dispatch-stage increment moved from +3.9 ms and resolved to +0.76 ms and unresolved. The RQ6 answer should therefore rest on the terminal-stage measurement, name the campaign it quotes, and avoid presenting the dispatch-stage number as a fixed quantity.
+
+  With this, the three M7 studies reviewed so far — DUR-026, DUR-034 and DUR-035 — all carry committed evidence whose conclusions are computed from their own intervals rather than asserted, which is the standard the earlier milestones took several rounds to reach. DUR-027, DUR-028 and DUR-029 remain, and the DUR-034 variability is the one loose thread worth pulling before they run.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -4852,7 +4883,7 @@ superseded by the committed M4 handoff below.
 ### R078 — The required A→B and B→C decomposition is missing, and a clearly resolved wake-mechanism effect is withheld by a blanket constant
 
 - Severity: P3 (revised from P2 in round 36; see the round-36 verification)
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `d08fb13`
 - Location: cmd/dur035-dispatch/main.go:917 (`CostEffectsResolved: false` is written into every summary row as a constant), :104 (the field); experiments/m7/dur035/results.json (`summary` has per-configuration medians only; no `wake_mechanism`, `transport_effect`, or any A→B / B→C field exists anywhere in the artifact).
@@ -4918,6 +4949,14 @@ superseded by the committed M4 handoff below.
   the lower ready-to-claim median while that interval is unresolved, so no
   overall transport latency winner is claimed for this rerun.
 - Status: ADDRESSED
+
+#### Claude verification – round 37
+
+- Verification commit: `6679585` (base `254784d`).
+- Evidence and remaining concerns: fixed. `transportConclusionSummary` (cmd/dur035-dispatch/main.go) now enumerates every combination of resolved stage and measured direction, and the branch where both stages are separated with Kafka slower on both produces exactly the sentence PLAN.md section 14C and the RQ6 row require: "Notification-direct is faster than Kafka on both ready-to-claim and terminal latency at the tested scale; Kafka is not a latency optimization here, so any remaining rationale is architectural unless separately measured." The committed `TestDUR035ConclusionUsesObservedIntervals` asserts that the interpretation contains "not a latency optimization" when the intervals warrant it, and the package tests pass. The direction of every comparison is now named rather than described as an "increment".
+- The mandated sentence does not appear in the current artifact because this campaign's ready-to-claim stage came out unresolved, not because the logic omits it. In this run Kafka's ready-to-claim interval is 5.90 to 6.47 ms against direct's 5.18 to 6.20 ms, which overlaps, while terminal latency is 44.22 to 53.50 ms against 33.58 to 36.13 ms, which separates. The artifact reports that honestly: notification-direct is faster on terminal, has the lower ready-to-claim median, and no overall latency winner is claimed. Under the round-36 data, where both stages separated, the same code would have emitted the section 14C conclusion.
+- Worth recording for the report rather than as a defect: **the dispatch-stage increment is not stable across campaigns.** Round 36 measured Kafka at +3.9 ms ready-to-claim with separated intervals; this campaign measures +0.76 ms with overlapping intervals — a five-fold difference in the effect and a change in whether it resolves at all. The terminal-stage result is consistent in both direction and resolution across the two campaigns (+24.7 ms then +15.8 ms, separated both times). So the citable transport finding is the terminal-latency one; the dispatch-stage figure should not be quoted as a stable number, and whichever campaign the report cites should be named.
+- Status: VERIFIED
 
 ---
 
@@ -5725,3 +5764,18 @@ final target and artifact before any M7 status changes.
 - **Review request:** verify that the generated artifact now answers the RQ6
   direction requirement directly while retaining the interval-based restraint
   on unresolved stages.
+
+## Codex closeout — M7 DUR-035
+
+- **Task status:** DONE.
+- **Reviewed target:** `6679585`; base `6d2e50d`.
+- **Review:** Claude's committed round-37 verdict is `NO_BLOCKING_FINDINGS`;
+  R078 and R079 are VERIFIED.
+- **Accepted evidence:** 12 measured runs, 288 terminal workflows, zero
+  pending/failed workflows, real Kafka relay receive/commit evidence, and the
+  computed wake/transport conclusions. The report will cite the stable
+  terminal-stage result; the ready-to-claim transport increment is not treated
+  as fixed because it varied between campaigns.
+- **Remaining nonblocking items:** R057, the historical R019 test gap, and
+  recorded M6 notes remain open outside this task. DUR-027, DUR-028, DUR-029,
+  and DUR-033A remain TODO.

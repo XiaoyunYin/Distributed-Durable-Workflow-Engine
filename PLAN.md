@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 IN_PROGRESS; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1339,7 +1339,7 @@ contract revision.
 
 #### DUR-035 implementation record
 
-- **Status:** READY_FOR_REVIEW; implementation and measurement are complete at the fixed target below.
+- **Status:** DONE; Claude's committed round-37 review of target `6679585` returned `NO_BLOCKING_FINDINGS`; R078 and R079 are VERIFIED.
 - **Base commit:** `81927c5` (DUR-034 closeout).
 - **Implementation target:** `11f136a` (directional RQ6 conclusion wording and stage-aware transport interpretation on top of the derived A→B/B→C conclusions, aggregate validation, relay notification evidence, 24-workflow cohort, and fixed worker subprocess measurement).
 - **Goal:** compare two frozen PostgreSQL polling intervals, a `LISTEN/NOTIFY` direct path, and the production `LISTEN/NOTIFY` -> outbox relay -> Kafka path while keeping the committed task outbox row, worker claim API, workload, worker capacity, and terminal reconciliation fixed.
@@ -1351,6 +1351,7 @@ contract revision.
 - **Validation:** `scripts/m7-dur035.ps1`; focused `go test ./cmd/dur035-dispatch ./internal/transport`; `go vet ./cmd/dur035-dispatch ./internal/transport`; `gofmt`; PowerShell parse validation; `git diff --check`; and the repository-wide `scripts/ci.ps1 -WithRace` check recorded in the handoff/build log. The script stops global live consumers around measurement, sweeps its reserved namespace before and after, and restores runtime/worker services in `finally`.
 - **Evidence paths:** `experiments/m7/dur035/results.json`, `scripts/m7-dur035.ps1`, `cmd/dur035-dispatch`, and this implementation record/build-log entry.
 - **Known limits:** evidence is bounded to the single-node Docker Desktop/WSL2 host and a fixed four-process synthetic worker pool; it is not a multi-host or maximum-throughput claim. The derived comparison rule promotes only interval-separated stage effects; this run does not turn the evidence into a general production-capacity claim.
+- **Closeout:** the accepted report should cite the stable terminal-stage transport result and name the campaign it quotes. The ready-to-claim transport increment varied between campaigns and is not a fixed quantity; R057, the historical R019 gap, and the recorded M6 notes remain nonblocking residuals.
 
 ### M8 — Report and portfolio release
 
@@ -1666,7 +1667,13 @@ DUR-034 is DONE at reviewed target `6d2e50d`, based on `50d4b13`. Claude's
 committed round-34 review returned `NO_BLOCKING_FINDINGS` and verified R077.
 The artifact supports mechanism counts and negative-control properties, but
 explicitly withholds performance-cost deltas because clean reruns showed
-unstable spread. The immediate next action is to start DUR-035 using this
-closeout as its review base.
+unstable spread. DUR-035 is now DONE at reviewed target `6679585`, based on
+the DUR-034 closeout `6d2e50d`; Claude's committed round-37 review returned
+`NO_BLOCKING_FINDINGS` and verified R078/R079. Its accepted transport claim is
+bounded to the terminal-stage result: notification-direct is faster than Kafka
+there, while the ready-to-claim increment was unresolved in the quoted run and
+varied across campaigns. The immediate next action is to define and start the
+next TODO M7 study only after its implementation record and validation plan
+are added here.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.
