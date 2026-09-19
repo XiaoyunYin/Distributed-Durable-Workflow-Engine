@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestDUR035ArmProtocol(t *testing.T) {
 	if len(arms) != 4 {
@@ -37,6 +40,10 @@ func TestDUR035ConclusionUsesObservedIntervals(t *testing.T) {
 	conclusions := deriveConclusions(runs)
 	if !conclusions.WakeMechanism.Resolved || !conclusions.TransportEffect.Resolved || !conclusions.CostEffectsResolved {
 		t.Fatalf("observed separated effects were not promoted: %#v", conclusions)
+	}
+	if !strings.Contains(conclusions.Interpretation, "Notification-direct is faster than Kafka") ||
+		!strings.Contains(conclusions.Interpretation, "not a latency optimization") {
+		t.Fatalf("resolved direction was not stated: %s", conclusions.Interpretation)
 	}
 
 	for index := range runs {

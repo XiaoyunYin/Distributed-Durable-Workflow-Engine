@@ -1142,7 +1142,18 @@ func deriveConclusions(runs []runReport) conclusionReport {
 		resolved = append(resolved, "kafka_dispatch_stage_ready_to_claim")
 	}
 	transportInterpretation := "The incremental Kafka transport effect is unresolved at the observed run dispersion. Notification-direct and Kafka are therefore not distinguished as a latency winner at this scale."
-	if transportEffect.Comparisons[0].IntervalsSeparated || transportEffect.Comparisons[1].IntervalsSeparated {
+	if transportEffect.Comparisons[0].IntervalsSeparated && transportEffect.Comparisons[1].IntervalsSeparated {
+		readyKafkaSlower := transportEffect.Comparisons[0].HigherLatencyMS.Median > transportEffect.Comparisons[0].LowerLatencyMS.Median
+		terminalKafkaSlower := transportEffect.Comparisons[1].HigherLatencyMS.Median > transportEffect.Comparisons[1].LowerLatencyMS.Median
+		switch {
+		case readyKafkaSlower && terminalKafkaSlower:
+			transportInterpretation = "Notification-direct is faster than Kafka on both ready-to-claim and terminal latency at the tested scale; Kafka is not a latency optimization here, so any remaining rationale is architectural unless separately measured."
+		case !readyKafkaSlower && !terminalKafkaSlower:
+			transportInterpretation = "Kafka is faster than notification-direct on both reported latency stages at the tested scale."
+		default:
+			transportInterpretation = "The resolved transport result is stage-specific: the reported latency direction differs between ready-to-claim and terminal completion."
+		}
+	} else if transportEffect.Comparisons[0].IntervalsSeparated || transportEffect.Comparisons[1].IntervalsSeparated {
 		transportInterpretation = transportEffect.Summary
 	} else if direct, ok := grouped["notify_direct"]; ok {
 		kafka, kafkaOK := grouped["notify_kafka"]

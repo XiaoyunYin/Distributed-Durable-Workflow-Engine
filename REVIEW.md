@@ -1422,6 +1422,39 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   R079 collects the smaller regressions: the cohort dropped back to 12 workflows per run and the workers returned to in-process after DUR-026 and DUR-034 standardised 24 and four subprocesses, dispatcher CPU is again mixed with worker CPU after R072 fixed that conflation, and the artifact carries no aggregate validation block even though the reconciliation behind it is real. The one I would look at first is the Kafka arm's `notifications: 0`: the relay's own listener is almost certainly doing the wake, and the 7.3 ms median says so indirectly, but as recorded the artifact cannot show that arm C held the wake mechanism notification-driven — and that premise is what makes B→C a transport comparison rather than a confounded one.
 
+### Round 36 — 2026-09-19 — DUR-035 decomposition and discipline verification
+
+- Date and round: 2026-09-19, round 36.
+- Review basis: COMMITTED. The worktree was clean at `f926115` when the review started and remained clean throughout.
+- Base and target commits: base `d08fb13` for this round, code and evidence target `254784d` (with `d4e6fde` adding the conclusions and validation), handoff `f926115`, which changes only documentation. The handoff declaration matches the repository state.
+- Scope inspected: `git diff d08fb13 254784d` — the conclusion and validation generation in `cmd/dur035-dispatch/main.go`, its unit test, the worker-subprocess and CPU-separation changes, the seven added lines in `internal/transport/transport.go`, `scripts/m7-dur035.ps1`, the regenerated `experiments/m7/dur035/results.json`, and the PLAN.md and BUILD_LOG.md updates. No migrations changed. No protected-scope drift: PLAN.md section 14C, the RQ6 row, and the DUR-035 task row are unchanged.
+- Checks personally run (Claude), read-only against the committed artifacts and source:
+  - Read the separation test at main.go:1112 and confirmed `intervals_separated` is computed as `higher.Min > lower.Max` rather than written as a constant, and that `resolved`, `cost_effects_resolved` and `resolved_cost_effects` derive from it.
+  - Checked both comparisons against the published intervals: wake mechanism 152.4 and 578.5 ms against 5.69 ms with non-overlapping ranges; transport 8.84–9.63 ms against 5.08–6.60 ms and 58.59–61.75 ms against 31.86–39.74 ms, separated on both stages.
+  - Read the interpretation-generation branches and identified which one fires when the effect is resolved and direct wins.
+  - Confirmed the protocol now records 24 measured workflows and four worker subprocesses with a rationale, and that runs report dispatcher and worker CPU separately.
+  - Confirmed the aggregate validation block matches Claude's own sum of the run records — 288 measured, 288 terminal, 0 pending, 0 failed — and that Kafka notifications are 336 in total and 112 per run, with zero failures.
+- Codex-reported checks considered but not rerun: the full race and static validation, the 38 Python tests, and the twelve-run study itself.
+- Findings resolved: R079 is VERIFIED.
+- Findings still open: R078, revised from P2 to P3 — the decomposition is complete and computed, but the artifact does not state the section 14C and RQ6 conclusion that applies when direct notification beats Kafka.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R078 as described. This must be closed before the M8 report answers RQ6, because RQ6's expected conclusion is exactly the sentence that is missing.
+  - The DUR-034 harness variability is still unexplained, though the DUR-035 tightening suggests the cohort size and worker model were the main contributors; the same treatment may settle DUR-034.
+  - The polling arm's `worker_cpu_seconds: 0` reflects Windows clock granularity on a one-activity workload.
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - Not exercised by Claude: the study run itself, including the real Kafka path.
+  - DUR-033A remains TODO.
+- Limitations: harness and artifact review plus arithmetic on the committed results; Claude did not rerun the study.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-035 at committed target `254784d` with base `6d2e50d`. This is a COMMITTED, non-provisional review. R001–R079 are VERIFIED apart from the P3 residuals R057 and R078, the recorded M6 notes, and the historical R019 test gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-035 to DONE under PLAN.md section 11, subject to closing R078 before the report answers RQ6.
+
+  The decomposition arrived, and it arrived computed rather than asserted. `intervals_separated` is a real test of whether the higher arm's minimum exceeds the lower arm's maximum, and every resolution flag derives from it, so the artifact can now report an effect as resolved or unresolved on the evidence. Both comparisons separate cleanly: notification-driven dispatch cuts ready-to-claim from 152.4 ms and 578.5 ms to 5.69 ms, ratios of 26.8× and 101.6×, and Kafka adds 3.9 ms at the dispatch stage and 24.7 ms end to end against direct notification, with non-overlapping intervals on both.
+
+  The discipline fixes did more than tidy the protocol — they improved the measurement. Moving back to four worker subprocesses and a 24-workflow cohort dropped the Kafka arm's delay spread from 39.3 percent to about 8 percent, which is what made the transport comparison resolvable at all. Dispatcher CPU is now separated from worker CPU and differs visibly across arms, the aggregate validation block matches my own sum of the runs, the Kafka arm's notification wake is evidenced at 336 notifications instead of the previous zero, and the recurring single Kafka failure per run is gone. That combination is worth carrying back to DUR-034, whose unexplained variability looks like the same cohort-and-worker-model problem.
+
+  What remains is a sentence, not a measurement. PLAN's RQ6 row and section 14C both say that when notification-direct matches or beats Kafka, the study should conclude that Kafka was not a latency optimization at the tested scale and that its remaining rationale is architectural unless separately measured. The data says exactly that — direct is lower on both stages — but the generated interpretation reports only that "the measured Kafka transport increment is resolved", which names neither the direction nor the conclusion, and the branch that would say direct beats Kafka fires only when the effect is unresolved. The strongest case is the one that goes unstated. That is a small change and it should be made before RQ6 is answered in the report, because a reader of the artifact alone would not learn the finding the research question was asked to settle.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -4818,7 +4851,7 @@ superseded by the committed M4 handoff below.
 
 ### R078 — The required A→B and B→C decomposition is missing, and a clearly resolved wake-mechanism effect is withheld by a blanket constant
 
-- Severity: P2
+- Severity: P3 (revised from P2 in round 36; see the round-36 verification)
 - Status: OPEN
 - Deferred: no
 - Reviewed commit: `d08fb13`
@@ -4856,12 +4889,22 @@ superseded by the committed M4 handoff below.
   and the final artifact records the derived wake and transport conclusions.
 - Status: ADDRESSED
 
+#### Claude verification – round 36
+
+- Verification commit: `254784d` (base `d08fb13`).
+- Severity revised: P2 to P3. The decomposition the finding demanded now exists and is computed from the data; what remains is one conclusion sentence.
+- What is fixed: the artifact carries a `conclusions` block with separate `wake_mechanism` and `transport_effect` sections, each listing the compared configurations, both min/median/max intervals, the median difference and ratio, and a separation verdict. The verdict is genuinely computed — `result.IntervalsSeparated = higherRange.Min > lowerRange.Max` at cmd/dur035-dispatch/main.go:1112 — and `Resolved`, `CostEffectsResolved` and `ResolvedCostEffects` are all derived from those comparisons rather than written as literals. The blanket `cost_effects_resolved: false` is gone.
+- The results are now stated and are well separated. Wake mechanism: ready-to-claim falls from 152.4 ms at a 250 ms poll and 578.5 ms at a 1 s poll to 5.69 ms with notification-driven dispatch, ratios of 26.8× and 101.6×, both with non-overlapping intervals. Transport: Kafka's ready-to-claim interval is 8.84 to 9.63 ms against direct's 5.08 to 6.60 ms, and terminal latency 58.59 to 61.75 ms against 31.86 to 39.74 ms — separated on both stages, a +3.9 ms and +24.7 ms increment at about 1.69×. The tightened harness is visible here too: the Kafka arm's delay spread fell from 39.3 percent to roughly 8 percent.
+- What remains: PLAN.md section 14C and the RQ6 row at PLAN.md:48 both require a specific conclusion when direct notification matches or beats Kafka — that at the tested scale Kafka was not a latency optimization and its remaining rationale is architectural unless separately measured. The measured direction is unambiguous: notification-direct is lower on both stages. But the generated interpretation says only "The measured Kafka transport increment is resolved at the reported stages", which states that an increment exists without naming its direction or drawing the required conclusion. The branch that would say "Notification-direct matches or beats Kafka" fires only when the effect is **unresolved** (main.go:1144-1151), so the case where the conclusion is most strongly supported — resolved *and* direct wins — is the one case that omits it. "Increment" is also directionally coy; a reader could take it as Kafka adding capability rather than latency.
+- Suggested remaining work: make the resolved-and-direct-wins case produce the section 14C sentence explicitly — Kafka added roughly 3.9 ms of dispatch delay and 24.7 ms of terminal latency at this four-worker single-host scale, so it was not a latency optimization here and its rationale remains architectural unless separately measured — keeping the existing caveat about decoupling, backlog, connection count and multi-host scaling. This must be closed before the M8 report answers RQ6.
+- Status: OPEN
+
 ---
 
 ### R079 — Measurement discipline regressed from the standard DUR-026 and DUR-034 established, and arm C's notification wake is not evidenced
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `d08fb13`
 - Location: experiments/m7/dur035/results.json (`protocol.measured_workflows: 12`, `protocol.worker_selection: "fixed round-robin pool; four in-process workers"`, `validation: null`, per-run `transport.notifications: 0` for every Kafka run); cmd/dur035-dispatch/main.go:706 (`CPUDescription: "whole command process; includes the fixed in-process worker fixture"`), :694-699 (per-run reconciliation, enforced but not aggregated into the artifact).
@@ -4895,6 +4938,19 @@ superseded by the committed M4 handoff below.
   worker CPU are separately represented in each run; the study remains bounded
   to the single-node WSL2 host.
 - Status: ADDRESSED
+
+#### Claude verification – round 36
+
+- Verification commit: `254784d`.
+- Evidence and remaining concerns: every item is addressed, and the fixes visibly improved the measurement.
+  - **Cohort** is 24 measured workflows per run, matching DUR-026 and DUR-034; 288 measured workflows in total.
+  - **Worker model** is four worker subprocesses again, with a recorded rationale that worker CPU is kept outside the dispatcher process so the arms compare the same execution capacity.
+  - **CPU is separated.** Runs now report `process_cpu_seconds` and `worker_cpu_seconds` with the description "dispatcher process CPU; worker CPU is measured from four fixed subprocesses", so dispatcher cost is comparable across arms — 0.53 s for the polling arm against 0.86 s for Kafka.
+  - **Aggregate validation exists**: measured runs 12, measured and terminal workflows 288, pending 0, failed 0, `all_runs_reconciled: true`, which matches Claude's own sum of the run records.
+  - **Arm C's notification wake is now evidenced**: `kafka_notifications: 336` at the top level and 112 per run, against 0 in the reviewed artifact, so the premise that B→C holds the wake mechanism notification-driven is demonstrated rather than inferred from latency alone.
+  - **The recurring Kafka failure is gone** — `failures: 0` in every Kafka run, against exactly 1 per run before.
+- Minor, not a defect: the polling arm reports `worker_cpu_seconds: 0`. The values are multiples of 15.625 ms, so this is Windows clock granularity on a one-activity workload rather than a missing measurement; worth a footnote if worker CPU is ever compared across arms.
+- Status: VERIFIED
 
 ---
 
