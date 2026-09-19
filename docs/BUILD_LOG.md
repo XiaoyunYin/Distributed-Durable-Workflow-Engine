@@ -2057,3 +2057,34 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - Focused tests and static checks pass. No live measurement artifact has been
   accepted yet; the next step is the PostgreSQL campaign on the declared
   single-node host.
+
+## 2026-09-19 - DUR-027 campaign evidence
+
+- The committed campaign target was `c29ba429a5f7645bb3fff39b6fed42db452ad760`;
+  the artifact is `experiments/m7/dur027/results.json`. It records three TTL
+  arms (100 ms, 250 ms, 750 ms), three repeats per arm, 24 cases per run,
+  216 completed cases, 108 owner-pause takeovers, 108 useful post-takeover
+  transitions, 324 stale-owner writes rejected, zero false takeovers, and
+  nine measured PostgreSQL lock-contention cases.
+- Observed takeover medians were 125.3 ms, 276.2 ms, and 776.9 ms for the
+  three arms. Normal-renewal traffic averaged 170.7, 94.3, and 57.7
+  renewals per run respectively. The artifact derives these summaries from
+  the per-run records and explicitly limits the pause interpretation to
+  in-process lease expiry/fencing, not a hard kill or multi-host claim.
+- The runner validated `PASS`, all 9 runs and 216 cases, zero false
+  takeovers, 108 useful recoveries, and zero reserved workflow/definition
+  rows after cleanup. It stopped and restored only the four foundation
+  runtime/worker services; PostgreSQL and Kafka were not recreated.
+- Early campaign attempts were useful harness fixes, not accepted evidence:
+  `0cc6081` corrected PowerShell URL interpolation, `abbb399` and `550bb51`
+  re-armed short leases around setup/recovery, `8ffb831` made partition-ID
+  selection search the frozen mapping deterministically, `35995e6` isolated
+  the lock fixture before workflow setup, and `c29ba42` distinguished safe
+  lease preservation from a false takeover. Failed artifacts were removed;
+  only the final `PASS` artifact is retained.
+- The live runner passed `scripts/m7-dur027.ps1` and restored the services.
+  The repository-wide Go race/vet/build and formatting phases passed. The CI
+  wrapper initially hit inaccessible host Go/uv/pytest caches; with task-local
+  `GOCACHE`, `UV_CACHE_DIR`, and pytest basetemp, the complete Python suite
+  passed 38/38, including the Go fault-fixture subprocess test. PowerShell
+  parse validation and `git diff --check` also passed.

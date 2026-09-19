@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 IN_PROGRESS; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 READY_FOR_REVIEW; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1355,7 +1355,7 @@ contract revision.
 
 #### DUR-027 implementation record
 
-- **Status:** IN_PROGRESS; implementation record established before the lease study.
+- **Status:** READY_FOR_REVIEW; campaign and evidence artifact are complete; Claude review is pending.
 - **Base commit:** `a4c5ac4` (DUR-035 closeout).
 - **Dependencies:** DUR-036, the M1-M5 ownership/claim guarantees, and the section-14 measurement discipline.
 - **Goal:** compare frozen scheduler lease TTLs under normal renewal and an owner pause, measuring takeover delay, useful post-takeover work, renewal traffic, false takeovers, stale-owner fencing, and database lock contention.
@@ -1685,8 +1685,8 @@ the DUR-034 closeout `6d2e50d`; Claude's committed round-37 review returned
 `NO_BLOCKING_FINDINGS` and verified R078/R079. Its accepted transport claim is
 bounded to the terminal-stage result: notification-direct is faster than Kafka
 there, while the ready-to-claim increment was unresolved in the quoted run and
-varied across campaigns. The immediate next action is to define and start the
-next TODO M7 study only after its implementation record and validation plan
-are added here.
+varied across campaigns. The immediate next action is Claude's review of the
+DUR-027 committed lease campaign. DUR-028, DUR-029, and DUR-033A remain TODO
+until their own implementation records and validation plans are added here.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.
