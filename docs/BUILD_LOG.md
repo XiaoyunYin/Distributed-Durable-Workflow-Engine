@@ -2473,3 +2473,19 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   reproduction. Full code/service suites were not rerun because this task only
   adds and indexes documentation; their accepted results remain in the linked
   artifacts and prior closeout records.
+
+## 2026-09-19 - DUR-030 closeout
+
+- Claude's committed round-46 review returned `NO_BLOCKING_FINDINGS` for the
+  report target `51e1957` against base `855c63e`; DUR-030 is marked `DONE` in
+  PLAN.md.
+- Claude independently audited 27 quoted figures against the DUR-026/027/028/
+  034/035/029 artifacts and found no mismatches. The report's 14 local links,
+  48/48 fault-campaign claim, scope qualifiers, reference links, and explicit
+  no-parity wording were accepted.
+- R089 remains a nonblocking P3 follow-up: the adversarial rates are sound but
+  should carry their 2/20 defended and 6/20 plain counts in a future report
+  revision. R057, R083, and R088, plus the historical R019 gap and recorded M6
+  notes, remain nonblocking residuals.
+- No code, migration, experiment, provider call, external action, or budget
+  changed during closeout.

@@ -1745,6 +1745,35 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   R088 is the small thing that mutation testing turned up in passing: the same resource binding is checked twice, and only the enforcement copy is covered. That is a maintenance risk rather than a security gap — the check that gates the mutation is pinned by two independent tests — but a redundant guard nobody tests is a guard that can quietly disappear, and this is precisely the binding R049 was about. One focused case on `ValidateApprovalGrant` closes it.
 
+### Round 46 — 2026-09-19 — DUR-030 technical report and reference context
+
+- Date and round: 2026-09-19, round 46.
+- Review basis: COMMITTED. The worktree was clean at `5624fe4` when the review started and remained clean throughout.
+- Base and target commits: base `855c63e` (DUR-033A closeout), report target `51e1957`, handoff `5624fe4`. Both declared commits resolve as ancestors of HEAD.
+- Scope inspected: the whole of `docs/TECHNICAL_REPORT.md` (381 lines), plus the PLAN.md, README.md, BUILD_LOG.md and REVIEW.md updates in the same commits. This is report/release work, so the review focused on whether every published claim is supported by the recorded evidence and correctly scoped, per CLAUDE.md's report-review priority.
+- Checks personally run (Claude), read-only:
+  - **Numeric audit.** Extracted 27 quoted figures spanning DUR-026, DUR-027, DUR-028, DUR-034, DUR-035 and DUR-029 and compared each against its artifact: throughput medians, latency medians, checkpoint completion times and ratio, recomputed-chunk counts, history and outbox row counts, adversarial excess rates, canary and negative-control leak counts, approval totals, and the paid ledger. **All 27 matched; zero mismatches.**
+  - **Link audit.** 14 unique local evidence links, all resolving.
+  - **Campaign verification.** Confirmed `f01-f11-results.json` holds 48 records across 16 distinct case IDs and three seeds, all PASS, matching the "48/48" claim.
+  - **Claim language audit.** "Exactly-once" appears only in disclaimers; no "proves", "production-ready", or unqualified guarantee language.
+  - Read every section and compared its scoping against the findings established across rounds 30 to 45.
+- Codex-reported checks considered but not rerun: the artifact audits and `git diff --check`.
+- Findings: new R089 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R089 as described, plus the standing residuals R057, R083 and R088 — all three of which the report itself names in its limitations section — and the historical R019 gap, also named there.
+  - The DUR-027 table places crash and pause takeover medians side by side, and their clocks start at different points in the fault lifecycle. The prose immediately below the table explains this, which is better than the artifact does, but the columns still invite a direct comparison.
+  - PLAN.md:1571's instruction to lead the final README with at most three measured findings is release work under DUR-032 rather than DUR-030; the README currently points to the report instead. Worth carrying forward.
+  - The DUR-034 harness variability remains unexplained; the report correctly withholds any cost claim because of it.
+- Limitations: documentary review plus independent numeric and link audits; Claude did not re-execute any study.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-030 at committed target `51e1957` with base `855c63e`. This is a COMMITTED, non-provisional review. R001–R089 are VERIFIED apart from the P3 residuals R057, R083, R088 and R089, and the historical R019 gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-030 to DONE under PLAN.md section 11.
+
+  This is the round where forty-five rounds of scoping either held or did not, and it held. Every number I checked traces to an artifact, and more importantly every claim carries the qualifier the underlying study actually earned. DUR-026 is presented as an engine-path result and explicitly "not end-to-end API/Kafka throughput". DUR-034 publishes its mechanism counts and then states plainly that "No cost effect is promoted", citing the 3.2 to 29.3 percent repeated-run spread as the reason — the study's most tempting table is the one it refuses to draw a conclusion from. DUR-035 names the campaign it quotes and says the dispatch-stage increment "is not stable across runs", which is precisely the caution I raised in round 37. DUR-028's 7.6× is bound to "one SHA-256 work unit per chunk" and disclaimed as "not a general checkpoint policy or a crossover estimate". DUR-027 notes that short TTLs are measurement settings rather than recommendations, and that the crash clock starts after confirmed death.
+
+  Two things go beyond what I asked for. The report carries my own open findings into its limitations by number — R057, R083, R088 and the R019 gap — rather than leaving them in the review file, and the correctness section explains the R057 labelling residual in place and then states that the report does not rely on that label. And the claim-to-evidence register does what PLAN asks of resume-facing work: seven published claims, each mapped to exact artifact paths with its configuration and limit in the adjacent column. The reference table covers Temporal, DBOS, Restate and River with an explicit no-parity disclaimer in every row.
+
+  R089 is the one gap, and it is narrow: the adversarial guardrail rates are published as 0.10 versus 0.30 without the counts behind them, in a report that two paragraphs earlier says rates should be quoted with their counts. Those rates are four cases out of twenty per profile. The measurement is sound and the clean-clean baseline that makes it meaningful is implemented, but this is the sentence most likely to be repeated away from its evidence, so it is the one that most needs its denominator attached.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -3369,6 +3398,38 @@ For each round, record:
 - Evidence (checks Claude personally ran, in a scratch export of `95948cb` against a throwaway `cr_m8` database migrated 000001–000014): replaced the :909 return with a no-op and ran `go test ./internal/incident -run TestDUR033AProductionPath` — FAIL at production_integration_test.go:188 with the expected message. Restored, replaced the :667 return with a no-op, and ran `go test ./internal/state ./internal/incident ./internal/effects` — all three packages `ok`. Restored the file and confirmed zero mutations remained before the final suite run.
 - Suggested correction: add a focused unit or integration case that calls `ValidateApprovalGrant` directly with a mismatched `ResourceID` and asserts `ErrEffectResource`, so both layers of the binding are pinned. The M4 integration test is the natural home, beside the existing `ApplyEffect` case.
 - Suggested validation: removing either resource check should fail at least one test.
+
+---
+
+### R089 — The adversarial guardrail rates are published without their counts, against the report's own stated standard
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `51e1957`
+- Location: docs/TECHNICAL_REPORT.md, "Retrieval, incident-agent, and approval evidence — M6/M7" (the adversarial paragraph), against the sentence two paragraphs earlier that says of the live-agent rates "so the rates should be quoted with their counts".
+- Failure scenario and impact: the report states "Excess injection-associated proposal change was 0.10 defended versus 0.30 plain, a 0.20 difference." The arithmetic is correct and Claude reproduced it from the 120 raw rows in round 44: defended had 2 clean-clean flips and 4 clean-injected changes of 20 cases, plain had 4 and 10. So the headline 0.20 difference is a difference of four cases out of twenty per profile.
+
+  Presented as three decimal rates, the result reads more robust than a twenty-case sample supports. That matters because this is the report's most quotable safety claim — it is the RQ8 answer, it is the one agent-side guardrail finding, and it is exactly the sentence likely to be lifted into a resume bullet or an interview answer, where "reduced injection-associated proposal change from 0.30 to 0.10" would be heard as a stable effect rather than as six flips versus two.
+
+  The report already articulates the right standard for its neighbouring numbers, noting that the live-agent rates "should be quoted with their counts", and it applies that standard well elsewhere: the M5 campaign is given as 48/48, DUR-027 as 60 episodes, the approval result as 27 of 27 with zero completed without approval. The adversarial rates are the one place the standard is stated and then not followed.
+
+  This is a presentation gap, not a measurement error. PLAN.md's own variability control for this comparison — estimating each profile's baseline with a clean-versus-clean replicate before interpreting the injected change — is implemented and is what makes the excess figure meaningful at all.
+- Evidence (checks Claude personally ran): re-derived the four underlying counts from `experiments/m7/dur029/live-adversarial.json` by comparing canonical proposal signatures per case and replicate (defended 2 and 4 of 20; plain 4 and 10 of 20), matching the published rates exactly; confirmed the report quotes only the rates and the difference; confirmed the "quoted with their counts" sentence appears in the same section for the live-agent rates.
+- Suggested correction: give the counts inline — for example "0.10 defended (2 of 20 cases above its clean-clean baseline) versus 0.30 plain (6 of 20), a difference of four cases" — and repeat the counts in the claim-to-evidence register row for that claim. Where the number is later reused in the README, DUR-031 resume mapping, or an interview walkthrough, carry the counts with it.
+- Suggested validation: every rate in the report is accompanied by its numerator and denominator, or by the sample size in the same sentence.
+
+### Codex response — round 46
+
+- **Disposition:** carried as an open, nonblocking P3; no change was made to
+  the reviewed report target after Claude's acceptance.
+- **Rationale:** DUR-030 is accepted at `51e1957` with
+  `NO_BLOCKING_FINDINGS`. The denominator wording is a useful follow-up for a
+  later report/resume revision, but it is presentation-only and does not alter
+  the measured result or the acceptance boundary.
+- **Follow-up:** carry `2/20` defended cases above baseline and `6/20` plain
+  cases above baseline whenever the RQ8 rate is reused in DUR-031 or a later
+  report revision.
 
 ---
 
@@ -6987,3 +7048,23 @@ final target and artifact before any M7 status changes.
   unresolved results, the $30 paid budget is not expanded, and Temporal/DBOS/
   Restate/River are used only for linked architectural context. Do not mark
   DUR-030 DONE until Claude records a committed `NO_BLOCKING_FINDINGS` review.
+
+## Codex closeout - DUR-030 technical report
+
+- **Task status:** DONE; M8 remains IN_PROGRESS.
+- **Handoff basis:** COMMITTED.
+- **Reviewed target:** `51e1957` with base `855c63e`.
+- **Review:** Claude's committed round-46 review returned
+  `NO_BLOCKING_FINDINGS`. Claude audited 27 quoted figures against the linked
+  DUR-026/027/028/034/035/029 artifacts, verified all 14 local links, and
+  confirmed the report's scope qualifiers and no-parity reference context.
+- **Acceptance:** the report covers the named failure traces, performance and
+  recovery tables, safeguard and dispatch findings, M6/M7 agent evidence,
+  production-path boundary, cost, limitations, and claim-to-evidence register.
+- **Remaining nonblocking:** R089 remains OPEN as a P3 presentation follow-up
+  for carrying the adversarial 2/20 defended and 6/20 plain counts with the
+  published rates. R057, R083, R088, the historical R019 gap, and recorded M6
+  notes remain nonblocking residuals. No reviewed report claim depends on
+  treating those residuals as resolved.
+- **Next action:** prepare the DUR-031 interview-evidence record; keep R089's
+  denominator wording available for a later report revision.

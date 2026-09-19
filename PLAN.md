@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1494,7 +1494,8 @@ contract revision.
 
 #### DUR-030 implementation record
 
-- **Status:** READY_FOR_REVIEW; report and evidence audit complete; Claude review pending.
+- **Status:** DONE; Claude's committed round-46 review returned
+  NO_BLOCKING_FINDINGS for target `51e1957`.
 - **Base commit:** `855c63e` (DUR-033A closeout; M8/DUR-030 was the next
   planned task).
 - **Implementation target:** `51e1957` (report, plan record, README status, and
@@ -1518,7 +1519,9 @@ contract revision.
 - **Protected boundaries:** no code, migration, experiment rerun, provider
   call, external action, budget change, or protected-scope change is part of
   DUR-030.
-- **Known limitations:** the report inherits each artifact's host, workload,
+- **Known limitations:** R089 remains an open nonblocking P3 presentation
+  follow-up for adding adversarial numerator/denominator counts. The report
+  inherits each artifact's host, workload,
   crash-model, sample-size, and production-integration limits. It is not a
   replacement for DUR-031 interview walkthroughs or DUR-032 clean-checkout
   release validation.
@@ -1836,10 +1839,11 @@ on the DUR-027 closeout `b09095c`; Claude's round-42 review returned
 target `5b9d65c`, based on `000ec83`; Claude's round-44 review returned
 `NO_BLOCKING_FINDINGS` and verified R086/R087. DUR-033A is DONE at reviewed
 implementation target `95948cb`, based on `670fcd2`; Claude's round-45 review
-returned `NO_BLOCKING_FINDINGS` and closed the R064 follow-up. DUR-030 is now
-`IN_PROGRESS` from base `855c63e`; its draft report is
+returned `NO_BLOCKING_FINDINGS` and closed the R064 follow-up. DUR-030 is DONE
+at reviewed target `51e1957` against base `855c63e`; Claude's committed
+round-46 review returned `NO_BLOCKING_FINDINGS`. Its report is
 `docs/TECHNICAL_REPORT.md` and its evidence register points at the committed
-M5-M7 artifacts and the DUR-033A integration. R057, R083, and R088 remain
-nonblocking P3 findings carried forward.
+M5-M7 artifacts and the DUR-033A integration. R057, R083, R088, and R089 remain
+nonblocking P3 findings carried forward. The next planned M8 task is DUR-031.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.
