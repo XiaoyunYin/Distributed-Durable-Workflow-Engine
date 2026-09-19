@@ -60,7 +60,7 @@ try {
     $databasePassword = EnvValue "POSTGRES_PASSWORD" ""
     $databasePort = EnvValue "POSTGRES_PORT" "5432"
     if ([string]::IsNullOrWhiteSpace($databasePassword)) { throw "POSTGRES_PASSWORD is missing from .env." }
-    $databaseURL = "postgresql://$databaseUser`:$databasePassword@127.0.0.1`:$databasePort/$databaseName?sslmode=disable"
+    $databaseURL = "postgresql://${databaseUser}:$databasePassword@127.0.0.1:${databasePort}/${databaseName}?sslmode=disable"
 
     # Foundation runtimes renew leases for their own partitions. Stop only
     # those relay/scheduler processes around the bounded measurement and put
