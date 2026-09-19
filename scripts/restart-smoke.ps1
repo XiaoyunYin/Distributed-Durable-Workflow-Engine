@@ -15,7 +15,9 @@ try {
     & docker @config up -d --force-recreate --wait postgres kafka kafka-init
     if ($LASTEXITCODE -ne 0) { throw "Dependencies did not recover after container recreation." }
 
-    & docker @config exec -T postgres psql -v ON_ERROR_STOP=1 -U $databaseUser -d $databaseName -c "SELECT id FROM engine.environment_restart_smoke WHERE id = 1; DROP TABLE engine.environment_restart_smoke;"
+    $marker = & docker @config exec -T postgres psql -At -v ON_ERROR_STOP=1 -U $databaseUser -d $databaseName -c "SELECT count(*) FROM engine.environment_restart_smoke WHERE id = 1;"
+    if ($LASTEXITCODE -ne 0 -or ($marker | Out-String).Trim() -ne '1') { throw 'PostgreSQL restart marker did not survive.' }
+    & docker @config exec -T postgres psql -v ON_ERROR_STOP=1 -U $databaseUser -d $databaseName -c "DROP TABLE engine.environment_restart_smoke;"
     if ($LASTEXITCODE -ne 0) { throw "PostgreSQL restart marker did not survive." }
     $topics = & docker @config exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list
     if ($LASTEXITCODE -ne 0 -or $topics -notcontains $topic) { throw "Kafka restart marker topic did not survive." }

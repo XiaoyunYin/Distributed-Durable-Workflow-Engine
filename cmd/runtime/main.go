@@ -74,6 +74,9 @@ func main() {
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
+	if store != nil && envOrDefault("RUNTIME_SCHEDULER", "disabled") == "enabled" {
+		go runScheduler(ctx, store, splitBrokers(os.Getenv("KAFKA_BOOTSTRAP_SERVERS")), envOrDefault("RUNTIME_NAMESPACE", "local-runtime"))
+	}
 	var broker transport.Broker
 	if store != nil {
 		brokers := splitBrokers(os.Getenv("KAFKA_BOOTSTRAP_SERVERS"))

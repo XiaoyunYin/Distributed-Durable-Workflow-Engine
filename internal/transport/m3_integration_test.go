@@ -12,8 +12,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/segmentio/kafka-go"
-
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
 )
@@ -249,8 +247,8 @@ func TestM3KafkaTaskAndEventRoundTrip(t *testing.T) {
 
 	consume := func(topic, eventID string) {
 		t.Helper()
-		source, sourceErr := newKafkaSourceWithStartOffset(splitBrokers(brokerList), topic,
-			"m3-kafka-"+state.NewID(), kafka.FirstOffset)
+		source, sourceErr := NewKafkaSource(splitBrokers(brokerList), topic,
+			"m3-kafka-"+state.NewID())
 		if sourceErr != nil {
 			t.Fatal(sourceErr)
 		}
@@ -278,17 +276,6 @@ func TestM3KafkaTaskAndEventRoundTrip(t *testing.T) {
 	}
 	consume(state.EventTopic, events[0].EventID)
 	consume(state.TaskTopic, taskEventID)
-}
-
-func newKafkaSourceWithStartOffset(brokers []string, topic, groupID string, startOffset int64) (*KafkaSource, error) {
-	if len(brokers) == 0 || topic == "" || groupID == "" {
-		return nil, errors.New("Kafka brokers, topic, and group ID are required")
-	}
-	return &KafkaSource{reader: kafka.NewReader(kafka.ReaderConfig{
-		Brokers: brokers, Topic: topic, GroupID: groupID,
-		MinBytes: 1, MaxBytes: 10e6, MaxWait: 250 * time.Millisecond,
-		StartOffset: startOffset,
-	})}, nil
 }
 
 func splitBrokers(value string) []string {

@@ -1,5 +1,28 @@
 # Architecture and scope decisions
 
+## D014 - Wire the local deployment through existing durable boundaries
+
+- Date: 2026-09-19
+- Status: implementation decision; user authorized fixing the self-check gaps.
+
+Both runtime replicas run lease-fenced external-activity interpreters and
+Kafka event ingestion. A bounded namespace-scoped PostgreSQL repair scan
+remains authoritative when delivery is lost. Python slots consume Kafka,
+record inbox/poison disposition through the local API, commit offsets only
+after that disposition, and claim the exact delivered attempt before work.
+Uncertain HTTP results retry identical bodies. New groups start at earliest
+retained offsets; existing groups resume from committed offsets. The previous
+LastOffset study default and test-only constructor are not deployment defaults.
+
+Automatic work uses the local-runtime namespace and allowlists pure.echo/v1
+and pure.add/v1. Unsupported definitions pause before dispatch. Approval/effect
+integration remains the separately reviewed DUR-033A path; no paid calls or
+new external actions are enabled. The API remains unauthenticated and
+localhost-published. The rejected alternative was claiming deployed operation
+from a readiness fixture or trusting broker-supplied execution input/version.
+
+Client reference: https://kafka-python.readthedocs.io/en/2.2.16/apidoc/KafkaConsumer.html
+
 ## D001 - DUR-001 development pins
 
 - Date: 2026-09-14

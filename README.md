@@ -51,7 +51,8 @@ production authentication, multi-host durability, or final performance.
 
 - PostgreSQL 18.6 with data checksums and durability settings enabled.
 - Apache Kafka 4.3.1 in single-node KRaft combined mode.
-- Two foundation Go runtime processes and two foundation Python worker processes.
+- Two Go scheduler/API/event-ingestor replicas and two Python Kafka worker
+  processes (four consumer/activity slots each).
 - OpenTelemetry Collector 0.160.0 and Prometheus 3.13.0 LTS, with both
   runtime replicas verified as Prometheus scrape targets.
 
@@ -93,6 +94,15 @@ Useful endpoints:
 When `DATABASE_URL` and `KAFKA_BOOTSTRAP_SERVERS` are set, each runtime replica
 also starts the bounded transactional-outbox relay. Kafka publication is a
 transport action only; workflow state remains in PostgreSQL.
+
+Compose also enables the scheduler repair loop for the `local-runtime`
+namespace. Workers consume the task topic, persist inbox disposition through
+the control API, then claim and execute allowlisted `pure.echo/v1` and
+`pure.add/v1` activities. Unsupported activity versions/effect activities are
+paused, not executed. Approval/effect integration retains the separately
+reviewed DUR-033A test scope; this wiring adds no external action capability.
+Run `scripts/local-demo.ps1` after bootstrap for an API → Kafka → Python →
+durable-result demo checked against the independent invariant checker.
 
 Ports can be changed in the local `.env` file.
 

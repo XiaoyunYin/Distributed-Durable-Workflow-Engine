@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import logging
 import os
 import signal
 import sys
@@ -14,12 +15,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from faults.client import FailpointClient
 
 from workers import __version__
+from workers.kafka_worker import start_pool
 from workers.registry import default_registry
 from workers.runner import ActivityTask, runner_for_url
 
 
 class HealthHandler(BaseHTTPRequestHandler):
-    """Serve process health until the Kafka activity runner is implemented."""
+    """Process health; this is not a claim that dependencies are available."""
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
         if self.path not in {"/healthz", "/readyz"}:
@@ -45,6 +47,17 @@ class HealthHandler(BaseHTTPRequestHandler):
 def run() -> None:
     host, port_text = os.getenv("WORKER_ADDR", "0.0.0.0:8081").rsplit(":", 1)
     server = ThreadingHTTPServer((host, int(port_text)), HealthHandler)
+    logging.basicConfig(level=logging.INFO)
+    stopping = threading.Event()
+    threads = []
+    if brokers := os.getenv("KAFKA_BOOTSTRAP_SERVERS"):
+        threads = start_pool(
+            brokers,
+            os.getenv("CONTROL_API_URL", "http://127.0.0.1:8080"),
+            os.getenv("WORKER_ID", "worker"),
+            stopping,
+            int(os.getenv("WORKER_SLOTS", "4")),
+        )
     # A worker process can participate in deterministic M5 campaigns without
     # making fault control a production dependency. With no endpoint this is a
     # no-op; with one, startup is acknowledged at a named boundary.
@@ -58,6 +71,7 @@ def run() -> None:
             failpoint.close()
 
     def stop(_signum: int, _frame: object) -> None:
+        stopping.set()
         threading.Thread(target=server.shutdown, daemon=True).start()
 
     signal.signal(signal.SIGTERM, stop)
@@ -73,6 +87,9 @@ def run() -> None:
         flush=True,
     )
     server.serve_forever()
+    stopping.set()
+    for thread in threads:
+        thread.join(timeout=2)
     server.server_close()
 
 

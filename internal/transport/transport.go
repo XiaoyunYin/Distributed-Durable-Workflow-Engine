@@ -410,9 +410,9 @@ func NewKafkaSource(brokers []string, topic, groupID string) (*KafkaSource, erro
 	return &KafkaSource{reader: kafka.NewReader(kafka.ReaderConfig{
 		Brokers: brokers, Topic: topic, GroupID: groupID,
 		MinBytes: 1, MaxBytes: 10e6, MaxWait: 250 * time.Millisecond,
-		// A newly-created study group starts at records published after the
-		// source starts; existing groups still resume from committed offsets.
-		StartOffset: kafka.LastOffset,
+		// A new deployment must not skip dispatches committed before startup.
+		// Existing groups still resume from their committed offsets.
+		StartOffset: kafka.FirstOffset,
 	})}, nil
 }
 

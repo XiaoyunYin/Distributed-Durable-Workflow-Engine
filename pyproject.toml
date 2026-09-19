@@ -4,7 +4,7 @@ version = "0.1.0.dev0"
 description = "Python activity-worker foundation for the durable execution engine"
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
-dependencies = []
+dependencies = ["kafka-python==2.2.16"]
 
 [dependency-groups]
 dev = [
@@ -33,3 +33,7 @@ python_version = "3.12"
 strict = true
 mypy_path = "python"
 packages = ["workers", "incident_agent", "durable_contracts", "faults"]
+
+[[tool.mypy.overrides]]
+module = ["kafka", "kafka.*"]
+ignore_missing_imports = true

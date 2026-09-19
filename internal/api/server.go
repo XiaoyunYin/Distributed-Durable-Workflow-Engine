@@ -51,16 +51,18 @@ type ApprovalRepository interface {
 }
 
 type Server struct {
-	repository Repository
+	repository       Repository
+	workerConsumerID string
 }
 
 func NewServer(repository Repository) *Server {
-	return &Server{repository: repository}
+	return &Server{repository: repository, workerConsumerID: "runtime-workers-v1"}
 }
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("POST /v1/workflows", s.createWorkflow)
+	mux.HandleFunc("POST /v1/worker-deliveries", s.workerDelivery)
 	mux.HandleFunc("GET /v1/workflows/{workflowID}", s.getWorkflow)
 	mux.HandleFunc("GET /v1/workflows/{workflowID}/history", s.getHistory)
 	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/claim", s.claimAttempt)
@@ -134,9 +136,10 @@ type applyCancellationRequest struct {
 }
 
 type claimAttemptRequest struct {
-	WorkerID       string `json:"worker_id"`
-	RequestID      string `json:"request_id"`
-	AttemptLeaseMS int64  `json:"attempt_lease_ms,omitempty"`
+	ExpectedAttempt int64  `json:"expected_attempt,omitempty"`
+	WorkerID        string `json:"worker_id"`
+	RequestID       string `json:"request_id"`
+	AttemptLeaseMS  int64  `json:"attempt_lease_ms,omitempty"`
 }
 
 type heartbeatRequest struct {
@@ -196,14 +199,15 @@ func (s *Server) claimAttempt(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
 	}
-	if request.WorkerID == "" || request.RequestID == "" || request.AttemptLeaseMS < 0 {
+	if request.WorkerID == "" || request.RequestID == "" || request.AttemptLeaseMS < 0 || request.ExpectedAttempt < 0 {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "worker_id, request_id, and a non-negative attempt_lease_ms are required", nil)
 		return
 	}
 	claim, err := repository.ClaimAttempt(r.Context(), state.ClaimInput{
 		WorkflowID: workflowID, NodeID: nodeID, Iteration: iteration,
 		WorkerID: request.WorkerID, RequestID: request.RequestID,
-		AttemptLease: time.Duration(request.AttemptLeaseMS) * time.Millisecond,
+		AttemptLease:    time.Duration(request.AttemptLeaseMS) * time.Millisecond,
+		ExpectedAttempt: request.ExpectedAttempt,
 	})
 	if err != nil {
 		writeRepositoryError(w, err)

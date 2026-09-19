@@ -1074,7 +1074,7 @@ func (s *Store) ClaimAttempt(ctx context.Context, input ClaimInput) (ClaimResult
 		return ClaimResult{}, fmt.Errorf("lock workflow for claim: %w", err)
 	}
 	if workflowState != StateWaitingActivity {
-		return ClaimResult{}, fmt.Errorf("workflow state %s cannot claim work", workflowState)
+		return ClaimResult{}, fmt.Errorf("%w: workflow state %s cannot claim work", ErrAttemptNotCurrent, workflowState)
 	}
 	var existingWorkflowID string
 	var existingNodeID string
@@ -1099,6 +1099,9 @@ func (s *Store) ClaimAttempt(ctx context.Context, input ClaimInput) (ClaimResult
 		if existingToken == nil || !existingCurrent || existingState != AttemptClaimed {
 			return ClaimResult{}, ErrStaleClaim
 		}
+		if input.ExpectedAttempt != 0 && existingNumber != input.ExpectedAttempt {
+			return ClaimResult{}, ErrAttemptNotCurrent
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return ClaimResult{}, err
 		}
@@ -1121,6 +1124,9 @@ func (s *Store) ClaimAttempt(ctx context.Context, input ClaimInput) (ClaimResult
 			return ClaimResult{}, ErrNodeNotFound
 		}
 		return ClaimResult{}, fmt.Errorf("lock node for claim: %w", err)
+	}
+	if input.ExpectedAttempt != 0 && attemptNumber != input.ExpectedAttempt {
+		return ClaimResult{}, ErrAttemptNotCurrent
 	}
 	var token string
 	var effectClass EffectClass

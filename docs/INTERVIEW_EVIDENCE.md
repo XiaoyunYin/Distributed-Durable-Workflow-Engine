@@ -1,9 +1,9 @@
 # DUR-031 interview evidence and personal walkthroughs
 
-Status: READY_FOR_REVIEW. This pack is based on the accepted M8 report and the
-reviewed implementation artifacts. It is not a substitute for the user's
-walkthroughs: the three user-action items at the end remain unchecked until
-the user performs them and records what changed and what was observed.
+Status: DONE at reviewed target fab88ac (Claude round 47). The release wording
+below is being updated under DUR-032. Codex performed the recorded exercises
+at the user's explicit request; this is reproducible engineering evidence,
+not evidence that the user personally performed or explained the exercises.
 
 Baseline for this task: 242cdcb, the DUR-030 closeout. This task adds
 documentation and indexes existing evidence; it makes no provider calls, paid
@@ -18,16 +18,20 @@ result, and the limit of the conclusion.
 
 The three proposed resume-level findings are deliberately bounded:
 
-1. A fenced durable engine recovered named crash and message-fault cases in a
-   48/48 controller/checker campaign.
-2. With a fixed four-process worker pool, two schedulers sustained the tested
+1. With a fixed four-process worker pool, two schedulers sustained the tested
    2/s offered rate where one scheduler did not on the DUR-026 engine path.
-3. In the quoted DUR-035 campaign, Kafka was slower than direct notification
+2. In the quoted DUR-035 campaign, Kafka was slower than direct notification
    at the resolved terminal stage; the dispatch-stage comparison was
    unresolved and varied across campaigns.
 
-The checkpoint, lease, safeguard, retrieval, approval, and production-path
-claims below are supporting interview claims, not broader production claims.
+3. At one SHA-256 work unit per chunk, every-chunk checkpointing took 7.5552
+   times the boundary-only median in the recorded in-process panic workload.
+   This is one measured cost point, not a general policy or crossover estimate.
+
+The 48/48 controller/checker campaign is a separate bounded validation claim.
+Safeguard cost is not a headline finding: DUR-034 resolved no cost effect.
+Lease, retrieval, approval, and production-path claims below are supporting
+interview evidence, not broader production claims.
 
 ## Claim-to-evidence map
 
@@ -135,7 +139,7 @@ sanity check, not as evidence that the user independently reproduced it.
 
 ## Recorded walkthrough evidence
 
-The user walkthroughs were performed on 2026-09-19 at the user's request.
+Codex performed these walkthroughs on 2026-09-19 at the user's request.
 The reviewed worktree remained unchanged throughout.
 
 ### Lease/attempt mutation
@@ -198,15 +202,16 @@ point.
   configurations, limits, and reproduction commands.
 - [x] Codex independently recomputed the DUR-028 ratio from the committed
   artifact (7.5552).
-- [x] User explains and performs the lease/attempt mutation in a scratch copy;
+- [x] Codex performs the lease/attempt mutation in a scratch copy on request;
   observed failure and restored tree are recorded.
-- [x] User walks through the ambiguous-effect timeout and late-evidence rule;
+- [x] Codex walks through the ambiguous-effect timeout and late-evidence rule;
   the distinction between pure, cooperating, and non-cooperating effects is
   recorded.
-- [x] User independently runs the DUR-028 offline reproduction and explains
+- [x] Codex independently runs the DUR-028 offline reproduction and explains
   why the result is bounded.
-- [ ] Claude reviews the committed DUR-031 pack and the recorded walkthrough
+- [x] Claude reviews the committed DUR-031 pack and the recorded walkthrough
   evidence.
 
-DUR-031 is ready for Claude review. It is not DONE until Claude records a
-committed `NO_BLOCKING_FINDINGS` review.
+DUR-031 was accepted in round 47. The user's personal interview fluency is
+not established by these delegated exercises; the user can repeat them for
+practice. This attribution correction does not rewrite Claude's review.

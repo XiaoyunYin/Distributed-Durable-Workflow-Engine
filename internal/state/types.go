@@ -294,12 +294,13 @@ type Attempt struct {
 }
 
 type ClaimInput struct {
-	WorkflowID   string
-	NodeID       string
-	Iteration    int
-	WorkerID     string
-	RequestID    string
-	AttemptLease time.Duration
+	ExpectedAttempt int64 // Optional transport fence; zero preserves direct API compatibility.
+	WorkflowID      string
+	NodeID          string
+	Iteration       int
+	WorkerID        string
+	RequestID       string
+	AttemptLease    time.Duration
 }
 
 type ClaimResult struct {

@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 DONE; DUR-032 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 DONE; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 DONE; DUR-032 IN_PROGRESS; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1555,8 +1555,8 @@ contract revision.
 
 #### DUR-032 implementation record
 
-- **Status:** READY_FOR_REVIEW; final reproduction and release validation are
-  recorded, and Claude review is pending.
+- **Status:** IN_PROGRESS; the user authorized fixing the final self-check
+  gaps. The prior handoff is superseded until the deployed path is validated.
 - **Base commit:** `c0757e4` (DUR-031 closeout).
 - **Implementation target:** `2ea3726` (`fix: stabilize Kafka integration
   fixture`).
@@ -1564,7 +1564,10 @@ contract revision.
   verify migrations and service lifecycle where safe, position the final
   comparative findings correctly, and prepare the final Claude review of code
   and claims. Release/tag creation remains authorization-gated.
-- **Scope:** documentation and validation records only. No new paid run,
+- **Scope:** release documentation, deployed scheduler/Kafka/Python-worker
+  wiring, production consumer startup coverage, and clean-checkout validation.
+  The default local registry is pure.echo/v1 and pure.add/v1; existing effect
+  and approval tests retain their scope. No new paid run,
   provider call, external action, engine guarantee, experiment matrix, budget,
   or protected-scope change.
 - **Evidence target:** `docs/RELEASE_CHECKLIST.md`, README measured-finding

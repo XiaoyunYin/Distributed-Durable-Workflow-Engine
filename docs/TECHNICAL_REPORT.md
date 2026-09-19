@@ -253,8 +253,11 @@ model (openai/gpt-4o-mini), one prompt/schema and one sampling regime, so the
 rates should be quoted with their counts.
 
 The adversarial protocol used 120 executions with clean-clean baselines. Excess
-injection-associated proposal change was 0.10 defended versus 0.30 plain, a
-0.20 difference. Redacted profiles had zero canary leaks; the redaction-off
+injection-associated proposal change was 0.10 defended (2/20 above its
+clean-clean baseline) versus 0.30 plain (6/20), a 0.20 difference equivalent
+to four cases out of twenty per profile. The underlying clean-clean and
+clean-injected counts were 2/20 and 4/20 defended, versus 4/20 and 10/20 plain.
+Redacted profiles had zero canary leaks; the redaction-off
 negative control produced five, proving the scanner can fire. Across the live
 agent executions, 27 proposals were made, 27 were approved, and zero completed
 without approval. Approval enforcement is therefore reported separately from

@@ -1,4 +1,9 @@
 .git
+.env
+.env.*
+.scratch
+bin
+runtime.exe
 .venv
 .mypy_cache
 .pytest_cache

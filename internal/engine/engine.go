@@ -200,16 +200,19 @@ func (s checkpointSink) Load(ctx context.Context) (state.Checkpoint, error) {
 }
 
 type Engine struct {
-	Store        *state.Store
-	Driver       ActivityDriver
-	OwnerID      string
-	WorkerID     string
-	ActorID      string
-	LeaseTTL     time.Duration
-	AttemptLease time.Duration
-	RetryBackoff time.Duration
-	MaxSteps     int
-	Telemetry    *telemetry.Metrics
+	Store  *state.Store
+	Driver ActivityDriver
+	// ExternalActivities leaves attempts to Kafka workers. The scheduler only
+	// creates dispatches, consumes durable results, and recovers expired claims.
+	ExternalActivities bool
+	OwnerID            string
+	WorkerID           string
+	ActorID            string
+	LeaseTTL           time.Duration
+	AttemptLease       time.Duration
+	RetryBackoff       time.Duration
+	MaxSteps           int
+	Telemetry          *telemetry.Metrics
 	// AfterBoundary is a test-only crash injector. Returning an error models a
 	// process crash immediately after the named repository transaction commits.
 	AfterBoundary func(string) error
@@ -232,8 +235,8 @@ func New(store *state.Store, driver ActivityDriver) *Engine {
 		}()}
 }
 
-func (e *Engine) Run(ctx context.Context, workflowID string) (RunResult, error) {
-	if e == nil || e.Store == nil || e.Driver == nil {
+func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, runErr error) {
+	if e == nil || e.Store == nil || (e.Driver == nil && !e.ExternalActivities) {
 		return RunResult{}, errors.New("engine requires a store and activity driver")
 	}
 	wf, err := e.Store.GetWorkflow(ctx, workflowID)
@@ -279,8 +282,42 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (RunResult, error) 
 	}
 	ownedLease := lease
 	defer func() {
-		_ = e.Store.ReleaseLease(context.Background(), state.LeaseRef{PartitionID: ownedLease.PartitionID, OwnerID: ownedLease.OwnerID, Epoch: ownedLease.Epoch})
+		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		ref := state.LeaseRef{PartitionID: ownedLease.PartitionID, OwnerID: ownedLease.OwnerID, Epoch: ownedLease.Epoch}
+		if e.ExternalActivities && runErr == nil {
+			runErr = e.Store.AcknowledgeWorkflowWakeups(cleanup, ref, workflowID, result.Workflow.Revision)
+		}
+		_ = e.Store.ReleaseLease(cleanup, ref)
 	}()
+	if e.ExternalActivities {
+		ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
+		if err := e.Store.ApplyRuntimeCancellations(ctx, ref, workflowID, actorID); err != nil {
+			return RunResult{}, err
+		}
+		wf, err = e.Store.GetWorkflow(ctx, workflowID)
+		if err != nil {
+			return RunResult{}, err
+		}
+		if terminal(wf.State) || wf.State == state.StatePausedUnsupportedVersion || wf.State == state.StateWaitingApproval || wf.State == state.StateReconciliationRequired {
+			return RunResult{Workflow: wf, Blocked: !terminal(wf.State)}, nil
+		}
+		for _, node := range graph.Nodes {
+			if node.Kind == "activity" {
+				if _, supported := state.RuntimeVersion(definition, node.ID); !supported {
+					ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
+					err := e.Store.ApplyOwnerTransition(ctx, state.OwnerTransitionInput{Lease: ref, WorkflowID: wf.WorkflowID,
+						ExpectedRevision: wf.Revision, NewState: state.StatePausedUnsupportedVersion,
+						ActorID: actorID, Reason: "LOCAL_ACTIVITY_UNSUPPORTED"})
+					if err != nil {
+						return RunResult{}, err
+					}
+					wf, err = e.Store.GetWorkflow(ctx, workflowID)
+					return RunResult{Workflow: wf, Blocked: true}, err
+				}
+			}
+		}
+	}
 	maxSteps := e.MaxSteps
 	if maxSteps <= 0 {
 		maxSteps = 100
@@ -479,6 +516,9 @@ func (e *Engine) startActivity(ctx context.Context, wf state.Workflow, node stat
 	if err := e.boundary("attempt_created"); err != nil {
 		return err
 	}
+	if e.ExternalActivities {
+		return nil
+	}
 	return e.executeAttempt(ctx, wf, node, definitionNode, graph, attempt, lease, workerID, actorID)
 }
 
@@ -599,6 +639,15 @@ func (e *Engine) recoverActivity(ctx context.Context, wf state.Workflow, node st
 		return true, nil
 	}
 	if attempt.State == state.AttemptDispatchable {
+		if e.ExternalActivities {
+			if attempt.HeartbeatDeadline == nil || attempt.HeartbeatDeadline.After(time.Now()) {
+				return false, nil
+			}
+			_, err := e.Store.TimeoutAttempt(ctx, state.TimeoutInput{Lease: ref, WorkflowID: wf.WorkflowID,
+				NodeID: node.NodeID, Iteration: node.Iteration, AttemptNumber: attempt.AttemptNumber,
+				ExpectedRevision: wf.Revision, ActorID: actorID, DispatchLease: e.AttemptLease})
+			return err == nil, err
+		}
 		if err := e.executeAttempt(ctx, wf, node, definitionNode, graph, attempt, ref, workerID, actorID); err != nil {
 			return false, err
 		}

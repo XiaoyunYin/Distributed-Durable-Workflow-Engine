@@ -28,7 +28,7 @@ class Claim:
 
 
 class ControlClient:
-    """Small stdlib-only client; Kafka transport is intentionally M3 scope."""
+    """HTTP control client; broker payloads never grant permission to execute."""
 
     def __init__(self, base_url: str, timeout: float = 10.0) -> None:
         self.base_url = base_url.rstrip("/")
@@ -80,6 +80,7 @@ class ControlClient:
         worker_id: str,
         request_id: str,
         attempt_lease_ms: int = 60_000,
+        expected_attempt: int = 0,
     ) -> Claim:
         response = self._post(
             self._path(workflow_id, node_id, iteration, "claim"),
@@ -87,6 +88,7 @@ class ControlClient:
                 "worker_id": worker_id,
                 "request_id": request_id,
                 "attempt_lease_ms": attempt_lease_ms,
+                "expected_attempt": expected_attempt,
             },
         )
         return Claim(

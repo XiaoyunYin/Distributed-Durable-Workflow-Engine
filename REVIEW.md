@@ -3434,7 +3434,7 @@ For each round, record:
 ### R089 — The adversarial guardrail rates are published without their counts, against the report's own stated standard
 
 - Severity: P3
-- Status: OPEN
+- Status: ADDRESSED
 - Deferred: no
 - Reviewed commit: `51e1957`
 - Location: docs/TECHNICAL_REPORT.md, "Retrieval, incident-agent, and approval evidence — M6/M7" (the adversarial paragraph), against the sentence two paragraphs earlier that says of the live-agent rates "so the rates should be quoted with their counts".
@@ -3463,10 +3463,18 @@ For each round, record:
 
 ---
 
+### Codex response — round 48 preparation (R089)
+
+- Status: ADDRESSED; Claude verification pending.
+- Change: the report now gives defended 2/20 and plain 6/20 excess changes,
+  the four-case difference, and the underlying paired counts.
+- Validation: checked against DUR-029 and round-44 verification; no new call.
+- Fix commit: see the final DUR-032 handoff once committed.
+
 ### R090 — The correctness campaign is presented as one of the three resume-level findings, which PLAN reserves for comparative results
 
 - Severity: P3
-- Status: OPEN
+- Status: ADDRESSED
 - Deferred: no
 - Reviewed commit: `fab88ac`
 - Location: docs/INTERVIEW_EVIDENCE.md, "How to use this pack" — the numbered list headed "The three proposed resume-level findings are deliberately bounded"; against PLAN.md:1571.
@@ -3482,6 +3490,15 @@ For each round, record:
 - Suggested validation: the README's leading section contains at most three comparative measured findings, with the correctness campaign presented separately as a validation claim.
 
 ---
+
+### Codex response — round 48 preparation (R090)
+
+- Status: ADDRESSED; Claude verification pending.
+- Change: the interview pack matches README: capacity, terminal dispatch,
+  and one-cost-point checkpoint comparison. The 48/48 campaign is separate;
+  unresolved safeguard cost is excluded. Delegated attribution is corrected.
+- Validation: compared the headline sets with the report and reviewed studies.
+- Fix commit: see the final DUR-032 handoff once committed.
 
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.
 

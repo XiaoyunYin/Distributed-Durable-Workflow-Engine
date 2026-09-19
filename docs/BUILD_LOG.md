@@ -1,5 +1,27 @@
 # Build log
 
+## 2026-09-19 - DUR-032 self-check repairs (in progress)
+
+Base: f61aad9. The user authorized fixing the final self-check gaps. Added an
+external-activity interpreter mode, namespace-scoped scheduler repair loop,
+Kafka event ingestion, direct Python Kafka slots, and a durable delivery API.
+The existing repository still owns every lease/claim/result decision. Expected
+attempt numbers fence delayed task messages. The runtime allowlists pure work;
+this does not add external remediation authority. See D014.
+
+Removed the alternate test constructor and changed the production fresh-group
+policy to earliest retained offsets. Added a deployed API-to-Python demo and
+regressions for inbox-before-offset, exact-attempt claims, lost dispatch,
+replaced-claim retries (R019 gap), and identical result retries. Corrected R089
+denominators, R090 positioning, and the delegated walkthrough attribution.
+
+Initial checks: targeted non-service Go tests compile/pass; mypy passes.
+Python regression found the pinned Kafka client's three-field offset tuple;
+fixed the missing leader_epoch to -1. Final suites/deployment checks pending.
+No paid calls or measurement reruns. Interview point: durable inbox receipt
+allows transport acknowledgment, while scans and attempt fences recover the
+separate execution obligation after a crash.
+
 ## 2026-09-17 - M4 start
 
 - M3 closeout/base: `8fb2f75`; M4 status: IN_PROGRESS.
