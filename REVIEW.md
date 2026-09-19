@@ -6141,7 +6141,8 @@ final target and artifact before any M7 status changes.
 - **Exact source campaign target:** `bd86b20`; the final pilot and campaign
   artifacts were generated from this source target.
 - **Exact target commit:** `8e06e14` (final evidence, plan/build-log updates,
-  and this committed handoff).
+  and the substantive handoff; the current handoff metadata is committed
+  afterward).
 - **Scope:** R082 is addressed by measuring crash recovery from controller-
   confirmed non-zero fixture death. The fixture self-exits with status 137
   immediately after `owner_crash_armed`; it does not run deferred cleanup, so
