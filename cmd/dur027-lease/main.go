@@ -421,15 +421,9 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 		return report, err
 	}
 	report.WorkflowID, report.DefinitionID, report.Partition = ready.WorkflowID, ready.DefinitionID, ready.Partition
-	probeOwner := state.NewID()
-	_, probeAcquired, err := store.AcquireLease(ctx, ready.Partition, probeOwner, arm.TTL)
-	if err != nil {
-		return report, err
-	}
-	if probeAcquired {
-		_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: ready.Partition, OwnerID: probeOwner, Epoch: ready.Epoch + 1})
+	if !leaseRowLive(ctx, store, ready.Partition, ready.OwnerID, ready.Epoch) {
 		report.FalseTakeover = true
-		return report, fmt.Errorf("%s competitor acquired before fault injection", episodeID)
+		return report, fmt.Errorf("%s owner lease was not live at the injection boundary", episodeID)
 	}
 	report.LeasePreserved = true
 	report.RenewalsBeforeFault = ready.RenewalsBeforeFault
@@ -665,6 +659,20 @@ func leaseRowMatches(ctx context.Context, store *state.Store, partitionID int16,
 		return false
 	}
 	return storedOwner != nil && *storedOwner == owner && storedEpoch == epoch
+}
+
+func leaseRowLive(ctx context.Context, store *state.Store, partitionID int16, owner string, epoch int64) bool {
+	var storedOwner *string
+	var storedEpoch int64
+	var expiresAt *time.Time
+	var databaseNow time.Time
+	if err := store.Pool().QueryRow(ctx, `
+		SELECT owner_id::text, epoch, lease_expires_at, clock_timestamp()
+		FROM engine.partition_leases WHERE partition_id = $1`, partitionID).
+		Scan(&storedOwner, &storedEpoch, &expiresAt, &databaseNow); err != nil {
+		return false
+	}
+	return storedOwner != nil && *storedOwner == owner && storedEpoch == epoch && expiresAt != nil && expiresAt.After(databaseNow)
 }
 
 func fenceTransition(ctx context.Context, store *state.Store, lease state.LeaseRef, workflowID string) error {
