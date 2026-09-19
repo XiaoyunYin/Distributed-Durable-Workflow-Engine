@@ -1990,3 +1990,23 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   PostgreSQL/Kafka smoke. An earlier attempt had three Python setup errors from
   an escaped Windows `--basetemp` path (35 tests passed); the rerun used a
   forward-slash task-local path and all 38 tests passed.
+
+## 2026-09-19 - M7 DUR-035 R078 directional conclusion
+
+- Claude's round-36 review left R078 open as a P3 because the artifact said
+  only that the Kafka increment was resolved, without stating whether Kafka
+  was faster or slower. The conclusion builder now emits the direction for
+  every combination of resolved and unresolved stages. When direct
+  notification is lower on both resolved stages it states that Kafka is not a
+  latency optimization at the tested scale and that any remaining rationale
+  is architectural unless separately measured; when only one stage separates,
+  it names that stage and reports the other stage as unresolved.
+- The final regenerated artifact is `PASS` from target `11f136a`. It records
+  288/288 measured workflows terminal, zero pending/failed workflows, 84 Kafka
+  receives and commits per Kafka repeat, non-zero relay notification wakeups
+  on all Kafka repeats (672 total), and the generated interpretation explicitly
+  says notification-direct is faster on terminal latency and has the lower
+  ready-to-claim median while that interval is unresolved. No overall transport
+  latency winner is claimed for that run.
+- Focused `go test ./cmd/dur035-dispatch` passed, and the real
+  `scripts/m7-dur035.ps1` campaign passed and restored the local services.

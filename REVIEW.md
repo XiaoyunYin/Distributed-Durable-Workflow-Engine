@@ -4899,6 +4899,26 @@ superseded by the committed M4 handoff below.
 - Suggested remaining work: make the resolved-and-direct-wins case produce the section 14C sentence explicitly — Kafka added roughly 3.9 ms of dispatch delay and 24.7 ms of terminal latency at this four-worker single-host scale, so it was not a latency optimization here and its rationale remains architectural unless separately measured — keeping the existing caveat about decoupling, backlog, connection count and multi-host scaling. This must be closed before the M8 report answers RQ6.
 - Status: OPEN
 
+#### Codex response — round 37
+
+- Change made: the conclusion builder now states the direction instead of using
+  the neutral word “increment”. It is data-derived for both fully resolved and
+  stage-specific cases. If direct notification is faster on both separated
+  stages, the artifact says Kafka is not a latency optimization at this scale
+  and that any remaining rationale is architectural unless separately
+  measured. If only one stage separates, it names the winning stage, reports
+  the other stage's median direction, and says that no overall winner is
+  claimed while the overlapping interval remains unresolved.
+- Fix commit: `11f136a`
+- Tests and results: `go test ./cmd/dur035-dispatch` passed. The regenerated
+  artifact is `PASS` with 288 measured workflows terminal, zero pending/failed
+  workflows, 84 Kafka receives and commits per Kafka repeat, and non-zero relay
+  notification wakeups on every Kafka run. Its generated interpretation
+  explicitly says notification-direct is faster on terminal latency and has
+  the lower ready-to-claim median while that interval is unresolved, so no
+  overall transport latency winner is claimed for this rerun.
+- Status: ADDRESSED
+
 ---
 
 ### R079 — Measurement discipline regressed from the standard DUR-026 and DUR-034 established, and arm C's notification wake is not evidenced
@@ -5675,3 +5695,33 @@ final target and artifact before any M7 status changes.
 - **Review request:** verify the derived conclusion rule, relay notification
   evidence, subprocess worker/CPU separation, exact shared durable path, and
   aggregate reconciliation before marking DUR-035 DONE.
+
+## Latest Codex handoff — M7 DUR-035 R078 round 37
+
+- **Task:** DUR-035 three-arm dispatch-path decomposition.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-035 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `81927c5` (accepted DUR-034 closeout).
+- **Exact implementation target:** `11f136a`; the regenerated artifact and
+  this handoff are committed after that target.
+- **Change:** the generated interpretation now states transport direction. It
+  handles resolved-both-stage, resolved-one-stage, and unresolved cases from
+  the observed interval comparisons. It explicitly distinguishes a lower
+  direct-notification median from an interval-separated result, and never
+  promotes an overall winner when one stage overlaps.
+- **Measured evidence:** `experiments/m7/dur035/results.json` is `PASS` with
+  12/12 runs passing, 288/288 measured workflows terminal, 0 pending, 0
+  failed, 84 Kafka receives and commits per Kafka repeat, and non-zero relay
+  notification wakeups on every Kafka run. The current run says direct
+  notification is faster on terminal latency and has the lower ready-to-claim
+  median, but ready-to-claim intervals overlap, so no overall transport winner
+  is claimed. The single-node WSL2 and synthetic-worker limitations remain.
+- **Checks:** focused `go test ./cmd/dur035-dispatch` passed; the real
+  `scripts/m7-dur035.ps1` campaign passed against PostgreSQL/Kafka and restored
+  runtime/worker services. The repository-wide validation remains the same
+  green round-36 result; only the conclusion wording and regenerated artifact
+  changed in this pass.
+- **Review request:** verify that the generated artifact now answers the RQ6
+  direction requirement directly while retaining the interval-based restraint
+  on unresolved stages.
