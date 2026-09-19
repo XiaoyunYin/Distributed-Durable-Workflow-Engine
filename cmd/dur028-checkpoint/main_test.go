@@ -78,7 +78,7 @@ func TestChunkDriverCheckpointPrefixAndRecovery(t *testing.T) {
 
 func TestValidateArtifactRejectsIncompleteRows(t *testing.T) {
 	rows := []runReport{{CaseID: "one", Status: "PASS", FinalHash: "a", ExpectedHash: "a", TerminalState: string(state.StateSucceeded)}}
-	got := validateArtifact(rows, 1)
+	got := validateArtifact(rows, 1, nil, conclusions{}, 0)
 	if got.Status != "FAIL" {
 		t.Fatal("incomplete artifact was accepted")
 	}

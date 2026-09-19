@@ -73,7 +73,7 @@ try {
     if ($pilot.exit_code -ne 0) { throw "DUR-028 pilot failed: $($pilot.output)" }
     if (-not (Test-Path -LiteralPath $PilotOutputPath)) { throw "DUR-028 did not produce $PilotOutputPath." }
     $pilotArtifact = Get-Content -Raw -LiteralPath $PilotOutputPath | ConvertFrom-Json
-    if ($pilotArtifact.status -ne "PASS" -or @($pilotArtifact.runs).Count -ne 6 -or $pilotArtifact.validation.status -ne "PASS") { throw "DUR-028 pilot is incomplete." }
+    if ($pilotArtifact.status -ne "PASS" -or @($pilotArtifact.runs).Count -ne 6 -or @($pilotArtifact.summary).Count -ne 6 -or $pilotArtifact.validation.status -ne "PASS" -or [string]::IsNullOrWhiteSpace($pilotArtifact.conclusions.statement) -or @($pilotArtifact.limitations).Count -lt 1) { throw "DUR-028 pilot is incomplete." }
     if ($pilotArtifact.git_commit -ne $commit) { throw "Pilot commit $($pilotArtifact.git_commit) does not match runner commit $commit." }
 
     $campaign = Invoke-Captured $campaignBinary @("-database-url", $databaseURL, "-output", $OutputPath, "-repeats", "3", "-seed", "$Seed", "-git-commit", $commit)
@@ -83,6 +83,7 @@ try {
     if ($artifact.status -ne "PASS") { throw "DUR-028 artifact is not PASS: $($artifact.failure)" }
     if ($artifact.git_commit -ne $commit) { throw "Artifact commit $($artifact.git_commit) does not match runner commit $commit." }
     if (@($artifact.runs).Count -ne 18) { throw "Expected 18 measured rows, got $(@($artifact.runs).Count)." }
+    if (@($artifact.summary).Count -ne 6 -or [string]::IsNullOrWhiteSpace($artifact.conclusions.statement) -or @($artifact.limitations).Count -lt 1) { throw "DUR-028 summary/conclusion/limitations are incomplete." }
     if (@($artifact.runs | Where-Object { $_.status -ne "PASS" }).Count -ne 0) { throw "At least one DUR-028 row is not PASS." }
     if ($artifact.validation.expected_runs -ne 18 -or $artifact.validation.completed_runs -ne 18) { throw "DUR-028 matrix reconciliation is incomplete." }
     if (-not $artifact.validation.all_final_hashes_match -or -not $artifact.validation.all_terminal_succeeded -or -not $artifact.validation.checkpoint_prefixes_valid) { throw "DUR-028 correctness validation is incomplete." }

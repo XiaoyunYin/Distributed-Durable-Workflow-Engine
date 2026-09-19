@@ -15,6 +15,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"sort"
 	"time"
 
 	"durable-agent-execution-engine/internal/engine"
@@ -26,11 +27,12 @@ import (
 )
 
 const (
-	chunkCount       = 200
-	crashChunk       = 100
-	attemptLease     = 100 * time.Millisecond
-	recoveryWait     = 150 * time.Millisecond
-	checkpointSchema = 1
+	chunkCount        = 200
+	crashChunk        = 100
+	workUnitsPerChunk = 1
+	attemptLease      = 100 * time.Millisecond
+	recoveryWait      = 150 * time.Millisecond
+	checkpointSchema  = 1
 )
 
 type checkpointSetting struct {
@@ -52,6 +54,7 @@ type chunkPayload struct {
 type chunkDriver struct {
 	interval         int
 	seed             int64
+	workUnits        int
 	crash            bool
 	crashed          bool
 	barrier          int
@@ -71,6 +74,10 @@ func (d *chunkDriver) Run(context.Context, engine.Activity) (engine.ActivityResu
 
 func (d *chunkDriver) RunWithCheckpoint(ctx context.Context, _ engine.Activity, sink engine.CheckpointSink) (engine.ActivityResult, error) {
 	d.calls++
+	workUnits := d.workUnits
+	if workUnits <= 0 {
+		workUnits = workUnitsPerChunk
+	}
 	start := 1
 	digest := ""
 	if reader, ok := sink.(engine.CheckpointReader); ok {
@@ -98,7 +105,7 @@ func (d *chunkDriver) RunWithCheckpoint(ctx context.Context, _ engine.Activity, 
 		} else {
 			d.recoveryRun++
 		}
-		digest = chunkDigest(digest, d.seed, chunk)
+		digest = chunkDigest(digest, d.seed, chunk, workUnits)
 		if d.crash && !d.crashed && chunk == d.barrier {
 			d.crashed = true
 			d.crashProgress = chunk - 1
@@ -125,15 +132,26 @@ func (d *chunkDriver) RunWithCheckpoint(ctx context.Context, _ engine.Activity, 
 	return engine.ActivityResult{AttemptState: state.AttemptSucceeded, Payload: payload}, nil
 }
 
-func chunkDigest(previous string, seed int64, chunk int) string {
-	h := sha256.Sum256([]byte(fmt.Sprintf("%s|%d|%d", previous, seed, chunk)))
-	return hex.EncodeToString(h[:])
+func chunkDigest(previous string, seed int64, chunk, workUnits int) string {
+	if workUnits <= 0 {
+		workUnits = workUnitsPerChunk
+	}
+	digest := previous
+	for unit := 0; unit < workUnits; unit++ {
+		h := sha256.Sum256([]byte(fmt.Sprintf("%s|%d|%d|%d", digest, seed, chunk, unit)))
+		digest = hex.EncodeToString(h[:])
+	}
+	return digest
 }
 
 func expectedDigest(seed int64) string {
+	return expectedDigestFor(seed, workUnitsPerChunk)
+}
+
+func expectedDigestFor(seed int64, workUnits int) string {
 	digest := ""
 	for chunk := 1; chunk <= chunkCount; chunk++ {
-		digest = chunkDigest(digest, seed, chunk)
+		digest = chunkDigest(digest, seed, chunk, workUnits)
 	}
 	return digest
 }
@@ -153,6 +171,7 @@ type runReport struct {
 	FailureCondition  string      `json:"failure_condition"`
 	Repeat            int         `json:"repeat"`
 	Seed              int64       `json:"seed"`
+	WorkUnitsPerChunk int         `json:"work_units_per_chunk"`
 	WorkflowID        string      `json:"workflow_id"`
 	Status            string      `json:"status"`
 	CommittedProgress int         `json:"committed_progress_at_failure"`
@@ -176,15 +195,18 @@ type runReport struct {
 }
 
 type artifact struct {
-	SchemaVersion string      `json:"schema_version"`
-	Status        string      `json:"status"`
-	GeneratedAt   time.Time   `json:"generated_at_utc"`
-	GitCommit     string      `json:"git_commit,omitempty"`
-	Seed          int64       `json:"seed"`
-	Protocol      protocol    `json:"protocol"`
-	Runs          []runReport `json:"runs"`
-	Validation    validation  `json:"validation"`
-	Failure       string      `json:"failure,omitempty"`
+	SchemaVersion string       `json:"schema_version"`
+	Status        string       `json:"status"`
+	GeneratedAt   time.Time    `json:"generated_at_utc"`
+	GitCommit     string       `json:"git_commit,omitempty"`
+	Seed          int64        `json:"seed"`
+	Protocol      protocol     `json:"protocol"`
+	Runs          []runReport  `json:"runs"`
+	Summary       []summaryRow `json:"summary"`
+	Conclusions   conclusions  `json:"conclusions"`
+	Limitations   []string     `json:"limitations"`
+	Validation    validation   `json:"validation"`
+	Failure       string       `json:"failure,omitempty"`
 }
 
 type protocol struct {
@@ -196,6 +218,53 @@ type protocol struct {
 	Settings          []checkpointSetting `json:"settings"`
 	Workload          string              `json:"workload"`
 	HashAlgorithm     string              `json:"final_hash_algorithm"`
+	WorkUnitsPerChunk int                 `json:"work_units_per_chunk"`
+}
+
+type numericInterval struct {
+	Count  int     `json:"count"`
+	Min    float64 `json:"min"`
+	Median float64 `json:"median"`
+	Max    float64 `json:"max"`
+}
+
+type summaryRow struct {
+	Setting           string          `json:"checkpoint_setting"`
+	FailureCondition  string          `json:"failure_condition"`
+	Repeats           int             `json:"repeats"`
+	WorkUnitsPerChunk int             `json:"work_units_per_chunk"`
+	TotalSeconds      numericInterval `json:"total_completion_seconds"`
+	RecoverySeconds   numericInterval `json:"recovery_seconds"`
+	RecomputedChunks  numericInterval `json:"recomputed_chunks"`
+	CheckpointWrites  numericInterval `json:"checkpoint_writes"`
+	CheckpointBytes   numericInterval `json:"checkpoint_bytes"`
+	DBQueries         numericInterval `json:"db_queries"`
+	QuerySeconds      numericInterval `json:"query_seconds"`
+}
+
+type conclusions struct {
+	Scope                           string  `json:"scope"`
+	WorkUnitsPerChunk               int     `json:"work_units_per_chunk"`
+	FailureModel                    string  `json:"failure_model"`
+	TimingEffectResolved            bool    `json:"timing_effect_resolved"`
+	RecomputationEffectResolved     bool    `json:"recomputation_effect_resolved"`
+	PersistenceEffectResolved       bool    `json:"persistence_effect_resolved"`
+	BoundaryCrashMedianSeconds      float64 `json:"boundary_only_crash_median_seconds"`
+	EveryChunkCrashMedianSeconds    float64 `json:"every_chunk_crash_median_seconds"`
+	BoundaryCrashRecomputedMedian   float64 `json:"boundary_only_crash_recomputed_chunks"`
+	EveryChunkCrashRecomputedMedian float64 `json:"every_chunk_crash_recomputed_chunks"`
+	CrashTimingRatio                float64 `json:"every_chunk_to_boundary_crash_time_ratio"`
+	SavedRecomputedChunks           float64 `json:"median_recomputed_chunks_saved"`
+	AdditionalCheckpointWrites      float64 `json:"median_additional_checkpoint_writes"`
+	AdditionalCheckpointBytes       float64 `json:"median_additional_checkpoint_bytes"`
+	Statement                       string  `json:"statement"`
+}
+
+var limitations = []string{
+	"This is a single-node Docker Desktop/WSL2 PostgreSQL Store/Engine measurement, not a multi-host or production-cost claim.",
+	"The crash condition is an in-process panic after the chunk-100 computation and before its next checkpoint/result commit; it is not an operating-system process-kill or host-failure test.",
+	"The workload is one pure deterministic activity with one SHA-256 work unit per chunk; the timing tradeoff is scoped to that chunk cost and is not a general checkpoint policy.",
+	"Pure-work checkpoint evidence cannot establish atomicity or safety for unrelated external effects.",
 }
 
 type validation struct {
@@ -207,6 +276,9 @@ type validation struct {
 	CleanWorkflows     int    `json:"clean_workflow_rows"`
 	CleanDefinitions   int    `json:"clean_definition_rows"`
 	Status             string `json:"status"`
+	SummaryRows        int    `json:"summary_rows"`
+	ConclusionsPresent bool   `json:"conclusions_present"`
+	LimitationsPresent bool   `json:"limitations_present"`
 }
 
 func main() {
@@ -215,13 +287,14 @@ func main() {
 	seed := flag.Int64("seed", 280028, "deterministic seed")
 	repeats := flag.Int("repeats", 3, "repeats per setting and failure condition")
 	pilot := flag.Bool("pilot", false, "run one pilot per setting and failure condition")
+	workUnits := flag.Int("work-units-per-chunk", workUnitsPerChunk, "SHA-256 work units performed per chunk")
 	gitCommit := flag.String("git-commit", "", "source commit recorded in the artifact")
 	flag.Parse()
 	if *databaseURL == "" {
 		failArtifact(*outputPath, *gitCommit, *seed, "database URL is required")
 		return
 	}
-	if *seed == 0 || *repeats <= 0 {
+	if *seed == 0 || *repeats <= 0 || *workUnits <= 0 {
 		failArtifact(*outputPath, *gitCommit, *seed, "seed must be non-zero and repeats must be positive")
 		return
 	}
@@ -237,12 +310,12 @@ func main() {
 	if *pilot {
 		count = 1
 	}
-	result := artifact{SchemaVersion: "dur028-checkpoint.v1", Status: "PASS", GeneratedAt: time.Now().UTC(), GitCommit: *gitCommit, Seed: *seed,
-		Protocol: protocol{Chunks: chunkCount, CrashBarrierChunk: crashChunk, AttemptLeaseMS: int(attemptLease / time.Millisecond), RecoveryWaitMS: int(recoveryWait / time.Millisecond), CheckpointSchema: checkpointSchema, Settings: settings, Workload: "pure_chunked_activity", HashAlgorithm: "sha256"}}
+	result := artifact{SchemaVersion: "dur028-checkpoint.v1", Status: "PASS", GeneratedAt: time.Now().UTC(), GitCommit: *gitCommit, Seed: *seed, Limitations: append([]string(nil), limitations...),
+		Protocol: protocol{Chunks: chunkCount, CrashBarrierChunk: crashChunk, AttemptLeaseMS: int(attemptLease / time.Millisecond), RecoveryWaitMS: int(recoveryWait / time.Millisecond), CheckpointSchema: checkpointSchema, Settings: settings, Workload: "pure_chunked_activity", HashAlgorithm: "sha256", WorkUnitsPerChunk: *workUnits}}
 	for _, setting := range settings {
 		for _, failureCondition := range []string{"no_failure", "crash_mid_activity"} {
 			for repeat := 1; repeat <= count; repeat++ {
-				row, runErr := executeRun(ctx, store, *seed+int64(repeat)+int64(setting.Interval)*1000, setting, failureCondition == "crash_mid_activity", repeat)
+				row, runErr := executeRun(ctx, store, *seed+int64(repeat)+int64(setting.Interval)*1000, setting, failureCondition == "crash_mid_activity", repeat, *workUnits)
 				result.Runs = append(result.Runs, row)
 				if runErr != nil {
 					result.Status = "FAIL"
@@ -253,7 +326,9 @@ func main() {
 			}
 		}
 	}
-	result.Validation = validateArtifact(result.Runs, count)
+	result.Summary = summarizeRuns(result.Runs)
+	result.Conclusions = deriveConclusions(result.Summary)
+	result.Validation = validateArtifact(result.Runs, count, result.Summary, result.Conclusions, len(result.Limitations))
 	var workflowRows, definitionRows int
 	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM engine.workflow_executions WHERE namespace = 'dur028-checkpoint'`).Scan(&workflowRows); err != nil {
 		result.Status = "FAIL"
@@ -282,8 +357,8 @@ func main() {
 	}
 }
 
-func executeRun(ctx context.Context, store *state.Store, seed int64, setting checkpointSetting, crash bool, repeat int) (runReport, error) {
-	row := runReport{Setting: setting.ID, Interval: setting.Interval, FailureCondition: map[bool]string{true: "crash_mid_activity", false: "no_failure"}[crash], Repeat: repeat, Seed: seed, Status: "FAIL"}
+func executeRun(ctx context.Context, store *state.Store, seed int64, setting checkpointSetting, crash bool, repeat, workUnits int) (runReport, error) {
+	row := runReport{Setting: setting.ID, Interval: setting.Interval, FailureCondition: map[bool]string{true: "crash_mid_activity", false: "no_failure"}[crash], Repeat: repeat, Seed: seed, WorkUnitsPerChunk: workUnits, Status: "FAIL"}
 	row.CaseID = fmt.Sprintf("%s-%s-r%d", setting.ID, row.FailureCondition, repeat)
 	definitionID := "dur028-checkpoint-def-" + state.NewID()
 	ownerID := state.NewID()
@@ -303,7 +378,7 @@ func executeRun(ctx context.Context, store *state.Store, seed int64, setting che
 	row.WorkflowID = workflowID
 	defer cleanupFixture(ctx, store, workflowID, definitionID)
 	before := store.Telemetry().Snapshot()
-	driver := &chunkDriver{interval: setting.Interval, seed: seed, crash: crash, barrier: crashChunk}
+	driver := &chunkDriver{interval: setting.Interval, seed: seed, workUnits: workUnits, crash: crash, barrier: crashChunk}
 	first := engine.New(store, driver)
 	first.OwnerID, first.WorkerID, first.ActorID = ownerID, "dur028-worker", "dur028-scheduler"
 	first.AttemptLease, first.LeaseTTL, first.MaxSteps = attemptLease, time.Minute, 30
@@ -344,7 +419,7 @@ func executeRun(ctx context.Context, store *state.Store, seed int64, setting che
 	row.FirstRunChunks, row.RecoveryRunChunks = driver.firstRun, driver.recoveryRun
 	row.ComputedChunks, row.CheckpointWrites, row.CheckpointBytes = driver.computed, driver.checkpointWrites, driver.checkpointBytes
 	row.RecomputedChunks = driver.recoveryRun
-	row.FinalHash, row.ExpectedHash = driver.finalDigest, expectedDigest(seed)
+	row.FinalHash, row.ExpectedHash = driver.finalDigest, expectedDigestFor(seed, workUnits)
 	if !crash {
 		row.CommittedProgress = chunkCount
 	}
@@ -430,15 +505,107 @@ func cleanupFixture(ctx context.Context, store *state.Store, workflowID, definit
 	_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, definitionID)
 }
 
-func validateArtifact(runs []runReport, repeats int) validation {
-	v := validation{ExpectedRuns: len(settings) * 2 * repeats, CompletedRuns: len(runs), ExpectedFinalHash: true, ExpectedTerminal: true, ExpectedCheckpoint: true, Status: "PASS"}
+func summarizeRuns(runs []runReport) []summaryRow {
+	rows := make([]summaryRow, 0, len(settings)*2)
+	for _, setting := range settings {
+		for _, failureCondition := range []string{"no_failure", "crash_mid_activity"} {
+			group := make([]runReport, 0)
+			for _, row := range runs {
+				if row.Setting == setting.ID && row.FailureCondition == failureCondition {
+					group = append(group, row)
+				}
+			}
+			if len(group) == 0 {
+				continue
+			}
+			row := summaryRow{Setting: setting.ID, FailureCondition: failureCondition, Repeats: len(group), WorkUnitsPerChunk: group[0].WorkUnitsPerChunk}
+			row.TotalSeconds = summarizeNumbers(group, func(item runReport) float64 { return item.TotalSeconds })
+			row.RecoverySeconds = summarizeNumbers(group, func(item runReport) float64 { return item.RecoverySeconds })
+			row.RecomputedChunks = summarizeNumbers(group, func(item runReport) float64 { return float64(item.RecomputedChunks) })
+			row.CheckpointWrites = summarizeNumbers(group, func(item runReport) float64 { return float64(item.CheckpointWrites) })
+			row.CheckpointBytes = summarizeNumbers(group, func(item runReport) float64 { return float64(item.CheckpointBytes) })
+			row.DBQueries = summarizeNumbers(group, func(item runReport) float64 { return float64(item.Telemetry.DBQueries) })
+			row.QuerySeconds = summarizeNumbers(group, func(item runReport) float64 { return item.Telemetry.QuerySeconds })
+			rows = append(rows, row)
+		}
+	}
+	return rows
+}
+
+func summarizeNumbers(runs []runReport, value func(runReport) float64) numericInterval {
+	values := make([]float64, 0, len(runs))
+	for _, row := range runs {
+		values = append(values, value(row))
+	}
+	sort.Float64s(values)
+	result := numericInterval{Count: len(values)}
+	if len(values) == 0 {
+		return result
+	}
+	result.Min, result.Max = values[0], values[len(values)-1]
+	if len(values)%2 == 0 {
+		result.Median = (values[len(values)/2-1] + values[len(values)/2]) / 2
+	} else {
+		result.Median = values[len(values)/2]
+	}
+	return result
+}
+
+func findSummary(rows []summaryRow, setting, failureCondition string) (summaryRow, bool) {
+	for _, row := range rows {
+		if row.Setting == setting && row.FailureCondition == failureCondition {
+			return row, true
+		}
+	}
+	return summaryRow{}, false
+}
+
+func intervalsSeparate(lower, higher numericInterval) bool {
+	return higher.Min > lower.Max || lower.Min > higher.Max
+}
+
+func deriveConclusions(rows []summaryRow) conclusions {
+	result := conclusions{Scope: "one pure 200-chunk activity on the declared single-node Store/Engine host", WorkUnitsPerChunk: workUnitsPerChunk,
+		FailureModel: "in-process panic after chunk 100 computation and before its next checkpoint/result commit"}
+	boundaryCrash, boundaryOK := findSummary(rows, "activity_boundary_only", "crash_mid_activity")
+	everyChunkCrash, everyChunkOK := findSummary(rows, "every_chunk", "crash_mid_activity")
+	if !boundaryOK || !everyChunkOK {
+		result.Statement = "The checkpoint tradeoff is unresolved because the required comparison cells are incomplete."
+		return result
+	}
+	result.BoundaryCrashMedianSeconds = boundaryCrash.TotalSeconds.Median
+	result.EveryChunkCrashMedianSeconds = everyChunkCrash.TotalSeconds.Median
+	result.BoundaryCrashRecomputedMedian = boundaryCrash.RecomputedChunks.Median
+	result.EveryChunkCrashRecomputedMedian = everyChunkCrash.RecomputedChunks.Median
+	result.SavedRecomputedChunks = boundaryCrash.RecomputedChunks.Median - everyChunkCrash.RecomputedChunks.Median
+	result.AdditionalCheckpointWrites = everyChunkCrash.CheckpointWrites.Median - boundaryCrash.CheckpointWrites.Median
+	result.AdditionalCheckpointBytes = everyChunkCrash.CheckpointBytes.Median - boundaryCrash.CheckpointBytes.Median
+	result.TimingEffectResolved = intervalsSeparate(boundaryCrash.TotalSeconds, everyChunkCrash.TotalSeconds)
+	result.RecomputationEffectResolved = intervalsSeparate(everyChunkCrash.RecomputedChunks, boundaryCrash.RecomputedChunks)
+	result.PersistenceEffectResolved = everyChunkCrash.CheckpointWrites.Min > boundaryCrash.CheckpointWrites.Max && everyChunkCrash.CheckpointBytes.Min > boundaryCrash.CheckpointBytes.Max
+	if boundaryCrash.TotalSeconds.Median > 0 {
+		result.CrashTimingRatio = everyChunkCrash.TotalSeconds.Median / boundaryCrash.TotalSeconds.Median
+	}
+	if result.TimingEffectResolved && result.RecomputationEffectResolved && result.PersistenceEffectResolved {
+		result.Statement = fmt.Sprintf("At %d SHA-256 work unit per chunk, every-chunk checkpointing reduces median crash replay from %.0f to %.0f chunks, saving %.0f chunks, but adds %.0f checkpoint writes (%.0f bytes) and raises median crash completion from %.3f s to %.3f s (%.1fx). Checkpointing does not pay for this measured pure workload; this conclusion is scoped to the recorded chunk cost and crash model.", result.WorkUnitsPerChunk, result.BoundaryCrashRecomputedMedian, result.EveryChunkCrashRecomputedMedian, result.SavedRecomputedChunks, result.AdditionalCheckpointWrites, result.AdditionalCheckpointBytes, result.BoundaryCrashMedianSeconds, result.EveryChunkCrashMedianSeconds, result.CrashTimingRatio)
+	} else {
+		result.Statement = "The measured rows show checkpoint writes and replay differences, but their timing intervals do not separate enough to promote a checkpoint-cost conclusion for this workload."
+	}
+	return result
+}
+
+func validateArtifact(runs []runReport, repeats int, summary []summaryRow, conclusion conclusions, limitationCount int) validation {
+	v := validation{ExpectedRuns: len(settings) * 2 * repeats, CompletedRuns: len(runs), ExpectedFinalHash: true, ExpectedTerminal: true, ExpectedCheckpoint: true, SummaryRows: len(summary), ConclusionsPresent: conclusion.Statement != "", LimitationsPresent: limitationCount > 0, Status: "PASS"}
 	if len(runs) != v.ExpectedRuns {
+		v.Status = "FAIL"
+	}
+	if len(summary) != len(settings)*2 || !v.ConclusionsPresent || !v.LimitationsPresent {
 		v.Status = "FAIL"
 	}
 	seen := map[string]bool{}
 	for _, row := range runs {
 		seen[row.CaseID] = true
-		if row.Status != "PASS" || row.FinalHash != row.ExpectedHash || row.TerminalState != string(state.StateSucceeded) {
+		if row.Status != "PASS" || row.FinalHash != row.ExpectedHash || row.TerminalState != string(state.StateSucceeded) || row.WorkUnitsPerChunk <= 0 {
 			v.ExpectedFinalHash, v.ExpectedTerminal = false, false
 			v.Status = "FAIL"
 		}
