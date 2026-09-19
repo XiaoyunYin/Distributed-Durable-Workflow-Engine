@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 IN_PROGRESS; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1397,6 +1397,53 @@ contract revision.
 - **Known limits:** single-node Docker Desktop/WSL2 PostgreSQL evidence through the Store/Engine harness; the activity is pure and deterministic; no claim is made about atomicity, external effects, process-kill durability, multi-host behavior, or production checkpoint cost.
 - **Measured evidence:** the pilot is `PASS` with six rows (three settings x two conditions). The final artifact is `PASS` with 18 rows (six configurations x three repeats), 18/18 terminal `SUCCEEDED` workflows, matching final hashes, valid checkpoint prefixes, and zero cleanup rows. The six-cell summary and computed conclusion report one SHA-256 work unit per chunk. Average checkpoint writes/bytes are 0/0, 40/3,940, and 200/19,692 for boundary-only/every-five/every-chunk. Crash rows recompute 200, 105, and 101 chunks respectively; current median crash completion is 0.291 s for boundary-only and 2.201 s for every-chunk, with a resolved 7.6x timing ratio. The conclusion says every-chunk saves 99 chunks but does not pay for this measured pure workload; it is explicitly scoped to the recorded chunk cost and in-process panic model. Store telemetry is attached and records nonzero query/transaction/lock observations per row.
 - **Closeout:** Claude's round-42 review is committed and returned `NO_BLOCKING_FINDINGS` for target `7f66d88` (base `b09095c`); R084 and R085 are VERIFIED. The closeout metadata is recorded in `REVIEW.md` and `docs/BUILD_LOG.md`. R057 and R083 remain nonblocking P3 findings outside this task.
+
+#### DUR-029 implementation record
+
+- **Status:** IN_PROGRESS; implementation record added before changes. No live
+  model or paid-provider execution is authorized yet.
+- **Base commit:** `5a721c8` (DUR-028 closeout and current M7 handoff).
+- **Dependencies:** M6/DUR-019, DUR-020, DUR-021B, and DUR-033 are DONE;
+  DUR-033A remains a separate production-engine integration follow-up.
+- **Goal:** freeze and execute the retrieval-strategy, bounded live-agent, and
+  adversarial-evidence evaluation in section 14F, keeping retrieval quality,
+  agent quality, runtime recovery, approval safety, redaction, and cost as
+  separate dimensions.
+- **Scope:** preserve the frozen 40-development/120-held-out retrieval
+  protocol and the 20-case x 3-arm live retrieval comparison; use one
+  development-selected retrieval arm for the 20-case x 2-profile x 3-run
+  adversarial campaign. Preserve the fixed model/prompt/tool/schema/corpus,
+  approval oracle, canonical proposal signature, seeded canaries, redaction
+  boundary, and clean-A/clean-B/injected pairing from section 14F.
+- **Protected boundaries:** do not alter the frozen retrieval corpus, query
+  labels, top-k, threshold objective, hybrid OR rule, document-dependent
+  labels, adversarial matrix, approval guarantees, M6 local-first boundary,
+  or paid/live-model scope. No provider call may occur without a positive
+  budget and `INCIDENT_LIVE_APPROVED=1`.
+- **Acceptance scenarios:** retrieval artifacts report pre-gate ranking and
+  post-gate delivered Recall@K, MRR, no-answer false positives, latency, and
+  family/distractor breakdowns with development tuning separated from
+  held-out scoring. Live-agent artifacts report paired per-case outcomes for
+  all three arms and the document-dependent subset, including diagnosis,
+  safe completion, evidence correctness, tool validity, recovery, approvals,
+  unknown effects, latency, and attributable cost. The adversarial artifact
+  reports clean-clean flips, clean-injected changes, excess injection change,
+  diagnosis-only divergence, canary scans on every downstream surface, and
+  approval enforcement separately. Negative controls must fail when redaction
+  is disabled or provenance defenses are removed.
+- **Validation:** run deterministic M6 fixture generation and tests first;
+  add fixture-independent negative controls for each reported property;
+  validate artifact schemas, paired counts, frozen fingerprints, bounded MCP
+  calls, canonical signatures, and cleanup. A live run additionally requires
+  an approved provider/model/cost record and the explicit environment gate;
+  otherwise the live phase must fail closed without making a provider call.
+- **Evidence paths:** `python/incident_agent/`, `tests/test_incident_agent.py`,
+  `scripts/m6-evidence.ps1`, `experiments/m6/`, a new DUR-029 protocol/runner
+  and artifacts, `docs/BUILD_LOG.md`, and the final `REVIEW.md` handoff.
+- **Known limits:** until a separate paid/model decision is recorded, no
+  live-model quality claim can be made; M6 deterministic provider results are
+  local correctness evidence only. DUR-033A production Go-engine wiring,
+  multi-host behavior, and remote CI remain outside this task.
 
 ### M8 — Report and portfolio release
 

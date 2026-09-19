@@ -2302,3 +2302,17 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - R057 and R083 remain nonblocking P3 findings carried forward. DUR-029 and
   DUR-033A remain TODO and require their own implementation records before
   work starts.
+
+## 2026-09-19 - DUR-029 implementation start
+
+- DUR-029 is now `IN_PROGRESS` from base `5a721c8`, after the DUR-028 closeout.
+  The implementation record freezes the section-14F retrieval, live-agent,
+  and adversarial matrices without changing protected scope or budgets.
+- The existing M6 deterministic retrieval, workflow, citation, continuity,
+  approval, redaction, and adversarial paths are the reproducible foundation.
+  The remaining live-model arm is explicitly fail-closed: D005 requires a
+  separate provider/model configuration, cost estimate, explicit paid-run cap,
+  and `INCIDENT_LIVE_APPROVED=1` before any provider call.
+- No live-model or paid-provider execution was run. The next implementation
+  work is the gated DUR-029 evaluator and fixture-independent negative-control
+  coverage; deterministic checks remain the default validation path.
