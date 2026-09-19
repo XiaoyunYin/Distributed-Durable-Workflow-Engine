@@ -3106,6 +3106,14 @@ For each round, record:
 
 ---
 
+## Latest Codex handoff 鈥?M7 DUR-028 round-42 correction
+
+Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.
+
+### RNNN 鈥?Short title (template)
+This misplaced marker is retained only as an audit note; the authoritative
+DUR-028 round-42 handoff is the latest section at the end of this file.
+
 ## Codex responses - round 13
 
 The following responses address the round-13 findings without changing their
@@ -6432,3 +6440,38 @@ final target and artifact before any M7 status changes.
   repeated-work/final-hash oracle, the measured Store telemetry and checkpoint
   bytes/writes, and the failure/cleanup gates. Do not mark DUR-028 DONE until
   Claude records a committed `NO_BLOCKING_FINDINGS` review.
+
+## Latest Codex handoff - M7 DUR-028 round-42 correction
+
+- **Task:** DUR-028 checkpoint tradeoff study.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-028 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `d9fef13` (the previously reviewed DUR-028 source).
+- **Exact implementation target:** `7a0ea7f` (R084/R085 code and runner fix).
+- **Exact evidence source:** `7f66d88`; the regenerated artifacts record this
+  commit. The final metadata/artifact commit contains only PLAN.md, REVIEW.md,
+  BUILD_LOG.md and the two generated evidence files.
+- **Changes:** added a six-cell repeat summary with min/median/max intervals,
+  derived timing/replay/persistence resolution flags, a computed scoped
+  conclusion, `work_units_per_chunk`, and an explicit limitations section.
+  The runner requires all of those evidence sections before accepting PASS.
+- **Measured evidence:** pilot and final campaign passed with 6 and 18 rows;
+  all workflows succeeded, hashes matched, checkpoint prefixes were valid, and
+  cleanup was zero. At one SHA-256 work unit per chunk, every-chunk checkpointing
+  saves 99 median replayed chunks but adds 200 writes/19,692 bytes and raises
+  median crash completion from 0.291 s to 2.201 s (7.6x). The artifact scopes
+  that conclusion to the pure workload and in-process panic model.
+- **Checks run:** final `scripts/m7-dur028.ps1`; `go test -race ./...`;
+  `go vet ./...`; runtime build; gofmt; Ruff; mypy; PowerShell parse;
+  `git diff --check`; and 38 Python tests with a task-local pytest base
+  directory. The runner restored runtime/worker services.
+- **Known limitations:** single-node Docker Desktop/WSL2 Store/Engine path;
+  one pure SHA-256 work unit per chunk; in-process panic rather than OS kill;
+  no external-effect atomicity, multi-host, hard-kill, production-cost, or
+  general checkpoint-policy claim.
+- **Review request:** verify the summary and conclusion derive from observed
+  repeat intervals, the work-unit scope is carried into the artifact, the
+  limitations disclose the crash model and section-14E caveat, and failed or
+  incomplete rows cannot produce PASS. Do not mark DUR-028 DONE until Claude
+  records a committed `NO_BLOCKING_FINDINGS` review.

@@ -1,8 +1,8 @@
 {
   "schema_version": "dur028-checkpoint.v1",
   "status": "PASS",
-  "generated_at_utc": "2026-09-19T07:26:18.2422225Z",
-  "git_commit": "d9fef13ca2202fd966e54107d065d465fb89532f",
+  "generated_at_utc": "2026-09-19T08:21:46.351674Z",
+  "git_commit": "7f66d88b63da8294866827b66a1f14bfa3dcc283",
   "seed": 280028,
   "protocol": {
     "chunks": 200,
@@ -25,7 +25,8 @@
       }
     ],
     "workload": "pure_chunked_activity",
-    "final_hash_algorithm": "sha256"
+    "final_hash_algorithm": "sha256",
+    "work_units_per_chunk": 1
   },
   "runs": [
     {
@@ -35,7 +36,8 @@
       "failure_condition": "no_failure",
       "repeat": 1,
       "seed": 280029,
-      "workflow_id": "dur028-checkpoint-1466cf89-64f4-4196-b4fa-78b99e5cd0ca",
+      "work_units_per_chunk": 1,
+      "workflow_id": "dur028-checkpoint-1eead177-3d66-4eb1-bc6d-0ff62837b6cf",
       "status": "PASS",
       "committed_progress_at_failure": 200,
       "computed_chunks": 200,
@@ -44,19 +46,19 @@
       "recomputed_chunks": 0,
       "checkpoint_writes": 0,
       "checkpoint_bytes": 0,
-      "final_output_sha256": "79cc16036ba1fa2086c362b49f57469b86a261dbe6bba440f596bf64a76e0bed",
-      "expected_output_sha256": "79cc16036ba1fa2086c362b49f57469b86a261dbe6bba440f596bf64a76e0bed",
+      "final_output_sha256": "7d1d1e2ee3d3fe3f613679f1048ffc6bee66409a03d416696ae5664dce87fc48",
+      "expected_output_sha256": "7d1d1e2ee3d3fe3f613679f1048ffc6bee66409a03d416696ae5664dce87fc48",
       "checkpoint_max_sequence": 0,
       "checkpoint_rows": 0,
-      "initial_completion_seconds": 0.1061221,
+      "initial_completion_seconds": 0.1306971,
       "recovery_seconds": 0,
-      "total_completion_seconds": 0.1061221,
+      "total_completion_seconds": 0.1306971,
       "persistence_telemetry": {
         "db_queries": 29,
         "db_transactions": 12,
-        "query_seconds": 0.1072415,
+        "query_seconds": 0.13124020000000003,
         "lock_waits": 1,
-        "lock_wait_seconds": 0.0005384000000000001
+        "lock_wait_seconds": 0.0005436
       },
       "terminal_state": "SUCCEEDED",
       "reconciled": true
@@ -68,7 +70,8 @@
       "failure_condition": "crash_mid_activity",
       "repeat": 1,
       "seed": 280029,
-      "workflow_id": "dur028-checkpoint-6bcae413-6d79-4deb-b7df-b881493aab85",
+      "work_units_per_chunk": 1,
+      "workflow_id": "dur028-checkpoint-479d724f-e46c-4352-aa9b-9a066e7a9deb",
       "status": "PASS",
       "committed_progress_at_failure": 0,
       "computed_chunks": 300,
@@ -77,19 +80,19 @@
       "recomputed_chunks": 200,
       "checkpoint_writes": 0,
       "checkpoint_bytes": 0,
-      "final_output_sha256": "79cc16036ba1fa2086c362b49f57469b86a261dbe6bba440f596bf64a76e0bed",
-      "expected_output_sha256": "79cc16036ba1fa2086c362b49f57469b86a261dbe6bba440f596bf64a76e0bed",
+      "final_output_sha256": "7d1d1e2ee3d3fe3f613679f1048ffc6bee66409a03d416696ae5664dce87fc48",
+      "expected_output_sha256": "7d1d1e2ee3d3fe3f613679f1048ffc6bee66409a03d416696ae5664dce87fc48",
       "checkpoint_max_sequence": 0,
       "checkpoint_rows": 0,
-      "initial_completion_seconds": 0.0432863,
-      "recovery_seconds": 0.1284758,
-      "total_completion_seconds": 0.3231121,
+      "initial_completion_seconds": 0.0355237,
+      "recovery_seconds": 0.081292,
+      "total_completion_seconds": 0.2678249,
       "persistence_telemetry": {
         "db_queries": 46,
         "db_transactions": 18,
-        "query_seconds": 0.1736915,
+        "query_seconds": 0.11795320000000004,
         "lock_waits": 2,
-        "lock_wait_seconds": 0.0010986999999999993
+        "lock_wait_seconds": 0.0016061999999999986
       },
       "terminal_state": "SUCCEEDED",
       "reconciled": true
@@ -101,7 +104,8 @@
       "failure_condition": "no_failure",
       "repeat": 1,
       "seed": 285029,
-      "workflow_id": "dur028-checkpoint-dcc71888-2057-4894-9b5b-3fd7799d09ea",
+      "work_units_per_chunk": 1,
+      "workflow_id": "dur028-checkpoint-a901bb44-0a7c-4950-94d8-0499393dd041",
       "status": "PASS",
       "committed_progress_at_failure": 200,
       "computed_chunks": 200,
@@ -110,19 +114,19 @@
       "recomputed_chunks": 0,
       "checkpoint_writes": 40,
       "checkpoint_bytes": 3940,
-      "final_output_sha256": "c5ce38eccc8d7fc4e1f7c72006aa6d229d6f3c73365daa843d49997a210dc260",
-      "expected_output_sha256": "c5ce38eccc8d7fc4e1f7c72006aa6d229d6f3c73365daa843d49997a210dc260",
+      "final_output_sha256": "9e8782c3364ee65728164085cdfbbeb6e0fe8397f9af83be3bc641b7db8aeaab",
+      "expected_output_sha256": "9e8782c3364ee65728164085cdfbbeb6e0fe8397f9af83be3bc641b7db8aeaab",
       "checkpoint_max_sequence": 39,
       "checkpoint_rows": 40,
-      "initial_completion_seconds": 0.4787955,
+      "initial_completion_seconds": 0.3683261,
       "recovery_seconds": 0,
-      "total_completion_seconds": 0.4787955,
+      "total_completion_seconds": 0.3683261,
       "persistence_telemetry": {
         "db_queries": 69,
         "db_transactions": 52,
-        "query_seconds": 0.4765908000000001,
+        "query_seconds": 0.3668456000000003,
         "lock_waits": 1,
-        "lock_wait_seconds": 0.0010953999999999998
+        "lock_wait_seconds": 0.0005393999999999989
       },
       "terminal_state": "SUCCEEDED",
       "reconciled": true
@@ -134,7 +138,8 @@
       "failure_condition": "crash_mid_activity",
       "repeat": 1,
       "seed": 285029,
-      "workflow_id": "dur028-checkpoint-3f923d0c-d80e-445a-af64-1fabfa327a8e",
+      "work_units_per_chunk": 1,
+      "workflow_id": "dur028-checkpoint-0547cb8a-0ac2-404d-a95a-eb644636c262",
       "status": "PASS",
       "committed_progress_at_failure": 95,
       "computed_chunks": 205,
@@ -143,19 +148,19 @@
       "recomputed_chunks": 105,
       "checkpoint_writes": 40,
       "checkpoint_bytes": 3940,
-      "final_output_sha256": "c5ce38eccc8d7fc4e1f7c72006aa6d229d6f3c73365daa843d49997a210dc260",
-      "expected_output_sha256": "c5ce38eccc8d7fc4e1f7c72006aa6d229d6f3c73365daa843d49997a210dc260",
+      "final_output_sha256": "9e8782c3364ee65728164085cdfbbeb6e0fe8397f9af83be3bc641b7db8aeaab",
+      "expected_output_sha256": "9e8782c3364ee65728164085cdfbbeb6e0fe8397f9af83be3bc641b7db8aeaab",
       "checkpoint_max_sequence": 39,
       "checkpoint_rows": 40,
-      "initial_completion_seconds": 0.1788289,
-      "recovery_seconds": 0.4284711,
-      "total_completion_seconds": 0.7589343,
+      "initial_completion_seconds": 0.1774236,
+      "recovery_seconds": 0.2367079,
+      "total_completion_seconds": 0.5656434,
       "persistence_telemetry": {
         "db_queries": 86,
         "db_transactions": 58,
-        "query_seconds": 0.6090957999999999,
+        "query_seconds": 0.41515489999999966,
         "lock_waits": 2,
-        "lock_wait_seconds": 0.0011584999999999998
+        "lock_wait_seconds": 0.001629000000000002
       },
       "terminal_state": "SUCCEEDED",
       "reconciled": true
@@ -167,7 +172,8 @@
       "failure_condition": "no_failure",
       "repeat": 1,
       "seed": 281029,
-      "workflow_id": "dur028-checkpoint-93105d62-bd02-4dfe-b536-ca7421806c3e",
+      "work_units_per_chunk": 1,
+      "workflow_id": "dur028-checkpoint-2a0c547f-0033-45a4-977a-a0983c2e67ad",
       "status": "PASS",
       "committed_progress_at_failure": 200,
       "computed_chunks": 200,
@@ -176,19 +182,19 @@
       "recomputed_chunks": 0,
       "checkpoint_writes": 200,
       "checkpoint_bytes": 19692,
-      "final_output_sha256": "dcf331c467f70b1c23123b4dfffe3bf512d483bf1471404a92b3fd5ea768ef91",
-      "expected_output_sha256": "dcf331c467f70b1c23123b4dfffe3bf512d483bf1471404a92b3fd5ea768ef91",
+      "final_output_sha256": "366f1bedeb8b087cad86db6f7e85141ce427a0f989003c9ff581b7afb0a3a8a1",
+      "expected_output_sha256": "366f1bedeb8b087cad86db6f7e85141ce427a0f989003c9ff581b7afb0a3a8a1",
       "checkpoint_max_sequence": 199,
       "checkpoint_rows": 200,
-      "initial_completion_seconds": 1.6523599,
+      "initial_completion_seconds": 1.9405754,
       "recovery_seconds": 0,
-      "total_completion_seconds": 1.6523599,
+      "total_completion_seconds": 1.9405754,
       "persistence_telemetry": {
         "db_queries": 229,
         "db_transactions": 212,
-        "query_seconds": 1.6434047999999981,
+        "query_seconds": 1.9348350999999973,
         "lock_waits": 1,
-        "lock_wait_seconds": 0.0005482999999999998
+        "lock_wait_seconds": 0.0005182999999999993
       },
       "terminal_state": "SUCCEEDED",
       "reconciled": true
@@ -200,7 +206,8 @@
       "failure_condition": "crash_mid_activity",
       "repeat": 1,
       "seed": 281029,
-      "workflow_id": "dur028-checkpoint-996f9bca-6e57-4e99-a8df-4879ceac614f",
+      "work_units_per_chunk": 1,
+      "workflow_id": "dur028-checkpoint-21e85a89-e981-40db-856c-6ff2bac7f52a",
       "status": "PASS",
       "committed_progress_at_failure": 99,
       "computed_chunks": 201,
@@ -209,23 +216,336 @@
       "recomputed_chunks": 101,
       "checkpoint_writes": 200,
       "checkpoint_bytes": 19692,
-      "final_output_sha256": "dcf331c467f70b1c23123b4dfffe3bf512d483bf1471404a92b3fd5ea768ef91",
-      "expected_output_sha256": "dcf331c467f70b1c23123b4dfffe3bf512d483bf1471404a92b3fd5ea768ef91",
+      "final_output_sha256": "366f1bedeb8b087cad86db6f7e85141ce427a0f989003c9ff581b7afb0a3a8a1",
+      "expected_output_sha256": "366f1bedeb8b087cad86db6f7e85141ce427a0f989003c9ff581b7afb0a3a8a1",
       "checkpoint_max_sequence": 199,
       "checkpoint_rows": 200,
-      "initial_completion_seconds": 0.8805483,
-      "recovery_seconds": 0.7457848,
-      "total_completion_seconds": 1.7776149,
+      "initial_completion_seconds": 0.884661,
+      "recovery_seconds": 0.8911652,
+      "total_completion_seconds": 1.927421,
       "persistence_telemetry": {
         "db_queries": 246,
         "db_transactions": 218,
-        "query_seconds": 1.6266454999999969,
+        "query_seconds": 1.7773464000000003,
         "lock_waits": 2,
-        "lock_wait_seconds": 0.0022485000000000005
+        "lock_wait_seconds": 0.0017185999999999972
       },
       "terminal_state": "SUCCEEDED",
       "reconciled": true
     }
+  ],
+  "summary": [
+    {
+      "checkpoint_setting": "activity_boundary_only",
+      "failure_condition": "no_failure",
+      "repeats": 1,
+      "work_units_per_chunk": 1,
+      "total_completion_seconds": {
+        "count": 1,
+        "min": 0.1306971,
+        "median": 0.1306971,
+        "max": 0.1306971
+      },
+      "recovery_seconds": {
+        "count": 1,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "recomputed_chunks": {
+        "count": 1,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "checkpoint_writes": {
+        "count": 1,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "checkpoint_bytes": {
+        "count": 1,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "db_queries": {
+        "count": 1,
+        "min": 29,
+        "median": 29,
+        "max": 29
+      },
+      "query_seconds": {
+        "count": 1,
+        "min": 0.13124020000000003,
+        "median": 0.13124020000000003,
+        "max": 0.13124020000000003
+      }
+    },
+    {
+      "checkpoint_setting": "activity_boundary_only",
+      "failure_condition": "crash_mid_activity",
+      "repeats": 1,
+      "work_units_per_chunk": 1,
+      "total_completion_seconds": {
+        "count": 1,
+        "min": 0.2678249,
+        "median": 0.2678249,
+        "max": 0.2678249
+      },
+      "recovery_seconds": {
+        "count": 1,
+        "min": 0.081292,
+        "median": 0.081292,
+        "max": 0.081292
+      },
+      "recomputed_chunks": {
+        "count": 1,
+        "min": 200,
+        "median": 200,
+        "max": 200
+      },
+      "checkpoint_writes": {
+        "count": 1,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "checkpoint_bytes": {
+        "count": 1,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "db_queries": {
+        "count": 1,
+        "min": 46,
+        "median": 46,
+        "max": 46
+      },
+      "query_seconds": {
+        "count": 1,
+        "min": 0.11795320000000004,
+        "median": 0.11795320000000004,
+        "max": 0.11795320000000004
+      }
+    },
+    {
+      "checkpoint_setting": "every_5_chunks",
+      "failure_condition": "no_failure",
+      "repeats": 1,
+      "work_units_per_chunk": 1,
+      "total_completion_seconds": {
+        "count": 1,
+        "min": 0.3683261,
+        "median": 0.3683261,
+        "max": 0.3683261
+      },
+      "recovery_seconds": {
+        "count": 1,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "recomputed_chunks": {
+        "count": 1,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "checkpoint_writes": {
+        "count": 1,
+        "min": 40,
+        "median": 40,
+        "max": 40
+      },
+      "checkpoint_bytes": {
+        "count": 1,
+        "min": 3940,
+        "median": 3940,
+        "max": 3940
+      },
+      "db_queries": {
+        "count": 1,
+        "min": 69,
+        "median": 69,
+        "max": 69
+      },
+      "query_seconds": {
+        "count": 1,
+        "min": 0.3668456000000003,
+        "median": 0.3668456000000003,
+        "max": 0.3668456000000003
+      }
+    },
+    {
+      "checkpoint_setting": "every_5_chunks",
+      "failure_condition": "crash_mid_activity",
+      "repeats": 1,
+      "work_units_per_chunk": 1,
+      "total_completion_seconds": {
+        "count": 1,
+        "min": 0.5656434,
+        "median": 0.5656434,
+        "max": 0.5656434
+      },
+      "recovery_seconds": {
+        "count": 1,
+        "min": 0.2367079,
+        "median": 0.2367079,
+        "max": 0.2367079
+      },
+      "recomputed_chunks": {
+        "count": 1,
+        "min": 105,
+        "median": 105,
+        "max": 105
+      },
+      "checkpoint_writes": {
+        "count": 1,
+        "min": 40,
+        "median": 40,
+        "max": 40
+      },
+      "checkpoint_bytes": {
+        "count": 1,
+        "min": 3940,
+        "median": 3940,
+        "max": 3940
+      },
+      "db_queries": {
+        "count": 1,
+        "min": 86,
+        "median": 86,
+        "max": 86
+      },
+      "query_seconds": {
+        "count": 1,
+        "min": 0.41515489999999966,
+        "median": 0.41515489999999966,
+        "max": 0.41515489999999966
+      }
+    },
+    {
+      "checkpoint_setting": "every_chunk",
+      "failure_condition": "no_failure",
+      "repeats": 1,
+      "work_units_per_chunk": 1,
+      "total_completion_seconds": {
+        "count": 1,
+        "min": 1.9405754,
+        "median": 1.9405754,
+        "max": 1.9405754
+      },
+      "recovery_seconds": {
+        "count": 1,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "recomputed_chunks": {
+        "count": 1,
+        "min": 0,
+        "median": 0,
+        "max": 0
+      },
+      "checkpoint_writes": {
+        "count": 1,
+        "min": 200,
+        "median": 200,
+        "max": 200
+      },
+      "checkpoint_bytes": {
+        "count": 1,
+        "min": 19692,
+        "median": 19692,
+        "max": 19692
+      },
+      "db_queries": {
+        "count": 1,
+        "min": 229,
+        "median": 229,
+        "max": 229
+      },
+      "query_seconds": {
+        "count": 1,
+        "min": 1.9348350999999973,
+        "median": 1.9348350999999973,
+        "max": 1.9348350999999973
+      }
+    },
+    {
+      "checkpoint_setting": "every_chunk",
+      "failure_condition": "crash_mid_activity",
+      "repeats": 1,
+      "work_units_per_chunk": 1,
+      "total_completion_seconds": {
+        "count": 1,
+        "min": 1.927421,
+        "median": 1.927421,
+        "max": 1.927421
+      },
+      "recovery_seconds": {
+        "count": 1,
+        "min": 0.8911652,
+        "median": 0.8911652,
+        "max": 0.8911652
+      },
+      "recomputed_chunks": {
+        "count": 1,
+        "min": 101,
+        "median": 101,
+        "max": 101
+      },
+      "checkpoint_writes": {
+        "count": 1,
+        "min": 200,
+        "median": 200,
+        "max": 200
+      },
+      "checkpoint_bytes": {
+        "count": 1,
+        "min": 19692,
+        "median": 19692,
+        "max": 19692
+      },
+      "db_queries": {
+        "count": 1,
+        "min": 246,
+        "median": 246,
+        "max": 246
+      },
+      "query_seconds": {
+        "count": 1,
+        "min": 1.7773464000000003,
+        "median": 1.7773464000000003,
+        "max": 1.7773464000000003
+      }
+    }
+  ],
+  "conclusions": {
+    "scope": "one pure 200-chunk activity on the declared single-node Store/Engine host",
+    "work_units_per_chunk": 1,
+    "failure_model": "in-process panic after chunk 100 computation and before its next checkpoint/result commit",
+    "timing_effect_resolved": true,
+    "recomputation_effect_resolved": true,
+    "persistence_effect_resolved": true,
+    "boundary_only_crash_median_seconds": 0.2678249,
+    "every_chunk_crash_median_seconds": 1.927421,
+    "boundary_only_crash_recomputed_chunks": 200,
+    "every_chunk_crash_recomputed_chunks": 101,
+    "every_chunk_to_boundary_crash_time_ratio": 7.196571341947669,
+    "median_recomputed_chunks_saved": 99,
+    "median_additional_checkpoint_writes": 200,
+    "median_additional_checkpoint_bytes": 19692,
+    "statement": "At 1 SHA-256 work unit per chunk, every-chunk checkpointing reduces median crash replay from 200 to 101 chunks, saving 99 chunks, but adds 200 checkpoint writes (19692 bytes) and raises median crash completion from 0.268 s to 1.927 s (7.2x). Checkpointing does not pay for this measured pure workload; this conclusion is scoped to the recorded chunk cost and crash model."
+  },
+  "limitations": [
+    "This is a single-node Docker Desktop/WSL2 PostgreSQL Store/Engine measurement, not a multi-host or production-cost claim.",
+    "The crash condition is an in-process panic after the chunk-100 computation and before its next checkpoint/result commit; it is not an operating-system process-kill or host-failure test.",
+    "The workload is one pure deterministic activity with one SHA-256 work unit per chunk; the timing tradeoff is scoped to that chunk cost and is not a general checkpoint policy.",
+    "Pure-work checkpoint evidence cannot establish atomicity or safety for unrelated external effects."
   ],
   "validation": {
     "expected_runs": 6,
@@ -235,6 +555,9 @@
     "checkpoint_prefixes_valid": true,
     "clean_workflow_rows": 0,
     "clean_definition_rows": 0,
-    "status": "PASS"
+    "status": "PASS",
+    "summary_rows": 6,
+    "conclusions_present": true,
+    "limitations_present": true
   }
 }

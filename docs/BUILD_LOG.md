@@ -2268,3 +2268,26 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - The study remains bounded to the single-node Docker Desktop/WSL2 host and a
   pure activity. It does not establish process-kill durability, external-effect
   atomicity, multi-host behavior, or production checkpoint economics.
+
+## 2026-09-19 - DUR-028 round-42 R084/R085 correction
+
+- Claude's round-41 review found that the per-run evidence had no aggregate
+  summary/conclusion (R084) and no recorded work-per-chunk scope or artifact
+  limitations (R085). The implementation fix is `7a0ea7f`; Codex's responses
+  are preserved under both findings in REVIEW.md.
+- `cmd/dur028-checkpoint` now records `work_units_per_chunk` (default 1,
+  one SHA-256 `chunkDigest` unit), summarizes all six setting/condition cells
+  with count/min/median/max intervals, and derives timing/replay/persistence
+  resolution flags and a conclusion from those observed values. The artifact
+  records the in-process panic crash model, single-node Store/Engine scope,
+  pure-work limitation, and the section-14E external-effect caveat.
+- Regenerated from clean source `7f66d88`: the pilot and final campaign passed
+  (6 and 18 rows), all final hashes matched, all workflows succeeded, and
+  cleanup was zero. The current final conclusion is that at one SHA-256 work
+  unit per chunk, every-chunk checkpointing saves 99 median replayed chunks
+  but adds 200 writes/19,692 bytes and raises median crash completion from
+  0.291 s to 2.201 s (7.6x); this is explicitly not generalized beyond the
+  measured pure workload and panic model.
+- Validation after the fix: final `scripts/m7-dur028.ps1`; `go test -race
+  ./...`; `go vet ./...`; runtime build; gofmt; Ruff; mypy; PowerShell parse;
+  diff check; and 38 Python tests using a task-local pytest base directory.
