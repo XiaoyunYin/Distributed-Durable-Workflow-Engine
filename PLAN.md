@@ -1531,8 +1531,7 @@ contract revision.
 - **Status:** READY_FOR_REVIEW; the three user walkthrough actions are
   recorded, and Claude review is pending.
 - **Base commit:** `242cdcb` (DUR-030 closeout).
-- **Implementation target:** pending until the completed walkthrough evidence
-  is committed.
+- **Implementation target:** `fab88ac` (`docs: record DUR-031 walkthroughs`).
 - **Goal:** map proposed resume claims to reviewed implementation commits,
   exact artifacts, populations, configurations, limits, and reproduction
   commands; prepare personal explanations for lease fencing, ambiguous

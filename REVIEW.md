@@ -7104,3 +7104,36 @@ final target and artifact before any M7 status changes.
   the resulting walkthrough evidence against base `242cdcb` and target
   `d4cb1b8`. Do not mark DUR-031 DONE until those actions are documented and a
   committed `NO_BLOCKING_FINDINGS` review exists.
+
+## Codex update - DUR-031 walkthrough completion
+
+- **Task status:** READY_FOR_REVIEW; M8 remains IN_PROGRESS.
+- **Handoff basis:** COMMITTED.
+- **Task base:** `242cdcb` (DUR-030 closeout).
+- **Previous pack:** `d4cb1b8`.
+- **Exact implementation target:** `fab88ac` (`docs: record DUR-031
+  walkthroughs`).
+- **Walkthrough evidence:** in a disposable worktree, removing the
+  `acquired == false` rejection caused `TestM1RunRequiresPartitionLease` to
+  report a completed `SUCCEEDED` workflow with `Blocked:false` and `err=<nil>`
+  while another owner held the lease. The scratch tree and isolated cache were
+  removed, and the reviewed worktree was unchanged. The real
+  `TestM4NonCooperatingTimeoutIsReconciliationOnly` service test passed with
+  reconciliation-required state, no replacement, one obligation, and one
+  late-evidence row. The offline DUR-028 calculation independently returned
+  `7.5552` from medians `0.2913056` and `2.2008739999999998`, with the bounded
+  one-work-unit scope explained.
+- **Checks run:** `git diff --check` passed; the mutated lease test reached and
+  failed for the intended safety reason after an isolated-cache rerun; the
+  non-cooperating integration test passed under race detection; artifact paths
+  and commit ancestry remain valid.
+- **Skipped checks:** full Go/Python/service suites, Docker bootstrap, full
+  experiment reruns, and provider calls were not rerun. No paid call or
+  external action was performed.
+- **Known limitations:** this records personal walkthrough evidence, not a
+  broader production or multi-host claim. R057, R083, R088, R089, and the
+  historical R019 gap remain nonblocking residuals. DUR-031 still requires
+  Claude's committed review before DONE.
+- **Review request:** review `docs/INTERVIEW_EVIDENCE.md` and the recorded
+  walkthrough evidence against base `242cdcb` at target `fab88ac`. Mark
+  DUR-031 DONE only after a committed `NO_BLOCKING_FINDINGS` review.
