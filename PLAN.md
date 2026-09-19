@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 IN_PROGRESS; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1382,6 +1382,19 @@ contract revision.
   overhead. The final artifact records crash takeover medians of 69.5/171.7/
   503.4 ms and pause medians of 77.6/228.6/728.6 ms for 100/250/750 ms TTLs.
 
+#### DUR-028 implementation record
+
+- **Status:** IN_PROGRESS; this record is added before implementation and measurement.
+- **Base commit:** `b09095c` (DUR-027 closeout, including its reachable-target bookkeeping fix).
+- **Dependencies:** DUR-036, the M1-M5 checkpoint/recovery guarantees, and the section-14 measurement discipline.
+- **Goal:** measure how three frozen persistence intervals trade checkpoint writes and bytes against repeated pure computation after a bounded crash, while checking that every recovered run reaches the same deterministic final hash.
+- **Scope:** one pure 200-chunk activity with activity-boundary-only persistence, a checkpoint every five chunks, or a checkpoint every chunk; each setting has one no-failure run and one crash-at-chunk-100 run for three repeats. The crash is an in-process activity-boundary failure followed by a fresh Engine recovery; it does not claim process-kill or external-effect semantics.
+- **Protected boundaries:** preserve the section-14 three-settings/two-conditions/three-repeat matrix, one 200-chunk pure workload, correctness guarantees, release criteria, paid budgets, and the statement that checkpoint evidence does not establish atomicity for unrelated external effects. Do not start DUR-029 or DUR-033A from this task.
+- **Acceptance scenarios:** every measured row records setting, failure condition, seed, committed progress at failure, computed and recomputed chunks, checkpoint count/bytes, persistence telemetry, completion and recovery timings, final hash, terminal state, and cleanup. No-failure rows must compute 200 chunks exactly; crash rows must show a real durable checkpoint prefix, recover after the attempt lease expires, and reconcile to the same hash. Incomplete or unreconciled rows fail the campaign.
+- **Pilot/validation:** run a small pilot for all three settings to freeze the chunk work, crash barrier, attempt lease, payload schema, and output hash before the 18 measured rows. Validate focused Go tests, the pilot and final PowerShell runner against PostgreSQL, repository race/static checks, formatting, PowerShell parsing, diff checks, and post-run namespace cleanup.
+- **Evidence paths:** `cmd/dur028-checkpoint`, `scripts/m7-dur028.ps1`, `experiments/m7/dur028/pilot.json`, `experiments/m7/dur028/results.json`, `docs/BUILD_LOG.md`, and the final Codex handoff in `REVIEW.md`.
+- **Known limits:** single-node Docker Desktop/WSL2 PostgreSQL evidence through the Store/Engine harness; the activity is pure and deterministic; no claim is made about atomicity, external effects, process-kill durability, multi-host behavior, or production checkpoint cost.
+
 ### M8 — Report and portfolio release
 
 **Dependencies:** Relevant MVP/full-v1 criteria.
@@ -1701,8 +1714,8 @@ the DUR-034 closeout `6d2e50d`; Claude's committed round-37 review returned
 `NO_BLOCKING_FINDINGS` and verified R078/R079. Its accepted transport claim is
 bounded to the terminal-stage result: notification-direct is faster than Kafka
 there, while the ready-to-claim increment was unresolved in the quoted run and
-varied across campaigns. The immediate next action is Claude's review of the
-DUR-027 committed lease campaign. DUR-028, DUR-029, and DUR-033A remain TODO
+varied across campaigns. The immediate next action is to complete the DUR-028
+checkpoint tradeoff study from base `b09095c`. DUR-029 and DUR-033A remain TODO
 until their own implementation records and validation plans are added here.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

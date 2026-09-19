@@ -2221,3 +2221,17 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   historical R019 test gap, and the M6 notes. The superseded wording in the
   artifact's pause/crash limitation is not part of the accepted performance
   conclusion.
+
+## 2026-09-19 - DUR-028 implementation start
+
+- DUR-028 is now `IN_PROGRESS` from base `b09095c`. The implementation record
+  in PLAN.md freezes the required 3 checkpoint settings x 2 failure conditions
+  x 3 repeats, one pure 200-chunk workload, and the bounded Store/Engine
+  recovery scope.
+- The planned evidence will report durable checkpoint progress, repeated
+  chunks, checkpoint writes/bytes, persistence telemetry, completion/recovery
+  timing, deterministic final-hash correctness, and cleanup. It will not claim
+  external-effect atomicity or process-kill durability.
+- No implementation or measurement has run yet. The next change will add the
+  focused campaign command, runner, pilot/final artifact paths, and regression
+  tests before validation.
