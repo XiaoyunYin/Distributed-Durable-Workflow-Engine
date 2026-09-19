@@ -1715,6 +1715,36 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   With this, every M7 measurement study — DUR-036, DUR-026, DUR-034, DUR-035, DUR-027, DUR-028 and DUR-029 — carries committed evidence whose conclusions are computed from its own intervals or rates rather than asserted, and whose scope is recorded alongside the numbers. The two open items across the whole review are P3 record-keeping and labelling residuals. What remains substantively is DUR-033A, the production engine integration deferred from M6, and the M8 report, where the main risk shifts from measurement to how these results are summarised.
 
+### Round 45 — 2026-09-19 — DUR-033A production incident-engine integration
+
+- Date and round: 2026-09-19, round 45.
+- Review basis: COMMITTED. The worktree was clean at `df84e12` when the review started and remained clean throughout.
+- Base and target commits: base `670fcd2` (DUR-029 closeout), implementation target `95948cb`, handoff `df84e12`. Both declared commits resolve as ancestors of HEAD.
+- Scope inspected: `git diff be7642b 95948cb` — the new `internal/incident/production.go` and `production_integration_test.go`, the `internal/state/types.go` addition, the `scripts/ci.ps1` wiring, and the PLAN.md and BUILD_LOG.md records. No migrations were added; the task reuses `000014` and the M4 migrations `000010`–`000013`. No protected-scope drift: no guarantee, release criterion, experiment family or budget changed, and no provider call or external action is introduced.
+- Checks personally run (Claude), in a scratch export of `95948cb` against a throwaway `cr_m8` database migrated 000001–000014 and dropped afterwards:
+  - Confirmed the path is the production one rather than a reimplementation: the test stands up `api.NewServer(store).Handler()` behind `httptest`, submits through `POST /v1/workflows`, runs the investigation through `engine.New(store, …)`, creates and approves the grant through the approval endpoint, and applies the remediation through `effects.Service`.
+  - Confirmed the production `source_corpus` boundary is both seeded and **queried**: `InvestigationDriver.Run` calls `SourceCorpus.Search`, which reads `source_corpus.chunks` joined to `source_corpus.documents`, and returns an error when the query yields no hits — so the workflow cannot succeed without real evidence from the PostgreSQL boundary.
+  - Ran `TestDUR033AProductionPath` against the throwaway database: PASS.
+  - **Mutation-tested the attack matrix.** Removing the `ApplyEffect` resource guard makes the campaign fail with `R049 resource error=<nil>, want effect resource does not match approval`, which proves the attacks are a real oracle rather than a passing formality. Removing the redundant `ValidateApprovalGrant` guard leaves every suite green; that is R088.
+  - Read the five attack cases and confirmed each asserts a typed error through `errors.Is`: approval-before-dispatch, stale workflow revision, resource mismatch (`ErrEffectResource`), canonical-argument mismatch (`ErrEffectArguments`), resource-revision mismatch (`ErrEffectVersion`), and grant reuse (`ErrGrantInvalid`).
+  - Ran `go vet ./internal/incident` and the full `go test -race -p 1 ./... -count=1` on the restored tree: all packages pass, including the new `internal/incident`.
+  - Cleanup: the scratch export and `cr_m8` were removed, no `cr_*` databases remain, and the shared dev database holds 0 workflows and 0 `source_corpus` documents.
+- Codex-reported checks considered but not rerun: `go vet`, the full race suite and focused tests as run by Codex, and `scripts/ci.ps1 -WithServices`.
+- Findings: new R088 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R088 as described, plus the standing residuals R057 and R083, the M6 notes recorded in the PLAN M6 record, and the historical R019 test gap.
+  - The integration uses the production handler, engine and effect service inside a test HTTP server; it does not exercise a deployed scheduler role, Kafka transport, multi-host behaviour, or authentication, and the PLAN record says so.
+  - The DUR-034 harness variability remains unexplained.
+- Limitations: source review plus an independent run and mutation test of the committed campaign; Claude did not run `ci.ps1 -WithServices`.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-033A at committed target `95948cb` with base `670fcd2`. This is a COMMITTED, non-provisional review. R001–R088 are VERIFIED apart from the P3 residuals R057, R083 and R088, the recorded M6 notes, and the historical R019 test gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-033A to DONE under PLAN.md section 11.
+
+  This closes the follow-up R064 opened in round 26, and it closes it properly. The incident remediation now travels the real path end to end — versioned submission API, the actual interpreter, a scheduler-owned approval intent and grant, and the production `effects.Service` receipt — rather than the SQLite adapter that mirrored those semantics during M6. The production `source_corpus` tables are not merely seeded: the investigation activity queries them through the engine and fails when the query returns nothing, so the durable evidence boundary is load-bearing in the path rather than decorative.
+
+  The part worth dwelling on is that the R049 attack matrix is a genuine oracle. I did not take the passing run at face value; I removed the resource guard from `ApplyEffect` and the campaign failed immediately with the precise expected message, then restored it. All five attacks assert typed errors through `errors.Is`, so they cannot be satisfied by an incidental failure elsewhere. After a review in which several campaigns turned out to be incapable of failing, this one demonstrably can.
+
+  R088 is the small thing that mutation testing turned up in passing: the same resource binding is checked twice, and only the enforcement copy is covered. That is a maintenance risk rather than a security gap — the check that gates the mutation is pinned by two independent tests — but a redundant guard nobody tests is a guard that can quietly disappear, and this is precisely the binding R049 was about. One focused case on `ValidateApprovalGrant` closes it.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -1787,6 +1817,27 @@ For each round, record:
 - Remaining P3 findings / uncertainties / untested areas:
 - Limitations:
 - Verdict: <CHANGES_REQUESTED | NO_BLOCKING_FINDINGS>
+
+## Codex closeout - DUR-033A
+
+- **Task status:** DONE; M7 remains IN_PROGRESS for report work.
+- **Handoff basis:** COMMITTED.
+- **Base commit:** `670fcd2`.
+- **Reviewed implementation target:** `95948cb`; handoff metadata commit:
+  `df84e12`.
+- **Review:** Claude's committed round-45 verdict was
+  `NO_BLOCKING_FINDINGS`; R064 is closed. R088 remains an open nonblocking P3,
+  alongside R057, R083, the historical R019 test gap, and recorded M6 notes.
+- **Accepted evidence:** the production PostgreSQL path submits through the
+  workflow API, runs the real engine interpreter, creates and applies a
+  scheduler-owned approval grant, queries the production `source_corpus`
+  boundary, and applies the approved remediation through `effects.Service`.
+  The R049 resource, canonical-argument/hash, resource-revision, grant-reuse,
+  and approval-before-dispatch attacks are typed-error assertions, and Claude's
+  mutation test confirmed the matrix fails when the resource guard is removed.
+- **Next action:** prepare the M8/DUR-030 technical report record. Preserve the
+  bounded production-integration limitations and list R088 as a maintenance
+  follow-up unless a later task adds its focused `ValidateApprovalGrant` test.
 
 ## Findings
 
@@ -3302,6 +3353,22 @@ For each round, record:
 - Verification commit: `5b9d65c`.
 - Evidence and remaining concerns: fixed. The file is renamed to `experiments/m7/dur029/retrieval-final.json` with schema `dur-029-retrieval-final.v1` and `status: "PASS"`, replacing `PREPARED_NOT_FINAL`. The misleading `live_model: {status: "NOT_RUN"}` block is gone, so the artifact no longer reads as work that was prepared and abandoned. The frozen `config_fingerprint` is retained unchanged, along with the 40 development and 120 held-out query counts, and the file gained its own `conclusions` and `limitations`. The only remaining mention of the old filename is an explanatory line in docs/BUILD_LOG.md describing the promotion, which is appropriate rather than stale.
 - Status: VERIFIED
+
+---
+
+### R088 — The redundant resource guard in `ValidateApprovalGrant` has no test coverage
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `95948cb`
+- Location: internal/state/m4.go:667 (`return ApprovalIntent{}, ErrEffectResource` inside `ValidateApprovalGrant`), against the covered enforcement site at :909 (`return EffectReceipt{}, ErrEffectResource` inside `ApplyEffect`).
+- Failure scenario and impact: the approved target is checked in two places — once when a grant is validated and once when the effect is applied. Claude removed each in turn and re-ran the suites. Removing the `ApplyEffect` check at :909 fails the new DUR-033A campaign immediately with `R049 resource error=<nil>, want effect resource does not match approval`, and it is also covered by `internal/state/m4_integration_test.go:181`. Removing the `ValidateApprovalGrant` check at :667 leaves `internal/state`, `internal/incident` and `internal/effects` all passing.
+
+  This is not a security hole: the enforcement point that actually gates a mutation is the one in `ApplyEffect`, and it is covered twice over. The concern is maintenance. A defense-in-depth check with no test is free to rot — a later refactor could drop or invert it and nothing would say so, and the layering that makes the boundary robust would quietly become single-layer. That matters more here than for most redundant checks, because the resource binding is the specific property R049 was raised about and DUR-033A exists to re-prove.
+- Evidence (checks Claude personally ran, in a scratch export of `95948cb` against a throwaway `cr_m8` database migrated 000001–000014): replaced the :909 return with a no-op and ran `go test ./internal/incident -run TestDUR033AProductionPath` — FAIL at production_integration_test.go:188 with the expected message. Restored, replaced the :667 return with a no-op, and ran `go test ./internal/state ./internal/incident ./internal/effects` — all three packages `ok`. Restored the file and confirmed zero mutations remained before the final suite run.
+- Suggested correction: add a focused unit or integration case that calls `ValidateApprovalGrant` directly with a mismatched `ResourceID` and asserts `ErrEffectResource`, so both layers of the binding are pinned. The M4 integration test is the natural home, beside the existing `ApplyEffect` case.
+- Suggested validation: removing either resource check should fail at least one test.
 
 ---
 

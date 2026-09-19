@@ -2428,3 +2428,22 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   a test HTTP server on PostgreSQL; it does not claim deployed
   scheduler roles, Kafka, multi-host behavior, authentication, or live-model
   quality.
+
+## 2026-09-19 - DUR-033A closeout
+
+- Claude's committed round-45 review returned `NO_BLOCKING_FINDINGS` for
+  implementation target `95948cb` against base `670fcd2`; the handoff metadata
+  was `df84e12`. DUR-033A is now marked `DONE` in PLAN.md, closing the R064
+  production-integration follow-up from M6.
+- Claude independently mutation-tested the committed R049 campaign: removing
+  the resource guard from `ApplyEffect` caused the campaign to fail, confirming
+  the attack matrix is a real oracle. R088 remains a nonblocking P3 maintenance
+  follow-up for a focused test of the redundant `ValidateApprovalGrant`
+  resource guard.
+- Claude's throwaway PostgreSQL run passed the production-path integration and
+  cleanup left zero workflows and zero `source_corpus` documents in the dev
+  database. No provider calls, external actions, migrations, or protected-scope
+  changes were introduced by closeout.
+- Next planned work is the M8/DUR-030 technical report, which must preserve the
+  bounded claims and carry R057, R083, R088, the historical R019 gap, and the
+  recorded M6 notes as nonblocking limitations until explicitly resolved.
