@@ -316,12 +316,9 @@ func (p *workerPool) process(workerID string, job dispatchJob) error {
 		return err
 	}
 	ownerID := state.NewID()
-	lease, acquired, err := p.store.AcquireLease(context.Background(), int16(partitionID), ownerID, claimLease)
+	lease, err := acquireLeaseWithRetry(context.Background(), p.store, int16(partitionID), ownerID, claimLease)
 	if err != nil {
 		return fmt.Errorf("acquire consume lease: %w", err)
-	}
-	if !acquired {
-		return state.ErrLeaseNotOwned
 	}
 	if p.metrics != nil {
 		p.metrics.RecordLeaseAcquired()
@@ -340,6 +337,27 @@ func (p *workerPool) process(workerID string, job dispatchJob) error {
 	}
 	p.tracker.update(task.WorkflowID, func(item *taskTiming) { item.TerminalAt = time.Now().UTC() })
 	return nil
+}
+
+func acquireLeaseWithRetry(ctx context.Context, store *state.Store, partitionID int16, ownerID string, ttl time.Duration) (state.Lease, error) {
+	deadline := time.NewTimer(10 * time.Second)
+	defer deadline.Stop()
+	for {
+		lease, acquired, err := store.AcquireLease(ctx, partitionID, ownerID, ttl)
+		if err != nil {
+			return state.Lease{}, err
+		}
+		if acquired {
+			return lease, nil
+		}
+		select {
+		case <-ctx.Done():
+			return state.Lease{}, ctx.Err()
+		case <-deadline.C:
+			return state.Lease{}, state.ErrLeaseNotOwned
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
 }
 
 type dispatcher struct {
