@@ -2141,6 +2141,22 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   renewal loop before releasing that lease; deferred cleanup uses the same
   ordering on failed episodes, so post-release fencing is not counted as a
   renewal failure.
+- Final campaign evidence from source target `bdb5508` is `PASS`: the pilot
+  passed for all three TTLs, and the final matrix passed 6 configurations ×
+  10 episodes (60 total). It recorded 60 takeovers, 60 useful replacement
+  transitions, 0 false takeovers, 180 fenced stale-owner writes, 60 lock
+  contention cases, 30 killed crash targets, 30 stale pause resumes, 60
+  live leases at injection, and zero reserved workflow/definition rows after
+  cleanup. Every episode contains injection, takeover, useful-progress and
+  renewal-interval fields; the artifact derives ranges and medians from those
+  observations.
+- Task-local `scripts/ci.ps1 -WithRace` passed Go tests/race tests, vet,
+  build, Ruff, mypy, and 38 Python tests. A service-backed
+  `ci.ps1 -WithServices -WithRace` attempt was not accepted because the
+  existing Kafka M3 relay fixtures timed out during warm-up; the focused
+  rerun reproduced that transport-fixture failure, while PostgreSQL remained
+  healthy and the DUR-027 campaign itself passed. The service script restored
+  runtime/worker services in its cleanup block.
 - Focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`
   and `go build` pass. The real PostgreSQL pilot/final campaign and the
   repository-wide checks remain required before the next review handoff.

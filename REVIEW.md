@@ -5087,6 +5087,23 @@ superseded by the committed M4 handoff below.
   after it completes.
 - **Fix commit:** pending the committed implementation/evidence target.
 
+- **Round-38 validation update:** Source target `bdb5508` produced a PASS
+  pilot and final artifact. The final run has six configurations and 60
+  episodes: 30 process-tree crash targets died, 30 pause targets resumed with
+  stale ownership, 60/60 takeovers reached useful replacement progress,
+  180/180 stale-owner writes were rejected, and cleanup left zero reserved
+  workflow/definition rows. The artifact records the old lease held at every
+  injection and per-episode takeover/useful-progress intervals.
+- **Checks:** task-local `ci.ps1 -WithRace` passed Go tests/race tests, vet,
+  build, Ruff, mypy, and 38 Python tests. The service-backed CI attempt and a
+  focused Kafka rerun were not accepted because existing M3 relay fixtures
+  timed out; services were restored. The DUR-027 PostgreSQL campaign itself
+  passed the runner's cleanup and reconciliation checks.
+- **Fix commits:** implementation/fault fixes are `309fe87`, `74322bc`,
+  `db5b975`, `287f81f`, `a7be32c`, `742738d`, `5bd064b`, `77045f9`, and
+  `bdb5508` (campaign source target); the evidence and final handoff commits
+  follow.
+
 ---
 
 ### R081 — Required per-episode measurements are missing: no useful-progress latency, no renewal interval, no pilot, and no workload
@@ -5126,6 +5143,19 @@ superseded by the committed M4 handoff below.
   including 60 episodes, 60 useful-progress transitions, six configurations,
   per-episode intervals, and zero cleanup residue.
 - **Fix commit:** pending the committed implementation/evidence target.
+
+- **Round-38 validation update:** `experiments/m7/dur027/pilot.json` is PASS
+  with three samples per TTL and transaction/scheduling delay intervals.
+  `results.json` is `dur027-lease.v2` PASS; every one of its 60 episodes has
+  injection, takeover, useful-progress, TTL, renewal-interval, target outcome,
+  fencing, and lock-wait fields. The six summary rows report count/min/median/
+  max for both takeover and useful-progress delays.
+- **Scope note:** the harness intentionally isolates lease mechanics rather
+  than pretending to exercise a scheduler throughput workload. That limitation
+  is recorded in PLAN.md, the protocol, the artifact, and the BUILD_LOG rather
+  than being presented as evidence for offered-rate or worker-capacity claims.
+- **Fix commits:** the source target is `bdb5508`; the committed evidence and
+  final handoff commits follow.
 
 ---
 

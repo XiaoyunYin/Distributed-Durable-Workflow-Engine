@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 IN_PROGRESS; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 READY_FOR_REVIEW; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1355,7 +1355,7 @@ contract revision.
 
 #### DUR-027 implementation record
 
-- **Status:** IN_PROGRESS; round-38 review found the original evidence incomplete, so the campaign is being rerun with the required crash arm and pilot.
+- **Status:** READY_FOR_REVIEW; round-38 blockers are addressed and the corrected campaign/evidence are committed for Claude review.
 - **Base commit:** `a4c5ac4` (DUR-035 closeout).
 - **Dependencies:** DUR-036, the M1-M5 ownership/claim guarantees, and the section-14 measurement discipline.
 - **Goal:** compare frozen lease TTLs under two fault types—owner process crash and owner pause/resume beyond expiry—measuring takeover delay through first useful affected-work progress, renewal traffic, false takeovers, stale-owner fencing, and database lock contention.
@@ -1363,8 +1363,17 @@ contract revision.
 - **Protected boundaries:** preserve the frozen partition map, lease fencing semantics, correctness guarantees, release criteria, and all paid/live-model budgets. Do not start DUR-028, DUR-029, or DUR-033A from this task. Do not present short-TTL negative controls as deployable configurations.
 - **Acceptance scenarios:** the pilot records transaction and scheduling delays for all three TTLs before settings are frozen; the final artifact records six configurations and 60 episodes, per-episode injection/takeover/useful-progress timestamps and delays, renewal interval beside each TTL, stale-owner rejection, post-takeover useful work, lock-wait telemetry, target-death/resume evidence, terminal cleanup, and explicit PASS/FAIL status. Incomplete or unreconciled runs fail the campaign. Conclusions are derived from observed intervals and counts; the process-crash arm is a bounded local process-tree failure and the pause arm is not treated as crash equivalence.
 - **Validation:** focused lease-harness tests, `scripts/m7-dur027.ps1` against PostgreSQL, `scripts/ci.ps1 -WithRace`, `go vet ./...`, `gofmt`, PowerShell parse validation, `git diff --check`, and post-run namespace/lease checks.
-- **Evidence paths:** `cmd/dur027-lease`, `cmd/dur027-crash-fixture`, `scripts/m7-dur027.ps1`, `experiments/m7/dur027/pilot.json`, `experiments/m7/dur027/results.json`, `docs/BUILD_LOG.md`, and this implementation record.
+- **Evidence paths:** `cmd/dur027-lease`, `cmd/dur027-crash-fixture`, `scripts/m7-dur027.ps1`, `experiments/m7/dur027/pilot.json`, `experiments/m7/dur027/results.json`, `docs/BUILD_LOG.md`, and this implementation record. The source campaign target is `bdb5508`; the evidence commit and final handoff commit are recorded below after review preparation.
 - **Known limits:** single-node Docker Desktop/WSL2 PostgreSQL evidence; the crash is a bounded local process-tree kill and the pause is a bounded renewal suspension; the harness fixes no scheduler/worker workload or offered-rate claim because it isolates lease mechanics; no multi-host, storage-failure, maximum-throughput, or production scheduler claim.
+
+- **Measured closeout:** the source-target artifact is `PASS` with six
+  configurations and 60 episodes. The pilot is `PASS` with three samples per
+  TTL. Per-episode takeover and useful-progress intervals, renewal interval,
+  crash-target death, pause-target stale resume, fencing, lock waits, and
+  cleanup are all present. The non-service race/static/Python validation passed
+  with task-local caches. The service-backed CI attempt is recorded as
+  unaccepted because the existing Kafka M3 fixtures timed out; it restored all
+  services and does not invalidate the direct PostgreSQL DUR-027 campaign.
 
 ### M8 — Report and portfolio release
 

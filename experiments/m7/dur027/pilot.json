@@ -1,0 +1,61 @@
+{
+  "schema_version": "dur027-lease-pilot.v1",
+  "status": "PASS",
+  "generated_at_utc": "2026-09-19T04:29:30.3607697Z",
+  "git_commit": "bdb5508ad57694b74208e5334f0cb923c51ac253",
+  "seed": 270027,
+  "samples_per_arm": 3,
+  "arms": [
+    {
+      "id": "ttl_100ms",
+      "ttl_ms": 100,
+      "renewal_interval_ms": 33,
+      "transaction_delay_ms": {
+        "count": 9,
+        "min": 4.9647,
+        "median": 5.9043,
+        "max": 22.6218
+      },
+      "scheduling_delay_ms": {
+        "count": 9,
+        "min": 5.2918,
+        "median": 6.4128,
+        "max": 25.5318
+      }
+    },
+    {
+      "id": "ttl_250ms",
+      "ttl_ms": 250,
+      "renewal_interval_ms": 83,
+      "transaction_delay_ms": {
+        "count": 9,
+        "min": 3.8241,
+        "median": 4.3832,
+        "max": 48.2936
+      },
+      "scheduling_delay_ms": {
+        "count": 9,
+        "min": 4.008900000000001,
+        "median": 5.1585,
+        "max": 53.5041
+      }
+    },
+    {
+      "id": "ttl_750ms",
+      "ttl_ms": 750,
+      "renewal_interval_ms": 250,
+      "transaction_delay_ms": {
+        "count": 9,
+        "min": 4.3382000000000005,
+        "median": 7.9427,
+        "max": 18.3054
+      },
+      "scheduling_delay_ms": {
+        "count": 9,
+        "min": 5.1066,
+        "median": 8.541699999999999,
+        "max": 18.8689
+      }
+    }
+  ]
+}
