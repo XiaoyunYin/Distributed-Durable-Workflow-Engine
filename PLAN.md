@@ -1400,8 +1400,8 @@ contract revision.
 
 #### DUR-029 implementation record
 
-- **Status:** IN_PROGRESS; implementation record added before changes. No live
-  model or paid-provider execution is authorized yet.
+- **Status:** IN_PROGRESS; deterministic preflight and the authorized live
+  campaign are committed, pending Claude review. DUR-029 is not DONE.
 - **Base commit:** `5a721c8` (DUR-028 closeout and current M7 handoff).
 - **Dependencies:** M6/DUR-019, DUR-020, DUR-021B, and DUR-033 are DONE;
   DUR-033A remains a separate production-engine integration follow-up.
@@ -1440,10 +1440,21 @@ contract revision.
 - **Evidence paths:** `python/incident_agent/`, `tests/test_incident_agent.py`,
   `scripts/m6-evidence.ps1`, `experiments/m6/`, a new DUR-029 protocol/runner
   and artifacts, `docs/BUILD_LOG.md`, and the final `REVIEW.md` handoff.
-- **Known limits:** until a separate paid/model decision is recorded, no
-  live-model quality claim can be made; M6 deterministic provider results are
-  local correctness evidence only. DUR-033A production Go-engine wiring,
-  multi-host behavior, and remote CI remain outside this task.
+- **Authorization:** D013 records the user's OpenAI `gpt-4o-mini` authorization
+  and aggregate $30.00 cap. The live adapter uses one shared reservation
+  ledger, `store:false`, structured JSON output, and the explicit
+  `INCIDENT_LIVE_APPROVED=1` gate.
+- **Measured evidence:** deterministic preflight is `PREPARED_NOT_FINAL` with
+  40 development and 120 held-out retrieval queries, 60 fixture-agent controls,
+  and 120 adversarial controls. The authorized live artifact is `PASS` with
+  60 agent executions, 120 adversarial executions, one redaction-off control,
+  `gpt-4o-mini`, and total measured API cost of approximately $0.04799.
+  Results are bounded synthetic evidence; live model quality, retrieval-arm
+  outcomes, and adversarial rates remain pending independent review.
+- **Known limits:** the live study uses the local SQLite workflow and synthetic
+  corpus/MCP path; it does not claim production Go-engine integration,
+  external actions, multi-host behavior, or model quality beyond this frozen
+  20-case sample. DUR-033A and remote CI remain outside this task.
 
 ### M8 — Report and portfolio release
 

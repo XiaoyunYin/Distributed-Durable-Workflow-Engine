@@ -91,9 +91,7 @@ def _retrieval_arm_report(
             )
             if answerable
             else 0.0,
-            "ranking_mrr": statistics.mean(
-                [float(row["reciprocal_rank"]) for row in answerable]
-            )
+            "ranking_mrr": statistics.mean([float(row["reciprocal_rank"]) for row in answerable])
             if answerable
             else 0.0,
             "no_answer_false_positive_rate": statistics.mean(
@@ -113,8 +111,7 @@ def _retrieval_arm_report(
         }
 
     by_family = {
-        family: summarize([row for row in rows if row["family"] == family])
-        for family in FAMILIES
+        family: summarize([row for row in rows if row["family"] == family]) for family in FAMILIES
     }
     return {"summary": summarize(rows), "by_family": by_family, "rows": rows}
 
@@ -145,8 +142,7 @@ def run_retrieval_preflight(
         "live_model": {
             "status": "NOT_RUN",
             "reason": (
-                "separate provider, cost-cap, and INCIDENT_LIVE_APPROVED=1 "
-                "authorization required"
+                "separate provider, cost-cap, and INCIDENT_LIVE_APPROVED=1 authorization required"
             ),
         },
     }

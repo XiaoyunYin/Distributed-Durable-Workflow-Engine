@@ -48,6 +48,7 @@ class BoundedMCPServer:
         max_rows: int = 20,
         redact_outputs: bool = True,
         seed_canaries: bool = True,
+        seed_injection: bool = True,
     ) -> None:
         self.index = index
         self.max_calls = max_calls
@@ -57,7 +58,10 @@ class BoundedMCPServer:
         self._results: dict[str, list[ToolResult]] = {}
         self._status: dict[str, dict[str, Any]] = {}
         self._cases = {
-            case.case_id: case for case in build_incident_cases(seed_canaries=seed_canaries)
+            case.case_id: case
+            for case in build_incident_cases(
+                seed_canaries=seed_canaries, seed_injection=seed_injection
+            )
         }
 
     def call(self, run_id: str, method: str, arguments: dict[str, Any]) -> ToolResult:

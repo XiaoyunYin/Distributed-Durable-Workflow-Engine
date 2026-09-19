@@ -260,3 +260,25 @@ takeover only under the unsafe negative control, and the no-outbox arm reports
 recovery delay without treating direct dispatch as a safety replacement for
 the transactional outbox. The rejected alternative was to change production
 defaults or report a synthetic profile comparison without a negative control.
+
+## D013 - Authorize the bounded DUR-029 OpenAI evaluation
+
+- Date: 2026-09-19
+- Status: accepted by the user for this run
+
+The user authorized the DUR-029 live provider as OpenAI with the exact model
+`gpt-4o-mini`, with an aggregate spending cap of $30.00 across the 60 matched
+retrieval-arm executions, the 120-execution adversarial matrix, and the
+separate redaction-off negative control. The implementation uses the
+Responses API with structured JSON output, `store:false`, a shared local
+reservation ledger, and the explicit `INCIDENT_LIVE_APPROVED=1` gate. The
+model, prompt version, MCP schema, retrieval arms, defense profiles, and
+canonical proposal signature remain frozen by DUR-029; flexible ordering means
+the study may use the provider's actual response order without changing the
+case/arm matrix.
+
+This authorizes only the bounded synthetic evaluation and its measured API
+cost. It does not authorize external incident actions, production engine
+integration, broader data, or a higher cap. The rejected alternative was to
+claim live-model evidence from the deterministic fixture provider or to run a
+provider without an enforceable aggregate cap.

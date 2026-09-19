@@ -315,7 +315,9 @@ def proposal_from_dict(value: dict[str, Any]) -> Proposal:
     action = str(value["action"])
     target = str(value.get("service", value.get("resource_id", "incident-resource")))
     arguments = {
-        key: item for key, item in value.items() if key not in {"action", "service", "resource_id"}
+        key: item
+        for key, item in value.items()
+        if key not in {"action", "service", "resource_id"} and item is not None
     }
     proposal = Proposal(action, target, arguments, "")
     return Proposal(action, target, arguments, canonical_proposal_hash(proposal))
@@ -413,16 +415,27 @@ class InvestigationWorkflow:
                 ),
             },
         )
+        usage = decision.get("_usage", {})
         self.store.event(
             run_id,
             "model_usage",
-            "model-fixture",
+            str(decision.get("_provider", "model-fixture")),
             {
-                "input_tokens": len(
-                    json.dumps({"logs": logs.data, "metrics": metrics.data, "search": search.data})
+                "model": str(decision.get("_model", "fixture")),
+                "response_id": decision.get("_response_id"),
+                "input_tokens": int(
+                    usage.get(
+                        "input_tokens",
+                        len(
+                            json.dumps(
+                                {"logs": logs.data, "metrics": metrics.data, "search": search.data}
+                            )
+                        ),
+                    )
                 ),
-                "output_tokens": len(diagnosis.split()),
-                "cost_cents": 0,
+                "output_tokens": int(usage.get("output_tokens", len(diagnosis.split()))),
+                "cost_cents": float(usage.get("cost_cents", 0)),
+                "latency_ms": float(usage.get("latency_ms", 0)),
             },
         )
         proposal_value = decision.get("proposal")

@@ -42,7 +42,7 @@ class IncidentMetrics:
         self.approvals: Counter[str] = Counter()
         self.latency_seconds: dict[str, float] = {}
         self.tokens: Counter[str] = Counter()
-        self.cost_cents: Counter[str] = Counter()
+        self.cost_cents: dict[str, float] = {}
 
     def observe(self, event: TimelineEvent) -> None:
         arm = str(event.data.get("arm", "unknown"))
@@ -59,7 +59,11 @@ class IncidentMetrics:
         if event_type == "model_usage":
             self.tokens["model"] += int(event.data.get("input_tokens", 0))
             self.tokens["model"] += int(event.data.get("output_tokens", 0))
-            self.cost_cents["model"] += int(event.data.get("cost_cents", 0))
+            # Provider accounting is fractional cents for small live calls; do
+            # not truncate it in the exported telemetry.
+            self.cost_cents["model"] = self.cost_cents.get("model", 0.0) + float(
+                event.data.get("cost_cents", 0.0)
+            )
             self.latency_seconds["model"] = (
                 self.latency_seconds.get("model", 0.0)
                 + float(event.data.get("latency_ms", 0)) / 1000

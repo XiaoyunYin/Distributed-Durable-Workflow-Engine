@@ -13,6 +13,7 @@ from incident_agent.continuity import (
     run_adversarial_scan,
     run_citation_check,
     run_dur029_fixture_agent_control,
+    run_dur029_live_evaluation,
     run_f12_continuity,
     run_metrics_report,
 )
@@ -26,6 +27,7 @@ from incident_agent.fixtures import (
 from incident_agent.mcp import METHOD_ARGUMENTS, METHODS, SCHEMA_VERSION
 from incident_agent.metrics import dashboard_manifest
 from incident_agent.models import RetrievalArm
+from incident_agent.openai_provider import OpenAIProviderSettings
 from incident_agent.retrieval import RetrievalConfig, RetrievalIndex
 from incident_agent.source_corpus import source_corpus_contract
 
@@ -95,6 +97,7 @@ def main() -> None:
             "adversarial",
             "dur029-preflight",
             "dur029-live-status",
+            "dur029-live",
             "demo",
         ),
     )
@@ -205,6 +208,15 @@ def main() -> None:
                 )
             ),
         )
+    elif args.command == "dur029-live":
+        settings = OpenAIProviderSettings(
+            model=os.environ.get("DUR029_MODEL", "gpt-4o-mini"),
+            budget_cents=int(os.environ.get("DUR029_BUDGET_CENTS", "3000")),
+        )
+        report = run_dur029_live_evaluation(settings)
+        write_json(args.output / "live-agent.json", report["agent"])
+        write_json(args.output / "live-adversarial.json", report["adversarial"])
+        write_json(args.output / "live-evaluation.json", report)
     else:
         case = build_incident_cases()[0]
         write_json(

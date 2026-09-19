@@ -20,6 +20,11 @@ from incident_agent.fixtures import (
 from incident_agent.mcp import BoundedMCPServer, MCPValidationError, serialize_tool_result
 from incident_agent.metrics import IncidentMetrics, dashboard_manifest
 from incident_agent.models import Proposal
+from incident_agent.openai_provider import (
+    CostLedger,
+    OpenAIDecisionProvider,
+    OpenAIProviderSettings,
+)
 from incident_agent.redaction import redact, scan_downstream
 from incident_agent.retrieval import RetrievalConfig, RetrievalIndex
 from incident_agent.source_corpus import SourceCorpusStore, source_corpus_contract
@@ -239,8 +244,7 @@ def test_dur029_preflight_reports_frozen_split_and_family_metrics() -> None:
     assert report["live_model"] == {
         "status": "NOT_RUN",
         "reason": (
-            "separate provider, cost-cap, and INCIDENT_LIVE_APPROVED=1 "
-            "authorization required"
+            "separate provider, cost-cap, and INCIDENT_LIVE_APPROVED=1 authorization required"
         ),
     }
 
@@ -249,3 +253,29 @@ def test_dur029_live_phase_fails_closed_without_authorization() -> None:
     report = live_phase_status(LiveModelConfig("unconfigured", "unconfigured", 0))
     assert report["status"] == "BLOCKED"
     assert report["provider_calls"] == 0
+
+
+def test_openai_provider_uses_structured_decision_and_budget_ledger(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("INCIDENT_LIVE_APPROVED", "1")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    provider = OpenAIDecisionProvider(OpenAIProviderSettings(budget_cents=1))
+    provider._request = lambda instructions, prompt: {
+        "id": "resp-test",
+        "output_text": json.dumps(
+            {
+                "diagnosis": "The checkout deployment is using a bad configuration revision.",
+                "citations": ["evidence-1"],
+                "proposal": {"action": "rollback", "revision": "v1"},
+                "uncertainty": False,
+            }
+        ),
+        "usage": {"input_tokens": 10, "output_tokens": 20},
+    }
+    decision = provider.diagnose("case-1", ("evidence-1",), '{"evidence": "text"}')
+    assert decision["proposal"]["action"] == "rollback"
+    assert decision["_response_id"] == "resp-test"
+    assert provider.ledger.snapshot()["spent_cents"] > 0
+    with pytest.raises(Exception, match="aggregate cap"):
+        CostLedger(1).reserve(10_000_000, 0)

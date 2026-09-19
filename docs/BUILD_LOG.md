@@ -2337,3 +2337,33 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   PowerShell preflight passes through `powershell.exe`; and `git diff --check`
   is clean. The host-default cache paths remain unusable due to collisions,
   so the task-local cache paths are part of the reproduction command.
+
+## 2026-09-19 - DUR-029 authorized OpenAI campaign
+
+- D013 records the user's explicit authorization for OpenAI `gpt-4o-mini` with
+  an aggregate $30.00 cap. The live adapter uses the Responses API structured
+  JSON contract, `store:false`, one shared reservation ledger, and the
+  `INCIDENT_LIVE_APPROVED=1` gate. The model and prompt version are recorded in
+  each live artifact; no external action or production engine path is used.
+- The campaign completed with 60 live retrieval-arm executions, 120 live
+  adversarial executions, and one separate redaction-off negative control.
+  Total measured API cost was $0.04798995; reserved cost returned to zero and
+  the $30.00 cap was not approached.
+- Live-agent results are deliberately mixed rather than promoted: all three
+  arms recorded 20 executions, but only 4 safe end-to-end outcomes per arm;
+  diagnosis and restraint outcomes are reported separately with the
+  document-dependent subset. The adversarial run recorded zero downstream
+  canary leaks, redaction-off negative-control leakage of 5, clean-clean rates
+  of 0.10/0.20 (defended/plain), and clean-injected rates of
+  0.20/0.50, and the signed excess difference was +0.20. The redaction-off
+  negative control leaked 5 canaries while the defended run leaked zero.
+- The first schema request was rejected with HTTP 400 because the proposal
+  schema omitted `additionalProperties: false`; no model output or ledger
+  spend was recorded for that rejected request. The schema was corrected and
+  the full campaign was rerun successfully. The initial sandbox network block
+  was also retried through the approved network path.
+- Validation after the live run: provider/unit tests, Ruff, mypy, isolated
+  full Python suite (41 tests), JSON artifact parsing, and aggregate
+  count/cap checks.
+  Live artifacts are `experiments/m7/dur029/live-agent.json`,
+  `live-adversarial.json`, and `live-evaluation.json`.
