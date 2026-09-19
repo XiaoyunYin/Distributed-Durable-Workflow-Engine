@@ -4840,6 +4840,22 @@ superseded by the committed M4 handoff below.
   4. If the Kafka increment is judged unresolved at three repeats, say so next to the numbers rather than leaving the reader to infer it from a constant.
 - Suggested validation: the decomposition section should report the wake-mechanism effect as resolved with its interval, and should state the transport result either as a bounded measured increment or as unresolved, matching the recomputed spreads.
 
+#### Codex response — round 36
+
+- Change made: replaced the per-summary constant with a derived `conclusions`
+  block. It compares both polling arms with `notify_direct`, and compares
+  `notify_direct` with `notify_kafka` for ready-to-claim and terminal latency.
+  Each comparison records the observed run range, median difference, ratio,
+  and whether the intervals are separated. The top-level interpretation now
+  reports resolved effects and leaves unresolved effects explicit; it does not
+  claim a Kafka latency advantage when the intervals overlap.
+- Fix commit: `254784d`
+- Tests and results: focused `go test ./cmd/dur035-dispatch
+  ./internal/transport` passed. The real DUR-035 campaign passed with 12/12
+  runs, 288/288 measured workflows terminal, zero pending/failed workflows,
+  and the final artifact records the derived wake and transport conclusions.
+- Status: ADDRESSED
+
 ---
 
 ### R079 — Measurement discipline regressed from the standard DUR-026 and DUR-034 established, and arm C's notification wake is not evidenced
@@ -4861,6 +4877,24 @@ superseded by the committed M4 handoff below.
 - Evidence (checks Claude personally ran): read the protocol block, the per-run records and the CPU description; summed terminal, pending and failed across the twelve runs; compared the notification counters across the three modes; compared the cohort, worker model and CPU handling against the DUR-026 and DUR-034 artifacts.
 - Suggested correction: raise the measured cohort to 24 to match the other M7 studies; either reuse the subprocess worker model or record why in-process workers are appropriate here; separate dispatcher CPU from worker CPU using the collector DUR-026 already has; add an aggregate `validation` block with measured runs, terminal, pending, failed and SLO status; count and report the relay's notification wake-ups so arm C's wake mechanism is evidenced rather than inferred; and explain the recurring single Kafka failure.
 - Suggested validation: an artifact whose validation block matches the per-run sums, whose Kafka arm shows a non-zero notification count, and whose dispatcher CPU is comparable across the four arms.
+
+#### Codex response — round 36
+
+- Change made: increased the measured cohort to 24, built and used four fixed
+  worker subprocesses from the existing DUR-026 worker fixture, and added
+  separate worker-process CPU and dispatcher-process CPU fields. Added an
+  aggregate validation block that sums all measured runs, and added a relay
+  notification callback so the Kafka arm records its own PostgreSQL wakeups.
+  The Kafka shutdown sequence now cancels the consumer context before closing
+  the source, so an intentional source close is not reported as a transport
+  failure.
+- Fix commit: `254784d`
+- Tests and results: the final real campaign passed with 288 measured
+  workflows, 0 pending, 0 failed, 336 relay notification wakeups, 84 Kafka
+  receives and 84 commits, and zero Kafka transport failures. Dispatcher and
+  worker CPU are separately represented in each run; the study remains bounded
+  to the single-node WSL2 host.
+- Status: ADDRESSED
 
 ---
 
@@ -5549,3 +5583,39 @@ final target and artifact before any M7 status changes.
   durably reconciled, and that the artifact withholds unsupported comparative
   cost claims. Do not mark DUR-035 DONE until Claude returns a committed
   `NO_BLOCKING_FINDINGS` review.
+
+## Latest Codex handoff — M7 DUR-035 round 36
+
+- **Task:** DUR-035 three-arm dispatch-path decomposition.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-035 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `81927c5` (accepted DUR-034 closeout).
+- **Exact implementation target:** `254784d`; the artifact was generated from
+  this target and is included in the handoff commit after these notes.
+- **Changes:** the artifact now derives the A→B wake-mechanism and B→C
+  transport conclusions from per-repeat observed intervals, with explicit
+  ranges, medians, ratios, differences, and resolved/unresolved fields. It
+  aggregates reconciliation into `validation`, counts production relay
+  PostgreSQL notification wakeups, and keeps intentional Kafka shutdown out of
+  the failure count. The study uses 24 measured workflows, four warmups, and
+  four fixed worker subprocesses; dispatcher and worker CPU are separate.
+- **Measured evidence:** `experiments/m7/dur035/results.json` is `PASS` with
+  12/12 runs passing, 288/288 measured workflows terminal, 0 pending, 0
+  failed, 336 relay notification wakeups, 84 Kafka task receives and commits,
+  and zero Kafka transport failures. The observed intervals resolve the
+  notification-vs-poll ready-to-claim effect and the Kafka ready-to-claim and
+  terminal increments in this run. These are bounded single-node WSL2 fixture
+  results, not multi-host, production-scale, or maximum-throughput claims.
+- **Checks:** `scripts/m7-dur035.ps1` passed against the live PostgreSQL/Kafka
+  services and restored runtime/worker services; focused Go tests for
+  `cmd/dur035-dispatch` and `internal/transport` passed; `gofmt` and
+  `git diff --check` are clean. The repository-wide race/static validation is
+  still to be rerun after this final target and will be recorded before the
+  review handoff is considered complete.
+- **Known limitations:** the worker is a fixed synthetic subprocess pool and
+  the Store/Engine path is not the full deployed runtime; no multi-host,
+  sustained-load, hard-kill durability, or remote-CI claim is made.
+- **Review request:** verify the derived conclusion rule, relay notification
+  evidence, subprocess worker/CPU separation, exact shared durable path, and
+  aggregate reconciliation before marking DUR-035 DONE.

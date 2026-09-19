@@ -1959,3 +1959,34 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   Kafka consumer-group startup, missing dispatch timestamps, and duplicated
   broker metric accounting. Failed artifacts were not reused; the final run
   was regenerated from the exact target recorded above.
+
+## 2026-09-18 - M7 DUR-035 round-36 fix and rerun
+
+- Fixed the round-35 conclusion gap in target `254784d`. The artifact now
+  derives A→B wake-mechanism and B→C transport comparisons from the observed
+  per-repeat intervals rather than writing a blanket `false`. It reports the
+  wake effect and the Kafka dispatch-stage effect only when their observed
+  intervals are separated; unresolved terminal comparisons remain explicit.
+- Added an aggregate validation block and a relay-side notification counter.
+  The Kafka arm now records the production relay listener wakeups separately
+  from direct-dispatch notifications, and normal shutdown no longer counts a
+  deliberate Kafka source close as a transport failure.
+- Aligned the fixture with the other M7 studies: 24 measured workflows, four
+  warmups, and four fixed worker subprocesses. Dispatcher process CPU and
+  worker-process CPU are reported separately; the study remains a bounded
+  Store/Engine measurement, not a full runtime-capacity claim.
+- `scripts/m7-dur035.ps1` passed twice around the refinement work. The final
+  run produced `experiments/m7/dur035/results.json` with 12 PASS runs,
+  288/288 measured workflows terminal, 0 pending, 0 failed, 336 Kafka relay
+  notification wakeups, 84 broker receives and 84 commits, and zero reserved
+  namespace rows after cleanup. Final derived conclusions resolved the
+  notification-vs-poll ready-to-claim effect and the Kafka dispatch-stage
+  ready-to-claim effect; the terminal comparison is resolved in this run as
+  well. The Kafka arm reported zero transport failures.
+- Focused Go tests for `cmd/dur035-dispatch` and `internal/transport`,
+  `go vet ./...`, `gofmt`, PowerShell parse validation, and `git diff --check`
+  passed. The final `scripts/ci.ps1 -WithRace` run passed all Go race packages,
+  Ruff, mypy, and 38 Python tests; its non-service path correctly skipped
+  PostgreSQL/Kafka smoke. An earlier attempt had three Python setup errors from
+  an escaped Windows `--basetemp` path (35 tests passed); the rerun used a
+  forward-slash task-local path and all 38 tests passed.

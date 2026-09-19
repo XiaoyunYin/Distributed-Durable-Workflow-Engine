@@ -1,8 +1,8 @@
 {
   "schema_version": "dur035-dispatch.v1",
   "status": "PASS",
-  "generated_at": "2026-09-19T01:07:01.3982042Z",
-  "git_commit": "d4e6fde2a74ab0ea8a5e902ef7fa77941627f8ee",
+  "generated_at": "2026-09-19T01:14:18.0170624Z",
+  "git_commit": "254784d318e92cee69e2bfda7a6c158716a042c7",
   "protocol": {
     "schema_version": "dur035-dispatch.v1",
     "workload": "one pure activity",
@@ -12,7 +12,8 @@
     "worker_slots": 4,
     "attempt_lease_seconds": 60,
     "claim_lease_seconds": 60,
-    "worker_selection": "fixed round-robin pool; four in-process workers",
+    "worker_selection": "fixed round-robin pool; four worker subprocesses",
+    "worker_model_rationale": "worker CPU is kept outside the dispatcher process so the four dispatch arms compare the same execution capacity without mixing worker burn into dispatcher CPU",
     "fallback_poll_intervals": [
       "250ms",
       "1s"
@@ -56,7 +57,7 @@
       "configuration": "poll_250ms",
       "mode": "direct_poll",
       "repeat": 1,
-      "run_id": "poll_250ms-r1-18b5edc4-11fe-4dd6-a01f-b0cad571924a",
+      "run_id": "poll_250ms-r1-2b1387bd-6226-4983-b584-05b6cd114695",
       "status": "PASS",
       "workflow_count": 24,
       "warmup_count": 4,
@@ -64,16 +65,16 @@
       "pending": 0,
       "failed": 0,
       "arrival_rate_per_second": 2,
-      "elapsed_seconds": 13.4690564,
-      "drain_seconds": 1.9690563999999995,
-      "throughput_per_second": 1.7818620167037091,
+      "elapsed_seconds": 13.3745047,
+      "drain_seconds": 1.8745046999999992,
+      "throughput_per_second": 1.7944589753667664,
       "backlog_oldest_age_seconds": 0,
       "timings": {
         "outbox_ready_to_claim_ms": {
           "count": 24,
-          "min": 51.6622,
-          "median": 152.0849,
-          "max": 261.5027
+          "min": 51.803799999999995,
+          "median": 155.8542,
+          "max": 257.27139999999997
         },
         "outbox_claim_to_worker_claim_ms": {
           "count": 24,
@@ -89,32 +90,32 @@
         },
         "worker_claim_to_result_ms": {
           "count": 24,
-          "min": 4.9357999999999995,
-          "median": 8.726700000000001,
-          "max": 46.3079
+          "min": 4.1997,
+          "median": 6.612299999999999,
+          "max": 35.696400000000004
         },
         "result_to_terminal_ms": {
           "count": 24,
-          "min": 16.335800000000003,
-          "median": 38.705999999999996,
-          "max": 141.7851
+          "min": 16.2138,
+          "median": 24.913500000000003,
+          "max": 115.88170000000001
         },
         "terminal_latency_ms": {
           "count": 24,
-          "min": 87.70609999999999,
-          "median": 236.43349999999998,
-          "max": 350.1584
+          "min": 83.9535,
+          "median": 204.5086,
+          "max": 368.6372
         }
       },
       "telemetry": {
         "lease_acquires": 28,
         "accepted_claims": 28,
         "accepted_results": 28,
-        "db_transactions": 454,
-        "db_queries": 538,
-        "query_seconds": 5.450779399999999,
+        "db_transactions": 455,
+        "db_queries": 539,
+        "query_seconds": 4.614613399999996,
         "lock_waits": 56,
-        "lock_wait_seconds": 0.12542400000000004,
+        "lock_wait_seconds": 0.0832606,
         "relay_publications": 112,
         "relay_failures": 0
       },
@@ -128,14 +129,15 @@
         "failures": 0,
         "retries": 0
       },
-      "process_cpu_seconds": 0.34375,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
+      "process_cpu_seconds": 0.5312509536743164,
+      "worker_cpu_seconds": 0,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
     },
     {
       "configuration": "poll_250ms",
       "mode": "direct_poll",
       "repeat": 2,
-      "run_id": "poll_250ms-r2-c57f6de2-5e4d-453a-836d-0147a431bdca",
+      "run_id": "poll_250ms-r2-eb326654-6702-4635-963f-bea67349c689",
       "status": "PASS",
       "workflow_count": 24,
       "warmup_count": 4,
@@ -143,22 +145,22 @@
       "pending": 0,
       "failed": 0,
       "arrival_rate_per_second": 2,
-      "elapsed_seconds": 13.475844500000001,
-      "drain_seconds": 1.975844500000001,
-      "throughput_per_second": 1.7809644508735611,
+      "elapsed_seconds": 12.9820967,
+      "drain_seconds": 1.4820966999999996,
+      "throughput_per_second": 1.8486998329014142,
       "backlog_oldest_age_seconds": 0,
       "timings": {
         "outbox_ready_to_claim_ms": {
           "count": 24,
-          "min": 14.1431,
-          "median": 135.0261,
-          "max": 276.8737
+          "min": 8.796,
+          "median": 144.69099999999997,
+          "max": 255.4754
         },
         "outbox_claim_to_worker_claim_ms": {
           "count": 24,
           "min": 0,
           "median": 0,
-          "max": 2.1601
+          "max": 0.6418
         },
         "broker_receive_to_worker_claim_ms": {
           "count": 0,
@@ -168,32 +170,32 @@
         },
         "worker_claim_to_result_ms": {
           "count": 24,
-          "min": 4.1538,
-          "median": 5.2245,
-          "max": 65.2856
+          "min": 4.4163,
+          "median": 5.6594,
+          "max": 25.1346
         },
         "result_to_terminal_ms": {
           "count": 24,
-          "min": 16.404,
-          "median": 18.4577,
-          "max": 107.8459
+          "min": 17.6318,
+          "median": 20.6778,
+          "max": 52.69540000000001
         },
         "terminal_latency_ms": {
           "count": 24,
-          "min": 35.5165,
-          "median": 174.5676,
-          "max": 364.436
+          "min": 32.3665,
+          "median": 169.15259999999998,
+          "max": 333.30539999999996
         }
       },
       "telemetry": {
         "lease_acquires": 28,
         "accepted_claims": 28,
         "accepted_results": 28,
-        "db_transactions": 454,
-        "db_queries": 538,
-        "query_seconds": 4.695606399999998,
+        "db_transactions": 452,
+        "db_queries": 536,
+        "query_seconds": 3.1809011000000034,
         "lock_waits": 56,
-        "lock_wait_seconds": 0.0545109,
+        "lock_wait_seconds": 0.04657850000000001,
         "relay_publications": 112,
         "relay_failures": 0
       },
@@ -207,14 +209,15 @@
         "failures": 0,
         "retries": 0
       },
-      "process_cpu_seconds": 0.4062490463256836,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
+      "process_cpu_seconds": 0.2499990463256836,
+      "worker_cpu_seconds": 0.03125,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
     },
     {
       "configuration": "poll_250ms",
       "mode": "direct_poll",
       "repeat": 3,
-      "run_id": "poll_250ms-r3-c7ca7228-38d7-4bc7-8a36-05564ec0f9c8",
+      "run_id": "poll_250ms-r3-b2d341b2-7b3b-44b6-9e1d-110289c2638b",
       "status": "PASS",
       "workflow_count": 24,
       "warmup_count": 4,
@@ -222,22 +225,22 @@
       "pending": 0,
       "failed": 0,
       "arrival_rate_per_second": 2,
-      "elapsed_seconds": 13.2535239,
-      "drain_seconds": 1.7535238999999994,
-      "throughput_per_second": 1.810839153502413,
+      "elapsed_seconds": 13.2561664,
+      "drain_seconds": 1.7561663999999997,
+      "throughput_per_second": 1.8104781786686082,
       "backlog_oldest_age_seconds": 0,
       "timings": {
         "outbox_ready_to_claim_ms": {
           "count": 24,
-          "min": 33.056599999999996,
-          "median": 144.0104,
-          "max": 256.73699999999997
+          "min": 28.7941,
+          "median": 152.4245,
+          "max": 254.96229999999997
         },
         "outbox_claim_to_worker_claim_ms": {
           "count": 24,
           "min": 0,
           "median": 0,
-          "max": 0.6267999999999999
+          "max": 0.6606
         },
         "broker_receive_to_worker_claim_ms": {
           "count": 0,
@@ -247,21 +250,21 @@
         },
         "worker_claim_to_result_ms": {
           "count": 24,
-          "min": 3.8185,
-          "median": 5.0808,
-          "max": 71.48899999999999
+          "min": 3.9777,
+          "median": 6.2756,
+          "max": 21.326999999999998
         },
         "result_to_terminal_ms": {
           "count": 24,
-          "min": 15.2476,
-          "median": 19.529500000000002,
-          "max": 124.34140000000001
+          "min": 17.9296,
+          "median": 27.735200000000003,
+          "max": 109.496
         },
         "terminal_latency_ms": {
           "count": 24,
-          "min": 52.6972,
-          "median": 203.3516,
-          "max": 344.4685
+          "min": 62.575199999999995,
+          "median": 180.8718,
+          "max": 360.20590000000004
         }
       },
       "telemetry": {
@@ -270,9 +273,9 @@
         "accepted_results": 28,
         "db_transactions": 453,
         "db_queries": 537,
-        "query_seconds": 4.826352000000011,
+        "query_seconds": 4.070011100000004,
         "lock_waits": 56,
-        "lock_wait_seconds": 0.05208880000000002,
+        "lock_wait_seconds": 0.05645419999999998,
         "relay_publications": 112,
         "relay_failures": 0
       },
@@ -286,14 +289,15 @@
         "failures": 0,
         "retries": 0
       },
-      "process_cpu_seconds": 0.4062509536743164,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
+      "process_cpu_seconds": 0.4843759536743164,
+      "worker_cpu_seconds": 0.0625,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
     },
     {
       "configuration": "poll_1s",
       "mode": "direct_poll",
       "repeat": 1,
-      "run_id": "poll_1s-r1-c878271c-77f0-4ab9-909c-66f8bd74a1ac",
+      "run_id": "poll_1s-r1-9c078ac1-a154-40db-a7e5-57789607be91",
       "status": "PASS",
       "workflow_count": 24,
       "warmup_count": 4,
@@ -301,22 +305,22 @@
       "pending": 0,
       "failed": 0,
       "arrival_rate_per_second": 2,
-      "elapsed_seconds": 15.0453865,
-      "drain_seconds": 3.5453864999999993,
-      "throughput_per_second": 1.595173377566605,
+      "elapsed_seconds": 15.0001569,
+      "drain_seconds": 3.5001569000000003,
+      "throughput_per_second": 1.5999832641750567,
       "backlog_oldest_age_seconds": 0,
       "timings": {
         "outbox_ready_to_claim_ms": {
           "count": 24,
-          "min": 119.1873,
-          "median": 616.2945,
-          "max": 1015.2407999999999
+          "min": 75.8806,
+          "median": 605.5293,
+          "max": 1006.4282
         },
         "outbox_claim_to_worker_claim_ms": {
           "count": 24,
           "min": 0,
           "median": 0,
-          "max": 0
+          "max": 0.5494
         },
         "broker_receive_to_worker_claim_ms": {
           "count": 0,
@@ -326,100 +330,21 @@
         },
         "worker_claim_to_result_ms": {
           "count": 24,
-          "min": 3.8445,
-          "median": 5.7808,
-          "max": 39.43
+          "min": 4.319100000000001,
+          "median": 6.1862,
+          "max": 21.7345
         },
         "result_to_terminal_ms": {
           "count": 24,
-          "min": 16.4915,
-          "median": 26.3882,
-          "max": 140.2168
+          "min": 16.4055,
+          "median": 23.7075,
+          "max": 45.971
         },
         "terminal_latency_ms": {
           "count": 24,
-          "min": 140.4339,
-          "median": 637.3887000000001,
-          "max": 1102.4333
-        }
-      },
-      "telemetry": {
-        "lease_acquires": 28,
-        "accepted_claims": 28,
-        "accepted_results": 28,
-        "db_transactions": 411,
-        "db_queries": 495,
-        "query_seconds": 4.478885600000005,
-        "lock_waits": 57,
-        "lock_wait_seconds": 0.1257975,
-        "relay_publications": 112,
-        "relay_failures": 0
-      },
-      "transport": {
-        "outbox_rows_claimed": 112,
-        "outbox_rows_published": 112,
-        "broker_publications": 0,
-        "broker_receive_count": 0,
-        "broker_commit_count": 0,
-        "notifications": 0,
-        "failures": 0,
-        "retries": 0
-      },
-      "process_cpu_seconds": 0.328125,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
-    },
-    {
-      "configuration": "poll_1s",
-      "mode": "direct_poll",
-      "repeat": 2,
-      "run_id": "poll_1s-r2-1d6436a4-69c0-4442-b89f-de2d918d212d",
-      "status": "PASS",
-      "workflow_count": 24,
-      "warmup_count": 4,
-      "terminal": 24,
-      "pending": 0,
-      "failed": 0,
-      "arrival_rate_per_second": 2,
-      "elapsed_seconds": 13.9990502,
-      "drain_seconds": 2.4990501999999992,
-      "throughput_per_second": 1.7144020242173288,
-      "backlog_oldest_age_seconds": 0,
-      "timings": {
-        "outbox_ready_to_claim_ms": {
-          "count": 24,
-          "min": 64.3352,
-          "median": 548.3464,
-          "max": 997.9598
-        },
-        "outbox_claim_to_worker_claim_ms": {
-          "count": 24,
-          "min": 0,
-          "median": 0,
-          "max": 0.5404
-        },
-        "broker_receive_to_worker_claim_ms": {
-          "count": 0,
-          "min": 0,
-          "median": 0,
-          "max": 0
-        },
-        "worker_claim_to_result_ms": {
-          "count": 24,
-          "min": 4.3136,
-          "median": 5.7023,
-          "max": 29.0545
-        },
-        "result_to_terminal_ms": {
-          "count": 24,
-          "min": 15.0519,
-          "median": 23.5607,
-          "max": 130.6872
-        },
-        "terminal_latency_ms": {
-          "count": 24,
-          "min": 101.6635,
-          "median": 602.662,
-          "max": 1157.7015
+          "min": 107.75909999999999,
+          "median": 628.1181,
+          "max": 1062.1210999999998
         }
       },
       "telemetry": {
@@ -428,88 +353,9 @@
         "accepted_results": 28,
         "db_transactions": 410,
         "db_queries": 494,
-        "query_seconds": 3.4262706000000236,
-        "lock_waits": 57,
-        "lock_wait_seconds": 0.06324900000000006,
-        "relay_publications": 112,
-        "relay_failures": 0
-      },
-      "transport": {
-        "outbox_rows_claimed": 112,
-        "outbox_rows_published": 112,
-        "broker_publications": 0,
-        "broker_receive_count": 0,
-        "broker_commit_count": 0,
-        "notifications": 0,
-        "failures": 0,
-        "retries": 0
-      },
-      "process_cpu_seconds": 0.265625,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
-    },
-    {
-      "configuration": "poll_1s",
-      "mode": "direct_poll",
-      "repeat": 3,
-      "run_id": "poll_1s-r3-fff0ef4c-1c53-4630-8727-7efb9731fec1",
-      "status": "PASS",
-      "workflow_count": 24,
-      "warmup_count": 4,
-      "terminal": 24,
-      "pending": 0,
-      "failed": 0,
-      "arrival_rate_per_second": 2,
-      "elapsed_seconds": 15.1520208,
-      "drain_seconds": 3.6520208000000007,
-      "throughput_per_second": 1.5839471392489113,
-      "backlog_oldest_age_seconds": 0,
-      "timings": {
-        "outbox_ready_to_claim_ms": {
-          "count": 24,
-          "min": 80.3378,
-          "median": 635.3751,
-          "max": 1009.3076000000001
-        },
-        "outbox_claim_to_worker_claim_ms": {
-          "count": 24,
-          "min": 0,
-          "median": 0,
-          "max": 0.6127
-        },
-        "broker_receive_to_worker_claim_ms": {
-          "count": 0,
-          "min": 0,
-          "median": 0,
-          "max": 0
-        },
-        "worker_claim_to_result_ms": {
-          "count": 24,
-          "min": 3.8966000000000003,
-          "median": 6.6709,
-          "max": 62.76420000000001
-        },
-        "result_to_terminal_ms": {
-          "count": 24,
-          "min": 17.950899999999997,
-          "median": 29.9725,
-          "max": 113.15740000000001
-        },
-        "terminal_latency_ms": {
-          "count": 24,
-          "min": 104.4769,
-          "median": 715.8348,
-          "max": 1115.7769
-        }
-      },
-      "telemetry": {
-        "lease_acquires": 28,
-        "accepted_claims": 28,
-        "accepted_results": 28,
-        "db_transactions": 414,
-        "db_queries": 498,
-        "query_seconds": 4.665334500000032,
-        "lock_waits": 60,
-        "lock_wait_seconds": 0.10247529999999999,
+        "query_seconds": 3.580334899999995,
+        "lock_waits": 56,
+        "lock_wait_seconds": 0.07463839999999994,
         "relay_publications": 112,
         "relay_failures": 0
       },
@@ -524,13 +370,174 @@
         "retries": 0
       },
       "process_cpu_seconds": 0.375,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
+      "worker_cpu_seconds": 0.046875,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
+    },
+    {
+      "configuration": "poll_1s",
+      "mode": "direct_poll",
+      "repeat": 2,
+      "run_id": "poll_1s-r2-d6a7a1b5-b0ec-4cd7-a0e9-da90fd102fa7",
+      "status": "PASS",
+      "workflow_count": 24,
+      "warmup_count": 4,
+      "terminal": 24,
+      "pending": 0,
+      "failed": 0,
+      "arrival_rate_per_second": 2,
+      "elapsed_seconds": 14.9759912,
+      "drain_seconds": 3.4759911999999993,
+      "throughput_per_second": 1.6025650442422803,
+      "backlog_oldest_age_seconds": 0,
+      "timings": {
+        "outbox_ready_to_claim_ms": {
+          "count": 24,
+          "min": 62.7243,
+          "median": 578.4631999999999,
+          "max": 983.3174
+        },
+        "outbox_claim_to_worker_claim_ms": {
+          "count": 24,
+          "min": 0,
+          "median": 0,
+          "max": 0.8413999999999999
+        },
+        "broker_receive_to_worker_claim_ms": {
+          "count": 0,
+          "min": 0,
+          "median": 0,
+          "max": 0
+        },
+        "worker_claim_to_result_ms": {
+          "count": 24,
+          "min": 4.120699999999999,
+          "median": 5.8259,
+          "max": 20.638299999999997
+        },
+        "result_to_terminal_ms": {
+          "count": 24,
+          "min": 16.236,
+          "median": 25.0063,
+          "max": 41.2339
+        },
+        "terminal_latency_ms": {
+          "count": 24,
+          "min": 84.57430000000001,
+          "median": 601.2441,
+          "max": 1041.336
+        }
+      },
+      "telemetry": {
+        "lease_acquires": 28,
+        "accepted_claims": 28,
+        "accepted_results": 28,
+        "db_transactions": 412,
+        "db_queries": 496,
+        "query_seconds": 3.6412199000000154,
+        "lock_waits": 58,
+        "lock_wait_seconds": 0.07877180000000017,
+        "relay_publications": 112,
+        "relay_failures": 0
+      },
+      "transport": {
+        "outbox_rows_claimed": 112,
+        "outbox_rows_published": 112,
+        "broker_publications": 0,
+        "broker_receive_count": 0,
+        "broker_commit_count": 0,
+        "notifications": 0,
+        "failures": 0,
+        "retries": 0
+      },
+      "process_cpu_seconds": 0.453125,
+      "worker_cpu_seconds": 0.015625,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
+    },
+    {
+      "configuration": "poll_1s",
+      "mode": "direct_poll",
+      "repeat": 3,
+      "run_id": "poll_1s-r3-af778407-21e7-46e1-98c0-2408a96fef62",
+      "status": "PASS",
+      "workflow_count": 24,
+      "warmup_count": 4,
+      "terminal": 24,
+      "pending": 0,
+      "failed": 0,
+      "arrival_rate_per_second": 2,
+      "elapsed_seconds": 14.0293038,
+      "drain_seconds": 2.529303799999999,
+      "throughput_per_second": 1.7107049887963792,
+      "backlog_oldest_age_seconds": 0,
+      "timings": {
+        "outbox_ready_to_claim_ms": {
+          "count": 24,
+          "min": 42.2921,
+          "median": 540.8683,
+          "max": 963.3099000000001
+        },
+        "outbox_claim_to_worker_claim_ms": {
+          "count": 24,
+          "min": 0,
+          "median": 0,
+          "max": 0
+        },
+        "broker_receive_to_worker_claim_ms": {
+          "count": 0,
+          "min": 0,
+          "median": 0,
+          "max": 0
+        },
+        "worker_claim_to_result_ms": {
+          "count": 24,
+          "min": 4.3454,
+          "median": 6.419700000000001,
+          "max": 10.6875
+        },
+        "result_to_terminal_ms": {
+          "count": 24,
+          "min": 16.7994,
+          "median": 24.1831,
+          "max": 123.9675
+        },
+        "terminal_latency_ms": {
+          "count": 24,
+          "min": 111.28739999999999,
+          "median": 597.3183,
+          "max": 993.1067999999999
+        }
+      },
+      "telemetry": {
+        "lease_acquires": 28,
+        "accepted_claims": 28,
+        "accepted_results": 28,
+        "db_transactions": 413,
+        "db_queries": 497,
+        "query_seconds": 3.4041933000000064,
+        "lock_waits": 60,
+        "lock_wait_seconds": 0.09284070000000011,
+        "relay_publications": 112,
+        "relay_failures": 0
+      },
+      "transport": {
+        "outbox_rows_claimed": 112,
+        "outbox_rows_published": 112,
+        "broker_publications": 0,
+        "broker_receive_count": 0,
+        "broker_commit_count": 0,
+        "notifications": 0,
+        "failures": 0,
+        "retries": 0
+      },
+      "process_cpu_seconds": 0.59375,
+      "worker_cpu_seconds": 0,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
     },
     {
       "configuration": "notify_direct",
       "mode": "direct_notify",
       "repeat": 1,
-      "run_id": "notify_direct-r1-fbdb9071-a7d0-4736-b196-47f2a8c50044",
+      "run_id": "notify_direct-r1-131e1456-8838-4e4b-b84c-d73c4c4228e0",
       "status": "PASS",
       "workflow_count": 24,
       "warmup_count": 4,
@@ -538,95 +545,16 @@
       "pending": 0,
       "failed": 0,
       "arrival_rate_per_second": 2,
-      "elapsed_seconds": 13.9893222,
-      "drain_seconds": 2.4893222,
-      "throughput_per_second": 1.715594197980514,
+      "elapsed_seconds": 14.0133077,
+      "drain_seconds": 2.5133077000000004,
+      "throughput_per_second": 1.7126577474638625,
       "backlog_oldest_age_seconds": 0,
       "timings": {
         "outbox_ready_to_claim_ms": {
           "count": 24,
-          "min": 2.5789,
-          "median": 5.7058,
-          "max": 29.301199999999998
-        },
-        "outbox_claim_to_worker_claim_ms": {
-          "count": 24,
-          "min": 0,
-          "median": 0,
-          "max": 0.3217
-        },
-        "broker_receive_to_worker_claim_ms": {
-          "count": 0,
-          "min": 0,
-          "median": 0,
-          "max": 0
-        },
-        "worker_claim_to_result_ms": {
-          "count": 24,
-          "min": 3.7971,
-          "median": 5.209499999999999,
-          "max": 37.9654
-        },
-        "result_to_terminal_ms": {
-          "count": 24,
-          "min": 14.521799999999999,
-          "median": 20.0613,
-          "max": 128.6881
-        },
-        "terminal_latency_ms": {
-          "count": 24,
-          "min": 21.8035,
-          "median": 33.4005,
-          "max": 170.56740000000002
-        }
-      },
-      "telemetry": {
-        "lease_acquires": 28,
-        "accepted_claims": 28,
-        "accepted_results": 28,
-        "db_transactions": 521,
-        "db_queries": 605,
-        "query_seconds": 4.942387199999995,
-        "lock_waits": 56,
-        "lock_wait_seconds": 0.0717331000000001,
-        "relay_publications": 112,
-        "relay_failures": 0
-      },
-      "transport": {
-        "outbox_rows_claimed": 112,
-        "outbox_rows_published": 112,
-        "broker_publications": 0,
-        "broker_receive_count": 0,
-        "broker_commit_count": 0,
-        "notifications": 112,
-        "failures": 0,
-        "retries": 0
-      },
-      "process_cpu_seconds": 0.421875,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
-    },
-    {
-      "configuration": "notify_direct",
-      "mode": "direct_notify",
-      "repeat": 2,
-      "run_id": "notify_direct-r2-604848f0-92f8-4d22-8873-7c67ee06dbf1",
-      "status": "PASS",
-      "workflow_count": 24,
-      "warmup_count": 4,
-      "terminal": 24,
-      "pending": 0,
-      "failed": 0,
-      "arrival_rate_per_second": 2,
-      "elapsed_seconds": 14.3095226,
-      "drain_seconds": 2.8095225999999993,
-      "throughput_per_second": 1.6772048006688918,
-      "backlog_oldest_age_seconds": 0,
-      "timings": {
-        "outbox_ready_to_claim_ms": {
-          "count": 24,
-          "min": 3.1863,
-          "median": 4.7991,
-          "max": 37.8437
+          "min": 3.6338,
+          "median": 5.6914,
+          "max": 24.1336
         },
         "outbox_claim_to_worker_claim_ms": {
           "count": 24,
@@ -642,100 +570,21 @@
         },
         "worker_claim_to_result_ms": {
           "count": 24,
-          "min": 3.6511,
-          "median": 5.7644,
-          "max": 42.592600000000004
+          "min": 4.3591999999999995,
+          "median": 6.7284,
+          "max": 26.7517
         },
         "result_to_terminal_ms": {
           "count": 24,
-          "min": 15.234,
-          "median": 28.4018,
-          "max": 115.24669999999999
+          "min": 18.8447,
+          "median": 27.1908,
+          "max": 99.24080000000001
         },
         "terminal_latency_ms": {
           "count": 24,
-          "min": 25.052,
-          "median": 43.8681,
-          "max": 162.6384
-        }
-      },
-      "telemetry": {
-        "lease_acquires": 28,
-        "accepted_claims": 28,
-        "accepted_results": 28,
-        "db_transactions": 521,
-        "db_queries": 605,
-        "query_seconds": 5.647150600000018,
-        "lock_waits": 56,
-        "lock_wait_seconds": 0.07936790000000005,
-        "relay_publications": 112,
-        "relay_failures": 0
-      },
-      "transport": {
-        "outbox_rows_claimed": 112,
-        "outbox_rows_published": 112,
-        "broker_publications": 0,
-        "broker_receive_count": 0,
-        "broker_commit_count": 0,
-        "notifications": 112,
-        "failures": 0,
-        "retries": 0
-      },
-      "process_cpu_seconds": 0.546875,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
-    },
-    {
-      "configuration": "notify_direct",
-      "mode": "direct_notify",
-      "repeat": 3,
-      "run_id": "notify_direct-r3-710d4b0b-8aa0-417c-8ea2-6d492e6c2f98",
-      "status": "PASS",
-      "workflow_count": 24,
-      "warmup_count": 4,
-      "terminal": 24,
-      "pending": 0,
-      "failed": 0,
-      "arrival_rate_per_second": 2,
-      "elapsed_seconds": 13.6250731,
-      "drain_seconds": 2.1250731,
-      "throughput_per_second": 1.7614584394413269,
-      "backlog_oldest_age_seconds": 0,
-      "timings": {
-        "outbox_ready_to_claim_ms": {
-          "count": 24,
-          "min": 6.237,
-          "median": 7.2842,
-          "max": 31.594200000000004
-        },
-        "outbox_claim_to_worker_claim_ms": {
-          "count": 24,
-          "min": 0,
-          "median": 0,
-          "max": 0.5909
-        },
-        "broker_receive_to_worker_claim_ms": {
-          "count": 0,
-          "min": 0,
-          "median": 0,
-          "max": 0
-        },
-        "worker_claim_to_result_ms": {
-          "count": 24,
-          "min": 3.7156,
-          "median": 4.9231,
-          "max": 32.3641
-        },
-        "result_to_terminal_ms": {
-          "count": 24,
-          "min": 14.3914,
-          "median": 19.6497,
-          "max": 66.7495
-        },
-        "terminal_latency_ms": {
-          "count": 24,
-          "min": 25.1331,
-          "median": 31.6286,
-          "max": 105.8473
+          "min": 27.525299999999998,
+          "median": 39.7393,
+          "max": 135.7397
         }
       },
       "telemetry": {
@@ -744,9 +593,9 @@
         "accepted_results": 28,
         "db_transactions": 520,
         "db_queries": 604,
-        "query_seconds": 3.8514826999999485,
+        "query_seconds": 4.167598299999963,
         "lock_waits": 56,
-        "lock_wait_seconds": 0.06101169999999989,
+        "lock_wait_seconds": 0.04948410000000003,
         "relay_publications": 112,
         "relay_failures": 0
       },
@@ -760,14 +609,175 @@
         "failures": 0,
         "retries": 0
       },
-      "process_cpu_seconds": 0.4375,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
+      "process_cpu_seconds": 0.484375,
+      "worker_cpu_seconds": 0.0625,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
+    },
+    {
+      "configuration": "notify_direct",
+      "mode": "direct_notify",
+      "repeat": 2,
+      "run_id": "notify_direct-r2-114c0ba2-d513-4163-ba7f-29025e88d8df",
+      "status": "PASS",
+      "workflow_count": 24,
+      "warmup_count": 4,
+      "terminal": 24,
+      "pending": 0,
+      "failed": 0,
+      "arrival_rate_per_second": 2,
+      "elapsed_seconds": 13.7931006,
+      "drain_seconds": 2.2931006000000007,
+      "throughput_per_second": 1.7400003593100741,
+      "backlog_oldest_age_seconds": 0,
+      "timings": {
+        "outbox_ready_to_claim_ms": {
+          "count": 24,
+          "min": 4.844399999999999,
+          "median": 6.5987,
+          "max": 27.7098
+        },
+        "outbox_claim_to_worker_claim_ms": {
+          "count": 24,
+          "min": 0,
+          "median": 0,
+          "max": 0.8517
+        },
+        "broker_receive_to_worker_claim_ms": {
+          "count": 0,
+          "min": 0,
+          "median": 0,
+          "max": 0
+        },
+        "worker_claim_to_result_ms": {
+          "count": 24,
+          "min": 4.1424,
+          "median": 6.835800000000001,
+          "max": 14.2606
+        },
+        "result_to_terminal_ms": {
+          "count": 24,
+          "min": 16.3234,
+          "median": 23.0678,
+          "max": 45.386900000000004
+        },
+        "terminal_latency_ms": {
+          "count": 24,
+          "min": 26.2957,
+          "median": 35.9798,
+          "max": 87.3573
+        }
+      },
+      "telemetry": {
+        "lease_acquires": 28,
+        "accepted_claims": 28,
+        "accepted_results": 28,
+        "db_transactions": 520,
+        "db_queries": 604,
+        "query_seconds": 3.7080720000000227,
+        "lock_waits": 56,
+        "lock_wait_seconds": 0.04811430000000011,
+        "relay_publications": 112,
+        "relay_failures": 0
+      },
+      "transport": {
+        "outbox_rows_claimed": 112,
+        "outbox_rows_published": 112,
+        "broker_publications": 0,
+        "broker_receive_count": 0,
+        "broker_commit_count": 0,
+        "notifications": 112,
+        "failures": 0,
+        "retries": 0
+      },
+      "process_cpu_seconds": 0.40625,
+      "worker_cpu_seconds": 0.03125,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
+    },
+    {
+      "configuration": "notify_direct",
+      "mode": "direct_notify",
+      "repeat": 3,
+      "run_id": "notify_direct-r3-5ca768cc-2847-40ce-b71f-ea4c5079e12e",
+      "status": "PASS",
+      "workflow_count": 24,
+      "warmup_count": 4,
+      "terminal": 24,
+      "pending": 0,
+      "failed": 0,
+      "arrival_rate_per_second": 2,
+      "elapsed_seconds": 13.7970278,
+      "drain_seconds": 2.2970278000000004,
+      "throughput_per_second": 1.7395050838413182,
+      "backlog_oldest_age_seconds": 0,
+      "timings": {
+        "outbox_ready_to_claim_ms": {
+          "count": 24,
+          "min": 2.791,
+          "median": 5.0813999999999995,
+          "max": 31.915399999999998
+        },
+        "outbox_claim_to_worker_claim_ms": {
+          "count": 24,
+          "min": 0,
+          "median": 0,
+          "max": 0.6639
+        },
+        "broker_receive_to_worker_claim_ms": {
+          "count": 0,
+          "min": 0,
+          "median": 0,
+          "max": 0
+        },
+        "worker_claim_to_result_ms": {
+          "count": 24,
+          "min": 3.6989,
+          "median": 5.4161,
+          "max": 26.1513
+        },
+        "result_to_terminal_ms": {
+          "count": 24,
+          "min": 16.505100000000002,
+          "median": 21.836000000000002,
+          "max": 90.08330000000001
+        },
+        "terminal_latency_ms": {
+          "count": 24,
+          "min": 24.458199999999998,
+          "median": 31.8554,
+          "max": 136.3106
+        }
+      },
+      "telemetry": {
+        "lease_acquires": 28,
+        "accepted_claims": 28,
+        "accepted_results": 28,
+        "db_transactions": 520,
+        "db_queries": 604,
+        "query_seconds": 3.9009803000000325,
+        "lock_waits": 56,
+        "lock_wait_seconds": 0.05318550000000011,
+        "relay_publications": 112,
+        "relay_failures": 0
+      },
+      "transport": {
+        "outbox_rows_claimed": 112,
+        "outbox_rows_published": 112,
+        "broker_publications": 0,
+        "broker_receive_count": 0,
+        "broker_commit_count": 0,
+        "notifications": 112,
+        "failures": 0,
+        "retries": 0
+      },
+      "process_cpu_seconds": 0.203125,
+      "worker_cpu_seconds": 0.03125,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
     },
     {
       "configuration": "notify_kafka",
       "mode": "kafka",
       "repeat": 1,
-      "run_id": "notify_kafka-r1-3cdffaa3-79c4-4771-9e31-0a799a471701",
+      "run_id": "notify_kafka-r1-4f27ee07-86df-40df-bc30-5f78447706ac",
       "status": "PASS",
       "workflow_count": 24,
       "warmup_count": 4,
@@ -775,57 +785,57 @@
       "pending": 0,
       "failed": 0,
       "arrival_rate_per_second": 2,
-      "elapsed_seconds": 13.9425332,
-      "drain_seconds": 2.4425331999999997,
-      "throughput_per_second": 1.7213514686126048,
+      "elapsed_seconds": 14.1793027,
+      "drain_seconds": 2.679302699999999,
+      "throughput_per_second": 1.6926079164668655,
       "backlog_oldest_age_seconds": 0,
       "timings": {
         "outbox_ready_to_claim_ms": {
           "count": 24,
-          "min": 2.4716,
-          "median": 5.3902,
-          "max": 26.2049
+          "min": 7.6145,
+          "median": 9.6005,
+          "max": 26.357599999999998
         },
         "outbox_claim_to_worker_claim_ms": {
           "count": 24,
-          "min": 11.2964,
-          "median": 13.2087,
-          "max": 29.9941
+          "min": 11.530000000000001,
+          "median": 13.0488,
+          "max": 18.7717
         },
         "broker_receive_to_worker_claim_ms": {
           "count": 24,
-          "min": 0.3056,
-          "median": 0.9201,
-          "max": 15.4849
+          "min": 0,
+          "median": 1.1702,
+          "max": 7.0476
         },
         "worker_claim_to_result_ms": {
           "count": 24,
-          "min": 3.3253,
-          "median": 5.5904,
-          "max": 25.0666
+          "min": 6.1365,
+          "median": 8.7262,
+          "max": 21.7797
         },
         "result_to_terminal_ms": {
           "count": 24,
-          "min": 14.7962,
-          "median": 19.7041,
-          "max": 65.43400000000001
+          "min": 23.2975,
+          "median": 29.4283,
+          "max": 90.25189999999999
         },
         "terminal_latency_ms": {
           "count": 24,
-          "min": 35.1446,
-          "median": 45.5019,
-          "max": 104.4519
+          "min": 50.9752,
+          "median": 60.6396,
+          "max": 147.7976
         }
       },
       "telemetry": {
         "lease_acquires": 28,
         "accepted_claims": 28,
         "accepted_results": 28,
-        "db_transactions": 519,
-        "db_queries": 603,
-        "query_seconds": 4.192463700000026,
+        "db_transactions": 520,
+        "db_queries": 604,
+        "query_seconds": 5.042884599999972,
         "lock_waits": 56,
-        "lock_wait_seconds": 0.05459349999999985,
+        "lock_wait_seconds": 0.09242869999999992,
         "relay_publications": 112,
         "relay_failures": 0
       },
@@ -839,14 +849,15 @@
         "failures": 0,
         "retries": 0
       },
-      "process_cpu_seconds": 0.640625,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
+      "process_cpu_seconds": 0.859375,
+      "worker_cpu_seconds": 0.046875,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
     },
     {
       "configuration": "notify_kafka",
       "mode": "kafka",
       "repeat": 2,
-      "run_id": "notify_kafka-r2-5fd13f48-9670-4d78-b8c3-b6f2d039d22f",
+      "run_id": "notify_kafka-r2-c847bd9d-f704-4501-99be-e275945b0f37",
       "status": "PASS",
       "workflow_count": 24,
       "warmup_count": 4,
@@ -854,46 +865,46 @@
       "pending": 0,
       "failed": 0,
       "arrival_rate_per_second": 2,
-      "elapsed_seconds": 13.8983389,
-      "drain_seconds": 2.3983389000000006,
-      "throughput_per_second": 1.7268250668430598,
+      "elapsed_seconds": 13.7979275,
+      "drain_seconds": 2.2979275,
+      "throughput_per_second": 1.739391658638589,
       "backlog_oldest_age_seconds": 0,
       "timings": {
         "outbox_ready_to_claim_ms": {
           "count": 24,
-          "min": 3.7712000000000003,
-          "median": 5.6616,
-          "max": 37.724000000000004
+          "min": 6.6228,
+          "median": 8.8361,
+          "max": 20.574599999999997
         },
         "outbox_claim_to_worker_claim_ms": {
           "count": 24,
-          "min": 11.8382,
-          "median": 12.5588,
-          "max": 26.2223
+          "min": 11.8368,
+          "median": 12.839500000000001,
+          "max": 77.9915
         },
         "broker_receive_to_worker_claim_ms": {
           "count": 24,
-          "min": 0,
-          "median": 0.9872,
-          "max": 9.294699999999999
+          "min": 0.5048,
+          "median": 0.8648,
+          "max": 1.6666999999999998
         },
         "worker_claim_to_result_ms": {
           "count": 24,
-          "min": 3.7168,
-          "median": 4.8601,
-          "max": 51.1789
+          "min": 6.5338,
+          "median": 7.9501,
+          "max": 10.3842
         },
         "result_to_terminal_ms": {
           "count": 24,
-          "min": 14.799,
-          "median": 20.1148,
-          "max": 64.1739
+          "min": 23.0187,
+          "median": 28.9561,
+          "max": 63.3262
         },
         "terminal_latency_ms": {
           "count": 24,
-          "min": 38.6074,
-          "median": 42.248,
-          "max": 117.6733
+          "min": 50.6207,
+          "median": 58.585,
+          "max": 142.2815
         }
       },
       "telemetry": {
@@ -902,9 +913,9 @@
         "accepted_results": 28,
         "db_transactions": 520,
         "db_queries": 604,
-        "query_seconds": 4.124486200000028,
+        "query_seconds": 4.313970899999994,
         "lock_waits": 56,
-        "lock_wait_seconds": 0.05446379999999995,
+        "lock_wait_seconds": 0.04789999999999961,
         "relay_publications": 112,
         "relay_failures": 0
       },
@@ -918,14 +929,15 @@
         "failures": 0,
         "retries": 0
       },
-      "process_cpu_seconds": 0.703125,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
+      "process_cpu_seconds": 0.78125,
+      "worker_cpu_seconds": 0.046875,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
     },
     {
       "configuration": "notify_kafka",
       "mode": "kafka",
       "repeat": 3,
-      "run_id": "notify_kafka-r3-7d6e5e01-603f-49d7-9d7d-c977a574bd88",
+      "run_id": "notify_kafka-r3-c3ec181c-b193-4267-8331-f887c76432e6",
       "status": "PASS",
       "workflow_count": 24,
       "warmup_count": 4,
@@ -933,46 +945,46 @@
       "pending": 0,
       "failed": 0,
       "arrival_rate_per_second": 2,
-      "elapsed_seconds": 14.0195445,
-      "drain_seconds": 2.5195445000000003,
-      "throughput_per_second": 1.7118958465448004,
+      "elapsed_seconds": 14.1082795,
+      "drain_seconds": 2.6082795,
+      "throughput_per_second": 1.7011287591800262,
       "backlog_oldest_age_seconds": 0,
       "timings": {
         "outbox_ready_to_claim_ms": {
           "count": 24,
-          "min": 4.1482,
-          "median": 5.9698,
-          "max": 43.149899999999995
+          "min": 7.1014,
+          "median": 9.6294,
+          "max": 23.1259
         },
         "outbox_claim_to_worker_claim_ms": {
           "count": 24,
-          "min": 11.690199999999999,
-          "median": 12.5557,
-          "max": 41.808499999999995
+          "min": 11.149799999999999,
+          "median": 12.735899999999999,
+          "max": 17.473200000000002
         },
         "broker_receive_to_worker_claim_ms": {
           "count": 24,
-          "min": 0.5024,
-          "median": 0.7239,
-          "max": 27.1312
+          "min": 0,
+          "median": 1.1322999999999999,
+          "max": 6.0104
         },
         "worker_claim_to_result_ms": {
           "count": 24,
-          "min": 3.7944,
-          "median": 5.2045,
-          "max": 38.3863
+          "min": 6.7737,
+          "median": 8.1269,
+          "max": 27.3608
         },
         "result_to_terminal_ms": {
           "count": 24,
-          "min": 16.3656,
-          "median": 21.1393,
-          "max": 94.76089999999999
+          "min": 21.928199999999997,
+          "median": 28.6288,
+          "max": 92.5893
         },
         "terminal_latency_ms": {
           "count": 24,
-          "min": 38.1703,
-          "median": 48.2439,
-          "max": 152.8973
+          "min": 52.8537,
+          "median": 61.7502,
+          "max": 135.80010000000001
         }
       },
       "telemetry": {
@@ -981,9 +993,9 @@
         "accepted_results": 28,
         "db_transactions": 520,
         "db_queries": 604,
-        "query_seconds": 4.939432199999985,
+        "query_seconds": 4.89174839999999,
         "lock_waits": 56,
-        "lock_wait_seconds": 0.06752049999999998,
+        "lock_wait_seconds": 0.05690419999999974,
         "relay_publications": 112,
         "relay_failures": 0
       },
@@ -997,42 +1009,43 @@
         "failures": 0,
         "retries": 0
       },
-      "process_cpu_seconds": 0.5,
-      "cpu_description": "whole command process; includes the fixed in-process worker fixture; not dispatcher-only"
+      "process_cpu_seconds": 0.765625,
+      "worker_cpu_seconds": 0,
+      "cpu_description": "dispatcher process CPU; worker CPU is measured from four fixed subprocesses"
     }
   ],
   "summary": [
     {
       "configuration": "poll_250ms",
       "repeats": 3,
-      "median_ready_to_claim_ms": 144.0104,
-      "median_terminal_latency_ms": 203.3516,
-      "median_throughput_per_second": 1.7818620167037091,
-      "delay_spread_percent": 11.845533378144905
+      "median_ready_to_claim_ms": 152.4245,
+      "median_terminal_latency_ms": 180.8718,
+      "median_throughput_per_second": 1.8104781786686082,
+      "delay_spread_percent": 7.323757007567693
     },
     {
       "configuration": "poll_1s",
       "repeats": 3,
-      "median_ready_to_claim_ms": 616.2945,
-      "median_terminal_latency_ms": 637.3887000000001,
-      "median_throughput_per_second": 1.595173377566605,
-      "delay_spread_percent": 14.121284548215174
+      "median_ready_to_claim_ms": 578.4631999999999,
+      "median_terminal_latency_ms": 601.2441,
+      "median_throughput_per_second": 1.6025650442422803,
+      "delay_spread_percent": 11.178066297043626
     },
     {
       "configuration": "notify_direct",
       "repeats": 3,
-      "median_ready_to_claim_ms": 5.7058,
-      "median_terminal_latency_ms": 33.4005,
-      "median_throughput_per_second": 1.715594197980514,
-      "delay_spread_percent": 43.553927582459956
+      "median_ready_to_claim_ms": 5.6914,
+      "median_terminal_latency_ms": 35.9798,
+      "median_throughput_per_second": 1.7395050838413182,
+      "delay_spread_percent": 26.659521383139484
     },
     {
       "configuration": "notify_kafka",
       "repeats": 3,
-      "median_ready_to_claim_ms": 5.6616,
-      "median_terminal_latency_ms": 45.5019,
-      "median_throughput_per_second": 1.7213514686126048,
-      "delay_spread_percent": 10.237388724035611
+      "median_ready_to_claim_ms": 9.6005,
+      "median_terminal_latency_ms": 60.6396,
+      "median_throughput_per_second": 1.7011287591800262,
+      "delay_spread_percent": 8.263111296286656
     }
   ],
   "validation": {
@@ -1054,18 +1067,18 @@
           "lower_latency_configuration": "notify_direct",
           "higher_latency_ms": {
             "count": 3,
-            "min": 135.0261,
-            "median": 144.0104,
-            "max": 152.0849
+            "min": 144.69099999999997,
+            "median": 152.4245,
+            "max": 155.8542
           },
           "lower_latency_ms": {
             "count": 3,
-            "min": 4.7991,
-            "median": 5.7058,
-            "max": 7.2842
+            "min": 5.0813999999999995,
+            "median": 5.6914,
+            "max": 6.5987
           },
-          "median_difference_ms": 138.3046,
-          "median_ratio": 25.23930036103614,
+          "median_difference_ms": 146.7331,
+          "median_ratio": 26.781547598130512,
           "intervals_separated": true
         },
         {
@@ -1073,18 +1086,18 @@
           "lower_latency_configuration": "notify_direct",
           "higher_latency_ms": {
             "count": 3,
-            "min": 548.3464,
-            "median": 616.2945,
-            "max": 635.3751
+            "min": 540.8683,
+            "median": 578.4631999999999,
+            "max": 605.5293
           },
           "lower_latency_ms": {
             "count": 3,
-            "min": 4.7991,
-            "median": 5.7058,
-            "max": 7.2842
+            "min": 5.0813999999999995,
+            "median": 5.6914,
+            "max": 6.5987
           },
-          "median_difference_ms": 610.5887,
-          "median_ratio": 108.01193522380736,
+          "median_difference_ms": 572.7717999999999,
+          "median_ratio": 101.63812067329654,
           "intervals_separated": true
         }
       ],
@@ -1098,47 +1111,48 @@
           "lower_latency_configuration": "notify_direct",
           "higher_latency_ms": {
             "count": 3,
-            "min": 5.3902,
-            "median": 5.6616,
-            "max": 5.9698
+            "min": 8.8361,
+            "median": 9.6005,
+            "max": 9.6294
           },
           "lower_latency_ms": {
             "count": 3,
-            "min": 4.7991,
-            "median": 5.7058,
-            "max": 7.2842
+            "min": 5.0813999999999995,
+            "median": 5.6914,
+            "max": 6.5987
           },
-          "median_difference_ms": -0.04420000000000002,
-          "median_ratio": 0.9922534964422167,
-          "intervals_separated": false
+          "median_difference_ms": 3.9091000000000005,
+          "median_ratio": 1.6868433074463227,
+          "intervals_separated": true
         },
         {
           "higher_latency_configuration": "notify_kafka",
           "lower_latency_configuration": "notify_direct",
           "higher_latency_ms": {
             "count": 3,
-            "min": 42.248,
-            "median": 45.5019,
-            "max": 48.2439
+            "min": 58.585,
+            "median": 60.6396,
+            "max": 61.7502
           },
           "lower_latency_ms": {
             "count": 3,
-            "min": 31.6286,
-            "median": 33.4005,
-            "max": 43.8681
+            "min": 31.8554,
+            "median": 35.9798,
+            "max": 39.7393
           },
-          "median_difference_ms": 12.101399999999998,
-          "median_ratio": 1.3623119414380023,
-          "intervals_separated": false
+          "median_difference_ms": 24.659800000000004,
+          "median_ratio": 1.6853790182268942,
+          "intervals_separated": true
         }
       ],
-      "resolved": false,
-      "summary": "The incremental Kafka transport effect is unresolved at the observed run dispersion."
+      "resolved": true,
+      "summary": "The measured Kafka transport increment is resolved at the reported stages."
     },
     "cost_effects_resolved": true,
     "resolved_cost_effects": [
-      "wake_mechanism_ready_to_claim"
+      "wake_mechanism_ready_to_claim",
+      "kafka_dispatch_stage_ready_to_claim"
     ],
-    "interpretation": "At this four-worker, single-host scale, notification-driven dispatch removes the polling delay. Kafka is not a latency optimization relative to direct notification; this does not address decoupling, retained backlog, connection count, or multi-host scaling."
+    "interpretation": "At this four-worker, single-host scale, notification-driven dispatch removes the polling delay. The measured Kafka transport increment is resolved at the reported stages. This does not address decoupling, retained backlog, connection count, or multi-host scaling."
   }
 }
