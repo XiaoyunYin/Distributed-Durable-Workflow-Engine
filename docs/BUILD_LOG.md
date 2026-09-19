@@ -1926,3 +1926,36 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   and restores them in `finally`; the stranded diagnostic namespace was
   removed explicitly. This is a fixture-isolation requirement, not a measured
   result.
+
+## 2026-09-18 - M7 DUR-035 final evidence handoff
+
+- DUR-035 is `READY_FOR_REVIEW` at `d08fb13`, based on the accepted DUR-034
+  closeout `81927c5`. The final artifact is `experiments/m7/dur035/results.json`.
+- `scripts/m7-dur035.ps1` passed from the fixed clean target with four arms
+  (`poll_250ms`, `poll_1s`, `notify_direct`, `notify_kafka`) and three repeats
+  each. There are 144 measured workflows plus 48 warmups; every measured run
+  is `PASS`, terminal measured count is 12, pending count is zero, and the
+  script's post-run namespace sweep is zero. The Kafka arm recorded 64 relay
+  publications and 16 task receives/commits per repeat; the direct arms
+  recorded zero broker traffic.
+- The artifact records outbox-ready-to-claim timing, outbox-claim-to-worker
+  handoff, Kafka receive-to-worker handoff, worker/result/terminal timings,
+  PostgreSQL query/transaction/lock telemetry, backlog age, process CPU with
+  its whole-command/in-process-worker scope, notification counts, and
+  failures. The Kafka source is primed before relay publication and newly
+  created study groups start at the latest offset, preventing historical task
+  messages from contaminating a case.
+- The observed final medians are descriptive only: ready-to-claim is about
+  152 ms at 250 ms polling, 591 ms at 1 s polling, 4.8 ms for direct
+  `LISTEN/NOTIFY`, and 7.3 ms at relay-to-Kafka. Terminal-latency medians are
+  about 188 ms, 614 ms, 45 ms, and 73 ms respectively. These are bounded
+  single-node Docker Desktop/WSL2 Store/Engine fixture results, not claims
+  about maximum throughput, multi-host behavior, or production capacity;
+  `cost_effects_resolved` remains false.
+- The first runs exposed and fixed real harness issues before evidence was
+  accepted: global live-consumer interference, snake_case task decoding,
+  ambiguous backlog SQL, warmup/measurement reconciliation accounting,
+  concurrent partition-lease contention, notification completion waiting,
+  Kafka consumer-group startup, missing dispatch timestamps, and duplicated
+  broker metric accounting. Failed artifacts were not reused; the final run
+  was regenerated from the exact target recorded above.
