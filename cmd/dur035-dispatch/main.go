@@ -683,7 +683,7 @@ func reconcileNamespace(ctx context.Context, store *state.Store, namespace strin
 	if err != nil {
 		return
 	}
-	err = store.Pool().QueryRow(ctx, `SELECT COALESCE(EXTRACT(EPOCH FROM (clock_timestamp() - min(created_at))), 0) FROM engine.outbox o JOIN engine.workflow_executions w ON w.workflow_id = o.workflow_id WHERE w.namespace = $1 AND o.publish_state IN ('PENDING','CLAIMED')`, namespace).Scan(&oldest)
+	err = store.Pool().QueryRow(ctx, `SELECT COALESCE(EXTRACT(EPOCH FROM (clock_timestamp() - min(o.created_at))), 0) FROM engine.outbox o JOIN engine.workflow_executions w ON w.workflow_id = o.workflow_id WHERE w.namespace = $1 AND o.publish_state IN ('PENDING','CLAIMED')`, namespace).Scan(&oldest)
 	return
 }
 
