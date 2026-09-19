@@ -5779,3 +5779,54 @@ final target and artifact before any M7 status changes.
 - **Remaining nonblocking items:** R057, the historical R019 test gap, and
   recorded M6 notes remain open outside this task. DUR-027, DUR-028, DUR-029,
   and DUR-033A remain TODO.
+
+## Latest Codex handoff — M7 DUR-027
+
+- **Task:** DUR-027 lease tradeoff study.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-027 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `a4c5ac4` (DUR-035 closeout).
+- **Exact implementation target:** `ebb3bef`. The source campaign target is
+  `c29ba429a5f7645bb3fff39b6fed42db452ad760`; `ebb3bef` adds only the final
+  PLAN/build-log evidence and the committed artifact after that source target.
+- **Changes:** added `cmd/dur027-lease`, focused protocol/conclusion tests,
+  and `scripts/m7-dur027.ps1`. The harness runs three frozen TTL arms (100,
+  250, and 750 ms), three repeats, 12 normal-renewal cases and 12 owner-pause
+  cases per run. It uses the real PostgreSQL lease repository, checks the
+  frozen partition map, requires a new-owner durable workflow transition after
+  takeover, probes three stale-owner writes, and records one row-lock wait
+  case per run. The runner validates the artifact, reserved-namespace cleanup,
+  and service restoration.
+- **Measured evidence:**
+  `experiments/m7/dur027/results.json` is `PASS` with 9/9 runs and 216/216
+  cases complete, 108 takeovers, 108 useful recoveries, 324 stale-owner
+  writes rejected, zero false takeovers, nine lock-contention cases, and zero
+  reserved workflow/definition rows after cleanup. Observed takeover medians
+  are 125.3 ms, 276.2 ms, and 776.9 ms for 100, 250, and 750 ms TTLs;
+  normal-renewal traffic averages 170.7, 94.3, and 57.7 renewals per run.
+  These conclusions are generated from per-run observations, not constants.
+- **Checks run:** `scripts/m7-dur027.ps1` passed against the live PostgreSQL
+  service and restored runtime-a/runtime-b/worker-a/worker-b; focused
+  `go test ./cmd/dur027-lease`; `go vet ./cmd/dur027-lease`; the Go race/vet,
+  build, formatting, Ruff, and mypy phases of `scripts/ci.ps1 -WithRace`;
+  `uv run pytest --basetemp=./.tmp-pytest -p no:cacheprovider` with task-local
+  Go/uv caches (38 Python tests passed); PowerShell parse validation; and
+  `git diff --check`.
+- **Skipped or not claimed:** a clean `ci.ps1 -WithServices` rerun was not
+  repeated after the final artifact; the DUR-027 runner exercised live
+  PostgreSQL directly and isolated the four foundation consumers. No Kafka
+  measurement, multi-host deployment, process-kill equivalence, hard-kill
+  durability, production scheduler, maximum-throughput, remote-CI,
+  paid-provider, or live-model claim is made.
+- **Known limitations:** the owner pause is an in-process bounded fixture, the
+  evidence is from the single-node Docker Desktop/WSL2 host, and short TTLs
+  are measurement arms rather than deployment recommendations. The study
+  measures local PostgreSQL lock waits and lease-expiry fencing, not host or
+  storage failure recovery.
+- **Review request:** verify that the three TTL arms are matched, that normal
+  renewal and pause cases use the durable repository and frozen partition map,
+  that rejected competitor acquisition is not mislabeled as a false takeover,
+  that stale-owner fencing and the post-takeover transition are authoritative,
+  that lock-wait evidence is real, that the artifact derives its summaries,
+  and that failed/incomplete runs or cleanup residue cannot produce `PASS`.
