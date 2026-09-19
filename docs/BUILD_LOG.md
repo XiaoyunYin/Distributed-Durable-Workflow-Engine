@@ -2206,3 +2206,7 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   fixture races and are preserved as intermediate audit commits; neither is
   acceptance evidence. The final runner passed after the pause-control and
   short-TTL readiness fixes and restored the runtime/worker services.
+- The final `scripts/ci.ps1 -WithRace` passed Go tests and race tests, vet,
+  build, Ruff, mypy, and 38 Python tests with task-local Go/uv/pytest paths.
+  The first invocation was rejected by the host's protected global pytest
+  temp directory after 35 Python tests; the task-local rerun passed all 38.

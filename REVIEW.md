@@ -6139,8 +6139,9 @@ final target and artifact before any M7 status changes.
 - **Handoff basis:** COMMITTED.
 - **Exact base commit:** `bdd8958` (the round-39 reviewed DUR-027 target).
 - **Exact source campaign target:** `bd86b20`; the final pilot and campaign
-  artifacts were generated from this source target. The evidence/handoff
-  commit is the commit containing these notes and regenerated artifacts.
+  artifacts were generated from this source target.
+- **Exact target commit:** `8e06e14` (final evidence, plan/build-log updates,
+  and this committed handoff).
 - **Scope:** R082 is addressed by measuring crash recovery from controller-
   confirmed non-zero fixture death. The fixture self-exits with status 137
   immediately after `owner_crash_armed`; it does not run deferred cleanup, so
@@ -6163,8 +6164,10 @@ final target and artifact before any M7 status changes.
   against live PostgreSQL and restored runtime-a/runtime-b/worker-a/worker-b;
   focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`,
   `go build`, `gofmt`, PowerShell parse validation, and `git diff --check`
-  passed. The two earlier failed reruns are preserved as intermediate audit
-  commits and are not acceptance evidence.
+  passed. The final `scripts/ci.ps1 -WithRace` also passed Go tests/race
+  tests, vet, build, Ruff, mypy, and 38 Python tests when supplied task-local
+  Go/uv/pytest paths. The two earlier failed reruns are preserved as
+  intermediate audit commits and are not acceptance evidence.
 - **Skipped or not claimed:** the service-backed Kafka fixture timeout noted
   in the historical build log was not used as DUR-027 evidence or asserted as
   a new finding. No multi-host, storage-failure, production-throughput,
