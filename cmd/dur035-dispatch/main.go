@@ -31,7 +31,7 @@ import (
 )
 
 const (
-	workflowCount = 12
+	workflowCount = 24
 	warmupCount   = 4
 	arrivalRate   = 2.0
 	workerSlots   = 4
@@ -75,15 +75,17 @@ type protocolReport struct {
 }
 
 type artifact struct {
-	SchemaVersion  string         `json:"schema_version"`
-	Status         string         `json:"status"`
-	GeneratedAt    time.Time      `json:"generated_at"`
-	GitCommit      string         `json:"git_commit"`
-	Protocol       protocolReport `json:"protocol"`
-	Configurations []armReport    `json:"configurations"`
-	Runs           []runReport    `json:"runs"`
-	Summary        []summaryRow   `json:"summary"`
-	Failure        string         `json:"failure,omitempty"`
+	SchemaVersion  string           `json:"schema_version"`
+	Status         string           `json:"status"`
+	GeneratedAt    time.Time        `json:"generated_at"`
+	GitCommit      string           `json:"git_commit"`
+	Protocol       protocolReport   `json:"protocol"`
+	Configurations []armReport      `json:"configurations"`
+	Runs           []runReport      `json:"runs"`
+	Summary        []summaryRow     `json:"summary"`
+	Validation     validationReport `json:"validation"`
+	Conclusions    conclusionReport `json:"conclusions"`
+	Failure        string           `json:"failure,omitempty"`
 }
 
 type armReport struct {
@@ -95,13 +97,48 @@ type armReport struct {
 }
 
 type summaryRow struct {
-	Configuration       string  `json:"configuration"`
-	Repeats             int     `json:"repeats"`
-	MedianDelayMS       float64 `json:"median_ready_to_claim_ms"`
-	MedianTerminalMS    float64 `json:"median_terminal_latency_ms"`
-	MedianThroughput    float64 `json:"median_throughput_per_second"`
-	DelaySpreadPct      float64 `json:"delay_spread_percent"`
-	CostEffectsResolved bool    `json:"cost_effects_resolved"`
+	Configuration    string  `json:"configuration"`
+	Repeats          int     `json:"repeats"`
+	MedianDelayMS    float64 `json:"median_ready_to_claim_ms"`
+	MedianTerminalMS float64 `json:"median_terminal_latency_ms"`
+	MedianThroughput float64 `json:"median_throughput_per_second"`
+	DelaySpreadPct   float64 `json:"delay_spread_percent"`
+}
+
+type validationReport struct {
+	MeasuredRuns        int    `json:"measured_runs"`
+	MeasuredWorkflows   int    `json:"measured_workflows"`
+	TerminalWorkflows   int    `json:"terminal_workflows"`
+	PendingWorkflows    int    `json:"pending_workflows"`
+	FailedWorkflows     int    `json:"failed_workflows"`
+	AllRunsReconciled   bool   `json:"all_runs_reconciled"`
+	KafkaNotifications  uint64 `json:"kafka_notifications"`
+	KafkaBrokerReceives uint64 `json:"kafka_broker_receives"`
+	KafkaBrokerCommits  uint64 `json:"kafka_broker_commits"`
+}
+
+type effectComparison struct {
+	HigherLatencyConfiguration string       `json:"higher_latency_configuration"`
+	LowerLatencyConfiguration  string       `json:"lower_latency_configuration"`
+	HigherLatencyMS            medianReport `json:"higher_latency_ms"`
+	LowerLatencyMS             medianReport `json:"lower_latency_ms"`
+	DifferenceMS               float64      `json:"median_difference_ms"`
+	Ratio                      float64      `json:"median_ratio"`
+	IntervalsSeparated         bool         `json:"intervals_separated"`
+}
+
+type effectConclusion struct {
+	Comparisons []effectComparison `json:"comparisons"`
+	Resolved    bool               `json:"resolved"`
+	Summary     string             `json:"summary"`
+}
+
+type conclusionReport struct {
+	WakeMechanism       effectConclusion `json:"wake_mechanism"`
+	TransportEffect     effectConclusion `json:"transport_effect"`
+	CostEffectsResolved bool             `json:"cost_effects_resolved"`
+	ResolvedCostEffects []string         `json:"resolved_cost_effects"`
+	Interpretation      string           `json:"interpretation"`
 }
 
 type runReport struct {
@@ -461,14 +498,15 @@ func (d *dispatcher) listen(ctx context.Context) <-chan struct{} {
 }
 
 type kafkaDispatcher struct {
-	store    *state.Store
-	pool     *workerPool
-	source   *transport.KafkaSource
-	relay    *transport.Relay
-	metrics  *telemetry.Metrics
-	receives atomic.Uint64
-	commits  atomic.Uint64
-	failures atomic.Uint64
+	store         *state.Store
+	pool          *workerPool
+	source        *transport.KafkaSource
+	relay         *transport.Relay
+	metrics       *telemetry.Metrics
+	receives      atomic.Uint64
+	commits       atomic.Uint64
+	notifications atomic.Uint64
+	failures      atomic.Uint64
 }
 
 type observedBroker struct {
@@ -613,6 +651,7 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 		relayCtx, cancelRelay := context.WithCancel(caseCtx)
 		relayCancel = cancelRelay
 		observed := &observedBroker{inner: broker, tracker: tracker}
+		kafkaD = &kafkaDispatcher{store: store, pool: pool, source: source, metrics: metrics}
 		relay := transport.NewRelay(store, observed, transport.RelayConfig{OwnerID: state.NewID(), BatchSize: 32, ClaimLease: claimLease,
 			PollInterval: selected.FallbackPoll, OnError: func(err error) { _ = err }, OnSuccess: func(report transport.RelayReport) {
 				if metrics != nil {
@@ -620,8 +659,8 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 						metrics.RecordRelayFailure()
 					}
 				}
-			}})
-		kafkaD = &kafkaDispatcher{store: store, pool: pool, source: source, relay: relay, metrics: metrics}
+			}, OnNotification: func() { kafkaD.notifications.Add(1) }})
+		kafkaD.relay = relay
 		go func() { _ = relay.Run(relayCtx) }()
 		go kafkaD.consume(caseCtx)
 	} else {
@@ -678,6 +717,7 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 	measuredEnd := time.Now().UTC()
 	if relayCancel != nil {
 		relayCancel()
+		cancel()
 		_ = kafkaD.source.Close()
 		_ = kafkaD.relay.Broker.Close()
 	}
@@ -703,10 +743,11 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 		WorkflowCount: workflowCount, WarmupCount: warmupCount, Terminal: workflowCount, Pending: pending, ArrivalRate: arrivalRate,
 		ElapsedSeconds: measuredEnd.Sub(measuredStart).Seconds(), DrainSeconds: maxFloat(0, measuredEnd.Sub(measuredStart).Seconds()-float64(workflowCount-1)/arrivalRate), Throughput: float64(workflowCount) / measuredEnd.Sub(measuredStart).Seconds(),
 		BacklogOldestAgeSeconds: oldest, Timings: makeTimings(rows), Telemetry: telemetryDelta, ProcessCPUSeconds: cpuEnd - cpuStart,
-		CPUDescription: "whole command process; includes the fixed in-process worker fixture", Transport: transportReport{Failures: pool.failures.Load()}}
+		CPUDescription: "whole command process; includes the fixed in-process worker fixture; not dispatcher-only", Transport: transportReport{Failures: pool.failures.Load()}}
 	if kafkaD != nil {
 		report.Transport.BrokerReceiveCount = kafkaD.receives.Load()
 		report.Transport.BrokerCommitCount = kafkaD.commits.Load()
+		report.Transport.Notifications = kafkaD.notifications.Load()
 		report.Transport.Failures += kafkaD.failures.Load()
 	}
 	if kafkaD != nil {
@@ -880,6 +921,13 @@ func runStudy(ctx context.Context, cfg config) (artifact, error) {
 		}
 	}
 	result.Summary = makeSummary(result.Runs)
+	result.Validation = validateRuns(result.Runs)
+	result.Conclusions = deriveConclusions(result.Runs)
+	if !result.Validation.AllRunsReconciled {
+		result.Status = "FAIL"
+		result.Failure = "validation did not reconcile every measured run"
+		return result, errors.New(result.Failure)
+	}
 	return result, nil
 }
 
@@ -914,9 +962,92 @@ func makeSummary(runs []runReport) []summaryRow {
 		if delaySummary.Median > 0 {
 			spread = (delaySummary.Max - delaySummary.Min) / delaySummary.Median * 100
 		}
-		result = append(result, summaryRow{Configuration: selected.Name, Repeats: len(rows), MedianDelayMS: delaySummary.Median, MedianTerminalMS: terminalSummary.Median, MedianThroughput: throughputSummary.Median, DelaySpreadPct: spread, CostEffectsResolved: false})
+		result = append(result, summaryRow{Configuration: selected.Name, Repeats: len(rows), MedianDelayMS: delaySummary.Median, MedianTerminalMS: terminalSummary.Median, MedianThroughput: throughputSummary.Median, DelaySpreadPct: spread})
 	}
 	return result
+}
+
+func validateRuns(runs []runReport) validationReport {
+	result := validationReport{MeasuredRuns: len(runs), AllRunsReconciled: len(runs) == len(arms)*3}
+	for _, run := range runs {
+		result.MeasuredWorkflows += run.WorkflowCount
+		result.TerminalWorkflows += run.Terminal
+		result.PendingWorkflows += run.Pending
+		result.FailedWorkflows += run.Failed
+		if run.Status != "PASS" || run.Terminal != run.WorkflowCount || run.Pending != 0 || run.Failed != 0 ||
+			run.Timings.TerminalLatencyMS.Count != run.WorkflowCount || run.Timings.ReadyToOutboxClaimMS.Count != run.WorkflowCount {
+			result.AllRunsReconciled = false
+		}
+		if run.Mode == "kafka" {
+			result.KafkaNotifications += run.Transport.Notifications
+			result.KafkaBrokerReceives += run.Transport.BrokerReceiveCount
+			result.KafkaBrokerCommits += run.Transport.BrokerCommitCount
+		}
+	}
+	return result
+}
+
+func deriveConclusions(runs []runReport) conclusionReport {
+	grouped := map[string][]runReport{}
+	for _, run := range runs {
+		grouped[run.Configuration] = append(grouped[run.Configuration], run)
+	}
+	comparison := func(higher, lower, metric string) effectComparison {
+		higherRange := runMetricRange(grouped[higher], metric)
+		lowerRange := runMetricRange(grouped[lower], metric)
+		result := effectComparison{HigherLatencyConfiguration: higher, LowerLatencyConfiguration: lower, HigherLatencyMS: higherRange, LowerLatencyMS: lowerRange}
+		result.DifferenceMS = higherRange.Median - lowerRange.Median
+		if lowerRange.Median > 0 {
+			result.Ratio = higherRange.Median / lowerRange.Median
+		}
+		result.IntervalsSeparated = higherRange.Min > lowerRange.Max
+		return result
+	}
+	wake := effectConclusion{Comparisons: []effectComparison{
+		comparison("poll_250ms", "notify_direct", "ready"),
+		comparison("poll_1s", "notify_direct", "ready"),
+	}}
+	wake.Resolved = len(wake.Comparisons) == 2 && wake.Comparisons[0].IntervalsSeparated && wake.Comparisons[1].IntervalsSeparated
+	if wake.Resolved {
+		wake.Summary = "Notification-driven dispatch has a resolved lower ready-to-claim delay than both frozen polling intervals."
+	} else {
+		wake.Summary = "The wake-mechanism comparison is unresolved at the observed run dispersion."
+	}
+	transportEffect := effectConclusion{Comparisons: []effectComparison{
+		comparison("notify_kafka", "notify_direct", "ready"),
+		comparison("notify_kafka", "notify_direct", "terminal"),
+	}}
+	transportEffect.Resolved = transportEffect.Comparisons[0].IntervalsSeparated || transportEffect.Comparisons[1].IntervalsSeparated
+	if transportEffect.Comparisons[0].IntervalsSeparated && !transportEffect.Comparisons[1].IntervalsSeparated {
+		transportEffect.Summary = "Kafka adds a resolved dispatch-stage delay, while the end-to-end terminal-latency increment remains unresolved."
+	} else if transportEffect.Resolved {
+		transportEffect.Summary = "The measured Kafka transport increment is resolved at the reported stages."
+	} else {
+		transportEffect.Summary = "The incremental Kafka transport effect is unresolved at the observed run dispersion."
+	}
+	resolved := make([]string, 0, 3)
+	if wake.Resolved {
+		resolved = append(resolved, "wake_mechanism_ready_to_claim")
+	}
+	if transportEffect.Comparisons[0].IntervalsSeparated {
+		resolved = append(resolved, "kafka_dispatch_stage_ready_to_claim")
+	}
+	result := conclusionReport{WakeMechanism: wake, TransportEffect: transportEffect, CostEffectsResolved: len(resolved) > 0,
+		ResolvedCostEffects: resolved, Interpretation: "At this four-worker, single-host scale, notification-driven dispatch removes the polling delay. Kafka is not a latency optimization relative to direct notification; this does not address decoupling, retained backlog, connection count, or multi-host scaling."}
+	return result
+}
+
+func runMetricRange(runs []runReport, metric string) medianReport {
+	values := make([]float64, 0, len(runs))
+	for _, run := range runs {
+		switch metric {
+		case "ready":
+			values = append(values, run.Timings.ReadyToOutboxClaimMS.Median)
+		case "terminal":
+			values = append(values, run.Timings.TerminalLatencyMS.Median)
+		}
+	}
+	return summarize(values)
 }
 
 func gitCommit() string {

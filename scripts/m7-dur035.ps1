@@ -65,9 +65,15 @@ try {
     if (-not (Test-Path -LiteralPath $OutputPath)) { throw "DUR-035 did not write $OutputPath." }
     $artifact = Get-Content -Raw -LiteralPath $OutputPath | ConvertFrom-Json
     if ($artifact.status -ne "PASS") { throw "DUR-035 artifact status is $($artifact.status): $($artifact.failure)" }
-    if ([int]$artifact.runs.Count -ne 12 -or [int]$artifact.protocol.measured_workflows -ne 12 -or
+    if ([int]$artifact.runs.Count -ne 12 -or [int]$artifact.protocol.measured_workflows -ne 24 -or
         [int]$artifact.protocol.worker_slots -ne 4 -or -not [bool]$artifact.protocol.same_task_outbox_record -or
-        -not [bool]$artifact.protocol.same_worker_claim_api) {
+        -not [bool]$artifact.protocol.same_worker_claim_api -or $null -eq $artifact.validation -or
+        -not [bool]$artifact.validation.all_runs_reconciled -or
+        [int]$artifact.validation.measured_workflows -ne 288 -or
+        [int]$artifact.validation.terminal_workflows -ne 288 -or
+        [int]$artifact.validation.pending_workflows -ne 0 -or
+        [int]$artifact.validation.failed_workflows -ne 0 -or
+        $null -eq $artifact.conclusions -or -not [bool]$artifact.conclusions.cost_effects_resolved) {
         throw "DUR-035 artifact failed its protocol acceptance checks."
     }
     foreach ($run in $artifact.runs) {
@@ -78,12 +84,13 @@ try {
             throw "DUR-035 run $($run.configuration)/$($run.repeat) failed reconciliation."
         }
         if ($run.mode -eq "kafka" -and ([int]$run.transport.broker_receive_count -ne ([int]$run.workflow_count + [int]$run.warmup_count) -or
-            [int]$run.transport.broker_commit_count -ne ([int]$run.workflow_count + [int]$run.warmup_count))) {
+            [int]$run.transport.broker_commit_count -ne ([int]$run.workflow_count + [int]$run.warmup_count) -or
+            [int]$run.transport.notifications -le 0)) {
             throw "DUR-035 Kafka run $($run.repeat) did not receive and commit every task."
         }
     }
     Invoke-Sweep
-    Write-Host "DUR-035 dispatch-path study passed: 12 measured runs; evidence written to $OutputPath"
+    Write-Host "DUR-035 dispatch-path study passed: 12 measured runs / 288 workflows; evidence written to $OutputPath"
 } finally {
     if ($relaysStopped) {
         try {

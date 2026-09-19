@@ -20,14 +20,30 @@ func TestDUR035ArmProtocol(t *testing.T) {
 	}
 }
 
-func TestDUR035SummaryDoesNotPromoteCostEffects(t *testing.T) {
-	runs := make([]runReport, 0, 3)
-	for repeat, value := range []float64{10, 12, 11} {
-		runs = append(runs, runReport{Configuration: "poll_250ms", Repeat: repeat + 1, Throughput: value,
-			Timings: timingReport{ReadyToOutboxClaimMS: medianReport{Count: 12, Median: value}}})
+func TestDUR035ConclusionUsesObservedIntervals(t *testing.T) {
+	runs := make([]runReport, 0, 12)
+	for _, config := range []string{"poll_250ms", "poll_1s", "notify_direct", "notify_kafka"} {
+		values := map[string][]float64{
+			"poll_250ms":    {150, 152, 155},
+			"poll_1s":       {590, 600, 610},
+			"notify_direct": {4, 5, 6},
+			"notify_kafka":  {7, 8, 9},
+		}[config]
+		for repeat, value := range values {
+			runs = append(runs, runReport{Configuration: config, Repeat: repeat + 1,
+				Timings: timingReport{ReadyToOutboxClaimMS: medianReport{Count: 24, Median: value}, TerminalLatencyMS: medianReport{Count: 24, Median: value}}})
+		}
 	}
-	summary := makeSummary(runs)
-	if len(summary) != len(arms) || summary[0].CostEffectsResolved {
-		t.Fatalf("summary promoted an unsupported cost effect: %#v", summary)
+	conclusions := deriveConclusions(runs)
+	if !conclusions.WakeMechanism.Resolved || !conclusions.TransportEffect.Resolved || !conclusions.CostEffectsResolved {
+		t.Fatalf("observed separated effects were not promoted: %#v", conclusions)
+	}
+
+	for index := range runs {
+		runs[index].Timings.ReadyToOutboxClaimMS.Median = 7
+	}
+	conclusions = deriveConclusions(runs)
+	if conclusions.WakeMechanism.Resolved {
+		t.Fatalf("wake conclusion ignored overlapping observed intervals: %#v", conclusions)
 	}
 }

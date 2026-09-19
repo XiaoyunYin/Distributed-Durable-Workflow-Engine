@@ -142,6 +142,10 @@ type RelayConfig struct {
 	// from row-level publication metrics so a runtime can re-mark readiness
 	// after a temporary dependency outage.
 	OnSuccess func(RelayReport)
+	// OnNotification observes a PostgreSQL notification received by the relay
+	// listener. It is a measurement hook only; notifications remain hints and
+	// the poll fallback still owns correctness.
+	OnNotification func()
 }
 
 type Relay struct {
@@ -300,6 +304,9 @@ func (r *Relay) listen(ctx context.Context) <-chan struct{} {
 		for {
 			if _, err := connection.Conn().WaitForNotification(ctx); err != nil {
 				return
+			}
+			if r.Config.OnNotification != nil {
+				r.Config.OnNotification()
 			}
 			select {
 			case wakeups <- struct{}{}:
