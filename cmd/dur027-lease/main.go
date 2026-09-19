@@ -383,6 +383,13 @@ func runCase(ctx context.Context, store *state.Store, arm leaseArm, namespace, d
 		} else {
 			result.FalseTakeover = true
 		}
+		// Re-arm immediately before the durable owner action so teardown
+		// timing cannot turn a valid renewal run into an expiry case.
+		if lease, err = store.RenewLease(ctx, refA, arm.TTL); err != nil {
+			_ = store.ReleaseLease(ctx, refA)
+			return result, fmt.Errorf("%s final renewal: %w", caseID, err)
+		}
+		result.Renewals++
 		if err := applyTransition(ctx, store, refA, workflowID, "normal renewal"); err != nil {
 			_ = store.ReleaseLease(ctx, refA)
 			return result, fmt.Errorf("%s useful owner transition: %w", caseID, err)
