@@ -42,19 +42,20 @@ type leaseArm struct {
 }
 
 type boundaryRecord struct {
-	Boundary          string    `json:"boundary"`
-	WorkflowID        string    `json:"workflow_id"`
-	DefinitionID      string    `json:"definition_id"`
-	Namespace         string    `json:"namespace"`
-	Partition         int16     `json:"partition"`
-	OwnerID           string    `json:"owner_id"`
-	Epoch             int64     `json:"epoch"`
-	AttemptNumber     int64     `json:"attempt_number"`
-	ClaimToken        string    `json:"claim_token"`
-	LeaseExpiresAt    time.Time `json:"lease_expires_at"`
-	AttemptDeadlineAt time.Time `json:"attempt_deadline_at"`
-	RenewalIntervalMS int       `json:"renewal_interval_ms"`
-	Mode              string    `json:"mode"`
+	Boundary            string    `json:"boundary"`
+	WorkflowID          string    `json:"workflow_id"`
+	DefinitionID        string    `json:"definition_id"`
+	Namespace           string    `json:"namespace"`
+	Partition           int16     `json:"partition"`
+	OwnerID             string    `json:"owner_id"`
+	Epoch               int64     `json:"epoch"`
+	AttemptNumber       int64     `json:"attempt_number"`
+	ClaimToken          string    `json:"claim_token"`
+	LeaseExpiresAt      time.Time `json:"lease_expires_at"`
+	AttemptDeadlineAt   time.Time `json:"attempt_deadline_at"`
+	RenewalIntervalMS   int       `json:"renewal_interval_ms"`
+	Mode                string    `json:"mode"`
+	RenewalsBeforeFault int       `json:"renewals_before_fault"`
 }
 
 type episodeReport struct {
@@ -428,7 +429,7 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 		return report, fmt.Errorf("%s competitor acquired before fault injection", episodeID)
 	}
 	report.LeasePreserved = true
-	report.RenewalsBeforeFault = 1
+	report.RenewalsBeforeFault = ready.RenewalsBeforeFault
 	injectedAt := time.Now().UTC()
 	report.InjectedAt = injectedAt.Format(time.RFC3339Nano)
 	if faultType == "owner_crash" {
@@ -445,6 +446,9 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 		}
 		report.TargetDead = true
 	} else {
+		if err := os.WriteFile(resumeFile, []byte("pause\n"), 0o644); err != nil {
+			return report, err
+		}
 		if _, err := awaitBoundary(ctx, process.records, "owner_paused_expired"); err != nil {
 			return report, err
 		}

@@ -19,19 +19,20 @@ import (
 )
 
 type boundaryRecord struct {
-	Boundary          string    `json:"boundary"`
-	WorkflowID        string    `json:"workflow_id"`
-	DefinitionID      string    `json:"definition_id"`
-	Namespace         string    `json:"namespace"`
-	Partition         int16     `json:"partition"`
-	OwnerID           string    `json:"owner_id"`
-	Epoch             int64     `json:"epoch"`
-	AttemptNumber     int64     `json:"attempt_number"`
-	ClaimToken        string    `json:"claim_token"`
-	LeaseExpiresAt    time.Time `json:"lease_expires_at"`
-	AttemptDeadlineAt time.Time `json:"attempt_deadline_at"`
-	RenewalIntervalMS int       `json:"renewal_interval_ms"`
-	Mode              string    `json:"mode"`
+	Boundary            string    `json:"boundary"`
+	WorkflowID          string    `json:"workflow_id"`
+	DefinitionID        string    `json:"definition_id"`
+	Namespace           string    `json:"namespace"`
+	Partition           int16     `json:"partition"`
+	OwnerID             string    `json:"owner_id"`
+	Epoch               int64     `json:"epoch"`
+	AttemptNumber       int64     `json:"attempt_number"`
+	ClaimToken          string    `json:"claim_token"`
+	LeaseExpiresAt      time.Time `json:"lease_expires_at"`
+	AttemptDeadlineAt   time.Time `json:"attempt_deadline_at"`
+	RenewalIntervalMS   int       `json:"renewal_interval_ms"`
+	Mode                string    `json:"mode"`
+	RenewalsBeforeFault int       `json:"renewals_before_fault"`
 }
 
 func main() {
@@ -132,21 +133,28 @@ func main() {
 	record := boundaryRecord{Boundary: "owner_ready", WorkflowID: workflowID, DefinitionID: definitionID,
 		Namespace: namespace, Partition: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch,
 		AttemptNumber: claim.AttemptNumber, ClaimToken: claim.ClaimToken, LeaseExpiresAt: lease.LeaseExpiresAt,
-		AttemptDeadlineAt: deadline, RenewalIntervalMS: *ttlMS / 3, Mode: *mode}
+		AttemptDeadlineAt: deadline, RenewalIntervalMS: *ttlMS / 3, Mode: *mode, RenewalsBeforeFault: 1}
 	writeBoundary(record)
 
 	if *mode == "owner_crash" {
+		go renewUntilKilled(ctx, store, ref, ttl)
 		select {}
 	}
 	if strings.TrimSpace(*resumeFile) == "" {
 		panic("owner_pause requires resume-file")
 	}
 	for {
+		if data, readErr := os.ReadFile(*resumeFile); readErr == nil && strings.TrimSpace(string(data)) == "pause" {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	for {
 		if time.Now().After(lease.LeaseExpiresAt) {
 			writeBoundary(boundaryRecord{Boundary: "owner_paused_expired", WorkflowID: workflowID, DefinitionID: definitionID,
 				Namespace: namespace, Partition: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch,
 				AttemptNumber: claim.AttemptNumber, LeaseExpiresAt: lease.LeaseExpiresAt, AttemptDeadlineAt: deadline,
-				RenewalIntervalMS: *ttlMS / 3, Mode: *mode})
+				RenewalIntervalMS: *ttlMS / 3, Mode: *mode, RenewalsBeforeFault: 1})
 			break
 		}
 		time.Sleep(5 * time.Millisecond)
@@ -164,6 +172,20 @@ func main() {
 			return
 		}
 		time.Sleep(5 * time.Millisecond)
+	}
+}
+
+func renewUntilKilled(ctx context.Context, store *state.Store, ref state.LeaseRef, ttl time.Duration) {
+	interval := ttl / 3
+	if interval < 5*time.Millisecond {
+		interval = 5 * time.Millisecond
+	}
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for range ticker.C {
+		if _, err := store.RenewLease(ctx, ref, ttl); err != nil {
+			return
+		}
 	}
 }
 
