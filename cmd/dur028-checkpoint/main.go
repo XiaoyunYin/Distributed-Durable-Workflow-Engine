@@ -359,10 +359,11 @@ func executeRun(ctx context.Context, store *state.Store, seed int64, setting che
 		return failRow(&row, getErr.Error())
 	}
 	row.TerminalState = string(wf.State)
-	row.Reconciled = wf.State == state.StateSucceeded && row.FinalHash == row.ExpectedHash && row.ComputedChunks == chunkCount+row.RecomputedChunks
+	expectedComputed := chunkCount
 	if crash {
-		row.Reconciled = row.Reconciled && row.CommittedProgress >= 0 && row.FirstRunChunks == crashChunk
+		expectedComputed = crashChunk + chunkCount - row.CommittedProgress
 	}
+	row.Reconciled = wf.State == state.StateSucceeded && row.FinalHash == row.ExpectedHash && row.ComputedChunks == expectedComputed && row.FirstRunChunks == map[bool]int{true: crashChunk, false: chunkCount}[crash]
 	if !row.Reconciled {
 		return failRow(&row, fmt.Sprintf("reconciliation failed: state=%s computed=%d first=%d recovery=%d hash=%s expected=%s", wf.State, row.ComputedChunks, row.FirstRunChunks, row.RecoveryRunChunks, row.FinalHash, row.ExpectedHash))
 	}
