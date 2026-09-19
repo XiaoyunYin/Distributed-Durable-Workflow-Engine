@@ -354,9 +354,18 @@ func runCase(ctx context.Context, store *state.Store, arm leaseArm, namespace, d
 	}
 
 	if mode == "normal_renewal" {
+		// Workflow creation and the lock-wait fixture happen before the
+		// renewal window. Arm the lease immediately so the 100 ms control
+		// measures renewal traffic rather than setup latency.
+		lease, err = store.RenewLease(ctx, refA, arm.TTL)
+		if err != nil {
+			_ = store.ReleaseLease(ctx, refA)
+			return result, fmt.Errorf("%s initial renewal: %w", caseID, err)
+		}
+		result.Renewals++
 		deadline := time.Now().Add(400 * time.Millisecond)
 		for time.Now().Before(deadline) {
-			time.Sleep(arm.TTL / 3)
+			time.Sleep(arm.TTL / 4)
 			lease, err = store.RenewLease(ctx, refA, arm.TTL)
 			if err != nil {
 				_ = store.ReleaseLease(ctx, refA)
