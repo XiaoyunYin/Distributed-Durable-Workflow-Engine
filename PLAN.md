@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 TODO; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 IN_PROGRESS; DUR-028 TODO; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1352,6 +1352,19 @@ contract revision.
 - **Evidence paths:** `experiments/m7/dur035/results.json`, `scripts/m7-dur035.ps1`, `cmd/dur035-dispatch`, and this implementation record/build-log entry.
 - **Known limits:** evidence is bounded to the single-node Docker Desktop/WSL2 host and a fixed four-process synthetic worker pool; it is not a multi-host or maximum-throughput claim. The derived comparison rule promotes only interval-separated stage effects; this run does not turn the evidence into a general production-capacity claim.
 - **Closeout:** the accepted report should cite the stable terminal-stage transport result and name the campaign it quotes. The ready-to-claim transport increment varied between campaigns and is not a fixed quantity; R057, the historical R019 gap, and the recorded M6 notes remain nonblocking residuals.
+
+#### DUR-027 implementation record
+
+- **Status:** IN_PROGRESS; implementation record established before the lease study.
+- **Base commit:** `a4c5ac4` (DUR-035 closeout).
+- **Dependencies:** DUR-036, the M1-M5 ownership/claim guarantees, and the section-14 measurement discipline.
+- **Goal:** compare frozen scheduler lease TTLs under normal renewal and an owner pause, measuring takeover delay, useful post-takeover work, renewal traffic, false takeovers, stale-owner fencing, and database lock contention.
+- **Scope:** add a bounded PostgreSQL lease harness with three TTL arms, a fixed 24-case cohort, deterministic seeds, 12 renewal cases and 12 owner-pause cases per run, three repeats per arm, and a real new-owner transition against a durable workflow after takeover. The pause model stops renewal until expiry; it is not a process-kill or storage-durability claim.
+- **Protected boundaries:** preserve the frozen partition map, lease fencing semantics, correctness guarantees, release criteria, and all paid/live-model budgets. Do not start DUR-028, DUR-029, or DUR-033A from this task. Do not present short-TTL negative controls as deployable configurations.
+- **Acceptance scenarios:** every run records all 24 cases, successful acquisition/renewal/takeover outcomes, stale-owner rejection, post-takeover useful work, lock-wait telemetry, terminal cleanup, and explicit PASS/FAIL status. Incomplete or unreconciled runs fail the campaign. Conclusions are derived from observed intervals and counts; no process-crash equivalence is inferred from the pause fixture.
+- **Validation:** focused lease-harness tests, `scripts/m7-dur027.ps1` against PostgreSQL, `scripts/ci.ps1 -WithRace`, `go vet ./...`, `gofmt`, PowerShell parse validation, `git diff --check`, and post-run namespace/lease checks.
+- **Evidence paths:** `cmd/dur027-lease`, `scripts/m7-dur027.ps1`, `experiments/m7/dur027/results.json`, `docs/BUILD_LOG.md`, and this implementation record.
+- **Known limits:** single-node Docker Desktop/WSL2 PostgreSQL evidence; owner pauses are in-process and bounded; no multi-host, hard-kill, maximum-throughput, or production scheduler claim.
 
 ### M8 — Report and portfolio release
 

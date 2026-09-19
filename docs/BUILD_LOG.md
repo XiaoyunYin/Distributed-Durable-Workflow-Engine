@@ -2022,3 +2022,18 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   quoted run and changed between campaigns, so it is not presented as a fixed
   number. The study remains single-node WSL2 evidence, not production-scale or
   multi-host evidence.
+
+## 2026-09-19 - DUR-027 implementation start
+
+- Started DUR-027 from DUR-035 closeout `a4c5ac4` after the DUR-036 readiness
+  gate and DUR-026/DUR-034/DUR-035 study discipline were accepted. The task
+  record in PLAN.md freezes three lease-TTL arms, a 24-case cohort, three
+  repeats, and the measured dimensions before implementation begins.
+- The planned harness will use the PostgreSQL lease repository and a durable
+  workflow transition after an owner pause. It will distinguish normal
+  renewal from expiry takeover, record stale-owner fencing and lock waits,
+  and derive conclusions from observed intervals and counts.
+- No DUR-027 measurement or performance claim has been made yet. Owner pause
+  is an in-process bounded fixture, not a process-kill or multi-host
+  durability claim; the final evidence remains limited to the declared
+  single-node WSL2 host.
