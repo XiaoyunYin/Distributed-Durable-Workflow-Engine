@@ -1919,3 +1919,10 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   remain to be run after the implementation is committed. No performance
   result is claimed yet; DUR-034's observed run-to-run variability is carried
   into the DUR-035 interpretation policy.
+- The first service attempt was stopped after an isolation defect was found:
+  the live runtime/worker consumers can claim task outbox rows globally, so a
+  study worker can observe a published but unclaimed attempt. The script now
+  stops `runtime-a`, `runtime-b`, `worker-a`, and `worker-b` around the study
+  and restores them in `finally`; the stranded diagnostic namespace was
+  removed explicitly. This is a fixture-isolation requirement, not a measured
+  result.

@@ -9,6 +9,7 @@ $RepoRoot = Split-Path -Parent $PSScriptRoot
 $buildRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("durable-dur035-" + [guid]::NewGuid().ToString("N"))
 $dispatchBinary = Join-Path $buildRoot "dur035-dispatch.exe"
 $composeArgs = @("compose", "--env-file", ".env", "-f", "deploy/local/compose.yaml")
+$relaysStopped = $false
 
 function Invoke-Required([string]$FilePath, [string[]]$Arguments) {
     & $FilePath @Arguments
@@ -50,6 +51,12 @@ try {
         Invoke-Required "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "migrate.ps1"))
     }
 
+    # The live runtime/worker consumers claim task outbox rows globally. Stop
+    # them for the bounded study so only the selected arm can deliver its
+    # reserved namespace's task rows; restore them in the outer finally.
+    Invoke-Required "docker" ($composeArgs + @("stop", "runtime-a", "runtime-b", "worker-a", "worker-b"))
+    $relaysStopped = $true
+
     New-Item -ItemType Directory -Force -Path $buildRoot | Out-Null
     Invoke-Sweep
     Invoke-Required "go" @("build", "-o", $dispatchBinary, "./cmd/dur035-dispatch")
@@ -72,6 +79,13 @@ try {
     Invoke-Sweep
     Write-Host "DUR-035 dispatch-path study passed: 12 measured runs; evidence written to $OutputPath"
 } finally {
+    if ($relaysStopped) {
+        try {
+            Invoke-Required "docker" ($composeArgs + @("up", "-d", "--wait", "runtime-a", "runtime-b", "worker-a", "worker-b"))
+        } catch {
+            Write-Error "Could not restore runtime/worker services after DUR-035: $($_.Exception.Message)"
+        }
+    }
     if (Test-Path -LiteralPath $buildRoot) {
         Remove-Item -LiteralPath $buildRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
