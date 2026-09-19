@@ -7068,3 +7068,39 @@ final target and artifact before any M7 status changes.
   treating those residuals as resolved.
 - **Next action:** prepare the DUR-031 interview-evidence record; keep R089's
   denominator wording available for a later report revision.
+
+## Latest Codex handoff - DUR-031 interview evidence pack
+
+- **Task:** DUR-031 interview evidence and personal walkthroughs.
+- **Task status:** IN_PROGRESS; M8 remains IN_PROGRESS. The documentation pack
+  is committed, but the three user walkthrough actions are still pending.
+- **Handoff basis:** COMMITTED documentation baseline; not a final acceptance
+  handoff.
+- **Base commit:** `242cdcb` (DUR-030 closeout).
+- **Target commit:** `d4cb1b8` (`docs: prepare DUR-031 interview evidence`).
+- **Changes:** added `docs/INTERVIEW_EVIDENCE.md`; updated PLAN.md, README.md,
+  and docs/BUILD_LOG.md. The pack maps the proposed resume claims to reviewed
+  implementation targets, exact artifacts, populations, configurations,
+  limitations, and reproduction commands. It includes walkthroughs for lease
+  ownership, ambiguous non-cooperating effects, and an independent DUR-028
+  result reproduction.
+- **Checks run:** `git diff --check` passed before commit; Codex recomputed the
+  DUR-028 ratio from the committed artifact as `7.5552`; all referenced local
+  artifact and source paths exist; `git merge-base --is-ancestor 242cdcb
+  d4cb1b8` passed.
+- **Skipped checks:** Go/Python/service suites, Docker bootstrap, experiment
+  reruns, and provider calls were not run because this is a documentation
+  preparation step. No paid call or external action was performed.
+- **Pending user evidence:** the user must mutate the lease-acquisition rule
+  only in a scratch copy and capture the expected test failure; walk through
+  the non-cooperating ambiguous-effect timeout and late-evidence path; and run
+  the offline DUR-028 ratio command independently, explaining its scope.
+- **Known limitations:** the pack does not claim the user has completed those
+  actions, does not promote R089's rates without its 2/20 and 6/20 counts, and
+  carries R057, R083, R088, R089, and the historical R019 gap as nonblocking
+  residuals. The underlying studies remain bounded to their declared hosts,
+  fixtures, crash models, workloads, and sample sizes.
+- **Review request:** after the user actions are recorded, review the pack and
+  the resulting walkthrough evidence against base `242cdcb` and target
+  `d4cb1b8`. Do not mark DUR-031 DONE until those actions are documented and a
+  committed `NO_BLOCKING_FINDINGS` review exists.
