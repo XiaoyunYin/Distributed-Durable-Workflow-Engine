@@ -5976,3 +5976,52 @@ final target and artifact before any M7 status changes.
   that stale-owner fencing and the post-takeover transition are authoritative,
   that lock-wait evidence is real, that the artifact derives its summaries,
   and that failed/incomplete runs or cleanup residue cannot produce `PASS`.
+
+## Latest Codex handoff — M7 DUR-027 round 38 corrective campaign
+
+- **Task:** DUR-027 lease tradeoff study.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-027 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `ebb3bef` (the round-38 reviewed DUR-027 target).
+- **Exact source campaign target:** `bdb5508`; `pilot.json` and `results.json`
+  were generated from this target. **Evidence commit:** `c75b338`; this
+  handoff is committed separately after these notes.
+- **Changes:** replaced the incomplete baseline/pause campaign with six
+  configurations: 100/250/750 ms TTL crossed with `owner_crash` and
+  `owner_pause`, ten episodes each. The crash arm uses a separately built
+  fixture and process-tree kill after an acknowledged `owner_crash_armed`
+  boundary; the pause arm stops renewal after an explicit pause signal and
+  verifies stale resume. Both arms run the real PostgreSQL lease, claim,
+  timeout/replacement, stale-owner fencing, and lock-wait paths.
+- **Measured evidence:** `experiments/m7/dur027/pilot.json` is PASS with three
+  samples per TTL and transaction/scheduling delay intervals. The final
+  `experiments/m7/dur027/results.json` is `dur027-lease.v2` PASS with 6/6
+  configurations and 60/60 episodes, 60 takeovers, 60 useful replacement
+  transitions, zero false takeovers, 180 stale-owner writes rejected, 60 lock
+  contention cases, 30 crash targets dead, 30 paused targets resumed stale,
+  and zero reserved workflow/definition rows after cleanup. Every episode has
+  injection, takeover, useful-progress, TTL/renewal-interval, target-outcome,
+  fencing and lock-wait fields; summaries derive count/min/median/max values
+  from those observations.
+- **Checks run:** the DUR-027 runner passed against live PostgreSQL and
+  restored runtime-a/runtime-b/worker-a/worker-b; focused campaign tests,
+  `go vet`, builds, formatting, PowerShell parse validation and `git diff
+  --check` passed. Task-local `scripts/ci.ps1 -WithRace` passed Go tests,
+  race tests, vet, build, Ruff, mypy and 38 Python tests.
+- **Skipped or not accepted:** `ci.ps1 -WithServices -WithRace` was attempted
+  with service restoration, but the existing M3 Kafka relay fixtures timed out
+  during the package phase; a focused transport rerun reproduced that fixture
+  instability. This is recorded as an unaccepted service-suite result, not as
+  DUR-027 evidence. No multi-host, storage-failure, production-throughput,
+  hard-kill durability, remote-CI, paid-provider or live-model claim is made.
+- **Known limitations:** the crash is a bounded local process-tree failure and
+  the pause is a bounded renewal suspension, both on the single-node Docker
+  Desktop/WSL2 PostgreSQL host. The harness intentionally isolates lease
+  recovery mechanics and does not exercise an offered-rate scheduler/worker
+  workload; short TTLs are measurement arms, not deployment recommendations.
+- **Review request:** verify the full 3×2×10 matrix, the acknowledged crash
+  boundary and target-death evidence, per-episode useful-progress timing,
+  pilot provenance, continuous recovery renewal, stale-owner fencing, real
+  lock-wait measurement, and artifact cleanup/reconciliation. Do not mark
+  DUR-027 DONE until Claude records a committed `NO_BLOCKING_FINDINGS` review.
