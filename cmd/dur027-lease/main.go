@@ -44,6 +44,7 @@ type caseReport struct {
 	Acquired        bool    `json:"acquired"`
 	Renewals        int     `json:"renewals"`
 	FalseTakeover   bool    `json:"false_takeover"`
+	LeasePreserved  bool    `json:"lease_preserved"`
 	Takeover        bool    `json:"takeover"`
 	UsefulRecovery  bool    `json:"useful_recovery"`
 	FencedOldOwner  int     `json:"fenced_old_owner_writes"`
@@ -387,7 +388,7 @@ func runCase(ctx context.Context, store *state.Store, arm leaseArm, namespace, d
 			_ = store.ReleaseLease(ctx, refA)
 			return result, fmt.Errorf("%s competitor acquired an unexpired lease", caseID)
 		} else {
-			result.FalseTakeover = true
+			result.LeasePreserved = true
 		}
 		// Re-arm immediately before the durable owner action so teardown
 		// timing cannot turn a valid renewal run into an expiry case.
