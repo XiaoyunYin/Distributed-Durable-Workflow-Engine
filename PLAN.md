@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 READY_FOR_REVIEW; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 TODO; DUR-033A TODO; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1384,7 +1384,7 @@ contract revision.
 
 #### DUR-028 implementation record
 
-- **Status:** READY_FOR_REVIEW; implementation and bounded measurement are committed, pending Claude review.
+- **Status:** DONE; Claude's round-42 committed review of target `7f66d88` returned `NO_BLOCKING_FINDINGS`; R084 and R085 are VERIFIED.
 - **Base commit:** `b09095c` (DUR-027 closeout, including its reachable-target bookkeeping fix).
 - **Implementation target:** `7a0ea7f` (checkpoint harness with UUID lease owners, crash-work reconciliation, attached Store telemetry, computed summaries/conclusions, and scoped work-unit/limitation evidence). The regenerated artifact source is `7f66d88`.
 - **Dependencies:** DUR-036, the M1-M5 checkpoint/recovery guarantees, and the section-14 measurement discipline.
@@ -1396,7 +1396,7 @@ contract revision.
 - **Evidence paths:** `cmd/dur028-checkpoint`, `scripts/m7-dur028.ps1`, `experiments/m7/dur028/pilot.json`, `experiments/m7/dur028/results.json`, `docs/BUILD_LOG.md`, and the final Codex handoff in `REVIEW.md`.
 - **Known limits:** single-node Docker Desktop/WSL2 PostgreSQL evidence through the Store/Engine harness; the activity is pure and deterministic; no claim is made about atomicity, external effects, process-kill durability, multi-host behavior, or production checkpoint cost.
 - **Measured evidence:** the pilot is `PASS` with six rows (three settings x two conditions). The final artifact is `PASS` with 18 rows (six configurations x three repeats), 18/18 terminal `SUCCEEDED` workflows, matching final hashes, valid checkpoint prefixes, and zero cleanup rows. The six-cell summary and computed conclusion report one SHA-256 work unit per chunk. Average checkpoint writes/bytes are 0/0, 40/3,940, and 200/19,692 for boundary-only/every-five/every-chunk. Crash rows recompute 200, 105, and 101 chunks respectively; current median crash completion is 0.291 s for boundary-only and 2.201 s for every-chunk, with a resolved 7.6x timing ratio. The conclusion says every-chunk saves 99 chunks but does not pay for this measured pure workload; it is explicitly scoped to the recorded chunk cost and in-process panic model. Store telemetry is attached and records nonzero query/transaction/lock observations per row.
-- **Review request:** verify that the campaign uses the production Store/Engine checkpoint path, that the crash leaves only the durable prefix before the attempt lease expires, that repeated-work and final-hash oracles are independent and derived from the frozen protocol, that the persistence metrics are measured rather than constants, and that failed/incomplete rows or cleanup residue cannot produce `PASS`. Do not mark DUR-028 DONE until Claude records a committed `NO_BLOCKING_FINDINGS` review.
+- **Closeout:** Claude's round-42 review is committed and returned `NO_BLOCKING_FINDINGS` for target `7f66d88` (base `b09095c`); R084 and R085 are VERIFIED. The closeout metadata is recorded in `REVIEW.md` and `docs/BUILD_LOG.md`. R057 and R083 remain nonblocking P3 findings outside this task.
 
 ### M8 — Report and portfolio release
 
@@ -1717,9 +1717,11 @@ the DUR-034 closeout `6d2e50d`; Claude's committed round-37 review returned
 `NO_BLOCKING_FINDINGS` and verified R078/R079. Its accepted transport claim is
 bounded to the terminal-stage result: notification-direct is faster than Kafka
 there, while the ready-to-claim increment was unresolved in the quoted run and
-varied across campaigns. The immediate next action is Claude's review of the
-DUR-028 checkpoint tradeoff study from base `b09095c`. DUR-029 and DUR-033A
-remain TODO until their own implementation records and validation plans are
-added here.
+varied across campaigns. DUR-028 is DONE at reviewed target `7f66d88`, based
+on the DUR-027 closeout `b09095c`; Claude's round-42 review returned
+`NO_BLOCKING_FINDINGS` and verified R084/R085. The immediate next action is to
+prepare the DUR-029 implementation record. DUR-033A remains TODO until its
+own implementation record and validation plan are added here. R057 and R083
+remain nonblocking P3 findings carried forward.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

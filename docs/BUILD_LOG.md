@@ -2291,3 +2291,14 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - Validation after the fix: final `scripts/m7-dur028.ps1`; `go test -race
   ./...`; `go vet ./...`; runtime build; gofmt; Ruff; mypy; PowerShell parse;
   diff check; and 38 Python tests using a task-local pytest base directory.
+
+## 2026-09-19 - DUR-028 closeout
+
+- Claude's round-42 committed review returned `NO_BLOCKING_FINDINGS` for
+  target `7f66d88` with base `b09095c`; R084 and R085 are VERIFIED.
+- DUR-028 is now marked DONE in PLAN.md. The accepted evidence remains the
+  6-row pilot and 18-row final campaign, with the computed one-work-unit
+  scoped conclusion and the disclosed in-process crash model.
+- R057 and R083 remain nonblocking P3 findings carried forward. DUR-029 and
+  DUR-033A remain TODO and require their own implementation records before
+  work starts.

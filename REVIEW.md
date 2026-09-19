@@ -1615,6 +1615,40 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   That finding is real but it is also entirely a function of chunk cost, and this is where R085 bites. A chunk is one hash call, so replaying all 200 costs about 0.17 s against roughly 1.5 s for 200 checkpoint writes; with recomputation that cheap, persistence must dominate and the conclusion is close to arithmetic. The artifact records no work-per-chunk parameter — DUR-026 and DUR-034 both carry `activity_work_units` and record it — so the result cannot be placed on the axis that decides whether it generalises. It also has no limitations section at all: the crash is an in-process panic and the artifact never says so, and section 14E's own caveat that this cannot establish atomicity for external effects appears nowhere. Both gaps are easy to close, and closing them turns a near-tautology into a scoped, citable result.
 
+### Round 42 — 2026-09-19 — DUR-028 scoped conclusion verification
+
+- Date and round: 2026-09-19, round 42.
+- Review basis: COMMITTED. The worktree was clean at `000ec83` when the review started and remained clean throughout.
+- Base and target commits: base `d9fef13` for this round, fix `7a0ea7f`, evidence source `7f66d88` (which the artifact records as its `git_commit`), handoff and regenerated artifact `000ec83`. All three declared commits resolve as ancestors of HEAD.
+- Scope inspected: `git diff d9fef13 7f66d88` plus the regenerated artifacts at HEAD — the summary, conclusion and limitations generation in `cmd/dur028-checkpoint/main.go`, its test, `scripts/m7-dur028.ps1`, `experiments/m7/dur028/pilot.json` and `results.json`, and the PLAN.md and BUILD_LOG.md updates. No migrations, no engine or product code. No protected-scope drift: PLAN.md section 14E and the DUR-028 task row are unchanged.
+- Checks personally run (Claude), read-only against the committed artifacts and source:
+  - Confirmed the artifact now has `summary`, `conclusions` and `limitations`, that the summary has six cells with count/min/median/max across all the section 14E quantities, and that `validation` gained `summary_rows`, `conclusions_present` and `limitations_present`.
+  - Read the resolution logic and confirmed `timing_effect_resolved` and `recomputation_effect_resolved` derive from `intervalsSeparate(...)` and that the persistence flag compares write and byte minima against maxima, rather than any flag being a literal.
+  - Recomputed the headline result independently from the eighteen run records: boundary-only crash 0.2724/0.2913/0.2952 s (median 0.2913056), every-chunk crash 2.0840/2.2009/2.5772 s (median 2.200874), ratio 7.5552 — matching the reported value exactly — with the intervals genuinely separating (2.084 > 0.2952).
+  - Confirmed `work_units_per_chunk: 1` appears in the protocol, each summary cell and the conclusions, and read all four limitations.
+  - Confirmed the pilot artifact received the same summary, conclusions and limitations treatment.
+  - Re-derived all six summary cells and compared them against round 41's numbers.
+- Codex-reported checks considered but not rerun: the race tests, vet, formatting, Ruff, mypy, the 38 Python tests, and the eighteen-run matrix itself.
+- Findings resolved: R084 and R085 are VERIFIED.
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R083 is still OPEN: the DUR-027 handoff record in REVIEW.md continues to name the unreachable `8e06e14`. The behaviour it asked for has clearly been adopted — this round's handoff names three commits and all three resolve — but the record itself has not been corrected.
+  - DUR-028 measures a single chunk cost, so it locates the tradeoff at one point rather than bracketing the crossover; recorded in the R085 verification.
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - The DUR-034 harness variability remains unexplained.
+  - Codex reported Kafka fixture timeouts in service-mode CI in round 39 and described them as pre-existing; they have not recurred in the handoffs since and Claude has not reproduced them.
+  - Not exercised by Claude: the matrix run itself.
+  - DUR-029 and DUR-033A remain TODO.
+- Limitations: artifact and source review plus independent aggregation of the committed runs; Claude did not rerun the study.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-028 at committed target `7f66d88` (artifact regenerated at `000ec83`) with base `84ad758`. This is a COMMITTED, non-provisional review. R001–R085 are VERIFIED apart from the P3 residuals R057 and R083, the recorded M6 notes, and the historical R019 test gap, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-028 to DONE under PLAN.md section 11.
+
+  Both findings are closed properly, and the conclusion is the kind this review has been pushing toward all through M7: computed from the observed intervals, stated in the direction the data runs, and carrying its own scope. `timing_effect_resolved` is not a literal — it comes from an interval-separation test — and when I recomputed the medians and the 7.5552 ratio from the raw runs they matched the published conclusion exactly, with the every-chunk minimum comfortably above the boundary-only maximum.
+
+  The scoping is what makes the result usable. "At 1 SHA-256 work unit per chunk … checkpointing does not pay for this measured pure workload; this conclusion is scoped to the recorded chunk cost and crash model" is a defensible sentence in a way that an unqualified "checkpointing costs 7.6x" would not have been, and the limitations now name the in-process panic explicitly so nobody mistakes it for a host failure after what DUR-027 established about real crashes. Recording `work_units_per_chunk` in the protocol, in every summary cell and in the conclusion means the scope travels with the number wherever it is quoted.
+
+  What remains for the report is a framing question rather than a measurement one: this study shows that checkpointing did not pay at one point on the cost axis, not where the crossover lies. If the README wants to say anything about when checkpointing is worthwhile, it needs a second chunk cost; if it simply reports the measured tradeoff with its scope attached, the evidence here supports it.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -5381,7 +5415,7 @@ superseded by the committed M4 handoff below.
 ### R084 — The checkpoint tradeoff is measured but never reported: no per-configuration aggregate and no conclusion
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `d9fef13`
 - Location: experiments/m7/dur028/results.json (keys are `protocol`, `runs`, `validation` only — no `summary`, no `conclusions`); experiments/m7/dur028/pilot.json (same shape); PLAN.md:1292 and section 14E.
@@ -5416,12 +5450,22 @@ superseded by the committed M4 handoff below.
 - Fix commit: `7a0ea7f`.
 - Status: ADDRESSED.
 
+#### Claude verification – round 42
+
+- Verification commit: `7f66d88` (base `d9fef13`), with the artifact regenerated in `000ec83`.
+- Evidence and remaining concerns: fixed. The artifact now carries a six-cell `summary` — one per checkpoint setting and failure condition — each reporting count, min, median and max for total completion time, recovery time, recomputed chunks, checkpoint writes, checkpoint bytes, database queries and query seconds, which covers every quantity section 14E asks the study to record. A `conclusions` block states the tradeoff, and `validation` was extended with `summary_rows`, `conclusions_present` and `limitations_present` so the artifact self-checks that it reported something.
+- The resolution flags are computed, not asserted. `TimingEffectResolved` and `RecomputationEffectResolved` call `intervalsSeparate(...)` on the observed ranges, and `PersistenceEffectResolved` compares the checkpoint write and byte minima against the maxima of the boundary-only arm — the same interval-separation discipline DUR-035 established.
+- Claude recomputed the headline numbers independently from the eighteen run records rather than reading the conclusion. Boundary-only under crash: 0.2724, 0.2913, 0.2952 s, median 0.2913056. Every-chunk under crash: 2.0840, 2.2009, 2.5772 s, median 2.200874. The ratio is 7.5552, matching the reported `every_chunk_to_boundary_crash_time_ratio` exactly, and the intervals genuinely separate — the every-chunk minimum of 2.084 s exceeds the boundary-only maximum of 0.2952 s — so `timing_effect_resolved: true` is earned. Replay falls from 200 to 101 chunks, a saving of 99, against 200 additional writes and 19,692 additional bytes.
+- The statement is scoped rather than universal: "At 1 SHA-256 work unit per chunk … Checkpointing does not pay for this measured pure workload; this conclusion is scoped to the recorded chunk cost and crash model." The pilot artifact received the same summary, conclusions and limitations treatment.
+- One incidental improvement worth noting: the noisy cell Claude flagged in round 41 — every-five-chunks with no failure, previously ranging 0.402 to 0.711 s — is now 0.350 to 0.368 s. The one remaining wide cell is every-five under crash at 0.516 to 0.937 s, which does not bear on the boundary-versus-every-chunk comparison the conclusion actually makes.
+- Status: VERIFIED
+
 ---
 
 ### R085 — The result cannot be scoped: no limitations section, the per-chunk work cost is unrecorded, and the crash model is undisclosed
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `d9fef13`
 - Location: experiments/m7/dur028/results.json (`protocol` contains `chunks`, `crash_barrier_chunk`, `attempt_lease_ms`, `recovery_wait_ms`, `checkpoint_schema_version`, `settings`, `workload`, `final_hash_algorithm` — no work-per-chunk field; no `limitations` key); cmd/dur028-checkpoint/main.go:95-101 (a chunk is one `chunkDigest` call), :102-105 (the crash is an in-process `panic`), :5-6 (the source comment describing the model).
@@ -5451,6 +5495,16 @@ superseded by the committed M4 handoff below.
   after the R084 implementation commit.
 - Fix commit: `7a0ea7f`.
 - Status: ADDRESSED.
+
+#### Claude verification – round 42
+
+- Verification commit: `7f66d88`.
+- Evidence and remaining concerns: fixed on all three counts.
+  1. **The chunk cost is recorded.** `protocol.work_units_per_chunk: 1` is present, and the value is repeated in each summary cell and in the conclusions block, so the scope travels with the numbers rather than sitting in one place.
+  2. **The crash model is disclosed.** The conclusions record `failure_model: "in-process panic after chunk 100 computation and before its next checkpoint/result commit"`, and a limitation states it "is not an operating-system process-kill or host-failure test" — which is the distinction that matters after DUR-027, where a genuine process crash behaves differently.
+  3. **A limitations list exists.** Four entries cover the single-node WSL2 host, the panic crash model, the chunk-cost scoping ("the timing tradeoff is scoped to that chunk cost and is not a general checkpoint policy"), and section 14E's own caveat that pure-work checkpoint evidence "cannot establish atomicity or safety for unrelated external effects".
+- Remaining, non-blocking and not raised as a separate finding: the study still measures a single chunk cost, so it locates the tradeoff at one point rather than bracketing the crossover where checkpointing begins to pay. That was an optional suggestion beyond section 14E's single-workload requirement, and the scoping language now makes the limit explicit. If the report wants to say anything about *when* checkpointing is worthwhile rather than that it did not pay here, a second chunk cost would be needed.
+- Status: VERIFIED
 
 ---
 
@@ -6475,3 +6529,21 @@ final target and artifact before any M7 status changes.
   limitations disclose the crash model and section-14E caveat, and failed or
   incomplete rows cannot produce PASS. Do not mark DUR-028 DONE until Claude
   records a committed `NO_BLOCKING_FINDINGS` review.
+
+## Codex closeout - M7 DUR-028
+
+- **Task:** DUR-028 checkpoint tradeoff study.
+- **Task status:** DONE; M7 remains IN_PROGRESS.
+- **Handoff basis:** COMMITTED.
+- **Base commit:** `b09095c` (DUR-027 closeout).
+- **Reviewed target:** `7f66d88` (Claude round-42 target and evidence source).
+- **Closeout metadata:** `000ec83` contains the final plan, build-log,
+  review, and generated-artifact state before this closeout entry.
+- **Review:** Claude round 42 returned `NO_BLOCKING_FINDINGS`; R084 and R085
+  are VERIFIED.
+- **Accepted evidence:** six pilot rows and eighteen final rows, all terminal
+  `SUCCEEDED`, matching hashes, valid checkpoint prefixes, zero cleanup
+  residue, and a computed conclusion scoped to one SHA-256 work unit per
+  chunk and an in-process panic crash model.
+- **Remaining nonblocking:** R057 and R083, the historical R019 test gap,
+  and recorded M6 notes. No checkpoint crossover claim is made.
