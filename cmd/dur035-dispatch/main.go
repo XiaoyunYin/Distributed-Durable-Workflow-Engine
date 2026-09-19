@@ -275,9 +275,10 @@ func (p *workerPool) close() { close(p.jobs); p.wg.Wait() }
 
 func (p *workerPool) process(workerID string, job dispatchJob) error {
 	var task struct {
-		WorkflowID, NodeID string
-		Iteration          int
-		AttemptNumber      int64
+		WorkflowID    string `json:"workflow_id"`
+		NodeID        string `json:"node_id"`
+		Iteration     int    `json:"iteration"`
+		AttemptNumber int64  `json:"attempt_number"`
 	}
 	if err := json.Unmarshal(job.event.Payload, &task); err != nil {
 		return fmt.Errorf("decode dispatch payload: %w", err)
