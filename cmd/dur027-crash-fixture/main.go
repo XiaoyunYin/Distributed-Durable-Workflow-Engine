@@ -46,6 +46,10 @@ func main() {
 		panic("database URL, run ID, valid mode, and positive TTL are required")
 	}
 	ttl := time.Duration(*ttlMS) * time.Millisecond
+	setupTTL := 10 * ttl
+	if setupTTL < 5*time.Second {
+		setupTTL = 5 * time.Second
+	}
 	ctx := context.Background()
 	store, err := state.NewFromURL(ctx, *databaseURL)
 	if err != nil {
@@ -74,7 +78,7 @@ func main() {
 			panic(mapErr)
 		}
 		var acquireErr error
-		lease, acquired, acquireErr = store.AcquireLease(ctx, int16(mapped), ownerID, ttl)
+		lease, acquired, acquireErr = store.AcquireLease(ctx, int16(mapped), ownerID, setupTTL)
 		if acquireErr != nil {
 			panic(acquireErr)
 		}

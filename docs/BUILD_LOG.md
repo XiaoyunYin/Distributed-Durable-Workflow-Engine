@@ -2114,6 +2114,12 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   throughput or offered-rate study: it does not claim a workload, worker
   capacity, or arrival-rate result. The bounded claim is local PostgreSQL
   lease recovery on the declared single-node Docker Desktop/WSL2 host.
+- A first live rerun exposed setup latency at the 100 ms arm: creating the
+  durable fixture could outlast the measurement lease before the readiness
+  boundary. The fixture now uses a bounded setup lease while creating its
+  definition/workflow/attempt, then arms the configured TTL immediately before
+  publishing `owner_ready`; setup time is therefore not counted as takeover
+  time or misclassified as a false takeover.
 - Focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`
   and `go build` pass. The real PostgreSQL pilot/final campaign and the
   repository-wide checks remain required before the next review handoff.
