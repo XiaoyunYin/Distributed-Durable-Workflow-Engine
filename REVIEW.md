@@ -1774,6 +1774,36 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   R089 is the one gap, and it is narrow: the adversarial guardrail rates are published as 0.10 versus 0.30 without the counts behind them, in a report that two paragraphs earlier says rates should be quoted with their counts. Those rates are four cases out of twenty per profile. The measurement is sound and the clean-clean baseline that makes it meaningful is implemented, but this is the sentence most likely to be repeated away from its evidence, so it is the one that most needs its denominator attached.
 
+### Round 47 — 2026-09-19 — DUR-031 interview evidence and personal walkthroughs
+
+- Date and round: 2026-09-19, round 47.
+- Review basis: COMMITTED. The worktree was clean at `03504a5` when the review started and remained clean throughout.
+- Base and target commits: base `51e1957` (the DUR-030 report), implementation `fab88ac`, handoff `03504a5`. Both declared commits resolve as ancestors of HEAD, as does `d4cb1b8`, the commit the lease walkthrough branched from.
+- Scope inspected: the whole of `docs/INTERVIEW_EVIDENCE.md` (212 lines) — the claim-to-evidence map, the three walkthroughs, the recorded walkthrough evidence, and the completion checklist — plus the PLAN.md and BUILD_LOG.md updates. This is resume-facing work, so the review focused on whether each claim traces to code and a reproducible artifact, per CLAUDE.md's report/release priority.
+- Checks personally run (Claude):
+  - **Reviewed-target audit.** Cross-checked all seven claim rows against the commits Claude actually reviewed: M5 `acb28ba` (round 23), DUR-026 `50d4b13` (round 31), DUR-035 `6679585` (round 37), DUR-027 `71fd54a` (round 40), DUR-028 `7f66d88` (round 42), DUR-033A `95948cb` (round 45), DUR-029 `5b9d65c` (round 44). All correct. The DUR-027 row names the reachable substantive target `71fd54a` rather than the orphaned `8e06e14`, which applies R083's lesson.
+  - **Ran both documented reproductions.** The offline checker command returned `{"runs":1,"valid":true,"violations":null}` with exit 0. The artifact-only DUR-028 calculation produced boundary 0.2913056, every-chunk 2.200874, ratio **7.5552** — matching the recorded value and Claude's own round-42 verification.
+  - **Independently reproduced the lease mutation.** Exported `fab88ac` to a scratch tree, removed the `!acquired` fencing branch in `internal/engine/engine.go`, and ran `TestM1RunRequiresPartitionLease` against a throwaway `cr_m9` database. It failed exactly as recorded: `borrowed lease: result={… State:SUCCEEDED … Steps:1 Blocked:false} err=<nil>`. The mutated engine ran a workflow to completion while another owner held the partition lease.
+  - **Authenticity check on the recorded output.** The quoted failure string matches the committed test's own `t.Fatalf("borrowed lease: result=%+v err=%v", …)` format at engine_integration_test.go:157-158, and the test asserts `errors.Is(err, state.ErrLeaseNotOwned) && result.Blocked`.
+  - Confirmed `TestM4NonCooperatingTimeoutIsReconciliationOnly` asserts the properties the ambiguous-effect walkthrough claims, including exactly one `attempt_result_evidence` row.
+  - Confirmed the checklist attributes each step to Codex or the user distinctly.
+  - Cleanup: the scratch tree and `cr_m9` were removed; no `cr_*` databases remain.
+- Codex-reported checks considered but not rerun: the user's own scratch-worktree session and the service-backed test runs as recorded.
+- Findings: new R090 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R090 as described, plus the standing residuals R057, R083, R088 and R089.
+  - The user's personal performance of the walkthroughs is a self-attestation by nature. Claude can and did verify that the recorded commands, outputs and conclusions are authentic and reproducible, which is the reviewable part.
+  - DUR-032 remains, and it inherits both R090's structural point and R089's counts-with-rates point.
+- Limitations: documentary review plus independent reproduction of two walkthroughs; Claude did not observe the user's session.
+- Verdict: NO_BLOCKING_FINDINGS for DUR-031 at committed target `fab88ac` with base `51e1957`. This is a COMMITTED, non-provisional review. R001–R090 are VERIFIED apart from the P3 residuals R057, R083, R088, R089 and R090, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-031 to DONE under PLAN.md section 11.
+
+  The claim map is the strongest part, and it is built the way a resume pack should be: seven claims, each with the implementation files, the exact reviewed commit, the artifact with its population, a runnable reproduction command, and a boundary column that actively restricts the claim rather than decorating it. Every reviewed target it names is the commit Claude actually reviewed, including the DUR-027 row, which correctly cites the reachable `71fd54a` instead of the orphaned commit that produced R083. The DUR-029 row already carries R089's fix, quoting the adversarial rates with their counts — defended 2/20 against plain 6/20 — before that finding was addressed anywhere else.
+
+  I verified the walkthroughs rather than taking them on trust. Both documented reproductions run and produce the stated outputs. More usefully, I reproduced the lease mutation myself: with the `!acquired` fencing branch removed, the engine ran a workflow to `SUCCEEDED` with `Blocked:false` while a different owner held the partition lease, which is precisely the recorded failure. The quoted output also matches the committed test's own failure format verbatim, so the record is authentic rather than reconstructed. That exercise demonstrates the fencing property instead of asserting it, which is what the task asked the user to be able to do.
+
+  R090 is a positioning point rather than an accuracy one. The pack nominates three resume-level findings and the first is the 48/48 correctness campaign, but PLAN.md:1571 reserves the headline three for comparative results and asks that the campaign be stated separately as a bounded validation claim. The wording of the claim is already in PLAN's preferred form; it is the slot that is wrong. Fixing it before DUR-032 also forces a useful decision: the safeguard-cost result cannot be a headline finding because DUR-034 resolved none, and saying so explicitly is stronger than leaving its absence unexplained.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -3430,6 +3460,26 @@ For each round, record:
 - **Follow-up:** carry `2/20` defended cases above baseline and `6/20` plain
   cases above baseline whenever the RQ8 rate is reused in DUR-031 or a later
   report revision.
+
+---
+
+### R090 — The correctness campaign is presented as one of the three resume-level findings, which PLAN reserves for comparative results
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `fab88ac`
+- Location: docs/INTERVIEW_EVIDENCE.md, "How to use this pack" — the numbered list headed "The three proposed resume-level findings are deliberately bounded"; against PLAN.md:1571.
+- Failure scenario and impact: PLAN.md:1571 sets the rule for the headline set: "Lead the final README with at most three measured findings … Treat the correctness campaign separately as a bounded validation claim (for example, N named fault executions with independently checked violations/unknowns), **not as one of the three comparative findings**."
+
+  The pack's three proposed resume-level findings are (1) the 48/48 controller and checker campaign, (2) the DUR-026 scheduler-capacity result, and (3) the DUR-035 terminal-stage dispatch result. The first is the correctness campaign, so the set contains two comparative findings and one validation claim presented as a peer of them.
+
+  The wording of item 1 is otherwise exactly what PLAN asks a validation claim to look like — N named fault executions with independent checking — so this is a positioning issue rather than an overstatement. But the positioning has a practical consequence: it leaves the pack with only two comparative findings, and DUR-032 will carry this same set into the final README, where the rule applies directly. Absorbing a validation claim into the headline three also disguises which of the project's comparative results are strong enough to lead with.
+
+  The natural repair is available from evidence already reviewed. DUR-028's checkpoint result is comparative, resolved by separated intervals, and correctly scoped in both the report and this pack; it is the obvious third comparative finding. DUR-034's safeguard cost cannot fill the slot — the study withholds every cost effect — which is a legitimate evidence-driven deviation from PLAN's suggested preference list and worth stating as such rather than leaving unexplained.
+- Evidence (checks Claude personally ran): read the numbered list and compared it against PLAN.md:1571; confirmed the correctness campaign occupies slot 1 and that the remaining two are comparative; confirmed DUR-034's artifact reports `cost_effects_resolved: false`, so the safeguard result PLAN's preference list anticipates is unavailable; confirmed DUR-028's conclusion carries computed interval separation and is comparative.
+- Suggested correction: restructure the headline set as two or three comparative findings — DUR-026 capacity, DUR-035 terminal-stage dispatch, and optionally DUR-028 checkpoint cost at the recorded chunk cost — with the 48/48 campaign stated separately as the bounded validation claim beneath them. Add one sentence recording that the safeguard-cost result is deliberately absent because DUR-034 resolved no cost effect. Apply the same structure when DUR-032 writes the final README.
+- Suggested validation: the README's leading section contains at most three comparative measured findings, with the correctness campaign presented separately as a validation claim.
 
 ---
 
@@ -7137,3 +7187,23 @@ final target and artifact before any M7 status changes.
 - **Review request:** review `docs/INTERVIEW_EVIDENCE.md` and the recorded
   walkthrough evidence against base `242cdcb` at target `fab88ac`. Mark
   DUR-031 DONE only after a committed `NO_BLOCKING_FINDINGS` review.
+
+## Codex closeout - DUR-031 interview evidence and personal walkthroughs
+
+- **Task status:** DONE; M8 remains IN_PROGRESS.
+- **Handoff basis:** COMMITTED.
+- **Reviewed target:** `fab88ac` with base `242cdcb`.
+- **Review:** Claude's committed round-47 review returned
+  `NO_BLOCKING_FINDINGS`. Claude verified both documented reproductions,
+  independently reproduced the lease mutation failure, and cross-checked all
+  seven claim-map implementation targets and artifacts.
+- **Acceptance:** the claim map, bounded limitations, lease/attempt mutation,
+  ambiguous-effect walkthrough, and independent DUR-028 reproduction are all
+  recorded in `docs/INTERVIEW_EVIDENCE.md`.
+- **Remaining nonblocking:** R090 remains OPEN as a P3 positioning follow-up
+  for DUR-032. The bounded 48/48 correctness campaign should be presented
+  separately from the three comparative headline findings; DUR-028 is the
+  natural third comparative result. R057, R083, R088, R089, and the historical
+  R019 gap remain nonblocking residuals.
+- **Next action:** start DUR-032 from this DUR-031 closeout, carrying R090's
+  structure point and R089's numerator/denominator wording.

@@ -2532,3 +2532,20 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   action, or protected guarantee changed. The user walkthroughs, their
   observations, and Claude's review remain pending. R057, R083, R088, R089,
   and the historical R019 gap remain visible as nonblocking residuals.
+
+## 2026-09-19 - DUR-031 closeout
+
+- Claude's committed round-47 review returned `NO_BLOCKING_FINDINGS` for the
+  interview-evidence target `fab88ac` against the DUR-030 base `242cdcb`.
+  DUR-031 is marked `DONE` in PLAN.md.
+- Claude independently verified the scratch lease mutation, the ambiguous
+  non-cooperating timeout walkthrough, and the DUR-028 ratio reproduction.
+  The claim map's reviewed targets and artifact populations were also
+  cross-checked.
+- R090 remains a nonblocking P3 follow-up for DUR-032: place the 48/48 fault
+  campaign as a separate bounded validation result, reserve the three headline
+  slots for comparative findings, use the DUR-028 checkpoint comparison as
+  the third comparative result, and carry R089's adversarial counts with its
+  rates.
+- No code, migration, experiment rerun, provider call, paid budget, external
+  action, or protected guarantee changed during closeout.
