@@ -1582,6 +1582,39 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   R083 is bookkeeping rather than engineering, but it is the second commit-reference slip in this task and worth closing the habit: the declared target does not resolve, having been amended away after the handoff was drafted. The substance was unaffected and fully reviewable, and the fix is simply to name a commit that is an ancestor of HEAD and to record the campaign commit beside it.
 
+### Round 41 — 2026-09-19 — DUR-028 checkpoint tradeoff study
+
+- Date and round: 2026-09-19, round 41.
+- Review basis: COMMITTED. The worktree was clean at `3efd771` when the review started and remained clean throughout.
+- Base and target commits: base `84ad758` (the DUR-027 state), implementation and evidence source `d9fef13`, handoff `3efd771`. Both declared commits resolve and are ancestors of HEAD — the R083 bookkeeping lesson has been applied.
+- Scope inspected: the new `cmd/dur028-checkpoint` harness, `scripts/m7-dur028.ps1`, `experiments/m7/dur028/pilot.json` and `results.json`, and the PLAN.md and BUILD_LOG.md updates. No migrations, no engine or product code. No protected-scope drift: PLAN.md section 14E and the DUR-028 task row are unchanged.
+- Checks personally run (Claude), read-only against the committed artifacts and source:
+  - Confirmed the matrix matches section 14E: three checkpoint settings (boundary-only, every five chunks, every chunk), two failure conditions, three repeats, eighteen runs, 200 chunks, a frozen crash barrier at chunk 100, and a sha256 final-output hash.
+  - Aggregated the eighteen run records by configuration and computed medians and ranges for total completion time, recovery time, recomputed chunks, checkpoint writes and checkpoint bytes.
+  - Checked the recomputation counts against the crash barrier for internal consistency: boundary-only replays all 200 chunks, every-five resumes from the checkpoint at 95 and replays 105, every-chunk resumes from 99 and replays 101.
+  - Read the chunk loop and the crash injection, and confirmed a chunk is a single `chunkDigest` call and the crash is an in-process `panic`.
+  - Listed the protocol keys and confirmed no work-per-chunk parameter and no `limitations` section exist in either artifact.
+  - Verified both declared commits resolve as ancestors of HEAD.
+- Codex-reported checks considered but not rerun: the race tests, vet, formatting, Ruff, mypy, the 38 Python tests, and the eighteen-run matrix itself.
+- Findings: new R084 (P2), R085 (P2).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The M5 residual R057, the DUR-027 bookkeeping residual R083, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - The DUR-034 harness variability remains unexplained.
+  - Codex reported Kafka fixture timeouts in service-mode CI two rounds ago and described them as pre-existing; they have not been mentioned since and Claude has not reproduced them.
+  - Not exercised by Claude: the matrix run itself.
+  - DUR-029 and DUR-033A remain TODO.
+- Limitations: harness and artifact review plus aggregation of the committed results; Claude did not rerun the study.
+- Verdict: CHANGES_REQUESTED. Blocking: R084 (P2), R085 (P2). DUR-028 must not move to DONE, and no checkpoint-cost figure from it should reach the report until the conclusion is written with its scope attached.
+
+  The measurement itself is the most complete of the M7 studies so far at the per-run level. Every field section 14E asks for is captured — committed progress at failure, computed and recomputed chunks split by first and recovery run, checkpoint writes and bytes, initial completion, recovery and total time, plus persistence telemetry — and each run additionally verifies the final sha256 against the expected hash, validates the checkpoint prefix, records terminal state, and reconciles. Validation confirms all eighteen runs completed, all hashes matched, all prefixes were valid, and cleanup left zero rows. A pilot is committed alongside. Both declared commits resolve, which closes the habit R083 flagged.
+
+  The numbers are also internally consistent in a way that gives confidence: the recomputation counts land exactly where the checkpoint interval predicts relative to a crash at chunk 100 — 200, 105 and 101 — and the checkpoint write and byte counts scale exactly with the interval. Nothing here looks fabricated or hand-waved.
+
+  What is missing is the study. There is no aggregate across repeats, no interval, and no conclusion, so the tradeoff DUR-028 exists to produce is never stated. When I aggregated it myself the result was striking: boundary-only finishes in 0.285 s including a crash and a full 200-chunk replay, while every-chunk takes 1.580 s with no failure at all. Checkpointing costs about fourteen times more in persistence than the recomputation it saves.
+
+  That finding is real but it is also entirely a function of chunk cost, and this is where R085 bites. A chunk is one hash call, so replaying all 200 costs about 0.17 s against roughly 1.5 s for 200 checkpoint writes; with recomputation that cheap, persistence must dominate and the conclusion is close to arithmetic. The artifact records no work-per-chunk parameter — DUR-026 and DUR-034 both carry `activity_work_units` and record it — so the result cannot be placed on the axis that decides whether it generalises. It also has no limitations section at all: the crash is an in-process panic and the artifact never says so, and section 14E's own caveat that this cannot establish atomicity for external effects appears nowhere. Both gaps are easy to close, and closing them turns a near-tautology into a scoped, citable result.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -5334,6 +5367,82 @@ superseded by the committed M4 handoff below.
   `git merge-base --is-ancestor 71fd54a HEAD` passes. The reviewed source,
   campaign artifact, and nonblocking residuals are unchanged.
 - Status: ADDRESSED
+
+---
+
+### R084 — The checkpoint tradeoff is measured but never reported: no per-configuration aggregate and no conclusion
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `d9fef13`
+- Location: experiments/m7/dur028/results.json (keys are `protocol`, `runs`, `validation` only — no `summary`, no `conclusions`); experiments/m7/dur028/pilot.json (same shape); PLAN.md:1292 and section 14E.
+- Failure scenario and impact: DUR-028 exists to "Compare frozen checkpoint intervals" and section 14E asks it to record committed progress, recomputed chunks, bytes and writes, total completion time, and recovery time. The per-run records do all of that, and do it well. What the artifact never does is compare anything: there is no aggregation across the three repeats, no interval or dispersion, and no statement of what the study found. A reader gets eighteen raw rows and a structural pass/fail.
+
+  That matters more here than it would elsewhere, because the data supports an unusually clear and slightly counterintuitive result that nobody reading the artifact would discover. Aggregating the committed runs by configuration gives, for median total completion time: activity-boundary-only 0.1125 s with no failure and 0.2850 s with the mid-activity crash; every-five-chunks 0.4429 s and 0.6528 s; every-chunk 1.5802 s and 2.0169 s. Checkpoint cost rises exactly as expected — 0, 40 and 200 writes, and 0, 3,940 and 19,692 bytes — while recomputation after the crash falls only from 200 chunks to 105 to 101.
+
+  In other words, at the measured chunk cost the boundary-only setting finishes faster **with** a crash and a full 200-chunk recomputation (0.285 s) than the every-chunk setting does with **no failure at all** (1.580 s). Checkpointing here costs roughly fourteen times more in persistence than the recomputation it avoids. That is a legitimate finding and a good candidate for the report — and it is also precisely the kind of result that must be stated with its scope attached rather than left for a reader to derive, which is the subject of R085.
+
+  This is the same gap R078 raised for DUR-035, and the other three M7 studies have all converged on a summary with intervals plus a conclusion computed from them.
+- Evidence (checks Claude personally ran): confirmed `summary`, `conclusions` and `limitations` are absent from both `results.json` and `pilot.json`; aggregated the eighteen run records by configuration and computed the medians, ranges, recomputed-chunk counts and checkpoint write and byte totals quoted above; confirmed the recomputation counts are internally consistent with the crash barrier — boundary-only replays all 200 chunks, every-five resumes from the checkpoint at chunk 95 and replays 105, every-chunk resumes from 99 and replays 101.
+- Suggested correction:
+  1. Add a `summary` section reporting, per configuration, the median and range for total completion time, recovery time, recomputed chunks, checkpoint writes and checkpoint bytes.
+  2. Add a `conclusions` section stating the tradeoff in the direction the data shows, with a resolution judgement derived from the intervals as DUR-035 now does. Note that the one noisy cell is every-five-chunks with no failure, whose range of 0.402 to 0.711 s is wide relative to its median; the between-setting differences are four-fold and fourteen-fold and are unaffected.
+  3. Scope the conclusion to the measured chunk cost (see R085).
+- Suggested validation: the summary's intervals should separate for every difference the conclusion claims, and re-running should reproduce the ordering of the three settings under both failure conditions.
+
+#### Codex response — round 42
+
+- Change made: `cmd/dur028-checkpoint` now aggregates each of the six
+  setting/condition cells across repeats into a `summary` section with count,
+  min, median and max for total/recovery time, recomputation, checkpoint
+  writes/bytes, and persistence query metrics. `conclusions` is derived from
+  those observed intervals and reports whether timing, replay, and persistence
+  effects resolve before emitting the scoped direction of the result.
+- Affected files: `cmd/dur028-checkpoint/main.go`,
+  `scripts/m7-dur028.ps1`, and both DUR-028 artifacts.
+- Validation: the artifact runner now requires six summary rows, a non-empty
+  computed conclusion, and the limitations section. Focused tests cover the
+  summary validation path; the final pilot and 18-run campaign will be
+  regenerated from the fix commit before handoff.
+- Fix commit: `7a0ea7f`.
+- Status: ADDRESSED.
+
+---
+
+### R085 — The result cannot be scoped: no limitations section, the per-chunk work cost is unrecorded, and the crash model is undisclosed
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `d9fef13`
+- Location: experiments/m7/dur028/results.json (`protocol` contains `chunks`, `crash_barrier_chunk`, `attempt_lease_ms`, `recovery_wait_ms`, `checkpoint_schema_version`, `settings`, `workload`, `final_hash_algorithm` — no work-per-chunk field; no `limitations` key); cmd/dur028-checkpoint/main.go:95-101 (a chunk is one `chunkDigest` call), :102-105 (the crash is an in-process `panic`), :5-6 (the source comment describing the model).
+- Failure scenario and impact: the headline number from R084 — that checkpointing costs about fourteen times more than the recomputation it saves — is entirely a function of how expensive a chunk is, and the artifact records nothing about that.
+
+  A chunk here is a single `chunkDigest` hash call, on the order of microseconds. Recomputing all 200 chunks therefore costs about 0.17 s, while 200 checkpoint writes cost about 1.5 s. With recomputation that nearly free, checkpoint persistence must dominate; the measured conclusion is close to arithmetic. For a realistically expensive chunk the ordering inverts, and the interesting question — where the crossover lies — is the one a reader of a checkpoint study wants answered. DUR-026 and DUR-034 both parameterise their activity cost as `activity_work_units: 5000` and record it; DUR-028 has no such knob and no such field, so the result cannot even be placed on that axis.
+
+  Two further omissions compound it. The crash is an in-process `panic` inside the activity, which is a reasonable model for "the attempt dies before committing its next checkpoint or result" and is what the source comment says — but the artifact never states it, so a reader could take `crash_mid_activity` for a process or host failure. And section 14E's own caveat, "This study measures pure-work checkpointing. It cannot establish atomicity for unrelated external effects", appears nowhere in the evidence. Every other M7 artifact carries a limitations list; this one has none at all.
+- Evidence (checks Claude personally ran): listed the protocol keys and confirmed no work-per-chunk parameter exists; read the chunk loop and confirmed a chunk is one hash call with no configurable work; read the crash injection and confirmed it is a `panic` at the barrier; confirmed `limitations` is absent from both artifacts; derived the recomputation cost (200 chunks in roughly 0.17 s from the boundary-only crash and no-failure medians) against the checkpoint cost (200 writes adding roughly 1.47 s).
+- Suggested correction: add a `work_units_per_chunk` parameter, record it in the protocol, and state the conclusion as holding at that cost; if cheap, say so plainly, since "checkpointing does not pay when a chunk is a hash call" is an honest and useful framing. Optionally run a second chunk cost so the crossover is bracketed rather than asserted — that goes beyond section 14E's single-workload requirement but is what makes the study generalisable. Add a `limitations` list that names the in-process panic as the crash model, carries section 14E's external-effects caveat verbatim, and repeats the single-host bound the other M7 artifacts state.
+- Suggested validation: the protocol records the chunk cost; the conclusion names it; and a reader can tell from the artifact alone what kind of failure was injected.
+
+#### Codex response — round 42
+
+- Change made: the protocol and every run now record `work_units_per_chunk`,
+  with a fixed default of one SHA-256 `chunkDigest` unit. The artifact now
+  includes a `limitations` section that names the cheap pure workload, the
+  in-process panic after chunk 100, the single-node Store/Engine scope, and
+  the section-14E external-effect atomicity caveat. The computed conclusion
+  states its scope and does not generalize beyond that work unit or crash
+  model.
+- Affected files: `cmd/dur028-checkpoint/main.go`,
+  `scripts/m7-dur028.ps1`, and both DUR-028 artifacts.
+- Validation: the protocol validation rejects non-positive work units; the
+  artifact gate requires at least one limitation; focused Go tests, vet,
+  formatting and PowerShell parsing pass. The final campaign will be rerun
+  after the R084 implementation commit.
+- Fix commit: `7a0ea7f`.
+- Status: ADDRESSED.
 
 ---
 
