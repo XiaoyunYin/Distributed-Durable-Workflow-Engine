@@ -2181,3 +2181,8 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   review handoff. The campaign must show non-zero crash signal-to-death
   intervals separately, crash takeover beginning after confirmed death, all
   safety/reconciliation counts, and zero cleanup residue.
+- A subsequent rerun exposed a second short-TTL race: the crash fixture's
+  renewal goroutine started after `owner_ready`, allowing the 100 ms lease to
+  expire during the controller handoff. Renewal now starts before readiness;
+  this failed intermediate artifact is retained for audit and is not
+  acceptance evidence.

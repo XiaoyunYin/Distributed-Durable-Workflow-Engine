@@ -5254,7 +5254,10 @@ superseded by the committed M4 handoff below.
 - Tests and results: focused Go tests, vet, build, and gofmt pass with a
   task-local Go cache. The pilot passed; the first campaign rerun exposed the
   pause control-file race above and failed before acceptance, so the 60-episode
-  campaign will be rerun after this guard is committed.
+  campaign will be rerun after this guard is committed. A subsequent rerun
+  exposed a separate 100 ms startup handoff race, now addressed by starting
+  crash renewal before `owner_ready`; its artifact is also preserved as a
+  failed intermediate result.
 - Status: ADDRESSED
 
 ---

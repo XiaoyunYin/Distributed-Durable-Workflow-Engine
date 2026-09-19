@@ -135,6 +135,12 @@ func main() {
 			deadline = *attempt.HeartbeatDeadline
 		}
 	}
+	if *mode == "owner_crash" {
+		// Start renewal before publishing readiness so the 100 ms arm cannot
+		// expire in the handoff between the boundary and the controller's
+		// liveness check.
+		go renewUntilCrashSignal(ctx, store, ref, ttl, *resumeFile)
+	}
 	record := boundaryRecord{Boundary: "owner_ready", WorkflowID: workflowID, DefinitionID: definitionID,
 		Namespace: namespace, Partition: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch,
 		AttemptNumber: claim.AttemptNumber, ClaimToken: claim.ClaimToken, LeaseExpiresAt: lease.LeaseExpiresAt,
@@ -142,7 +148,6 @@ func main() {
 	writeBoundary(record)
 
 	if *mode == "owner_crash" {
-		go renewUntilCrashSignal(ctx, store, ref, ttl, *resumeFile)
 		select {}
 	}
 	if strings.TrimSpace(*resumeFile) == "" {

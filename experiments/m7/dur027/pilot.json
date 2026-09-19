@@ -1,8 +1,8 @@
 {
   "schema_version": "dur027-lease-pilot.v1",
   "status": "PASS",
-  "generated_at_utc": "2026-09-19T05:10:21.2469985Z",
-  "git_commit": "cbf73f3125126901a0fc81ad3fb44c19c82ac3d2",
+  "generated_at_utc": "2026-09-19T05:14:09.4775691Z",
+  "git_commit": "4e27cee6de330e3b02d0f586a4028d49daeae82e",
   "seed": 270027,
   "samples_per_arm": 3,
   "arms": [
@@ -12,15 +12,15 @@
       "renewal_interval_ms": 33,
       "transaction_delay_ms": {
         "count": 9,
-        "min": 3.5537,
-        "median": 5.0926,
-        "max": 21.2164
+        "min": 3.1692,
+        "median": 3.8533999999999997,
+        "max": 5.222
       },
       "scheduling_delay_ms": {
         "count": 9,
-        "min": 3.7904,
-        "median": 5.5073,
-        "max": 22.416999999999998
+        "min": 3.4199,
+        "median": 4.2563,
+        "max": 5.636
       }
     },
     {
@@ -29,15 +29,15 @@
       "renewal_interval_ms": 83,
       "transaction_delay_ms": {
         "count": 9,
-        "min": 3.637,
-        "median": 4.9482,
-        "max": 15.8732
+        "min": 3.3788,
+        "median": 5.6402,
+        "max": 19.3063
       },
       "scheduling_delay_ms": {
         "count": 9,
-        "min": 3.9303999999999997,
-        "median": 5.6733,
-        "max": 18.08
+        "min": 3.5575,
+        "median": 6.0417,
+        "max": 19.5588
       }
     },
     {
@@ -46,15 +46,15 @@
       "renewal_interval_ms": 250,
       "transaction_delay_ms": {
         "count": 9,
-        "min": 3.7327,
-        "median": 5.054600000000001,
-        "max": 13.0206
+        "min": 3.9612,
+        "median": 6.8434,
+        "max": 28.584600000000002
       },
       "scheduling_delay_ms": {
         "count": 9,
-        "min": 4.2482,
-        "median": 5.5201,
-        "max": 14.2369
+        "min": 4.2139999999999995,
+        "median": 7.0438,
+        "max": 29.158199999999997
       }
     }
   ]
