@@ -176,13 +176,12 @@ type taskTiming struct {
 }
 
 type cohortTracker struct {
-	mu      sync.Mutex
-	items   map[string]taskTiming
-	waiters map[string][]chan struct{}
+	mu    sync.Mutex
+	items map[string]taskTiming
 }
 
 func newTracker() *cohortTracker {
-	return &cohortTracker{items: map[string]taskTiming{}, waiters: map[string][]chan struct{}{}}
+	return &cohortTracker{items: map[string]taskTiming{}}
 }
 
 func (t *cohortTracker) add(id string, ready time.Time) {
@@ -196,32 +195,32 @@ func (t *cohortTracker) update(id string, fn func(*taskTiming)) {
 	item := t.items[id]
 	fn(&item)
 	t.items[id] = item
-	waiters := t.waiters[id]
-	delete(t.waiters, id)
 	t.mu.Unlock()
-	for _, waiter := range waiters {
-		close(waiter)
-	}
 }
 
 func (t *cohortTracker) wait(ctx context.Context, ids []string) error {
-	for _, id := range ids {
+	ticker := time.NewTicker(5 * time.Millisecond)
+	defer ticker.Stop()
+	for {
 		t.mu.Lock()
-		item := t.items[id]
-		if !item.TerminalAt.IsZero() || item.Error != "" {
-			t.mu.Unlock()
-			continue
+		complete := true
+		for _, id := range ids {
+			item, found := t.items[id]
+			if !found || (item.TerminalAt.IsZero() && item.Error == "") {
+				complete = false
+				break
+			}
 		}
-		waiter := make(chan struct{})
-		t.waiters[id] = append(t.waiters[id], waiter)
 		t.mu.Unlock()
+		if complete {
+			return nil
+		}
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-waiter:
+		case <-ticker.C:
 		}
 	}
-	return nil
 }
 
 func (t *cohortTracker) snapshot(ids []string) []taskTiming {
