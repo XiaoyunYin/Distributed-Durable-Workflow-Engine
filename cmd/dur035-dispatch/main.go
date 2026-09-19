@@ -1155,9 +1155,9 @@ func transportConclusionSummary(effect effectConclusion) string {
 	case ready.IntervalsSeparated && terminal.IntervalsSeparated:
 		return "The resolved transport result is stage-specific: notification-direct and Kafka win different reported latency stages."
 	case ready.IntervalsSeparated:
-		return transportStageSummary("ready-to-claim", readyKafkaSlower, "terminal latency remains unresolved")
+		return transportStageSummary("ready-to-claim", readyKafkaSlower, "terminal latency", terminalKafkaSlower, "terminal latency remains unresolved")
 	case terminal.IntervalsSeparated:
-		return transportStageSummary("terminal", terminalKafkaSlower, "ready-to-claim latency remains unresolved")
+		return transportStageSummary("terminal", terminalKafkaSlower, "ready-to-claim", readyKafkaSlower, "ready-to-claim latency remains unresolved")
 	case readyKafkaSlower && terminalKafkaSlower:
 		return "Notification-direct matches or beats Kafka on the observed medians, but neither transport latency effect is resolved by the run intervals."
 	default:
@@ -1165,11 +1165,16 @@ func transportConclusionSummary(effect effectConclusion) string {
 	}
 }
 
-func transportStageSummary(stage string, kafkaSlower bool, unresolved string) string {
+func transportStageSummary(stage string, kafkaSlower bool, otherStage string, otherKafkaSlower bool, unresolved string) string {
+	winner := "Kafka is faster than notification-direct on " + stage
+	otherMedian := "Kafka has the lower " + otherStage + " median"
 	if kafkaSlower {
-		return "Notification-direct is faster than Kafka on " + stage + "; " + unresolved + ", so no overall latency winner is claimed."
+		winner = "Notification-direct is faster than Kafka on " + stage
 	}
-	return "Kafka is faster than notification-direct on " + stage + "; " + unresolved + ", so no overall latency winner is claimed."
+	if otherKafkaSlower {
+		otherMedian = "notification-direct also has the lower " + otherStage + " median"
+	}
+	return winner + "; " + otherMedian + ", but " + unresolved + ", so no overall latency winner is claimed."
 }
 
 func runMetricRange(runs []runReport, metric string) medianReport {
