@@ -2565,3 +2565,25 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   action, or protected guarantee changed in this start pass. Validation
   results and any deliberately skipped lifecycle checks will be appended after
   execution.
+
+## 2026-09-19 - DUR-032 validation results
+
+- The disposable clean checkout bootstrapped with the frozen Python lockfile.
+  Its Go tests/build, vet, formatting, Ruff, mypy, and 41 Python tests passed
+  after assigning pytest a writable task-local basetemp. The first clean run
+  had 38 Python passes and 3 setup errors from the host's restricted global
+  temp directory; those were environment setup errors, not test failures.
+- Migrations 000001 through 000014 were all already applied and skipped by
+  migrate.ps1. Compose config and smoke passed before and after restart smoke.
+  Restart smoke recreated only PostgreSQL/Kafka, retained its database marker
+  and Kafka topic, cleaned both markers, and the full topology recovered.
+- The first service-mode CI run exposed a Kafka fixture race: the integration
+  test created a fresh group after publishing while NewKafkaSource uses
+  LastOffset, so the event was missed. The production constructor remains
+  unchanged; the test now uses a test-only FirstOffset reader. The focused
+  isolated test and the final full `ci.ps1 -WithServices -WithRace` both pass,
+  including all integration suites, race checks, 41 Python tests, and smoke.
+- The remaining cleanup issue is environmental: a pytest cache under the
+  disposable worktree has an ACL that prevents deletion by this session. Git
+  has detached the worktree and the main repository remains clean of tracked
+  scratch changes. No external action, paid call, or release/tag was made.

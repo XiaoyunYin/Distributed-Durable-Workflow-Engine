@@ -22,6 +22,7 @@ coverage.out
 .vscode/
 .DS_Store
 Thumbs.db
+.scratch/
 
 # Experiment output is opt-in; manifests and documentation remain trackable.
 experiments/**/raw/
