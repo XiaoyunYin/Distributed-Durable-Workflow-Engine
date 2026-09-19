@@ -106,27 +106,27 @@ func main() {
 		ActorID: "dur027-fixture", Reason: "DUR027_FIXTURE_ACTIVITY", NodeID: "root", Iteration: 0,
 		NodeState: &nodeState,
 	}); err != nil {
-		panic(err)
+		panic(fmt.Sprintf("apply activity transition: %v", err))
 	}
 	workflow, err := store.GetWorkflow(ctx, workflowID)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("get workflow: %v", err))
 	}
 	attempt, err := store.CreateAttempt(ctx, state.AttemptInput{
 		Lease: ref, WorkflowID: workflowID, NodeID: "root", Iteration: 0, ExpectedRevision: workflow.Revision,
 		EffectClass: state.EffectPure, HeartbeatDeadline: time.Now().Add(2 * ttl), ActorID: "dur027-fixture",
 	})
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("create attempt: %v", err))
 	}
 	claim, err := store.ClaimAttempt(ctx, state.ClaimInput{WorkflowID: workflowID, NodeID: "root", Iteration: 0,
 		WorkerID: "dur027-fixture-worker", RequestID: "request-" + *runID, AttemptLease: 2 * ttl})
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("claim attempt: %v", err))
 	}
 	lease, err = store.RenewLease(ctx, ref, ttl)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("arm measured lease: %v", err))
 	}
 	deadline := claim.HeartbeatDeadline
 	if deadline.IsZero() {
@@ -141,7 +141,7 @@ func main() {
 	writeBoundary(record)
 
 	if *mode == "owner_crash" {
-		go renewUntilKilled(ctx, store, ref, ttl)
+		go renewUntilCrashSignal(ctx, store, ref, ttl, *resumeFile)
 		select {}
 	}
 	if strings.TrimSpace(*resumeFile) == "" {
@@ -179,15 +179,24 @@ func main() {
 	}
 }
 
-func renewUntilKilled(ctx context.Context, store *state.Store, ref state.LeaseRef, ttl time.Duration) {
+func renewUntilCrashSignal(ctx context.Context, store *state.Store, ref state.LeaseRef, ttl time.Duration, controlFile string) {
 	interval := ttl / 3
 	if interval < 5*time.Millisecond {
 		interval = 5 * time.Millisecond
 	}
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	for range ticker.C {
-		if _, err := store.RenewLease(ctx, ref, ttl); err != nil {
+	for {
+		select {
+		case <-ticker.C:
+			if data, readErr := os.ReadFile(controlFile); readErr == nil && strings.TrimSpace(string(data)) == "crash" {
+				writeBoundary(boundaryRecord{Boundary: "owner_crash_armed", OwnerID: ref.OwnerID, Epoch: ref.Epoch, Mode: "owner_crash"})
+				return
+			}
+			if _, err := store.RenewLease(ctx, ref, ttl); err != nil {
+				return
+			}
+		case <-ctx.Done():
 			return
 		}
 	}

@@ -412,6 +412,9 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 				report.Failure = cleanupErr.Error()
 			}
 		}
+		if runErr != nil && report.Failure == "" {
+			report.Failure = runErr.Error()
+		}
 	}()
 	ready, err := awaitBoundary(ctx, process.records, "owner_ready")
 	if err != nil {
@@ -430,9 +433,16 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 	}
 	report.LeasePreserved = true
 	report.RenewalsBeforeFault = ready.RenewalsBeforeFault
-	injectedAt := time.Now().UTC()
-	report.InjectedAt = injectedAt.Format(time.RFC3339Nano)
+	var injectedAt time.Time
 	if faultType == "owner_crash" {
+		if err := os.WriteFile(resumeFile, []byte("crash\n"), 0o644); err != nil {
+			return report, err
+		}
+		if _, err := awaitBoundary(ctx, process.records, "owner_crash_armed"); err != nil {
+			return report, err
+		}
+		injectedAt = time.Now().UTC()
+		report.InjectedAt = injectedAt.Format(time.RFC3339Nano)
 		if err := killProcessTree(process.cmd); err != nil {
 			return report, fmt.Errorf("kill owner target: %w", err)
 		}
@@ -446,6 +456,8 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 		}
 		report.TargetDead = true
 	} else {
+		injectedAt = time.Now().UTC()
+		report.InjectedAt = injectedAt.Format(time.RFC3339Nano)
 		if err := os.WriteFile(resumeFile, []byte("pause\n"), 0o644); err != nil {
 			return report, err
 		}
@@ -472,6 +484,7 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 		return report, fmt.Errorf("%s did not take over lease", episodeID)
 	}
 	takeoverAt := time.Now().UTC()
+	report.TakeoverAt = takeoverAt.Format(time.RFC3339Nano)
 	report.Takeover = true
 	report.TakeoverDelayMS = takeoverAt.Sub(injectedAt).Seconds() * 1000
 	newRef := state.LeaseRef{PartitionID: takeover.PartitionID, OwnerID: newOwner, Epoch: takeover.Epoch}

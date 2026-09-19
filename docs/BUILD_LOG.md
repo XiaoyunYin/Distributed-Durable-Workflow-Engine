@@ -2125,6 +2125,11 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   five-second fixture partition, so its real row-lock wait and telemetry are
   measured without extending or accidentally replacing the target lease that
   governs useful recovery.
+- The next probe showed that killing the fixture during a renewal transaction
+  can leave a transient database lock. The crash fixture now acknowledges an
+  `owner_crash_armed` boundary after the parent signals `crash`; the parent
+  kills only after that renewal has finished. This remains a real process-tree
+  crash while making the injected ordering explicit and reproducible.
 - Focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`
   and `go build` pass. The real PostgreSQL pilot/final campaign and the
   repository-wide checks remain required before the next review handoff.
