@@ -6547,3 +6547,57 @@ final target and artifact before any M7 status changes.
   chunk and an in-process panic crash model.
 - **Remaining nonblocking:** R057 and R083, the historical R019 test gap,
   and recorded M6 notes. No checkpoint crossover claim is made.
+
+## Latest Codex handoff - M7 DUR-029
+
+- **Task:** DUR-029 retrieval strategy, bounded live-agent, and adversarial
+  evaluation.
+- **Task status:** READY_FOR_REVIEW; M7 remains IN_PROGRESS and DUR-029 is not
+  DONE pending Claude's committed review.
+- **Handoff basis:** COMMITTED.
+- **Exact base commit:** `5a721c8` (DUR-028 closeout).
+- **Exact implementation/evidence target:** `a015d26`.
+- **Changes:** added the frozen retrieval preflight evaluator, the OpenAI
+  Responses adapter for the explicitly authorized `gpt-4o-mini` model,
+  structured JSON validation, one shared aggregate reservation ledger, live
+  retrieval-arm and adversarial runners, seeded-canary/redaction controls,
+  proposal-signature and diagnosis-only comparisons, and fractional-cent
+  model-cost telemetry. The live runner is fail-closed unless the provider,
+  positive budget, API key, and `INCIDENT_LIVE_APPROVED=1` gate are present.
+- **Authorization and scope:** D013 records the user's OpenAI authorization,
+  exact model, and aggregate $30.00 cap. The run used `store:false`, no
+  external action, no production Go-engine path, and no broader data or
+  budget. The Responses adapter follows the official Responses structured
+  output contract and records the model, prompt version, schema, usage, and
+  cost in the artifacts.
+- **Measured evidence:** `experiments/m7/dur029/live-evaluation.json` is
+  `PASS` with 60 live retrieval-arm executions, 120 adversarial executions,
+  and one separate redaction-off negative control. Aggregate measured spend is
+  4.798995 cents ($0.04798995), reserved spend is zero, defended canary leaks
+  are zero, and the redaction-off control leaks five canaries. The live agent
+  outcomes are mixed and are reported without promotion: each arm has 20
+  executions and four safe end-to-end outcomes; diagnosis, restraint,
+  document-dependent outcomes, latency, and cost are separate fields. The
+  adversarial artifact reports clean-clean rates, clean-injected changes,
+  signed excess change, diagnosis-only divergence, approval enforcement, and
+  downstream leak scans. Deterministic preflight remains
+  `PREPARED_NOT_FINAL` and is separate from the live result.
+- **Checks run:** isolated `uv run pytest -q` with task-local caches and a
+  task-local pytest base directory: 41 passed; Ruff check and format check;
+  mypy; PowerShell deterministic preflight; live artifact JSON/count/cap
+  assertions; and `git diff --check`. No Go source changed in this task.
+- **Known limits:** the live study uses the local SQLite workflow and
+  synthetic corpus/MCP path, not production Go-engine/DUR-033A integration,
+  external effects, Kafka, multi-host deployment, or remote CI. It is a frozen
+  20-case sample, so model quality and retrieval-arm differences are bounded
+  evidence rather than general claims. The initial schema request was rejected
+  before model output and spend because the proposal schema lacked
+  `additionalProperties: false`; the schema was corrected and the complete
+  campaign rerun. The first sandbox network attempt was blocked and the same
+  authorized run completed through the approved network path.
+- **Review request:** review target `a015d26` against base `5a721c8`, with
+  special attention to the aggregate cap/ledger, structured-output failure
+  handling, preflight-versus-live separation, paired adversarial controls,
+  canary negative control, and whether the artifact claims stay within the
+  recorded synthetic scope. Do not mark DUR-029 DONE until Claude records a
+  committed `NO_BLOCKING_FINDINGS` review.
