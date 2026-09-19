@@ -1,14 +1,16 @@
 # Distributed Durable Execution Engine
 
-This repository has completed M0 through M6. M6 was reviewed with
+This repository has completed M0 through M7 implementation and measurement
+tasks. M6 was reviewed with
 `NO_BLOCKING_FINDINGS` at committed target `1048ad0` (base `db8b462`), and
 DUR-019, DUR-020, DUR-021B, and DUR-033 are closed. M5 was reviewed with
 `NO_BLOCKING_FINDINGS` at committed target `acb28ba` against round-22 target
 `69917db`; R057 remains a nonblocking P3 evidence-labelling limitation.
-M7 has started with DUR-036, the declared Linux measurement-host readiness
-gate, now DONE at reviewed target `6325d1f`. The gate unblocks the bounded
-M7 measurement tasks; no final measurement has started. R069 remains a
-nonblocking fixture-cleanup follow-up before the first measurement study.
+M7's bounded studies and DUR-033A production-path integration are reviewed and
+closed; their evidence is summarized in [the technical report](docs/TECHNICAL_REPORT.md).
+M8/DUR-030 is the current report/release work. The results remain bounded to
+their declared fixtures and host, not to production scale or multi-host
+durability.
 It provides a
 reproducible Go/Python development
 environment, frozen foundation contracts, deterministic named-boundary fault

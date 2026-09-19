@@ -2447,3 +2447,28 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - Next planned work is the M8/DUR-030 technical report, which must preserve the
   bounded claims and carry R057, R083, R088, the historical R019 gap, and the
   recorded M6 notes as nonblocking limitations until explicitly resolved.
+
+## 2026-09-19 - DUR-030 technical report draft
+
+- Started DUR-030 from base `855c63e` after the DUR-033A closeout. Added
+  `docs/TECHNICAL_REPORT.md`, a claim-bounded report covering the M5 fault
+  campaign, DUR-036 readiness, DUR-033A production-path integration, all M7
+  measurement studies, the M6/M7 retrieval and incident-agent evidence, cost,
+  limitations, and official-reference context for Temporal, DBOS, Restate, and
+  River.
+- The report uses the committed JSON artifacts as its evidence source and keeps
+  measured results separate from interpretation. It explicitly withholds
+  DUR-034 safeguard-cost deltas, scopes checkpoint and lease claims to their
+  fixtures, reports the unresolved DUR-035 ready-to-claim comparison, and
+  carries R057, R083, R088, the historical R019 gap, and recorded M6 notes.
+- No code, migration, experiment matrix, provider call, external action, paid
+  budget, or protected guarantee changed. Current official reference pages were
+  checked during report work; they are architectural context only, with no
+  parity or performance comparison claimed.
+- Validation before handoff: claim-to-artifact and JSON-count audit passed
+  (48/48 M5 cases, 576 DUR-026 terminal workflows, 60 DUR-027 episodes, 288
+  DUR-035 workflows, and $0.04798995 DUR-029 spend); all 14 local report links
+  resolve; and `git diff --check` is clean. No paid run is required for report
+  reproduction. Full code/service suites were not rerun because this task only
+  adds and indexes documentation; their accepted results remain in the linked
+  artifacts and prior closeout records.

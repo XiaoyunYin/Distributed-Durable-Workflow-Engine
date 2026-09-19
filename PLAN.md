@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; later tasks remain TODO. No correctness,
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 IN_PROGRESS; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 READY_FOR_REVIEW; later tasks remain TODO. No correctness,
 performance, or agent-quality result is claimed.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
@@ -1492,6 +1492,36 @@ contract revision.
 
 **Exit:** Someone else can reproduce the bounded demo and inspect evidence supporting every published claim.
 
+#### DUR-030 implementation record
+
+- **Status:** READY_FOR_REVIEW; report and evidence audit complete; Claude review pending.
+- **Base commit:** `855c63e` (DUR-033A closeout; M8/DUR-030 was the next
+  planned task).
+- **Implementation target:** pending until the report handoff commit is created.
+- **Goal:** publish one claim-bounded technical report covering the failure
+  campaign, runtime readiness and production-path integration, M7 performance
+  and recovery measurements, M6/M7 retrieval and incident-agent evidence,
+  cost, limitations, and current official reference context.
+- **Scope:** documentation only. Add the report and its claim-to-evidence
+  register; do not change engine guarantees, release criteria, experiment
+  matrices, paid budgets, or measured artifacts. Compare Temporal, DBOS,
+  Restate, and River only as architectural context; make no parity claims.
+- **Evidence target:** `docs/TECHNICAL_REPORT.md`, with links to the committed
+  artifacts under `experiments/m5/`, `experiments/m6/`, and `experiments/m7/`.
+- **Acceptance validation:** every published number names its artifact,
+  population, configuration, and limitation; the report states the bounded
+  conclusion for DUR-026, DUR-027, DUR-028, DUR-034, DUR-035, and DUR-029;
+  external reference claims link to current official documentation; paid cost
+  is separated from local compute cost; nonblocking R057, R083, R088, the
+  historical R019 gap, and the recorded M6 notes remain visible.
+- **Protected boundaries:** no code, migration, experiment rerun, provider
+  call, external action, budget change, or protected-scope change is part of
+  DUR-030.
+- **Known limitations:** the report inherits each artifact's host, workload,
+  crash-model, sample-size, and production-integration limits. It is not a
+  replacement for DUR-031 interview walkthroughs or DUR-032 clean-checkout
+  release validation.
+
 ## 13. Deterministic failure campaign
 
 A deterministic crash schedule specifies a named barrier and acknowledgment from the target process. It does not promise identical operating-system timing.
@@ -1805,8 +1835,10 @@ on the DUR-027 closeout `b09095c`; Claude's round-42 review returned
 target `5b9d65c`, based on `000ec83`; Claude's round-44 review returned
 `NO_BLOCKING_FINDINGS` and verified R086/R087. DUR-033A is DONE at reviewed
 implementation target `95948cb`, based on `670fcd2`; Claude's round-45 review
-returned `NO_BLOCKING_FINDINGS` and closed the R064 follow-up. The immediate
-next action is to prepare the M8/DUR-030 technical report record. R057, R083,
-and R088 remain nonblocking P3 findings carried forward.
+returned `NO_BLOCKING_FINDINGS` and closed the R064 follow-up. DUR-030 is now
+`IN_PROGRESS` from base `855c63e`; its draft report is
+`docs/TECHNICAL_REPORT.md` and its evidence register points at the committed
+M5-M7 artifacts and the DUR-033A integration. R057, R083, and R088 remain
+nonblocking P3 findings carried forward.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.
