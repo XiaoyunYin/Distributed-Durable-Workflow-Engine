@@ -483,6 +483,15 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 	report.TakeoverDelayMS = takeoverAt.Sub(injectedAt).Seconds() * 1000
 	newRef := state.LeaseRef{PartitionID: takeover.PartitionID, OwnerID: newOwner, Epoch: takeover.Epoch}
 	oldRef := state.LeaseRef{PartitionID: ready.Partition, OwnerID: ready.OwnerID, Epoch: ready.Epoch}
+	stopRenewal := startLeaseRenewal(ctx, store, newRef, arm.TTL)
+	defer func() {
+		count, renewalErr := stopRenewal()
+		report.RenewalsAfterTakeover += count
+		if renewalErr != nil && runErr == nil {
+			runErr = renewalErr
+			report.Failure = renewalErr.Error()
+		}
+	}()
 	for index, staleErr := range []error{
 		func() error { _, renewErr := store.RenewLease(ctx, oldRef, arm.TTL); return renewErr }(),
 		store.ReleaseLease(ctx, oldRef),
@@ -506,15 +515,6 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 		return report, err
 	}
 	report.LockWaits, report.LockWaitSeconds = waits, waitSeconds
-	stopRenewal := startLeaseRenewal(ctx, store, newRef, arm.TTL)
-	defer func() {
-		count, renewalErr := stopRenewal()
-		report.RenewalsAfterTakeover += count
-		if renewalErr != nil && runErr == nil {
-			runErr = renewalErr
-			report.Failure = renewalErr.Error()
-		}
-	}()
 	attempt, err := store.GetAttempt(ctx, ready.WorkflowID, "root", 0, ready.AttemptNumber)
 	if err != nil {
 		_ = store.ReleaseLease(ctx, newRef)
