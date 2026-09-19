@@ -633,12 +633,12 @@ func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics
 	if err != nil {
 		return runReport{}, err
 	}
-	if terminal != workflowCount || pending != 0 {
+	if terminal != workflowCount+warmupCount || pending != 0 {
 		return runReport{}, fmt.Errorf("cohort reconciliation terminal=%d pending=%d", terminal, pending)
 	}
 	telemetryDelta := telemetryDelta(metrics.Snapshot(), baseline)
 	report := runReport{Configuration: selected.Name, Mode: selected.Mode, Repeat: repeat, RunID: runID, Status: "PASS",
-		WorkflowCount: workflowCount, WarmupCount: warmupCount, Terminal: terminal, Pending: pending, ArrivalRate: arrivalRate,
+		WorkflowCount: workflowCount, WarmupCount: warmupCount, Terminal: workflowCount, Pending: pending, ArrivalRate: arrivalRate,
 		ElapsedSeconds: measuredEnd.Sub(measuredStart).Seconds(), DrainSeconds: maxFloat(0, measuredEnd.Sub(measuredStart).Seconds()-float64(workflowCount-1)/arrivalRate), Throughput: float64(terminal) / measuredEnd.Sub(measuredStart).Seconds(),
 		BacklogOldestAgeSeconds: oldest, Timings: makeTimings(rows), Telemetry: telemetryDelta, ProcessCPUSeconds: cpuEnd - cpuStart,
 		CPUDescription: "whole command process; includes the fixed in-process worker fixture", Transport: transportReport{Failures: pool.failures.Load()}}
