@@ -5329,7 +5329,7 @@ superseded by the committed M4 handoff below.
 - Change made: the closeout handoff now names reachable reviewed target
   `71fd54a` and records campaign source `bd86b20` separately. The orphaned
   `8e06e14` declaration is no longer used as the acceptance target.
-- Fix commit: pending this closeout metadata commit.
+- Fix commit: `8b8556c` (reachable-target correction and DUR-027 closeout).
 - Tests and results: `git cat-file -t 71fd54a` resolves the commit and
   `git merge-base --is-ancestor 71fd54a HEAD` passes. The reviewed source,
   campaign artifact, and nonblocking residuals are unchanged.
