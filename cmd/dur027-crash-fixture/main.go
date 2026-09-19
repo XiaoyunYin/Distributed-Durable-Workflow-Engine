@@ -1,7 +1,8 @@
 // Command dur027-crash-fixture is the durable target for DUR-027 fault
 // episodes. It owns a PostgreSQL scheduler lease, creates a claimed activity,
-// and then waits at an acknowledged boundary. The parent either kills this
-// process tree or asks the paused process to resume after takeover.
+// and then waits at an acknowledged boundary. The crash mode exits with a
+// non-zero status immediately after acknowledging the crash signal, while the
+// pause mode waits for the parent to resume it after takeover.
 package main
 
 import (
@@ -191,7 +192,10 @@ func renewUntilCrashSignal(ctx context.Context, store *state.Store, ref state.Le
 		case <-ticker.C:
 			if data, readErr := os.ReadFile(controlFile); readErr == nil && strings.TrimSpace(string(data)) == "crash" {
 				writeBoundary(boundaryRecord{Boundary: "owner_crash_armed", OwnerID: ref.OwnerID, Epoch: ref.Epoch, Mode: "owner_crash"})
-				return
+				// Do not run defers or release the lease: this is the durable
+				// crash boundary. The controller measures takeover only after it
+				// observes this non-zero process exit.
+				os.Exit(137)
 			}
 			if _, err := store.RenewLease(ctx, ref, ttl); err != nil {
 				return

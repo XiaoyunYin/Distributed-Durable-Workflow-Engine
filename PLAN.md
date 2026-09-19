@@ -1355,7 +1355,8 @@ contract revision.
 
 #### DUR-027 implementation record
 
-- **Status:** READY_FOR_REVIEW; round-38 blockers are addressed and the corrected campaign/evidence are committed for Claude review.
+- **Status:** IN_PROGRESS; R082 is being addressed before the corrected campaign/evidence are handed back to Claude.
+- **Measurement clock:** the crash fixture self-exits non-zero after `owner_crash_armed`; the controller confirms death before starting takeover and useful-progress clocks, and records signal-to-death separately.
 - **Base commit:** `ebb3bef` (the round-38 DUR-027 review target; the next review compares the corrective work from this target).
 - **Dependencies:** DUR-036, the M1-M5 ownership/claim guarantees, and the section-14 measurement discipline.
 - **Goal:** compare frozen lease TTLs under two fault types—owner process crash and owner pause/resume beyond expiry—measuring takeover delay through first useful affected-work progress, renewal traffic, false takeovers, stale-owner fencing, and database lock contention.

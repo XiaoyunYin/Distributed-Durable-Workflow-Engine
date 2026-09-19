@@ -2160,3 +2160,24 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - Focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`
   and `go build` pass. The real PostgreSQL pilot/final campaign and the
   repository-wide checks remain required before the next review handoff.
+
+## 2026-09-19 - DUR-027 round-39 R082 correction
+
+- R082 found that Windows `taskkill /T /F` latency was included in the crash
+  takeover and useful-progress clocks. The fixture now exits non-zero with
+  `os.Exit(137)` immediately after the acknowledged `owner_crash_armed`
+  boundary, so no external kill tool runs inside the measured interval and
+  the held lease is not released by deferred cleanup.
+- The controller waits for the non-zero exit, records `death_confirmed_at_utc`,
+  starts `takeover_delay_ms` and `useful_progress_delay_ms` at confirmed death,
+  and reports `fault_signal_to_death_ms` separately. The protocol and
+  conclusions state this clock explicitly; pause timings retain their
+  controller-observed pause-signal clock.
+- Focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`,
+  `go build`, and `gofmt` pass with a task-local Go cache. The prior service
+  mode timeout note is retained here as historical build evidence only; it is
+  not asserted as a DUR-027 finding or acceptance result.
+- The revised pilot and 60-episode campaign remain required before the next
+  review handoff. The campaign must show non-zero crash signal-to-death
+  intervals separately, crash takeover beginning after confirmed death, all
+  safety/reconciliation counts, and zero cleanup residue.

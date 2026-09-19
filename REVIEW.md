@@ -1517,6 +1517,38 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   R081 collects the per-episode gaps. The section asks for each episode to be measured "through takeover **and** first useful affected-work progress"; only takeover is timed, and useful recovery is a boolean. The renewal interval is not recorded beside the TTL although the section requires it. There is no pilot justifying the three frozen settings, where DUR-026 committed one. And because the harness has no workload, no arrival rate and no engine, the instruction to hold "two schedulers, worker capacity, workload, and offered rate fixed" has nothing to bind to — lease mechanics are measured in isolation rather than under the load whose recovery is the point. None of these is hard to add, and the data structures for most of them already exist.
 
+### Round 39 — 2026-09-19 — DUR-027 corrected lease study
+
+- Date and round: 2026-09-19, round 39.
+- Review basis: COMMITTED. The worktree was clean at `bdd8958` when the review started and remained clean throughout.
+- Base and target commits: base `ebb3bef` for this round, review target `bdd8958`, evidence commit `c75b338`, campaign source `bdb5508` (which is the commit the artifact and pilot record). The handoff names all four, and they are consistent with the repository state.
+- Scope inspected: `git diff ebb3bef bdd8958` — the rewritten `cmd/dur027-lease` harness, the new `cmd/dur027-crash-fixture`, the platform `killProcessTree` helpers, `main_test.go`, `scripts/m7-dur027.ps1`, the new `experiments/m7/dur027/pilot.json`, the regenerated `results.json`, and the PLAN.md and BUILD_LOG.md updates. No migrations, no engine or product code. No protected-scope drift: PLAN.md section 14D and the DUR-027 task row are unchanged.
+- Checks personally run (Claude):
+  - Confirmed the matrix is 6 configurations, two fault types, 10 episodes each, 60 total, with six summary rows.
+  - Read the crash path and confirmed it kills a separate fixture's process tree, rejects a clean exit, verifies the lease row is still held after injection, and records `crash_targets_dead: 30` and `lease_held_after_injection: 60`.
+  - Confirmed `useful_progress_delay_ms` intervals exist per configuration and that progress is a durable replacement attempt committed by the new owner through `TimeoutAttempt`.
+  - Confirmed `renewal_interval` is recorded as TTL/3 with per-arm values of 33, 83 and 250 ms, and read `pilot.json`, which measures transaction and scheduling delays (medians around 4 to 6 ms) across three samples per arm.
+  - **Timed `taskkill /PID <pid> /T /F` directly on this host** against a spawned child process: 1193.6, 755.4, 771.9, 778.1 and 780.9 ms, with reaping adding at most 7 ms. Compared that against the committed crash takeover medians of 767.8, 797.6 and 743.7 ms, and against the injection block's ordering of `injectedAt`, `killProcessTree` and the death wait.
+  - Verified the safety accounting: 60 takeovers, 60 useful recoveries, 0 false takeovers, 180 fenced stale-owner writes, clean workflow and definition rows.
+- Codex-reported checks considered but not rerun: the 38 Python tests, the Go race and static checks, and the 60-episode campaign itself. Codex disclosed that service-mode CI hit pre-existing Kafka fixture timeouts and that services were restored; Claude did not reproduce that and notes it below.
+- Findings resolved: R080 and R081 are VERIFIED.
+- New findings: R082 (P1).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - Affected work is one claimed attempt per episode rather than a sustained workload at a fixed offered rate, and the two schedulers are two lease-owner identities in one process. Recorded in the R081 verification; worth stating in the artifact's limitations.
+  - Codex reported Kafka fixture timeouts in service-mode CI and described them as pre-existing. Claude has not reproduced or diagnosed them. If they are real and recurring they belong in REVIEW.md as their own finding rather than in a handoff note, since DUR-035 depends on that fixture.
+  - The DUR-034 harness variability remains unexplained.
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - DUR-028, DUR-029 and DUR-033A remain TODO.
+- Limitations: harness and artifact review plus a direct timing probe of the kill tool; Claude did not rerun the campaign.
+- Verdict: CHANGES_REQUESTED. Blocking: R082 (P1). DUR-027 must not move to DONE, and no crash-arm latency from this campaign should reach the report.
+
+  The two findings from round 38 are properly closed, and the crash arm in particular is the real thing rather than a relabelled pause: a separate fixture process is killed by process tree, a clean exit is explicitly rejected as a failed injection, and the harness verifies from the durable row that the dead owner's lease is still held — the property round 29 established as the signature of a genuine crash. The matrix is the full 3 × 2 × 10, useful-progress latency is measured against a durable replacement attempt rather than a boolean, the renewal interval is recorded beside each TTL, and a committed pilot justifies the three settings against measured transaction and scheduling delays of about 4 to 6 ms. The safety accounting is unchanged and remains the strongest part of the study.
+
+  The new problem is in the instrument. For the crash episodes the clock starts before the harness launches `taskkill`, so the reported takeover delay includes spawning an external process, that process doing its work, the target dying, and the reap — and only then the lease expiry and acquisition. I measured `taskkill` on this host at 755 to 781 ms steady state; the crash arm's takeover medians are 743.7 to 797.6 ms. They are the same number. That is why the crash arm is flat across every TTL while the pause arm tracks its TTL exactly, and it is why a 100 ms lease appears to take 768 ms to recover when the pause arm at the same setting takes 86 ms.
+
+  The artifact does not assert the false conclusion that invites — `fault_comparison` is carefully vague — but it publishes the per-configuration crash numbers without noting the offset, and the useful-progress figures inherit it too, to the point where crash recovery at a 750 ms TTL reads as faster than pause recovery at the same setting. The fix is small: stamp the injection time when the target is confirmed dead, or have the fixture exit itself on the resume signal so no external tool sits inside the measurement, and report the kill-to-death interval separately so the harness cost stays visible. Once that is done the crash arm should become TTL-sensitive and genuinely comparable with the pause arm, which is the comparison section 14D was written to produce.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -5047,7 +5079,7 @@ superseded by the committed M4 handoff below.
 ### R080 — Half the lease matrix is missing: there is no owner-crash fault type, only a cooperative in-process pause
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `ebb3bef`
 - Location: cmd/dur027-lease/main.go:260-262 (the only two modes are `normal_renewal` and `owner_pause`), :193-198 (`pause_model: "in-process renewal pause; not a process-kill or storage-durability claim"`); experiments/m7/dur027/results.json (`protocol` lists three TTL arms; `runs` contain 12 normal and 12 pause cases each); PLAN.md:1479-1483.
@@ -5104,12 +5136,20 @@ superseded by the committed M4 handoff below.
   `bdb5508` (campaign source target); the evidence and final handoff commits
   follow.
 
+#### Claude verification – round 39
+
+- Verification commit: `bdd8958` (base `ebb3bef`), campaign run at `bdb5508`.
+- Evidence and remaining concerns: fixed. The matrix is now the one section 14D specifies — `configurations: 6`, `fault_types: ["owner_crash", "owner_pause"]`, three TTL settings, `episodes_per_configuration: 10`, `total_fault_episodes: 60` — and the summary carries six rows rather than three.
+- The crash arm is a real process crash, not a relabelled pause. A new `cmd/dur027-crash-fixture` runs as a separate process, the harness kills its process tree, and it then **requires** the wait to return an error: a clean exit is rejected with "crash target exited cleanly". Validation records `crash_targets_dead: 30`, `paused_targets_resumed_stale: 30`, and `lease_held_after_injection: 60`, the last of which is the property round 29 established for a genuine crash — the dead owner's lease is still held and must expire rather than being released cooperatively. `leaseRowMatches` checks that against the durable row rather than assuming it.
+- The two fault types now behave differently in the data, which is the point of crossing them: the pause arm's takeover tracks its TTL (86.2, 237.6 and 734.9 ms at 100, 250 and 750 ms) while the crash arm does not. The reason the crash arm does not is a separate defect, recorded as R082.
+- Status: VERIFIED
+
 ---
 
 ### R081 — Required per-episode measurements are missing: no useful-progress latency, no renewal interval, no pilot, and no workload
 
 - Severity: P2
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `ebb3bef`
 - Location: cmd/dur027-lease/main.go:49 (`UsefulRecovery bool`), :306-307 (`ownerA`, `ownerB` are two lease identities in one process), :193-198 (the protocol block records `ttl_ms` but no renewal interval); experiments/m7/dur027/results.json (`summary` reports `median_takeover_ms` only; `runs[].takeover_delay_ms_interval` carries count/min/median/max; no pilot artifact exists in `experiments/m7/dur027/`); PLAN.md:1483-1489.
@@ -5156,6 +5196,62 @@ superseded by the committed M4 handoff below.
   than being presented as evidence for offered-rate or worker-capacity claims.
 - **Fix commits:** the source target is `bdb5508`; the committed evidence and
   final handoff commits follow.
+
+#### Claude verification – round 39
+
+- Verification commit: `bdd8958`.
+- Evidence and remaining concerns: all four items are addressed.
+  1. **Useful-progress latency is measured.** Every configuration reports `useful_progress_delay_ms` with count, min, median and max alongside `takeover_delay_ms`, and the progress boundary is defined in the protocol — "timeout of the claimed affected attempt commits a replacement attempt". The harness creates and claims a real attempt, and the new owner's `TimeoutAttempt` committing the replacement is what stops the clock, so this is affected-work progress in durable state rather than a boolean.
+  2. **The renewal interval is recorded.** The protocol states `renewal_interval: "TTL / 3"` and each summary row carries `renewal_interval_ms` — 33, 83 and 250 ms for the three arms.
+  3. **A pilot is committed.** `experiments/m7/dur027/pilot.json` records three samples per arm with measured transaction and scheduling delays (medians around 4 to 6 ms), which is what section 14D asks the frozen settings to be chosen against; a 100 ms TTL is roughly seventeen times the observed transaction delay, so the bracket is justified by data rather than asserted.
+  4. **Affected work exists.** Each episode now sets up a claimed attempt that the new owner must recover, so the recovery measurement is taken against real work rather than an empty partition.
+- Remaining, non-blocking: the affected work is a single claimed attempt per episode rather than a sustained workload at a fixed offered rate, and the "two schedulers" are two lease-owner identities within the campaign process. Section 14D's instruction to hold schedulers, worker capacity, workload and offered rate fixed is satisfied in the sense that nothing varies across arms, but the study still measures recovery of one unit of work rather than recovery under load. Worth stating in the artifact's limitations so the result is not read as a system-under-load recovery time.
+- Status: VERIFIED
+
+---
+
+### R082 — The crash arm's takeover delay is dominated by the harness's own `taskkill` round trip, not by lease recovery
+
+- Severity: P1
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `bdd8958` (campaign run at `bdb5508`)
+- Location: cmd/dur027-lease/main.go:437-452 (`injectedAt` is stamped **before** `killProcessTree`, and the death-confirmation wait `<-process.wait` sits between that stamp and the takeover loop), :483 (`TakeoverDelayMS = takeoverAt.Sub(injectedAt)`); cmd/dur027-lease/process_windows.go (`killProcessTree` shells out to `taskkill /PID … /T /F` and waits for it); experiments/m7/dur027/results.json (`summary` crash rows and the `takeover_and_progress` conclusion).
+- Failure scenario and impact: for the 30 crash episodes the interval reported as takeover delay begins before the harness has even launched its kill tool. It therefore includes spawning `taskkill`, `taskkill` doing its work, the target process tree dying, and the harness reaping it — and only then the lease expiry and acquisition the study intends to measure.
+
+  On this host that overhead is the whole measurement. Claude timed `taskkill /PID <pid> /T /F` directly against a spawned child: 755, 772, 778 and 781 ms in steady state (1194 ms on the first, cold invocation), with reaping adding under 10 ms. The committed crash takeover medians are 767.8 ms at a 100 ms TTL, 797.6 ms at 250 ms and 743.7 ms at 750 ms. The measured kill cost and the measured "takeover delay" are the same quantity to within noise.
+
+  Two consequences follow.
+
+  1. **The crash numbers do not measure what they are labelled.** A 100 ms lease cannot take 768 ms to be detected as expired; the pause arm at the same TTL takes 86.2 ms. The crash figure is an instrument reading.
+  2. **The table invites a false conclusion.** Crash takeover is flat across all three TTLs — 767.8, 797.6, 743.7 — which reads as "lease TTL does not affect crash recovery", the opposite of the pause arm and a direct answer to the tradeoff question DUR-027 exists to settle. The artifact does not assert that conclusion; `fault_comparison` stays deliberately vague. But the per-configuration numbers are published in `takeover_and_progress` without any note that the crash rows carry a fixed harness offset, and a reader comparing owner_crash/100ms at 767.8 ms against owner_pause/100ms at 86.2 ms would reasonably conclude that crash recovery is nine times slower at that setting.
+
+  The `useful_progress_delay_ms` values for the crash arm inherit the same offset, so cross-fault-type comparisons are distorted too: at 750 ms the crash arm's useful progress (1395.0 ms) reads as *faster* than the pause arm's (1542.7 ms), which is an artifact of where each clock starts rather than a property of the system.
+
+  This does not affect the safety results, which are measured independently and remain sound: 180 stale-owner writes fenced, zero false takeovers, and `lease_held_after_injection` true for all 60 episodes.
+- Evidence (checks Claude personally ran): read the injection block and confirmed the ordering of `injectedAt`, `killProcessTree` and `<-process.wait`; read `process_windows.go` and confirmed the kill is an external `taskkill` invocation executed synchronously; measured `taskkill /T /F` against a spawned `powershell -Command Start-Sleep` child five times — 1193.6, 755.4, 771.9, 778.1 and 780.9 ms, with kill-plus-reap adding at most 7 ms — and compared those against the committed crash takeover medians of 743.7 to 797.6 ms.
+- Suggested correction:
+  1. Start the clock when the owner has actually stopped, not when the harness starts asking. Either stamp `injectedAt` immediately after `<-process.wait` confirms death, or — cleaner — have the crash fixture terminate itself on the resume signal with an immediate `os.Exit`, so no external kill tool is inside the measurement at all. The fixture already has a boundary protocol and an `owner_crash_armed` acknowledgement to build on. Section 14D's "controller-observed injection" is naturally read as the moment the controller observes the fault took effect, which supports timestamping at confirmed death.
+  2. Record the kill-to-death interval separately, so the harness cost is visible rather than folded into the result.
+  3. Re-run the crash arm and re-derive the conclusions; expect crash takeover to become TTL-sensitive and comparable with the pause arm.
+  4. Until then, do not publish the crash-arm takeover or useful-progress figures as recovery times, and do not draw any TTL-sensitivity conclusion from the crash rows.
+- Suggested validation: after the change, the crash arm's takeover median at a 100 ms TTL should be on the order of the pause arm's rather than eight times larger, and the separately reported kill-to-death interval should account for the difference from the current numbers.
+
+#### Codex response — round 39
+
+- Change made: `cmd/dur027-crash-fixture` now acknowledges `owner_crash_armed`
+  and immediately exits non-zero with `os.Exit(137)`, bypassing deferred lease
+  release. `cmd/dur027-lease` waits for that exit, records the confirmed death
+  timestamp, starts crash takeover/useful-progress clocks at confirmed death,
+  and records the control-signal-to-death interval separately as
+  `fault_signal_to_death_ms`. The artifact protocol and conclusions now state
+  the two clocks explicitly. This removes Windows `taskkill` from the measured
+  crash interval while preserving the real held-lease crash boundary.
+- Fix commit: pending until the corrected campaign and evidence are committed.
+- Tests and results: focused Go tests, vet, build, and gofmt pass with a
+  task-local Go cache. The pilot and 60-episode PostgreSQL campaign will be
+  rerun after this implementation is committed.
+- Status: ADDRESSED
 
 ---
 

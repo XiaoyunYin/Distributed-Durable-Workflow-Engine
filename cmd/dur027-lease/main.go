@@ -67,8 +67,10 @@ type episodeReport struct {
 	WorkflowID            string  `json:"workflow_id"`
 	Partition             int16   `json:"partition"`
 	InjectedAt            string  `json:"injected_at_utc"`
+	DeathConfirmedAt      string  `json:"death_confirmed_at_utc,omitempty"`
 	TakeoverAt            string  `json:"takeover_at_utc"`
 	UsefulProgressAt      string  `json:"useful_progress_at_utc"`
+	FaultSignalToDeathMS  float64 `json:"fault_signal_to_death_ms,omitempty"`
 	TakeoverDelayMS       float64 `json:"takeover_delay_ms"`
 	UsefulProgressDelayMS float64 `json:"useful_progress_delay_ms"`
 	DefinitionID          string  `json:"definition_id"`
@@ -109,6 +111,7 @@ type runReport struct {
 	LeaseHeldAfterInject  int             `json:"lease_held_after_injection"`
 	TakeoverDelayMS       interval        `json:"takeover_delay_ms_interval"`
 	UsefulProgressDelayMS interval        `json:"useful_progress_delay_ms_interval"`
+	FaultSignalToDeathMS  interval        `json:"fault_signal_to_death_ms_interval"`
 	Episodes              []episodeReport `json:"episodes"`
 	Failure               string          `json:"failure,omitempty"`
 }
@@ -147,6 +150,7 @@ type summaryRow struct {
 	Episodes                   int      `json:"episodes"`
 	TakeoverDelayMS            interval `json:"takeover_delay_ms"`
 	UsefulProgressDelayMS      interval `json:"useful_progress_delay_ms"`
+	FaultSignalToDeathMS       interval `json:"fault_signal_to_death_ms"`
 	RenewalsBeforeFaultPerEp   float64  `json:"renewals_before_fault_per_episode"`
 	RenewalsAfterTakeoverPerEp float64  `json:"renewals_after_takeover_per_episode"`
 	FalseTakeovers             int      `json:"false_takeovers"`
@@ -312,7 +316,12 @@ func runCampaign(ctx context.Context, store *state.Store, cfg config, pilot pilo
 		Protocol: map[string]any{"seed": cfg.Seed, "lease_settings": leaseArms(), "fault_types": faultTypes(),
 			"configurations": settingsCount * faultTypeCount, "episodes_per_configuration": episodesPerConfig,
 			"total_fault_episodes": expectedEpisodes, "renewal_interval": "TTL / 3", "pilot": "three samples per TTL; settings frozen before final run",
-			"progress_boundary": "timeout of the claimed affected attempt commits a replacement attempt"},
+			"progress_boundary": "timeout of the claimed affected attempt commits a replacement attempt",
+			"crash_timing": map[string]string{
+				"takeover_clock":    "confirmed non-zero crash-fixture exit to new-owner takeover",
+				"separate_overhead": "fault_signal_to_death_ms records control-signal-to-death time and is excluded from takeover and useful-progress delays",
+				"crash_injection":   "fixture self-exits with status 137 after owner_crash_armed; no external kill tool is in the measurement clock",
+			}},
 		Limitations: []string{"single-node PostgreSQL on Docker Desktop/WSL2", "owner crash and pause are bounded local process fixtures, not host or storage failure claims", "the harness measures lease recovery mechanics, not production throughput or multi-host scale", "short TTLs are measurement settings, not deployment recommendations"}}
 	for _, arm := range leaseArms() {
 		for _, faultType := range faultTypes() {
@@ -367,13 +376,17 @@ func runConfig(ctx context.Context, store *state.Store, cfg config, arm leaseArm
 			report.LeaseHeldAfterInject++
 		}
 	}
-	var takeoverValues, progressValues []float64
+	var takeoverValues, progressValues, signalToDeathValues []float64
 	for _, item := range report.Episodes {
 		takeoverValues = append(takeoverValues, item.TakeoverDelayMS)
 		progressValues = append(progressValues, item.UsefulProgressDelayMS)
+		if item.FaultSignalToDeathMS > 0 {
+			signalToDeathValues = append(signalToDeathValues, item.FaultSignalToDeathMS)
+		}
 	}
 	report.TakeoverDelayMS = makeInterval(takeoverValues)
 	report.UsefulProgressDelayMS = makeInterval(progressValues)
+	report.FaultSignalToDeathMS = makeInterval(signalToDeathValues)
 	if report.CompletedEpisodes != episodesPerConfig || report.Takeovers != episodesPerConfig || report.UsefulProgress != episodesPerConfig || report.FalseTakeovers != 0 || report.FencedOldOwnerWrites != episodesPerConfig*staleWritesPerEpisode {
 		report.Failure = fmt.Sprintf("configuration reconciliation failed: completed=%d takeovers=%d progress=%d false=%d fenced=%d", report.CompletedEpisodes, report.Takeovers, report.UsefulProgress, report.FalseTakeovers, report.FencedOldOwnerWrites)
 		return report, errors.New(report.Failure)
@@ -429,25 +442,30 @@ func runEpisode(ctx context.Context, store *state.Store, cfg config, arm leaseAr
 	report.RenewalsBeforeFault = ready.RenewalsBeforeFault
 	var injectedAt time.Time
 	if faultType == "owner_crash" {
+		signalAt := time.Now().UTC()
 		if err := os.WriteFile(resumeFile, []byte("crash\n"), 0o644); err != nil {
 			return report, err
 		}
 		if _, err := awaitBoundary(ctx, process.records, "owner_crash_armed"); err != nil {
 			return report, err
 		}
-		injectedAt = time.Now().UTC()
-		report.InjectedAt = injectedAt.Format(time.RFC3339Nano)
-		if err := killProcessTree(process.cmd); err != nil {
-			return report, fmt.Errorf("kill owner target: %w", err)
-		}
+		// The fixture exits itself after owner_crash_armed. Waiting for the
+		// non-zero exit confirms that the fault took effect before starting
+		// the takeover clock; the controller-to-death interval is reported
+		// separately so it cannot contaminate lease recovery latency.
 		select {
 		case waitErr := <-process.wait:
 			if waitErr == nil {
 				return report, errors.New("crash target exited cleanly")
 			}
 		case <-time.After(10 * time.Second):
-			return report, errors.New("crash target did not die after process-tree kill")
+			return report, errors.New("crash target did not die after self-exit boundary")
 		}
+		deathConfirmedAt := time.Now().UTC()
+		injectedAt = deathConfirmedAt
+		report.InjectedAt = injectedAt.Format(time.RFC3339Nano)
+		report.DeathConfirmedAt = deathConfirmedAt.Format(time.RFC3339Nano)
+		report.FaultSignalToDeathMS = deathConfirmedAt.Sub(signalAt).Seconds() * 1000
 		report.TargetDead = true
 	} else {
 		injectedAt = time.Now().UTC()
@@ -768,7 +786,7 @@ func summarize(runs []runReport) []summaryRow {
 	rows := make([]summaryRow, 0, len(runs))
 	for _, run := range runs {
 		rows = append(rows, summaryRow{ConfigID: run.ConfigID, FaultType: run.FaultType, TTLMS: run.TTLMS, RenewalIntervalMS: run.RenewalIntervalMS,
-			Episodes: run.CompletedEpisodes, TakeoverDelayMS: run.TakeoverDelayMS, UsefulProgressDelayMS: run.UsefulProgressDelayMS,
+			Episodes: run.CompletedEpisodes, TakeoverDelayMS: run.TakeoverDelayMS, UsefulProgressDelayMS: run.UsefulProgressDelayMS, FaultSignalToDeathMS: run.FaultSignalToDeathMS,
 			RenewalsBeforeFaultPerEp: float64(run.RenewalsBeforeFault) / float64(maxInt(1, run.CompletedEpisodes)), RenewalsAfterTakeoverPerEp: float64(run.RenewalsAfterTakeover) / float64(maxInt(1, run.CompletedEpisodes)),
 			FalseTakeovers: run.FalseTakeovers, UsefulProgress: run.UsefulProgress, Takeovers: run.Takeovers, LockWaitsPerEpisode: float64(run.LockWaits) / float64(maxInt(1, run.CompletedEpisodes))})
 	}
@@ -784,8 +802,8 @@ func deriveConclusions(result artifact) conclusions {
 		parts = append(parts, fmt.Sprintf("%s/%dms takeover %.1f ms [%.1f, %.1f], useful progress %.1f ms [%.1f, %.1f]", row.FaultType, row.TTLMS, row.TakeoverDelayMS.Median, row.TakeoverDelayMS.Min, row.TakeoverDelayMS.Max, row.UsefulProgressDelayMS.Median, row.UsefulProgressDelayMS.Min, row.UsefulProgressDelayMS.Max))
 	}
 	return conclusions{
-		TakeoverAndProgress: "Observed per-episode takeover and first useful affected-work progress: " + strings.Join(parts, "; ") + ".",
-		FaultComparison:     "Both owner-crash process-tree kills and owner-pause/resume episodes reached a new-owner replacement transition; comparisons remain bounded to this six-configuration local matrix.",
+		TakeoverAndProgress: "Observed per-episode takeover and first useful affected-work progress: " + strings.Join(parts, "; ") + ". Crash takeover and useful-progress clocks start at confirmed fixture death; signal-to-death overhead is reported separately.",
+		FaultComparison:     "Both owner-crash self-exit and owner-pause/resume episodes reached a new-owner replacement transition; comparisons remain bounded to this six-configuration local matrix.",
 		RenewalTraffic:      fmt.Sprintf("Renewal intervals are recorded as TTL/3: %d stale-owner-safe episodes included %d renewals before injection and %d while the new owner waited for affected work.", result.Validation.CompletedEpisodes, totalBefore(result.Runs), totalAfter(result.Runs)),
 		Safety:              fmt.Sprintf("Safety control passed: %d false takeovers, %d useful recoveries for %d takeovers, and %d stale-owner writes rejected.", result.Validation.FalseTakeovers, result.Validation.UsefulProgress, result.Validation.Takeovers, result.Validation.FencedOldOwners),
 		LockContention:      fmt.Sprintf("Measured %d PostgreSQL lock-contention cases across the matrix with %.4f cumulative lock-wait seconds.", result.Validation.LockContentionCases, totalLockWaitSeconds(result.Runs)),
