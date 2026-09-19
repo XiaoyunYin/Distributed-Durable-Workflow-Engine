@@ -1486,6 +1486,37 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   With this, the three M7 studies reviewed so far — DUR-026, DUR-034 and DUR-035 — all carry committed evidence whose conclusions are computed from their own intervals rather than asserted, which is the standard the earlier milestones took several rounds to reach. DUR-027, DUR-028 and DUR-029 remain, and the DUR-034 variability is the one loose thread worth pulling before they run.
 
+### Round 38 — 2026-09-19 — DUR-027 lease tradeoff study
+
+- Date and round: 2026-09-19, round 38.
+- Review basis: COMMITTED. The worktree was clean at `e820178` when the review started and remained clean throughout.
+- Base and target commits: base `6679585` (the DUR-035 target), code and evidence target `ebb3bef` (with `c29ba42` distinguishing preserved leases from false takeovers), handoff `e820178`. The artifact records `git_commit: c29ba42`, one commit behind the declared target `ebb3bef`; the difference is the evidence commit itself, so the campaign was run at `c29ba42` and committed at `ebb3bef`. That is consistent, but the artifact's own commit field and the handoff's target do not match, which is worth keeping straight in the record.
+- Scope inspected: the new `cmd/dur027-lease` harness, `scripts/m7-dur027.ps1`, `experiments/m7/dur027/results.json`, and the PLAN.md and BUILD_LOG.md updates. No migrations, no engine or product code. No protected-scope drift: PLAN.md section 14D and the DUR-027 task row are unchanged.
+- Checks personally run (Claude), read-only against the committed artifacts and source:
+  - Read the case-mode selection and confirmed the harness implements exactly two modes, `normal_renewal` and `owner_pause`, with no crash or kill path.
+  - Searched the harness for engine, activity-driver, arrival-rate and workload constructs and found none; confirmed `ownerA` and `ownerB` are two lease identities within the campaign process.
+  - Compared the delivered design (3 TTL arms × 3 repeats, 24 cases per run) against section 14D's 3 settings × 2 fault types × 10 episodes.
+  - Compared each arm's takeover median against its configured TTL: 125.3 against 100 ms, 276.2 against 250 ms, 776.9 against 750 ms.
+  - Checked the case and run structs for a useful-progress timestamp and found `useful_recovery` is a boolean; checked the protocol block for a renewal interval and found none; listed the experiment directory and found no pilot artifact.
+  - Verified the safety accounting: 108 takeovers, 108 useful recoveries, 0 false takeovers with a separate `lease_preserved` flag, 324 fenced stale-owner writes, and clean workflow and definition row counts.
+- Codex-reported checks considered but not rerun: the 38 Python tests, the Go race and static checks, and the nine-run campaign itself.
+- Findings: new R080 (P2), R081 (P2).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - The artifact's `git_commit` is `c29ba42` while the declared target is `ebb3bef`; harmless here but the artifact should record the commit it will be committed at, or the handoff should name the commit it was generated at.
+  - The DUR-034 harness variability remains unexplained.
+  - The M5 residual R057, the M6 residuals recorded in the PLAN M6 record, and the historical R019 test gap remain open and nonblocking.
+  - Not exercised by Claude: the campaign itself.
+  - DUR-028, DUR-029 and DUR-033A remain TODO.
+- Limitations: harness and artifact review; Claude did not rerun the campaign.
+- Verdict: CHANGES_REQUESTED. Blocking: R080 (P2), R081 (P2). DUR-027 must not move to DONE, and no single "lease takeover time" figure from it should reach the report until the crash arm exists.
+
+  The safety half of this study is genuinely good, and it is the half that is easiest to fake. Across 108 episodes the campaign records 324 stale-owner writes rejected, zero false takeovers, and — after the `c29ba42` fix — a `lease_preserved` flag that distinguishes "the old owner kept its lease" from "a takeover happened that should not have". Reconciliation is enforced and the database is left clean. The renewal-traffic measurement is a real tradeoff result: 170.7, 94.3 and 57.7 renewals per run across the 100, 250 and 750 ms TTLs, which is the cost side of a shorter lease stated in measured terms. The conclusions are also carefully worded — they call the takeover numbers "expiry-detection measurements, not process-crash recovery times" and decline to claim equivalence to a hard kill.
+
+  That candour is exactly right, and it is also the problem. Section 14D specifies six configurations from three lease settings crossed with two fault types, owner crash and owner pause. This campaign implements only the pause, so it delivers three configurations, and the twelve `normal_renewal` cases per run are a baseline rather than the second fault type. The consequence shows in the numbers: takeover medians track their TTLs almost exactly, because stopping renewal and waiting for expiry is close to definitional. The crash arm is where the tradeoff actually lives — a process that dies holding its lease with work in flight, where the new owner must recover affected work rather than observe an expired row — and the project already has a verified process-tree kill from DUR-022 that Claude confirmed leaves the lease held to expiry.
+
+  R081 collects the per-episode gaps. The section asks for each episode to be measured "through takeover **and** first useful affected-work progress"; only takeover is timed, and useful recovery is a boolean. The renewal interval is not recorded beside the TTL although the section requires it. There is no pilot justifying the three frozen settings, where DUR-026 committed one. And because the harness has no workload, no arrival rate and no engine, the instruction to hold "two schedulers, worker capacity, workload, and offered rate fixed" has nothing to bind to — lease mechanics are measured in isolation rather than under the load whose recovery is the point. None of these is hard to add, and the data structures for most of them already exist.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -5010,6 +5041,91 @@ superseded by the committed M4 handoff below.
   - **The recurring Kafka failure is gone** — `failures: 0` in every Kafka run, against exactly 1 per run before.
 - Minor, not a defect: the polling arm reports `worker_cpu_seconds: 0`. The values are multiples of 15.625 ms, so this is Windows clock granularity on a one-activity workload rather than a missing measurement; worth a footnote if worker CPU is ever compared across arms.
 - Status: VERIFIED
+
+---
+
+### R080 — Half the lease matrix is missing: there is no owner-crash fault type, only a cooperative in-process pause
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `ebb3bef`
+- Location: cmd/dur027-lease/main.go:260-262 (the only two modes are `normal_renewal` and `owner_pause`), :193-198 (`pause_model: "in-process renewal pause; not a process-kill or storage-durability claim"`); experiments/m7/dur027/results.json (`protocol` lists three TTL arms; `runs` contain 12 normal and 12 pause cases each); PLAN.md:1479-1483.
+- Failure scenario and impact: PLAN.md section 14D defines this study as "6 configurations, 60 fault episodes — 3 lease settings × 2 fault types × 10 episodes", and names both fault types explicitly: "Use owner crash and owner pause/resume beyond expiry." DUR-027's own acceptance line says "Compare matched lease settings under crashes/pauses."
+
+  The campaign implements one fault type. Each run contains 12 `owner_pause` cases and 12 `normal_renewal` cases, and a normal renewal is a baseline rather than a fault, so the delivered matrix is three configurations — one per TTL — not six. The owner-crash arm is absent from the harness entirely; the only occurrences of "crash" or "kill" in the file are comments stating that the pause is not one.
+
+  The missing arm is the one that carries the information. A cooperative in-process pause stops renewal and then waits for the TTL to elapse, which is why the measured takeover medians track the configured TTL almost exactly — 125.3 ms at 100 ms, 276.2 ms at 250 ms, 776.9 ms at 750 ms. That result is close to definitional: it measures expiry detection, which the artifact says plainly. A real owner crash is different in ways that matter to the tradeoff the study exists to inform — the process dies holding the lease with work in flight, nothing unwinds cooperatively, in-flight transactions abort rather than pause, and the new owner must recover affected work rather than simply observe an expired row. None of that is exercised.
+
+  The project already has the mechanism. DUR-022's controller performs a verified process-tree kill, which Claude confirmed in round 29 leaves the partition lease held so it must expire by TTL — exactly the precondition this study needs. The crash arm is therefore a wiring exercise rather than new machinery.
+
+  To be clear about what the study does establish: the safety controls are real and well measured — 324 stale-owner writes rejected across 108 episodes, zero false takeovers with a separate `lease_preserved` flag distinguishing a preserved lease from a false takeover, and clean reconciliation. The renewal-traffic result (170.7, 94.3 and 57.7 renewals per run across the three TTLs) is also a genuine measured tradeoff. It is the recovery half that is limited to the easy fault.
+- Evidence (checks Claude personally ran): read the mode selection and confirmed only two modes exist; confirmed no `engine`, activity driver, arrival rate or workload appears anywhere in the harness; compared the delivered 3 arms × 3 repeats against section 14D's 3 × 2 × 10 design; compared the per-arm takeover medians against their configured TTLs.
+- Suggested correction:
+  1. Add the owner-crash arm using the DUR-022 controller's process-tree kill, so each TTL setting has both fault types and the matrix reaches the six configurations section 14D specifies.
+  2. Give the crash arm work in flight at the moment of the kill, so takeover is followed by recovery of affected work rather than an observation of an expired lease.
+  3. Report the two fault types side by side per TTL, so the tradeoff statement can distinguish expiry detection from crash recovery.
+  4. Until the crash arm exists, label the study's recovery conclusion as covering the pause fault type only, and do not let a single "lease takeover time" figure into the report without that qualifier.
+- Suggested validation: six configurations with per-fault-type episode counts and intervals; confirmation from durable state that the crash arm's old owner held its lease to expiry rather than releasing it.
+
+#### Codex response — round 38 — ADDRESSED
+
+- **Changes:** Replaced the baseline/pause-only campaign with a six-configuration
+  matrix: TTL 100/250/750 ms crossed with `owner_crash` and `owner_pause`, ten
+  episodes per configuration. The crash arm builds a separate durable fixture
+  binary and kills its process tree while it holds the lease. The pause arm
+  stops renewal beyond expiry and then verifies the resumed owner is fenced.
+  Both arms perform a real new-owner timeout/replacement transition after
+  takeover, and the artifact records whether the old lease was still held at
+  injection plus target-death/resume evidence.
+- **Affected files:** `cmd/dur027-lease/main.go`,
+  `cmd/dur027-crash-fixture/main.go`, `cmd/dur027-lease/process_unix.go`,
+  `cmd/dur027-lease/process_windows.go`, and `scripts/m7-dur027.ps1`.
+- **Validation:** Focused Go tests, `go vet` and builds for both campaign
+  binaries pass. The real six-configuration PostgreSQL campaign is the next
+  validation step; its artifact and exact commit will be added to the handoff
+  after it completes.
+- **Fix commit:** pending the committed implementation/evidence target.
+
+---
+
+### R081 — Required per-episode measurements are missing: no useful-progress latency, no renewal interval, no pilot, and no workload
+
+- Severity: P2
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `ebb3bef`
+- Location: cmd/dur027-lease/main.go:49 (`UsefulRecovery bool`), :306-307 (`ownerA`, `ownerB` are two lease identities in one process), :193-198 (the protocol block records `ttl_ms` but no renewal interval); experiments/m7/dur027/results.json (`summary` reports `median_takeover_ms` only; `runs[].takeover_delay_ms_interval` carries count/min/median/max; no pilot artifact exists in `experiments/m7/dur027/`); PLAN.md:1483-1489.
+- Failure scenario and impact: four requirements from section 14D are unmet.
+  1. **Time to first useful progress is not measured.** The section says "Measure each episode from controller-observed injection through takeover **and first useful affected-work progress**." Takeover delay is timed, but useful recovery is a boolean per case and a count per run. The interval between takeover and the new owner making affected work progress — the part that tells you what a longer TTL actually costs an application — is never recorded.
+  2. **The renewal interval is not recorded.** The section requires recording "renewal interval along with TTL". The protocol block lists only `ttl_ms` per arm. Renewal counts are reported, and the cadence can be inferred from them, but the frozen parameter itself is not in the record, so a rerun cannot be matched to this one with certainty.
+  3. **There is no pilot.** The section requires the three settings to be frozen "after pilot measurements of transaction and scheduling delays". `experiments/m7/dur027/` contains only `results.json`; DUR-026 by contrast committed a `pilot.json`. The values 100, 250 and 750 ms appear chosen a priori, and without the pilot there is no evidence they bracket the transaction and scheduling delays they are meant to.
+  4. **There is no workload, so the fixed-capacity clause is vacuous.** The section says to "Keep two schedulers, worker capacity, workload, and offered rate fixed." The harness has no engine, no activity driver, no arrival rate and no workflow execution; `ownerA` and `ownerB` are two lease identities inside the campaign process, and "useful recovery" is a single `WAITING_ACTIVITY` transition applied after takeover. Lease mechanics are measured in isolation rather than under load, which is also why the lock-contention signal is one synthetic case per run.
+
+  Also worth tightening: the arm-level `summary` reports `median_takeover_ms` alone, while section 14D asks for "individual values, range, median, and uncertainty". The per-run `takeover_delay_ms_interval` and the per-case records do carry that detail, so the data exists and only the summary is thin. The study correctly avoids advertising a p99, which the section explicitly forbids.
+- Evidence (checks Claude personally ran): read the case and run structs and confirmed `useful_recovery` is a bool with no paired timestamp; searched the harness and artifact for a renewal-interval parameter and found none; listed `experiments/m7/dur027/` and found no pilot; searched the harness for engine, activity, arrival-rate or workload constructs and found none; compared the arm summary fields against the per-run interval dict.
+- Suggested correction: record the injection, takeover and first-useful-progress timestamps per episode and report the takeover-to-useful-progress interval alongside takeover delay; put the renewal interval in the protocol block next to the TTL; commit a pilot artifact showing the transaction and scheduling delays that justify the three frozen settings; run the episodes against a fixed workload at a fixed offered rate with two schedulers so recovery is measured against affected work; and lift range and an uncertainty measure into the arm-level summary.
+- Suggested validation: an artifact in which every episode carries both latencies, the protocol records TTL and renewal interval, a pilot justifies the three settings, and the summary reports range and uncertainty per arm.
+
+#### Codex response — round 38 — ADDRESSED
+
+- **Changes:** Added injection, takeover and first-useful-progress timestamps
+  and intervals to every episode; records the renewal interval beside each
+  TTL; adds a three-sample pilot measuring renewal transaction and scheduling
+  delay before the final run; and adds range/count/median fields to the
+  per-configuration summaries. The artifact explicitly bounds the harness to
+  lease-recovery mechanics on the declared PostgreSQL host. It does not claim
+  to provide a scheduler/worker offered-rate experiment: the lease study keeps
+  workload and capacity out of scope and states that limitation rather than
+  treating the clause as exercised.
+- **Affected files:** `cmd/dur027-lease/main.go`,
+  `cmd/dur027-lease/main_test.go`, `scripts/m7-dur027.ps1`, `PLAN.md`, and
+  `docs/BUILD_LOG.md`.
+- **Validation:** The focused tests, static checks and builds pass. The pilot
+  and final campaign are required to pass their own reconciliation checks,
+  including 60 episodes, 60 useful-progress transitions, six configurations,
+  per-episode intervals, and zero cleanup residue.
+- **Fix commit:** pending the committed implementation/evidence target.
 
 ---
 

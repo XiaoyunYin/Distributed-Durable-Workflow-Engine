@@ -12,36 +12,32 @@ func TestMakeIntervalUsesObservedValues(t *testing.T) {
 	}
 }
 
-func TestSummarizeSeparatesLeaseArms(t *testing.T) {
+func TestSummarizePreservesFaultTypesAndObservedIntervals(t *testing.T) {
 	runs := []runReport{
-		{Arm: "ttl_100ms", TTLMS: 100, Status: "PASS", TakeoverDelayMS: interval{Median: 130}, RenewalCount: 12, Takeovers: 12, UsefulRecoveries: 12, LockWaits: 1},
-		{Arm: "ttl_100ms", TTLMS: 100, Status: "PASS", TakeoverDelayMS: interval{Median: 120}, RenewalCount: 13, Takeovers: 12, UsefulRecoveries: 12, LockWaits: 1},
-		{Arm: "ttl_250ms", TTLMS: 250, Status: "PASS", TakeoverDelayMS: interval{Median: 280}, RenewalCount: 5, Takeovers: 12, UsefulRecoveries: 12, LockWaits: 1},
-		{Arm: "ttl_750ms", TTLMS: 750, Status: "PASS", TakeoverDelayMS: interval{Median: 790}, RenewalCount: 2, Takeovers: 12, UsefulRecoveries: 12, LockWaits: 1},
+		{ConfigID: "ttl_100ms-owner_crash", FaultType: "owner_crash", TTLMS: 100, RenewalIntervalMS: 33, Status: "PASS", CompletedEpisodes: 10, Takeovers: 10, UsefulProgress: 10, RenewalsBeforeFault: 10, RenewalsAfterTakeover: 20, TakeoverDelayMS: interval{Count: 10, Median: 125}, UsefulProgressDelayMS: interval{Count: 10, Median: 220}},
+		{ConfigID: "ttl_100ms-owner_pause", FaultType: "owner_pause", TTLMS: 100, RenewalIntervalMS: 33, Status: "PASS", CompletedEpisodes: 10, Takeovers: 10, UsefulProgress: 10, RenewalsBeforeFault: 10, RenewalsAfterTakeover: 20, TakeoverDelayMS: interval{Count: 10, Median: 126}, UsefulProgressDelayMS: interval{Count: 10, Median: 221}},
 	}
 	rows := summarize(runs)
-	if len(rows) != 3 {
-		t.Fatalf("summary rows = %d, want 3", len(rows))
+	if len(rows) != 2 || rows[0].FaultType != "owner_crash" || rows[1].FaultType != "owner_pause" {
+		t.Fatalf("summary rows = %+v", rows)
 	}
-	if rows[0].MedianTakeoverMS != 125 || rows[0].RenewalsPerRun != 12.5 {
-		t.Fatalf("short arm summary = %+v", rows[0])
-	}
-	if rows[0].RenewalsPerRun <= rows[1].RenewalsPerRun || rows[1].RenewalsPerRun <= rows[2].RenewalsPerRun {
-		t.Fatalf("renewal traffic did not preserve observed ordering: %+v", rows)
+	if rows[0].RenewalIntervalMS != 33 || rows[0].UsefulProgressDelayMS.Median != 220 {
+		t.Fatalf("summary lost observed fields: %+v", rows[0])
 	}
 }
 
-func TestConclusionsNamePauseLimitAndObservedSafety(t *testing.T) {
-	result := artifact{Summary: []summaryRow{
-		{Arm: "ttl_100ms", TTLMS: 100, MedianTakeoverMS: 130, RenewalsPerRun: 12},
-		{Arm: "ttl_250ms", TTLMS: 250, MedianTakeoverMS: 280, RenewalsPerRun: 5},
-		{Arm: "ttl_750ms", TTLMS: 750, MedianTakeoverMS: 790, RenewalsPerRun: 2},
-	}, Validation: validationReport{FalseTakeovers: 0, UsefulRecoveries: 36, Takeovers: 36, FencedOldOwners: 108}}
-	got := deriveConclusions(result)
-	if !strings.Contains(got.PauseInterpretation, "without claiming equivalence to a hard kill") {
-		t.Fatalf("pause interpretation = %q", got.PauseInterpretation)
+func TestConclusionsNameBothFaultTypesAndUsefulProgress(t *testing.T) {
+	result := artifact{
+		Summary: []summaryRow{
+			{FaultType: "owner_crash", TTLMS: 100, TakeoverDelayMS: interval{Median: 125, Min: 120, Max: 130}, UsefulProgressDelayMS: interval{Median: 220, Min: 210, Max: 230}},
+			{FaultType: "owner_pause", TTLMS: 100, TakeoverDelayMS: interval{Median: 126, Min: 121, Max: 131}, UsefulProgressDelayMS: interval{Median: 221, Min: 211, Max: 231}},
+		},
+		Validation: validationReport{Status: "PASS", FalseTakeovers: 0, UsefulProgress: 20, Takeovers: 20, FencedOldOwners: 60, CompletedEpisodes: 20},
 	}
-	if !strings.Contains(got.Safety, "0 false takeovers") || !strings.Contains(got.Recovery, "130.0 ms") {
-		t.Fatalf("conclusions omitted observed values: %+v", got)
+	got := deriveConclusions(result)
+	for _, want := range []string{"owner_crash", "owner_pause", "useful progress", "0 false takeovers"} {
+		if !strings.Contains(strings.ToLower(got.TakeoverAndProgress+got.FaultComparison+got.Safety), want) {
+			t.Fatalf("conclusions omitted %q: %+v", want, got)
+		}
 	}
 }

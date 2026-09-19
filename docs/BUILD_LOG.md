@@ -2088,3 +2088,32 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
   `GOCACHE`, `UV_CACHE_DIR`, and pytest basetemp, the complete Python suite
   passed 38/38, including the Go fault-fixture subprocess test. PowerShell
   parse validation and `git diff --check` also passed.
+
+## 2026-09-19 - DUR-027 round-38 corrective implementation
+
+- Round 38 identified that the prior lease artifact had only a pause fault
+  type, no pilot, no per-episode useful-progress timing, and no explicit
+  renewal interval. DUR-027 remains IN_PROGRESS while those gaps are closed.
+- Replaced the baseline/pause-only runner with a six-configuration matrix:
+  three frozen TTLs (100/250/750 ms) crossed with owner process-tree crash and
+  owner pause/resume beyond expiry, ten episodes per configuration. Each
+  episode now records injection, takeover and first useful affected-work
+  progress timestamps and intervals, renewal interval, stale-owner fencing,
+  lease preservation, and fault-target outcome.
+- Added `cmd/dur027-crash-fixture`, a separately built durable target. The
+  crash arm is killed as a process tree; the pause arm stops renewal, waits
+  beyond expiry, and reports its stale resume attempt. The parent then uses the
+  production PostgreSQL lease/attempt repository to create the replacement
+  attempt that defines useful recovery.
+- Added a committed pilot phase that measures renewal transaction and
+  scheduling delay for each TTL before the final campaign. The final runner
+  requires the pilot, six passing configurations, 60 episodes, 60 useful
+  progress transitions, 180 fenced stale-owner writes, 60 lock-contention
+  cases, 30 killed targets, 30 stale pause resumes, and zero cleanup residue.
+- The harness deliberately remains a lease-mechanics study, not a scheduler
+  throughput or offered-rate study: it does not claim a workload, worker
+  capacity, or arrival-rate result. The bounded claim is local PostgreSQL
+  lease recovery on the declared single-node Docker Desktop/WSL2 host.
+- Focused `go test ./cmd/dur027-lease ./cmd/dur027-crash-fixture`, `go vet`
+  and `go build` pass. The real PostgreSQL pilot/final campaign and the
+  repository-wide checks remain required before the next review handoff.
