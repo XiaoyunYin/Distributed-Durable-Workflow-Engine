@@ -1,0 +1,8 @@
+{
+  "budget_cents": 0,
+  "model": "unconfigured",
+  "provider": "unconfigured",
+  "provider_calls": 0,
+  "reason": "live model mode requires a positive approved budget",
+  "status": "BLOCKED"
+}

@@ -16,6 +16,7 @@ from incident_agent.fixtures import build_incident_cases
 from incident_agent.mcp import BoundedMCPServer
 from incident_agent.models import (
     Proposal,
+    RetrievalArm,
     TimelineEvent,
     ToolResult,
     WorkflowSnapshot,
@@ -508,10 +509,10 @@ class InvestigationWorkflow:
         self.store.event(run_id, "approval_rejected", actor, {"no_action": True})
         return self.snapshot(run_id)
 
-    def resume(self, run_id: str) -> WorkflowSnapshot:
+    def resume(self, run_id: str, arm: RetrievalArm = "hybrid") -> WorkflowSnapshot:
         row = self.store.row(run_id)
         if row["state"] == "INTERRUPTED":
-            return self.investigate(run_id)
+            return self.investigate(run_id, arm=arm)
         if row["state"] != "WAITING_APPROVAL" or self.store.approval(run_id) != "APPROVED":
             return self.snapshot(run_id)
         proposal_data = json.loads(row["proposal"])

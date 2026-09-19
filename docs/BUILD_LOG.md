@@ -2316,3 +2316,24 @@ PostgreSQL-backed incident workflow, or production engine integration was run.
 - No live-model or paid-provider execution was run. The next implementation
   work is the gated DUR-029 evaluator and fixture-independent negative-control
   coverage; deterministic checks remain the default validation path.
+
+## 2026-09-19 - DUR-029 deterministic preflight
+
+- Added `python/incident_agent/evaluation.py` and
+  `scripts/m7-dur029-preflight.ps1`. The preflight computes ranking and
+  delivered Recall@K, MRR, no-answer false positives, latency quantiles,
+  distractor hits, and family breakdowns for the frozen 40-development and
+  120-held-out query sets without tuning the held-out split.
+- Wired the retrieval arm through the workflow control path and added a
+  deterministic held-out 20-case x 3-arm agent control. The artifact records
+  60 executions, 20 safe end-to-end fixture outcomes per arm, and
+  `PREPARED_NOT_FINAL` rather than calling this live-model evidence.
+- Strengthened adversarial accounting with canonical proposal signatures,
+  signed excess-change rates, and diagnosis-only divergence. The generated
+  120-execution preflight records zero canary leaks and keeps the live phase
+  at `BLOCKED` with zero provider calls.
+- Validation: Ruff and mypy pass for the changed Python modules; the full
+  isolated Python suite passes 40 tests using task-local uv/Go caches; the
+  PowerShell preflight passes through `powershell.exe`; and `git diff --check`
+  is clean. The host-default cache paths remain unusable due to collisions,
+  so the task-local cache paths are part of the reproduction command.

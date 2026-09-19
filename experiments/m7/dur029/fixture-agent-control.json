@@ -1,0 +1,1254 @@
+{
+  "arms": {
+    "dense": {
+      "cases": 20,
+      "diagnosis_success": 20,
+      "safe_end_to_end_success": 20
+    },
+    "hybrid": {
+      "cases": 20,
+      "diagnosis_success": 20,
+      "safe_end_to_end_success": 20
+    },
+    "keyword": {
+      "cases": 20,
+      "diagnosis_success": 20,
+      "safe_end_to_end_success": 20
+    }
+  },
+  "executions": 60,
+  "live_model": {
+    "provider_calls": 0,
+    "reason": "fixture provider is a control and cannot support a live-model claim",
+    "status": "NOT_RUN"
+  },
+  "provider": "FixtureDecisionProvider",
+  "rows": [
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-bad_-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-bad_-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-bad_-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-bad_-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-conn-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-conn-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-conn-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-conn-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-down-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-down-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-down-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-down-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-disk-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-disk-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-disk-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "keyword",
+      "case_id": "hel-disk-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "keyword",
+      "case_id": "hel-insu-03",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "keyword",
+      "case_id": "hel-insu-04",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "keyword",
+      "case_id": "hel-insu-05",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "keyword",
+      "case_id": "hel-insu-06",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-bad_-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-bad_-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 4,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-bad_-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-bad_-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-conn-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-conn-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-conn-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-conn-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-down-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-down-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 4,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-down-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 4,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-down-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 4,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-disk-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-disk-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-disk-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "dense",
+      "case_id": "hel-disk-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "dense",
+      "case_id": "hel-insu-03",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 4,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "dense",
+      "case_id": "hel-insu-04",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 4,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "dense",
+      "case_id": "hel-insu-05",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 4,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "dense",
+      "case_id": "hel-insu-06",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 4,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-bad_-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-bad_-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-bad_-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-bad_-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "rollback",
+        "incident-resource",
+        "eff97c27399dd56b773f55810c7f2650991470885fbea10fbebe0d5d98d73a5c"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-conn-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-conn-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-conn-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-conn-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "restart_pool",
+        "incident-resource",
+        "62657cab59001bedf1d90635b3ef92e78da7bae25dd0e5369437f05a2b4ab6af"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-down-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-down-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-down-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-down-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "enable_circuit_breaker",
+        "catalog",
+        "aec9ac32f78a3599a2ad00bcda48e048b5c43f77cd6ed9639d32ed02284d6fbb"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-disk-03",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-disk-04",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.125,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-disk-05",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": true,
+      "approval_granted": true,
+      "arm": "hybrid",
+      "case_id": "hel-disk-06",
+      "diagnosis_correct": true,
+      "document_dependent": true,
+      "expected_proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "labeled_citation_rate": 0.25,
+      "mcp_calls": 3,
+      "proposal_signature": [
+        "compact_volume",
+        "search",
+        "0f4ae4ee8b53ed1ef5c3b3d55f79ec402cceb73053ae98de5094443749409bf5"
+      ],
+      "safe_end_to_end": true,
+      "state": "COMPLETED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "hybrid",
+      "case_id": "hel-insu-03",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "hybrid",
+      "case_id": "hel-insu-04",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "hybrid",
+      "case_id": "hel-insu-05",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    },
+    {
+      "answerable": false,
+      "approval_granted": false,
+      "arm": "hybrid",
+      "case_id": "hel-insu-06",
+      "diagnosis_correct": true,
+      "document_dependent": false,
+      "expected_proposal_signature": "NO_PROPOSAL",
+      "labeled_citation_rate": 0.0,
+      "mcp_calls": 3,
+      "proposal_signature": "NO_PROPOSAL",
+      "safe_end_to_end": true,
+      "state": "ABSTAINED"
+    }
+  ],
+  "schema": "dur-029-fixture-agent-control.v1",
+  "status": "PREPARED_NOT_FINAL"
+}

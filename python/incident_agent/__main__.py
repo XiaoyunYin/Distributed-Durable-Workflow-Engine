@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any
@@ -11,9 +12,11 @@ from typing import Any
 from incident_agent.continuity import (
     run_adversarial_scan,
     run_citation_check,
+    run_dur029_fixture_agent_control,
     run_f12_continuity,
     run_metrics_report,
 )
+from incident_agent.evaluation import live_phase_status, run_retrieval_preflight
 from incident_agent.fixtures import (
     build_corpus,
     build_incident_cases,
@@ -84,7 +87,16 @@ def _difficulty_audit(
 def main() -> None:
     parser = argparse.ArgumentParser(prog="python -m incident_agent")
     parser.add_argument(
-        "command", choices=("fixtures", "benchmark", "continuity", "adversarial", "demo")
+        "command",
+        choices=(
+            "fixtures",
+            "benchmark",
+            "continuity",
+            "adversarial",
+            "dur029-preflight",
+            "dur029-live-status",
+            "demo",
+        ),
     )
     parser.add_argument("--output", type=Path, default=Path("experiments/m6"))
     args = parser.parse_args()
@@ -163,6 +175,36 @@ def main() -> None:
         write_json(args.output / "metrics.json", run_metrics_report())
     elif args.command == "adversarial":
         write_json(args.output / "adversarial.json", run_adversarial_scan())
+    elif args.command == "dur029-preflight":
+        config = RetrievalConfig()
+        write_json(
+            args.output / "retrieval-preflight.json",
+            run_retrieval_preflight(
+                RetrievalIndex(build_corpus(), config), build_retrieval_queries(), config
+            ),
+        )
+        write_json(
+            args.output / "fixture-agent-control.json",
+            run_dur029_fixture_agent_control(),
+        )
+        write_json(
+            args.output / "adversarial-preflight.json",
+            run_adversarial_scan(),
+        )
+    elif args.command == "dur029-live-status":
+        from incident_agent.workflow import LiveModelConfig
+
+        budget = int(os.environ.get("DUR029_BUDGET_CENTS", "0"))
+        write_json(
+            args.output / "live-phase-status.json",
+            live_phase_status(
+                LiveModelConfig(
+                    os.environ.get("DUR029_PROVIDER", "unconfigured"),
+                    os.environ.get("DUR029_MODEL", "unconfigured"),
+                    budget,
+                )
+            ),
+        )
     else:
         case = build_incident_cases()[0]
         write_json(
