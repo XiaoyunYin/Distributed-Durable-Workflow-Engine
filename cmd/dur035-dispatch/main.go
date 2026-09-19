@@ -1127,13 +1127,7 @@ func deriveConclusions(runs []runReport) conclusionReport {
 		comparison("notify_kafka", "notify_direct", "terminal"),
 	}}
 	transportEffect.Resolved = transportEffect.Comparisons[0].IntervalsSeparated || transportEffect.Comparisons[1].IntervalsSeparated
-	if transportEffect.Comparisons[0].IntervalsSeparated && !transportEffect.Comparisons[1].IntervalsSeparated {
-		transportEffect.Summary = "Kafka adds a resolved dispatch-stage delay, while the end-to-end terminal-latency increment remains unresolved."
-	} else if transportEffect.Resolved {
-		transportEffect.Summary = "The measured Kafka transport increment is resolved at the reported stages."
-	} else {
-		transportEffect.Summary = "The incremental Kafka transport effect is unresolved at the observed run dispersion."
-	}
+	transportEffect.Summary = transportConclusionSummary(transportEffect)
 	resolved := make([]string, 0, 3)
 	if wake.Resolved {
 		resolved = append(resolved, "wake_mechanism_ready_to_claim")
@@ -1141,29 +1135,41 @@ func deriveConclusions(runs []runReport) conclusionReport {
 	if transportEffect.Comparisons[0].IntervalsSeparated {
 		resolved = append(resolved, "kafka_dispatch_stage_ready_to_claim")
 	}
-	transportInterpretation := "The incremental Kafka transport effect is unresolved at the observed run dispersion. Notification-direct and Kafka are therefore not distinguished as a latency winner at this scale."
-	if transportEffect.Comparisons[0].IntervalsSeparated && transportEffect.Comparisons[1].IntervalsSeparated {
-		readyKafkaSlower := transportEffect.Comparisons[0].HigherLatencyMS.Median > transportEffect.Comparisons[0].LowerLatencyMS.Median
-		terminalKafkaSlower := transportEffect.Comparisons[1].HigherLatencyMS.Median > transportEffect.Comparisons[1].LowerLatencyMS.Median
-		switch {
-		case readyKafkaSlower && terminalKafkaSlower:
-			transportInterpretation = "Notification-direct is faster than Kafka on both ready-to-claim and terminal latency at the tested scale; Kafka is not a latency optimization here, so any remaining rationale is architectural unless separately measured."
-		case !readyKafkaSlower && !terminalKafkaSlower:
-			transportInterpretation = "Kafka is faster than notification-direct on both reported latency stages at the tested scale."
-		default:
-			transportInterpretation = "The resolved transport result is stage-specific: the reported latency direction differs between ready-to-claim and terminal completion."
-		}
-	} else if transportEffect.Comparisons[0].IntervalsSeparated || transportEffect.Comparisons[1].IntervalsSeparated {
-		transportInterpretation = transportEffect.Summary
-	} else if direct, ok := grouped["notify_direct"]; ok {
-		kafka, kafkaOK := grouped["notify_kafka"]
-		if kafkaOK && runMetricRange(direct, "ready").Median <= runMetricRange(kafka, "ready").Median {
-			transportInterpretation = "Notification-direct matches or beats Kafka on the measured ready-to-claim median, but the transport effect is unresolved by the observed intervals."
-		}
-	}
 	result := conclusionReport{WakeMechanism: wake, TransportEffect: transportEffect, CostEffectsResolved: len(resolved) > 0,
-		ResolvedCostEffects: resolved, Interpretation: "At this four-worker, single-host scale, notification-driven dispatch removes the polling delay. " + transportInterpretation + " This does not address decoupling, retained backlog, connection count, or multi-host scaling."}
+		ResolvedCostEffects: resolved, Interpretation: "At this four-worker, single-host scale, notification-driven dispatch removes the polling delay. " + transportEffect.Summary + " This does not address decoupling, retained backlog, connection count, or multi-host scaling."}
 	return result
+}
+
+func transportConclusionSummary(effect effectConclusion) string {
+	if len(effect.Comparisons) != 2 {
+		return "The incremental Kafka transport effect is unresolved because the required comparisons are incomplete."
+	}
+	ready, terminal := effect.Comparisons[0], effect.Comparisons[1]
+	readyKafkaSlower := ready.HigherLatencyMS.Median > ready.LowerLatencyMS.Median
+	terminalKafkaSlower := terminal.HigherLatencyMS.Median > terminal.LowerLatencyMS.Median
+	switch {
+	case ready.IntervalsSeparated && terminal.IntervalsSeparated && readyKafkaSlower && terminalKafkaSlower:
+		return "Notification-direct is faster than Kafka on both ready-to-claim and terminal latency at the tested scale; Kafka is not a latency optimization here, so any remaining rationale is architectural unless separately measured."
+	case ready.IntervalsSeparated && terminal.IntervalsSeparated && !readyKafkaSlower && !terminalKafkaSlower:
+		return "Kafka is faster than notification-direct on both reported latency stages at the tested scale."
+	case ready.IntervalsSeparated && terminal.IntervalsSeparated:
+		return "The resolved transport result is stage-specific: notification-direct and Kafka win different reported latency stages."
+	case ready.IntervalsSeparated:
+		return transportStageSummary("ready-to-claim", readyKafkaSlower, "terminal latency remains unresolved")
+	case terminal.IntervalsSeparated:
+		return transportStageSummary("terminal", terminalKafkaSlower, "ready-to-claim latency remains unresolved")
+	case readyKafkaSlower && terminalKafkaSlower:
+		return "Notification-direct matches or beats Kafka on the observed medians, but neither transport latency effect is resolved by the run intervals."
+	default:
+		return "The incremental Kafka transport effect is unresolved at the observed run dispersion; the reported medians do not establish an overall latency winner."
+	}
+}
+
+func transportStageSummary(stage string, kafkaSlower bool, unresolved string) string {
+	if kafkaSlower {
+		return "Notification-direct is faster than Kafka on " + stage + "; " + unresolved + ", so no overall latency winner is claimed."
+	}
+	return "Kafka is faster than notification-direct on " + stage + "; " + unresolved + ", so no overall latency winner is claimed."
 }
 
 func runMetricRange(runs []runReport, metric string) medianReport {
