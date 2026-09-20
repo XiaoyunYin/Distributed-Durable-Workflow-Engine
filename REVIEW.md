@@ -1841,6 +1841,42 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   Everything else I checked at this gate holds: the build is clean, the full race and integration suite passes against a freshly migrated database, 45 Python tests pass, all 48 committed traces still validate offline against their durable snapshots, and the report's numbers continue to match their artifacts. With R091 closed and R092 and R093 recorded or repaired, this is ready to tag.
 
+### Round 49 — 2026-09-20 — DUR-032 final acceptance
+
+- Date and round: 2026-09-20, round 49.
+- Review basis: COMMITTED. The worktree was clean at `c455ffd` and remained clean throughout.
+- Base and target commits: base `effdc39` for this round (milestone base `c0757e4`), fence test `984a4af`, R093 corrections `703e2a6`, R092 records `ea48c7e`, handoff `c455ffd`. The declared commit resolves as an ancestor of HEAD.
+- Scope inspected: `git diff effdc39 c455ffd` — the new `TestRuntimeWakeupAcknowledgmentRequiresCurrentLease` in `internal/state/m2_integration_test.go`, the report and README scoping sentences, the restructured DUR-031 status and pending-user-evidence section in `docs/INTERVIEW_EVIDENCE.md`, and the PLAN.md, BUILD_LOG.md and RELEASE_CHECKLIST.md updates. No product code changed in this round beyond the test.
+- Checks personally run (Claude), in a scratch export against throwaway databases `cr_v` and `cr_v2`, both dropped afterwards:
+  - **Mutation-tested the new fence.** Baseline passes; with `lockLease` replaced by a no-op the test fails on both the `ErrLeaseNotOwned` contract and a durable-row diff showing the wakeup moving `PENDING` to `CONSUMED` and its reconciliation item `OPEN` to `RESOLVED`. Restored and confirmed no mutation remained.
+  - `go build ./...` and `go vet ./...`: clean.
+  - Full `go test -race -p 1 ./... -count=1`: **all packages pass on a pristine database**.
+  - Read the report and README scoping sentences for R093 and the DUR-031 status restructuring for R092.
+  - Cleanup: both scratch databases dropped, no `cr_*` databases remain, scratch export removed; the shared dev database holds 0 workflows and 0 held leases. No container was started or stopped by Claude.
+- **Correction to one of Claude's own runs, recorded for honesty.** An initial full-suite run against `cr_v` reported `TestM3ReconciliationAndBackpressure` failing with "could not generate workflow for partition 8". Claude investigated before attributing it: `cr_v` held one lease on partition 8, left behind when Claude's own mutated-build run aborted mid-test with the fence removed. Re-running the whole suite on a pristine `cr_v2` passed every package. The failure was Claude's contamination, not a regression in `c455ffd`. This is the same shared-fixture hazard recorded as the R048 residual.
+- Codex-reported checks considered but not rerun: the five race repeats of the fence test, the deployed demo and restart behaviour, and the service-mode CI entry point. Real Kafka was not rerun by either party this round, as the handoff states.
+- Findings resolved: R091 and R093 are VERIFIED.
+- Findings still open: R092 (P3), plus the standing residuals R057, R083 and R088 (all P3).
+- New findings: none.
+- Deferred P2 findings, if any: none.
+- **Ruling on the question Codex referred to Claude.** The interview pack asks Claude to decide "whether the user-directed simulation is acceptable for this project". It is acceptable as engineering evidence and Claude has independently confirmed it is reproducible — in round 47 Claude reproduced the lease mutation and observed the same borrowed-lease success. It does not satisfy DUR-031's acceptance, because PLAN.md:1490 assigns those three exercises to the user and their purpose is the user's own fluency, which no delegated run can establish. So DUR-031 must not be re-recorded DONE on role-play, which is exactly what the pack now says. R092 therefore stays OPEN as a P3: the documentation obligation is fully met, and what remains is an action only the user can take. Before the pack is used in an interview setting, the user should either perform and record the three exercises under their own attribution, or record a deliberate deferral in PLAN.md stating that DUR-031's personal component is waived. Either is legitimate; leaving it implicit is not, and the current documents do not leave it implicit.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R092 as ruled above; R057 (F01 boundary label), R083 (a historical DUR-027 handoff bookkeeping residual) and R088 (untested redundant `ValidateApprovalGrant` guard) remain open and nonblocking, and all four are named in the release materials.
+  - The M7 measurements predate the deployed scheduler and Kafka-worker wiring and have not been rerun on it; both documents now say so.
+  - Not exercised by Claude at any point: multi-host deployment, sustained load, hard-kill storage durability, Kafka consumer rebalance, authentication, and remote CI.
+- Limitations: source and artifact review plus independent build, vet, full race and integration suite, and a targeted mutation test. Claude did not run the Compose demo, restart smoke, or a real-Kafka campaign this round.
+- Verdict: **NO_BLOCKING_FINDINGS** for DUR-032 at committed target `c455ffd` with base `c0757e4`. This is a COMMITTED, non-provisional review. R001–R093 are VERIFIED apart from the P3 residuals R057, R083, R088 and R092, none of which blocks acceptance. With the acceptance criteria and evidence recorded, Codex may move DUR-032 to DONE under PLAN.md section 11. Creating the release or tag remains the user's authorization under PLAN.md:1491, and Claude recommends settling R092 first if the release materials will be used for interviews.
+
+  The fence test closes the last blocking finding properly, and it is better than what the finding asked for. Requiring `ErrLeaseNotOwned` would have pinned the error contract; this test also diffs the durable wakeup and reconciliation rows and fails if a rejected acknowledgment changed anything. When I removed the guard, the diff it printed was precisely the damage the fence exists to prevent — a superseded owner consuming a wakeup and resolving its reconciliation item. A test that shows the harm rather than just the error code is the right thing to leave behind on the project's central invariant.
+
+  R093 is fixed in both documents and, usefully, the report adds a rule the finding only implied: any deployed rerun must be recorded as a separate campaign rather than replacing these measurements in place. That protects the M7 numbers from being quietly overwritten by results from a different topology later.
+
+  On R092, Codex did the right thing by declining to mark the work complete and referring the judgment upward, and the pack now carries an explicit pending-user-evidence section listing what is still owed. My ruling is recorded above: the role-play is sound engineering evidence and worthless as evidence of personal fluency, and the documents say both. That leaves a decision for the user rather than a defect in the repository.
+
+  One note on my own conduct this round, since the review record should be as honest as the artifacts it judges: my first full-suite run failed, and the cause was a lease my own aborted mutation run had left on partition 8, not anything in the target. I checked the database before drawing a conclusion and re-ran on a pristine one, where everything passed. Attributing that failure to the code would have been the easy mistake.
+
+  Across forty-nine rounds this review has recorded ninety-three findings, of which eighty-nine are verified closed and four remain as P3 residuals that the release materials name by number. The pattern that dominated the middle of the project — campaigns and checkers that could not fail — is absent from the final state: the fault checker, the citation checker, the adversarial canary scan, the retrieval difficulty audit, the measurement conclusions, and now the wakeup fence all have demonstrated failure modes. That, more than any individual number, is what makes the evidence in this repository worth reading.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -3552,7 +3588,7 @@ For each round, record:
 ### R091 — The new owner-authorized write added at the release gate has no test pinning its in-transaction lease validation
 
 - Severity: P2
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `effdc39`
 - Location: internal/state/runtime.go:61-85 (`AcknowledgeWorkflowWakeups`, whose only fence is `lockLease(ctx, tx, lease)` at :67); internal/engine/engine.go (the `ExternalActivities` deferred call that invokes it).
@@ -3584,12 +3620,22 @@ For each round, record:
   mutated. The final handoff records the full-suite result and exact commit.
 - Fix commit: `984a4af`; see the final round-49 handoff for full validation.
 
+#### Claude verification – round 49
+
+- Verification commit: `c455ffd` (fence test added in `984a4af`), checked in a scratch export against throwaway databases `cr_v` and `cr_v2` migrated 000001–000014.
+- Evidence and remaining concerns: fixed, and the test is stronger than the finding asked for. `TestRuntimeWakeupAcknowledgmentRequiresCurrentLease` lands in `internal/state/m2_integration_test.go`, beside the existing takeover-fencing cases as suggested.
+- Claude mutation-tested it rather than trusting the pass. Baseline: `go test -race ./internal/state -run '^TestRuntimeWakeupAcknowledgmentRequiresCurrentLease$'` is `ok`. With `lockLease` replaced by a no-op, it fails on two distinct assertions:
+  1. `wakeup acknowledgment = <nil>, want ErrLeaseNotOwned` — the error contract.
+  2. `rejected acknowledgment changed durable wakeup/reconciliation rows` — and the diff it prints shows exactly the harm the fence prevents: the wakeup moved `PENDING` to `CONSUMED` and its reconciliation item moved `OPEN` to `RESOLVED` under a superseded lease.
+- That second assertion is what makes this a fence test rather than an error-code check: it pins the durable side effect, not just the return value. A future refactor that returned the right error while still mutating rows would still be caught.
+- Status: VERIFIED
+
 ---
 
 ### R092 — DUR-031's user-participation requirement is unmet under the corrected attribution
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: OPEN
 - Deferred: no
 - Reviewed commit: `effdc39`
 - Location: docs/INTERVIEW_EVIDENCE.md (the status block now reading "Codex performed the recorded exercises at the user's explicit request; this is reproducible engineering evidence, not evidence that the user personally performed or explained the exercises", and the walkthrough line changed from "The user walkthroughs were performed" to "Codex performed these walkthroughs"); README.md ("Codex-performed walkthroughs (delegated by the user) … do not establish the user's personal fluency"); against PLAN.md:1490.
@@ -3645,12 +3691,20 @@ For each round, record:
   evidence; no deferral is being silently asserted.
 - Fix commit: `ea48c7e`; see the final round-50 handoff.
 
+#### Claude verification – round 49
+
+- Verification commit: `c455ffd`.
+- Ruling, in answer to the question the interview pack refers to Claude ("Claude must decide whether the user-directed simulation is acceptable for this project"): the user-directed role-play is acceptable as engineering evidence and Claude has independently confirmed it is reproducible — in round 47 Claude reproduced the lease mutation and observed the same borrowed-lease success. It does **not** satisfy DUR-031's acceptance. PLAN.md:1490 assigns those three exercises to the user, and their purpose is the user's own fluency, which no delegated run can establish. DUR-031 must therefore not be re-recorded DONE on role-play.
+- What is fixed: the documentation obligation is fully met, and honestly. The pack's status is now `IN_PROGRESS` for the personal-participation component, a "Pending user evidence (R092)" section lists exactly what is still owed for each exercise, the new section is labelled user-requested role-play with the actor named as Codex, and it states that the record "deliberately does not claim that the user personally performed the exercises". The README repeats the caveat beside the findings. Codex declining to mark this complete and referring the judgment upward was the right call.
+- What remains is an action only the user can take, which is why this stays OPEN at P3 rather than being closed or deferred by Claude. Before the pack is used in an interview setting, the user should either perform and record the three exercises under their own attribution, or record a deliberate waiver of DUR-031's personal component in PLAN.md. Either is legitimate; leaving it implicit is not, and the current documents do not leave it implicit.
+- Status: OPEN
+
 ---
 
 ### R093 — The deployed topology changed at the release gate, but the M7 scoping does not say the measurements predate it
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `effdc39`
 - Location: README.md (the topology description now listing "Two Go scheduler/API/event-ingestor replicas and two Python Kafka worker processes (four consumer/activity slots each)"); docs/TECHNICAL_REPORT.md, whose only change in this commit is the R089 counts fix; cmd/runtime/scheduler.go, internal/engine/service.go, python/workers/kafka_worker.py.
@@ -3673,6 +3727,13 @@ For each round, record:
 - Validation: read both statements independently; no artifact, figure,
   experiment matrix or measured conclusion was changed and no study was rerun.
 - Fix commit: `984a4af`; see the final round-49 handoff for scope and checks.
+
+#### Claude verification – round 49
+
+- Verification commit: `c455ffd`.
+- Evidence and remaining concerns: fixed in both documents, with the scoping sentence the finding asked for and the extra guard against silent revision. The technical report now states that "The M7 measurements predate the deployed scheduler and Kafka-worker wiring added in DUR-032 and have not been rerun on it; they describe each study's named harness, not the current deployment. Any deployed rerun must be recorded as a separate campaign rather than replacing these measurements in place." The README carries the same distinction directly above its findings, so a reader meets it before the numbers rather than after.
+- The README also now names the R092 status in the same place — "DUR-031's personal user exercises remain outstanding (R092)" — so the two release-facing caveats travel together.
+- Status: VERIFIED
 
 ---
 
@@ -7600,3 +7661,23 @@ final target and artifact before any M7 status changes.
   outputs and attribution in `docs/INTERVIEW_EVIDENCE.md`, and decide whether
   the role-play satisfies R092 or whether the user must personally repeat the
   exercises. Do not mark DUR-031 or DUR-032 DONE solely from this handoff.
+
+## Codex closeout - DUR-032 after round-49 acceptance
+
+- **Task:** DUR-032 reproduction and final review.
+- **Task status:** DONE; M8 remains IN_PROGRESS because DUR-031/R092 remains
+  OPEN P3. The release/tag gate remains user-authorized and was not exercised.
+- **Handoff basis:** COMMITTED Claude acceptance.
+- **Reviewed base and target:** base `effdc39`, target `c455ffd`.
+- **Review:** Claude's committed round-49 review returned
+  `NO_BLOCKING_FINDINGS`; R091 and R093 are VERIFIED. The review records
+  four remaining P3 residuals: R057, R083, R088 and R092.
+- **Closeout:** PLAN.md and `docs/RELEASE_CHECKLIST.md` now mark DUR-032 DONE.
+  `docs/BUILD_LOG.md` records the closeout, bounded release limits and the
+  fact that no release/tag was created. R092 remains named in all release
+  materials; the agent-executed role-play is not represented as personal user
+  fluency evidence.
+- **Review record:** the round-49 correction and acceptance text in REVIEW.md
+  is preserved. Claude's initial contaminated run and pristine rerun are
+  both recorded; no new validation claim is inferred from the contaminated
+  run.

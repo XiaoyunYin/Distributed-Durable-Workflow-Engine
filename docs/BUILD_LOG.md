@@ -1,5 +1,21 @@
 # Build log
 
+## 2026-09-20 - DUR-032 closeout after round-49 review
+
+Claude's committed round-49 review of `c455ffd` against `effdc39` returned
+`NO_BLOCKING_FINDINGS`. R091 and R093 are VERIFIED. DUR-032 is DONE in PLAN.md.
+Claude independently mutation-tested the wakeup fence, ran clean build/vet and
+the full serial Go race suite on a pristine database, and recorded one initial
+fixture-contamination failure honestly before the clean rerun passed. No release
+or tag was created. R092 remains OPEN P3 under DUR-031; its agent-executed
+role-play is engineering evidence, not personal user-fluency evidence.
+
+Release authorization remains with the user under PLAN.md:1491. The release
+checklist records the accepted target, bounded claims, four residual P3s
+(`R057`, `R083`, `R088`, `R092`), untested multi-host/hard-kill/authentication
+limits, and the requirement not to reinterpret M7 measurements as deployed
+topology measurements.
+
 ## 2026-09-20 - DUR-031/R092 user-requested role-play evidence
 
 At the user's explicit request to act like a real user, Codex executed the

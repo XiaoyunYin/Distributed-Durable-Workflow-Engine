@@ -1,10 +1,10 @@
 # DUR-032 final reproduction and release checklist
 
-Status: READY_FOR_REVIEW at corrective target `984a4af`, base `effdc39`.
-R091/R093 are ADDRESSED pending Claude verification; R091 still blocks release.
-R089/R090 are VERIFIED; Codex completed a user-requested role-play for R092,
-but personal user fluency remains unestablished. No release
-or tag is authorized.
+Status: DONE at reviewed target `c455ffd`, base `effdc39`.
+Claude's round-49 verdict is `NO_BLOCKING_FINDINGS`; R091/R093 are VERIFIED.
+R089/R090 are VERIFIED; R092 remains OPEN P3 because the user-requested
+role-play does not establish personal user fluency. No release or tag is
+authorized without explicit user approval.
 This supersedes the earlier `2ea3726` checklist: that test-only Kafka correction
 was insufficient. The deployed scheduler/worker path and production consumer
 startup policy are now in scope.
@@ -133,15 +133,15 @@ earlier reproduction and round-48 reviewer checks remain their evidence.
 - [x] Migration, smoke and dependency container-recreation persistence checks.
 - [x] Historical 48-trace offline checker validation.
 - [x] R089 counts, R090 headline structure, and delegated attribution corrected.
-- [ ] R091's mutation-sensitive lease-fence regression is verified by Claude.
+- [x] R091's mutation-sensitive lease-fence regression is verified by Claude.
 - [ ] Claude accepts the user-requested role-play as satisfying R092; personal
       user fluency is otherwise still outstanding.
-- [ ] Claude reviews the final implementation and claims at the latest target.
-- [ ] DUR-032 moves to DONE only after that committed non-blocking review.
+- [x] Claude reviews the final implementation and claims at target `c455ffd`.
+- [x] DUR-032 moves to DONE after the committed non-blocking review.
 - [ ] Release/tag creation requires explicit authorization.
 
 Open P3 findings R057, R083, R088 and R092 are not silently closed. R093 is
-ADDRESSED pending verification; the README and report now say M7 figures
+VERIFIED; the README and report now say M7 figures
 predate the deployed wiring and were not rerun on it. The R019 claim-retry
 gap now has committed coverage in `internal/api/runtime_integration_test.go`;
 Claude has not verified this new test yet.

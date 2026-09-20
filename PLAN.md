@@ -2,9 +2,10 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 DONE; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 IN_PROGRESS; DUR-032 READY_FOR_REVIEW.
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 DONE; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 IN_PROGRESS; DUR-032 DONE.
 Only the bounded results linked in docs/TECHNICAL_REPORT.md are claimed;
-final code/claims review remains pending.
+DUR-032's final code/claims review is accepted; release/tag creation remains
+authorization-gated.
 
 **First task:** DUR-001. This project has its own repository and evidence. Project 1 is not a dependency.
 
@@ -1564,16 +1565,17 @@ contract revision.
 
 #### DUR-032 implementation record
 
-- **Status:** READY_FOR_REVIEW at `984a4af`, correction base `effdc39`.
-  R091 fencing coverage and R093 topology scoping are ADDRESSED; Claude
-  verification is pending. No release/tag until the blocker is closed.
+- **Status:** DONE; Claude's committed round-49 review returned
+  `NO_BLOCKING_FINDINGS` for target `c455ffd` against base `effdc39`.
+  R091 and R093 are VERIFIED. Release/tag creation remains authorization-gated;
+  R092 remains OPEN P3 under DUR-031.
 - **Base commit:** `c0757e4` (DUR-031 closeout).
 - **Executable validation target:** `78fa7f9` (includes deployed wiring
   `6d276af` and the fresh-checkout pytest-directory fix). Reviewed target
-  `effdc39` includes that scoped documentation/validation record. The next
-  corrective target `984a4af` adds a test, not production code: five focused race runs,
-  a failing missing-fence mutation control, and the clean-export serial Go
-  race suite/vet/build pass. The latest handoff records its exact commit.
+  `c455ffd` includes the scoped documentation/validation record, the R091
+  regression test and the round-49 closeout. The corrective test target
+  `984a4af` passed five focused race runs, a missing-fence mutation control,
+  and the clean-export serial Go race suite/vet/build pass.
 - **Goal:** provide a clean-checkout reproduction path, run applicable checks,
   verify migrations and service lifecycle where safe, position the final
   comparative findings correctly, and prepare the final Claude review of code
@@ -1595,8 +1597,9 @@ contract revision.
 - **Known limitations:** local Docker Desktop/WSL2 evidence remains bounded;
   no clean checkout can establish multi-host durability, production scale,
   remote CI, arbitrary external-effect exactly-once behavior, or live-model
-  quality. R089/R090 are VERIFIED in round 48. R057/R083/R088/R092 remain
-  open P3s; R091/R093 await the corrective handoff and review.
+  quality. R089/R090 are VERIFIED in round 48 and R091/R093 in round 49.
+  R057/R083/R088/R092 remain open P3s. The full review also records that the
+  M7 measurements predate deployed scheduler/Kafka-worker wiring.
 
 ## 13. Deterministic failure campaign
 
@@ -1931,9 +1934,8 @@ DUR-032's executable target `78fa7f9` passed fresh-source/fresh-volume
 reproduction, real deployed Python/Kafka demos before and after restart,
 service/race CI, and the offline 48-trace checker. Its updated checklist is
 `docs/RELEASE_CHECKLIST.md`; the latest REVIEW.md handoff supersedes `2ea3726`.
-Round 48 requires R091's wakeup-fencing regression and R093's explicit
-harness/deployment separation; the next handoff records their corrective
-target. Final Claude review is still required before DONE; no release/tag
-is authorized.
+DUR-032 is DONE at reviewed target `c455ffd` with base `effdc39`; Claude's
+round-49 verdict is `NO_BLOCKING_FINDINGS`. R092 remains OPEN under DUR-031,
+and release/tag creation remains authorization-gated.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.
