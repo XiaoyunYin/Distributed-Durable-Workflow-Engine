@@ -1,5 +1,24 @@
 # Build log
 
+## 2026-09-20 - R094 release-document alignment
+
+Updated the current-facing README, technical report, release checklist,
+interview evidence map, and PLAN closeout text after Claude's round-50 review
+verified R057, R083, and R088 at `0002e75`. The F01 report now describes the
+corrected submission prefix: the fixture stops before lease/attempt setup and
+the independent checker rejects durable activity work at that boundary.
+
+The existing local annotated `v0.1.0` tag remains intentionally unchanged at
+`7e4137d`; it is the authorized pre-correction release snapshot. The residual
+corrections and these documentation updates are post-tag and are explicitly
+reserved for the next tag. R092 remains open because its acceptance item is
+personal user-attributed evidence, not agent-executed role-play.
+
+Validation: searched current-facing release documents for stale R057/R083/R088
+open-status claims and verified the tag/commit distinction in the checklist.
+Historical REVIEW.md entries were preserved. Claude verification of this
+documentation pass remains pending.
+
 ## 2026-09-20 - Residual correction pass for R057, R083 and R088
 
 The residual-correction implementation/evidence commit contains this pass.

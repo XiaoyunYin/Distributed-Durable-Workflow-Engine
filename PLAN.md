@@ -1103,7 +1103,8 @@ contract revision.
 - **Implementation commits:** `6ab54ea`, `69917db`, and `acb28ba`.
 - **Review:** Claude's committed round-23 review of `acb28ba` against
   `69917db` returned `NO_BLOCKING_FINDINGS`; R055, R056, and R058 are VERIFIED.
-  R057 remains OPEN pending review of the round-50 fixture/checker correction.
+  R057 was corrected in the round-50 fixture/checker pass and VERIFIED by
+  Claude at `0002e75`.
 - **Remaining limitations:** The fault proxy is a local test-profile control;
   the real Kafka adapter/rebalance, multi-host deployment, hard-kill storage
   durability, sustained-load measurements, and remote CI remain untested.
@@ -1919,8 +1920,8 @@ returned `NO_BLOCKING_FINDINGS` and closed the R064 follow-up. DUR-030 is DONE
 at reviewed target `51e1957` against base `855c63e`; Claude's committed
 round-46 review returned `NO_BLOCKING_FINDINGS`. Its report is
 `docs/TECHNICAL_REPORT.md` and its evidence register points at the committed
-M5-M7 artifacts and the DUR-033A integration. R057, R083, and R088 remain
-nonblocking P3 findings carried forward. R089's counts are corrected under
+M5-M7 artifacts and the DUR-033A integration. Claude's round-50 review at
+`0002e75` VERIFIED R057, R083, and R088; R089's counts are corrected under
 DUR-032 and VERIFIED in round 48.
 
 DUR-031's engineering pack at `fab88ac` from base `242cdcb` retains round-47
@@ -1937,7 +1938,8 @@ service/race CI, and the offline 48-trace checker. Its updated checklist is
 `docs/RELEASE_CHECKLIST.md`; the latest REVIEW.md handoff supersedes `2ea3726`.
 DUR-032 is DONE at reviewed target `c455ffd` with base `effdc39`; Claude's
 round-49 verdict is `NO_BLOCKING_FINDINGS`. R092 remains OPEN under DUR-031,
-and the user-authorized local annotated release tag is `v0.1.0`. No remote
-publication was performed.
+and the user-authorized local annotated release tag is `v0.1.0` at `7e4137d`.
+The round-50 residual corrections at `0002e75` postdate that tag and are
+recorded for the next tag; no remote publication was performed.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

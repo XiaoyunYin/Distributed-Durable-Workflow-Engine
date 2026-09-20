@@ -5,7 +5,8 @@ tasks. M6 was reviewed with
 `NO_BLOCKING_FINDINGS` at committed target `1048ad0` (base `db8b462`), and
 DUR-019, DUR-020, DUR-021B, and DUR-033 are closed. M5 was reviewed with
 `NO_BLOCKING_FINDINGS` at committed target `acb28ba` against round-22 target
-`69917db`; R057 remains a nonblocking P3 evidence-labelling limitation.
+`69917db`; Claude's round-50 residual correction review verified R057, R083,
+and R088 as closed.
 M7's bounded studies and DUR-033A production-path integration are reviewed and
 closed; their evidence is summarized in [the technical report](docs/TECHNICAL_REPORT.md).
 M8/DUR-030 is reviewed and closed; DUR-031's interview-evidence pack and three
@@ -14,7 +15,9 @@ evidence, but DUR-031's personal user exercises remain outstanding (R092).
 They do not establish the user's personal fluency; R092 remains an open P3
 under DUR-031. DUR-032 is reviewed and closed for reproduction/release
 validation; the authorized local annotated tag is `v0.1.0` at `7e4137d` and
-was not published because no remote is configured.
+was not published because no remote is configured. The residual corrections
+landed after that tag and are intended for the next tag; `v0.1.0` remains the
+authorized release snapshot.
 The results remain bounded to their
 declared fixtures and host, not to production scale or multi-host durability.
 

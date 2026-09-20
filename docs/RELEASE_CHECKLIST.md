@@ -136,16 +136,23 @@ earlier reproduction and round-48 reviewer checks remain their evidence.
 - [x] R091's mutation-sensitive lease-fence regression is verified by Claude.
 - [ ] Claude accepts the user-requested role-play as satisfying R092; personal
       user fluency is otherwise still outstanding.
+- [x] Claude's round-50 review verifies R057, R083 and R088 at `0002e75`.
 - [x] Claude reviews the final implementation and claims at target `c455ffd`.
 - [x] DUR-032 moves to DONE after the committed non-blocking review.
 - [x] User authorized and Codex created the local annotated tag `v0.1.0` at
       the final release commit; no remote publication was performed.
 
-Open P3 findings R057, R083, R088 and R092 are not silently closed. R093 is
+R057, R083 and R088 were verified in round 50; R092 remains the open
+user-attribution item under DUR-031. R093 is
 VERIFIED; the README and report now say M7 figures
 predate the deployed wiring and were not rerun on it. The R019 claim-retry
 gap now has committed coverage in `internal/api/runtime_integration_test.go`;
 Claude has not verified this new test yet.
+
+The authorized `v0.1.0` tag remains at `7e4137d`, before the residual
+correction implementation/evidence commit `0002e75` and its follow-up docs.
+Those corrections are intentionally post-tag and are intended for the next
+tag; the two snapshots must not be conflated.
 
 This single-node Docker Desktop/WSL2 result does not establish multi-host
 durability, production scale/authentication, sustained-load performance,

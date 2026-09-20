@@ -95,11 +95,12 @@ and cancellation/deadline/dispatch-grant orderings.
 The checker is intentionally independent of the production transition validator:
 it parses the controller trace, loads the referenced durable snapshot, checks
 sequence/schema/boundary facts, and verifies persisted rows. It is an evidence
-oracle, not a second call into engine decision logic. The F01 boundary label
-remains the one historical evidence-labelling residual (R057): it describes a
-committed submission but the fixture can already have created an attempt by that
-point. The report does not use that label as proof of a narrower prefix than the
-durable snapshot establishes.
+oracle, not a second call into engine decision logic. The corrected F01
+`submission_committed` boundary stops immediately after the durable submission,
+before lease and attempt setup. The regenerated snapshots contain zero activity
+attempts there, and the independent checker rejects any snapshot with durable
+activity work at that boundary. R057, R083, and R088 were verified closed in
+Claude's round-50 review; the historical review text remains the audit record.
 
 ### Runtime readiness and production integration
 
@@ -338,10 +339,10 @@ not a feature scorecard or a claim that this project matches any reference.
 - Several studies use an in-process Store/Engine path; DUR-035 includes the real
   Kafka broker and production relay, while DUR-036 readiness exercises the
   deployed runtime. These scopes are not interchangeable.
-- M5's R057 remains an evidence-labelling limitation for one named boundary.
-  R083 is a historical DUR-027 handoff bookkeeping residual, and R088 is a
-  nonblocking maintenance follow-up for focused ValidateApprovalGrant guard
-  coverage. The historical R019 claim-retry test gap remains nonblocking.
+- The round-50 residual corrections verified R057's F01 boundary/checker
+  alignment, R083's reachable DUR-027 handoff target, and R088's focused
+  ValidateApprovalGrant guard coverage. The historical R019 claim-retry test
+  gap remains nonblocking and pending review of its committed coverage.
 - The live-model study used the separately authorized $30 aggregate cap and
   spent $0.04798995. Local CPU, storage, hosting, and operator time were not
   monetized.
