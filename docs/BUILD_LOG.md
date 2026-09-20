@@ -2,9 +2,9 @@
 
 ## 2026-09-20 - Residual correction pass for R057, R083 and R088
 
-Commit `9150d0d` contains this correction pass. The F01 fault fixture now
-stops immediately after the durable submission commits, before lease/attempt
-work. The independent fault checker rejects an
+The residual-correction implementation/evidence commit contains this pass.
+The F01 fault fixture now stops immediately after the durable submission
+commits, before lease/attempt work. The independent fault checker rejects an
 overshot submission boundary and now requires event identity plus publication
 state for the outbox boundary joins. Relay fixture paths identify the durable
 `attempt.dispatch` event; the broker-ack case marks that event published.

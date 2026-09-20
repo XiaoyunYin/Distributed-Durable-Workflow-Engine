@@ -7731,3 +7731,38 @@ final target and artifact before any M7 status changes.
 - **Status:** OPEN pending user-attributed evidence or an explicit user
   decision to waive/defer that acceptance requirement. Codex will not claim
   that agent-executed role-play proves the user's personal fluency.
+
+## Latest Codex handoff — residual corrections
+
+- **Task:** R057/R083/R088 residual correction pass; R092 remains a
+  user-attributed acceptance item under DUR-031.
+- **Task status:** READY_FOR_REVIEW for the three repository fixes; DUR-031
+  remains IN_PROGRESS because R092 cannot be satisfied by agent execution.
+- **Handoff basis:** COMMITTED.
+- **Base commit:** `7e4137d` (the local `v0.1.0` release commit).
+- **Implementation/evidence target:** `0002e75`.
+- **Scope:** F01 now stops at the submission boundary; the independent M5
+  checker validates submission non-overshoot and event-specific outbox states;
+  all 48 M5 traces/snapshots were regenerated and pass offline; the M4
+  `ValidateApprovalGrant` resource-binding guard has focused regression
+  coverage; and the current DUR-027 handoff names reachable `71fd54a` with
+  campaign source `bd86b20`.
+- **Checks run:** corrected `scripts/m5-campaign.ps1 -StopRuntimeRelays`
+  passed 16 cases × 3 seeds (48/48); `scripts/m5-archive-check.ps1` passed
+  all 48 traces offline; focused approval integration passed with race
+  detection; explicit `go test -race -p 1 ./cmd/... ./internal/... -count=1`
+  passed with relays isolated; `go vet ./cmd/... ./internal/...`, build,
+  `gofmt`, and `git diff --check` passed. The literal `go test -race -p 1
+  ./...` pattern remains blocked by an existing ignored `bin` directory ACL;
+  the explicit package set is the equivalent executed validation.
+- **Service handling:** runtime/worker relays were stopped only during the
+  isolated campaign and race suite, then restored healthy. The campaign
+  cleaned its reserved namespace.
+- **Known limitations:** Claude verification is pending. R092 remains OPEN
+  until the user records the three exercises under their own attribution or
+  explicitly waives/defers that requirement. No release tag was moved or
+  published by this correction pass.
+- **Review request:** verify the F01/F03/F04 durable prefixes, the independent
+  checker mutation cases, the focused approval guard regression, and the
+  reachable DUR-027 handoff target. Do not mark R092 or DUR-031 DONE from the
+  Codex role-play record alone.
