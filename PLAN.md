@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 DONE; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 IN_PROGRESS; DUR-032 IN_PROGRESS.
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 DONE; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 IN_PROGRESS; DUR-032 READY_FOR_REVIEW.
 Only the bounded results linked in docs/TECHNICAL_REPORT.md are claimed;
 final code/claims review remains pending.
 
@@ -1562,14 +1562,14 @@ contract revision.
 
 #### DUR-032 implementation record
 
-- **Status:** IN_PROGRESS; round 48 requested the R091 fencing regression at
-  reviewed target `effdc39`. R093 topology scoping is also being corrected.
-  No release/tag until the blocking finding is verified closed.
+- **Status:** READY_FOR_REVIEW at `984a4af`, correction base `effdc39`.
+  R091 fencing coverage and R093 topology scoping are ADDRESSED; Claude
+  verification is pending. No release/tag until the blocker is closed.
 - **Base commit:** `c0757e4` (DUR-031 closeout).
 - **Executable validation target:** `78fa7f9` (includes deployed wiring
   `6d276af` and the fresh-checkout pytest-directory fix). Reviewed target
   `effdc39` includes that scoped documentation/validation record. The next
-  corrective target adds a test, not production code: five focused race runs,
+  corrective target `984a4af` adds a test, not production code: five focused race runs,
   a failing missing-fence mutation control, and the clean-export serial Go
   race suite/vet/build pass. The latest handoff records its exact commit.
 - **Goal:** provide a clean-checkout reproduction path, run applicable checks,

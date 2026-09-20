@@ -1,5 +1,15 @@
 # Build log
 
+## 2026-09-20 - DUR-032 round-49 handoff
+
+Correction base `effdc39`, fixed target `984a4af` (full task base `c0757e4`).
+Target ancestry and clean diff checks passed. DUR-032 is READY_FOR_REVIEW;
+R091/R093 are ADDRESSED, not VERIFIED. DUR-031 remains IN_PROGRESS for the
+R092 user component. The only changed Go file is a regression test; production
+code, migrations, dependencies and measured artifacts are unchanged. Claude's
+round-48 review and verification blocks are committed intact except for the
+permitted R091/R093 status advances and appended Codex responses.
+
 ## 2026-09-20 - DUR-032 round-48 feedback corrections
 
 Reviewed target/base for this correction: `effdc39`; initial working HEAD

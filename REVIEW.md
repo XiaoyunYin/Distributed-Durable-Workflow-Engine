@@ -3582,7 +3582,7 @@ For each round, record:
   subtest independently returned `<nil>` instead of `ErrLeaseNotOwned` and
   changed PENDING/OPEN rows to CONSUMED/RESOLVED. Production source was never
   mutated. The final handoff records the full-suite result and exact commit.
-- Fix commit: recorded in the final round-49 handoff after commit.
+- Fix commit: `984a4af`; see the final round-49 handoff for full validation.
 
 ---
 
@@ -3615,7 +3615,7 @@ For each round, record:
   remaining work; it does not claim R092 is fixed.
 - Validation: compared the three current status/attribution records against
   PLAN's unchanged M8 task row; no claim of user fluency or release readiness.
-- Record commit: recorded in the final round-49 handoff after commit.
+- Record commit: `984a4af`; R092 remains OPEN pending the user exercises.
 
 ---
 
@@ -3644,7 +3644,7 @@ For each round, record:
   deployment. Any future deployed measurements must be a separate campaign.
 - Validation: read both statements independently; no artifact, figure,
   experiment matrix or measured conclusion was changed and no study was rerun.
-- Fix commit: recorded in the final round-49 handoff after commit.
+- Fix commit: `984a4af`; see the final round-49 handoff for scope and checks.
 
 ---
 
@@ -7474,3 +7474,62 @@ final target and artifact before any M7 status changes.
   fallback scans, fresh-group startup, pure-only dispatch scope, and the
   updated claims/attribution. Keep DUR-032 out of DONE until a COMMITTED
   `NO_BLOCKING_FINDINGS` review covers this target.
+
+## Latest Codex handoff - DUR-032 round-49 R091/R093 corrections
+
+- **Task:** DUR-032 final-review corrections; R092 outstanding-work record.
+- **Task status:** READY_FOR_REVIEW for DUR-032. DUR-031 is IN_PROGRESS for
+  the user's personal component; M8 is not DONE. No release or tag.
+- **Handoff basis:** COMMITTED; supersedes the `effdc39` handoff for this
+  corrective scope without replacing earlier evidence or reviewer history.
+- **Exact base commit:** `effdc394e82d7a041aac41de5d4cfe57d01ba016`
+  (`effdc39`, round-48 target). Full DUR-032 task base remains `c0757e4`.
+- **Exact target commit:** `984a4af23f05ebbcaa09d1babe9737293cd70359`
+  (`984a4af`, test and documentation corrections); verified ancestor of HEAD.
+- **Scope and implementation:** added a database-backed lease-fencing test
+  for `AcknowledgeWorkflowWakeups` in the M2 test file. Expired and superseded
+  owners, wrong owner/current epoch, and current owner/stale epoch must get
+  `ErrLeaseNotOwned` with identical persisted wakeup/reconciliation rows; the
+  current owner must consume/resolve both. Production code is unchanged.
+  README/report explicitly say M7 measurements predate deployed wiring and
+  were not rerun on it. PLAN/pack/README distinguish reviewed engineering
+  exercises from the three user exercises still outstanding under R092.
+- **Checks run and results:**
+  - Five focused `go test -race ./internal/state -run
+    '^TestRuntimeWakeupAcknowledgmentRequiresCurrentLease$' -count=5 -v`
+    executions passed (five ownership subcases per execution).
+  - A Go build overlay removed only this function's lease guard. The full
+    focused test failed with `<nil>` instead of `ErrLeaseNotOwned` and
+    PENDING/OPEN becoming CONSUMED/RESOLVED. A separate takeover-only mutation
+    run failed identically; this was not a failure inherited from expiry.
+    Production source was never mutated; the overlay was then removed.
+  - `go test -race -p 1 ./... -count=1`, `go vet ./...`, and `go build ./...`
+    passed from a clean export of current tracked files, against freshly
+    migrated `codex_r091_20260920`. Regression source hash matched the export.
+    The real Kafka test skipped with DURABLE_KAFKA_BROKERS unset.
+  - `gofmt` and `git diff --check` clean; 19 local evidence links resolve;
+    base and target are reachable ancestors.
+- **Failed approaches:** the initial test fixture lacked its required effect
+  declaration and failed during setup; correcting the fixture preceded the
+  five passing runs. Main-tree `./...` enumeration hit an existing ignored
+  pytest directory ACL, so full checks ran in a clean source export instead.
+  No test/assertion/production fence was weakened to obtain a pass.
+- **Cleanup:** the scratch database had zero workflows, definitions, wakeups
+  and source documents after tests, then was dropped and absence verified.
+  Temporary mutation source/overlay removed; ignored logs and export retained.
+  The development database and running containers were not modified.
+- **Skipped checks and reasons:** Python's 45 tests, real Kafka, Docker
+  builds/bootstrap/restart, offline 48-trace validation, and studies were not
+  rerun in this test/docs-only correction; their round-48 reviewed evidence
+  remains applicable. No remote CI is configured. No paid/model call,
+  multi-host, sustained-load or hard-kill campaign was authorized or run.
+- **Known limitations / finding state:** R091/R093 ADDRESSED pending Claude;
+  R089/R090 VERIFIED in round 48. R057/R083/R088 remain OPEN P3s. R092 remains
+  OPEN: Codex cannot perform the user's personal exercises, and no acceptance
+  deferral is assumed. Existing localhost-only/authentication, single-host and
+  pure-activity deployment limits remain. No historical M7 number is evidence
+  of current deployed-system throughput.
+- **Review request:** verify R091 by deleting the wakeup guard and running the
+  new regression, verify R093 in either document independently, and inspect
+  the explicit R092 pending-user record. Do not mark DUR-032 DONE or create a
+  release/tag before a committed non-blocking review of this corrective target.

@@ -1,8 +1,9 @@
 # DUR-032 final reproduction and release checklist
 
-Status: IN_PROGRESS after round-48 review of `effdc39`; R091 blocks release.
-R089/R090 are VERIFIED; R092's user exercises remain outstanding and R093's
-topology qualification is being corrected. No release or tag is authorized.
+Status: READY_FOR_REVIEW at corrective target `984a4af`, base `effdc39`.
+R091/R093 are ADDRESSED pending Claude verification; R091 still blocks release.
+R089/R090 are VERIFIED; R092's user exercises remain outstanding. No release
+or tag is authorized.
 This supersedes the earlier `2ea3726` checklist: that test-only Kafka correction
 was insufficient. The deployed scheduler/worker path and production consumer
 startup policy are now in scope.
