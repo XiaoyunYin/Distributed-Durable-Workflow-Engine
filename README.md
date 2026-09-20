@@ -11,8 +11,10 @@ closed; their evidence is summarized in [the technical report](docs/TECHNICAL_RE
 M8/DUR-030 is reviewed and closed; DUR-031's interview-evidence pack and three
 Codex-performed walkthroughs (delegated by the user) have reviewed engineering
 evidence, but DUR-031's personal user exercises remain outstanding (R092).
-They do not establish the user's personal fluency. DUR-032 remains for final
-reproduction/release validation. The results remain bounded to their
+They do not establish the user's personal fluency; R092 remains an open P3
+under DUR-031. DUR-032 is reviewed and closed for reproduction/release
+validation, but release/tag creation remains explicitly authorization-gated.
+The results remain bounded to their
 declared fixtures and host, not to production scale or multi-host durability.
 
 ## Three bounded comparative findings
