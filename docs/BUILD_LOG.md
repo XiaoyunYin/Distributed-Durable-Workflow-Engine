@@ -1,5 +1,14 @@
 # Build log
 
+## 2026-09-20 - Local v0.1.0 release tag
+
+The user authorized release/tag creation. After confirming the worktree was
+clean and the DUR-032 closeout was accepted, Codex created the local annotated
+Git tag `v0.1.0` at the final release commit. No remote is configured, so no
+hosted release or publication was attempted. R057, R083, R088 and R092 remain
+named P3 residuals; the tag does not imply they are closed or that the bounded
+local evidence establishes production guarantees.
+
 ## 2026-09-20 - DUR-032 closeout after round-49 review
 
 Claude's committed round-49 review of `c455ffd` against `effdc39` returned

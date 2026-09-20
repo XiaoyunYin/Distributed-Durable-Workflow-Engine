@@ -138,7 +138,8 @@ earlier reproduction and round-48 reviewer checks remain their evidence.
       user fluency is otherwise still outstanding.
 - [x] Claude reviews the final implementation and claims at target `c455ffd`.
 - [x] DUR-032 moves to DONE after the committed non-blocking review.
-- [ ] Release/tag creation requires explicit authorization.
+- [x] User authorized and Codex created the local annotated tag `v0.1.0` at
+      the final release commit; no remote publication was performed.
 
 Open P3 findings R057, R083, R088 and R092 are not silently closed. R093 is
 VERIFIED; the README and report now say M7 figures

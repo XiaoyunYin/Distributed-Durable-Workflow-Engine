@@ -1936,6 +1936,7 @@ service/race CI, and the offline 48-trace checker. Its updated checklist is
 `docs/RELEASE_CHECKLIST.md`; the latest REVIEW.md handoff supersedes `2ea3726`.
 DUR-032 is DONE at reviewed target `c455ffd` with base `effdc39`; Claude's
 round-49 verdict is `NO_BLOCKING_FINDINGS`. R092 remains OPEN under DUR-031,
-and release/tag creation remains authorization-gated.
+and the user-authorized local annotated release tag is `v0.1.0`. No remote
+publication was performed.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.
