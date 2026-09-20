@@ -1877,6 +1877,41 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   Across forty-nine rounds this review has recorded ninety-three findings, of which eighty-nine are verified closed and four remain as P3 residuals that the release materials name by number. The pattern that dominated the middle of the project — campaigns and checkers that could not fail — is absent from the final state: the fault checker, the citation checker, the adversarial canary scan, the retrieval difficulty audit, the measurement conclusions, and now the wakeup fence all have demonstrated failure modes. That, more than any individual number, is what makes the evidence in this repository worth reading.
 
+### Round 50 — 2026-09-20 — residual corrections R057, R083, R088
+
+- Date and round: 2026-09-20, round 50.
+- Review basis: COMMITTED. The worktree was clean at `8442b0d` and remained clean throughout.
+- Base and target commits: base `7e4137d` (the local `v0.1.0` release commit), implementation and evidence target `0002e75`, handoff `8442b0d`. Both declared commits resolve as ancestors of HEAD.
+- Scope inspected: `git diff c455ffd 0002e75` — the F01 branch in `cmd/m5-fixture/main.go`, the submission and outbox boundary rules in `internal/invariants/m5.go` with their tests, the `ValidateApprovalGrant` regression case in `internal/state/m4_integration_test.go`, all 48 regenerated traces and durable snapshots, and the PLAN.md, README.md, BUILD_LOG.md and RELEASE_CHECKLIST.md updates.
+- Checks personally run (Claude), in a scratch export against throwaway databases `cr_w` and `cr_w2`, both dropped afterwards:
+  - Built the checker from this commit and ran all 48 committed traces offline against their snapshots: **48/48 valid**.
+  - Inspected the regenerated F01 snapshot: **0 attempts**, 1 outbox event, 1 submission — against a created and claimed attempt when Claude measured the same case in round 23.
+  - **Mutation-tested the new submission guard**: injected one attempt row into the F01 snapshot; the checker returned `valid:false` with "submission boundary has durable activity work" and exit 1.
+  - **Mutation-tested the approval guard**: removed the `ValidateApprovalGrant` resource check and ran the approval and effect tests; `m4_integration_test.go:133` failed with "validate grant resource mismatch = <nil>, want effect resource does not match approval". The identical mutation survived every package in round 45.
+  - Read the strengthened outbox rules and confirmed they now require a matching `durable_event_type` and the publish state appropriate to each boundary rather than any outbox row.
+  - Confirmed the DUR-027 handoff record now names the reachable `71fd54a` with `bd86b20` as campaign source and excludes the orphaned `8e06e14` as an acceptance target.
+  - `go build ./...`, `go vet ./...`, and the full `go test -race -p 1 ./... -count=1` on a pristine database: **all pass**.
+  - Cleanup: both scratch databases dropped, no `cr_*` databases remain, scratch export removed; the shared dev database holds 0 workflows and 0 held leases.
+- Codex-reported checks considered but not rerun: the focused approval test run and the service restoration described in the handoff.
+- Findings resolved: R057, R083 and R088 are VERIFIED.
+- New findings: R094 (P3).
+- Findings still open: R092 (P3, the user-participation component of DUR-031) and R094.
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R094 as described: the release-facing documents still describe R057 and R088 as open, and the `v0.1.0` tag at `7e4137d` predates these corrections.
+  - R092 stands as ruled in round 49 — the documentation obligation is met and the remaining action is the user's.
+  - Not exercised by Claude at any point in this review: multi-host deployment, sustained load, hard-kill storage durability, Kafka consumer rebalance, authentication, and remote CI.
+- Limitations: source and artifact review plus independent build, vet, full race and integration suite, offline archive validation, and two targeted mutation tests. Claude made no paid calls and started or stopped no container.
+- Verdict: **NO_BLOCKING_FINDINGS** for the residual correction pass at committed target `0002e75` with base `7e4137d`. This is a COMMITTED, non-provisional review. R001–R094 are VERIFIED apart from the P3 residuals R092 and R094, neither of which blocks acceptance.
+
+  This pass closed three residuals that had been carried a long way, and it closed the oldest one properly rather than by relabelling it. R057 dated from round 23, where F01 declared a `submission_committed` boundary but the fixture had already created and claimed an attempt by the time it stopped. The fix changes both halves: the fixture now returns before the lease and attempt setup, and the checker rejects any workflow that has durable activity work at that boundary. I verified both directions — the regenerated snapshot holds zero attempts, and injecting one makes the checker fail. The same commit also retired the four trivially-satisfied outbox rules, which had passed on the row `CreateWorkflow` writes for every workflow; they now require a specific event type and the publish state that matches the named boundary.
+
+  R088 closed the way R091 did last round: the guard that no test touched is now pinned by a mutation I confirmed fails. Both layers of the approval resource binding — grant validation and effect enforcement — now have coverage, which matters because that binding is the property R049 was raised about.
+
+  R094 is the mirror image of the problem this review spent most of its time on. For forty-nine rounds the risk was documents claiming more than the evidence supported; here the documents claim less. The report still tells a reader that the F01 fixture "can already have created an attempt by that point", which stopped being true in this commit, and the README and release checklist still list R057 and R088 among the open residuals. PLAN handled it correctly by marking R057 as pending this review, so the remaining work is to bring the three release-facing documents into line now that the review exists — and to say which state `v0.1.0` refers to, since the tag sits one commit before the corrections.
+
+  With that, the only substantive item left in the whole review is R092, which no agent can close: DUR-031 asks the user to perform and explain three exercises, and delegated runs are engineering evidence rather than personal fluency. The repository itself is in the strongest state it has been in — 48 fault cases whose boundaries now match their durable prefixes, an independent checker with demonstrated failure modes on every rule it enforces, and the approval and lease fences each pinned by tests that fail when the guard is removed.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -3491,7 +3526,7 @@ For each round, record:
 ### R088 — The redundant resource guard in `ValidateApprovalGrant` has no test coverage
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `95948cb`
 - Location: internal/state/m4.go:667 (`return ApprovalIntent{}, ErrEffectResource` inside `ValidateApprovalGrant`), against the covered enforcement site at :909 (`return EffectReceipt{}, ErrEffectResource` inside `ApplyEffect`).
@@ -3501,6 +3536,13 @@ For each round, record:
 - Evidence (checks Claude personally ran, in a scratch export of `95948cb` against a throwaway `cr_m8` database migrated 000001–000014): replaced the :909 return with a no-op and ran `go test ./internal/incident -run TestDUR033AProductionPath` — FAIL at production_integration_test.go:188 with the expected message. Restored, replaced the :667 return with a no-op, and ran `go test ./internal/state ./internal/incident ./internal/effects` — all three packages `ok`. Restored the file and confirmed zero mutations remained before the final suite run.
 - Suggested correction: add a focused unit or integration case that calls `ValidateApprovalGrant` directly with a mismatched `ResourceID` and asserts `ErrEffectResource`, so both layers of the binding are pinned. The M4 integration test is the natural home, beside the existing `ApplyEffect` case.
 - Suggested validation: removing either resource check should fail at least one test.
+
+#### Claude verification – round 50
+
+- Verification commit: `0002e75`.
+- Evidence and remaining concerns: fixed, and confirmed by the same mutation that exposed the gap. `internal/state/m4_integration_test.go` now calls `ValidateApprovalGrant` directly with `ResourceID: "resource-not-approved"` and asserts `ErrEffectResource`, placed inside `TestM4CheckpointRetryAndApprovalPersistence` beside the existing approval coverage.
+- Claude removed the `ValidateApprovalGrant` resource guard and reran the approval and effect tests: `m4_integration_test.go:133: validate grant resource mismatch = <nil>, want effect resource does not match approval`. In round 45 the identical mutation survived `internal/state`, `internal/incident` and `internal/effects` with every package passing. Both layers of the resource binding — the grant validation and the `ApplyEffect` enforcement point — are now pinned by tests.
+- Status: VERIFIED
 
 ---
 
@@ -3734,6 +3776,26 @@ For each round, record:
 - Evidence and remaining concerns: fixed in both documents, with the scoping sentence the finding asked for and the extra guard against silent revision. The technical report now states that "The M7 measurements predate the deployed scheduler and Kafka-worker wiring added in DUR-032 and have not been rerun on it; they describe each study's named harness, not the current deployment. Any deployed rerun must be recorded as a separate campaign rather than replacing these measurements in place." The README carries the same distinction directly above its findings, so a reader meets it before the numbers rather than after.
 - The README also now names the R092 status in the same place — "DUR-031's personal user exercises remain outstanding (R092)" — so the two release-facing caveats travel together.
 - Status: VERIFIED
+
+---
+
+### R094 — The release-facing documents still describe R057 and R088 as open after the commit that closed them, and the v0.1.0 tag predates the corrections
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `0002e75`
+- Location: README.md:8 ("R057 remains a nonblocking P3 evidence-labelling limitation"); docs/TECHNICAL_REPORT.md:99 (the F01 paragraph) and :341-342 (the limitations list); docs/RELEASE_CHECKLIST.md:144 ("Open P3 findings R057, R083, R088 and R092 are not silently closed"); the `v0.1.0` annotated tag at `7e4137d`.
+- Failure scenario and impact: two related record problems, both pointing the same way.
+
+  **The prose lags the fix.** This commit closed R057, R083 and R088, and Claude has verified all three. The release-facing documents were not updated with it, so they still present two of them as outstanding. The concrete case is docs/TECHNICAL_REPORT.md:99, which states of the F01 boundary that "it describes a committed submission but the fixture can already have created an attempt by that point". That is now false: Claude measured the regenerated F01 snapshot at zero attempts, because the fixture returns before the attempt setup. The report also still says the project "does not use that label as proof of a narrower prefix than the durable snapshot establishes" — a caveat that no longer applies, since the snapshot now establishes exactly that prefix and the checker enforces it.
+
+  This is the first time in this review the documents understate the evidence rather than overstate it, which is the safer direction and not a correctness risk. But it is still a mismatch between what the repository demonstrates and what its release materials claim, at the one place a reader looks for the limits. PLAN.md:1106 handles it correctly — "R057 remains OPEN pending review of the round-50 fixture/checker correction" — so the plan was appropriately waiting on this review; the report, README and checklist simply need the same update now that the review exists.
+
+  **The tag predates the corrections.** `v0.1.0` is an annotated tag at `7e4137d`, and `0002e75` lands after it. Anyone checking out the tag gets the pre-correction state: the F01 fixture that overshoots its boundary, the weaker checker rules, the un-regenerated traces, and no `ValidateApprovalGrant` regression test. At the tag, the documents' claims about R057 and R088 are accurate; at HEAD they are not. Nothing currently records which of those two states is the reference release.
+- Evidence (checks Claude personally ran): confirmed the four document locations still describe R057 and R088 as open; confirmed from the regenerated `F01-response-loss-seed11.json` that the fixture creates no attempt, contradicting the report's F01 paragraph; confirmed `v0.1.0` resolves to `7e4137d` and that `git merge-base --is-ancestor v0.1.0 0002e75` succeeds, so the tag precedes the fixes; confirmed PLAN.md:1106 correctly defers R057's status to this review.
+- Suggested correction: update the four locations to record R057, R083 and R088 as verified closed in round 50, rewrite the report's F01 paragraph to describe the corrected behaviour (the fixture stops at submission; the checker rejects durable activity work at that boundary), and keep R092 listed as the one open residual with its user-action caveat. Then decide and record the tag question explicitly — either re-cut the authorized tag at the corrected commit, or state in the release checklist that `v0.1.0` stands as the authorized release and that these corrections ship in the next tag. Either is defensible; leaving the two states undistinguished is not.
+- Suggested validation: no release-facing document describes a finding as open that REVIEW.md records as verified, and the release checklist names the commit the authorized tag points at alongside any corrections that postdate it.
 
 ---
 
@@ -4655,7 +4717,7 @@ superseded by the committed M4 handoff below.
 ### R057 — Named boundaries describe durable positions the fixture never reaches, and the checker has no rule for most of them
 
 - Severity: P3 (revised from P2 in round 23; see the round-23 verification)
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `69917db`
 - Location: cmd/m5-fixture/main.go:108-219 (one mostly shared path; only F02, F05-offset, F08, F09, F03/F04, and the result cases branch); scripts/m5-campaign.ps1:56-72 (the `Boundary` column); internal/invariants/m5.go:97-122 (the join switch).
@@ -4701,6 +4763,16 @@ superseded by the committed M4 handoff below.
 - What remains: `F01-response-loss` still has no case-specific path in `cmd/m5-fixture`, so it falls through to the default branch and reaches its `submission_committed` boundary only **after** a transition, an attempt, and a claim have committed — Claude measured `attempts=1` for the F01 workflow at the kill. The declared injection point is therefore still later than the label says. The `submission_committed` rule cannot detect this, because it is satisfied by any workflow that has a submission row; the same is true of the `outbox_insert`, `before_publish`, and `after_broker_ack` rules, which are satisfied by the outbox row every fixture workflow gets from `CreateWorkflow`. For those four families the trace rule confirms the workflow exists, and the Go package test remains the real oracle for the family's required observation.
 - Suggested remaining work: give F01 an early return immediately after `CreateWorkflow`, and strengthen the four trivially-satisfied rules to assert something the fixture would not already have — for example that `submission_committed` has no claimed attempt yet, and that the outbox boundaries name the specific event the case is about.
 - Status: OPEN
+
+#### Claude verification – round 50
+
+- Verification commit: `0002e75` (base `7e4137d`), checked in a scratch export outside the repository.
+- Evidence and remaining concerns: fixed on both sides — the fixture now reaches the boundary it names, and the checker now enforces it.
+  - **The fixture stops at submission.** `cmd/m5-fixture/main.go` gained an F01 branch that returns before the lease and attempt setup, with a comment recording why: a submission boundary is intentionally before activity dispatch, so "the durable prefix match[es] the boundary name rather than merely the requested fault action". Claude confirmed the effect in the regenerated evidence: `F01-response-loss-seed11.json` now holds **0 attempts**, 1 outbox event and 1 submission. In round 23 the same case recorded a created and claimed attempt.
+  - **The checker rejects overshoot.** `submission_committed` now fails when the workflow has any durable attempt. Claude mutation-tested it by injecting one attempt row into the F01 snapshot: the checker returned `valid:false` with "submission boundary has durable activity work: m5-fixture-F01-response-loss-…-11" and exit 1. The guard fires.
+  - **The trivially-satisfied outbox rules are gone too.** `outbox_insert`, `before_publish`, `after_broker_ack` and `outbox_published` no longer pass on any outbox row: the fixture records a `durable_event_type` and the checker requires a matching event type *and* the publish state appropriate to the boundary (`PENDING`, `CLAIMED`, `PUBLISHED`). That closes the weakness Claude noted alongside this finding in round 23, where every fixture workflow satisfied those rules through the row `CreateWorkflow` writes.
+- All 48 committed traces were regenerated and validate offline against their durable snapshots: **48/48**, run by Claude with a checker built from this commit.
+- Status: VERIFIED
 
 ---
 
@@ -5981,7 +6053,7 @@ superseded by the committed M4 handoff below.
 ### R083 — The declared substantive target commit is unreachable from any ref
 
 - Severity: P3
-- Status: OPEN
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `84ad758` (working tree), substance at `71fd54a`
 - Location: the DUR-027 round-40 handoff declaration ("Substantive target: 8e06e14; current handoff metadata commit: 84ad758") and the corresponding REVIEW.md handoff entry.
@@ -6004,6 +6076,12 @@ superseded by the committed M4 handoff below.
   `git merge-base --is-ancestor 71fd54a HEAD` passes. The reviewed source,
   campaign artifact, and nonblocking residuals are unchanged.
 - Status: ADDRESSED
+
+#### Claude verification – round 50
+
+- Verification commit: `0002e75`.
+- Evidence and remaining concerns: fixed as suggested. The DUR-027 handoff record now names the reachable `71fd54a` as the acceptance target with `bd86b20` explicitly labelled as the campaign source, and states that the orphaned `8e06e14` "is not an acceptance target because it is unreachable from repository refs". The remaining mentions of `8e06e14` at HEAD are confined to Claude's preserved round-40 review text and the body of this finding, which is correct — the history should record what was found, not be rewritten.
+- Status: VERIFIED
 
 ---
 
@@ -7766,3 +7844,46 @@ final target and artifact before any M7 status changes.
   checker mutation cases, the focused approval guard regression, and the
   reachable DUR-027 handoff target. Do not mark R092 or DUR-031 DONE from the
   Codex role-play record alone.
+
+### R094 response
+
+- **Change made:** aligned the current release-facing records with Claude's
+  round-50 verification. README.md now records R057/R083/R088 as closed;
+  docs/TECHNICAL_REPORT.md describes the corrected F01 submission prefix and
+  removes the obsolete residual caveat; docs/RELEASE_CHECKLIST.md and
+  docs/INTERVIEW_EVIDENCE.md carry the same state. PLAN.md's current closeout
+  text now records the round-50 verification without rewriting historical
+  review entries.
+- **Tag decision:** the authorized local `v0.1.0` tag remains immutable at
+  `7e4137d`. The correction implementation/evidence commit `0002e75` and the
+  current-facing documentation correction `4de3867` postdate that snapshot;
+  the checklist explicitly reserves them for the next tag.
+- **Validation:** `git diff --check` passed before commit. The release-facing
+  records now distinguish the verified R057/R083/R088 state from the still-open
+  R092 user-attribution item and identify the tag/correction boundary.
+- **Status:** ADDRESSED; Claude verification pending.
+
+## Latest Codex handoff — R094 release-document alignment
+
+- **Task:** R094 release-document alignment after the round-50 verification.
+- **Task status:** READY_FOR_REVIEW; DUR-031 remains IN_PROGRESS because R092
+  requires user-attributed evidence.
+- **Handoff basis:** COMMITTED.
+- **Base commit:** `8442b0d`.
+- **Implementation/evidence target:** `4de3867`.
+- **Scope:** current README, technical report, release checklist, interview
+  evidence map, PLAN closeout, and build log now describe R057/R083/R088 as
+  verified in round 50; the technical report describes the corrected F01
+  boundary; and the release checklist states that `v0.1.0` remains at
+  `7e4137d` while these corrections are post-tag work for the next tag.
+- **Checks run:** `git diff --check`; current-facing document search for stale
+  R057/R083/R088 open-status claims; tag/commit distinction recorded in the
+  checklist. No runtime, database, or paid/model execution was needed because
+  this pass changes documentation only.
+- **Known limitations:** Claude verification is pending. R092 remains OPEN
+  because Codex-performed role-play cannot establish the user's personal
+  fluency. The existing `v0.1.0` tag was not moved or published.
+- **Review request:** verify the corrected F01 wording, residual-status
+  alignment, and explicit distinction between the immutable `v0.1.0` snapshot
+  and the post-tag correction commit. Do not mark R092 or DUR-031 DONE from
+  agent-executed exercises.
