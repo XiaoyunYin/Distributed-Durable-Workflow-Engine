@@ -1,7 +1,7 @@
 {
   "History": [
     {
-      "WorkflowID": "m5-fixture-F03-relay-retry-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F03-relay-retry-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 1,
       "ActorKind": "client",
       "SchedulerEpoch": null,
@@ -10,19 +10,19 @@
       "Reason": "WORKFLOW_CREATED"
     },
     {
-      "WorkflowID": "m5-fixture-F03-relay-retry-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F03-relay-retry-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 2,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 69,
+      "SchedulerEpoch": 669,
       "OldState": "RUNNABLE",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "M5_FIXTURE_ACTIVITY"
     },
     {
-      "WorkflowID": "m5-fixture-F03-relay-retry-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F03-relay-retry-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 3,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 69,
+      "SchedulerEpoch": 669,
       "OldState": "WAITING_ACTIVITY",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "ATTEMPT_CREATED"
@@ -32,21 +32,21 @@
   "Submissions": [
     {
       "Namespace": "m5-fixture",
-      "Key": "key-F03-relay-retry-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "Hash": "sub-v1:m5-fixture-F03-relay-retry-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "WorkflowID": "m5-fixture-F03-relay-retry-847a5c46acd546a2aab7a08cf4accbe8-11"
+      "Key": "key-F03-relay-retry-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Hash": "sub-v1:m5-fixture-F03-relay-retry-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "WorkflowID": "m5-fixture-F03-relay-retry-c7e0ea1bce5047559512f80c14c69e3d-11"
     }
   ],
   "Attempts": [
     {
-      "WorkflowID": "m5-fixture-F03-relay-retry-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F03-relay-retry-c7e0ea1bce5047559512f80c14c69e3d-11",
       "NodeID": "root",
       "Iteration": 0,
       "AttemptNumber": 1,
       "State": "CLAIMED",
-      "ClaimToken": "e1382c14-f2b2-40d3-bde6-f2eeecda65a0",
+      "ClaimToken": "5bb06ecf-f841-456a-92af-24a57308b467",
       "WorkerID": "m5-fixture-worker",
-      "WorkerRequestID": "m5-request-F03-relay-retry-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkerRequestID": "m5-request-F03-relay-retry-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Outcome": "NONE",
       "IsCurrent": true,
       "ResultRecorded": false
@@ -54,8 +54,8 @@
   ],
   "Outbox": [
     {
-      "WorkflowID": "m5-fixture-F03-relay-retry-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "EventID": "3e4d4800-ad49-4eba-8aea-4a227a8cfe1e",
+      "WorkflowID": "m5-fixture-F03-relay-retry-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "EventID": "d44ca941-eeb1-4e24-8088-fd01ac1242a3",
       "AggregateRevision": 1,
       "EventType": "workflow.created",
       "Topic": "durable-agent.events.v1",
@@ -63,18 +63,25 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F03-relay-retry-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "EventID": "c20c4282-4206-4519-8fe4-b86a0b615360",
+      "WorkflowID": "m5-fixture-F03-relay-retry-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "EventID": "08ccf5f7-22b4-410c-a588-0d8485826980",
       "AggregateRevision": 3,
       "EventType": "attempt.dispatch",
       "Topic": "durable-agent.tasks.v1",
-      "PublishState": "PENDING",
+      "PublishState": "CLAIMED",
       "PayloadValid": true
     }
   ],
   "Inbox": null,
   "Wakeups": null,
-  "Reconciliation": null,
+  "Reconciliation": [
+    {
+      "WorkflowID": "",
+      "Kind": "POISON_RECORD",
+      "Reference": "transport/m3-relay-consumer-ce22d8e0-919d-4c11-a721-c27272faca2b/durable-agent.events.v1/0/2",
+      "Status": "OPEN"
+    }
+  ],
   "Checkpoints": null,
   "Effects": null,
   "EffectCalls": null,
@@ -113,6 +120,24 @@
     },
     {
       "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
       "Topic": "durable-agent.events.v1",
       "Partition": 0,
       "NextOffset": 0

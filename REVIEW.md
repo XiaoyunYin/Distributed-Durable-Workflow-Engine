@@ -6979,9 +6979,10 @@ final target and artifact before any M7 status changes.
 - **Exact base commit:** `bdd8958` (the round-39 reviewed DUR-027 target).
 - **Exact source campaign target:** `bd86b20`; the final pilot and campaign
   artifacts were generated from this source target.
-- **Exact target commit:** `8e06e14` (final evidence, plan/build-log updates,
-  and the substantive handoff; the current handoff metadata is committed
-  afterward).
+- **Exact reviewed target:** `71fd54a` (reachable substantive implementation
+  and evidence state). The campaign source is `bd86b20`; the current handoff
+  metadata is committed afterward. The previously drafted `8e06e14` object is
+  not an acceptance target because it is unreachable from repository refs.
 - **Scope:** R082 is addressed by measuring crash recovery from controller-
   confirmed non-zero fixture death. The fixture self-exits with status 137
   immediately after `owner_crash_armed`; it does not run deferred cleanup, so
@@ -7681,3 +7682,52 @@ final target and artifact before any M7 status changes.
   is preserved. Claude's initial contaminated run and pristine rerun are
   both recorded; no new validation claim is inferred from the contaminated
   run.
+
+## Codex residual correction pass — round 50
+
+### R057 response
+
+- **Change made:** `F01-response-loss` now acknowledges `submission_committed`
+  immediately after the workflow submission commits, before activity
+  transition, attempt creation, or claim. The checker rejects a submission
+  boundary that contains durable activity work. The outbox fixture paths now
+  carry their durable event identity; `outbox_insert` requires the committed
+  `workflow.created` event, `before_publish` requires a claimed
+  `attempt.dispatch`, and `after_broker_ack` requires that same event to be
+  published.
+- **Validation:** checker regressions cover both an overshot submission and a
+  claimed-but-not-published broker-ack boundary. The corrected campaign
+  completed 48/48 and the offline archive checker passed all 48 snapshots;
+  F01/F03/F04 now carry the expected durable prefixes.
+- **Status:** ADDRESSED; Claude verification pending.
+
+### R083 response
+
+- **Change made:** corrected the current DUR-027 handoff's exact reviewed
+  target to reachable `71fd54a`, with `bd86b20` explicitly labelled as the
+  campaign source. The orphaned `8e06e14` remains only in preserved historical
+  review text and is explicitly excluded as an acceptance target.
+- **Validation:** `git cat-file -t 71fd54a` resolves and the target is an
+  ancestor of `HEAD`; the current handoff no longer uses the unreachable
+  object.
+- **Status:** ADDRESSED; Claude verification pending.
+
+### R088 response
+
+- **Change made:** added a focused M4 integration assertion that calls
+  `ValidateApprovalGrant` with a mismatched `ResourceID` and requires
+  `ErrEffectResource`, retaining the valid-grant positive control.
+- **Validation:** the focused state test passes against PostgreSQL with race
+  detection; the isolated serial state/invariant suite also passes. No
+  production approval rule changed.
+- **Status:** ADDRESSED; Claude verification pending.
+
+### R092 response
+
+- **Disposition:** no repository change can truthfully satisfy the remaining
+  personal-participation requirement. The interview pack already provides the
+  exact three exercises, commands, expected outputs, and attribution template
+  for the user to complete in a disposable copy.
+- **Status:** OPEN pending user-attributed evidence or an explicit user
+  decision to waive/defer that acceptance requirement. Codex will not claim
+  that agent-executed role-play proves the user's personal fluency.

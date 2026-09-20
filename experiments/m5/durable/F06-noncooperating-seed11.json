@@ -1,7 +1,7 @@
 {
   "History": [
     {
-      "WorkflowID": "m5-fixture-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 1,
       "ActorKind": "client",
       "SchedulerEpoch": null,
@@ -10,19 +10,19 @@
       "Reason": "WORKFLOW_CREATED"
     },
     {
-      "WorkflowID": "m5-fixture-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 2,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 641,
+      "SchedulerEpoch": 1076,
       "OldState": "RUNNABLE",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "M5_FIXTURE_ACTIVITY"
     },
     {
-      "WorkflowID": "m5-fixture-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 3,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 641,
+      "SchedulerEpoch": 1076,
       "OldState": "WAITING_ACTIVITY",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "ATTEMPT_CREATED"
@@ -32,21 +32,21 @@
   "Submissions": [
     {
       "Namespace": "m5-fixture",
-      "Key": "key-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "Hash": "sub-v1:m5-fixture-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "WorkflowID": "m5-fixture-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11"
+      "Key": "key-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Hash": "sub-v1:m5-fixture-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "WorkflowID": "m5-fixture-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11"
     }
   ],
   "Attempts": [
     {
-      "WorkflowID": "m5-fixture-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
       "NodeID": "root",
       "Iteration": 0,
       "AttemptNumber": 1,
       "State": "CLAIMED",
-      "ClaimToken": "724f313b-78c8-4da5-8bbe-2ebc9c90e3a7",
+      "ClaimToken": "27bc3be6-823a-4238-befc-70d3e8c8df1e",
       "WorkerID": "m5-fixture-worker",
-      "WorkerRequestID": "m5-request-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkerRequestID": "m5-request-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Outcome": "NONE",
       "IsCurrent": true,
       "ResultRecorded": false
@@ -54,8 +54,8 @@
   ],
   "Outbox": [
     {
-      "WorkflowID": "m5-fixture-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "EventID": "5a2356c1-fdad-4d17-a421-1d00dbaedc95",
+      "WorkflowID": "m5-fixture-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "EventID": "340e7614-b4c6-4821-be9f-ea41090a7218",
       "AggregateRevision": 1,
       "EventType": "workflow.created",
       "Topic": "durable-agent.events.v1",
@@ -63,8 +63,8 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "EventID": "3b9a87d4-17b3-4f44-9312-31e246a6b8c4",
+      "WorkflowID": "m5-fixture-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "EventID": "52805a8b-4117-40bf-a670-7488411fdab9",
       "AggregateRevision": 3,
       "EventType": "attempt.dispatch",
       "Topic": "durable-agent.tasks.v1",
@@ -78,9 +78,9 @@
   "Checkpoints": null,
   "Effects": [
     {
-      "WorkflowID": "m5-fixture-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
       "IntentID": "",
-      "LogicalEffectKey": "m5-effect-F06-noncooperating-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "LogicalEffectKey": "m5-effect-F06-noncooperating-c7e0ea1bce5047559512f80c14c69e3d-11",
       "ArgumentHash": "eec7b9f1037e9d0bfaf353c915fef6c24a6b2fdaf1ddab4208341cc315fdfba7",
       "AttemptNumber": 1,
       "GrantScopeHash": "",
@@ -142,7 +142,25 @@
       "NextOffset": 0
     },
     {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
       "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Topic": "durable-agent.events.v1",
       "Partition": 0,
       "NextOffset": 0

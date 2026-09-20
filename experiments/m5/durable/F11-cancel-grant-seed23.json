@@ -1,7 +1,7 @@
 {
   "History": [
     {
-      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Revision": 1,
       "ActorKind": "client",
       "SchedulerEpoch": null,
@@ -10,19 +10,19 @@
       "Reason": "WORKFLOW_CREATED"
     },
     {
-      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Revision": 2,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 36,
+      "SchedulerEpoch": 778,
       "OldState": "RUNNABLE",
       "NewState": "WAITING_APPROVAL",
       "Reason": "APPROVAL_REQUESTED"
     },
     {
-      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Revision": 3,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 36,
+      "SchedulerEpoch": 778,
       "OldState": "WAITING_APPROVAL",
       "NewState": "RUNNABLE",
       "Reason": "APPROVAL_GRANTED"
@@ -32,16 +32,16 @@
   "Submissions": [
     {
       "Namespace": "m5-fixture",
-      "Key": "key-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "Hash": "sub-v1:m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23"
+      "Key": "key-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "Hash": "sub-v1:m5-fixture-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "WorkflowID": "m5-fixture-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23"
     }
   ],
   "Attempts": null,
   "Outbox": [
     {
-      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "EventID": "dafc8639-ba05-46ea-8c60-d5aadf2a23be",
+      "WorkflowID": "m5-fixture-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "EventID": "ddde28ed-38b6-43c2-8802-e95b1fec07e4",
       "AggregateRevision": 1,
       "EventType": "workflow.created",
       "Topic": "durable-agent.events.v1",
@@ -49,8 +49,8 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "EventID": "5f19cfa9-025c-4d33-aadc-9a93672f2ca5",
+      "WorkflowID": "m5-fixture-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "EventID": "9b25c581-70fb-4ce3-9942-2d1c707065b1",
       "AggregateRevision": 2,
       "EventType": "approval.requested",
       "Topic": "durable-agent.events.v1",
@@ -58,8 +58,8 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "EventID": "4c4d3345-73e2-44c4-986e-082ff2f9878c",
+      "WorkflowID": "m5-fixture-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "EventID": "8f20feae-850c-452f-94b3-df28649f1b1c",
       "AggregateRevision": 3,
       "EventType": "approval.granted",
       "Topic": "durable-agent.events.v1",
@@ -75,19 +75,19 @@
   "EffectCalls": null,
   "Approvals": [
     {
-      "IntentID": "607eb3f4-66a2-45df-a031-0305b2d4b28c",
-      "WorkflowID": "m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "IntentID": "e8ef9613-917a-45e5-bee3-e6a68cf503b9",
+      "WorkflowID": "m5-fixture-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23",
       "NodeID": "root",
       "Iteration": 0,
-      "ProposalHash": "1daf72f64a79e01ab7455a3479e5226f7292f83414683199eff15f6df46e5a68",
-      "Target": "m5-resource-m5-fixture-F11-cancel-grant-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "ProposalHash": "ac05becc2aaa4fe997675a46f82588d58b20468528f68dd052baa7773a2ebfb4",
+      "Target": "m5-resource-m5-fixture-F11-cancel-grant-c7e0ea1bce5047559512f80c14c69e3d-23",
       "ArgumentsValid": true,
       "CanonicalArgumentHash": "ef29d0825cf3ae5135da05d1c3b51cbed0cb8e8407c8a3a983e7e7f31295102a",
       "ExpectedResourceRevision": "0",
       "Decision": "APPROVED",
       "DispatchStatus": "GRANTED",
-      "GrantScopeHash": "51af21deb8905b218c1b8119d47339bf8b63b0f221c8bf65e6d2727478990401",
-      "GrantToken": "3ad31f91-233f-41fc-bccc-4aacbbe94e05"
+      "GrantScopeHash": "99d9769f038934189dc19565d25d0661bf84deb8804f8ffcef85be0f60f13e6e",
+      "GrantToken": "434b69c9-c649-467c-b11f-2cb6ad965a6a"
     }
   ],
   "Timers": null,
@@ -141,7 +141,25 @@
       "NextOffset": 0
     },
     {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
       "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Topic": "durable-agent.events.v1",
       "Partition": 0,
       "NextOffset": 0

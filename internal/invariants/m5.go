@@ -130,9 +130,15 @@ func checkFaultJoins(trace Trace, faults []FaultEvidence, violations *[]string) 
 			if !traceHasSubmission(trace, fault.WorkflowID) {
 				*violations = append(*violations, "submission boundary has no durable submission: "+fault.WorkflowID)
 			}
+			if traceHasAnyAttempt(trace, fault.WorkflowID) {
+				*violations = append(*violations, "submission boundary has durable activity work: "+fault.WorkflowID)
+			}
 		case "outbox_insert", "before_publish", "after_broker_ack", "before_offset_ack", "outbox_published":
-			if !traceHasOutbox(trace, fault.WorkflowID) {
-				*violations = append(*violations, "fault boundary has no durable outbox event: "+fault.WorkflowID)
+			eventType, hasEventType := durableEventType(fault)
+			if !hasEventType {
+				*violations = append(*violations, "outbox boundary lacks durable event type: "+fault.WorkflowID)
+			} else if !traceHasOutboxEvent(trace, fault.WorkflowID, eventType, outboxStateForBoundary(fault.Boundary)) {
+				*violations = append(*violations, "fault boundary has no matching durable outbox event: "+fault.WorkflowID+"/"+eventType)
 			}
 			if fault.Boundary == "before_offset_ack" && !traceHasConsumerOffset(trace, fault) {
 				*violations = append(*violations, "offset boundary has no durable consumer offset: "+fault.WorkflowID)
@@ -192,6 +198,43 @@ func checkFaultJoins(trace Trace, faults []FaultEvidence, violations *[]string) 
 func traceHasSubmission(trace Trace, workflowID string) bool {
 	for _, item := range trace.Submissions {
 		if item.WorkflowID == workflowID {
+			return true
+		}
+	}
+	return false
+}
+
+func traceHasAnyAttempt(trace Trace, workflowID string) bool {
+	for _, attempt := range trace.Attempts {
+		if attempt.WorkflowID == workflowID {
+			return true
+		}
+	}
+	return false
+}
+
+func durableEventType(fault FaultEvidence) (string, bool) {
+	eventType, ok := fault.Fields["durable_event_type"].(string)
+	return eventType, ok && eventType != ""
+}
+
+func outboxStateForBoundary(boundary string) string {
+	switch boundary {
+	case "outbox_insert":
+		return "PENDING"
+	case "before_publish":
+		return "CLAIMED"
+	case "after_broker_ack", "outbox_published":
+		return "PUBLISHED"
+	default:
+		return ""
+	}
+}
+
+func traceHasOutboxEvent(trace Trace, workflowID, eventType, publishState string) bool {
+	for _, event := range trace.Outbox {
+		if event.WorkflowID == workflowID && event.EventType == eventType &&
+			(publishState == "" || event.PublishState == publishState) {
 			return true
 		}
 	}

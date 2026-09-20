@@ -134,3 +134,39 @@ func TestFaultCheckerRejectsUnknownCampaignBoundary(t *testing.T) {
 		t.Fatalf("unknown boundary was accepted: %+v", verdict)
 	}
 }
+
+func TestFaultCheckerRejectsSubmissionBoundaryAfterActivityWork(t *testing.T) {
+	evidence := linkedFaultEvidence()
+	evidence.Boundary = "submission_committed"
+	trace := Trace{
+		History:     []HistoryRecord{{WorkflowID: "wf-1", Revision: 1, NewState: "RUNNABLE"}},
+		Submissions: []SubmissionRecord{{Namespace: "default", Key: "k", Hash: "sub-v1:x", WorkflowID: "wf-1"}},
+		Attempts:    []AttemptRecord{{WorkflowID: "wf-1", NodeID: "root", AttemptNumber: 1, State: "CLAIMED"}},
+	}
+	verdict := CheckWithFaults(trace, []FaultEvidence{evidence})
+	joined := strings.Join(verdict.Violations, "\n")
+	if verdict.Valid || !strings.Contains(joined, "submission boundary has durable activity work") {
+		t.Fatalf("overshot submission boundary was accepted: %+v", verdict)
+	}
+}
+
+func TestFaultCheckerRequiresOutboxBoundaryIdentityAndState(t *testing.T) {
+	evidence := linkedFaultEvidence()
+	evidence.Boundary = "after_broker_ack"
+	evidence.Fields = map[string]any{"durable_event_type": "attempt.dispatch"}
+	trace := Trace{
+		History:     []HistoryRecord{{WorkflowID: "wf-1", Revision: 1, NewState: "RUNNABLE"}},
+		Submissions: []SubmissionRecord{{Namespace: "default", Key: "k", Hash: "sub-v1:x", WorkflowID: "wf-1"}},
+		Outbox: []OutboxRecord{{WorkflowID: "wf-1", EventID: "event-1", AggregateRevision: 2,
+			EventType: "attempt.dispatch", Topic: "durable-agent.tasks.v1", PublishState: "CLAIMED", PayloadValid: true}},
+	}
+	verdict := CheckWithFaults(trace, []FaultEvidence{evidence})
+	joined := strings.Join(verdict.Violations, "\n")
+	if verdict.Valid || !strings.Contains(joined, "matching durable outbox event") {
+		t.Fatalf("unpublished outbox was accepted as broker acknowledgement: %+v", verdict)
+	}
+	trace.Outbox[0].PublishState = "PUBLISHED"
+	if verdict := CheckWithFaults(trace, []FaultEvidence{evidence}); !verdict.Valid {
+		t.Fatalf("published outbox was rejected: %v", verdict.Violations)
+	}
+}

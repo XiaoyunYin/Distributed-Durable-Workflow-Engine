@@ -1103,7 +1103,7 @@ contract revision.
 - **Implementation commits:** `6ab54ea`, `69917db`, and `acb28ba`.
 - **Review:** Claude's committed round-23 review of `acb28ba` against
   `69917db` returned `NO_BLOCKING_FINDINGS`; R055, R056, and R058 are VERIFIED.
-  R057 remains OPEN as a nonblocking P3 evidence-labelling limitation.
+  R057 remains OPEN pending review of the round-50 fixture/checker correction.
 - **Remaining limitations:** The fault proxy is a local test-profile control;
   the real Kafka adapter/rebalance, multi-host deployment, hard-kill storage
   durability, sustained-load measurements, and remote CI remain untested.
@@ -1559,7 +1559,8 @@ contract revision.
   explicit instruction, not a claim that the user personally performed them.
   No deferral or change to acceptance is assumed; Claude must decide whether
   the requested role-play satisfies the project's interview requirement.
-- **Known limitations:** R057, R083 and R088 remain open. The
+- **Known limitations:** R057 and R083 remain open pending review; R088 has a
+  focused validation regression pending review. The
   pack does not turn bounded local studies into production or multi-host
   claims.
 

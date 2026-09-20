@@ -1,5 +1,30 @@
 # Build log
 
+## 2026-09-20 - Residual correction pass for R057, R083 and R088
+
+Commit `9150d0d` contains this correction pass. The F01 fault fixture now
+stops immediately after the durable submission commits, before lease/attempt
+work. The independent fault checker rejects an
+overshot submission boundary and now requires event identity plus publication
+state for the outbox boundary joins. Relay fixture paths identify the durable
+`attempt.dispatch` event; the broker-ack case marks that event published.
+
+Added checker regressions for both classes of overshoot and a focused
+`ValidateApprovalGrant` resource-binding regression requiring
+`ErrEffectResource` for a mismatched resource. The current DUR-027 handoff in
+REVIEW.md now names reachable target `71fd54a` and records `bd86b20` as the
+campaign source; the orphaned `8e06e14` is explicitly not an acceptance target.
+
+Focused invariant tests pass. The corrected campaign then completed 16 cases
+× 3 seeds (48/48); the archived checker passed all 48 traces offline. The
+F01 seed-11 snapshot has zero activity attempts, F03 has a claimed
+`attempt.dispatch`, and F04 has the same event in `PUBLISHED` state. The
+focused M4 approval regression and the isolated race-enabled state/invariant
+suite also pass with relay services stopped to prevent shared-fixture
+interference. Claude verification remains pending. R092 is intentionally not
+represented as closed: personal walkthrough evidence must be attributable to
+the user, and the repository retains its explicit user-action checklist.
+
 ## 2026-09-20 - Local v0.1.0 release tag
 
 The user authorized release/tag creation. After confirming the worktree was

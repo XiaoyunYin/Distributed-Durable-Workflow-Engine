@@ -1,7 +1,7 @@
 {
   "History": [
     {
-      "WorkflowID": "m5-fixture-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 1,
       "ActorKind": "client",
       "SchedulerEpoch": null,
@@ -14,16 +14,16 @@
   "Submissions": [
     {
       "Namespace": "m5-fixture",
-      "Key": "key-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "Hash": "sub-v1:m5-fixture-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "WorkflowID": "m5-fixture-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11"
+      "Key": "key-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Hash": "sub-v1:m5-fixture-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "WorkflowID": "m5-fixture-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11"
     }
   ],
   "Attempts": null,
   "Outbox": [
     {
-      "WorkflowID": "m5-fixture-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "EventID": "3589de3f-c94f-4ef7-8cac-ef7b2bd96483",
+      "WorkflowID": "m5-fixture-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "EventID": "0003326d-dd09-420b-b9d9-cd126ad1aacc",
       "AggregateRevision": 1,
       "EventType": "workflow.created",
       "Topic": "durable-agent.events.v1",
@@ -37,7 +37,7 @@
     {
       "WorkflowID": "",
       "Kind": "POISON_RECORD",
-      "Reference": "transport/m3-relay-consumer-7a78a42d-d8ad-4388-8858-62fe7c2744f3/durable-agent.events.v1/0/2",
+      "Reference": "transport/m3-relay-consumer-33bf227e-2c65-4c7f-8929-f7b4effa3065/durable-agent.events.v1/0/2",
       "Status": "OPEN"
     }
   ],
@@ -85,6 +85,24 @@
     },
     {
       "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
       "Topic": "durable-agent.events.v1",
       "Partition": 0,
       "NextOffset": 0

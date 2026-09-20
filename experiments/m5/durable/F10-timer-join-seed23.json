@@ -1,7 +1,7 @@
 {
   "History": [
     {
-      "WorkflowID": "m5-fixture-F10-timer-join-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F10-timer-join-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Revision": 1,
       "ActorKind": "client",
       "SchedulerEpoch": null,
@@ -10,19 +10,19 @@
       "Reason": "WORKFLOW_CREATED"
     },
     {
-      "WorkflowID": "m5-fixture-F10-timer-join-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F10-timer-join-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Revision": 2,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 26,
+      "SchedulerEpoch": 1485,
       "OldState": "RUNNABLE",
       "NewState": "WAITING_TIMER",
       "Reason": "TIMER_SCHEDULED"
     },
     {
-      "WorkflowID": "m5-fixture-F10-timer-join-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F10-timer-join-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Revision": 3,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 26,
+      "SchedulerEpoch": 1485,
       "OldState": "WAITING_TIMER",
       "NewState": "RUNNABLE",
       "Reason": "TIMER_DUE"
@@ -32,16 +32,16 @@
   "Submissions": [
     {
       "Namespace": "m5-fixture",
-      "Key": "key-F10-timer-join-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "Hash": "sub-v1:m5-fixture-F10-timer-join-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "WorkflowID": "m5-fixture-F10-timer-join-847a5c46acd546a2aab7a08cf4accbe8-23"
+      "Key": "key-F10-timer-join-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "Hash": "sub-v1:m5-fixture-F10-timer-join-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "WorkflowID": "m5-fixture-F10-timer-join-c7e0ea1bce5047559512f80c14c69e3d-23"
     }
   ],
   "Attempts": null,
   "Outbox": [
     {
-      "WorkflowID": "m5-fixture-F10-timer-join-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "EventID": "02596d20-e0f0-4b33-b747-b54438c4fab4",
+      "WorkflowID": "m5-fixture-F10-timer-join-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "EventID": "2aba972f-99cd-4005-938d-7939eeaea693",
       "AggregateRevision": 1,
       "EventType": "workflow.created",
       "Topic": "durable-agent.events.v1",
@@ -49,8 +49,8 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F10-timer-join-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "EventID": "371d213f-4b9f-4748-b8c7-ed7b36b2f1f9",
+      "WorkflowID": "m5-fixture-F10-timer-join-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "EventID": "621ffc95-7fae-4f90-8835-2f6eba67fd6e",
       "AggregateRevision": 2,
       "EventType": "timer.scheduled",
       "Topic": "durable-agent.events.v1",
@@ -67,7 +67,7 @@
   "Approvals": null,
   "Timers": [
     {
-      "WorkflowID": "m5-fixture-F10-timer-join-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F10-timer-join-c7e0ea1bce5047559512f80c14c69e3d-23",
       "NodeID": "root",
       "Iteration": 0,
       "Purpose": "WORKFLOW_TIMER",
@@ -124,7 +124,25 @@
       "NextOffset": 0
     },
     {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
       "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Topic": "durable-agent.events.v1",
       "Partition": 0,
       "NextOffset": 0

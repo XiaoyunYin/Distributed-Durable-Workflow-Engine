@@ -125,6 +125,13 @@ func TestM4CheckpointRetryAndApprovalPersistence(t *testing.T) {
 	}); err != nil {
 		t.Fatalf("validate grant: %v", err)
 	}
+	if _, err := store.ValidateApprovalGrant(ctx, GrantValidationInput{
+		IntentID: grant.IntentID, GrantToken: grant.GrantToken, GrantScopeHash: grant.GrantScopeHash,
+		LogicalEffectKey: "approval-effect", WorkflowID: approvalWorkflowID, NodeID: "root", Iteration: 0,
+		ResourceID: "resource-not-approved",
+	}); !errors.Is(err, ErrEffectResource) {
+		t.Fatalf("validate grant resource mismatch = %v, want %v", err, ErrEffectResource)
+	}
 }
 
 func TestM4EffectLedgerAndFencing(t *testing.T) {

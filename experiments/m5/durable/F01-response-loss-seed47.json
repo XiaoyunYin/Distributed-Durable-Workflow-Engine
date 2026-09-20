@@ -1,80 +1,46 @@
 {
   "History": [
     {
-      "WorkflowID": "m5-fixture-F01-response-loss-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkflowID": "m5-fixture-F01-response-loss-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Revision": 1,
       "ActorKind": "client",
       "SchedulerEpoch": null,
       "OldState": "",
       "NewState": "RUNNABLE",
       "Reason": "WORKFLOW_CREATED"
-    },
-    {
-      "WorkflowID": "m5-fixture-F01-response-loss-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "Revision": 2,
-      "ActorKind": "scheduler",
-      "SchedulerEpoch": 6,
-      "OldState": "RUNNABLE",
-      "NewState": "WAITING_ACTIVITY",
-      "Reason": "M5_FIXTURE_ACTIVITY"
-    },
-    {
-      "WorkflowID": "m5-fixture-F01-response-loss-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "Revision": 3,
-      "ActorKind": "scheduler",
-      "SchedulerEpoch": 6,
-      "OldState": "WAITING_ACTIVITY",
-      "NewState": "WAITING_ACTIVITY",
-      "Reason": "ATTEMPT_CREATED"
     }
   ],
   "Results": null,
   "Submissions": [
     {
       "Namespace": "m5-fixture",
-      "Key": "key-F01-response-loss-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "Hash": "sub-v1:m5-fixture-F01-response-loss-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "WorkflowID": "m5-fixture-F01-response-loss-847a5c46acd546a2aab7a08cf4accbe8-47"
+      "Key": "key-F01-response-loss-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "Hash": "sub-v1:m5-fixture-F01-response-loss-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "WorkflowID": "m5-fixture-F01-response-loss-c7e0ea1bce5047559512f80c14c69e3d-47"
     }
   ],
-  "Attempts": [
-    {
-      "WorkflowID": "m5-fixture-F01-response-loss-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "NodeID": "root",
-      "Iteration": 0,
-      "AttemptNumber": 1,
-      "State": "CLAIMED",
-      "ClaimToken": "782a7ef5-2222-4eae-91ea-4240b6346f9d",
-      "WorkerID": "m5-fixture-worker",
-      "WorkerRequestID": "m5-request-F01-response-loss-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "Outcome": "NONE",
-      "IsCurrent": true,
-      "ResultRecorded": false
-    }
-  ],
+  "Attempts": null,
   "Outbox": [
     {
-      "WorkflowID": "m5-fixture-F01-response-loss-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "EventID": "3bfd5c9a-9e32-4304-afdb-9995e4f8b75a",
+      "WorkflowID": "m5-fixture-F01-response-loss-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "EventID": "3b1ec86a-0de9-4d47-9061-14db090d9bcb",
       "AggregateRevision": 1,
       "EventType": "workflow.created",
       "Topic": "durable-agent.events.v1",
-      "PublishState": "PENDING",
-      "PayloadValid": true
-    },
-    {
-      "WorkflowID": "m5-fixture-F01-response-loss-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "EventID": "b7a8d428-db15-49f6-8563-90e8a9d03eda",
-      "AggregateRevision": 3,
-      "EventType": "attempt.dispatch",
-      "Topic": "durable-agent.tasks.v1",
       "PublishState": "PENDING",
       "PayloadValid": true
     }
   ],
   "Inbox": null,
   "Wakeups": null,
-  "Reconciliation": null,
+  "Reconciliation": [
+    {
+      "WorkflowID": "",
+      "Kind": "POISON_RECORD",
+      "Reference": "transport/m3-relay-consumer-ce22d8e0-919d-4c11-a721-c27272faca2b/durable-agent.events.v1/0/2",
+      "Status": "OPEN"
+    }
+  ],
   "Checkpoints": null,
   "Effects": null,
   "EffectCalls": null,
@@ -113,6 +79,24 @@
     },
     {
       "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
       "Topic": "durable-agent.events.v1",
       "Partition": 0,
       "NextOffset": 0

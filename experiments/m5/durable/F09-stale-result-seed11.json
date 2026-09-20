@@ -1,7 +1,7 @@
 {
   "History": [
     {
-      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 1,
       "ActorKind": "client",
       "SchedulerEpoch": null,
@@ -10,28 +10,28 @@
       "Reason": "WORKFLOW_CREATED"
     },
     {
-      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 2,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 7,
+      "SchedulerEpoch": 742,
       "OldState": "RUNNABLE",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "M5_FIXTURE_ACTIVITY"
     },
     {
-      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 3,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 7,
+      "SchedulerEpoch": 742,
       "OldState": "WAITING_ACTIVITY",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "ATTEMPT_CREATED"
     },
     {
-      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Revision": 4,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 7,
+      "SchedulerEpoch": 742,
       "OldState": "WAITING_ACTIVITY",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "TIMEOUT_REPLACEMENT"
@@ -41,27 +41,27 @@
   "Submissions": [
     {
       "Namespace": "m5-fixture",
-      "Key": "key-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "Hash": "sub-v1:m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11"
+      "Key": "key-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Hash": "sub-v1:m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "WorkflowID": "m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11"
     }
   ],
   "Attempts": [
     {
-      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
       "NodeID": "root",
       "Iteration": 0,
       "AttemptNumber": 1,
       "State": "TIMED_OUT",
-      "ClaimToken": "47962108-96e5-4c82-8983-a52290f12d2f",
+      "ClaimToken": "75055c91-d195-4ba7-9787-c14ef885d964",
       "WorkerID": "m5-fixture-worker",
-      "WorkerRequestID": "m5-request-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkerRequestID": "m5-request-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
       "Outcome": "NONE",
       "IsCurrent": false,
       "ResultRecorded": false
     },
     {
-      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "WorkflowID": "m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
       "NodeID": "root",
       "Iteration": 0,
       "AttemptNumber": 2,
@@ -76,8 +76,8 @@
   ],
   "Outbox": [
     {
-      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "EventID": "9c492e8e-920d-4a42-ab78-b9e74cc4c2cf",
+      "WorkflowID": "m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "EventID": "89aec466-e91a-4a28-81be-31af0e912102",
       "AggregateRevision": 1,
       "EventType": "workflow.created",
       "Topic": "durable-agent.events.v1",
@@ -85,8 +85,8 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "EventID": "3bef290e-162a-4645-9370-717590228e6d",
+      "WorkflowID": "m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "EventID": "02c4b9ac-bdbd-41d1-a9aa-b34d6172edef",
       "AggregateRevision": 3,
       "EventType": "attempt.dispatch",
       "Topic": "durable-agent.tasks.v1",
@@ -94,8 +94,8 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F09-stale-result-847a5c46acd546a2aab7a08cf4accbe8-11",
-      "EventID": "8550c567-6c99-413c-a75a-6e4bf1a0160f",
+      "WorkflowID": "m5-fixture-F09-stale-result-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "EventID": "dae01a11-22d8-48bc-ba2c-e8d68c8199aa",
       "AggregateRevision": 4,
       "EventType": "attempt.dispatch",
       "Topic": "durable-agent.tasks.v1",
@@ -161,7 +161,25 @@
       "NextOffset": 0
     },
     {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
       "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Topic": "durable-agent.events.v1",
       "Partition": 0,
       "NextOffset": 0

@@ -13,7 +13,8 @@ Codex-performed walkthroughs (delegated by the user) have reviewed engineering
 evidence, but DUR-031's personal user exercises remain outstanding (R092).
 They do not establish the user's personal fluency; R092 remains an open P3
 under DUR-031. DUR-032 is reviewed and closed for reproduction/release
-validation, but release/tag creation remains explicitly authorization-gated.
+validation; the authorized local annotated tag is `v0.1.0` at `7e4137d` and
+was not published because no remote is configured.
 The results remain bounded to their
 declared fixtures and host, not to production scale or multi-host durability.
 

@@ -113,6 +113,17 @@ func main() {
 	}
 
 	if *caseID == "F02-rollback" {
+		fields["durable_event_type"] = "workflow.created"
+		hit()
+		return
+	}
+	// F01 models a response lost after the submission transaction commits.
+	// A submission boundary is intentionally before lease/attempt work: the
+	// client may retry while the original process has not reached any activity
+	// dispatch. Keeping this case ahead of the common activity setup makes the
+	// durable prefix match the boundary name rather than merely the requested
+	// fault action.
+	if *caseID == "F01-response-loss" {
 		hit()
 		return
 	}
@@ -191,6 +202,7 @@ func main() {
 			panic(err)
 		}
 		fields["durable_effect_key"] = events[0].EventID
+		fields["durable_event_type"] = events[0].EventType
 		hit()
 		return
 	}
@@ -306,8 +318,26 @@ func main() {
 
 	switch {
 	case *caseID == "F03-relay-retry" || *caseID == "F04-after-ack":
-		if _, err := store.ClaimOutbox(ctx, state.NewID(), 1, time.Minute); err != nil {
+		relayOwner := state.NewID()
+		events, err := store.ClaimOutbox(ctx, relayOwner, 10, time.Minute)
+		if err != nil {
 			panic(err)
+		}
+		var dispatchEvent *state.OutboxEvent
+		for index := range events {
+			if events[index].EventType == "attempt.dispatch" {
+				dispatchEvent = &events[index]
+				break
+			}
+		}
+		if dispatchEvent == nil {
+			panic("fixture did not claim its attempt.dispatch event")
+		}
+		fields["durable_event_type"] = dispatchEvent.EventType
+		if *caseID == "F04-after-ack" {
+			if err := store.MarkOutboxPublished(ctx, dispatchEvent.EventID, relayOwner, dispatchEvent.RelayAttempts); err != nil {
+				panic(err)
+			}
 		}
 		hit()
 	case strings.Contains(*caseID, "result") || *caseID == "F07-crash-resume" || *caseID == "F10-timer-join":

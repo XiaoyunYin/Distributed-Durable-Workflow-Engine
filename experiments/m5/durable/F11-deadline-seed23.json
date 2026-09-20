@@ -1,7 +1,7 @@
 {
   "History": [
     {
-      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Revision": 1,
       "ActorKind": "client",
       "SchedulerEpoch": null,
@@ -10,28 +10,28 @@
       "Reason": "WORKFLOW_CREATED"
     },
     {
-      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Revision": 2,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 1908,
+      "SchedulerEpoch": 744,
       "OldState": "RUNNABLE",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "M5_FIXTURE_ACTIVITY"
     },
     {
-      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Revision": 3,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 1908,
+      "SchedulerEpoch": 744,
       "OldState": "WAITING_ACTIVITY",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "ATTEMPT_CREATED"
     },
     {
-      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Revision": 4,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 1908,
+      "SchedulerEpoch": 744,
       "OldState": "WAITING_ACTIVITY",
       "NewState": "RECONCILIATION_REQUIRED",
       "Reason": "TIMEOUT_RECONCILIATION_REQUIRED"
@@ -41,21 +41,21 @@
   "Submissions": [
     {
       "Namespace": "m5-fixture",
-      "Key": "key-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "Hash": "sub-v1:m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23"
+      "Key": "key-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "Hash": "sub-v1:m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "WorkflowID": "m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23"
     }
   ],
   "Attempts": [
     {
-      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
       "NodeID": "root",
       "Iteration": 0,
       "AttemptNumber": 1,
       "State": "TIMED_OUT",
-      "ClaimToken": "0f3e45fc-c4ed-4b8f-afb8-1a67b7d68267",
+      "ClaimToken": "98c78afa-e4bf-44a9-8c54-a5594f6a0fc0",
       "WorkerID": "m5-fixture-worker",
-      "WorkerRequestID": "m5-request-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkerRequestID": "m5-request-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Outcome": "OUTCOME_UNKNOWN",
       "IsCurrent": false,
       "ResultRecorded": false
@@ -63,8 +63,8 @@
   ],
   "Outbox": [
     {
-      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "EventID": "08d82a7a-ee74-4957-b85d-adf39c1e7e2b",
+      "WorkflowID": "m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "EventID": "af71b05d-f193-485d-afb4-d36e12d641df",
       "AggregateRevision": 1,
       "EventType": "workflow.created",
       "Topic": "durable-agent.events.v1",
@@ -72,8 +72,8 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "EventID": "05633440-b59c-465b-9093-1baa8f084216",
+      "WorkflowID": "m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "EventID": "6ec74529-e341-45a8-9fdb-0ab384aeb8a5",
       "AggregateRevision": 3,
       "EventType": "attempt.dispatch",
       "Topic": "durable-agent.tasks.v1",
@@ -81,8 +81,8 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
-      "EventID": "63c66047-2621-4b78-b9d0-d25351b3cda4",
+      "WorkflowID": "m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "EventID": "7e31e089-c761-40d8-a8ea-e1bf99e0ecb8",
       "AggregateRevision": 4,
       "EventType": "reconciliation.required",
       "Topic": "durable-agent.events.v1",
@@ -94,9 +94,9 @@
   "Wakeups": null,
   "Reconciliation": [
     {
-      "WorkflowID": "m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "WorkflowID": "m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23",
       "Kind": "EXPIRED_ATTEMPT",
-      "Reference": "attempt/m5-fixture-F11-deadline-847a5c46acd546a2aab7a08cf4accbe8-23/root/0/1",
+      "Reference": "attempt/m5-fixture-F11-deadline-c7e0ea1bce5047559512f80c14c69e3d-23/root/0/1",
       "Status": "OPEN"
     }
   ],
@@ -155,7 +155,25 @@
       "NextOffset": 0
     },
     {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
       "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Topic": "durable-agent.events.v1",
       "Partition": 0,
       "NextOffset": 0

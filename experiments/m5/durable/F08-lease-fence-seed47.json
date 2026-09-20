@@ -1,7 +1,7 @@
 {
   "History": [
     {
-      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkflowID": "m5-fixture-F08-lease-fence-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Revision": 1,
       "ActorKind": "client",
       "SchedulerEpoch": null,
@@ -10,19 +10,19 @@
       "Reason": "WORKFLOW_CREATED"
     },
     {
-      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkflowID": "m5-fixture-F08-lease-fence-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Revision": 2,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 34,
+      "SchedulerEpoch": 776,
       "OldState": "RUNNABLE",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "M5_FIXTURE_ACTIVITY"
     },
     {
-      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkflowID": "m5-fixture-F08-lease-fence-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Revision": 3,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 34,
+      "SchedulerEpoch": 776,
       "OldState": "WAITING_ACTIVITY",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "ATTEMPT_CREATED"
@@ -32,21 +32,21 @@
   "Submissions": [
     {
       "Namespace": "m5-fixture",
-      "Key": "key-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "Hash": "sub-v1:m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-47"
+      "Key": "key-F08-lease-fence-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "Hash": "sub-v1:m5-fixture-F08-lease-fence-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "WorkflowID": "m5-fixture-F08-lease-fence-c7e0ea1bce5047559512f80c14c69e3d-47"
     }
   ],
   "Attempts": [
     {
-      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkflowID": "m5-fixture-F08-lease-fence-c7e0ea1bce5047559512f80c14c69e3d-47",
       "NodeID": "root",
       "Iteration": 0,
       "AttemptNumber": 1,
       "State": "CLAIMED",
-      "ClaimToken": "d44f8302-0b96-4724-b6ea-fbfc5fd5cdb7",
+      "ClaimToken": "0d37a5f5-7c76-4159-bcdb-2b56a2fbbd5f",
       "WorkerID": "m5-fixture-worker",
-      "WorkerRequestID": "m5-request-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkerRequestID": "m5-request-F08-lease-fence-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Outcome": "NONE",
       "IsCurrent": true,
       "ResultRecorded": false
@@ -54,8 +54,8 @@
   ],
   "Outbox": [
     {
-      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "EventID": "62b7459a-0184-4c4d-a95b-33700f9af4da",
+      "WorkflowID": "m5-fixture-F08-lease-fence-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "EventID": "73cf22cf-b92b-4173-a4ee-1ad77570f788",
       "AggregateRevision": 1,
       "EventType": "workflow.created",
       "Topic": "durable-agent.events.v1",
@@ -63,8 +63,8 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F08-lease-fence-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "EventID": "416b3ff0-00a3-4bb4-aea1-0ac4703da700",
+      "WorkflowID": "m5-fixture-F08-lease-fence-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "EventID": "43cf33de-7ac2-4af4-ae69-82eab473c969",
       "AggregateRevision": 3,
       "EventType": "attempt.dispatch",
       "Topic": "durable-agent.tasks.v1",
@@ -130,7 +130,25 @@
       "NextOffset": 0
     },
     {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
       "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Topic": "durable-agent.events.v1",
       "Partition": 0,
       "NextOffset": 0

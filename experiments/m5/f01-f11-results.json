@@ -16,7 +16,7 @@
         "trace_path":  "experiments\\m5\\traces\\F01-response-loss-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"submission_committed\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestWorkflowAPIResponseLossHistoryAndRetention\r\n--- PASS: TestWorkflowAPIResponseLossHistoryAndRetention (0.42s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t5.584s"
+        "go_output":  "=== RUN   TestWorkflowAPIResponseLossHistoryAndRetention\r\n--- PASS: TestWorkflowAPIResponseLossHistoryAndRetention (0.26s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.663s"
     },
     {
         "case_id":  "F01-response-loss",
@@ -35,7 +35,7 @@
         "trace_path":  "experiments\\m5\\traces\\F01-response-loss-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"submission_committed\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestWorkflowAPIResponseLossHistoryAndRetention\r\n--- PASS: TestWorkflowAPIResponseLossHistoryAndRetention (0.45s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.816s"
+        "go_output":  "=== RUN   TestWorkflowAPIResponseLossHistoryAndRetention\r\n--- PASS: TestWorkflowAPIResponseLossHistoryAndRetention (0.26s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.633s"
     },
     {
         "case_id":  "F01-response-loss",
@@ -54,7 +54,7 @@
         "trace_path":  "experiments\\m5\\traces\\F01-response-loss-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"submission_committed\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestWorkflowAPIResponseLossHistoryAndRetention\r\n--- PASS: TestWorkflowAPIResponseLossHistoryAndRetention (0.41s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.769s"
+        "go_output":  "=== RUN   TestWorkflowAPIResponseLossHistoryAndRetention\r\n--- PASS: TestWorkflowAPIResponseLossHistoryAndRetention (0.32s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.700s"
     },
     {
         "case_id":  "F02-rollback",
@@ -73,7 +73,7 @@
         "trace_path":  "experiments\\m5\\traces\\F02-rollback-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"outbox_insert\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestPostgresStateRepository\r\n=== RUN   TestPostgresStateRepository/submission_idempotency_and_conflict\r\n=== RUN   TestPostgresStateRepository/timeout_branches_and_late_evidence\r\n=== RUN   TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts\r\n=== RUN   TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure\r\n=== RUN   TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines\r\n=== RUN   TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner\r\n=== RUN   TestPostgresStateRepository/result_receipts_and_owner_result_consumption\r\n=== RUN   TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work\r\n=== RUN   TestPostgresStateRepository/stale_owner_is_fenced_after_takeover\r\n--- PASS: TestPostgresStateRepository (4.52s)\r\n    --- PASS: TestPostgresStateRepository/submission_idempotency_and_conflict (0.03s)\r\n    --- PASS: TestPostgresStateRepository/timeout_branches_and_late_evidence (0.37s)\r\n    --- PASS: TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts (0.05s)\r\n    --- PASS: TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure (0.17s)\r\n    --- PASS: TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines (0.26s)\r\n    --- PASS: TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner (2.65s)\r\n    --- PASS: TestPostgresStateRepository/result_receipts_and_owner_result_consumption (0.44s)\r\n    --- PASS: TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work (0.25s)\r\n    --- PASS: TestPostgresStateRepository/stale_owner_is_fenced_after_takeover (0.02s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t8.960s"
+        "go_output":  "=== RUN   TestPostgresStateRepository\r\n=== RUN   TestPostgresStateRepository/submission_idempotency_and_conflict\r\n=== RUN   TestPostgresStateRepository/timeout_branches_and_late_evidence\r\n=== RUN   TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts\r\n=== RUN   TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure\r\n=== RUN   TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines\r\n=== RUN   TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner\r\n=== RUN   TestPostgresStateRepository/result_receipts_and_owner_result_consumption\r\n=== RUN   TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work\r\n=== RUN   TestPostgresStateRepository/stale_owner_is_fenced_after_takeover\r\n--- PASS: TestPostgresStateRepository (3.97s)\r\n    --- PASS: TestPostgresStateRepository/submission_idempotency_and_conflict (0.02s)\r\n    --- PASS: TestPostgresStateRepository/timeout_branches_and_late_evidence (0.29s)\r\n    --- PASS: TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts (0.06s)\r\n    --- PASS: TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure (0.42s)\r\n    --- PASS: TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines (0.50s)\r\n    --- PASS: TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner (1.89s)\r\n    --- PASS: TestPostgresStateRepository/result_receipts_and_owner_result_consumption (0.39s)\r\n    --- PASS: TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work (0.21s)\r\n    --- PASS: TestPostgresStateRepository/stale_owner_is_fenced_after_takeover (0.02s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t5.343s"
     },
     {
         "case_id":  "F02-rollback",
@@ -92,7 +92,7 @@
         "trace_path":  "experiments\\m5\\traces\\F02-rollback-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"outbox_insert\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestPostgresStateRepository\r\n=== RUN   TestPostgresStateRepository/submission_idempotency_and_conflict\r\n=== RUN   TestPostgresStateRepository/timeout_branches_and_late_evidence\r\n=== RUN   TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts\r\n=== RUN   TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure\r\n=== RUN   TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines\r\n=== RUN   TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner\r\n=== RUN   TestPostgresStateRepository/result_receipts_and_owner_result_consumption\r\n=== RUN   TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work\r\n=== RUN   TestPostgresStateRepository/stale_owner_is_fenced_after_takeover\r\n--- PASS: TestPostgresStateRepository (4.67s)\r\n    --- PASS: TestPostgresStateRepository/submission_idempotency_and_conflict (0.03s)\r\n    --- PASS: TestPostgresStateRepository/timeout_branches_and_late_evidence (0.40s)\r\n    --- PASS: TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts (0.08s)\r\n    --- PASS: TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure (0.17s)\r\n    --- PASS: TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines (0.30s)\r\n    --- PASS: TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner (2.66s)\r\n    --- PASS: TestPostgresStateRepository/result_receipts_and_owner_result_consumption (0.45s)\r\n    --- PASS: TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work (0.28s)\r\n    --- PASS: TestPostgresStateRepository/stale_owner_is_fenced_after_takeover (0.03s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t6.061s"
+        "go_output":  "=== RUN   TestPostgresStateRepository\r\n=== RUN   TestPostgresStateRepository/submission_idempotency_and_conflict\r\n=== RUN   TestPostgresStateRepository/timeout_branches_and_late_evidence\r\n=== RUN   TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts\r\n=== RUN   TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure\r\n=== RUN   TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines\r\n=== RUN   TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner\r\n=== RUN   TestPostgresStateRepository/result_receipts_and_owner_result_consumption\r\n=== RUN   TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work\r\n=== RUN   TestPostgresStateRepository/stale_owner_is_fenced_after_takeover\r\n--- PASS: TestPostgresStateRepository (3.49s)\r\n    --- PASS: TestPostgresStateRepository/submission_idempotency_and_conflict (0.04s)\r\n    --- PASS: TestPostgresStateRepository/timeout_branches_and_late_evidence (0.26s)\r\n    --- PASS: TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts (0.03s)\r\n    --- PASS: TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure (0.22s)\r\n    --- PASS: TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines (0.30s)\r\n    --- PASS: TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner (1.98s)\r\n    --- PASS: TestPostgresStateRepository/result_receipts_and_owner_result_consumption (0.32s)\r\n    --- PASS: TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work (0.19s)\r\n    --- PASS: TestPostgresStateRepository/stale_owner_is_fenced_after_takeover (0.01s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t4.914s"
     },
     {
         "case_id":  "F02-rollback",
@@ -111,7 +111,7 @@
         "trace_path":  "experiments\\m5\\traces\\F02-rollback-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"outbox_insert\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestPostgresStateRepository\r\n=== RUN   TestPostgresStateRepository/submission_idempotency_and_conflict\r\n=== RUN   TestPostgresStateRepository/timeout_branches_and_late_evidence\r\n=== RUN   TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts\r\n=== RUN   TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure\r\n=== RUN   TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines\r\n=== RUN   TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner\r\n=== RUN   TestPostgresStateRepository/result_receipts_and_owner_result_consumption\r\n=== RUN   TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work\r\n=== RUN   TestPostgresStateRepository/stale_owner_is_fenced_after_takeover\r\n--- PASS: TestPostgresStateRepository (4.49s)\r\n    --- PASS: TestPostgresStateRepository/submission_idempotency_and_conflict (0.03s)\r\n    --- PASS: TestPostgresStateRepository/timeout_branches_and_late_evidence (0.37s)\r\n    --- PASS: TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts (0.04s)\r\n    --- PASS: TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure (0.16s)\r\n    --- PASS: TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines (0.26s)\r\n    --- PASS: TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner (2.56s)\r\n    --- PASS: TestPostgresStateRepository/result_receipts_and_owner_result_consumption (0.46s)\r\n    --- PASS: TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work (0.31s)\r\n    --- PASS: TestPostgresStateRepository/stale_owner_is_fenced_after_takeover (0.03s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t5.825s"
+        "go_output":  "=== RUN   TestPostgresStateRepository\r\n=== RUN   TestPostgresStateRepository/submission_idempotency_and_conflict\r\n=== RUN   TestPostgresStateRepository/timeout_branches_and_late_evidence\r\n=== RUN   TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts\r\n=== RUN   TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure\r\n=== RUN   TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines\r\n=== RUN   TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner\r\n=== RUN   TestPostgresStateRepository/result_receipts_and_owner_result_consumption\r\n=== RUN   TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work\r\n=== RUN   TestPostgresStateRepository/stale_owner_is_fenced_after_takeover\r\n--- PASS: TestPostgresStateRepository (4.44s)\r\n    --- PASS: TestPostgresStateRepository/submission_idempotency_and_conflict (0.02s)\r\n    --- PASS: TestPostgresStateRepository/timeout_branches_and_late_evidence (0.36s)\r\n    --- PASS: TestPostgresStateRepository/invalid_transition_rolls_back_and_concurrent_revision_conflicts (0.05s)\r\n    --- PASS: TestPostgresStateRepository/multi-step_repository_transactions_roll_back_on_outbox_failure (0.41s)\r\n    --- PASS: TestPostgresStateRepository/authoritative_metadata_and_fresh_claim_deadlines (0.40s)\r\n    --- PASS: TestPostgresStateRepository/concurrent_claims_and_result-timeout_races_have_one_winner (2.38s)\r\n    --- PASS: TestPostgresStateRepository/result_receipts_and_owner_result_consumption (0.43s)\r\n    --- PASS: TestPostgresStateRepository/cancellation_settles_attempts_and_fences_later_work (0.22s)\r\n    --- PASS: TestPostgresStateRepository/stale_owner_is_fenced_after_takeover (0.02s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t5.888s"
     },
     {
         "case_id":  "F03-relay-retry",
@@ -130,7 +130,7 @@
         "trace_path":  "experiments\\m5\\traces\\F03-relay-retry-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"before_publish\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM3RelayFailureIsDurablyRetryable\r\n--- PASS: TestM3RelayFailureIsDurablyRetryable (0.13s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.586s"
+        "go_output":  "=== RUN   TestM3RelayFailureIsDurablyRetryable\r\n--- PASS: TestM3RelayFailureIsDurablyRetryable (0.09s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.574s"
     },
     {
         "case_id":  "F03-relay-retry",
@@ -149,7 +149,7 @@
         "trace_path":  "experiments\\m5\\traces\\F03-relay-retry-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"before_publish\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM3RelayFailureIsDurablyRetryable\r\n--- PASS: TestM3RelayFailureIsDurablyRetryable (0.14s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.543s"
+        "go_output":  "=== RUN   TestM3RelayFailureIsDurablyRetryable\r\n--- PASS: TestM3RelayFailureIsDurablyRetryable (0.12s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.599s"
     },
     {
         "case_id":  "F03-relay-retry",
@@ -168,7 +168,7 @@
         "trace_path":  "experiments\\m5\\traces\\F03-relay-retry-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"before_publish\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM3RelayFailureIsDurablyRetryable\r\n--- PASS: TestM3RelayFailureIsDurablyRetryable (0.13s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.526s"
+        "go_output":  "=== RUN   TestM3RelayFailureIsDurablyRetryable\r\n--- PASS: TestM3RelayFailureIsDurablyRetryable (0.11s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.614s"
     },
     {
         "case_id":  "F04-after-ack",
@@ -187,7 +187,7 @@
         "trace_path":  "experiments\\m5\\traces\\F04-after-ack-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"after_broker_ack\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM3RelayCrashAfterBrokerAckRepublishesStableEvent\r\n--- PASS: TestM3RelayCrashAfterBrokerAckRepublishesStableEvent (0.16s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.613s"
+        "go_output":  "=== RUN   TestM3RelayCrashAfterBrokerAckRepublishesStableEvent\r\n--- PASS: TestM3RelayCrashAfterBrokerAckRepublishesStableEvent (0.17s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.727s"
     },
     {
         "case_id":  "F04-after-ack",
@@ -206,7 +206,7 @@
         "trace_path":  "experiments\\m5\\traces\\F04-after-ack-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"after_broker_ack\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM3RelayCrashAfterBrokerAckRepublishesStableEvent\r\n--- PASS: TestM3RelayCrashAfterBrokerAckRepublishesStableEvent (0.20s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.624s"
+        "go_output":  "=== RUN   TestM3RelayCrashAfterBrokerAckRepublishesStableEvent\r\n--- PASS: TestM3RelayCrashAfterBrokerAckRepublishesStableEvent (0.11s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.606s"
     },
     {
         "case_id":  "F04-after-ack",
@@ -225,7 +225,7 @@
         "trace_path":  "experiments\\m5\\traces\\F04-after-ack-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"after_broker_ack\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM3RelayCrashAfterBrokerAckRepublishesStableEvent\r\n--- PASS: TestM3RelayCrashAfterBrokerAckRepublishesStableEvent (0.17s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.564s"
+        "go_output":  "=== RUN   TestM3RelayCrashAfterBrokerAckRepublishesStableEvent\r\n--- PASS: TestM3RelayCrashAfterBrokerAckRepublishesStableEvent (0.10s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/transport\t1.530s"
     },
     {
         "case_id":  "F05-claim",
@@ -244,7 +244,7 @@
         "trace_path":  "experiments\\m5\\traces\\F05-claim-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"attempt_claimed\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.34s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.701s"
+        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.33s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.720s"
     },
     {
         "case_id":  "F05-claim",
@@ -263,7 +263,7 @@
         "trace_path":  "experiments\\m5\\traces\\F05-claim-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"attempt_claimed\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.37s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.730s"
+        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.35s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.720s"
     },
     {
         "case_id":  "F05-claim",
@@ -282,7 +282,7 @@
         "trace_path":  "experiments\\m5\\traces\\F05-claim-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"attempt_claimed\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.34s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.675s"
+        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.32s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.707s"
     },
     {
         "case_id":  "F05-offset",
@@ -301,7 +301,7 @@
         "trace_path":  "experiments\\m5\\traces\\F05-offset-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"before_offset_ack\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM3ConsumerOffsetsAreContiguous\r\n--- PASS: TestM3ConsumerOffsetsAreContiguous (0.14s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.448s"
+        "go_output":  "=== RUN   TestM3ConsumerOffsetsAreContiguous\r\n--- PASS: TestM3ConsumerOffsetsAreContiguous (0.11s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.547s"
     },
     {
         "case_id":  "F05-offset",
@@ -320,7 +320,7 @@
         "trace_path":  "experiments\\m5\\traces\\F05-offset-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"before_offset_ack\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM3ConsumerOffsetsAreContiguous\r\n--- PASS: TestM3ConsumerOffsetsAreContiguous (0.15s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.521s"
+        "go_output":  "=== RUN   TestM3ConsumerOffsetsAreContiguous\r\n--- PASS: TestM3ConsumerOffsetsAreContiguous (0.11s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.516s"
     },
     {
         "case_id":  "F05-offset",
@@ -339,7 +339,7 @@
         "trace_path":  "experiments\\m5\\traces\\F05-offset-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"before_offset_ack\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM3ConsumerOffsetsAreContiguous\r\n--- PASS: TestM3ConsumerOffsetsAreContiguous (0.13s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.505s"
+        "go_output":  "=== RUN   TestM3ConsumerOffsetsAreContiguous\r\n--- PASS: TestM3ConsumerOffsetsAreContiguous (0.23s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.693s"
     },
     {
         "case_id":  "F06-cooperating",
@@ -358,7 +358,7 @@
         "trace_path":  "experiments\\m5\\traces\\F06-cooperating-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"effect_applied\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.27s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.653s"
+        "go_output":  "=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.27s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.682s"
     },
     {
         "case_id":  "F06-cooperating",
@@ -377,7 +377,7 @@
         "trace_path":  "experiments\\m5\\traces\\F06-cooperating-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"effect_applied\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.27s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.695s"
+        "go_output":  "=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.25s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.710s"
     },
     {
         "case_id":  "F06-cooperating",
@@ -396,7 +396,7 @@
         "trace_path":  "experiments\\m5\\traces\\F06-cooperating-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"effect_applied\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.25s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.694s"
+        "go_output":  "=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.22s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.690s"
     },
     {
         "case_id":  "F06-noncooperating",
@@ -415,7 +415,7 @@
         "trace_path":  "experiments\\m5\\traces\\F06-noncooperating-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"effect_unknown\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.19s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.525s"
+        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.35s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.758s"
     },
     {
         "case_id":  "F06-noncooperating",
@@ -434,7 +434,7 @@
         "trace_path":  "experiments\\m5\\traces\\F06-noncooperating-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"effect_unknown\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.17s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.540s"
+        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.22s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.680s"
     },
     {
         "case_id":  "F06-noncooperating",
@@ -453,7 +453,7 @@
         "trace_path":  "experiments\\m5\\traces\\F06-noncooperating-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"effect_unknown\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.16s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.552s"
+        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.12s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.595s"
     },
     {
         "case_id":  "F07-crash-resume",
@@ -472,7 +472,7 @@
         "trace_path":  "experiments\\m5\\traces\\F07-crash-resume-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"result_recorded\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM1CrashResumeWithinNode\r\n=== RUN   TestM1CrashResumeWithinNode/activity_scheduled\r\n=== RUN   TestM1CrashResumeWithinNode/result_recorded\r\n=== RUN   TestM1CrashResumeWithinNode/result_consumed\r\n--- PASS: TestM1CrashResumeWithinNode (0.62s)\r\n    --- PASS: TestM1CrashResumeWithinNode/activity_scheduled (0.23s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_recorded (0.17s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_consumed (0.19s)\r\n=== RUN   TestM4CheckpointSurvivesCrashBeforeResult\r\n--- PASS: TestM4CheckpointSurvivesCrashBeforeResult (0.36s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t5.616s"
+        "go_output":  "=== RUN   TestM1CrashResumeWithinNode\r\n=== RUN   TestM1CrashResumeWithinNode/activity_scheduled\r\n=== RUN   TestM1CrashResumeWithinNode/result_recorded\r\n=== RUN   TestM1CrashResumeWithinNode/result_consumed\r\n--- PASS: TestM1CrashResumeWithinNode (0.50s)\r\n    --- PASS: TestM1CrashResumeWithinNode/activity_scheduled (0.20s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_recorded (0.11s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_consumed (0.15s)\r\n=== RUN   TestM4CheckpointSurvivesCrashBeforeResult\r\n--- PASS: TestM4CheckpointSurvivesCrashBeforeResult (0.25s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t5.949s"
     },
     {
         "case_id":  "F07-crash-resume",
@@ -491,7 +491,7 @@
         "trace_path":  "experiments\\m5\\traces\\F07-crash-resume-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"result_recorded\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM1CrashResumeWithinNode\r\n=== RUN   TestM1CrashResumeWithinNode/activity_scheduled\r\n=== RUN   TestM1CrashResumeWithinNode/result_recorded\r\n=== RUN   TestM1CrashResumeWithinNode/result_consumed\r\n--- PASS: TestM1CrashResumeWithinNode (0.59s)\r\n    --- PASS: TestM1CrashResumeWithinNode/activity_scheduled (0.23s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_recorded (0.18s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_consumed (0.16s)\r\n=== RUN   TestM4CheckpointSurvivesCrashBeforeResult\r\n--- PASS: TestM4CheckpointSurvivesCrashBeforeResult (0.37s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.383s"
+        "go_output":  "=== RUN   TestM1CrashResumeWithinNode\r\n=== RUN   TestM1CrashResumeWithinNode/activity_scheduled\r\n=== RUN   TestM1CrashResumeWithinNode/result_recorded\r\n=== RUN   TestM1CrashResumeWithinNode/result_consumed\r\n--- PASS: TestM1CrashResumeWithinNode (0.94s)\r\n    --- PASS: TestM1CrashResumeWithinNode/activity_scheduled (0.49s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_recorded (0.28s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_consumed (0.15s)\r\n=== RUN   TestM4CheckpointSurvivesCrashBeforeResult\r\n--- PASS: TestM4CheckpointSurvivesCrashBeforeResult (0.48s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.844s"
     },
     {
         "case_id":  "F07-crash-resume",
@@ -510,7 +510,7 @@
         "trace_path":  "experiments\\m5\\traces\\F07-crash-resume-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"result_recorded\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM1CrashResumeWithinNode\r\n=== RUN   TestM1CrashResumeWithinNode/activity_scheduled\r\n=== RUN   TestM1CrashResumeWithinNode/result_recorded\r\n=== RUN   TestM1CrashResumeWithinNode/result_consumed\r\n--- PASS: TestM1CrashResumeWithinNode (0.50s)\r\n    --- PASS: TestM1CrashResumeWithinNode/activity_scheduled (0.19s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_recorded (0.15s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_consumed (0.13s)\r\n=== RUN   TestM4CheckpointSurvivesCrashBeforeResult\r\n--- PASS: TestM4CheckpointSurvivesCrashBeforeResult (0.31s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.204s"
+        "go_output":  "=== RUN   TestM1CrashResumeWithinNode\r\n=== RUN   TestM1CrashResumeWithinNode/activity_scheduled\r\n=== RUN   TestM1CrashResumeWithinNode/result_recorded\r\n=== RUN   TestM1CrashResumeWithinNode/result_consumed\r\n--- PASS: TestM1CrashResumeWithinNode (0.69s)\r\n    --- PASS: TestM1CrashResumeWithinNode/activity_scheduled (0.37s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_recorded (0.18s)\r\n    --- PASS: TestM1CrashResumeWithinNode/result_consumed (0.12s)\r\n=== RUN   TestM4CheckpointSurvivesCrashBeforeResult\r\n--- PASS: TestM4CheckpointSurvivesCrashBeforeResult (0.29s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.406s"
     },
     {
         "case_id":  "F08-lease-fence",
@@ -529,7 +529,7 @@
         "trace_path":  "experiments\\m5\\traces\\F08-lease-fence-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"lease_takeover\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM2LeaseRenewalAndTakeoverFence\r\n--- PASS: TestM2LeaseRenewalAndTakeoverFence (0.05s)\r\n=== RUN   TestM2TakeoverWaitsForLockedLeaseTransaction\r\n--- PASS: TestM2TakeoverWaitsForLockedLeaseTransaction (0.08s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.551s"
+        "go_output":  "=== RUN   TestM2LeaseRenewalAndTakeoverFence\r\n--- PASS: TestM2LeaseRenewalAndTakeoverFence (0.05s)\r\n=== RUN   TestM2TakeoverWaitsForLockedLeaseTransaction\r\n--- PASS: TestM2TakeoverWaitsForLockedLeaseTransaction (0.10s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.537s"
     },
     {
         "case_id":  "F08-lease-fence",
@@ -548,7 +548,7 @@
         "trace_path":  "experiments\\m5\\traces\\F08-lease-fence-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"lease_takeover\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM2LeaseRenewalAndTakeoverFence\r\n--- PASS: TestM2LeaseRenewalAndTakeoverFence (0.06s)\r\n=== RUN   TestM2TakeoverWaitsForLockedLeaseTransaction\r\n--- PASS: TestM2TakeoverWaitsForLockedLeaseTransaction (0.09s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.522s"
+        "go_output":  "=== RUN   TestM2LeaseRenewalAndTakeoverFence\r\n--- PASS: TestM2LeaseRenewalAndTakeoverFence (0.14s)\r\n=== RUN   TestM2TakeoverWaitsForLockedLeaseTransaction\r\n--- PASS: TestM2TakeoverWaitsForLockedLeaseTransaction (0.13s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.652s"
     },
     {
         "case_id":  "F08-lease-fence",
@@ -567,7 +567,7 @@
         "trace_path":  "experiments\\m5\\traces\\F08-lease-fence-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"lease_takeover\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM2LeaseRenewalAndTakeoverFence\r\n--- PASS: TestM2LeaseRenewalAndTakeoverFence (0.06s)\r\n=== RUN   TestM2TakeoverWaitsForLockedLeaseTransaction\r\n--- PASS: TestM2TakeoverWaitsForLockedLeaseTransaction (0.09s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.572s"
+        "go_output":  "=== RUN   TestM2LeaseRenewalAndTakeoverFence\r\n--- PASS: TestM2LeaseRenewalAndTakeoverFence (0.06s)\r\n=== RUN   TestM2TakeoverWaitsForLockedLeaseTransaction\r\n--- PASS: TestM2TakeoverWaitsForLockedLeaseTransaction (0.12s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.595s"
     },
     {
         "case_id":  "F09-stale-result",
@@ -586,7 +586,7 @@
         "trace_path":  "experiments\\m5\\traces\\F09-stale-result-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"attempt_replaced\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.31s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.627s"
+        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.35s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.755s"
     },
     {
         "case_id":  "F09-stale-result",
@@ -605,7 +605,7 @@
         "trace_path":  "experiments\\m5\\traces\\F09-stale-result-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"attempt_replaced\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.33s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.665s"
+        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.41s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.728s"
     },
     {
         "case_id":  "F09-stale-result",
@@ -624,7 +624,7 @@
         "trace_path":  "experiments\\m5\\traces\\F09-stale-result-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"attempt_replaced\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.30s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.623s"
+        "go_output":  "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\r\n--- PASS: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.43s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/api\t1.811s"
     },
     {
         "case_id":  "F10-timer-join",
@@ -643,7 +643,7 @@
         "trace_path":  "experiments\\m5\\traces\\F10-timer-join-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"timer_consumed\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM1InterpreterTimersAndRestart\r\n--- PASS: TestM1InterpreterTimersAndRestart (0.91s)\r\n=== RUN   TestM1ConcurrentBranchCompletionCreatesJoinOnce\r\n--- PASS: TestM1ConcurrentBranchCompletionCreatesJoinOnce (0.33s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.604s"
+        "go_output":  "=== RUN   TestM1InterpreterTimersAndRestart\r\n--- PASS: TestM1InterpreterTimersAndRestart (0.89s)\r\n=== RUN   TestM1ConcurrentBranchCompletionCreatesJoinOnce\r\n--- PASS: TestM1ConcurrentBranchCompletionCreatesJoinOnce (0.31s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.585s"
     },
     {
         "case_id":  "F10-timer-join",
@@ -662,7 +662,7 @@
         "trace_path":  "experiments\\m5\\traces\\F10-timer-join-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"timer_consumed\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM1InterpreterTimersAndRestart\r\n--- PASS: TestM1InterpreterTimersAndRestart (0.88s)\r\n=== RUN   TestM1ConcurrentBranchCompletionCreatesJoinOnce\r\n--- PASS: TestM1ConcurrentBranchCompletionCreatesJoinOnce (0.34s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.596s"
+        "go_output":  "=== RUN   TestM1InterpreterTimersAndRestart\r\n--- PASS: TestM1InterpreterTimersAndRestart (0.78s)\r\n=== RUN   TestM1ConcurrentBranchCompletionCreatesJoinOnce\r\n--- PASS: TestM1ConcurrentBranchCompletionCreatesJoinOnce (0.20s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.613s"
     },
     {
         "case_id":  "F10-timer-join",
@@ -681,7 +681,7 @@
         "trace_path":  "experiments\\m5\\traces\\F10-timer-join-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"timer_consumed\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM1InterpreterTimersAndRestart\r\n--- PASS: TestM1InterpreterTimersAndRestart (0.83s)\r\n=== RUN   TestM1ConcurrentBranchCompletionCreatesJoinOnce\r\n--- PASS: TestM1ConcurrentBranchCompletionCreatesJoinOnce (0.34s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.570s"
+        "go_output":  "=== RUN   TestM1InterpreterTimersAndRestart\r\n--- PASS: TestM1InterpreterTimersAndRestart (1.00s)\r\n=== RUN   TestM1ConcurrentBranchCompletionCreatesJoinOnce\r\n--- PASS: TestM1ConcurrentBranchCompletionCreatesJoinOnce (0.26s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t2.664s"
     },
     {
         "case_id":  "F11-cancel-grant",
@@ -700,7 +700,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-cancel-grant-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"approval_grant\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4CancellationPreventsApprovalGrant\r\n--- PASS: TestM4CancellationPreventsApprovalGrant (0.14s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.466s"
+        "go_output":  "=== RUN   TestM4CancellationPreventsApprovalGrant\r\n--- PASS: TestM4CancellationPreventsApprovalGrant (0.31s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.690s"
     },
     {
         "case_id":  "F11-cancel-grant",
@@ -719,7 +719,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-cancel-grant-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"approval_grant\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4CancellationPreventsApprovalGrant\r\n--- PASS: TestM4CancellationPreventsApprovalGrant (0.14s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.495s"
+        "go_output":  "=== RUN   TestM4CancellationPreventsApprovalGrant\r\n--- PASS: TestM4CancellationPreventsApprovalGrant (0.11s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.563s"
     },
     {
         "case_id":  "F11-cancel-grant",
@@ -738,7 +738,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-cancel-grant-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"approval_grant\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4CancellationPreventsApprovalGrant\r\n--- PASS: TestM4CancellationPreventsApprovalGrant (0.14s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.525s"
+        "go_output":  "=== RUN   TestM4CancellationPreventsApprovalGrant\r\n--- PASS: TestM4CancellationPreventsApprovalGrant (0.13s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.622s"
     },
     {
         "case_id":  "F11-deadline",
@@ -757,7 +757,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-deadline-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"attempt_timeout\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.15s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.563s"
+        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.13s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.513s"
     },
     {
         "case_id":  "F11-deadline",
@@ -776,7 +776,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-deadline-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"attempt_timeout\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.16s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.530s"
+        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.13s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.550s"
     },
     {
         "case_id":  "F11-deadline",
@@ -795,7 +795,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-deadline-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"attempt_timeout\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.16s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.526s"
+        "go_output":  "=== RUN   TestM4NonCooperatingTimeoutIsReconciliationOnly\r\n--- PASS: TestM4NonCooperatingTimeoutIsReconciliationOnly (0.15s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.597s"
     },
     {
         "case_id":  "F11-dispatch-grant",
@@ -814,7 +814,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-dispatch-grant-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"approval_grant\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4CheckpointRetryAndApprovalPersistence\r\n--- PASS: TestM4CheckpointRetryAndApprovalPersistence (0.25s)\r\n=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.25s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.896s"
+        "go_output":  "=== RUN   TestM4CheckpointRetryAndApprovalPersistence\r\n--- PASS: TestM4CheckpointRetryAndApprovalPersistence (0.21s)\r\n=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.19s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.778s"
     },
     {
         "case_id":  "F11-dispatch-grant",
@@ -833,7 +833,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-dispatch-grant-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"approval_grant\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4CheckpointRetryAndApprovalPersistence\r\n--- PASS: TestM4CheckpointRetryAndApprovalPersistence (0.25s)\r\n=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.25s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.928s"
+        "go_output":  "=== RUN   TestM4CheckpointRetryAndApprovalPersistence\r\n--- PASS: TestM4CheckpointRetryAndApprovalPersistence (0.17s)\r\n=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.15s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.753s"
     },
     {
         "case_id":  "F11-dispatch-grant",
@@ -852,7 +852,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-dispatch-grant-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"approval_grant\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM4CheckpointRetryAndApprovalPersistence\r\n--- PASS: TestM4CheckpointRetryAndApprovalPersistence (0.33s)\r\n=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.26s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.945s"
+        "go_output":  "=== RUN   TestM4CheckpointRetryAndApprovalPersistence\r\n--- PASS: TestM4CheckpointRetryAndApprovalPersistence (0.17s)\r\n=== RUN   TestM4EffectLedgerAndFencing\r\n--- PASS: TestM4EffectLedgerAndFencing (0.17s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/state\t1.749s"
     },
     {
         "case_id":  "F11-cancel-completion",
@@ -871,7 +871,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-cancel-completion-seed11.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"cancel_completion\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM1FanoutCancellationRace\r\n=== RUN   TestM1FanoutCancellationRace/round-0\r\n=== RUN   TestM1FanoutCancellationRace/round-1\r\n=== RUN   TestM1FanoutCancellationRace/round-2\r\n--- PASS: TestM1FanoutCancellationRace (0.52s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-0 (0.21s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-1 (0.15s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-2 (0.13s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t1.840s"
+        "go_output":  "=== RUN   TestM1FanoutCancellationRace\r\n=== RUN   TestM1FanoutCancellationRace/round-0\r\n=== RUN   TestM1FanoutCancellationRace/round-1\r\n=== RUN   TestM1FanoutCancellationRace/round-2\r\n--- PASS: TestM1FanoutCancellationRace (0.52s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-0 (0.27s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-1 (0.17s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-2 (0.07s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t1.916s"
     },
     {
         "case_id":  "F11-cancel-completion",
@@ -890,7 +890,7 @@
         "trace_path":  "experiments\\m5\\traces\\F11-cancel-completion-seed23.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"cancel_completion\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM1FanoutCancellationRace\r\n=== RUN   TestM1FanoutCancellationRace/round-0\r\n=== RUN   TestM1FanoutCancellationRace/round-1\r\n=== RUN   TestM1FanoutCancellationRace/round-2\r\n--- PASS: TestM1FanoutCancellationRace (0.51s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-0 (0.20s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-1 (0.16s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-2 (0.13s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t1.901s"
+        "go_output":  "=== RUN   TestM1FanoutCancellationRace\r\n=== RUN   TestM1FanoutCancellationRace/round-0\r\n=== RUN   TestM1FanoutCancellationRace/round-1\r\n=== RUN   TestM1FanoutCancellationRace/round-2\r\n--- PASS: TestM1FanoutCancellationRace (0.33s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-0 (0.13s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-1 (0.10s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-2 (0.09s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t1.708s"
     },
     {
         "case_id":  "F11-cancel-completion",
@@ -909,6 +909,6 @@
         "trace_path":  "experiments\\m5\\traces\\F11-cancel-completion-seed47.jsonl",
         "controller_output":  "{\"status\": \"completed\", \"action\": \"kill\", \"boundary\": \"cancel_completion\"}",
         "checker_output":  "{\"runs\":1,\"valid\":true,\"violations\":null}",
-        "go_output":  "=== RUN   TestM1FanoutCancellationRace\r\n=== RUN   TestM1FanoutCancellationRace/round-0\r\n=== RUN   TestM1FanoutCancellationRace/round-1\r\n=== RUN   TestM1FanoutCancellationRace/round-2\r\n--- PASS: TestM1FanoutCancellationRace (0.51s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-0 (0.21s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-1 (0.15s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-2 (0.12s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t1.879s"
+        "go_output":  "=== RUN   TestM1FanoutCancellationRace\r\n=== RUN   TestM1FanoutCancellationRace/round-0\r\n=== RUN   TestM1FanoutCancellationRace/round-1\r\n=== RUN   TestM1FanoutCancellationRace/round-2\r\n--- PASS: TestM1FanoutCancellationRace (0.41s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-0 (0.18s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-1 (0.12s)\r\n    --- PASS: TestM1FanoutCancellationRace/round-2 (0.09s)\r\nPASS\r\nok  \tdurable-agent-execution-engine/internal/engine\t1.840s"
     }
 ]

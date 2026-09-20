@@ -1,7 +1,7 @@
 {
   "History": [
     {
-      "WorkflowID": "m5-fixture-F04-after-ack-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkflowID": "m5-fixture-F04-after-ack-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Revision": 1,
       "ActorKind": "client",
       "SchedulerEpoch": null,
@@ -10,19 +10,19 @@
       "Reason": "WORKFLOW_CREATED"
     },
     {
-      "WorkflowID": "m5-fixture-F04-after-ack-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkflowID": "m5-fixture-F04-after-ack-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Revision": 2,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 55,
+      "SchedulerEpoch": 1473,
       "OldState": "RUNNABLE",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "M5_FIXTURE_ACTIVITY"
     },
     {
-      "WorkflowID": "m5-fixture-F04-after-ack-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkflowID": "m5-fixture-F04-after-ack-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Revision": 3,
       "ActorKind": "scheduler",
-      "SchedulerEpoch": 55,
+      "SchedulerEpoch": 1473,
       "OldState": "WAITING_ACTIVITY",
       "NewState": "WAITING_ACTIVITY",
       "Reason": "ATTEMPT_CREATED"
@@ -32,21 +32,21 @@
   "Submissions": [
     {
       "Namespace": "m5-fixture",
-      "Key": "key-F04-after-ack-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "Hash": "sub-v1:m5-fixture-F04-after-ack-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "WorkflowID": "m5-fixture-F04-after-ack-847a5c46acd546a2aab7a08cf4accbe8-47"
+      "Key": "key-F04-after-ack-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "Hash": "sub-v1:m5-fixture-F04-after-ack-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "WorkflowID": "m5-fixture-F04-after-ack-c7e0ea1bce5047559512f80c14c69e3d-47"
     }
   ],
   "Attempts": [
     {
-      "WorkflowID": "m5-fixture-F04-after-ack-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkflowID": "m5-fixture-F04-after-ack-c7e0ea1bce5047559512f80c14c69e3d-47",
       "NodeID": "root",
       "Iteration": 0,
       "AttemptNumber": 1,
       "State": "CLAIMED",
-      "ClaimToken": "ee435fe1-0b43-4681-93e3-bc7ae4bb4ef5",
+      "ClaimToken": "3285f3b9-c509-4651-9320-0b7b47acaabd",
       "WorkerID": "m5-fixture-worker",
-      "WorkerRequestID": "m5-request-F04-after-ack-847a5c46acd546a2aab7a08cf4accbe8-47",
+      "WorkerRequestID": "m5-request-F04-after-ack-c7e0ea1bce5047559512f80c14c69e3d-47",
       "Outcome": "NONE",
       "IsCurrent": true,
       "ResultRecorded": false
@@ -54,8 +54,8 @@
   ],
   "Outbox": [
     {
-      "WorkflowID": "m5-fixture-F04-after-ack-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "EventID": "b6be00f9-b468-4e54-89c7-02f8c0f2c382",
+      "WorkflowID": "m5-fixture-F04-after-ack-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "EventID": "366e4311-119c-44dd-87df-2186fa1b7ab4",
       "AggregateRevision": 1,
       "EventType": "workflow.created",
       "Topic": "durable-agent.events.v1",
@@ -63,12 +63,12 @@
       "PayloadValid": true
     },
     {
-      "WorkflowID": "m5-fixture-F04-after-ack-847a5c46acd546a2aab7a08cf4accbe8-47",
-      "EventID": "5b7b2aa1-32c2-4133-83a1-bf496f7d2e18",
+      "WorkflowID": "m5-fixture-F04-after-ack-c7e0ea1bce5047559512f80c14c69e3d-47",
+      "EventID": "470fe47f-535e-4093-841f-e8d8aaad7155",
       "AggregateRevision": 3,
       "EventType": "attempt.dispatch",
       "Topic": "durable-agent.tasks.v1",
-      "PublishState": "PENDING",
+      "PublishState": "PUBLISHED",
       "PayloadValid": true
     }
   ],
@@ -78,7 +78,7 @@
     {
       "WorkflowID": "",
       "Kind": "POISON_RECORD",
-      "Reference": "transport/m3-relay-consumer-a0673f4b-1e86-4a2c-b367-939d4bcf34e6/durable-agent.events.v1/0/2",
+      "Reference": "transport/m3-relay-consumer-770ee952-6393-4923-9db1-3eeefd416850/durable-agent.events.v1/0/2",
       "Status": "OPEN"
     }
   ],
@@ -120,6 +120,24 @@
     },
     {
       "ConsumerID": "m5-consumer-F05-offset-2a6cc8ecd15f42e78f32a390492d536e-47",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-11",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-23",
+      "Topic": "durable-agent.events.v1",
+      "Partition": 0,
+      "NextOffset": 0
+    },
+    {
+      "ConsumerID": "m5-consumer-F05-offset-847a5c46acd546a2aab7a08cf4accbe8-47",
       "Topic": "durable-agent.events.v1",
       "Partition": 0,
       "NextOffset": 0
