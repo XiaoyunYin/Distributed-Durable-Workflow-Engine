@@ -129,6 +129,7 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 - [Architecture decisions](docs/DECISIONS.md)
 - [Technical report and evidence register](docs/TECHNICAL_REPORT.md)
 - [Experiment reproduction notes](experiments/README.md)
+- [Portfolio recovery campaign scope](experiments/portfolio/README.md)
 
 ## Operating limits
 

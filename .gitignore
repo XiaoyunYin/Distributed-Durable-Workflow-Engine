@@ -50,6 +50,7 @@ coverage.out
 .DS_Store
 Thumbs.db
 .scratch/
+*scratchpytest*/
 
 # Experiment output is opt-in; manifests and documentation remain trackable.
 experiments/**/raw/
