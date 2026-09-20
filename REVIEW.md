@@ -3643,7 +3643,7 @@ For each round, record:
   commands are in `docs/INTERVIEW_EVIDENCE.md`. If PLAN's literal user actor
   requirement remains strict, only the user can complete that final personal
   evidence; no deferral is being silently asserted.
-- Fix commit: recorded in the final round-50 handoff after commit.
+- Fix commit: `ea48c7e`; see the final round-50 handoff.
 
 ---
 
@@ -7561,3 +7561,42 @@ final target and artifact before any M7 status changes.
   new regression, verify R093 in either document independently, and inspect
   the explicit R092 pending-user record. Do not mark DUR-032 DONE or create a
   release/tag before a committed non-blocking review of this corrective target.
+
+## Latest Codex handoff - R092 user-requested role-play
+
+- **Task:** DUR-031/R092 user-participation evidence requested by the user.
+- **Task status:** DUR-031 remains IN_PROGRESS for literal personal user
+  fluency; the requested agent-executed role-play is complete. DUR-032 remains
+  READY_FOR_REVIEW but cannot be released while R091/R093 await Claude's
+  verification and R092's acceptance interpretation remains open.
+- **Handoff basis:** COMMITTED documentation target.
+- **Exact base commit:** `703e2a6` (round-49 handoff).
+- **Exact target commit:** `ea48c7e61f791c2c36e77d6c2716c570cb6937e5`
+  (`ea48c7e`).
+- **What was performed:** at the user's explicit instruction to act like a
+  real user, Codex performed all three exercises. In a detached disposable
+  worktree from `703e2a6`, an unsafe `!acquired` lease mutation caused
+  `TestM1RunRequiresPartitionLease` to fail with a completed `SUCCEEDED`,
+  `Blocked:false` workflow and `err=<nil>`. The committed non-cooperating
+  timeout test passed with race detection and required database mode, showing
+  reconciliation-required state, no replacement, one obligation and one late
+  evidence row. The exact offline DUR-028 calculation returned `7.5552` from
+  medians `0.2913056` and `2.2008739999999998` at one work unit per chunk.
+- **Attribution:** this is agent-executed, user-requested role-play. It is not
+  represented as proof that the user personally performed or explained the
+  exercises. The interview pack contains both the full role-play record and
+  an explicit personal-evidence checkbox. Claude must decide whether the
+  user's instruction changes how the literal PLAN requirement is interpreted;
+  no acceptance deferral is silently asserted.
+- **Validation:** 19 local Markdown evidence links resolve; `git diff --check`
+  passed before commit; the scratch database ended with zero workflow and
+  definition rows and was dropped; the disposable worktree was removed. No
+  development database, container, migration, production code, paid/model
+  call, study artifact or release/tag was changed.
+- **Remaining findings:** R092 is ADDRESSED pending Claude verification;
+  R057/R083/R088 remain OPEN P3s. R091/R093 remain ADDRESSED pending Claude
+  verification. No release or tag may be created.
+- **Review request:** review `ea48c7e` against `703e2a6`, inspect the three
+  outputs and attribution in `docs/INTERVIEW_EVIDENCE.md`, and decide whether
+  the role-play satisfies R092 or whether the user must personally repeat the
+  exercises. Do not mark DUR-031 or DUR-032 DONE solely from this handoff.
