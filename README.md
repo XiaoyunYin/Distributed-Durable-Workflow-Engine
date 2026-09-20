@@ -1,150 +1,145 @@
-# Distributed Durable Execution Engine
+# Distributed Durable Workflow Engine
 
-This repository has completed M0 through M7 implementation and measurement
-tasks. M6 was reviewed with
-`NO_BLOCKING_FINDINGS` at committed target `1048ad0` (base `db8b462`), and
-DUR-019, DUR-020, DUR-021B, and DUR-033 are closed. M5 was reviewed with
-`NO_BLOCKING_FINDINGS` at committed target `acb28ba` against round-22 target
-`69917db`; Claude's round-50 residual correction review verified R057, R083,
-and R088 as closed.
-M7's bounded studies and DUR-033A production-path integration are reviewed and
-closed; their evidence is summarized in [the technical report](docs/TECHNICAL_REPORT.md).
-M8/DUR-030 is reviewed and closed; DUR-031's interview-evidence pack and three
-Codex-performed walkthroughs (delegated by the user) have reviewed engineering
-evidence, but DUR-031's personal user exercises remain outstanding (R092).
-They do not establish the user's personal fluency; R092 remains an open P3
-under DUR-031. DUR-032 is reviewed and closed for reproduction/release
-validation; the authorized local annotated tag is `v0.1.0` at `7e4137d` and
-was not published because no remote is configured. The residual corrections
-landed after that tag and are intended for the next tag; `v0.1.0` remains the
-authorized release snapshot.
-The results remain bounded to their
-declared fixtures and host, not to production scale or multi-host durability.
+A Go/Python workflow runtime built around one question: **how do schedulers and
+workers recover from crashes, duplicate messages, and stale ownership without
+losing committed progress or silently repeating external effects?**
 
-## Three bounded comparative findings
+**Stack:** Go, PostgreSQL, Kafka, Python, Docker Compose, OpenTelemetry, Prometheus.
+PostgreSQL owns workflow state; Kafka transports dispatch and completion events.
+An incident-investigation application adds retrieval, citations, and
+approval-gated sandbox actions as a bounded applied-AI use case.
 
-The M7 measurements below predate the deployed scheduler/Kafka-worker wiring
-and have not been rerun on it: the numbers describe each study's named harness,
-not the current deployment. A deployed rerun would be a separate campaign.
+This is an educational systems project with reproducible experiments, not a
+production-ready service or a universal exactly-once execution claim.
 
-- DUR-026: with a fixed four-process worker pool, two schedulers kept up with
-  the tested 2/s offered rate where one scheduler did not on the engine path.
-- DUR-035: direct notification was faster than Kafka at the resolved terminal
-  stage in the quoted campaign; ready-to-claim direct versus Kafka was
-  unresolved and varied across campaigns.
-- DUR-028: at one SHA-256 work unit per chunk, every-chunk checkpointing took
-  7.5552 times the boundary-only median for the recorded in-process panic
-  workload. This is not a general checkpoint policy or crossover estimate.
+## Engineering focus
 
-The M5 48/48 named-fault campaign is a separate bounded validation result, not
-a comparative headline. DUR-034 resolved no safeguard-cost effect because its
-clean reruns were too variable. The RQ8 adversarial rates retain their counts:
-2/20 defended cases versus 6/20 plain cases above each profile's clean-clean
-baseline. See the [technical report](docs/TECHNICAL_REPORT.md) and
-[final release checklist](docs/RELEASE_CHECKLIST.md) for evidence and limits.
-It provides a
-reproducible Go/Python development
-environment, frozen foundation contracts, deterministic named-boundary fault
-fixtures, a deterministic local-first incident workflow, and a real local
-PostgreSQL/Kafka topology. PostgreSQL remains
-authoritative for workflow state; the transactional outbox, Kafka relay,
-inbox/offset consumer, scheduler wake-ups, retry/checkpoint recovery,
-approval-gated cooperating effects, and bounded reconciliation paths are
-covered by focused integration tests. M4 and M5 are reviewed and closed; M5's
-controller-driven fault campaign, outage checks, and telemetry prerequisite
-remain development evidence. M6's retrieval, MCP, workflow, source-corpus,
-redaction, and continuity artifacts are synthetic local evidence, not live-model
-quality or production agent claims. Its portable SQLite adapter exercises the
-approval/effect contract seams but is not the production PostgreSQL engine.
-This is not a claim of
-production authentication, multi-host durability, or final performance.
+- **Ownership and concurrency:** partition leases, epoch fencing, ordered row
+  locks, exclusive worker claims, and idempotent submission/result receipts.
+- **Durable recovery:** explicit workflow graphs, checkpoints, timers, retries,
+  fan-out/join, cancellation, and reconciliation of uncertain outcomes.
+- **Reliable messaging:** transactional outbox, Kafka relay, durable inbox/offset
+  handling, poison-record obligations, and a database-backed repair scan.
+- **Effect safety:** cooperating sinks reuse receipts; unknown non-cooperating
+  outcomes stop automatic retries. Approval grants bind the resource, canonical
+  arguments, revision, and effect identity in the tested integration path.
+- **Falsifiable evidence:** named-boundary fault injection, persisted snapshots,
+  an independent invariant checker, and negative controls that make it fail.
 
-## Local topology
+## Three measured findings
 
-- PostgreSQL 18.6 with data checksums and durability settings enabled.
-- Apache Kafka 4.3.1 in single-node KRaft combined mode.
-- Two Go scheduler/API/event-ingestor replicas and two Python Kafka worker
-  processes (four consumer/activity slots each).
-- OpenTelemetry Collector 0.160.0 and Prometheus 3.13.0 LTS, with both
-  runtime replicas verified as Prometheus scrape targets.
+These single-host Docker Desktop/WSL2 measurements predate the current deployed
+scheduler/Kafka-worker wiring. They describe the named study harnesses, **not
+end-to-end throughput or latency of the current deployment**. A deployed rerun
+must be a separate campaign.
 
-All containers share one Docker Desktop Linux VM. This is development evidence,
-not a storage-replication or infrastructure-availability demonstration.
+1. **Scheduler capacity:** with a fixed four-process worker pool, two schedulers
+   kept up with the tested 2 workflows/s offered rate where one scheduler did
+   not on the engine path. [DUR-026 evidence](experiments/m7/dur026/results.json)
+2. **Transport tradeoff:** notification-direct was faster than Kafka at the
+   resolved terminal stage in the quoted campaign. The ready-to-claim comparison
+   was unresolved and varied across campaigns; no stable dispatch-stage gain is
+   claimed. [DUR-035 evidence](experiments/m7/dur035/results.json)
+3. **Checkpoint cost:** at one SHA-256 work unit per chunk, every-chunk
+   checkpointing took 7.5552 times the boundary-only median under the recorded
+   in-process panic workload. This is neither a general checkpoint policy nor a
+   crossover estimate. [DUR-028 evidence](experiments/m7/dur028/results.json)
 
-## Prerequisites
+The [48/48 named-fault campaign](experiments/m5/f01-f11-results.json) is separate
+bounded validation evidence, not a comparative performance result. The safeguard
+ablation resolved no cost effect because repeated runs were too variable.
+See the [technical report](docs/TECHNICAL_REPORT.md) for configurations,
+computed conclusions, limitations, and the claim-to-evidence register.
 
-- Git
-- Go with automatic toolchain downloads enabled (`GOTOOLCHAIN=auto`); the module pins Go 1.27.1
-- CPython 3.12.7
-- uv 0.9.5 or newer
-- Docker Desktop 29.7.2 or newer with Docker Compose v5
-- PowerShell 7 or Windows PowerShell 5.1
+Supporting AI evidence remains separately scoped: the live-model evaluation
+achieved 4/20 safe outcomes per retrieval arm, versus 20/20 for its fixture
+control. Adversarial excess proposal-change rates were 2/20 defended versus
+6/20 plain above their clean-clean baselines. These are small synthetic studies,
+not production model-quality claims. [Evaluation evidence](experiments/m7/dur029/live-evaluation.json)
 
-## Quick start
+## Run locally
 
-From the repository root:
+Prerequisites: Git, Go with `GOTOOLCHAIN=auto` (module pin Go 1.27.1),
+CPython 3.12.7, uv 0.9.5 or newer, Docker Desktop 29.7.2 or newer with
+Docker Compose v5, and PowerShell 7 or Windows PowerShell 5.1.
 
 ```powershell
 pwsh ./scripts/bootstrap.ps1 -StartServices
-pwsh ./scripts/check.ps1
-pwsh ./scripts/restart-smoke.ps1
+pwsh ./scripts/local-demo.ps1
 ```
 
-If `pwsh` is unavailable, run the same scripts with `powershell.exe`.
-`bootstrap.ps1` creates a gitignored `.env`, installs the locked Python
-development environment, builds the containers, waits for health, applies the
-bootstrap migration, and runs service smoke checks.
+If `pwsh` is unavailable, use Windows PowerShell, for example:
 
-Useful endpoints:
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/bootstrap.ps1 -StartServices
+```
 
-- runtime replicas: <http://localhost:8080/healthz> and <http://localhost:8081/healthz>
-- worker processes: <http://localhost:8181/healthz> and <http://localhost:8182/healthz>
+Bootstrap creates a gitignored `.env`, installs locked dependencies, builds
+containers, applies migrations, and checks service health. The demo submits via
+the API, executes Python activities through Kafka, and checks the durable result
+with the independent invariant checker.
+
+The local stack contains two Go scheduler/API replicas, two Python Kafka worker
+processes with four slots each, PostgreSQL 18.6, Kafka 4.3.1, OpenTelemetry
+Collector 0.160.0, and Prometheus 3.13.0 LTS. All containers share one Docker
+Desktop Linux VM. PostgreSQL uses data checksums and enabled durability settings.
+
+- Runtime health: <http://localhost:8080/healthz>, <http://localhost:8081/healthz>
+- Worker health: <http://localhost:8181/healthz>, <http://localhost:8182/healthz>
 - Prometheus: <http://localhost:9090>
-- PostgreSQL: `localhost:5432`
-- Kafka: `localhost:9092`
 
-When `DATABASE_URL` and `KAFKA_BOOTSTRAP_SERVERS` are set, each runtime replica
-also starts the bounded transactional-outbox relay. Kafka publication is a
-transport action only; workflow state remains in PostgreSQL.
-
-Compose also enables the scheduler repair loop for the `local-runtime`
-namespace. Workers consume the task topic, persist inbox disposition through
-the control API, then claim and execute allowlisted `pure.echo/v1` and
-`pure.add/v1` activities. Unsupported activity versions/effect activities are
-paused, not executed. Approval/effect integration retains the separately
-reviewed DUR-033A test scope; this wiring adds no external action capability.
-Run `scripts/local-demo.ps1` after bootstrap for an API → Kafka → Python →
-durable-result demo checked against the independent invariant checker.
-
-Ports can be changed in the local `.env` file.
-
-## Stop and resume
-
-Stop containers while retaining PostgreSQL, Kafka, and Prometheus volumes:
-
-```powershell
-docker compose --env-file .env -f deploy/local/compose.yaml down
-```
-
-Resume them with:
-
-```powershell
-docker compose --env-file .env -f deploy/local/compose.yaml up -d --wait
-```
-
-`docker compose ... down --volumes` permanently deletes local dependency data.
-Use it only when a clean reset is intended.
+The deployed demo scans the `local-runtime` namespace and allows only
+`pure.echo/v1` and `pure.add/v1`. Unsupported activities pause instead of
+executing. Approval/effect execution is covered by the separate production-path
+integration test; the default deployment does not run remediation or paid models.
+See the [API reference](api/README.md) and [operations runbook](docs/RUNBOOK.md).
 
 ## Validation
 
-`scripts/check.ps1` runs Go format/vet/test/build and Python Ruff, mypy, and
-pytest checks. `scripts/smoke.ps1` verifies real service health and pinned
-PostgreSQL durability settings. `scripts/restart-smoke.ps1` proves PostgreSQL
-and Kafka development volumes retain explicit markers across container recreation.
-`scripts/ci.ps1` is the shared validation entry point; use `-WithRace` for Go
-race checks, `-WithServices` for real dependency checks, and `-WithM5` to run
-the bounded two-scheduler smoke plus the isolated F01-F11 campaign. No model
-or paid-provider calls are made by these checks.
+```powershell
+# Formatting, lint, types, unit tests, and Go race checks.
+pwsh ./scripts/ci.ps1 -WithRace
 
-See [docs/RUNBOOK.md](docs/RUNBOOK.md) for operations and
-[docs/BUILD_LOG.md](docs/BUILD_LOG.md) for evidence and known gaps.
+# Real PostgreSQL/Kafka integration; serializes shared database fixtures.
+pwsh ./scripts/ci.ps1 -WithServices -WithRace
+
+# Verify committed fault traces against their durable snapshots, offline.
+pwsh ./scripts/m5-archive-check.ps1
+```
+
+Service-mode CI temporarily stops runtime/worker services to isolate fixtures
+and restores them afterward; run it in an isolated development environment.
+These commands make no paid model calls. Add `-WithM5` to service-mode CI only
+when intentionally rerunning the live fault campaign.
+
+For clean-source, fresh-volume reproduction and restart checks, use the
+[runbook](docs/RUNBOOK.md). Ordinary stop/resume preserves data:
+
+```powershell
+docker compose --env-file .env -f deploy/local/compose.yaml down
+docker compose --env-file .env -f deploy/local/compose.yaml up -d --wait
+```
+
+Adding `--volumes` to `down` permanently deletes local dependency data.
+
+## Design and evidence
+
+- [State, ownership, and effect contracts](docs/CONTRACTS.md)
+- [Graph interpreter](docs/INTERPRETER.md) and [frozen experiment protocols](docs/PROTOCOLS.md)
+- [Architecture decisions](docs/DECISIONS.md)
+- [Technical report and evidence register](docs/TECHNICAL_REPORT.md)
+- [Experiment reproduction notes](experiments/README.md)
+
+## Operating limits
+
+- APIs are development-only, unauthenticated, and localhost-bound by default.
+  Do not expose them to untrusted clients.
+- **Known liveness issue (R096):** a scheduler stalled inside a transaction can
+  retain the lease-row lock beyond lease expiry and block takeover. Bounded
+  lock-wait and scheduler-iteration handling remain a separate pending repair.
+- Single-host evidence does not establish multi-host durability, database HA,
+  host-loss recovery, sustained production load, or arbitrary exactly-once effects.
+- Historical studies, deterministic fixtures, and the deployed pure-activity
+  demo have different scopes; their results are not interchangeable.
+- The existing `v0.1.0` tag identifies `7e4137d`; this branch includes later
+  corrections. No tag is moved by this documentation cleanup.

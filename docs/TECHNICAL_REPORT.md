@@ -329,7 +329,7 @@ not a feature scorecard or a claim that this project matches any reference.
 | Safeguards expose measurable mechanisms; cost delta withheld | experiments/m7/dur034/results.json | 12 runs, 24 workflows, four test-only profiles; unstable repeated spread |
 | Notification direct is lower-latency than Kafka on terminal stage in the quoted run | experiments/m7/dur035/results.json | 12 runs, 288 workflows, four workers; ready-to-claim comparison unresolved |
 | Retrieval arms differ in held-out ranking but not live safe success | experiments/m7/dur029/retrieval-final.json, experiments/m7/dur029/live-evaluation.json | 120 retrieval queries; 20 live cases/arm; one paid model/configuration |
-| Approval and effect binding hold on the production path | DUR-033A integration at commit 95948cb, recorded in REVIEW.md round 45 | PostgreSQL test server, synthetic source corpus, no external action |
+| Approval and effect binding hold on the production path | `TestDUR033AProductionPath` in [production_integration_test.go](../internal/incident/production_integration_test.go), reviewed implementation commit 95948cb | PostgreSQL test server, synthetic source corpus, no external action |
 
 ## Scope, cost, and remaining limitations
 
@@ -352,14 +352,18 @@ not a feature scorecard or a claim that this project matches any reference.
 - The control API and worker endpoints remain development-only and
   unauthenticated, bound to localhost by default. Authentication is a prerequisite
   for broader exposure.
+- Subsequent review identified a pending liveness repair (R096): a stalled
+  scheduler transaction can hold the lease-row lock beyond lease expiry and
+  block takeover. Historical passing campaigns do not establish a bound for
+  that scenario. The publication cleanup does not fix it.
 
 ## Reproduction index
 
-The repository's authoritative commands are in scripts/ and the task records
-in PLAN.md. The evidence index is:
+Published reproduction instructions are in [README.md](../README.md),
+the [runbook](RUNBOOK.md), and scripts/. The evidence index is:
 
     go test -race -p 1 ./...
-    powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/ci.ps1 -WithServices -SerialPackages
+    powershell.exe -NoProfile -ExecutionPolicy Bypass -File ./scripts/ci.ps1 -WithServices -WithRace
     experiments/m5/f01-f11-results.json
     experiments/m5/outage-recovery.json
     experiments/m7/dur036-readiness.json

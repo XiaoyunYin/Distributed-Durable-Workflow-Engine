@@ -2,6 +2,21 @@
 .env
 .env.*
 !.env.example
+/.aws/
+/.secrets/
+
+# Local agent instructions and project-management records.
+# Kept on disk for continued work; excluded from the current publishable tree.
+# Ignore rules do not remove these files from earlier commits.
+/AGENTS.md
+/CLAUDE.md
+/PLAN.md
+/REVIEW.md
+/docs/BUILD_LOG.md
+/docs/INTERVIEW_EVIDENCE.md
+/docs/PORTFOLIO_ROADMAP.md
+/docs/RELEASE_CHECKLIST.md
+# Keep technical docs, architecture decisions, and reproducible evidence tracked.
 
 # Python
 .venv/
@@ -11,11 +26,23 @@ __pycache__/
 .pytest_cache/
 /.pytest-*/
 .ruff_cache/
+/.uv-cache*/
+.coverage
+.coverage.*
+htmlcov/
+*.egg-info/
 
 # Go
 /bin/
 /runtime.exe
 coverage.out
+*.test
+*.prof
+/coverage*.out
+
+# Local packaging output
+/build/
+/dist/
 
 # Editors and operating systems
 .idea/

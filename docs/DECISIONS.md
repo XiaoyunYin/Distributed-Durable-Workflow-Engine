@@ -1,5 +1,31 @@
 # Architecture and scope decisions
 
+## D015 - Separate published technical evidence from local process records
+
+- Date: 2026-09-20
+- Status: implementation choice under the user's request to exclude unnecessary
+  files before GitHub publication; no guarantee or release criterion changed.
+
+Use README.md as the recruiter-facing entry point. Keep code, tests, migrations,
+locked dependencies, API documentation, contracts, the runbook, architecture
+decisions, the technical report, and reproducible experiment evidence tracked.
+Keep agent instructions, the work plan, review transcript, build diary, interview
+exercise pack, portfolio proposal, and release checklist on disk for continued
+local work, but remove them from the current Git index and ignore future edits.
+They are process records, not build or runtime dependencies.
+
+This is a current-tree presentation change, not a history rewrite or privacy
+guarantee: prior commits and the existing release tag still contain these files.
+No local record is deleted, no review finding is closed, and no release, remote
+push, or cloud deployment is authorized by this cleanup. Future local process
+records need a separate backup if they must be retained beyond this workspace.
+Personal walkthrough attribution and the pending R096 repair remain unchanged.
+
+The rejected alternative was ignoring every Markdown file, which would remove
+the evidence and operating instructions behind the README's claims. Public
+documentation links must resolve to tracked files, and generated caches/results
+must not displace the committed fixtures or snapshots needed for reproduction.
+
 ## D014 - Wire the local deployment through existing durable boundaries
 
 - Date: 2026-09-19
