@@ -1,5 +1,32 @@
 # Architecture and scope decisions
 
+## D016 - Defer R096 while advancing the portfolio minimum
+
+- Date: 2026-09-20
+- Status: user-authorized scope decision; R096 remains OPEN and unresolved.
+
+The user explicitly chose to defer the R096 lease-row lock liveness repair and
+proceed with the other portfolio work. This authorizes implementation of the
+minimum package proposed in `docs/PORTFOLIO_ROADMAP.md`: DUR-037 reproducible
+Linux CI, a bounded local recovery campaign under DUR-041a, and DUR-045
+recruiter-facing presentation. It does not authorize claiming that takeover is
+bounded while a scheduler transaction still holds the lease row lock.
+
+Until R096 is repaired, DUR-041a must exclude or separately label the
+lock-held-takeover case. It may still measure the other declared local fault
+cases when their safety and progress evidence is valid. Any result must carry
+the R096 limitation and must not be presented as general scheduler liveness.
+
+Cloud infrastructure, multi-host DUR-041b, and any paid provider/model use are
+not activated by this decision. A separate finite cloud budget and topology
+decision is required before provisioning. Authentication remains optional for
+private trusted experiments and required before untrusted write exposure.
+
+The rejected alternative was to silently ignore R096 while publishing the full
+recovery claim. That would turn a known blocking liveness limitation into an
+unsupported resume or recruiter claim. The user may later authorize the repair
+or a separate explicit deferral; neither is inferred here.
+
 ## D015 - Separate published technical evidence from local process records
 
 - Date: 2026-09-20

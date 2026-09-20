@@ -1,0 +1,118 @@
+name: durable-agent-engine
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: durable-agent-engine-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  checks:
+    name: Go, Python, and offline evidence
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Validate Compose configuration
+        shell: pwsh
+        run: ./scripts/bootstrap.ps1
+
+      - name: Run repository checks
+        shell: pwsh
+        run: ./scripts/check.ps1
+
+      - name: Run Go race tests
+        shell: pwsh
+        run: go test -race ./...
+
+      - name: Validate archived fault traces
+        shell: pwsh
+        run: ./scripts/m5-archive-check.ps1
+
+  services:
+    name: PostgreSQL, Kafka, and deployed smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Bootstrap the isolated service stack
+        shell: pwsh
+        run: ./scripts/bootstrap.ps1 -StartServices
+
+      - name: Run service-backed checks and race tests
+        shell: pwsh
+        run: ./scripts/ci.ps1 -WithServices -WithRace
+
+      - name: Collect service diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          if (Test-Path -LiteralPath .env) {
+            docker compose --env-file .env -f deploy/local/compose.yaml ps > artifacts/compose-ps.txt
+            docker compose --env-file .env -f deploy/local/compose.yaml logs --no-color > artifacts/compose-logs.txt
+          }
+
+      - name: Upload service diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-diagnostics-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Tear down the isolated service stack
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath .env) {
+            docker compose --env-file .env -f deploy/local/compose.yaml down --volumes --remove-orphans
+          }
