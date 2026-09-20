@@ -39,6 +39,7 @@ try {
     $env:GOCACHE = Join-Path $RepoRoot 'bin/dur032-selfcheck/go-cache'
     $env:UV_CACHE_DIR = Join-Path $RepoRoot 'bin/dur032-selfcheck/uv-cache'
     $env:UV_PYTHON_PREFERENCE = 'only-system'
+    New-Item -ItemType Directory -Force -Path (Join-Path $checkout 'bin') | Out-Null
     $env:PYTEST_ADDOPTS = '--basetemp=bin/pytest-temp -o cache_dir=bin/pytest-cache'
     $env:DATABASE_URL = "postgresql://durable:${password}@127.0.0.1:${basePort}/durable?sslmode=disable"
     $env:DURABLE_DATABASE_URL = $env:DATABASE_URL

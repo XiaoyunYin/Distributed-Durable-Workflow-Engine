@@ -18,6 +18,12 @@ denominators, R090 positioning, and the delegated walkthrough attribution.
 Initial checks: targeted non-service Go tests compile/pass; mypy passes.
 Python regression found the pinned Kafka client's three-field offset tuple;
 fixed the missing leader_epoch to -1. Final suites/deployment checks pending.
+The first fresh-checkout run at 6d276af built both Docker images, applied all
+14 migrations to new volumes, passed smoke, and completed the deployed demo
+(2 Python claims, 2 task inbox rows, 8 event inbox rows, result 6, valid checker).
+Service Go checks passed. Python had 42 passes and 3 setup errors because the
+new checkout lacked the parent of the configured pytest basetemp. Corrected
+the reproduction script to create that parent; full fresh rerun is pending.
 No paid calls or measurement reruns. Interview point: durable inbox receipt
 allows transport acknowledgment, while scans and attempt fences recover the
 separate execution obligation after a crash.
