@@ -20,6 +20,23 @@ new migration/contract version and is outside this milestone.
 
 ## Durable actors and authority
 
+The local Compose deployment wires these actors for the `local-runtime`
+namespace. Automatic activities are currently limited to `pure.echo/v1` and
+`pure.add/v1`; unsupported definitions pause before dispatch. External effects
+and approval attacks retain the separate DUR-033A integration-test scope.
+This is not permission to execute an arbitrary activity named by broker text.
+
+Fresh Kafka groups read earliest retained records; existing groups resume from
+committed offsets. Python slots persist a delivery's inbox/poison disposition
+through the control API before committing its offset. They claim with an
+`expected_attempt` fence and use only authoritative input/version returned by
+the API. An uncertain HTTP result is retried with the same body, without
+rerunning the activity. A process crash after offset acknowledgment can still
+leave execution unfinished: the scheduler's PostgreSQL scan redispatches an
+unclaimed attempt, or applies the existing claimed-attempt timeout policy.
+Events accelerate scans; missing events cannot be the only path to recovery.
+Terminal workflows with pending wakeups remain scan-visible until acknowledged.
+
 | Actor | May write | May not decide |
 | --- | --- | --- |
 | Client | Submit request with a client submission key; write a durable cancellation request or approval request | Workflow revision, attempt ownership, or external effects |

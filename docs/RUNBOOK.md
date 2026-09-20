@@ -18,6 +18,33 @@ Apply migrations with `pwsh ./scripts/migrate.ps1`. Verify health with
 
 ## Stop, resume, and restart
 
+The default Compose runtime enables scheduler scanning only for namespace
+`local-runtime`; it does not consume experiment/test namespaces. The worker
+registry supports `pure.echo/v1` and `pure.add/v1`, with four Kafka/activity
+slots per worker process. Unknown versions or effect activities pause instead
+of executing. Control endpoints remain development-only and unauthenticated.
+
+Run `powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/local-demo.ps1`
+to submit through the API, execute two activities in Python via Kafka, and
+verify the durable result and invariant checker. The demo seeds a private
+definition and removes its workflow/definition in a finally-style defer,
+including on failure. It does not execute paid calls or remediation effects.
+
+For a complete isolated release reproduction, use:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/final-reproduce.ps1 -Commit <reachable-target>
+```
+
+This creates a detached worktree and a uniquely named `dur032-check-*` Compose
+project with generated credentials, separate ports, and new volumes. It runs
+bootstrap, the deployed demo, serial service/race CI, restart smoke, and the
+demo again. Only that test project's containers and volumes are removed. The
+ignored worktree is retained for audit; `-KeepOnFailure` also retains a failed
+test project's containers/volumes for diagnosis. It never tears down the
+default development stack. Builds may reuse dependency/image caches; this is
+a clean source/service-state test, not a cacheless installation.
+
 `docker compose --env-file .env -f deploy/local/compose.yaml down` removes
 containers and the network but retains named volumes. Resume with
 `docker compose --env-file .env -f deploy/local/compose.yaml up -d --wait`.

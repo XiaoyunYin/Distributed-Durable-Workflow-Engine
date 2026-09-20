@@ -1,6 +1,6 @@
 # Build log
 
-## 2026-09-19 - DUR-032 self-check repairs (in progress)
+## 2026-09-19 - DUR-032 self-check repairs and fresh reproduction
 
 Base: f61aad9. The user authorized fixing the final self-check gaps. Added an
 external-activity interpreter mode, namespace-scoped scheduler repair loop,
@@ -23,7 +23,46 @@ The first fresh-checkout run at 6d276af built both Docker images, applied all
 (2 Python claims, 2 task inbox rows, 8 event inbox rows, result 6, valid checker).
 Service Go checks passed. Python had 42 passes and 3 setup errors because the
 new checkout lacked the parent of the configured pytest basetemp. Corrected
-the reproduction script to create that parent; full fresh rerun is pending.
+the reproduction script to create that parent in `78fa7f9`.
+
+The fresh rerun at `78fa7f9` passed in project `dur032-check-19e869b3`:
+
+- Detached, clean source checkout; freshly created PostgreSQL, Kafka, and
+  Prometheus volumes, all 14 migrations applied, both runtime/worker images
+  built. Download and Docker build caches were reused: not a cacheless test.
+- Deployed API -> scheduler -> Kafka -> Python -> result -> scheduler demo
+  before and after dependency recreation: both SUCCEEDED with result 6,
+  2 Python claims, 2 task inbox rows, 8 event inbox rows, valid independent
+  checker. No Engine runs inside the demo command.
+- `ci.ps1 -WithServices -WithRace`: Go formatting/vet/build, serial normal
+  and race suites, Ruff, mypy (27 sources), 45 Python tests, focused
+  M1/M3/M4/DUR-033A integration suites, production-constructor Kafka round trip,
+  and deployed smoke all passed. The Kafka focused case passed in 0.57s.
+- Restart smoke asserted the database marker count and retained Kafka topic
+  after recreating PostgreSQL/Kafka; final smoke passed and tracked source
+  remained clean. This is container recreation, not a hard-kill campaign.
+- Current fault-checker binary validated all 48 historical traces offline
+  against their committed durable snapshots; no new campaign was run.
+
+The outer PowerShell `2>&1 | Tee-Object` wrapper reported exit 1 despite the
+child reaching `passed=True` and completing cleanup. A minimal child writing
+one stderr line and explicitly exiting 0 reproduces that wrapper behavior;
+its native exit code is 0 while PowerShell's pipeline success flag is false.
+This is recorded rather than describing the outer command as exit 0. The
+retained local log is `bin/dur032-selfcheck/reproduce-78fa7f9.log`; the
+reproduction script and assertions are committed, but this host-local log is
+ignored. Both test projects' containers, networks, and three temporary volumes
+were removed (ephemeral data is not recoverable). Ignored audit worktrees
+remain. The user's original running Compose stack was not recreated or updated.
+
+Alternatives: retaining the LastOffset test-only constructor would hide the
+real startup backlog defect, so the production constructor and its test now
+agree on earliest retained records for fresh groups. A namespace-scoped repair
+scan plus durable inbox acknowledgment was chosen over treating a Kafka offset
+as proof of completed work. The local allowlist stays pure; effect/approval
+production-path evidence remains the separately reviewed DUR-033A campaign.
+R057/R083/R088 remain open P3s; R089/R090 are ADDRESSED, not VERIFIED. Final
+Claude review is still required, and no release/tag has been created.
 No paid calls or measurement reruns. Interview point: durable inbox receipt
 allows transport acknowledgment, while scans and attempt fences recover the
 separate execution obligation after a crash.

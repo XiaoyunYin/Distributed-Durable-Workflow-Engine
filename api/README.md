@@ -18,8 +18,21 @@ the API directly to an untrusted network.
 
 The worker control seam is:
 
+- `POST /v1/worker-deliveries` records a Kafka task delivery before its broker
+  offset is committed. Fields: `event_id`, `event_type`, `schema_version`,
+  `topic`, `partition`, `offset`, and base64 `payload` (raw bytes, including
+  malformed JSON). The response gives `disposition`, `commit_offset`,
+  `next_offset`, and an optional authoritative `task`. Invalid/unknown records
+  become durable poison obligations, not executable tasks. The runtime worker
+  group is `runtime-workers-v1`; do not use this endpoint for a different group.
+  Input, activity version, and current attempt come from PostgreSQL after the
+  broker identity/payload has been matched against the outbox.
+
 - `POST /v1/workflows/{workflow_id}/nodes/{node_id}/iterations/{iteration}/claim`
-  with `worker_id`, `request_id`, and optional `attempt_lease_ms`.
+  with `worker_id`, `request_id`, and optional `attempt_lease_ms` and
+  `expected_attempt`. Kafka workers must supply the delivered attempt number:
+  a delayed delivery must not claim a replacement attempt. Omission is retained
+  for the direct development control seam.
 - `POST .../heartbeat` with `attempt_number`, `claim_token`, and optional
   `extension_ms`.
 - `POST .../result` with `attempt_number`, `claim_token`, `attempt_state`, and
@@ -59,11 +72,12 @@ must attach independently verified receipt evidence or explicitly abandon the
 unknown outcome; both choices are actor-attributed in the effect-resolution
 audit ledger.
 
-These endpoints are the direct M2 control seam, not the M3 Kafka transport.
+The claim/heartbeat/result routes remain the authoritative control seam; the
+delivery route connects the local Kafka worker to the durable inbox.
 They are unauthenticated and accept caller-declared `worker_id` because this
 is a localhost-bound development API only. Authentication and identity
-binding are prerequisites for the M4 approval/effect work; do not expose this
-write-capable API to an untrusted network before that work lands.
+binding are still prerequisites for exposing approval/effect work; do not
+expose this write-capable API to an untrusted network.
 
 If a response is lost after commit, retry the same execution-defining
 submission and idempotency key. The API returns the existing workflow with

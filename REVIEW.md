@@ -3469,7 +3469,7 @@ For each round, record:
 - Change: the report now gives defended 2/20 and plain 6/20 excess changes,
   the four-case difference, and the underlying paired counts.
 - Validation: checked against DUR-029 and round-44 verification; no new call.
-- Fix commit: see the final DUR-032 handoff once committed.
+- Fix commit: `6d276af`; final DUR-032 handoff includes this correction.
 
 ### R090 — The correctness campaign is presented as one of the three resume-level findings, which PLAN reserves for comparative results
 
@@ -3498,7 +3498,7 @@ For each round, record:
   and one-cost-point checkpoint comparison. The 48/48 campaign is separate;
   unresolved safeguard cost is excluded. Delegated attribution is corrected.
 - Validation: compared the headline sets with the report and reviewed studies.
-- Fix commit: see the final DUR-032 handoff once committed.
+- Fix commit: `6d276af`; final DUR-032 handoff includes this correction.
 
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.
 

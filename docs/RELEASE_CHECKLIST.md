@@ -1,132 +1,133 @@
 # DUR-032 final reproduction and release checklist
 
-Status: READY_FOR_REVIEW. This checklist is the final M8 validation record. It
-separates documentation/claim positioning from executable environment checks
-and never treats an unavailable check as passed.
+Status: IN_PROGRESS, awaiting the committed final handoff and Claude review.
+This supersedes the earlier `2ea3726` checklist: that test-only Kafka correction
+was insufficient. The deployed scheduler/worker path and production consumer
+startup policy are now in scope.
 
-Base commit: c0757e4, the DUR-031 closeout. Final implementation target:
-2ea3726. No paid call, live-model run,
-external action, protected guarantee change, or experiment rerun is part of
-DUR-032.
+Base: `c0757e4` (DUR-031 closeout). Executable validation target: `78fa7f9`,
+including wiring commit `6d276af`. The latest REVIEW.md handoff identifies the
+documentation-inclusive review target. No paid call, live-model run, new
+measurement campaign, external remediation, or protected-scope change was made.
 
-## Claim positioning required by R090
+## Claims and attribution
 
-The final README leads with comparative findings rather than the correctness
-campaign:
+The README and interview pack lead with three bounded comparative findings:
 
 1. DUR-026: with four fixed worker processes, two schedulers kept up with the
-   tested 2/s offered rate where one scheduler did not on the engine path.
-2. DUR-035: in the quoted campaign, direct notification was faster than Kafka
-   at the resolved terminal stage; ready-to-claim direct versus Kafka was
-   unresolved and varied across campaigns.
+   tested 2/s offered rate where one did not, on the engine path.
+2. DUR-035: direct notification was faster than Kafka at the resolved terminal
+   stage in the quoted campaign; dispatch-stage separation varied across runs.
 3. DUR-028: at one SHA-256 work unit per chunk, every-chunk checkpointing took
-   7.5552 times the boundary-only median in the recorded in-process panic
-   workload; this is not a general checkpoint policy or crossover estimate.
+   7.5552 times the boundary-only median in the in-process panic workload.
+   This is not a general checkpoint policy or crossover estimate.
 
-The M5 48/48 campaign is reported separately as bounded validation, not as a
-comparative headline finding. DUR-034's safeguard-cost comparison is also
-explicitly absent because its clean reruns did not resolve a cost effect.
-When the RQ8 adversarial result is reused, its counts travel with its rates:
-defended 2/20 above its clean-clean baseline versus plain 6/20.
+The M5 48/48 campaign is separate bounded validation, not a comparative
+headline. DUR-034 resolved no safeguard-cost effect. RQ8 rates retain their
+counts: defended 2/20 versus plain 6/20 changes above each profile's clean-clean
+baseline (a four-case difference). R089/R090 are ADDRESSED pending Claude.
+The walkthroughs were performed by Codex at the user's request; they are not
+evidence of the user's personal fluency.
 
-## Clean-checkout demonstration
+## What the deployed path does
 
-Run from a clean disposable checkout or worktree at the final implementation
-target. These commands deliberately use a task-specific Go cache and do not
-reuse the reviewed worktree's ignored environment files:
+With `RUNTIME_SCHEDULER=enabled`, both runtime replicas scan the configured
+namespace (`local-runtime` by default), acquire their own partition lease, and
+run the interpreter. Activities are dispatched through the outbox/relay/Kafka
+path to Python workers. A worker records the durable delivery/inbox disposition
+before committing its offset, then claims the exact delivered attempt and
+reports its result. Event consumption and fallback scans wake the scheduler.
 
-    git worktree add .scratch/dur032-clean <final-target>
-    Set-Location .scratch/dur032-clean
-    $env:GOCACHE = '<task-specific cache>'
-    pwsh -NoProfile -File scripts/bootstrap.ps1
-    if ((git status --porcelain) -ne '') { throw 'clean checkout is dirty after bootstrap' }
-    pwsh -NoProfile -File scripts/check.ps1
+The local activity allowlist is `pure.echo/v1` and `pure.add/v1`; unknown
+versions pause rather than silently executing. The deployed demo does not
+instantiate its own Engine. Effects/approvals are not automatically exposed as
+Python activities; their production-path evidence remains DUR-033A's separate
+reviewed integration campaign. APIs remain unauthenticated and localhost-only.
 
-Bootstrap without -StartServices installs the frozen Python environment and
-checks the Compose configuration without recreating shared services. The
-non-service check runs formatting, vet, Go tests/build, Ruff, mypy, and Python
-tests; database-backed tests skip unless service mode is explicitly enabled.
+Production `NewKafkaSource` now uses FirstOffset for a group without a committed
+offset. Existing group offsets still take precedence. The integration test
+uses this constructor and publishes before the new consumer group starts;
+there is no alternate test-only FirstOffset constructor.
 
-For service-mode validation, from a checkout with the local .env and running
-services:
+## Reproduce
 
-    pwsh -NoProfile -File scripts/ci.ps1 -WithServices -WithRace
+From this repository with Docker Desktop and the documented toolchain:
 
-This serializes database-backed package tests, applies migrations, runs the
-integration suites, restores relays, and runs the dependency smoke check. No
-live-model or paid-provider work is included.
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/final-reproduce.ps1 -Commit 78fa7f9
+```
 
-## Migration and lifecycle verification
+The script verifies target ancestry, creates a detached clean worktree, selects
+a unique Compose project and unused ports, generates local credentials, and
+requires no pre-existing project containers or volumes. It then runs:
 
-The safe, non-recreating checks are:
+- bootstrap with services and all migrations;
+- the real deployed demo;
+- `ci.ps1 -WithServices -WithRace`;
+- PostgreSQL/Kafka restart smoke, a second deployed demo, and final smoke;
+- an assertion that tracked source is still clean.
 
-    pwsh -NoProfile -File scripts/migrate.ps1
-    pwsh -NoProfile -File scripts/smoke.ps1
-    docker compose --env-file .env -f deploy/local/compose.yaml config --quiet
+Only the generated test project's containers, network and volumes are removed.
+`-KeepOnFailure` preserves a failed project for diagnosis. Ignored worktrees
+remain for audit. Dependency/download and Docker build caches may be reused;
+this is fresh source and service state, not a cacheless machine installation.
+Do not run volume cleanup against the ordinary development project.
 
-scripts/restart-smoke.ps1 is the lifecycle check that recreates only the
-PostgreSQL and Kafka containers, verifies a database marker and Kafka topic
-survive, and removes both markers. It must only be run when interrupting the
-shared development services is acceptable:
+For a demo against the ordinary local stack, use `scripts/local-demo.ps1`
+after rebuilding that stack explicitly. The validation below did not update
+the user's original running containers.
 
-    pwsh -NoProfile -File scripts/restart-smoke.ps1
+## Observed validation
 
-If it is not run, record that as skipped with the reason; do not infer hard-kill
-or volume durability from smoke.ps1.
+At `78fa7f9`, project `dur032-check-19e869b3` passed every script assertion:
 
-## Validation record
+- Fresh detached checkout; both images built; 14 migrations applied to fresh
+  volumes; initial topology smoke passed.
+- Both deployed demos reached SUCCEEDED with result 6, two Python claims,
+  two task inbox rows, eight event inbox rows, and valid independent checker.
+- Go formatting, vet, build, serial normal/race suites; Ruff; mypy (27 source
+  files); all 45 Python tests; M1/M3/M4/DUR-033A focused integration suites;
+  real Kafka round trip using the production constructor; service smoke.
+- Restart smoke asserted the PostgreSQL marker count and retained Kafka topic
+  across container recreation. Post-restart demo and final smoke passed.
+- Tracked source remained clean. Temporary project containers/volumes were
+  removed; the ordinary development stack was untouched.
+- Separately, the current checker passed all 48 historical fault traces
+  offline against committed durable snapshots. No campaign was rerun.
 
-- Clean checkout at a6b7083 bootstrapped successfully in a disposable
-  worktree after selecting the installed CPython 3.12 interpreter. The first
-  attempt was blocked by the host's uv Python-directory ACL and the sandbox's
-  package-network restriction; the retry used a task-local uv cache and
-  approved dependency download. The checkout remained clean after bootstrap.
-- The clean checkout's non-service check passed after setting a writable
-  pytest basetemp: Go tests/build, vet, formatting, Ruff, mypy, and 41 Python
-  tests. The first Python pass had 38 passes and 3 setup errors because pytest
-  scanned a permission-restricted global temp directory; no test failed. The
-  explicit basetemp rerun passed all 41.
-- The first service-mode CI run exposed a real fixture issue in
-  TestM3KafkaTaskAndEventRoundTrip: a new Kafka group started at LastOffset
-  after the test had published its records, so the event was missed. The
-  production NewKafkaSource behavior was preserved; the integration test now
-  uses a test-only FirstOffset constructor for its fresh group. The focused
-  isolated test passed in 0.73 seconds, and the final full
-  ci.ps1 -WithServices -WithRace run passed all serial Go checks, 41 Python
-  tests, integration suites, and smoke checks.
-- The final code change is test-only: production NewKafkaSource still starts a
-  new group at LastOffset, while the M3 integration fixture constructs its
-  fresh group at FirstOffset. This keeps production semantics unchanged and
-  makes the test independent of whether publication happens before first group
-  assignment.
-- migrate.ps1 skipped every already-applied migration through 000014. The
-  read-only smoke check passed before and after restart smoke. The restart
-  check recreated only PostgreSQL/Kafka, retained its database marker and Kafka
-  topic, removed both markers, and the full topology returned healthy.
-- No live-model call, paid-provider call, external action, release, or tag was
-  performed.
+The first isolated run at `6d276af` passed the deployed demo and Go checks,
+then reported 42 Python passes and three setup errors: the configured pytest
+temporary directory's parent did not exist. `78fa7f9` creates it; the complete
+fresh rerun above passed all 45. The first test project's resources were also
+removed after diagnosis.
 
-## Final evidence checklist
+The captured outer PowerShell `2>&1 | Tee-Object` command returned 1 even though
+the child completed with `passed=True`. A minimal stderr-writing child with
+explicit exit 0 reproduced the wrapper's false pipeline status. The observed
+checks and cleanup are recorded here; the outer command is not claimed to
+have exited 0. Local log: `bin/dur032-selfcheck/reproduce-78fa7f9.log` (ignored).
+Use the direct script invocation above to avoid conflating native stderr with
+a failed PowerShell pipeline.
 
-- [x] Clean disposable checkout bootstrapped with frozen dependencies.
-- [x] Non-service checks pass from that checkout.
-- [x] Service-mode race/integration checks pass, or accepted prior results are
-      linked with a reason this documentation-only task did not rerun them.
-- [x] Migrations are idempotent on the declared development database.
-- [x] PostgreSQL/Kafka/runtime/worker/telemetry/Prometheus smoke passes.
-- [x] Restart smoke passes, or is explicitly recorded as skipped.
-- [x] R090 positioning is represented: three comparative findings first,
-      48/48 correctness validation separately, safeguard-cost non-result
-      explicit, and R089 counts carried with rates.
-- [ ] Final Claude review covers implementation, claims, release limits, and
-      the test-only Kafka fixture correction.
-- [ ] Release/tag is created only after explicit authorization.
+## Release gates and limits
 
-## Scope and limitations
+- [x] Fresh source and fresh service-volume bootstrap with frozen dependencies.
+- [x] Deployed API/Kafka/Python execution before and after dependency restart.
+- [x] Service-mode serial Go race/integration suites and 45 Python tests.
+- [x] Migration, smoke and dependency container-recreation persistence checks.
+- [x] Historical 48-trace offline checker validation.
+- [x] R089 counts, R090 headline structure, and delegated attribution corrected.
+- [ ] Claude reviews the final implementation and claims at the latest target.
+- [ ] DUR-032 moves to DONE only after that committed non-blocking review.
+- [ ] Release/tag creation requires explicit authorization.
 
-This is a single-node Docker Desktop/WSL2 development environment. Passing
-local checks does not establish multi-host durability, production scale,
-authentication, hard-kill equivalence for every fault, remote CI, or arbitrary
-external-effect exactly-once behavior. The final release remains bounded to the
-reviewed commits and artifacts listed in docs/TECHNICAL_REPORT.md and
-docs/INTERVIEW_EVIDENCE.md.
+Open P3 findings R057, R083 and R088 are not silently closed. The R019 claim-retry
+gap now has committed coverage in `internal/api/runtime_integration_test.go`;
+Claude has not verified this new test yet.
+
+This single-node Docker Desktop/WSL2 result does not establish multi-host
+durability, production scale/authentication, sustained-load performance,
+hard-kill/host-failure durability, remote CI, or arbitrary external-effect
+exactly-once execution. Database-backed package tests remain serial because
+their partition-lease fixtures share a database. No paid/model study was
+rerun; the reviewed report's limits and evidence remain unchanged.

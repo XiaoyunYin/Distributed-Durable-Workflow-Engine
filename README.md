@@ -9,7 +9,8 @@ DUR-019, DUR-020, DUR-021B, and DUR-033 are closed. M5 was reviewed with
 M7's bounded studies and DUR-033A production-path integration are reviewed and
 closed; their evidence is summarized in [the technical report](docs/TECHNICAL_REPORT.md).
 M8/DUR-030 is reviewed and closed; DUR-031's interview-evidence pack and three
-personal walkthroughs are reviewed and closed. DUR-032 remains for final
+Codex-performed walkthroughs (delegated by the user) are reviewed and closed.
+They do not establish the user's personal fluency. DUR-032 remains for final
 reproduction/release validation. The results remain bounded to their
 declared fixtures and host, not to production scale or multi-host durability.
 
