@@ -7259,3 +7259,70 @@ final target and artifact before any M7 status changes.
   positioning, the clean-checkout/lifecycle evidence, and the bounded release
   limitations. Do not mark DUR-032 DONE until Claude records a committed
   `NO_BLOCKING_FINDINGS` review.
+
+## Latest Codex handoff - DUR-032 deployed-path corrections and final validation
+
+- **Task:** DUR-032 reproduction and final code/claims review.
+- **Task status:** READY_FOR_REVIEW; M8 remains IN_PROGRESS, not DONE.
+- **Handoff basis:** COMMITTED. This supersedes the `2ea3726` handoff above;
+  the earlier record is retained as history, not current evidence.
+- **Base commit:** `c0757e4` (DUR-031 closeout).
+- **Exact target commit:** `effdc394e82d7a041aac41de5d4cfe57d01ba016`
+  (`effdc39`, documentation-inclusive target).
+- **Executable validation commit:** `78fa7f9`, including implementation
+  `6d276af`. No executable/test/script/deployment/dependency paths differ
+  between `78fa7f9` and `effdc39`; both are reachable ancestors of HEAD.
+- **Scope and implementation:** deployed namespace-scoped lease-owning
+  scheduler/interpreter, Kafka scheduler-event consumption, Python task
+  consumers, durable delivery/inbox API, expected-attempt claim fence,
+  scan-based recovery after offset acknowledgment, and bounded pure-activity
+  registry. Production new groups start at earliest retained offsets; the
+  real Kafka integration test uses the production constructor. Added the
+  deployed demo and isolated fresh-checkout/fresh-volume reproduction script.
+  Corrected R089 counts in the report, R090 comparative positioning in the
+  interview pack, and attribution of the delegated walkthroughs.
+- **Checks run and results:**
+  - `scripts/final-reproduce.ps1 -Commit 78fa7f9 -KeepOnFailure`: all internal
+    assertions passed in fresh project `dur032-check-19e869b3`; clean detached
+    checkout, both image builds, new volumes, all 14 migrations, and smoke.
+  - Real API -> deployed scheduler -> Kafka -> Python -> durable result demo
+    both before and after dependency recreation: SUCCEEDED, result 6,
+    2 Python claims, 2 task inbox rows, 8 event inbox rows, checker valid.
+  - `ci.ps1 -WithServices -WithRace`: serial Go normal/race suites, vet,
+    formatting, build; Ruff; mypy (27 sources); 45 Python tests; focused
+    M1/M3/M4/DUR-033A integration suites; production-constructor Kafka round
+    trip (0.57s); service smoke. All passed.
+  - Restart smoke asserted PostgreSQL marker count and retained Kafka topic
+    across container recreation; final demo/smoke passed; source stayed clean.
+  - Current fault-checker passed 48/48 historical traces offline against
+    committed durable snapshots; 19 local evidence links and 11 target
+    ancestries checked; `git diff --check` passed.
+- **Failed attempts / evidence caveats:** first fresh run at `6d276af` had
+  42 Python passes and three setup errors due to a missing pytest temp parent;
+  `78fa7f9` fixes that and the complete fresh rerun passed 45/45. The outer
+  PowerShell stderr-to-Tee wrapper reported exit 1 despite child `passed=True`
+  and completed cleanup; a minimal explicitly exit-0 stderr child reproduced
+  the wrapper failure. Do not treat the outer command as exit 0. Full details
+  and the host-local log path are in `docs/RELEASE_CHECKLIST.md`.
+- **Cleanup:** only the two generated test projects' containers, networks and
+  temporary volumes were removed; ignored worktrees/logs remain for audit.
+  The user's original containers and volumes were not recreated or updated.
+  Dependency/image caches were reused: fresh source/state, not a cacheless
+  machine installation.
+- **Skipped checks and reasons:** no new paid/live-model call or measurement
+  campaign (outside this fix); no remote CI (no remote configured), multi-host
+  deployment, sustained-load study, or hard-kill/host-failure durability test.
+  Restart smoke is container recreation, not evidence for those fault modes.
+  No release/tag was created without authorization.
+- **Known limitations / findings:** localhost-only unauthenticated API;
+  automatic Python activities limited to pure.echo/v1 and pure.add/v1;
+  effect/approval path retains separately reviewed DUR-033A integration scope.
+  DB packages remain serialized due to shared fixtures. R057/R083/R088 remain
+  OPEN P3s. R089/R090 are ADDRESSED pending Claude verification; the R019
+  replaced-claim retry gap has new committed coverage in
+  `internal/api/runtime_integration_test.go`, also not yet Claude-verified.
+- **Review request:** review `effdc39` against `c0757e4`, especially
+  inbox/offset/execution boundaries, exact-attempt fencing, lease ownership,
+  fallback scans, fresh-group startup, pure-only dispatch scope, and the
+  updated claims/attribution. Keep DUR-032 out of DONE until a COMMITTED
+  `NO_BLOCKING_FINDINGS` review covers this target.

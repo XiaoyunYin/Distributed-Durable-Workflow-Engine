@@ -1,5 +1,15 @@
 # Build log
 
+## 2026-09-19 - DUR-032 corrected final handoff
+
+Review base `c0757e4`, target `effdc39` (reachable from HEAD). Executable,
+test, deployment, dependency and script paths are unchanged from the tested
+`78fa7f9`; the intervening commit contains documentation only. DUR-032 is
+READY_FOR_REVIEW, not DONE. Supersedes the test-only `2ea3726` handoff.
+Final self-audit: 19 local Markdown evidence links resolve, 11 cited targets
+are ancestors of HEAD, and `git diff --check` passes. R089/R090 response blocks
+identify fix `6d276af`; reviewer history and verdicts were preserved.
+
 ## 2026-09-19 - DUR-032 self-check repairs and fresh reproduction
 
 Base: f61aad9. The user authorized fixing the final self-check gaps. Added an

@@ -1,6 +1,6 @@
 # DUR-032 final reproduction and release checklist
 
-Status: IN_PROGRESS, awaiting the committed final handoff and Claude review.
+Status: READY_FOR_REVIEW at `effdc39`, awaiting Claude review.
 This supersedes the earlier `2ea3726` checklist: that test-only Kafka correction
 was insufficient. The deployed scheduler/worker path and production consumer
 startup policy are now in scope.
