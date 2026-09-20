@@ -1,5 +1,64 @@
 # Build log
 
+## 2026-09-20 - Prioritize the portfolio proposal for time-to-interview
+
+Revised docs/PORTFOLIO_ROADMAP.md after Claude's feedback on the draft at the
+`ec2501f` baseline. This is an explicit proposal, not activation of the optional
+backlog. Split DUR-041 into proposed DUR-041a (local) and DUR-041b (multi-host).
+The local campaign consumes the separately accepted R096 repair and existing
+deployed activities; it no longer waits for cloud, authentication, CI, or the
+expanded incident application. Its evidence can be accepted and published
+without committing to the cloud phase.
+
+The minimum shippable package is the local campaign, Linux CI, and presentation
+of accepted evidence. Added per-task effort ranges and an approximately 5-9
+focused-day estimate for that subset, excluding R096, review turnaround, access
+delays, and unexpected defects. The estimate is a planning judgment, not a
+measured delivery claim. All other tasks are optional and selected against a
+specific role requirement, demonstrated gap, or screening feedback.
+
+Moved application authentication off the private-campaign critical path and
+bounded its initial scope to API tokens and roles. Private networking and
+restricted authenticated host access do not establish application identity;
+the guide keeps that limitation explicit and requires API authorization before
+untrusted write access. The minimal presentation now uses the local bug/recovery
+story rather than waiting for multi-host and performance case studies. Existing
+fault-confirmation, commit-ordering, negative-control, and evidence rules remain.
+
+Validation: checked dependencies, task estimates, completion gates, and scope
+wording throughout the guide; checked staged whitespace before committing only
+the proposal and this log. REVIEW.md remains byte-for-byte unchanged from the
+start of this revision (SHA-256
+`828D81D6B2775E5F93082D2E88171E99EF146A4D5604BDFE92A48496249E6C93`).
+No code tests are applicable to this documentation-only change. No active PLAN
+tasks, decisions, spending caps, releases, or tags are changed; no infrastructure
+or model calls are started. The user's uncommitted review is excluded from the
+proposal commit.
+
+## 2026-09-20 - Draft portfolio competitiveness roadmap
+
+At the user's request, drafted docs/PORTFOLIO_ROADMAP.md as a complete follow-on
+execution guide. R096 is excluded from its implementation scope and is only a
+prerequisite for recovery campaigns. R092 remains the user's later personal
+exercise. The roadmap covers Linux/remote CI, authenticated identities, a useful
+deployed incident workflow, reproducible cloud infrastructure, local/multi-host
+fault evidence, deployed load and bottleneck analysis, operations, bounded AI
+integration, public presentation, and interview/application use.
+
+The guide labels new task IDs, budgets, commands, and evidence directories as
+proposed, preserves historical campaigns, and defines completion gates to avoid
+indefinite feature expansion. Its cloud budget is a planning recommendation,
+not a claimed provider quote. No cloud resources, paid calls, code changes,
+task-status changes, or review edits are part of this drafting pass.
+
+Validation for the draft: checked proposed task IDs against PLAN, existing
+validation commands against scripts/ci.ps1, and the deployment/review baseline
+against README, API docs, the release checklist, and reviewer rounds 51/52.
+External references cover hosted CI, EC2 pricing structure, and stop behavior.
+`git diff --check` passes and REVIEW.md's SHA-256 is unchanged from the start
+of this drafting pass. Code tests are not applicable to this documentation-only
+draft.
+
 ## 2026-09-20 - R094 release-document alignment
 
 Updated the current-facing README, technical report, release checklist,
