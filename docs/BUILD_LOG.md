@@ -1,5 +1,61 @@
 # Build log
 
+## 2026-09-20 - DUR-032 round-48 feedback corrections
+
+Reviewed target/base for this correction: `effdc39`; initial working HEAD
+`afc445c`. Claude's only pre-existing edit was REVIEW.md; round-48 text and
+earlier verification blocks are preserved. R089/R090 are now VERIFIED.
+
+R091 adds a PostgreSQL regression in the existing M2 lease-test file. It
+pins expiry, takeover, owner identity and epoch for wakeup acknowledgment,
+checks the wakeup and LOST_WAKEUP reconciliation rows byte-for-byte through
+database JSON snapshots, and has a current-owner success control. It changes
+no production validator or guarantee. Fixture IDs and cleanup are scoped to
+this test; a private database isolates it from the development state.
+
+The first fixture omitted the definition's required effect-class map and
+failed during setup (five runs); adding the normal pure root declaration fixed
+that. Then five focused race runs passed. An isolated Go build overlay removed
+only `AcknowledgeWorkflowWakeups`'s lease guard. The regression failed with
+`wakeup acknowledgment = <nil>, want ErrLeaseNotOwned` and durable rows changing
+from PENDING/OPEN to CONSUMED/RESOLVED. A takeover-only mutation run failed for
+the same two reasons, independent of the expired-owner subtest. The production
+file was never modified. Local negative-control logs are under the ignored
+`bin/r091-mutation/`; the committed test is the repeatable guard against this
+regression. No deployable fault switch was added.
+
+The main-tree full-suite invocation hit an old ignored pytest directory ACL
+while enumerating `./...`, before executing packages. A clean export of current
+tracked files avoids this host artifact without altering permissions or tests;
+full results and cleanup are recorded in the final handoff.
+
+Final checks in `bin/r091-validation` (a clean export of current tracked files)
+against freshly migrated `codex_r091_20260920`: `go test -race -p 1 ./...
+-count=1`, `go vet ./...`, and `go build ./...` all passed. The real-broker test
+was intentionally skipped with DURABLE_KAFKA_BROKERS unset; neither transport
+code nor the existing Kafka stack was changed. Python, full service CI,
+Docker rebuild/restart, offline trace revalidation and measurement campaigns
+were not rerun in this test/docs-only correction; round-48 reviewed evidence
+remains their latest validation. Formatting, diff whitespace and 19 local
+evidence links passed. Before dropping the private database, workflows,
+definitions, wakeups and source documents each counted zero; removal was then
+verified. No development database rows or running containers were changed.
+The temporary mutation source/overlay were removed, and only ignored logs
+and the clean export remain for audit.
+
+R093 explicitly separates the M7 harness measurements from the later deployed
+scheduler/Kafka workers in both README and report. No numerical result or study
+artifact changed. R092 cannot be completed by Codex: current records now leave
+DUR-031 IN_PROGRESS for three user-performed exercises, with a named evidence
+section. This is an honest outstanding requirement, not an assumed deferral
+or a change to protected acceptance criteria. No release, tag, paid call,
+container recreation or development-database mutation is part of this pass.
+
+Interview explanation: a passing suite is insufficient if deleting the only
+ownership guard stays green. The negative control must demonstrate the exact
+forbidden persistent mutation, while a positive control prevents a test that
+merely rejects every request from masquerading as fencing evidence.
+
 ## 2026-09-19 - DUR-032 corrected final handoff
 
 Review base `c0757e4`, target `effdc39` (reachable from HEAD). Executable,

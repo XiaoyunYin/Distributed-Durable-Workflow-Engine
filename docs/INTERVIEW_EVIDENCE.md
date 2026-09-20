@@ -1,9 +1,27 @@
 # DUR-031 interview evidence and personal walkthroughs
 
-Status: DONE at reviewed target fab88ac (Claude round 47). The release wording
-below is being updated under DUR-032. Codex performed the recorded exercises
-at the user's explicit request; this is reproducible engineering evidence,
-not evidence that the user personally performed or explained the exercises.
+Status: IN_PROGRESS for the outstanding user-participation component (R092,
+Claude round 48). The engineering pack retains round-47 acceptance at fab88ac.
+Codex performed the recorded exercises at the user's explicit request; this
+is reproducible engineering evidence, not evidence that the user personally
+performed or explained the exercises. No acceptance deferral is assumed.
+
+## Pending user evidence (R092)
+
+The user must record their own actions and explanations for all three:
+
+- [ ] Explain and mutate one lease/attempt rule in a disposable copy, capture
+      the expected test failure, and explain why the original fence matters.
+- [ ] Walk through the ambiguous non-cooperating effect, explaining why the
+      outcome stays unknown, how late evidence is retained, and why retry is
+      not automatic.
+- [ ] Independently run the offline result reproduction below, capture its
+      output, and explain the workload/crash-model limits.
+
+For each, add the user attribution, date, commit, commands/output and the
+user's explanation here. The Codex records below are reference material, not
+substitutes for this evidence. DUR-031 cannot be re-recorded DONE until its
+user component is satisfied and reviewed.
 
 Baseline for this task: 242cdcb, the DUR-030 closeout. This task adds
 documentation and indexes existing evidence; it makes no provider calls, paid

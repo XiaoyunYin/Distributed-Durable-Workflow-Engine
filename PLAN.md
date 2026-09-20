@@ -2,7 +2,7 @@
 
 **Stack:** Go, Python, PostgreSQL + pgvector/full-text search, Apache Kafka, MCP, Docker Compose, OpenTelemetry, Prometheus, Grafana.
 
-**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 DONE; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 DONE; DUR-032 READY_FOR_REVIEW.
+**Status:** M0 DONE; DUR-005 DONE; DUR-006 DONE; DUR-007 DONE; DUR-023A DONE; DUR-008 DONE; DUR-009 DONE; DUR-010 DONE; DUR-023A-M2 DONE; DUR-011 DONE; DUR-012 DONE; DUR-013 DONE; DUR-014 DONE; DUR-023A-M3 DONE; M4 DONE; DUR-015 DONE; DUR-016 DONE; DUR-017 DONE; DUR-018 DONE; DUR-023A-M4 DONE; M5 DONE; DUR-022 DONE; DUR-023B DONE; DUR-024 DONE; DUR-025 DONE; DUR-021A DONE; M6 DONE; DUR-019 DONE; DUR-020 DONE; DUR-021B DONE; DUR-033 DONE; M7 DONE; DUR-036 DONE; DUR-026 DONE; DUR-034 DONE; DUR-035 DONE; DUR-027 DONE; DUR-028 DONE; DUR-029 DONE; DUR-033A DONE; M8 IN_PROGRESS; DUR-030 DONE; DUR-031 IN_PROGRESS; DUR-032 IN_PROGRESS.
 Only the bounded results linked in docs/TECHNICAL_REPORT.md are claimed;
 final code/claims review remains pending.
 
@@ -1520,8 +1520,8 @@ contract revision.
 - **Protected boundaries:** no code, migration, experiment rerun, provider
   call, external action, budget change, or protected-scope change is part of
   DUR-030.
-- **Known limitations:** R089 remains an open nonblocking P3 presentation
-  follow-up for adding adversarial numerator/denominator counts. The report
+- **Known limitations:** R089's numerator/denominator correction is VERIFIED
+  in round 48. The report
   inherits each artifact's host, workload,
   crash-model, sample-size, and production-integration limits. It is not a
   replacement for DUR-031 interview walkthroughs or DUR-032 clean-checkout
@@ -1529,8 +1529,9 @@ contract revision.
 
 #### DUR-031 implementation record
 
-- **Status:** DONE; Claude's committed round-47 review returned
-  `NO_BLOCKING_FINDINGS` for target `fab88ac`.
+- **Status:** IN_PROGRESS for the outstanding user-participation component
+  (R092, round 48). The claim map and Codex-performed engineering exercises
+  retain round-47 acceptance at `fab88ac`; that is not user fluency evidence.
 - **Base commit:** `242cdcb` (DUR-030 closeout).
 - **Implementation target:** `fab88ac` (`docs: record DUR-031 walkthroughs`).
 - **Goal:** map proposed resume claims to reviewed implementation commits,
@@ -1549,20 +1550,28 @@ contract revision.
   limitations before Claude review.
 - **Evidence target:** `docs/INTERVIEW_EVIDENCE.md`, linked to the accepted
   M5-M7 artifacts and `docs/TECHNICAL_REPORT.md`.
-- **Known limitations:** user walkthroughs are not yet evidence; R057, R083,
-  R088, R089, and the historical R019 gap remain nonblocking residuals. The
+- **Outstanding user evidence (R092):** the user must perform and explain the
+  lease/attempt mutation in a disposable copy, walk through ambiguous-effect
+  handling, and independently reproduce one result. Record attributable
+  commands, outputs, and explanations in the pending user-evidence section
+  of `docs/INTERVIEW_EVIDENCE.md`. No deferral or change to acceptance is
+  assumed; Codex cannot complete this component on the user's behalf.
+- **Known limitations:** R057, R083 and R088 remain open. The
   pack does not turn bounded local studies into production or multi-host
   claims.
 
 #### DUR-032 implementation record
 
-- **Status:** READY_FOR_REVIEW at `effdc39`; the deployed path is validated.
-  This supersedes the prior `2ea3726` handoff; Claude acceptance is pending.
+- **Status:** IN_PROGRESS; round 48 requested the R091 fencing regression at
+  reviewed target `effdc39`. R093 topology scoping is also being corrected.
+  No release/tag until the blocking finding is verified closed.
 - **Base commit:** `c0757e4` (DUR-031 closeout).
 - **Executable validation target:** `78fa7f9` (includes deployed wiring
-  `6d276af` and the fresh-checkout pytest-directory fix). The final review
-  target `effdc39` includes the scoped documentation and validation record;
-  executable files are unchanged from the tested target.
+  `6d276af` and the fresh-checkout pytest-directory fix). Reviewed target
+  `effdc39` includes that scoped documentation/validation record. The next
+  corrective target adds a test, not production code: five focused race runs,
+  a failing missing-fence mutation control, and the clean-export serial Go
+  race suite/vet/build pass. The latest handoff records its exact commit.
 - **Goal:** provide a clean-checkout reproduction path, run applicable checks,
   verify migrations and service lifecycle where safe, position the final
   comparative findings correctly, and prepare the final Claude review of code
@@ -1584,8 +1593,8 @@ contract revision.
 - **Known limitations:** local Docker Desktop/WSL2 evidence remains bounded;
   no clean checkout can establish multi-host durability, production scale,
   remote CI, arbitrary external-effect exactly-once behavior, or live-model
-  quality. R057, R083, R088, R089, and R090 remain nonblocking residuals until
-  explicitly closed.
+  quality. R089/R090 are VERIFIED in round 48. R057/R083/R088/R092 remain
+  open P3s; R091/R093 await the corrective handoff and review.
 
 ## 13. Deterministic failure campaign
 
@@ -1906,18 +1915,23 @@ round-46 review returned `NO_BLOCKING_FINDINGS`. Its report is
 `docs/TECHNICAL_REPORT.md` and its evidence register points at the committed
 M5-M7 artifacts and the DUR-033A integration. R057, R083, and R088 remain
 nonblocking P3 findings carried forward. R089's counts are corrected under
-DUR-032, pending Claude verification.
+DUR-032 and VERIFIED in round 48.
 
-DUR-031 is DONE at reviewed target `fab88ac` from base `242cdcb`; Claude's
-committed round-47 review returned `NO_BLOCKING_FINDINGS`. Its documentation
-pack is `docs/INTERVIEW_EVIDENCE.md` and its three walkthroughs are recorded.
-R090 is ADDRESSED, pending Claude verification: DUR-032 separates the bounded
+DUR-031's engineering pack at `fab88ac` from base `242cdcb` retains round-47
+acceptance. Round-48 R092 clarifies that its user-participation component is
+outstanding, so DUR-031 is IN_PROGRESS until attributable user evidence is
+recorded in `docs/INTERVIEW_EVIDENCE.md`. Its existing walkthroughs were
+performed by Codex, not the user. R089/R090 are VERIFIED in round 48:
+DUR-032 separates the bounded
 validation campaign from three comparative headline findings, uses DUR-028
 as the third comparative result, and preserves R089's counts with rates.
 DUR-032's executable target `78fa7f9` passed fresh-source/fresh-volume
 reproduction, real deployed Python/Kafka demos before and after restart,
 service/race CI, and the offline 48-trace checker. Its updated checklist is
 `docs/RELEASE_CHECKLIST.md`; the latest REVIEW.md handoff supersedes `2ea3726`.
-Final Claude review is still required before DONE; no release/tag is authorized.
+Round 48 requires R091's wakeup-fencing regression and R093's explicit
+harness/deployment separation; the next handoff records their corrective
+target. Final Claude review is still required before DONE; no release/tag
+is authorized.
 
 For each subsequent task, add status, dependencies, goal, scope, acceptance scenarios, exact validation commands, evidence paths, commits, review round, and remaining limitations before starting implementation.

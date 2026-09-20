@@ -9,12 +9,17 @@ DUR-019, DUR-020, DUR-021B, and DUR-033 are closed. M5 was reviewed with
 M7's bounded studies and DUR-033A production-path integration are reviewed and
 closed; their evidence is summarized in [the technical report](docs/TECHNICAL_REPORT.md).
 M8/DUR-030 is reviewed and closed; DUR-031's interview-evidence pack and three
-Codex-performed walkthroughs (delegated by the user) are reviewed and closed.
+Codex-performed walkthroughs (delegated by the user) have reviewed engineering
+evidence, but DUR-031's personal user exercises remain outstanding (R092).
 They do not establish the user's personal fluency. DUR-032 remains for final
 reproduction/release validation. The results remain bounded to their
 declared fixtures and host, not to production scale or multi-host durability.
 
 ## Three bounded comparative findings
+
+The M7 measurements below predate the deployed scheduler/Kafka-worker wiring
+and have not been rerun on it: the numbers describe each study's named harness,
+not the current deployment. A deployed rerun would be a separate campaign.
 
 - DUR-026: with a fixed four-process worker pool, two schedulers kept up with
   the tested 2/s offered rate where one scheduler did not on the engine path.

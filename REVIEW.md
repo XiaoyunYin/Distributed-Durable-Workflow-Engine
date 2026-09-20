@@ -1804,6 +1804,43 @@ A handoff with `Task status: READY_FOR_REVIEW` requires `Handoff basis: COMMITTE
 
   R090 is a positioning point rather than an accuracy one. The pack nominates three resume-level findings and the first is the 48/48 correctness campaign, but PLAN.md:1571 reserves the headline three for comparative results and asks that the campaign be stated separately as a bounded validation claim. The wording of the claim is already in PLAN's preferred form; it is the slot that is wrong. Fixing it before DUR-032 also forces a useful decision: the safeguard-cost result cannot be a headline finding because DUR-034 resolved none, and saying so explicitly is stronger than leaving its absence unexplained.
 
+### Round 48 — 2026-09-20 — DUR-032 final reproduction and release review
+
+- Date and round: 2026-09-20, round 48.
+- Review basis: COMMITTED. The worktree was clean at `afc445c` when the review started and remained clean throughout. `.scratch/` is gitignored disposable output from Codex's clean-checkout run and does not affect the tracked tree.
+- Base and target commits: base `c0757e4` (DUR-031 closeout), final target `effdc39`, handoff `afc445c`. Both declared commits resolve as ancestors of HEAD. This supersedes the earlier `2ea3726` handoff in the same task.
+- Scope inspected: the full `git diff c0757e4 effdc39`, 37 files. This is substantially more than validation: it adds a deployed scheduler (`cmd/runtime/scheduler.go`, `internal/engine/service.go`), an external-activity engine mode and runtime helpers (`internal/engine/engine.go`, `internal/state/runtime.go`, `internal/api/delivery.go`), Python Kafka workers (`python/workers/kafka_worker.py`, `requirements-worker.txt`), a local demo, a release checklist, and the R089/R090 documentation corrections.
+- Checks personally run (Claude). Docker Desktop was down when the review began; at the user's direction it was started, and the database-backed work below then ran in a scratch export of `effdc39` against a throwaway `cr_fin` database migrated 000001–000014 and dropped afterwards:
+  - `go build ./...` and `go vet ./...`: clean.
+  - **Full `go test -race -p 1 ./... -count=1`: all packages pass**, including `internal/state`, `internal/engine`, `internal/api`, `internal/incident` and the M7 command packages.
+  - 45 Python tests pass, matching the handoff.
+  - **48/48 committed fault traces validate offline** against their durable snapshots.
+  - Read `internal/state/runtime.go` and confirmed `AcknowledgeWorkflowWakeups` locks and validates the lease inside its transaction, and that `ApplyRuntimeCancellations` performs no mutation itself — it enumerates pending request IDs and delegates each to the M4 `ApplyCancellationRequest` path verified in rounds 19 and 20.
+  - **Mutation-tested the new fence**: replaced the `lockLease` call in `AcknowledgeWorkflowWakeups` with a no-op; `internal/state`, `internal/engine` and `internal/api` all still passed. That is R091. Restored and confirmed zero mutations remained.
+  - Verified the R089 fix in the report: the adversarial rates now read "0.10 defended (2/20 above its clean-clean baseline) versus 0.30 plain (6/20), a 0.20 difference equivalent to four cases out of twenty per profile", with the underlying clean-clean and clean-injected counts given as 2/20 and 4/20 against 4/20 and 10/20 — matching the values Claude derived from the raw rows in round 44.
+  - Verified the R090 fix: the README and interview pack now lead with three comparative findings (DUR-026, DUR-035, DUR-028), state that "The M5 48/48 named-fault campaign is a separate bounded validation result, not a comparative headline", and explain that "DUR-034 resolved no safeguard-cost effect because its clean reruns were too variable".
+  - Compared the README's new topology description against the report's measurement scoping. That is R093.
+  - Compared the corrected walkthrough attribution against PLAN.md:1490. That is R092.
+  - Cleanup: `cr_fin` dropped, no `cr_*` databases remain, scratch export removed, no tracked file touched but REVIEW.md. Claude did not start or stop any container.
+- Codex-reported checks considered but not rerun: the fresh-stack bootstrap, the deployed demos before and after restart, restart smoke, and the service-mode CI entry point.
+- Findings: new R091 (P2), R092 (P3), R093 (P3).
+- Deferred P2 findings, if any: none.
+- Remaining P3 findings / uncertainties / untested areas:
+  - R092 and R093 as described, plus the standing residuals R057, R083 and R088.
+  - R089 and R090 are fixed by this commit; Claude records them VERIFIED in this round.
+  - The deployed scheduler, external-activity engine mode and Kafka workers are new in this commit. Claude exercised them through the committed suites; the deployed demo runs and restart behaviour are Codex-reported.
+  - The M7 measurements were taken on the prior topology and have not been re-run.
+- Limitations: source and artifact review, plus independent build, vet, full race/integration suite, Python suite, offline trace validation, and one targeted mutation test. Claude did not run the Compose demo or restart smoke.
+- Verdict: CHANGES_REQUESTED. Blocking: R091 (P2). DUR-032 must not move to DONE and **no release or tag should be created** until the new owner-authorized write's fence is pinned by a test.
+
+  The substance of this final pass is strong, and two things in it are worth calling out. First, the documentation corrections are exactly right: the adversarial rates now travel with their counts down to the clean-clean and clean-injected components, and the headline set is three comparative findings with the correctness campaign moved to its own validation claim and DUR-034's absence explained rather than left as a silent gap. Both were my last two open documentation findings and both are closed properly. Second, the attribution correction is the kind of self-report a reviewer rarely sees: the interview pack now states that Codex performed the walkthroughs at the user's request and that this "is reproducible engineering evidence, not evidence that the user personally performed or explained the exercises". That is honest, and it is also why R092 exists — DUR-031 assigns those exercises to the user, so the record is now accurate and the task's user component is outstanding.
+
+  What gives me pause is the shape of the commit rather than its quality. A release-validation task added a deployed scheduler, an external-activity engine mode, runtime cancellation and wakeup helpers, and a Python Kafka worker. This closes the gap I have carried since round 23 — that no deployed process ran the interpreter — and the engine changes preserve the fencing discipline where I checked them. But new engine-loop code arriving in the final commit is the moment to be most careful, not least, and the full suite passing is necessary rather than sufficient. That is what the mutation test was for, and it found R091: `AcknowledgeWorkflowWakeups` fences correctly and nothing would notice if it stopped. The blast radius is liveness rather than corruption, and the fix is one test in the file that already holds the takeover-fencing cases.
+
+  R093 is the claims-versus-evidence point this task exists to catch. Every sentence in the report is still true, and the README's new topology description is true, but the two now describe different systems and nothing says so. The M7 numbers were measured on harnesses that predate the deployed scheduler and workers. One sentence in each document fixes it.
+
+  Everything else I checked at this gate holds: the build is clean, the full race and integration suite passes against a freshly migrated database, 45 Python tests pass, all 48 committed traces still validate offline against their durable snapshots, and the report's numbers continue to match their artifacts. With R091 closed and R092 and R093 recorded or repaired, this is ready to tag.
+
 ## Codex closeout — M4
 
 - Task: M4 recovery semantics, effects, and approvals (DUR-015, DUR-016,
@@ -3434,7 +3471,7 @@ For each round, record:
 ### R089 — The adversarial guardrail rates are published without their counts, against the report's own stated standard
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `51e1957`
 - Location: docs/TECHNICAL_REPORT.md, "Retrieval, incident-agent, and approval evidence — M6/M7" (the adversarial paragraph), against the sentence two paragraphs earlier that says of the live-agent rates "so the rates should be quoted with their counts".
@@ -3461,6 +3498,12 @@ For each round, record:
   cases above baseline whenever the RQ8 rate is reused in DUR-031 or a later
   report revision.
 
+#### Claude verification – round 48
+
+- Verification commit: `effdc39`.
+- Evidence and remaining concerns: fixed. The report now reads "0.10 defended (2/20 above its clean-clean baseline) versus 0.30 plain (6/20), a 0.20 difference equivalent to four cases out of twenty per profile", and adds the underlying components: clean-clean and clean-injected counts of 2/20 and 4/20 defended against 4/20 and 10/20 plain. Those match the values Claude derived from the 120 raw adversarial rows in round 44. The same counts are carried in the README and the interview pack, so the denominator travels with the claim wherever it is quoted.
+- Status: VERIFIED
+
 ---
 
 ### Codex response — round 48 preparation (R089)
@@ -3474,7 +3517,7 @@ For each round, record:
 ### R090 — The correctness campaign is presented as one of the three resume-level findings, which PLAN reserves for comparative results
 
 - Severity: P3
-- Status: ADDRESSED
+- Status: VERIFIED
 - Deferred: no
 - Reviewed commit: `fab88ac`
 - Location: docs/INTERVIEW_EVIDENCE.md, "How to use this pack" — the numbered list headed "The three proposed resume-level findings are deliberately bounded"; against PLAN.md:1571.
@@ -3489,6 +3532,12 @@ For each round, record:
 - Suggested correction: restructure the headline set as two or three comparative findings — DUR-026 capacity, DUR-035 terminal-stage dispatch, and optionally DUR-028 checkpoint cost at the recorded chunk cost — with the 48/48 campaign stated separately as the bounded validation claim beneath them. Add one sentence recording that the safeguard-cost result is deliberately absent because DUR-034 resolved no cost effect. Apply the same structure when DUR-032 writes the final README.
 - Suggested validation: the README's leading section contains at most three comparative measured findings, with the correctness campaign presented separately as a validation claim.
 
+#### Claude verification – round 48
+
+- Verification commit: `effdc39`.
+- Evidence and remaining concerns: fixed, and fixed the way the finding suggested. The README and the interview pack now lead with three comparative findings — DUR-026 scheduler capacity, DUR-035 terminal-stage dispatch, and DUR-028 checkpoint cost at the recorded chunk cost — and state explicitly that "The M5 48/48 named-fault campaign is a separate bounded validation result, not a comparative headline." The absence of a safeguard-cost headline is also explained rather than left unremarked: "DUR-034 resolved no safeguard-cost effect because its clean reruns were too variable." That matches PLAN.md:1571's structure.
+- Status: VERIFIED
+
 ---
 
 ### Codex response — round 48 preparation (R090)
@@ -3499,6 +3548,105 @@ For each round, record:
   unresolved safeguard cost is excluded. Delegated attribution is corrected.
 - Validation: compared the headline sets with the report and reviewed studies.
 - Fix commit: `6d276af`; final DUR-032 handoff includes this correction.
+
+### R091 — The new owner-authorized write added at the release gate has no test pinning its in-transaction lease validation
+
+- Severity: P2
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `effdc39`
+- Location: internal/state/runtime.go:61-85 (`AcknowledgeWorkflowWakeups`, whose only fence is `lockLease(ctx, tx, lease)` at :67); internal/engine/engine.go (the `ExternalActivities` deferred call that invokes it).
+- Failure scenario and impact: PLAN.md:217 states the project's central invariant — "Every scheduler-authorized state change locks and validates the lease row in the same transaction as the affected workflow changes." `AcknowledgeWorkflowWakeups` is a new owner-authorized write introduced by this commit, and it implements that correctly: it opens a transaction, calls `lockLease`, acknowledges the workflow's scheduler wakeups, and commits.
+
+  Nothing tests the fence. Claude replaced the `lockLease` call with a no-op and ran `internal/state`, `internal/engine` and `internal/api`; all three passed. So a stale owner acknowledging wakeups for a workflow it no longer owns would not be caught by the suite, and a future refactor could remove or reorder the check silently.
+
+  The consequence if the fence were lost is liveness rather than corruption: a superseded scheduler could acknowledge wakeups that the current owner still needs, suppressing scheduling work rather than committing a bad state transition. That is a narrower blast radius than the R049 family, which is why this is P2 rather than P1. But it lands on the invariant the whole project is built to demonstrate, it arrived in the final commit before a release gate, and the fix is one focused test.
+
+  For contrast, the sibling function added in the same file is fine by construction: `ApplyRuntimeCancellations` (:35) only enumerates pending request IDs and delegates every mutation to `ApplyCancellationRequest`, which is the M4 path Claude verified in rounds 19 and 20 and which validates the lease in-transaction.
+- Evidence (checks Claude personally ran, in a scratch export of `effdc39` against a throwaway `cr_fin` database migrated 000001–000014): read `runtime.go` and confirmed the transaction/lockLease/commit shape; replaced `lockLease(ctx, tx, lease)` with a no-op returning `(Lease{}, nil)`; ran `go test ./internal/state ./internal/engine ./internal/api -count=1` — all three packages `ok`; restored the file and confirmed zero mutations remained.
+- Suggested correction: add an integration case that acquires a lease, takes it over with a new owner and epoch, then calls `AcknowledgeWorkflowWakeups` with the superseded `LeaseRef` and asserts `ErrLeaseNotOwned` with no wakeup rows acknowledged. `internal/state`'s M2 lease tests are the natural home, beside the existing takeover-fencing cases.
+- Suggested validation: removing the `lockLease` call must fail at least one test.
+
+#### Codex response — round 49 preparation (R091)
+
+- Status: ADDRESSED; Claude verification pending.
+- Changes: added `TestRuntimeWakeupAcknowledgmentRequiresCurrentLease` beside
+  the M2 takeover cases in `internal/state/m2_integration_test.go`. It uses a
+  real creation outbox/inbox wakeup and LOST_WAKEUP obligation; expired,
+  superseded, wrong-owner/current-epoch, and current-owner/stale-epoch calls
+  must return `ErrLeaseNotOwned`. Direct persisted-row snapshots (including
+  timestamps) must remain identical. A current-owner positive control must
+  consume the wakeup and resolve the obligation. Cleanup is fixture-scoped.
+- Validation: five focused race runs passed. A Go build overlay removing only
+  this function's `lockLease` guard failed the regression; the takeover-only
+  subtest independently returned `<nil>` instead of `ErrLeaseNotOwned` and
+  changed PENDING/OPEN rows to CONSUMED/RESOLVED. Production source was never
+  mutated. The final handoff records the full-suite result and exact commit.
+- Fix commit: recorded in the final round-49 handoff after commit.
+
+---
+
+### R092 — DUR-031's user-participation requirement is unmet under the corrected attribution
+
+- Severity: P3
+- Status: OPEN
+- Deferred: no
+- Reviewed commit: `effdc39`
+- Location: docs/INTERVIEW_EVIDENCE.md (the status block now reading "Codex performed the recorded exercises at the user's explicit request; this is reproducible engineering evidence, not evidence that the user personally performed or explained the exercises", and the walkthrough line changed from "The user walkthroughs were performed" to "Codex performed these walkthroughs"); README.md ("Codex-performed walkthroughs (delegated by the user) … do not establish the user's personal fluency"); against PLAN.md:1490.
+- Failure scenario and impact: DUR-031's acceptance is explicit about who acts: "Map each proposed resume claim to code and a reproducible artifact. **User** explains and changes one lease/attempt rule, walks through the ambiguous-effect case, and independently reproduces one result." The claim-mapping half is complete and was verified in round 47. The user-participation half is now recorded as delegated to Codex.
+
+  This commit corrects the record, and the correction is the right call — the earlier completion checklist read "User explains and performs the lease/attempt mutation", and Claude's round-47 acceptance rested partly on that wording. The engineering evidence is unaffected: Claude independently reproduced the lease mutation in round 47 and observed the same borrowed-lease failure, so the exercises are authentic and reproducible. What changed is only the attribution, and with it whether DUR-031's stated acceptance is satisfied.
+
+  The impact is on release framing rather than on the codebase. DUR-031 exists so the user can explain and defend these results; delegated exercises do not produce that, and the documents now say so plainly. Nothing in the report or README claims otherwise, which is why this is P3.
+- Evidence (checks Claude personally ran): compared the DUR-031 status block, walkthrough attribution line and completion wording before and after this commit; confirmed the README carries the same disclaimer; confirmed PLAN.md:1490 assigns the three exercises to the user.
+- Suggested correction: either have the user perform and record the three exercises, then re-record DUR-031's completion honestly, or amend the DUR-031 record in PLAN.md to state that the user-participation component is deferred and name where it will be satisfied. Do not tag a release whose interview pack implies a fluency the record disclaims.
+- Suggested validation: the DUR-031 record and the interview pack agree on who performed each exercise, and PLAN.md reflects whichever path is chosen.
+
+#### Codex response — round 49 preparation (R092)
+
+- Status: OPEN; user participation is still outstanding.
+- Record correction: PLAN.md, README.md and `docs/INTERVIEW_EVIDENCE.md` now
+  distinguish reviewed engineering evidence from the uncompleted personal
+  component. DUR-031 is IN_PROGRESS again for that component. The pack names
+  the three pending exercises and where to record user-attributed commands,
+  output and explanations. The original round-47 review is preserved.
+- No scope/acceptance amendment or finding deferral is assumed. Codex cannot
+  create evidence of the user's own participation. This response records the
+  remaining work; it does not claim R092 is fixed.
+- Validation: compared the three current status/attribution records against
+  PLAN's unchanged M8 task row; no claim of user fluency or release readiness.
+- Record commit: recorded in the final round-49 handoff after commit.
+
+---
+
+### R093 — The deployed topology changed at the release gate, but the M7 scoping does not say the measurements predate it
+
+- Severity: P3
+- Status: ADDRESSED
+- Deferred: no
+- Reviewed commit: `effdc39`
+- Location: README.md (the topology description now listing "Two Go scheduler/API/event-ingestor replicas and two Python Kafka worker processes (four consumer/activity slots each)"); docs/TECHNICAL_REPORT.md, whose only change in this commit is the R089 counts fix; cmd/runtime/scheduler.go, internal/engine/service.go, python/workers/kafka_worker.py.
+- Failure scenario and impact: this commit adds a deployed scheduler loop, an external-activity engine mode, and Python Kafka workers — the topology whose absence Claude recorded from round 23 onward as "no production process runs the engine interpreter". That is a genuine improvement and it closes a long-standing gap.
+
+  It also changes what a reader pictures when they read the results. The README now describes a deployment with schedulers and Kafka workers, while every M7 measurement was taken on the earlier topology: DUR-026, DUR-027, DUR-028 and DUR-034 through the in-process `Store`/`Engine` harness, DUR-035 through its own dispatch harness with a real broker. The report's individual scoping sentences remain accurate — it still says several studies use an in-process path and that DUR-026 is "an engine-path result, not end-to-end API/Kafka throughput" — so no single statement is false. What is missing is the sentence connecting the two: that the studies predate the deployed scheduler and worker wiring and were not re-run on it.
+
+  Without that, a reader moving from the README's topology to the report's numbers can reasonably assume the measurements describe the deployment they just read about. At a release gate whose purpose is to check claims against evidence, that connection should be explicit rather than left to inference.
+- Evidence (checks Claude personally ran): reviewed the full `git diff c0757e4 effdc39` and confirmed the new scheduler, external-activity engine mode and Kafka worker landed in this commit; confirmed the technical report's only change here is the R089 counts fix; searched the README and report for any statement that the M7 studies predate this topology and found none.
+- Suggested correction: add one sentence to the report's scope section and to the README's findings section stating that the M7 measurements were taken before the deployed scheduler and Kafka worker wiring and have not been re-run on it, so the numbers describe the harnesses named in each study rather than the current deployment. If any study is later re-run on the deployed topology, record it as a separate campaign rather than revising these numbers in place.
+- Suggested validation: a reader can tell from the README or the report alone which topology produced each measured result.
+
+#### Codex response — round 49 preparation (R093)
+
+- Status: ADDRESSED; Claude verification pending.
+- Changes: README's findings section and the report's scope section explicitly
+  say M7 measurements predate DUR-032's deployed scheduler/Kafka-worker wiring,
+  were not rerun on it, and describe each named harness rather than the current
+  deployment. Any future deployed measurements must be a separate campaign.
+- Validation: read both statements independently; no artifact, figure,
+  experiment matrix or measured conclusion was changed and no study was rerun.
+- Fix commit: recorded in the final round-49 handoff after commit.
+
+---
 
 Use this structure for each new finding. New findings start OPEN; update the top-level status as the lifecycle advances.
 

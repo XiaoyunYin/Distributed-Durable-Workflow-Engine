@@ -44,6 +44,11 @@ durability, or parity with another durable-execution product.
 
 ## System and guarantee boundary
 
+The M7 measurements predate the deployed scheduler and Kafka-worker wiring
+added in DUR-032 and have not been rerun on it; they describe each study's
+named harness, not the current deployment. Any deployed rerun must be recorded
+as a separate campaign rather than replacing these measurements in place.
+
 PostgreSQL is the source of truth for workflow state, attempts, leases, history,
 outbox/inbox records, approvals, effects, evidence, and reconciliation
 obligations. Kafka is a transport layer. A committed outbox row is the durable

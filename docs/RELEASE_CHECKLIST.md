@@ -1,6 +1,8 @@
 # DUR-032 final reproduction and release checklist
 
-Status: READY_FOR_REVIEW at `effdc39`, awaiting Claude review.
+Status: IN_PROGRESS after round-48 review of `effdc39`; R091 blocks release.
+R089/R090 are VERIFIED; R092's user exercises remain outstanding and R093's
+topology qualification is being corrected. No release or tag is authorized.
 This supersedes the earlier `2ea3726` checklist: that test-only Kafka correction
 was insufficient. The deployed scheduler/worker path and production consumer
 startup policy are now in scope.
@@ -25,9 +27,10 @@ The README and interview pack lead with three bounded comparative findings:
 The M5 48/48 campaign is separate bounded validation, not a comparative
 headline. DUR-034 resolved no safeguard-cost effect. RQ8 rates retain their
 counts: defended 2/20 versus plain 6/20 changes above each profile's clean-clean
-baseline (a four-case difference). R089/R090 are ADDRESSED pending Claude.
+baseline (a four-case difference). R089/R090 are VERIFIED in round 48.
 The walkthroughs were performed by Codex at the user's request; they are not
-evidence of the user's personal fluency.
+evidence of the user's personal fluency. DUR-031 remains IN_PROGRESS for the
+user's three exercises, recorded as pending in the interview pack (R092).
 
 ## What the deployed path does
 
@@ -111,17 +114,32 @@ a failed PowerShell pipeline.
 
 ## Release gates and limits
 
+Round-48 correction validation: the R091 fencing test passed five focused
+race runs and the clean-export `go test -race -p 1 ./... -count=1` suite,
+vet and build, using a freshly migrated throwaway database. Removing the
+guard in an isolated build overlay failed with the expected stale-owner
+error mismatch and persisted wakeup/reconciliation mutation; the takeover-only
+case failed independently too. Production code and migrations are unchanged.
+The private database was empty of workflows/definitions/wakeups/source
+documents after tests and was dropped. This correction did not rerun Python,
+real Kafka, image builds, restart smoke, offline traces or studies; the
+earlier reproduction and round-48 reviewer checks remain their evidence.
+
 - [x] Fresh source and fresh service-volume bootstrap with frozen dependencies.
 - [x] Deployed API/Kafka/Python execution before and after dependency restart.
 - [x] Service-mode serial Go race/integration suites and 45 Python tests.
 - [x] Migration, smoke and dependency container-recreation persistence checks.
 - [x] Historical 48-trace offline checker validation.
 - [x] R089 counts, R090 headline structure, and delegated attribution corrected.
+- [ ] R091's mutation-sensitive lease-fence regression is verified by Claude.
+- [ ] DUR-031 user-participation evidence is recorded and reviewed (R092).
 - [ ] Claude reviews the final implementation and claims at the latest target.
 - [ ] DUR-032 moves to DONE only after that committed non-blocking review.
 - [ ] Release/tag creation requires explicit authorization.
 
-Open P3 findings R057, R083 and R088 are not silently closed. The R019 claim-retry
+Open P3 findings R057, R083, R088 and R092 are not silently closed. R093 is
+ADDRESSED pending verification; the README and report now say M7 figures
+predate the deployed wiring and were not rerun on it. The R019 claim-retry
 gap now has committed coverage in `internal/api/runtime_integration_test.go`;
 Claude has not verified this new test yet.
 
