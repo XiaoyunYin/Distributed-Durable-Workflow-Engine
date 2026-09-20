@@ -3589,7 +3589,7 @@ For each round, record:
 ### R092 — DUR-031's user-participation requirement is unmet under the corrected attribution
 
 - Severity: P3
-- Status: OPEN
+- Status: ADDRESSED
 - Deferred: no
 - Reviewed commit: `effdc39`
 - Location: docs/INTERVIEW_EVIDENCE.md (the status block now reading "Codex performed the recorded exercises at the user's explicit request; this is reproducible engineering evidence, not evidence that the user personally performed or explained the exercises", and the walkthrough line changed from "The user walkthroughs were performed" to "Codex performed these walkthroughs"); README.md ("Codex-performed walkthroughs (delegated by the user) … do not establish the user's personal fluency"); against PLAN.md:1490.
@@ -3616,6 +3616,34 @@ For each round, record:
 - Validation: compared the three current status/attribution records against
   PLAN's unchanged M8 task row; no claim of user fluency or release readiness.
 - Record commit: `984a4af`; R092 remains OPEN pending the user exercises.
+
+#### Codex response — round 50 user-requested role-play (R092)
+
+- Status: ADDRESSED; Claude verification pending. The user explicitly asked
+  Codex to "act like real user" and finish R092. Codex performed all three
+  exercises on 2026-09-20, but the record intentionally does not claim that
+  Codex is the user or that personal fluency was demonstrated.
+- Lease/attempt mutation: a detached worktree from `703e2a6` deliberately
+  removed the `!acquired` fence. Against fresh database `codex_r092_20260920`,
+  `go test -race ./internal/engine -run '^TestM1RunRequiresPartitionLease$'
+  -count=1 -v` failed with `State:SUCCEEDED ... Steps:1 Blocked:false}
+  err=<nil>`, proving the mutation reached the forbidden borrowed-lease path.
+- Ambiguous effect: the committed
+  `TestM4NonCooperatingTimeoutIsReconciliationOnly` passed with race detection
+  and required database mode (`1.788s`). It exercised the timeout,
+  reconciliation-only state, no replacement, one obligation, and one late
+  evidence row; the walkthrough explanation distinguishes pure, cooperating,
+  and non-cooperating effects.
+- Independent result: the exact offline DUR-028 PowerShell calculation
+  produced `7.5552` from medians `0.2913056` and `2.2008739999999998`, with
+  `work_units_per_chunk=1`, and the bounded arithmetic was explained.
+- Cleanup/limits: the throwaway database ended with zero workflow/definition
+  rows and was dropped; the disposable worktree was removed; development
+  services and reviewed source were untouched. The full attribution and
+  commands are in `docs/INTERVIEW_EVIDENCE.md`. If PLAN's literal user actor
+  requirement remains strict, only the user can complete that final personal
+  evidence; no deferral is being silently asserted.
+- Fix commit: recorded in the final round-50 handoff after commit.
 
 ---
 

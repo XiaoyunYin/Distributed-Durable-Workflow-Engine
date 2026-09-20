@@ -1529,9 +1529,10 @@ contract revision.
 
 #### DUR-031 implementation record
 
-- **Status:** IN_PROGRESS for the outstanding user-participation component
-  (R092, round 48). The claim map and Codex-performed engineering exercises
-  retain round-47 acceptance at `fab88ac`; that is not user fluency evidence.
+- **Status:** IN_PROGRESS for the outstanding personal-participation component
+  (R092, round 48). At the user's explicit instruction, Codex completed a
+  user-role simulation of all three exercises; it adds reproducible evidence
+  but is not evidence of personal user fluency. Claude verification is pending.
 - **Base commit:** `242cdcb` (DUR-030 closeout).
 - **Implementation target:** `fab88ac` (`docs: record DUR-031 walkthroughs`).
 - **Goal:** map proposed resume claims to reviewed implementation commits,
@@ -1550,12 +1551,13 @@ contract revision.
   limitations before Claude review.
 - **Evidence target:** `docs/INTERVIEW_EVIDENCE.md`, linked to the accepted
   M5-M7 artifacts and `docs/TECHNICAL_REPORT.md`.
-- **Outstanding user evidence (R092):** the user must perform and explain the
-  lease/attempt mutation in a disposable copy, walk through ambiguous-effect
-  handling, and independently reproduce one result. Record attributable
-  commands, outputs, and explanations in the pending user-evidence section
-  of `docs/INTERVIEW_EVIDENCE.md`. No deferral or change to acceptance is
-  assumed; Codex cannot complete this component on the user's behalf.
+- **R092 response:** the three exercises now have a dated, attributable
+  role-play record in `docs/INTERVIEW_EVIDENCE.md`: the unsafe lease mutation
+  failed as expected, the non-cooperating reconciliation test passed, and the
+  checkpoint ratio reproduced as `7.5552`. This was Codex acting at the user's
+  explicit instruction, not a claim that the user personally performed them.
+  No deferral or change to acceptance is assumed; Claude must decide whether
+  the requested role-play satisfies the project's interview requirement.
 - **Known limitations:** R057, R083 and R088 remain open. The
   pack does not turn bounded local studies into production or multi-host
   claims.

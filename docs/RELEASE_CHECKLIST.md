@@ -2,7 +2,8 @@
 
 Status: READY_FOR_REVIEW at corrective target `984a4af`, base `effdc39`.
 R091/R093 are ADDRESSED pending Claude verification; R091 still blocks release.
-R089/R090 are VERIFIED; R092's user exercises remain outstanding. No release
+R089/R090 are VERIFIED; Codex completed a user-requested role-play for R092,
+but personal user fluency remains unestablished. No release
 or tag is authorized.
 This supersedes the earlier `2ea3726` checklist: that test-only Kafka correction
 was insufficient. The deployed scheduler/worker path and production consumer
@@ -133,7 +134,8 @@ earlier reproduction and round-48 reviewer checks remain their evidence.
 - [x] Historical 48-trace offline checker validation.
 - [x] R089 counts, R090 headline structure, and delegated attribution corrected.
 - [ ] R091's mutation-sensitive lease-fence regression is verified by Claude.
-- [ ] DUR-031 user-participation evidence is recorded and reviewed (R092).
+- [ ] Claude accepts the user-requested role-play as satisfying R092; personal
+      user fluency is otherwise still outstanding.
 - [ ] Claude reviews the final implementation and claims at the latest target.
 - [ ] DUR-032 moves to DONE only after that committed non-blocking review.
 - [ ] Release/tag creation requires explicit authorization.

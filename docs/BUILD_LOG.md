@@ -1,5 +1,28 @@
 # Build log
 
+## 2026-09-20 - DUR-031/R092 user-requested role-play evidence
+
+At the user's explicit request to act like a real user, Codex executed the
+three R092 interview exercises while preserving truthful attribution. This
+does not claim personal user fluency. A detached worktree from `703e2a6` was
+mutated only for the lease negative control. Against fresh migrated database
+`codex_r092_20260920`, the unsafe `!acquired` mutation made
+`TestM1RunRequiresPartitionLease` fail with the durable workflow at
+`State:SUCCEEDED`, `Steps:1`, `Blocked:false`, `err=<nil>`: a borrowed lease
+was used. The exact scratch worktree and database were removed after capture.
+
+The committed `TestM4NonCooperatingTimeoutIsReconciliationOnly` passed with
+`-race -p 1` in 1.788 seconds, verifying reconciliation-required state, no
+replacement, one obligation, and one late evidence row. The exact offline
+DUR-028 reproduction produced `7.5552` from `0.2913056 / 2.2008739999999998`
+at one work unit per chunk. The evidence and bounded explanations are in
+`docs/INTERVIEW_EVIDENCE.md`; R092 is ADDRESSED pending Claude's judgment of
+the agent-executed role-play against the literal user-participation wording.
+
+Scratch rows were zero for workflows and definitions before the database was
+dropped; development services and the reviewed worktree were untouched. No
+paid/model call, release, tag, migration or production code change occurred.
+
 ## 2026-09-20 - DUR-032 round-49 handoff
 
 Correction base `effdc39`, fixed target `984a4af` (full task base `c0757e4`).
