@@ -156,6 +156,7 @@ try {
         fixture = "fixture.json"
         observation = "fault-observation.json"
         lock_held_takeover = [ordered]@{ status = "separately_labelled"; included_in_this_arm = $false; note = "The lease-row lock case is measured separately from this pause/reconnect arm." }
+        observation_synchronization = "runtime-a used a zero-default diagnostic 3000ms hold after lease acquisition so Docker pause could be applied to an observed owner; the hold is excluded from takeover and recovery timing."
         deployment_boundary = "single Docker Desktop/WSL2 host; two local runtime containers sharing PostgreSQL"
         acceptance = @("same original runtime container preserved", "pause state observed", "peer owner and higher epoch observed", "same container reconnected", "retained old-owner epoch rejected without revision change")
     }
@@ -170,7 +171,8 @@ try {
         stale_attempt_rejected = $after.stale_rejected
         revision_unchanged = ($after.before_revision -eq $after.after_revision)
         lock_held_takeover = $protocol.lock_held_takeover
-        limitations = @("Local containers are not independent hosts.", "This scenario does not measure database-host failure or production availability.", "R096 status remains pending Claude verification.")
+        observation_synchronization = $protocol.observation_synchronization
+        limitations = @("Local containers are not independent hosts.", "This scenario does not measure database-host failure or production availability.", "The diagnostic observation hold is not a recovery-time measurement.", "R096 status remains pending Claude verification.")
     }
     Write-Json $protocolPath $protocol
     Write-Json $summaryPath $summary
@@ -182,14 +184,15 @@ try {
     if (-not [string]::IsNullOrWhiteSpace($fixturePath) -and (Test-Path -LiteralPath $fixturePath)) {
         try { & $toolPath -mode cleanup -fixture $fixturePath | Out-Null } catch { Write-Warning "Could not clean isolation fixture: $_" }
     }
-    if ($servicesChanged) {
-        try { & docker compose @composeArgs up -d --wait runtime-a runtime-b worker-a worker-b | Out-Null } catch { Write-Warning "Could not restore runtime/worker services: $_" }
-    }
     if ($null -eq $previousLeaseHold) {
-        Remove-Item Env:RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS -ErrorAction SilentlyContinue
+        $env:RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS = "0"
     } else {
         $env:RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS = $previousLeaseHold
     }
+    if ($servicesChanged) {
+        try { & docker compose @composeArgs up -d --wait runtime-a runtime-b worker-a worker-b | Out-Null } catch { Write-Warning "Could not restore runtime/worker services: $_" }
+    }
+    if ($null -eq $previousLeaseHold) { Remove-Item Env:RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS -ErrorAction SilentlyContinue }
     if ($null -eq $previousDatabase) { Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue }
     else { $env:DATABASE_URL = $previousDatabase }
     Pop-Location

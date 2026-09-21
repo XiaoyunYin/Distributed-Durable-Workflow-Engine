@@ -25,16 +25,17 @@ stale-owner writes, and clean source-harness reconciliation. It reports
 median/min/max for takeover and useful-progress delays, with counts and
 denominators.
 
-R096 is intentionally deferred under decision D016 and defined in the
-[public review status](../../docs/REVIEW_STATUS.md#current-status). The
-lock-held takeover case is excluded from the promoted DUR-041a result. The
-source harness contains a separate lock-contention probe, but its number is not
-treated as proof of a bounded lock wait or scheduler liveness. The result is local Docker
-Desktop/WSL2 process evidence, not multi-host or database-host durability.
+R096 repair is authorized under D017 and remains pending independent review in
+the [public review status](../../docs/REVIEW_STATUS.md#current-status). The
+lock-held takeover case remains separately labelled and is not promoted by the
+pause/reconnect arm. The source harness contains a separate lock-contention
+probe, while the repair's bounded-wait and scheduler-continuation tests provide
+the local liveness evidence. The result is local Docker Desktop/WSL2 process
+evidence, not multi-host or database-host durability.
 
-Generated campaign directories contain `protocol.json`, `pilot.json`,
-`dur027-source.json`, and `summary.json`. Review the source artifact and its
-independent checker output before quoting any result.
+Generated campaign directories contain protocol, observation, and summary
+artifacts. Review the source artifact and its independent checker output before
+quoting any result.
 
 ## Recorded run
 
@@ -46,4 +47,8 @@ and scope metadata in
 [`local-410041/protocol.json`](local-recovery/local-410041/protocol.json).
 It reports 60 in-scope episodes, 180 fenced stale-owner writes, and zero false
 takeovers. Those numbers are local process evidence only; the lock-held
-takeover case remains R096 and is excluded.
+takeover case remains separately labelled. The new scenario-1 run is available
+at [`isolation-410099/summary.json`](local-recovery/isolation-410099/summary.json):
+it preserved the original runtime-a container through Docker pause/unpause,
+observed peer takeover from epoch 647 to 653, and rejected the retained old
+epoch without changing revision 1.
