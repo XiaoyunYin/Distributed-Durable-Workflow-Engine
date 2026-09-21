@@ -71,6 +71,29 @@
       "volumes_created": false,
       "cleanup_verified": true,
       "remaining_operator_permission": "iam:ListInstanceProfilesForRole is still required for Terraform role cleanup"
+    },
+    "latest_authenticated_attempt": {
+      "source_commit": "7906a39",
+      "corrected_topology_commit": "e615f18",
+      "terraform_plan_resources": 15,
+      "apply_failure": "VcpuLimitExceeded: the account vCPU limit is 1 for the t3.micro instance bucket; the planned three-instance topology requires additional capacity",
+      "partial_resource_types": [
+        "VPC",
+        "internet gateway",
+        "route table",
+        "two subnets",
+        "two route associations",
+        "two security groups",
+        "IAM role",
+        "IAM policy attachment",
+        "IAM instance profile"
+      ],
+      "instances_created": false,
+      "volumes_created": false,
+      "recovery_measurement_started": false,
+      "cleanup_verified": true,
+      "cleanup_evidence": "Tagged EC2/VPC/volume queries returned no DUR-049 resources after destroy; the exact empty IAM role was deleted after Terraform cleanup.",
+      "local_secret_state_removed": true
     }
   },
   "notes": [

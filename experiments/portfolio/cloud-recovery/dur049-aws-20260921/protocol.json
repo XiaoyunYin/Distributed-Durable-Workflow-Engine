@@ -63,6 +63,29 @@
     "cleanup": "network resources and instance profile removed; IAM role required explicit deletion after Terraform cleanup reported missing iam:ListInstanceProfilesForRole; final absence was verified",
     "recovery_measurement_started": false
   },
+  "latest_authenticated_attempt": {
+    "source_commit": "7906a39",
+    "corrected_topology_commit": "e615f18",
+    "terraform_plan_resources": 15,
+    "apply_failure": "VcpuLimitExceeded: the account vCPU limit is 1 for the t3.micro instance bucket; the planned three-instance topology requires additional capacity",
+    "partial_resource_types": [
+      "VPC",
+      "internet gateway",
+      "route table",
+      "two subnets",
+      "two route associations",
+      "two security groups",
+      "IAM role",
+      "IAM policy attachment",
+      "IAM instance profile"
+    ],
+    "instances_created": false,
+    "volumes_created": false,
+    "recovery_measurement_started": false,
+    "cleanup_verified": true,
+    "cleanup_evidence": "No DUR-049 VPC, EC2 instance, EBS volume, or instance profile remained after cleanup; the exact empty IAM role was deleted explicitly.",
+    "local_secret_state_removed": true
+  },
   "exclusions": [
     "R096 lock-held isolation arm remains separately labelled",
     "database-host failure and disk durability",
