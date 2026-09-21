@@ -20,7 +20,7 @@ mechanisms are not conflated:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dur041a-isolation.ps1 -Fault pause -Seed 410099
 
 # Remove the original scheduler from the PostgreSQL network while it keeps running.
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dur041a-isolation.ps1 -Fault network -Seed 410102
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dur041a-isolation.ps1 -Fault network -Seed 410104
 ```
 
 The wrapper reuses the reviewed DUR-027 process fixtures and writes a new
@@ -65,7 +65,7 @@ at [`isolation-410099/summary.json`](local-recovery/isolation-410099/summary.jso
 it preserved the original runtime-a container through Docker pause/unpause,
 observed peer takeover from epoch 647 to 653, and rejected the retained old
 epoch without changing revision 1. The packet-level arm is available at
-[`network-410102/summary.json`](local-recovery/network-410102/summary.json):
+[`network-410104/summary.json`](local-recovery/network-410104/summary.json):
 Docker removed runtime-a from the PostgreSQL network while preserving its
-container and PID, the peer took over from epoch 1119 to 1126, and the
-reconnected old owner was fenced without changing revision 1.
+container and PID, the peer took over from epoch 785 to 788, and the
+reconnected old owner was fenced without changing revision 3.

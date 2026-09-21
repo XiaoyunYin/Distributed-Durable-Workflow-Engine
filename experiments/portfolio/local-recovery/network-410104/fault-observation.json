@@ -1,0 +1,32 @@
+﻿{
+    "schema_version":  "dur041a-isolation-observation.v1",
+    "status":  "PASS",
+    "container_id":  "32d15204ed3fd56910a9b02e1af31bfbf6537692a7a7c12ba0002f7e98a1a70b",
+    "original_process_preserved":  true,
+    "fault_arm":  "network",
+    "paused_state_observed":  false,
+    "network_disconnect_observed":  true,
+    "postgres_network":  "durable-agent-engine_default",
+    "network_names_before_fault":  [
+                                       "durable-agent-engine_default"
+                                   ],
+    "network_names_after_fault":  [
+
+                                  ],
+    "network_names_after_reconnect":  [
+                                          "durable-agent-engine_default"
+                                      ],
+    "container_state_after_fault":  "running",
+    "reconnected_state_observed":  true,
+    "original_container_pid":  "28671",
+    "reconnected_container_pid":  "28671",
+    "original_owner_id":  "6a463e5d-47b8-4ca5-a351-d17929a5142a",
+    "original_epoch":  785,
+    "takeover_owner_id":  "8b84e7e4-4e9f-4d15-9a8c-12d4f2ac5187",
+    "takeover_epoch":  788,
+    "stale_attempt_rejected":  true,
+    "stale_attempt_error":  "scheduler lease is not owned or has expired",
+    "before_revision":  3,
+    "after_revision":  3,
+    "fault_observation":  "Docker removed runtime-a from the network shared with PostgreSQL while the container and PID remained running; peer takeover was observed in PostgreSQL; the same container and PID were reconnected to that network."
+}

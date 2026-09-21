@@ -1,0 +1,26 @@
+﻿{
+    "schema_version":  "dur041a-isolation.v1",
+    "status":  "PASS",
+    "generated_at_utc":  "2026-09-21T02:52:39.1064277Z",
+    "git_commit":  "fa933429a7fd413374f8742105b4b5fac71b7cc6",
+    "seed":  410104,
+    "fault":  "scheduler_postgres_network_disconnect_and_reconnect",
+    "fault_arm":  "network",
+    "original_campaign":  "experiments/portfolio/local-recovery/local-410041",
+    "fixture":  "fixture.json",
+    "observation":  "fault-observation.json",
+    "lock_held_takeover":  {
+                               "status":  "separately_labelled",
+                               "included_in_this_arm":  false,
+                               "note":  "The lease-row lock case is measured separately from this network-disconnect/reconnect arm."
+                           },
+    "observation_synchronization":  "runtime-a used a zero-default diagnostic 3000ms hold after lease acquisition so its PostgreSQL network could be disconnected from an observed owner; the hold is excluded from takeover and recovery timing.",
+    "deployment_boundary":  "single Docker Desktop/WSL2 host; two local runtime containers sharing PostgreSQL",
+    "acceptance":  [
+                       "same original runtime container and PID preserved",
+                       "runtime-a removed from the PostgreSQL network while still running",
+                       "peer owner and higher epoch observed",
+                       "same container reconnected to the PostgreSQL network",
+                       "retained old-owner epoch rejected without revision change"
+                   ]
+}

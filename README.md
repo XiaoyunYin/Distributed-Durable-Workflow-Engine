@@ -181,7 +181,7 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 
 - APIs are development-only, unauthenticated, and localhost-bound by default.
   Do not expose them to untrusted clients.
-- **R096 remains under review ([status](docs/REVIEW_STATUS.md#current-status)):**
+- **R096 repair verified ([status](docs/REVIEW_STATUS.md#current-status)):**
   a scheduler stalled inside a transaction can retain the lease-row lock beyond
   lease expiry and block takeover. Claude's round-55 review verified the
   committed repair: it bounds lock acquisition and scheduler iterations with a

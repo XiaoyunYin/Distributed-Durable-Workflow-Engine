@@ -1,0 +1,24 @@
+﻿{
+    "schema_version":  "dur041a-isolation.v1",
+    "status":  "PASS",
+    "git_commit":  "fa933429a7fd413374f8742105b4b5fac71b7cc6",
+    "fault":  "scheduler_postgres_network_disconnect_and_reconnect",
+    "fault_arm":  "network",
+    "original_process_preserved":  true,
+    "peer_takeover_observed":  true,
+    "stale_owner_mutations":  0,
+    "stale_attempt_rejected":  true,
+    "revision_unchanged":  true,
+    "lock_held_takeover":  {
+                               "status":  "separately_labelled",
+                               "included_in_this_arm":  false,
+                               "note":  "The lease-row lock case is measured separately from this network-disconnect/reconnect arm."
+                           },
+    "observation_synchronization":  "runtime-a used a zero-default diagnostic 3000ms hold after lease acquisition so its PostgreSQL network could be disconnected from an observed owner; the hold is excluded from takeover and recovery timing.",
+    "limitations":  [
+                        "Local containers are not independent hosts.",
+                        "This scenario does not measure database-host failure or production availability.",
+                        "The diagnostic observation hold is not a recovery-time measurement.",
+                        "The network arm is a container-network fault, not an independent-host or database-host failure."
+                    ]
+}
