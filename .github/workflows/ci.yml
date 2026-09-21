@@ -52,6 +52,19 @@ jobs:
         shell: pwsh
         run: go test -race ./...
 
+      - name: Run bounded fuzz targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          go test -run='^$' -fuzz=FuzzWorkflowJSONDoesNotPanic -fuzztime=10s ./internal/api
+          go test -run='^$' -fuzz=FuzzParseWorkflowGraphDoesNotPanic -fuzztime=10s ./internal/engine
+          go test -run='^$' -fuzz=FuzzParseFaultTraceDoesNotPanic -fuzztime=10s ./internal/invariants
+          go test -run='^$' -fuzz=FuzzReferenceModelSequences -fuzztime=10s ./internal/reference
+
+      - name: Run govulncheck
+        shell: bash
+        run: go run golang.org/x/vuln/cmd/govulncheck@latest ./...
+
       - name: Validate archived fault traces
         shell: pwsh
         run: ./scripts/m5-archive-check.ps1
@@ -89,6 +102,50 @@ jobs:
       - name: Run service-backed checks and race tests
         shell: pwsh
         run: ./scripts/ci.ps1 -WithServices -WithRace
+
+      - name: Isolate deployed relays for mutation gates
+        shell: pwsh
+        run: |
+          $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
+          docker compose @compose stop runtime-a runtime-b worker-a worker-b
+
+      - name: Run PowerShell mutation gate
+        shell: pwsh
+        run: |
+          $values = @{}
+          foreach ($line in (Get-Content -LiteralPath '.env')) {
+            if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
+          }
+          $env:DURABLE_MUTATION_DATABASE_URL = "postgresql://$($values['POSTGRES_USER']):$($values['POSTGRES_PASSWORD'])@127.0.0.1:$($values['POSTGRES_PORT'] ?? '5432')/$($values['POSTGRES_DB'])?sslmode=disable"
+          ./scripts/mutation-gate.ps1 -Output mutations/results-powershell.json
+
+      - name: Run Linux mutation gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          user_name="$(sed -n 's/^POSTGRES_USER=//p' .env)"
+          password="$(sed -n 's/^POSTGRES_PASSWORD=//p' .env)"
+          database="$(sed -n 's/^POSTGRES_DB=//p' .env)"
+          port="$(sed -n 's/^POSTGRES_PORT=//p' .env)"
+          : "${port:=5432}"
+          export DURABLE_MUTATION_DATABASE_URL="postgresql://${user_name}:${password}@127.0.0.1:${port}/${database}?sslmode=disable"
+          bash scripts/mutation-gate.sh
+
+      - name: Restore deployed relays after mutation gates
+        if: always()
+        shell: pwsh
+        run: |
+          $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
+          docker compose @compose up -d --wait runtime-a runtime-b worker-a worker-b
+
+      - name: Upload mutation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dur046-mutation-results-${{ github.run_id }}
+          path: mutations/results-*.json
+          if-no-files-found: error
+          retention-days: 14
 
       - name: Collect service diagnostics
         if: always()

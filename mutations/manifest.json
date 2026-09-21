@@ -114,7 +114,7 @@
       "file": "python/incident_agent/redaction.py",
       "old": "if result.count:",
       "new": "if False:  # mutation: suppress downstream canary findings",
-      "command": ["python", "-m", "pytest", "tests/test_incident_agent.py", "-k", "test_adversarial_protocol_has_fixed_redaction_and_counts", "-q"],
+      "command": ["uv", "run", "python", "-m", "pytest", "tests/test_incident_agent.py", "-k", "test_adversarial_protocol_has_fixed_redaction_and_counts", "-q"],
       "expected": "negative_control_fired",
       "requires_database": false
     }

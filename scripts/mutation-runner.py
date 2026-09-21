@@ -10,6 +10,7 @@ failures do not count as detections.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import io
 import json
 import os
@@ -37,7 +38,12 @@ def run(command: list[str], cwd: Path, env: dict[str, str]) -> tuple[int, str]:
 def export_head(repo: Path, destination: Path) -> None:
     archive = subprocess.check_output(["git", "-C", str(repo), "archive", "--format=tar", "HEAD"])
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as handle:
-        handle.extractall(destination)
+        # Python 3.12+ supports the safe extraction filter; retain a
+        # compatibility fallback for older runners used by local developers.
+        try:
+            handle.extractall(destination, filter="data")
+        except TypeError:
+            handle.extractall(destination)
 
 
 def main() -> int:
@@ -73,9 +79,9 @@ def main() -> int:
             "./internal/invariants", "./internal/state", "-count=1",
         ]
         code, output = run(baseline, repo, base_env)
-        if code != 0:
+        if code != 0 or "SKIP" in output or "no tests to run" in output.lower():
             print(output, file=sys.stderr)
-            print("DUR-046 baseline failed; no mutation result is valid", file=sys.stderr)
+            print("DUR-046 baseline failed, skipped, or selected no tests; no mutation result is valid", file=sys.stderr)
             return 1
 
         for case in cases:
@@ -111,9 +117,33 @@ def main() -> int:
                 return 1
             print(f"PASS {case['id']}: mutation was rejected by its named semantic test")
 
+        # The mutation exports are disposable, so prove the unmodified
+        # checkout still passes after the complete campaign as well.
+        code, output = run(baseline, repo, base_env)
+        if code != 0 or "SKIP" in output or "no tests to run" in output.lower():
+            print(output, file=sys.stderr)
+            print("DUR-046 restored baseline failed, skipped, or selected no tests", file=sys.stderr)
+            return 1
+
+        commit = subprocess.check_output(
+            ["git", "-C", str(repo), "rev-parse", "HEAD"], text=True
+        ).strip()
         output_path = repo / args.output
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps({"schema": "dur-046-mutation-results.v1", "status": "PASS", "cases": results}, indent=2) + "\n", encoding="utf-8")
+        output_path.write_text(
+            json.dumps(
+                {
+                    "schema": "dur-046-mutation-results.v1",
+                    "status": "PASS",
+                    "git_commit": commit,
+                    "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+                    "cases": results,
+                },
+                indent=2,
+            )
+            + "\n",
+            encoding="utf-8",
+        )
         return 0
     finally:
         shutil.rmtree(scratch_root, ignore_errors=True)
