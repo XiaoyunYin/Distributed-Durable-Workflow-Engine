@@ -58,8 +58,8 @@
     {
       "id": "state-effect-argument-hash",
       "file": "internal/state/m4.go",
-      "old": "if submittedArgumentHash != input.ArgumentHash {",
-      "new": "if false && submittedArgumentHash != input.ArgumentHash { // mutation: trust a self-asserted argument hash",
+      "old": "if err != nil || submittedArgumentHash != approvedArgumentHash || input.ArgumentHash != submittedArgumentHash {",
+      "new": "if false && (err != nil || submittedArgumentHash != approvedArgumentHash || input.ArgumentHash != submittedArgumentHash) { // mutation: trust a self-asserted argument hash",
       "command": ["go", "test", "./internal/state", "-run", "^TestM4EffectLedgerAndFencing$", "-count=1", "-v"],
       "expected": "effect argument mismatch",
       "requires_database": true
