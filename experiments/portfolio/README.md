@@ -12,6 +12,17 @@ Run the scoped wrapper from a dedicated local Compose/database environment:
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/portfolio-local-recovery.ps1 -StartServices
 ```
 
+The preserved-process isolation arms are run separately so their fault
+mechanisms are not conflated:
+
+```powershell
+# Pause/resume the original scheduler container.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dur041a-isolation.ps1 -Fault pause -Seed 410099
+
+# Remove the original scheduler from the PostgreSQL network while it keeps running.
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/dur041a-isolation.ps1 -Fault network -Seed 410102
+```
+
 The wrapper reuses the reviewed DUR-027 process fixtures and writes a new
 campaign directory under `experiments/portfolio/local-recovery/`. It promotes
 only two local fault families:
@@ -25,13 +36,15 @@ stale-owner writes, and clean source-harness reconciliation. It reports
 median/min/max for takeover and useful-progress delays, with counts and
 denominators.
 
-R096 repair is authorized under D017 and remains pending independent review in
-the [public review status](../../docs/REVIEW_STATUS.md#current-status). The
+R096 repair was authorized under D017 and verified in Claude's round-55
+review; the [public review status](../../docs/REVIEW_STATUS.md#current-status)
+is intentionally left for Claude's status-record update. The
 lock-held takeover case remains separately labelled and is not promoted by the
-pause/reconnect arm. The source harness contains a separate lock-contention
-probe, while the repair's bounded-wait and scheduler-continuation tests provide
-the local liveness evidence. The result is local Docker Desktop/WSL2 process
-evidence, not multi-host or database-host durability.
+pause/reconnect or network-disconnect/reconnect arm. The source harness
+contains a separate lock-contention probe, while the repair's bounded-wait and
+scheduler-continuation tests provide the local liveness evidence. The result is
+local Docker Desktop/WSL2 process evidence, not multi-host or database-host
+durability.
 
 Generated campaign directories contain protocol, observation, and summary
 artifacts. Review the source artifact and its independent checker output before
@@ -51,4 +64,8 @@ takeover case remains separately labelled. The new scenario-1 run is available
 at [`isolation-410099/summary.json`](local-recovery/isolation-410099/summary.json):
 it preserved the original runtime-a container through Docker pause/unpause,
 observed peer takeover from epoch 647 to 653, and rejected the retained old
-epoch without changing revision 1.
+epoch without changing revision 1. The packet-level arm is available at
+[`network-410102/summary.json`](local-recovery/network-410102/summary.json):
+Docker removed runtime-a from the PostgreSQL network while preserving its
+container and PID, the peer took over from epoch 1119 to 1126, and the
+reconnected old owner was fenced without changing revision 1.

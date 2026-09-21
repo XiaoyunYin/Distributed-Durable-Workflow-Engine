@@ -1,5 +1,22 @@
 # Architecture and scope decisions
 
+## D018 - Authorize the packet-level DUR-041a isolation arm
+
+- Date: 2026-09-20
+- Status: user-authorized; no cloud budget or release authorization.
+
+The user authorized a second, separately labelled DUR-041a local fault arm:
+remove the original scheduler container from the Docker network shared with
+PostgreSQL while preserving its running container and process, let the peer
+take over, reconnect the original, and verify that the retained epoch cannot
+commit. This adds a packet-level/container-network fault to the existing
+pause-and-reconnect arm without overwriting its artifact.
+
+The arm must confirm the network membership change and process/container
+continuity from Docker state, record takeover and stale-write observations,
+and retain the lock-held takeover case as separately labelled. It is local
+Docker Desktop/WSL2 evidence, not multi-host or database-host durability.
+
 ## D017 - Authorize and supersede the R096 repair
 
 - Date: 2026-09-20

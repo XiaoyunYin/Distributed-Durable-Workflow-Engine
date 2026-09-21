@@ -402,3 +402,59 @@ func TestM2ContendedLeaseAcquisitionReturnsRetryableWithinBound(t *testing.T) {
 	}
 	t.Logf("contended lease acquisition returned retryable error after %s while epoch %d remained locked", elapsed, heldEpoch)
 }
+
+func TestM2ContendedLeaseLockUsesRetryableSentinel(t *testing.T) {
+	databaseURL := integrationDatabaseURL(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	store, err := NewFromURL(ctx, databaseURL)
+	if err != nil {
+		if os.Getenv("DURABLE_REQUIRE_DATABASE") == "1" {
+			t.Fatalf("PostgreSQL is required but unavailable: %v", err)
+		}
+		t.Skipf("PostgreSQL is not available: %v", err)
+	}
+	defer store.Close()
+
+	initial, acquired, err := acquireTestLease(ctx, store, NewID())
+	if err != nil || !acquired {
+		t.Fatalf("initial lease = %+v acquired=%v err=%v", initial, acquired, err)
+	}
+	defer func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_, _ = store.Pool().Exec(cleanupCtx, `UPDATE engine.partition_leases
+			SET owner_id = NULL, lease_expires_at = NULL, updated_at = clock_timestamp()
+			WHERE partition_id = $1`, initial.PartitionID)
+	}()
+
+	transaction, err := store.Pool().Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = transaction.Rollback(context.Background()) }()
+	var heldEpoch int64
+	if err := transaction.QueryRow(ctx, `SELECT epoch FROM engine.partition_leases
+		WHERE partition_id = $1 FOR UPDATE`, initial.PartitionID).Scan(&heldEpoch); err != nil {
+		t.Fatal(err)
+	}
+
+	started := time.Now()
+	_, renewErr := store.RenewLease(ctx, LeaseRef{
+		PartitionID: initial.PartitionID,
+		OwnerID:     initial.OwnerID,
+		Epoch:       initial.Epoch,
+	}, time.Minute)
+	elapsed := time.Since(started)
+	if !errors.Is(renewErr, ErrLeaseAcquisitionTimeout) {
+		t.Fatalf("contended renewal error = %v, want ErrLeaseAcquisitionTimeout", renewErr)
+	}
+	if errors.Is(renewErr, ErrLeaseNotOwned) {
+		t.Fatalf("contended renewal conflated timeout with ErrLeaseNotOwned: %v", renewErr)
+	}
+	const acquisitionBound = 5 * time.Second
+	if elapsed >= acquisitionBound {
+		t.Fatalf("contended renewal took %s, want less than scheduler iteration bound %s", elapsed, acquisitionBound)
+	}
+	t.Logf("contended lockLease path returned retryable error after %s while epoch %d remained locked", elapsed, heldEpoch)
+}

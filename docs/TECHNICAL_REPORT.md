@@ -355,14 +355,14 @@ not a feature scorecard or a claim that this project matches any reference.
 - The control API and worker endpoints remain development-only and
   unauthenticated, bound to localhost by default. Authentication is a prerequisite
   for broader exposure.
-- Subsequent review identified a liveness repair ([R096](REVIEW_STATUS.md#current-status)):
+- Subsequent review identified and verified a liveness repair ([R096](REVIEW_STATUS.md#current-status)):
   a stalled scheduler transaction can hold the lease-row lock beyond lease
-  expiry and block takeover. The repair is committed at `41bb9bc` with a
-  bounded-wait regression and scheduler-continuation test; preserved-process
-  isolation evidence is in
-  `experiments/portfolio/local-recovery/isolation-410099/`. These changes are
-  pending independent review, so historical passing campaigns still do not
-  establish a general scheduler-liveness claim.
+  expiry and block takeover. Claude's round-55 review verified the repair at
+  `41bb9bc`, including the bounded-wait regression and scheduler-continuation
+  test; preserved-process isolation evidence is in
+  `experiments/portfolio/local-recovery/isolation-410099/`. The historical
+  campaign's lock-held arm remains excluded from that artifact's scope, and
+  the result is still not a multi-host scheduler-liveness claim.
 
 ## Reproduction index
 

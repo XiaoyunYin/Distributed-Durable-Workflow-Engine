@@ -85,11 +85,13 @@ the seed, counts, and timing ranges.
 
 This is local Docker Desktop/WSL2 process evidence, not a two-host or
 database-host durability result. The known R096 case — a scheduler stalled
-while holding the lease-row lock — is intentionally excluded and remains open.
+while holding the lease-row lock — is intentionally excluded from the
+`local-410041` arm; the repair itself is verified separately.
 The local result therefore demonstrates stale-owner fencing and affected-work
-progress within its boundary; it does not claim general scheduler liveness.
+progress within its boundary; the excluded lock-held arm is a campaign-scope
+limitation, not an unresolved repair.
 
-The R096 repair is committed and awaiting independent review; it preserves
+Claude's round-55 review verified the R096 repair. It preserves
 the in-transaction lease fence while bounding lock acquisition and scheduler
 iterations. The new preserved-process isolation result is recorded in the
 [scenario-1 summary](experiments/portfolio/local-recovery/isolation-410099/summary.json).
@@ -181,9 +183,10 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
   Do not expose them to untrusted clients.
 - **R096 remains under review ([status](docs/REVIEW_STATUS.md#current-status)):**
   a scheduler stalled inside a transaction can retain the lease-row lock beyond
-  lease expiry and block takeover. The committed repair bounds lock acquisition
-  and scheduler iterations while preserving the fence; Claude must accept it
-  before this repository makes a general scheduler-liveness claim.
+  lease expiry and block takeover. Claude's round-55 review verified the
+  committed repair: it bounds lock acquisition and scheduler iterations with a
+  distinct retryable error while preserving the fence. The historical local
+  campaign still does not establish multi-host scheduler liveness.
 - Single-host evidence does not establish multi-host durability, database HA,
   host-loss recovery, sustained production load, or arbitrary exactly-once effects.
 - Historical studies, deterministic fixtures, and the deployed pure-activity

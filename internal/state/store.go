@@ -542,6 +542,9 @@ func lockLease(ctx context.Context, tx pgx.Tx, ref LeaseRef) (Lease, error) {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return Lease{}, ErrLeaseNotOwned
 		}
+		if isLeaseAcquisitionTimeout(err) {
+			return Lease{}, fmt.Errorf("%w: partition=%d: %v", ErrLeaseAcquisitionTimeout, ref.PartitionID, err)
+		}
 		return Lease{}, fmt.Errorf("lock partition lease: %w", err)
 	}
 	if owner == nil || expiry == nil || *owner != ref.OwnerID || epoch != ref.Epoch || !expiry.After(databaseNow) {
