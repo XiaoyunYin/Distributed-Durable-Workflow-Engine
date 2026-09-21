@@ -1,0 +1,27 @@
+﻿{
+    "schema_version":  "dur041a-local.v1",
+    "status":  "PASS",
+    "generated_at_utc":  "2026-09-21T00:04:08.9609066Z",
+    "git_commit":  "c50960c0b452f128d1748b1209b11c06bfc39bf1",
+    "seed":  410041,
+    "source_harness":  "scripts/m7-dur027.ps1",
+    "source_artifact":  "experiments/portfolio/local-recovery/local-410041/dur027-source.json",
+    "pilot_artifact":  "experiments/portfolio/local-recovery/local-410041/pilot.json",
+    "r096_deferred":  true,
+    "in_scope_faults":  [
+                            "owner_crash",
+                            "owner_pause"
+                        ],
+    "excluded_faults":  [
+                            "lock_held_takeover"
+                        ],
+    "exclusion_reason":  "R096 is explicitly deferred; no bounded lock-held takeover claim is made.",
+    "local_boundary":  "Docker Desktop/WSL2 local process fixtures; not independent-host failure.",
+    "required_checks":  [
+                            "confirmed fault observation",
+                            "stale-owner fencing after takeover",
+                            "useful affected-work progress",
+                            "matched no-fault control and independent checker in the source campaign",
+                            "run-scoped cleanup"
+                        ]
+}

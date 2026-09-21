@@ -1,0 +1,61 @@
+{
+  "schema_version": "dur027-lease-pilot.v1",
+  "status": "PASS",
+  "generated_at_utc": "2026-09-21T00:02:55.9180193Z",
+  "git_commit": "c50960c0b452f128d1748b1209b11c06bfc39bf1",
+  "seed": 410041,
+  "samples_per_arm": 3,
+  "arms": [
+    {
+      "id": "ttl_100ms",
+      "ttl_ms": 100,
+      "renewal_interval_ms": 33,
+      "transaction_delay_ms": {
+        "count": 9,
+        "min": 2.6431,
+        "median": 3.3945999999999996,
+        "max": 7.3923
+      },
+      "scheduling_delay_ms": {
+        "count": 9,
+        "min": 2.7234,
+        "median": 3.6365999999999996,
+        "max": 7.6418
+      }
+    },
+    {
+      "id": "ttl_250ms",
+      "ttl_ms": 250,
+      "renewal_interval_ms": 83,
+      "transaction_delay_ms": {
+        "count": 9,
+        "min": 3.9490000000000003,
+        "median": 5.0381,
+        "max": 11.613399999999999
+      },
+      "scheduling_delay_ms": {
+        "count": 9,
+        "min": 4.1902,
+        "median": 5.3155,
+        "max": 11.874600000000001
+      }
+    },
+    {
+      "id": "ttl_750ms",
+      "ttl_ms": 750,
+      "renewal_interval_ms": 250,
+      "transaction_delay_ms": {
+        "count": 9,
+        "min": 3.169,
+        "median": 5.188899999999999,
+        "max": 28.5899
+      },
+      "scheduling_delay_ms": {
+        "count": 9,
+        "min": 3.2195,
+        "median": 5.7969,
+        "max": 28.6755
+      }
+    }
+  ]
+}

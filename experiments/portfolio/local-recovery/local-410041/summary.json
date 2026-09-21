@@ -1,0 +1,63 @@
+﻿{
+    "schema_version":  "dur041a-local.v1",
+    "status":  "PASS",
+    "generated_at_utc":  "2026-09-21T00:04:08.9641927Z",
+    "git_commit":  "c50960c0b452f128d1748b1209b11c06bfc39bf1",
+    "seed":  410041,
+    "r096_deferred":  true,
+    "episodes":  60,
+    "arms":  [
+                 {
+                     "fault_type":  "owner_crash",
+                     "episodes":  30,
+                     "takeover_delay_ms":  {
+                                               "count":  30,
+                                               "min":  9.4341,
+                                               "median":  165.9223,
+                                               "max":  512.764
+                                           },
+                     "useful_progress_delay_ms":  {
+                                                      "count":  30,
+                                                      "min":  160.9582,
+                                                      "median":  457.68135,
+                                                      "max":  1332.4544
+                                                  },
+                     "confirmed_faults":  30,
+                     "takeovers":  30,
+                     "useful_progress":  30,
+                     "fenced_old_owner_writes":  90
+                 },
+                 {
+                     "fault_type":  "owner_pause",
+                     "episodes":  30,
+                     "takeover_delay_ms":  {
+                                               "count":  30,
+                                               "min":  74.6058,
+                                               "median":  242.85715,
+                                               "max":  761.8283
+                                           },
+                     "useful_progress_delay_ms":  {
+                                                      "count":  30,
+                                                      "min":  180.8634,
+                                                      "median":  539.52215,
+                                                      "max":  1555.2102
+                                                  },
+                     "confirmed_faults":  30,
+                     "takeovers":  30,
+                     "useful_progress":  30,
+                     "fenced_old_owner_writes":  90
+                 }
+             ],
+    "safety":  {
+                   "takeovers":  60,
+                   "useful_progress":  60,
+                   "fenced_old_owner_writes":  180,
+                   "false_takeovers":  0
+               },
+    "limitations":  [
+                        "R096 lock-held takeover is excluded and remains unresolved.",
+                        "Local process/container loss is not independent-host or database-host failure.",
+                        "The source harness includes a lock-contention probe, but this wrapper does not promote it as an R096 result.",
+                        "This artifact does not claim production availability, multi-host durability, or exactly-once external effects."
+                    ]
+}
