@@ -89,6 +89,11 @@ while holding the lease-row lock — is intentionally excluded and remains open.
 The local result therefore demonstrates stale-owner fencing and affected-work
 progress within its boundary; it does not claim general scheduler liveness.
 
+The R096 repair is committed and awaiting independent review; it preserves
+the in-transaction lease fence while bounding lock acquisition and scheduler
+iterations. The new preserved-process isolation result is recorded in the
+[scenario-1 summary](experiments/portfolio/local-recovery/isolation-410099/summary.json).
+
 Supporting AI evidence remains separately scoped: the live-model evaluation
 achieved 4/20 safe outcomes per retrieval arm, versus 20/20 for its fixture
 control. Adversarial excess proposal-change rates were 2/20 defended versus
@@ -174,10 +179,11 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 
 - APIs are development-only, unauthenticated, and localhost-bound by default.
   Do not expose them to untrusted clients.
-- **Known liveness issue ([R096](docs/REVIEW_STATUS.md#current-status)):** a
-  scheduler stalled inside a transaction can retain the lease-row lock beyond
-  lease expiry and block takeover. Bounded lock-wait and scheduler-iteration
-  handling remain a separate pending repair.
+- **R096 remains under review ([status](docs/REVIEW_STATUS.md#current-status)):**
+  a scheduler stalled inside a transaction can retain the lease-row lock beyond
+  lease expiry and block takeover. The committed repair bounds lock acquisition
+  and scheduler iterations while preserving the fence; Claude must accept it
+  before this repository makes a general scheduler-liveness claim.
 - Single-host evidence does not establish multi-host durability, database HA,
   host-loss recovery, sustained production load, or arbitrary exactly-once effects.
 - Historical studies, deterministic fixtures, and the deployed pure-activity

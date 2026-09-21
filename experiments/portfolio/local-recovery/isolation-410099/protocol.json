@@ -1,0 +1,25 @@
+﻿{
+    "schema_version":  "dur041a-isolation.v1",
+    "status":  "PASS",
+    "generated_at_utc":  "2026-09-21T01:32:18.2782071Z",
+    "git_commit":  "705f3c10edf8b62cc60d5a61983cb7be399796ab",
+    "seed":  410099,
+    "fault":  "scheduler_container_pause_and_reconnect",
+    "original_campaign":  "experiments/portfolio/local-recovery/local-410041",
+    "fixture":  "fixture.json",
+    "observation":  "fault-observation.json",
+    "lock_held_takeover":  {
+                               "status":  "separately_labelled",
+                               "included_in_this_arm":  false,
+                               "note":  "The lease-row lock case is measured separately from this pause/reconnect arm."
+                           },
+    "observation_synchronization":  "runtime-a used a zero-default diagnostic 3000ms hold after lease acquisition so Docker pause could be applied to an observed owner; the hold is excluded from takeover and recovery timing.",
+    "deployment_boundary":  "single Docker Desktop/WSL2 host; two local runtime containers sharing PostgreSQL",
+    "acceptance":  [
+                       "same original runtime container preserved",
+                       "pause state observed",
+                       "peer owner and higher epoch observed",
+                       "same container reconnected",
+                       "retained old-owner epoch rejected without revision change"
+                   ]
+}

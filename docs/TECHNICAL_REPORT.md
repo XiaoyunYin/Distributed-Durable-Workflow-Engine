@@ -355,10 +355,14 @@ not a feature scorecard or a claim that this project matches any reference.
 - The control API and worker endpoints remain development-only and
   unauthenticated, bound to localhost by default. Authentication is a prerequisite
   for broader exposure.
-- Subsequent review identified a pending liveness repair ([R096](REVIEW_STATUS.md#current-status)): a stalled
-  scheduler transaction can hold the lease-row lock beyond lease expiry and
-  block takeover. Historical passing campaigns do not establish a bound for
-  that scenario. The publication cleanup does not fix it.
+- Subsequent review identified a liveness repair ([R096](REVIEW_STATUS.md#current-status)):
+  a stalled scheduler transaction can hold the lease-row lock beyond lease
+  expiry and block takeover. The repair is committed at `41bb9bc` with a
+  bounded-wait regression and scheduler-continuation test; preserved-process
+  isolation evidence is in
+  `experiments/portfolio/local-recovery/isolation-410099/`. These changes are
+  pending independent review, so historical passing campaigns still do not
+  establish a general scheduler-liveness claim.
 
 ## Reproduction index
 

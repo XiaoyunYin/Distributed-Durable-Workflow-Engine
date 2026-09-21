@@ -1,0 +1,17 @@
+﻿{
+    "schema_version":  "dur041a-isolation-observation.v1",
+    "status":  "PASS",
+    "container_id":  "e7312a2b88fb7e48a61c346fefbd2f6f21fef93697a5dd6f6a18d68ff23ea127",
+    "original_process_preserved":  true,
+    "paused_state_observed":  true,
+    "reconnected_state_observed":  true,
+    "original_owner_id":  "a11c03d1-45cc-4651-be1a-dca7c7f08ae8",
+    "original_epoch":  647,
+    "takeover_owner_id":  "90e4c672-dfcd-49d7-b8f4-e731192549bd",
+    "takeover_epoch":  653,
+    "stale_attempt_rejected":  true,
+    "stale_attempt_error":  "scheduler lease is not owned or has expired",
+    "before_revision":  1,
+    "after_revision":  1,
+    "fault_observation":  "Docker pause reported true while the same runtime-a container was retained; peer takeover was observed in PostgreSQL; unpause reported false on the same container."
+}
