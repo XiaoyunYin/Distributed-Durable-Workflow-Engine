@@ -105,6 +105,7 @@
       "file": "deploy/local/compose.yaml",
       "old": "- lock_timeout=2s",
       "new": "- lock_timeout=0 # mutation: remove the lock wait bound",
+      "coverage_note": "This case covers the Compose PostgreSQL setting jointly with the RuntimeParams setting in state.NewFromURL; either layer alone still bounds the wait.",
       "command": ["python", "-c", "from pathlib import Path; assert 'lock_timeout=2s' in Path('deploy/local/compose.yaml').read_text()"],
       "expected": "AssertionError",
       "requires_database": false

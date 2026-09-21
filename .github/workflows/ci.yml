@@ -116,7 +116,22 @@ jobs:
           foreach ($line in (Get-Content -LiteralPath '.env')) {
             if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
           }
-          $env:DURABLE_MUTATION_DATABASE_URL = "postgresql://$($values['POSTGRES_USER']):$($values['POSTGRES_PASSWORD'])@127.0.0.1:$($values['POSTGRES_PORT'] ?? '5432')/$($values['POSTGRES_DB'])?sslmode=disable"
+          $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
+          $mutationDatabase = 'dur046_mutation'
+          $port = $values['POSTGRES_PORT']
+          if ([string]::IsNullOrWhiteSpace($port)) { $port = '5432' }
+          $encodedUser = [uri]::EscapeDataString($values['POSTGRES_USER'])
+          $encodedPassword = [uri]::EscapeDataString($values['POSTGRES_PASSWORD'])
+          & docker compose @compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $values['POSTGRES_USER'] -d postgres -c "DROP DATABASE IF EXISTS $mutationDatabase WITH (FORCE)"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not drop the prior DUR-046 database.' }
+          & docker compose @compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $values['POSTGRES_USER'] -d postgres -c "CREATE DATABASE $mutationDatabase"
+          if ($LASTEXITCODE -ne 0) { throw 'Could not create the DUR-046 database.' }
+          foreach ($migration in (Get-ChildItem -LiteralPath 'migrations' -Filter '*.up.sql' | Sort-Object Name)) {
+            Get-Content -LiteralPath $migration.FullName -Raw |
+              & docker compose @compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $values['POSTGRES_USER'] -d $mutationDatabase
+            if ($LASTEXITCODE -ne 0) { throw "Migration failed: $($migration.Name)" }
+          }
+          $env:DURABLE_MUTATION_DATABASE_URL = "postgresql://$encodedUser`:$encodedPassword@127.0.0.1`:$port/$mutationDatabase?sslmode=disable"
           ./scripts/mutation-gate.ps1 -Output mutations/results-powershell.json
 
       - name: Run Linux mutation gate
@@ -125,11 +140,24 @@ jobs:
           set -euo pipefail
           user_name="$(sed -n 's/^POSTGRES_USER=//p' .env)"
           password="$(sed -n 's/^POSTGRES_PASSWORD=//p' .env)"
-          database="$(sed -n 's/^POSTGRES_DB=//p' .env)"
+          database="dur046_mutation"
           port="$(sed -n 's/^POSTGRES_PORT=//p' .env)"
           : "${port:=5432}"
-          export DURABLE_MUTATION_DATABASE_URL="postgresql://${user_name}:${password}@127.0.0.1:${port}/${database}?sslmode=disable"
+          encoded_user="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$user_name")"
+          encoded_password="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$password")"
+          export DURABLE_MUTATION_DATABASE_URL="postgresql://${encoded_user}:${encoded_password}@127.0.0.1:${port}/${database}?sslmode=disable"
           bash scripts/mutation-gate.sh
+
+      - name: Drop isolated mutation database
+        if: always()
+        shell: pwsh
+        run: |
+          $values = @{}
+          foreach ($line in (Get-Content -LiteralPath '.env')) {
+            if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
+          }
+          $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
+          docker compose @compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $values['POSTGRES_USER'] -d postgres -c 'DROP DATABASE IF EXISTS dur046_mutation WITH (FORCE)'
 
       - name: Restore deployed relays after mutation gates
         if: always()
