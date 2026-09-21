@@ -124,6 +124,7 @@
     },
     {
       "id": "python-canary-scanner",
+      "kind": "behavioral",
       "file": "python/incident_agent/redaction.py",
       "old": "if result.count:",
       "new": "if False:  # mutation: suppress downstream canary findings",
