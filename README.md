@@ -174,6 +174,17 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 - [Experiment reproduction notes](experiments/README.md)
 - [Portfolio recovery campaign scope](experiments/portfolio/README.md)
 
+### Evidence map
+
+The committed fault and measurement artifacts are the source of truth for the
+claims above. The current deployment exposes bounded Prometheus counters and
+gauges for leases, claims, results, relay activity, database work, workers, and
+reconciliation age; it does **not** yet claim an end-to-end distributed trace
+from HTTP submission through Kafka, workers, and effects. That tracing boundary
+is an explicit next engineering task, as are the mutation gate, AWS recovery,
+and required Kubernetes campaign. Internal study notes stay local; only concise
+claim boundaries and reproducible evidence links are published here.
+
 ## Operating limits
 
 - APIs are development-only, unauthenticated, and localhost-bound by default.
