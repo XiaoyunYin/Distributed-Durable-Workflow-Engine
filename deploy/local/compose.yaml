@@ -16,6 +16,18 @@ services:
       - synchronous_commit=on
       - -c
       - full_page_writes=on
+      - -c
+      - lock_timeout=2s
+      - -c
+      - statement_timeout=8s
+      - -c
+      - idle_in_transaction_session_timeout=10s
+      - -c
+      - tcp_keepalives_idle=30
+      - -c
+      - tcp_keepalives_interval=10
+      - -c
+      - tcp_keepalives_count=3
     ports:
       - ${POSTGRES_PORT:-5432}:5432
     volumes:

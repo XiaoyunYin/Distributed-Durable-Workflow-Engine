@@ -9,6 +9,8 @@ import (
 	"durable-agent-execution-engine/internal/state"
 )
 
+const schedulerIterationTimeout = 5 * time.Second
+
 // Serve scans one explicit namespace. It never executes activities in the
 // scheduler process and never borrows an unacquired partition lease.
 func Serve(ctx context.Context, store *state.Store, namespace string, wake <-chan struct{}) error {
@@ -23,15 +25,21 @@ func Serve(ctx context.Context, store *state.Store, namespace string, wake <-cha
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
-		ids, err := store.RuntimeWork(ctx, namespace, cursor, 100)
+		scanCtx, scanCancel := context.WithTimeout(ctx, schedulerIterationTimeout)
+		ids, err := store.RuntimeWork(scanCtx, namespace, cursor, 100)
+		scanCancel()
 		if err != nil {
 			slog.Warn("scheduler repair scan failed", "error", err)
 		} else {
 			for _, id := range ids {
 				cursor = id
-				if _, err := runner.Run(ctx, id); err != nil && !errors.Is(err, state.ErrLeaseNotOwned) &&
-					!errors.Is(err, state.ErrRevisionConflict) && !errors.Is(err, state.ErrAttemptNotCurrent) {
-					slog.Warn("scheduler pass failed", "workflow_id", id, "error", err)
+				iterationCtx, iterationCancel := context.WithTimeout(ctx, schedulerIterationTimeout)
+				_, runErr := runner.Run(iterationCtx, id)
+				iterationCancel()
+				if runErr != nil && !errors.Is(runErr, state.ErrLeaseNotOwned) &&
+					!errors.Is(runErr, state.ErrLeaseAcquisitionTimeout) &&
+					!errors.Is(runErr, state.ErrRevisionConflict) && !errors.Is(runErr, state.ErrAttemptNotCurrent) {
+					slog.Warn("scheduler pass failed", "workflow_id", id, "error", runErr)
 				}
 			}
 			if len(ids) < 100 {

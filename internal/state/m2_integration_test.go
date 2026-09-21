@@ -347,3 +347,58 @@ func TestM2TakeoverWaitsForLockedLeaseTransaction(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestM2ContendedLeaseAcquisitionReturnsRetryableWithinBound(t *testing.T) {
+	databaseURL := integrationDatabaseURL(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+	defer cancel()
+	store, err := NewFromURL(ctx, databaseURL)
+	if err != nil {
+		if os.Getenv("DURABLE_REQUIRE_DATABASE") == "1" {
+			t.Fatalf("PostgreSQL is required but unavailable: %v", err)
+		}
+		t.Skipf("PostgreSQL is not available: %v", err)
+	}
+	defer store.Close()
+
+	initial, acquired, err := acquireTestLease(ctx, store, NewID())
+	if err != nil || !acquired {
+		t.Fatalf("initial lease = %+v acquired=%v err=%v", initial, acquired, err)
+	}
+	defer func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_, _ = store.Pool().Exec(cleanupCtx, `UPDATE engine.partition_leases
+			SET owner_id = NULL, lease_expires_at = NULL, updated_at = clock_timestamp()
+			WHERE partition_id = $1`, initial.PartitionID)
+	}()
+
+	transaction, err := store.Pool().Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = transaction.Rollback(context.Background()) }()
+	var heldEpoch int64
+	if err := transaction.QueryRow(ctx, `SELECT epoch FROM engine.partition_leases
+		WHERE partition_id = $1 FOR UPDATE`, initial.PartitionID).Scan(&heldEpoch); err != nil {
+		t.Fatal(err)
+	}
+
+	started := time.Now()
+	_, won, acquireErr := store.AcquireLease(ctx, initial.PartitionID, NewID(), time.Minute)
+	elapsed := time.Since(started)
+	if won {
+		t.Fatal("contended acquisition unexpectedly won the lease")
+	}
+	if !errors.Is(acquireErr, ErrLeaseAcquisitionTimeout) {
+		t.Fatalf("contended acquisition error = %v, want ErrLeaseAcquisitionTimeout", acquireErr)
+	}
+	if errors.Is(acquireErr, ErrLeaseNotOwned) {
+		t.Fatalf("contended acquisition conflated timeout with ErrLeaseNotOwned: %v", acquireErr)
+	}
+	const acquisitionBound = 5 * time.Second
+	if elapsed >= acquisitionBound {
+		t.Fatalf("contended acquisition took %s, want less than scheduler iteration bound %s", elapsed, acquisitionBound)
+	}
+	t.Logf("contended lease acquisition returned retryable error after %s while epoch %d remained locked", elapsed, heldEpoch)
+}

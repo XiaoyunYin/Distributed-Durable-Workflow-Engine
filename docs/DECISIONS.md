@@ -1,9 +1,31 @@
 # Architecture and scope decisions
 
+## D017 - Authorize and supersede the R096 repair
+
+- Date: 2026-09-20
+- Status: user-authorized; supersedes D016 for the R096 repair and its
+  lock-held takeover campaign exclusion.
+
+The user authorized Codex to repair R096: a scheduler transaction that stalls
+while holding the PostgreSQL lease-row lock must not block takeover without a
+bounded retryable outcome. The repair must preserve the in-transaction lease
+row lock and epoch fence; it may add PostgreSQL lock/session bounds and a
+scheduler iteration deadline, but it must not weaken ownership checks.
+
+Once the repair is accepted by Claude, the DUR-041a campaign may lift its
+lock-held-takeover exclusion and run that scenario as a separately labelled
+arm. Existing local-410041 evidence remains unchanged and must not be
+overwritten. Until Claude accepts the repair, no R096 status is changed to
+VERIFIED and no campaign result may claim the bound.
+
+The user did not authorize hosted CI execution or a GitHub push here. A remote
+workflow run still requires the user's GitHub account, remote, and push.
+
 ## D016 - Defer R096 while advancing the portfolio minimum
 
 - Date: 2026-09-20
-- Status: user-authorized scope decision; R096 remains OPEN and unresolved.
+- Status: superseded for R096 repair authorization by D017; retained as the
+  historical deferral decision for the earlier portfolio package.
 
 The user explicitly chose to defer the R096 lease-row lock liveness repair and
 proceed with the other portfolio work. This authorizes implementation of the

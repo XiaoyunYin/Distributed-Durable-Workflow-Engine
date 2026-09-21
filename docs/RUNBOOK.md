@@ -16,6 +16,15 @@ docker compose --env-file .env -f deploy/local/compose.yaml logs --tail 100
 Apply migrations with `pwsh ./scripts/migrate.ps1`. Verify health with
 `pwsh ./scripts/smoke.ps1`.
 
+The Compose PostgreSQL service declares the recovery bounds used by the Go
+pool: `lock_timeout=2s`, `statement_timeout=8s`,
+`idle_in_transaction_session_timeout=10s`, and TCP keepalives of 30 seconds
+idle, 10 seconds interval, and 3 probes. The Go pool applies the same session
+parameters through `pgxpool.Config.ConnConfig.RuntimeParams`. A scheduler work
+iteration is bounded to 5 seconds under the 15-second lease TTL. A lock wait
+returns a retryable lease-acquisition error; it is not treated as a stale or
+unowned lease.
+
 ## Stop, resume, and restart
 
 The default Compose runtime enables scheduler scanning only for namespace

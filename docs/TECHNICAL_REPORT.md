@@ -343,9 +343,9 @@ not a feature scorecard or a claim that this project matches any reference.
   deployed runtime. These scopes are not interchangeable.
 - The round-50 residual corrections verified [R057, R083, and R088](REVIEW_STATUS.md#current-status):
   the F01 boundary/checker alignment, the reachable DUR-027 handoff target,
-  and the focused `ValidateApprovalGrant` guard coverage. The historical R019
-  claim-retry test gap remains nonblocking and pending review of its committed
-  coverage.
+  and the focused `ValidateApprovalGrant` guard coverage. The claim-retry
+  coverage was mutation-verified in Claude's round-51 review; this report does
+  not treat it as an unverified gap.
 - The live-model study used the separately authorized $30 aggregate cap and
   spent $0.04798995. Local CPU, storage, hosting, and operator time were not
   monetized.

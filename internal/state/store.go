@@ -12,7 +12,17 @@ import (
 
 	"durable-agent-execution-engine/internal/partition"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+const (
+	postgresLockTimeout              = "2s"
+	postgresStatementTimeout         = "8s"
+	postgresIdleInTransactionTimeout = "10s"
+	postgresTCPKeepaliveIdle         = "30"
+	postgresTCPKeepaliveInterval     = "10"
+	postgresTCPKeepaliveCount        = "3"
 )
 
 // NewFromURL opens a pool and verifies that PostgreSQL is reachable. The
@@ -24,6 +34,14 @@ func NewFromURL(ctx context.Context, databaseURL string) (*Store, error) {
 		return nil, fmt.Errorf("parse database URL: %w", err)
 	}
 	config.MaxConns = 8
+	config.ConnConfig.RuntimeParams = map[string]string{
+		"lock_timeout":                        postgresLockTimeout,
+		"statement_timeout":                   postgresStatementTimeout,
+		"idle_in_transaction_session_timeout": postgresIdleInTransactionTimeout,
+		"tcp_keepalives_idle":                 postgresTCPKeepaliveIdle,
+		"tcp_keepalives_interval":             postgresTCPKeepaliveInterval,
+		"tcp_keepalives_count":                postgresTCPKeepaliveCount,
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("open PostgreSQL pool: %w", err)
@@ -419,6 +437,9 @@ func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID str
 		FROM engine.partition_leases
 		WHERE partition_id = $1
 		FOR UPDATE`, partitionID).Scan(&currentOwner, &epoch, &currentExpiry, &databaseNow); err != nil {
+		if isLeaseAcquisitionTimeout(err) {
+			return Lease{}, false, fmt.Errorf("%w: partition=%d: %v", ErrLeaseAcquisitionTimeout, partitionID, err)
+		}
 		return Lease{}, false, fmt.Errorf("lock partition lease: %w", err)
 	}
 	if s.telemetry != nil {
@@ -446,6 +467,11 @@ func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID str
 		return Lease{}, false, err
 	}
 	return lease, true, nil
+}
+
+func isLeaseAcquisitionTimeout(err error) bool {
+	var pgErr *pgconn.PgError
+	return (errors.As(err, &pgErr) && pgErr.Code == "55P03") || errors.Is(err, context.DeadlineExceeded)
 }
 
 func (s *Store) ReleaseLease(ctx context.Context, ref LeaseRef) error {
