@@ -57,15 +57,15 @@ must be a separate campaign.
 
 1. **Scheduler capacity:** with a fixed four-process worker pool, two schedulers
    kept up with the tested 2 workflows/s offered rate where one scheduler did
-   not on the engine path. [DUR-026 evidence](experiments/m7/dur026/results.json)
+   not on the engine path. [Throughput study evidence](experiments/m7/dur026/results.json)
 2. **Transport tradeoff:** notification-direct was faster than Kafka at the
    resolved terminal stage in the quoted campaign. The ready-to-claim comparison
    was unresolved and varied across campaigns; no stable dispatch-stage gain is
-   claimed. [DUR-035 evidence](experiments/m7/dur035/results.json)
+   claimed. [Dispatch-path study evidence](experiments/m7/dur035/results.json)
 3. **Checkpoint cost:** at one SHA-256 work unit per chunk, every-chunk
    checkpointing took 7.5552 times the boundary-only median under the recorded
    in-process panic workload. This is neither a general checkpoint policy nor a
-   crossover estimate. [DUR-028 evidence](experiments/m7/dur028/results.json)
+   crossover estimate. [Checkpoint study evidence](experiments/m7/dur028/results.json)
 
 The [48/48 named-fault campaign](experiments/m5/f01-f11-results.json) is separate
 bounded validation evidence, not a comparative performance result. The safeguard
@@ -86,14 +86,14 @@ summary](experiments/portfolio/local-recovery/local-410041/summary.json) carry
 the seed, counts, and timing ranges.
 
 This is local Docker Desktop/WSL2 process evidence, not a two-host or
-database-host durability result. The known R096 case — a scheduler stalled
+database-host durability result. One case — a scheduler stalled
 while holding the lease-row lock — is intentionally excluded from the
 `local-410041` arm; the repair itself is verified separately.
 The local result therefore demonstrates stale-owner fencing and affected-work
 progress within its boundary; the excluded lock-held arm is a campaign-scope
 limitation, not an unresolved repair.
 
-Claude's round-55 review verified the R096 repair. It preserves
+The lease-contention repair is independently reviewed and verified. It preserves
 the in-transaction lease fence while bounding lock acquisition and scheduler
 iterations. The new preserved-process isolation result is recorded in the
 [scenario-1 summary](experiments/portfolio/local-recovery/isolation-410099/summary.json).
@@ -178,10 +178,10 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 
 - APIs are development-only, unauthenticated, and localhost-bound by default.
   Do not expose them to untrusted clients.
-- **R096 repair verified:**
+- **Lease-contention repair, verified:**
   a scheduler stalled inside a transaction can retain the lease-row lock beyond
-  lease expiry and block takeover. Claude's round-55 review verified the
-  committed repair: it bounds lock acquisition and scheduler iterations with a
+  lease expiry and block takeover. Independent review verified the committed
+  repair: it bounds lock acquisition and scheduler iterations with a
   distinct retryable error while preserving the fence. The historical local
   campaign still does not establish multi-host scheduler liveness.
 - Single-host evidence does not establish multi-host durability, database HA,

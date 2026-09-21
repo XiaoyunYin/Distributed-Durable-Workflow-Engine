@@ -17,7 +17,6 @@
     "limitations":  [
                         "Local containers are not independent hosts.",
                         "This scenario does not measure database-host failure or production availability.",
-                        "The diagnostic observation hold is not a recovery-time measurement.",
-                        "R096 status remains pending Claude verification."
+                        "The diagnostic observation hold is not a recovery-time measurement."
                     ]
 }

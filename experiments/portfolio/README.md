@@ -36,8 +36,7 @@ stale-owner writes, and clean source-harness reconciliation. It reports
 median/min/max for takeover and useful-progress delays, with counts and
 denominators.
 
-R096 repair was authorized under D017 and verified in Claude's round-55
-review. The
+The lease-contention repair was authorized and independently verified. The
 lock-held takeover case remains separately labelled and is not promoted by the
 pause/reconnect or network-disconnect/reconnect arm. The source harness
 contains a separate lock-contention probe, while the repair's bounded-wait and
