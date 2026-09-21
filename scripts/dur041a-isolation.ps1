@@ -15,9 +15,16 @@ $servicesChanged = $false
 $previousDatabase = $env:DATABASE_URL
 
 function Invoke-Required([string]$Command, [string[]]$Arguments) {
-    $output = & $Command @Arguments 2>&1 | Out-String
-    if ($LASTEXITCODE -ne 0) {
-        throw "$Command failed with exit code ${LASTEXITCODE}: $output"
+    $previousErrorAction = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = & $Command @Arguments 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorAction
+    }
+    if ($exitCode -ne 0) {
+        throw "$Command failed with exit code ${exitCode}: $output"
     }
     return $output.Trim()
 }
