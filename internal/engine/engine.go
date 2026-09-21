@@ -213,6 +213,9 @@ type Engine struct {
 	RetryBackoff       time.Duration
 	MaxSteps           int
 	Telemetry          *telemetry.Metrics
+	// AfterLeaseAcquired is a diagnostic seam used by deployed fault probes to
+	// make the ownership boundary observable. It is nil in normal operation.
+	AfterLeaseAcquired func(context.Context, state.Lease) error
 	// AfterBoundary is a test-only crash injector. Returning an error models a
 	// process crash immediately after the named repository transaction commits.
 	AfterBoundary func(string) error
@@ -279,6 +282,11 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 	}
 	if e.Telemetry != nil {
 		e.Telemetry.RecordLeaseAcquired()
+	}
+	if e.AfterLeaseAcquired != nil {
+		if err := e.AfterLeaseAcquired(ctx, lease); err != nil {
+			return RunResult{}, err
+		}
 	}
 	ownedLease := lease
 	defer func() {

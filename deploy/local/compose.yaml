@@ -96,6 +96,7 @@ services:
       RUNTIME_ENGINE_MODE: ${RUNTIME_ENGINE_MODE:-disabled}
       RUNTIME_SCHEDULER: "enabled"
       RUNTIME_NAMESPACE: local-runtime
+      RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS: ${RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS:-0}
     ports:
       - 127.0.0.1:${RUNTIME_A_PORT:-8080}:8080
     depends_on:

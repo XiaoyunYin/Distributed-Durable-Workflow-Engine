@@ -13,6 +13,7 @@ $runtimeAId = ""
 $runtimeAPaused = $false
 $servicesChanged = $false
 $previousDatabase = $env:DATABASE_URL
+$previousLeaseHold = $env:RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS
 
 function Invoke-Required([string]$Command, [string[]]$Arguments) {
     $previousErrorAction = $ErrorActionPreference
@@ -75,6 +76,7 @@ try {
     Invoke-Required "go" @("build", "-o", $toolPath, "./cmd/dur041a-isolation") | Out-Null
 
     if ($StartServices) {
+        $env:RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS = "3000"
         Invoke-Compose @("up", "-d", "--build", "--wait") | Out-Null
         Invoke-Required "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "migrate.ps1")) | Out-Null
     }
@@ -178,6 +180,11 @@ try {
     }
     if ($servicesChanged) {
         try { & docker compose @composeArgs up -d --wait runtime-a runtime-b worker-a worker-b | Out-Null } catch { Write-Warning "Could not restore runtime/worker services: $_" }
+    }
+    if ($null -eq $previousLeaseHold) {
+        Remove-Item Env:RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS -ErrorAction SilentlyContinue
+    } else {
+        $env:RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS = $previousLeaseHold
     }
     if ($null -eq $previousDatabase) { Remove-Item Env:DATABASE_URL -ErrorAction SilentlyContinue }
     else { $env:DATABASE_URL = $previousDatabase }

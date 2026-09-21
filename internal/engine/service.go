@@ -11,14 +11,23 @@ import (
 
 const schedulerIterationTimeout = 5 * time.Second
 
+type ServeOptions struct {
+	AfterLeaseAcquired func(context.Context, state.Lease) error
+}
+
 // Serve scans one explicit namespace. It never executes activities in the
 // scheduler process and never borrows an unacquired partition lease.
 func Serve(ctx context.Context, store *state.Store, namespace string, wake <-chan struct{}) error {
+	return ServeWithOptions(ctx, store, namespace, wake, ServeOptions{})
+}
+
+func ServeWithOptions(ctx context.Context, store *state.Store, namespace string, wake <-chan struct{}, options ServeOptions) error {
 	if namespace == "" {
 		return errors.New("scheduler namespace is required")
 	}
 	runner := New(store, nil)
 	runner.ExternalActivities = true
+	runner.AfterLeaseAcquired = options.AfterLeaseAcquired
 	runner.OwnerID, runner.ActorID = state.NewID(), "runtime-scheduler"
 	runner.LeaseTTL, runner.AttemptLease = 15*time.Second, 30*time.Second
 	cursor := ""

@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"log/slog"
+	"os"
+	"strconv"
 	"time"
 
 	"durable-agent-execution-engine/internal/engine"
@@ -14,8 +16,23 @@ import (
 // Events accelerate the durable repair scan; they are not the source of work.
 func runScheduler(ctx context.Context, store *state.Store, brokers []string, namespace string) {
 	wake := make(chan struct{}, 1)
+	serveOptions := engine.ServeOptions{}
+	if milliseconds, err := strconv.Atoi(os.Getenv("RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS")); err == nil && milliseconds > 0 {
+		hold := time.Duration(milliseconds) * time.Millisecond
+		serveOptions.AfterLeaseAcquired = func(hookContext context.Context, _ state.Lease) error {
+			timer := time.NewTimer(hold)
+			defer timer.Stop()
+			select {
+			case <-hookContext.Done():
+				return hookContext.Err()
+			case <-timer.C:
+				return nil
+			}
+		}
+		slog.Warn("scheduler lease observation hold enabled", "duration", hold)
+	}
 	go func() {
-		if err := engine.Serve(ctx, store, namespace, wake); err != nil && !errors.Is(err, context.Canceled) {
+		if err := engine.ServeWithOptions(ctx, store, namespace, wake, serveOptions); err != nil && !errors.Is(err, context.Canceled) {
 			slog.Error("scheduler stopped", "error", err)
 		}
 	}()
