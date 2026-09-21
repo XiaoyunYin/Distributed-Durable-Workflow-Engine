@@ -14,7 +14,7 @@ notes.
 | R083 | VERIFIED | The DUR-027 handoff uses reachable commit `71fd54a`; the orphaned amended commit is historical only. | DUR-027 handoff correction in `0002e75`. |
 | R088 | VERIFIED | The approval-target resource guard has focused regression coverage at both validation layers. | DUR-033A correction and focused approval test in `0002e75`. |
 | R092 | OPEN | The engineering walkthrough evidence was reproduced by Codex, but personal user attribution remains outstanding. | User must perform or explicitly waive the three exercises; no release claim depends on completion. |
-| R096 | OPEN; Deferred: yes | The repair bounds lock acquisition and scheduler iterations with a distinct retryable sentinel while preserving the in-transaction fence. The historical lock-held arm remains outside the `local-410041` campaign scope. | [D017](DECISIONS.md#d017---authorize-and-supersede-the-r096-repair), repair commit `41bb9bc`, and local campaign scope. |
+| R096 | VERIFIED | The repair bounds lock acquisition and scheduler iterations with a distinct retryable sentinel while preserving the in-transaction fence. The historical lock-held arm remains outside the `local-410041` campaign scope. | [D017](DECISIONS.md#d017---authorize-and-supersede-the-r096-repair), repair commit `41bb9bc`, and local campaign scope. |
 
 ## Scope rule
 
