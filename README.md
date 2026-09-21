@@ -47,6 +47,10 @@ blindly.
   arguments, revision, and effect identity in the tested integration path.
 - **Falsifiable evidence:** named-boundary fault injection, persisted snapshots,
   an independent invariant checker, and negative controls that make it fail.
+- **Regression detection:** a 13-case mutation gate, an independent
+  contract-derived reference model, and bounded fuzz targets for request JSON,
+  workflow graphs, and fault traces. The gate rejects skipped/no-test runs and
+  records semantic failures for each selected safety guard.
 
 ## Three measured findings
 
@@ -152,6 +156,10 @@ pwsh ./scripts/ci.ps1 -WithServices -WithRace
 
 # Verify committed fault traces against their durable snapshots, offline.
 pwsh ./scripts/m5-archive-check.ps1
+
+# Mutation gate; point this at a disposable migrated database.
+$env:DURABLE_MUTATION_DATABASE_URL = "postgresql://..."
+pwsh ./scripts/mutation-gate.ps1
 ```
 
 Service-mode CI temporarily stops runtime/worker services to isolate fixtures
@@ -176,14 +184,17 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 
 ### Evidence map
 
-The committed fault and measurement artifacts are the source of truth for the
-claims above. The current deployment exposes bounded Prometheus counters and
-gauges for leases, claims, results, relay activity, database work, workers, and
-reconciliation age; it does **not** yet claim an end-to-end distributed trace
-from HTTP submission through Kafka, workers, and effects. That tracing boundary
-is an explicit next engineering task, as are the mutation gate, AWS recovery,
-and required Kubernetes campaign. Internal study notes stay local; only concise
-claim boundaries and reproducible evidence links are published here.
+The committed fault, measurement, and mutation artifacts are the source of
+truth for the claims above. The current deployment exposes bounded Prometheus
+counters and gauges for leases, claims, results, relay activity, database work,
+workers, and reconciliation age; it does **not** yet claim an end-to-end
+distributed trace from HTTP submission through Kafka, workers, and effects.
+The mutation gate is implemented and locally verified; its selected results are
+available in the [PowerShell artifact](mutations/results-powershell.json) and
+[Linux artifact](mutations/results-bash.json). Hosted CI has not run yet, and
+AWS recovery, tracing, and the required Kubernetes campaign remain future
+work. Internal study notes stay local; only concise claim boundaries and
+reproducible evidence links are published here.
 
 ## Operating limits
 
