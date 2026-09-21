@@ -69,6 +69,9 @@ try {
     $port = $values['POSTGRES_PORT']
     if ([string]::IsNullOrWhiteSpace($port)) { $port = "5432" }
     $env:DATABASE_URL = "postgresql://${user}:${password}@127.0.0.1:${port}/$($values['POSTGRES_DB'])?sslmode=disable"
+    # This diagnostic hold is zero in normal Compose operation. It makes the
+    # ownership boundary observable for this fault probe only.
+    $env:RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS = "3000"
 
     $toolDirectory = Join-Path $RepoRoot ".scratch\dur041a-bin"
     New-Item -ItemType Directory -Force -Path $toolDirectory | Out-Null
@@ -76,17 +79,18 @@ try {
     Invoke-Required "go" @("build", "-o", $toolPath, "./cmd/dur041a-isolation") | Out-Null
 
     if ($StartServices) {
-        $env:RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS = "3000"
         Invoke-Compose @("up", "-d", "--build", "--wait") | Out-Null
         Invoke-Required "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "migrate.ps1")) | Out-Null
     }
 
-    # Keep the original scheduler as the only owner while the fixture is
-    # submitted. Workers are stopped so the task remains affected work after
-    # takeover; runtime-a itself is preserved for the pause/unpause fault.
-    Invoke-Compose @("stop", "runtime-b", "worker-a", "worker-b") | Out-Null
+    # Stop both schedulers before seeding so their scan cursors cannot miss the
+    # fixture and their old lease rows can expire. The runtime-a process that
+    # starts below is the same process later paused and reconnected.
+    Invoke-Compose @("stop", "runtime-a", "runtime-b", "worker-a", "worker-b") | Out-Null
     $servicesChanged = $true
+    Start-Sleep -Seconds 16
     Invoke-Required $toolPath @("-mode", "prepare", "-fixture", $fixturePath) | Out-Null
+    Invoke-Compose @("up", "-d", "--wait", "runtime-a") | Out-Null
 
     $captured = $false
     for ($attempt = 0; $attempt -lt 300; $attempt++) {
