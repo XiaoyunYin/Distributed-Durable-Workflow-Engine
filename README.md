@@ -12,6 +12,28 @@ approval-gated sandbox actions as a bounded applied-AI use case.
 This is an educational systems project with reproducible experiments, not a
 production-ready service or a universal exactly-once execution claim.
 
+## Architecture at a glance
+
+```mermaid
+flowchart LR
+    API[Go API] --> DB[(PostgreSQL<br/>workflow state)]
+    S[Schedulers<br/>partition leases + fencing] --> DB
+    S --> O[Transactional outbox]
+    O --> K[Kafka relay / topics]
+    K --> W[Python workers]
+    W --> R[Claim + result receipt]
+    R --> DB
+    DB --> C[Independent checker]
+    S --> T[Metrics / traces]
+    W --> T
+```
+
+The safety boundary is PostgreSQL: Kafka delivery may duplicate, workers may
+retry, and schedulers may change ownership, but durable transitions require
+the current lease epoch, workflow revision, and attempt token. Effects that
+cannot prove their outcome stop in reconciliation instead of being retried
+blindly.
+
 ## Engineering focus
 
 - **Ownership and concurrency:** partition leases, epoch fencing, ordered row
@@ -50,6 +72,22 @@ bounded validation evidence, not a comparative performance result. The safeguard
 ablation resolved no cost effect because repeated runs were too variable.
 See the [technical report](docs/TECHNICAL_REPORT.md) for configurations,
 computed conclusions, limitations, and the claim-to-evidence register.
+
+### Scoped recovery case study
+
+The committed local portfolio run exercised two failure modes: an owner process
+crash and an owner pause followed by stale resumption. Across 60 episodes it
+recorded 60 takeovers, 60 useful recoveries, 180 fenced stale-owner writes,
+and zero false takeovers. The source harness confirmed the crash targets were
+dead and the paused owners were stale after resumption. The [protocol and
+summary](experiments/portfolio/local-recovery/local-410041/summary.json) carry
+the seed, counts, and timing ranges.
+
+This is local Docker Desktop/WSL2 process evidence, not a two-host or
+database-host durability result. The known R096 case — a scheduler stalled
+while holding the lease-row lock — is intentionally excluded and remains open.
+The local result therefore demonstrates stale-owner fencing and affected-work
+progress within its boundary; it does not claim general scheduler liveness.
 
 Supporting AI evidence remains separately scoped: the live-model evaluation
 achieved 4/20 safe outcomes per retrieval arm, versus 20/20 for its fixture
