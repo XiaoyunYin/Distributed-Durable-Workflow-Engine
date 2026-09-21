@@ -5,24 +5,39 @@ exec > >(tee /var/log/durable-dur049-bootstrap.log | logger -t durable-dur049-bo
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y ca-certificates curl git docker.io docker-compose-v2
+apt-get install -y awscli ca-certificates curl git docker.io docker-compose-v2
 systemctl enable --now docker
+
+if ! swapon --show | grep -q .; then
+  fallocate -l 1G /swapfile || dd if=/dev/zero of=/swapfile bs=1M count=1024
+  chmod 600 /swapfile
+  mkswap /swapfile
+  swapon /swapfile
+  grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+fi
 
 install -d -m 0750 /opt/durable-agent-execution-engine
 if [ ! -d /opt/durable-agent-execution-engine/.git ]; then
-  git clone --depth 1 --branch '${repo_ref}' '${repo_url}' /opt/durable-agent-execution-engine
+  git init /opt/durable-agent-execution-engine
+  git -C /opt/durable-agent-execution-engine remote add origin '${repo_url}'
+  git -C /opt/durable-agent-execution-engine fetch --depth 1 origin '${repo_ref}'
+  git -C /opt/durable-agent-execution-engine checkout --detach FETCH_HEAD
 fi
 
 umask 077
+postgres_password="$$(aws ssm get-parameter --name '${postgres_secret_parameter}' --with-decryption --region '${aws_region}' --query 'Parameter.Value' --output text)"
 cat > /opt/durable-agent-execution-engine/deploy/aws/.env <<EOF
 POSTGRES_USER=${postgres_user}
 POSTGRES_DB=${postgres_db}
-POSTGRES_PASSWORD=${postgres_password}
+POSTGRES_PASSWORD=$${postgres_password}
 DATABASE_HOST=${dependency_private_ip}
 KAFKA_BOOTSTRAP_SERVERS=${dependency_private_ip}:9092
 RUNTIME_ROLE=${runtime_role}
 WORKER_ID=${worker_id}
 WORKER_SLOTS=${worker_slots}
+DUR048_ACTIVITY_DELAY_MS=0
+DUR048_ALLOW_FIXTURE_ACTIVITY=0
+RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=0
 EOF
 
 cd /opt/durable-agent-execution-engine

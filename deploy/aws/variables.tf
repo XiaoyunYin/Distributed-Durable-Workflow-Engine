@@ -38,12 +38,12 @@ variable "repo_url" {
 }
 
 variable "repo_ref" {
-  description = "Immutable commit or tag to deploy. Do not use a moving branch for a campaign."
+  description = "Immutable full 40-character lowercase commit SHA to deploy."
   type        = string
 
   validation {
-    condition     = can(regex("^[A-Za-z0-9._/-]+$", var.repo_ref)) && !can(regex("^(main|master|develop)$", var.repo_ref))
-    error_message = "repo_ref must be an immutable-looking commit or tag, not a main/master/develop branch."
+    condition     = can(regex("^[0-9a-f]{40}$", var.repo_ref))
+    error_message = "repo_ref must be a full 40-character lowercase commit SHA; short SHAs, tags, and moving branches are rejected."
   }
 }
 
@@ -96,7 +96,7 @@ variable "postgres_db" {
 }
 
 variable "postgres_password" {
-  description = "Ephemeral alphanumeric password supplied through TF_VAR_postgres_password; never commit it."
+  description = "Ephemeral alphanumeric password stored in an encrypted SSM parameter; never put it in user-data or commit it."
   type        = string
   sensitive   = true
 

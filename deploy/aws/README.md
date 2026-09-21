@@ -14,7 +14,9 @@ establish database-host durability, Kafka HA, or multi-region availability.
 
 ## Preflight
 
-Use the non-root portfolio identity and an immutable source ref:
+Use the non-root portfolio identity and a full 40-character immutable source
+SHA. A short SHA, tag, or branch cannot be fetched as the pinned campaign
+input and is rejected by Terraform validation:
 
 ```powershell
 $env:AWS_PROFILE = "portfolio-dev"
@@ -26,18 +28,25 @@ terraform -chdir=deploy/aws validate
 
 Resolve and record a concrete Ubuntu AMI and two valid availability zones for
 the selected region, then provide the variables without committing them.
-`postgres_password` is sensitive and is
-accepted only as an alphanumeric value so generated connection URLs cannot be
-ambiguous.
+`postgres_password` is sensitive and is stored in an encrypted SSM parameter;
+cloud-init retrieves it with the instance role instead of embedding it in
+EC2 user-data. The value is accepted only as an alphanumeric secret so the
+generated connection URLs cannot be ambiguous. Terraform state and local
+plans remain sensitive and must stay ignored.
 
 ```powershell
 $env:TF_VAR_ami_id = "ami-..."
-$env:TF_VAR_repo_ref = "<reviewed-commit>"
+$env:TF_VAR_repo_ref = "<full-40-character-reviewed-commit-sha>"
 $env:TF_VAR_expires_at = "2026-10-05T00:00:00Z"
 $env:TF_VAR_postgres_password = "<ephemeral-alphanumeric-secret>"
 $env:TF_VAR_admin_cidrs = '["203.0.113.10/32"]'
 terraform -chdir=deploy/aws plan -out=dur049.tfplan
 ```
+
+The three burstable instances use `cpu_credits = "standard"` so campaign
+timings are not silently changed by unlimited-credit billing. The current
+account must allow EC2 quota `L-1216C47A` at or above 6 vCPUs; a 1-vCPU limit
+cannot launch even one `t3.micro`.
 
 Before applying, save the plan output, resource IDs, pinned AMI, repository
 commit, image digests, expected duration and cost estimate in the local ignored
@@ -59,3 +68,21 @@ instances, volumes, security groups, VPC, IAM profile, and any retained logs are
 gone. The recovery harness must separately record fault-command time, takeover
 time, and first useful progress, and must confirm network/process/backend state
 rather than treating a requested command as proof that a fault occurred.
+
+## Multi-host fault harness
+
+Create two active workflow fixtures whose activity is observed `CLAIMED`, one
+for each arm, then run the SSM-backed harness from the repository root:
+
+```powershell
+pwsh -File scripts/dur043-multihost.ps1 -Scenario all `
+  -NetworkWorkflowId <claimed-network-fixture> `
+  -HostWorkflowId <claimed-host-stop-fixture>
+```
+
+The harness obtains Terraform outputs, requires all three instances to be
+`running` and SSM `Online`, preserves the original app process during the
+network arm, drops only its PostgreSQL/Kafka path with host firewall rules,
+and uses a forced EC2 stop for the host arm. It writes `PASS` only after SSM,
+EC2, Docker, PostgreSQL lease/epoch rows, workflow progress, and superseded
+epoch history agree. A requested fault without observed state is a failure.

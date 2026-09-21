@@ -9,6 +9,8 @@
 *.tfplan
 *.tfstate
 *.tfstate.*
+*.tfvars
+!*.tfvars.example
 
 # Local agent instructions and project-management records.
 # Kept on disk for continued work; excluded from the current publishable tree.

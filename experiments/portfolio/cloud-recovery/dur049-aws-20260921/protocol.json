@@ -2,8 +2,8 @@
   "schema_version": "dur049-aws-recovery.v1",
   "status": "APPLY_FAILED_CLEANED",
   "task": "DUR-049",
-  "source_commit": "a3e5a9f",
-  "corrected_topology_commit": "e615f18",
+  "source_commit": "7906a397a04ec44b11ddc24894e33437e5cea9bc",
+  "corrected_topology_commit": "7906a397a04ec44b11ddc24894e33437e5cea9bc",
   "region": "us-west-1",
   "topology": {
     "application_hosts": 2,
@@ -45,7 +45,7 @@
     "source_variables": {
       "ami_id": "ami-0bc53423cd57b48b7",
       "availability_zones": ["us-west-1a", "us-west-1b"],
-      "repo_ref": "a3e5a9f"
+      "source_ref_status": "unpublished local attempt; superseded by the public source commit recorded at the artifact top level"
     },
     "apply_failure": "ec2:ModifySubnetAttribute was denied for map_public_ip_on_launch, then us-west-1b was rejected because it is not enabled for this account",
     "partial_resources": [
@@ -64,8 +64,8 @@
     "recovery_measurement_started": false
   },
   "latest_authenticated_attempt": {
-    "source_commit": "7906a39",
-    "corrected_topology_commit": "e615f18",
+    "source_commit": "7906a397a04ec44b11ddc24894e33437e5cea9bc",
+    "corrected_topology_commit": "7906a397a04ec44b11ddc24894e33437e5cea9bc",
     "terraform_plan_resources": 15,
     "apply_failure": "VcpuLimitExceeded: the account vCPU limit is 1 for the t3.micro instance bucket; the planned three-instance topology requires additional capacity",
     "partial_resource_types": [
@@ -84,7 +84,18 @@
     "recovery_measurement_started": false,
     "cleanup_verified": true,
     "cleanup_evidence": "No DUR-049 VPC, EC2 instance, EBS volume, or instance profile remained after cleanup; the exact empty IAM role was deleted explicitly.",
-    "local_secret_state_removed": true
+    "local_secret_state_removed": true,
+    "corrected_no_apply_plan_resources": 18,
+    "corrected_no_apply_plan_source": "7906a397a04ec44b11ddc24894e33437e5cea9bc",
+    "next_apply_not_run": true,
+    "quota": {
+      "service_code": "ec2",
+      "quota_code": "L-1216C47A",
+      "observed_limit_vcpu": 1,
+      "required_vcpu_for_three_t3_micro_hosts": 6,
+      "request_submitted": false,
+      "request_blocked_by": "portfolio-dev lacks servicequotas:GetServiceQuota and servicequotas:RequestServiceQuotaIncrease"
+    }
   },
   "exclusions": [
     "R096 lock-held isolation arm remains separately labelled",

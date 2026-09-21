@@ -3,7 +3,7 @@
 aws_region         = "us-west-1"
 availability_zones = ["us-west-1a", "us-west-1c"]
 ami_id             = "ami-REPLACE_WITH_PINNED_UBUNTU_AMI"
-repo_ref           = "REPLACE_WITH_REVIEWED_COMMIT"
+repo_ref           = "REPLACE_WITH_FULL_40_CHARACTER_COMMIT_SHA"
 expires_at         = "2026-10-05T00:00:00Z"
 admin_cidrs        = ["203.0.113.10/32"]
 

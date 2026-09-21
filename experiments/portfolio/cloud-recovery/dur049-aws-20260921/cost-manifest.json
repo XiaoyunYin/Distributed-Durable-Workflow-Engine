@@ -3,8 +3,8 @@
   "status": "APPLY_FAILED_CLEANED",
   "task": "DUR-049",
   "region": "us-west-1",
-  "source_commit": "a3e5a9f",
-  "corrected_topology_commit": "e615f18",
+  "source_commit": "7906a397a04ec44b11ddc24894e33437e5cea9bc",
+  "corrected_topology_commit": "7906a397a04ec44b11ddc24894e33437e5cea9bc",
   "ami_id": "ami-0bc53423cd57b48b7",
   "ami_owner": "099720109477",
   "expires_at_utc": "2026-10-05T00:00:00Z",
@@ -13,8 +13,11 @@
     "application_hosts": 2,
     "dependency_hosts": 1,
     "instance_type": "t3.micro",
+    "cpu_credit_mode": "standard",
+    "required_vcpu": 6,
     "root_volume_gb_each": 20,
     "root_volume_type": "gp3",
+    "swap_gb_each": 1,
     "public_ipv4_addresses": 3,
     "nat_gateways": 0,
     "load_balancers": 0,
@@ -53,7 +56,7 @@
       "variables": {
         "ami_id": "ami-0bc53423cd57b48b7",
         "availability_zones": ["us-west-1a", "us-west-1b"],
-        "repo_ref": "a3e5a9f"
+        "source_ref_status": "unpublished local attempt; superseded by the public source commit recorded at the artifact top level"
       },
       "resources_created_before_failure": [
         "one VPC",
@@ -73,8 +76,8 @@
       "remaining_operator_permission": "iam:ListInstanceProfilesForRole is still required for Terraform role cleanup"
     },
     "latest_authenticated_attempt": {
-      "source_commit": "7906a39",
-      "corrected_topology_commit": "e615f18",
+      "source_commit": "7906a397a04ec44b11ddc24894e33437e5cea9bc",
+      "corrected_topology_commit": "7906a397a04ec44b11ddc24894e33437e5cea9bc",
       "terraform_plan_resources": 15,
       "apply_failure": "VcpuLimitExceeded: the account vCPU limit is 1 for the t3.micro instance bucket; the planned three-instance topology requires additional capacity",
       "partial_resource_types": [
@@ -93,7 +96,18 @@
       "recovery_measurement_started": false,
       "cleanup_verified": true,
       "cleanup_evidence": "Tagged EC2/VPC/volume queries returned no DUR-049 resources after destroy; the exact empty IAM role was deleted after Terraform cleanup.",
-      "local_secret_state_removed": true
+      "local_secret_state_removed": true,
+      "corrected_no_apply_plan_resources": 18,
+      "corrected_no_apply_plan_source": "7906a397a04ec44b11ddc24894e33437e5cea9bc",
+      "next_apply_not_run": true,
+      "quota": {
+        "service_code": "ec2",
+        "quota_code": "L-1216C47A",
+        "observed_limit_vcpu": 1,
+        "required_vcpu_for_three_t3_micro_hosts": 6,
+        "request_submitted": false,
+        "request_blocked_by": "portfolio-dev lacks servicequotas:GetServiceQuota and servicequotas:RequestServiceQuotaIncrease"
+      }
     }
   },
   "notes": [

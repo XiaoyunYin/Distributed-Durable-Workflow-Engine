@@ -1,5 +1,6 @@
 locals {
-  common_name = "${var.project_name}-dur049"
+  common_name               = "${var.project_name}-dur049"
+  postgres_secret_parameter = "/${local.common_name}/postgres-password"
 }
 
 resource "aws_vpc" "campaign" {
@@ -129,12 +130,41 @@ resource "aws_iam_role_policy_attachment" "ssm" {
   policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
 }
 
+resource "aws_ssm_parameter" "postgres_password" {
+  name        = local.postgres_secret_parameter
+  description = "Ephemeral DUR-049 PostgreSQL password; destroy with the campaign."
+  type        = "SecureString"
+  value       = var.postgres_password
+  tier        = "Standard"
+
+  tags = { Name = "${local.common_name}-postgres-password" }
+}
+
+resource "aws_iam_policy" "postgres_secret_read" {
+  name        = "${local.common_name}-postgres-secret-read"
+  description = "Read only the DUR-049 PostgreSQL password from Parameter Store."
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Effect   = "Allow"
+      Action   = ["ssm:GetParameter"]
+      Resource = aws_ssm_parameter.postgres_password.arn
+    }]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "postgres_secret_read" {
+  role       = aws_iam_role.ssm.name
+  policy_arn = aws_iam_policy.postgres_secret_read.arn
+}
+
 resource "aws_iam_instance_profile" "ssm" {
   name = "${local.common_name}-ssm"
   role = aws_iam_role.ssm.name
 }
 
 resource "aws_instance" "dependency" {
+  depends_on                  = [aws_iam_role_policy_attachment.postgres_secret_read]
   ami                         = var.ami_id
   instance_type               = var.instance_type
   subnet_id                   = aws_subnet.public[0].id
@@ -143,13 +173,14 @@ resource "aws_instance" "dependency" {
   iam_instance_profile        = aws_iam_instance_profile.ssm.name
   user_data_replace_on_change = true
   user_data = templatefile("${path.module}/cloud-init/dependency.sh.tftpl", {
-    repo_url          = var.repo_url
-    repo_ref          = var.repo_ref
-    postgres_user     = var.postgres_user
-    postgres_db       = var.postgres_db
-    postgres_password = var.postgres_password
-    postgres_image    = var.postgres_image
-    kafka_image       = var.kafka_image
+    repo_url                  = var.repo_url
+    repo_ref                  = var.repo_ref
+    aws_region                = var.aws_region
+    postgres_user             = var.postgres_user
+    postgres_db               = var.postgres_db
+    postgres_secret_parameter = local.postgres_secret_parameter
+    postgres_image            = var.postgres_image
+    kafka_image               = var.kafka_image
   })
 
   root_block_device {
@@ -158,10 +189,13 @@ resource "aws_instance" "dependency" {
     volume_size = var.root_volume_size_gb
   }
 
+  credit_specification { cpu_credits = "standard" }
+
   tags = { Name = "${local.common_name}-dependency" }
 }
 
 resource "aws_instance" "app" {
+  depends_on                  = [aws_iam_role_policy_attachment.postgres_secret_read]
   count                       = 2
   ami                         = var.ami_id
   instance_type               = var.instance_type
@@ -171,15 +205,16 @@ resource "aws_instance" "app" {
   iam_instance_profile        = aws_iam_instance_profile.ssm.name
   user_data_replace_on_change = true
   user_data = templatefile("${path.module}/cloud-init/app.sh.tftpl", {
-    repo_url              = var.repo_url
-    repo_ref              = var.repo_ref
-    runtime_role          = "scheduler-${count.index + 1}"
-    worker_id             = "worker-${count.index + 1}"
-    postgres_user         = var.postgres_user
-    postgres_db           = var.postgres_db
-    postgres_password     = var.postgres_password
-    worker_slots          = var.worker_slots
-    dependency_private_ip = aws_instance.dependency.private_ip
+    repo_url                  = var.repo_url
+    repo_ref                  = var.repo_ref
+    aws_region                = var.aws_region
+    runtime_role              = "scheduler-${count.index + 1}"
+    worker_id                 = "worker-${count.index + 1}"
+    postgres_user             = var.postgres_user
+    postgres_db               = var.postgres_db
+    postgres_secret_parameter = local.postgres_secret_parameter
+    worker_slots              = var.worker_slots
+    dependency_private_ip     = aws_instance.dependency.private_ip
   })
 
   root_block_device {
@@ -187,6 +222,8 @@ resource "aws_instance" "app" {
     volume_type = "gp3"
     volume_size = var.root_volume_size_gb
   }
+
+  credit_specification { cpu_credits = "standard" }
 
   tags = { Name = "${local.common_name}-app-${count.index + 1}" }
 }
