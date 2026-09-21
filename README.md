@@ -191,10 +191,13 @@ workers, and reconciliation age; it does **not** yet claim an end-to-end
 distributed trace from HTTP submission through Kafka, workers, and effects.
 The mutation gate is implemented and locally verified; its selected results are
 available in the [PowerShell artifact](mutations/results-powershell.json) and
-[Linux artifact](mutations/results-bash.json). Hosted CI has not run yet, and
-AWS recovery, tracing, and the required Kubernetes campaign remain future
-work. Internal study notes stay local; only concise claim boundaries and
-reproducible evidence links are published here.
+[Linux artifact](mutations/results-bash.json). Hosted CI has exercised the
+gate as well. Its first service-backed run exposed shared-database residue
+from the preceding suite, so the workflow now creates and drops a disposable
+migration-complete database for both mutation gates. AWS recovery, tracing,
+and the required Kubernetes campaign remain future work. Internal study notes
+stay local; only concise claim boundaries and reproducible evidence links are
+published here.
 
 ## Operating limits
 
