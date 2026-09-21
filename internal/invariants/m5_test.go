@@ -149,7 +149,8 @@ func TestFaultCheckerRejectsSubmissionBoundaryAfterActivityWork(t *testing.T) {
 	trace := Trace{
 		History:     []HistoryRecord{{WorkflowID: "wf-1", Revision: 1, NewState: "RUNNABLE"}},
 		Submissions: []SubmissionRecord{{Namespace: "default", Key: "k", Hash: "sub-v1:x", WorkflowID: "wf-1"}},
-		Attempts:    []AttemptRecord{{WorkflowID: "wf-1", NodeID: "root", AttemptNumber: 1, State: "CLAIMED"}},
+		Attempts: []AttemptRecord{{WorkflowID: "wf-1", NodeID: "root", AttemptNumber: 1,
+			State: "CLAIMED", ClaimToken: "claim", WorkerID: "worker", WorkerRequestID: "request"}},
 	}
 	verdict := CheckWithFaults(trace, []FaultEvidence{evidence})
 	joined := strings.Join(verdict.Violations, "\n")
