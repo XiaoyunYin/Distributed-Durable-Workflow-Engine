@@ -10,7 +10,6 @@ failures do not count as detections.
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import io
 import json
 import os
@@ -19,6 +18,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+from datetime import UTC, datetime
 from pathlib import Path
 
 
@@ -58,7 +58,10 @@ def main() -> int:
     cases = manifest["cases"]
     database_url = os.environ.get("DURABLE_MUTATION_DATABASE_URL", "")
     if any(case["requires_database"] for case in cases) and not database_url:
-        print("DURABLE_MUTATION_DATABASE_URL is required for database-backed mutations", file=sys.stderr)
+        print(
+            "DURABLE_MUTATION_DATABASE_URL is required for database-backed mutations",
+            file=sys.stderr,
+        )
         return 2
 
     base_env = os.environ.copy()
@@ -81,7 +84,11 @@ def main() -> int:
         code, output = run(baseline, repo, base_env)
         if code != 0 or "SKIP" in output or "no tests to run" in output.lower():
             print(output, file=sys.stderr)
-            print("DUR-046 baseline failed, skipped, or selected no tests; no mutation result is valid", file=sys.stderr)
+            print(
+                "DUR-046 baseline failed, skipped, or selected no tests; "
+                "no mutation result is valid",
+                file=sys.stderr,
+            )
             return 1
 
         for case in cases:
@@ -103,7 +110,12 @@ def main() -> int:
                 env["GOCACHE"] = str(Path(tempfile.mkdtemp(prefix="dur046-case-cache-")))
             code, output = run(command, scratch, env)
             expected = str(case["expected"])
-            detected = code != 0 and expected in output and "SKIP" not in output and "no tests to run" not in output.lower()
+            detected = (
+                code != 0
+                and expected in output
+                and "SKIP" not in output
+                and "no tests to run" not in output.lower()
+            )
             result = {
                 "id": case["id"],
                 "status": "PASS" if detected else "FAIL",
@@ -122,7 +134,10 @@ def main() -> int:
         code, output = run(baseline, repo, base_env)
         if code != 0 or "SKIP" in output or "no tests to run" in output.lower():
             print(output, file=sys.stderr)
-            print("DUR-046 restored baseline failed, skipped, or selected no tests", file=sys.stderr)
+            print(
+                "DUR-046 restored baseline failed, skipped, or selected no tests",
+                file=sys.stderr,
+            )
             return 1
 
         commit = subprocess.check_output(
@@ -136,7 +151,7 @@ def main() -> int:
                     "schema": "dur-046-mutation-results.v1",
                     "status": "PASS",
                     "git_commit": commit,
-                    "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+                    "generated_at_utc": datetime.now(UTC).isoformat(),
                     "cases": results,
                 },
                 indent=2,
