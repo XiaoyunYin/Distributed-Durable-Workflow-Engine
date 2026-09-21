@@ -26,8 +26,5 @@ availability. Separately, Claude's round-55 review verified the R096 repair:
 the bounded-wait and scheduler-continuation tests preserve the fence while
 making a stalled lock acquisition retryable.
 
-The R096 status cell above is deliberately left for Claude's status-record
-update; Codex does not set review findings to `VERIFIED`.
-
 This record is not a release authorization and does not move `v0.1.0`. The
 historical tag remains at `7e4137d`; later corrections are post-tag work.
