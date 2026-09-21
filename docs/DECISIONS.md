@@ -1,5 +1,24 @@
 # Architecture and scope decisions
 
+## D019 - Reassign DUR-031 walkthroughs to Codex engineering evidence
+
+- Date: 2026-09-20
+- Status: user-authorized; supersedes the personal-performance portion of
+  DUR-031 without fabricating user authorship.
+
+The user explicitly reassigned DUR-031's three walkthrough exercises—the
+lease/attempt fence mutation, the ambiguous non-cooperating effect walkthrough,
+and the DUR-028 offline reproduction—from personal performance to Codex
+performance. DUR-031 and M8 move to DONE for their engineering-evidence scope.
+The interview pack is engineering evidence produced by Codex; it does not
+establish the user's personal fluency, and no document may imply that it does.
+
+R092 closes as WITHDRAWN by this scope change, not as satisfied. PLAN's rule
+against fabricating personal authorship or understanding remains binding. The
+pack and release records must retain the attribution boundary and explain that
+the three exercises are reproducible engineering evidence rather than a user
+walkthrough claim.
+
 ## D018 - Authorize the packet-level DUR-041a isolation arm
 
 - Date: 2026-09-20

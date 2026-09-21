@@ -13,7 +13,7 @@ notes.
 | R057 | VERIFIED | The F01 submission boundary no longer implies durable activity work, and the independent checker rejects activity work at that boundary. | M5 fault archive and round-50 correction target `0002e75`. |
 | R083 | VERIFIED | The DUR-027 handoff uses reachable commit `71fd54a`; the orphaned amended commit is historical only. | DUR-027 handoff correction in `0002e75`. |
 | R088 | VERIFIED | The approval-target resource guard has focused regression coverage at both validation layers. | DUR-033A correction and focused approval test in `0002e75`. |
-| R092 | OPEN | The engineering walkthrough evidence was reproduced by Codex, but personal user attribution remains outstanding. | User must perform or explicitly waive the three exercises; no release claim depends on completion. |
+| R092 | WITHDRAWN | D019 reassigns the three DUR-031 walkthroughs to Codex engineering evidence. This is a scope withdrawal, not evidence of the user's personal fluency. | D019 and the Codex-attributed study guide; no document may imply personal performance. |
 | R096 | VERIFIED | The repair bounds lock acquisition and scheduler iterations with a distinct retryable sentinel while preserving the in-transaction fence. The historical lock-held arm remains outside the `local-410041` campaign scope. | [D017](DECISIONS.md#d017---authorize-and-supersede-the-r096-repair), repair commit `41bb9bc`, and local campaign scope. |
 
 ## Scope rule
