@@ -1,0 +1,113 @@
+{
+  "schema": "dur-046-mutation-manifest.v1",
+  "cases": [
+    {
+      "id": "api-duplicate-json",
+      "file": "internal/api/server.go",
+      "old": "return nil, fmt.Errorf(\"%s must be valid JSON without duplicate object keys: %w\", field, err)",
+      "new": "return nil, nil // mutation: accept duplicate JSON keys",
+      "command": ["go", "test", "./internal/api", "-run", "^TestSubmissionFingerprintAndJSONRules$", "-count=1", "-v"],
+      "expected": "duplicate JSON keys were accepted",
+      "requires_database": false
+    },
+    {
+      "id": "state-event-registry",
+      "file": "internal/state/m3.go",
+      "old": "return definition.Topic, true",
+      "new": "return EventTopic, true // mutation: ignore the registry topic",
+      "command": ["go", "test", "./internal/state", "-run", "^TestEventDefinitionsUseExplicitTopics$", "-count=1", "-v"],
+      "expected": "topic =",
+      "requires_database": false
+    },
+    {
+      "id": "state-lease-timeout-classification",
+      "file": "internal/state/store.go",
+      "old": "return (errors.As(err, &pgErr) && pgErr.Code == \"55P03\") || errors.Is(err, context.DeadlineExceeded)",
+      "new": "return false // mutation: hide retryable lease timeouts",
+      "command": ["go", "test", "./internal/state", "-run", "^TestLeaseAcquisitionTimeoutClassification$", "-count=1", "-v"],
+      "expected": "PostgreSQL lock timeout",
+      "requires_database": false
+    },
+    {
+      "id": "engine-lease-fence",
+      "file": "internal/engine/engine.go",
+      "old": "if !acquired {",
+      "new": "if false { // mutation: borrow another owner's lease",
+      "command": ["go", "test", "./internal/engine", "-run", "^TestM1RunRequiresPartitionLease$", "-count=1", "-v"],
+      "expected": "borrowed lease",
+      "requires_database": true
+    },
+    {
+      "id": "state-wakeup-lease-lock",
+      "file": "internal/state/runtime.go",
+      "old": "if _, err := lockLease(ctx, tx, lease); err != nil {",
+      "new": "if false { // mutation: acknowledge wakeup without lease lock",
+      "command": ["go", "test", "./internal/state", "-run", "^TestRuntimeWakeupAcknowledgmentRequiresCurrentLease$", "-count=1", "-v"],
+      "expected": "wakeup acknowledgment",
+      "requires_database": true
+    },
+    {
+      "id": "state-approval-resource",
+      "file": "internal/state/m4.go",
+      "old": "if input.ResourceID != approvedTarget {",
+      "new": "if false { // mutation: accept an unapproved resource",
+      "command": ["go", "test", "./internal/state", "-run", "^TestM4EffectLedgerAndFencing$", "-count=1", "-v"],
+      "expected": "effect resource mismatch",
+      "requires_database": true
+    },
+    {
+      "id": "state-effect-argument-hash",
+      "file": "internal/state/m4.go",
+      "old": "if submittedArgumentHash != input.ArgumentHash {",
+      "new": "if false { // mutation: trust a self-asserted argument hash",
+      "command": ["go", "test", "./internal/state", "-run", "^TestM4EffectLedgerAndFencing$", "-count=1", "-v"],
+      "expected": "effect argument mismatch",
+      "requires_database": true
+    },
+    {
+      "id": "invariants-submission-boundary",
+      "file": "internal/invariants/m5.go",
+      "old": "if traceHasAnyAttempt(trace, fault.WorkflowID) {",
+      "new": "if false { // mutation: allow activity work at submission boundary",
+      "command": ["go", "test", "./internal/invariants", "-run", "^TestFaultCheckerRejectsSubmissionBoundaryAfterActivityWork$", "-count=1", "-v"],
+      "expected": "submission boundary has durable activity work",
+      "requires_database": false
+    },
+    {
+      "id": "invariants-fault-sequence",
+      "file": "internal/invariants/m5.go",
+      "old": "if record.Sequence != expected {",
+      "new": "if false { // mutation: accept a fault trace sequence gap",
+      "command": ["go", "test", "./internal/invariants", "-run", "^TestParseFaultTraceRejectsSequenceGaps$", "-count=1", "-v"],
+      "expected": "sequence gap error",
+      "requires_database": false
+    },
+    {
+      "id": "engine-graph-entry",
+      "file": "internal/engine/engine.go",
+      "old": "if len(graph.Nodes) != 1 {",
+      "new": "if len(graph.Nodes) == 1 { // mutation: accept ambiguous graph entry",
+      "command": ["go", "test", "./internal/engine", "-run", "^TestParseGraphRequiresEntryForMultipleNodes$", "-count=1", "-v"],
+      "expected": "multiple nodes and no entry was accepted",
+      "requires_database": false
+    },
+    {
+      "id": "compose-lock-timeout",
+      "file": "deploy/local/compose.yaml",
+      "old": "- lock_timeout=2s",
+      "new": "- lock_timeout=0 # mutation: remove the lock wait bound",
+      "command": ["python", "-c", "from pathlib import Path; assert 'lock_timeout=2s' in Path('deploy/local/compose.yaml').read_text()"],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "python-canary-scanner",
+      "file": "python/incident_agent/redaction.py",
+      "old": "if result.count:",
+      "new": "if False:  # mutation: suppress downstream canary findings",
+      "command": ["python", "-m", "pytest", "tests/test_incident_agent.py", "-k", "test_adversarial_protocol_has_fixed_redaction_and_counts", "-q"],
+      "expected": "negative_control_fired",
+      "requires_database": false
+    }
+  ]
+}

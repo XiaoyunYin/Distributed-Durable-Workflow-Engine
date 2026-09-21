@@ -18,3 +18,9 @@ func TestParseGraphAndRejectsBrokenReferences(t *testing.T) {
 		t.Fatal("graph with undeclared reference was accepted")
 	}
 }
+
+func TestParseGraphRequiresEntryForMultipleNodes(t *testing.T) {
+	if _, err := ParseGraph(json.RawMessage(`{"nodes":[{"id":"one"},{"id":"two"}]}`)); err == nil {
+		t.Fatal("graph with multiple nodes and no entry was accepted")
+	}
+}

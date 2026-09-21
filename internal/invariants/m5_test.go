@@ -105,6 +105,14 @@ func TestParseFaultTraceRejectsCleanupTimeoutAndSchemaDrift(t *testing.T) {
 	}
 }
 
+func TestParseFaultTraceRejectsSequenceGaps(t *testing.T) {
+	_, err := ParseFaultTrace(strings.NewReader(`{"schema_version":"fault-trace.v1","run_id":"run-gap","sequence":1,"event":"process_started"}
+{"schema_version":"fault-trace.v1","run_id":"run-gap","sequence":3,"event":"process_exited"}`))
+	if err == nil || !strings.Contains(err.Error(), "sequence") {
+		t.Fatalf("sequence gap error = %v, want sequence validation", err)
+	}
+}
+
 func TestFaultCheckerRejectsMissedBoundaryAndMissingDurableJoin(t *testing.T) {
 	trace := strings.NewReader(`{"schema_version":"fault-trace.v1","run_id":"run-missed","sequence":1,"event":"boundary_timeout","seed":23,"boundary":"attempt_claimed"}
 {"schema_version":"fault-trace.v1","run_id":"run-missed","sequence":2,"event":"command","seed":23,"boundary":"attempt_claimed","command":"kill"}
