@@ -131,7 +131,10 @@ jobs:
               & docker compose @compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $values['POSTGRES_USER'] -d $mutationDatabase
             if ($LASTEXITCODE -ne 0) { throw "Migration failed: $($migration.Name)" }
           }
-          $env:DURABLE_MUTATION_DATABASE_URL = "postgresql://$encodedUser`:$encodedPassword@127.0.0.1`:$port/$mutationDatabase?sslmode=disable"
+          $mutationURL = "postgresql://{0}:{1}@127.0.0.1:{2}/{3}?sslmode=disable" -f $encodedUser, $encodedPassword, $port, $mutationDatabase
+          $env:DURABLE_MUTATION_DATABASE_URL = $mutationURL
+          $parsedMutationURL = [uri]$mutationURL
+          Write-Host ("DUR-046 mutation database: {0}; query: {1}" -f $parsedMutationURL.AbsolutePath.TrimStart('/'), $parsedMutationURL.Query)
           ./scripts/mutation-gate.ps1 -Output mutations/results-powershell.json
 
       - name: Run Linux mutation gate
