@@ -70,7 +70,7 @@
       "old": "if traceHasAnyAttempt(trace, fault.WorkflowID) {",
       "new": "if false { // mutation: allow activity work at submission boundary",
       "command": ["go", "test", "./internal/invariants", "-run", "^TestFaultCheckerRejectsSubmissionBoundaryAfterActivityWork$", "-count=1", "-v"],
-      "expected": "submission boundary has durable activity work",
+      "expected": "overshot submission boundary was accepted",
       "requires_database": false
     },
     {
@@ -80,6 +80,15 @@
       "new": "if false { // mutation: accept a fault trace sequence gap",
       "command": ["go", "test", "./internal/invariants", "-run", "^TestParseFaultTraceRejectsSequenceGaps$", "-count=1", "-v"],
       "expected": "sequence gap error",
+      "requires_database": false
+    },
+    {
+      "id": "invariants-outbox-state",
+      "file": "internal/invariants/m5.go",
+      "old": "} else if !traceHasOutboxEvent(trace, fault.WorkflowID, eventType, outboxStateForBoundary(fault.Boundary)) {",
+      "new": "} else if false { // mutation: accept an unpublished outbox boundary",
+      "command": ["go", "test", "./internal/invariants", "-run", "^TestFaultCheckerRequiresOutboxBoundaryIdentityAndState$", "-count=1", "-v"],
+      "expected": "unpublished outbox was accepted",
       "requires_database": false
     },
     {
