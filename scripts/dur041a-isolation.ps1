@@ -98,8 +98,6 @@ try {
     if (-not $captured) { throw "runtime-a did not acquire the fixture partition before the capture deadline." }
     $before = Get-Content -LiteralPath $fixturePath -Raw | ConvertFrom-Json
 
-    # Bring up the peer without replacing the paused original scheduler.
-    Invoke-Compose @("up", "-d", "--wait", "runtime-b") | Out-Null
     $runtimeAId = (Invoke-Compose @("ps", "-q", "runtime-a")).Trim()
     if ([string]::IsNullOrWhiteSpace($runtimeAId)) { throw "Could not resolve runtime-a container ID." }
     $startedBefore = (Invoke-Required "docker" @("inspect", $runtimeAId, "--format", "{{.State.StartedAt}}")).Trim()
@@ -108,6 +106,9 @@ try {
     $pausedState = (Invoke-Required "docker" @("inspect", $runtimeAId, "--format", "{{.State.Paused}}")).Trim()
     if ($pausedState -ne "true") { throw "Docker did not report runtime-a as paused." }
 
+    # Start the peer only after the original is paused, so the peer begins its
+    # scan with a fresh cursor and cannot miss this preserved fixture.
+    Invoke-Compose @("up", "-d", "--wait", "runtime-b") | Out-Null
     Invoke-Required $toolPath @("-mode", "wait-takeover", "-fixture", $fixturePath, "-timeout", "45s") | Out-Null
     Invoke-Required "docker" @("unpause", $runtimeAId) | Out-Null
     $runtimeAPaused = $false
