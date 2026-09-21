@@ -14,7 +14,7 @@
       "id": "state-event-registry",
       "file": "internal/state/m3.go",
       "old": "return definition.Topic, true",
-      "new": "return EventTopic, true // mutation: ignore the registry topic",
+      "new": "if definition.Topic == TaskTopic { return EventTopic, true }; return EventTopic, true // mutation: ignore the registry topic",
       "command": ["go", "test", "./internal/state", "-run", "^TestEventDefinitionsUseExplicitTopics$", "-count=1", "-v"],
       "expected": "topic =",
       "requires_database": false
