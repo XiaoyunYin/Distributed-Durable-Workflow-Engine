@@ -55,7 +55,7 @@ function Invoke-Compose([string[]]$Arguments) {
 
 function Get-ContainerNetworkNames([string]$ContainerId) {
     $inspect = (Invoke-Required "docker" @("inspect", $ContainerId) | ConvertFrom-Json)[0]
-    return @($inspect.NetworkSettings.Networks.PSObject.Properties.Name)
+    return @($inspect.NetworkSettings.Networks.PSObject.Properties.Name | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }
 
 Push-Location $RepoRoot
