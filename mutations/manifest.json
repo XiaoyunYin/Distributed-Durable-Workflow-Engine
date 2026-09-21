@@ -76,7 +76,7 @@
     {
       "id": "invariants-fault-sequence",
       "file": "internal/invariants/m5.go",
-      "old": "if record.Sequence != expected {",
+      "old": "if expected := lastSequence[record.RunID] + 1; record.Sequence != expected {",
       "new": "if false { // mutation: accept a fault trace sequence gap",
       "command": ["go", "test", "./internal/invariants", "-run", "^TestParseFaultTraceRejectsSequenceGaps$", "-count=1", "-v"],
       "expected": "sequence gap error",
