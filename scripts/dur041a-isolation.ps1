@@ -34,6 +34,10 @@ function Read-EnvValues {
     return $values
 }
 
+function Invoke-Compose([string[]]$Arguments) {
+    return Invoke-Required "docker" (@("compose") + $composeArgs + $Arguments)
+}
+
 Push-Location $RepoRoot
 try {
     if (-not (Test-Path -LiteralPath ".env")) { throw ".env is missing." }
@@ -64,14 +68,14 @@ try {
     Invoke-Required "go" @("build", "-o", $toolPath, "./cmd/dur041a-isolation") | Out-Null
 
     if ($StartServices) {
-        Invoke-Required "docker" ($composeArgs + @("up", "-d", "--build", "--wait")) | Out-Null
+        Invoke-Compose @("up", "-d", "--build", "--wait") | Out-Null
         Invoke-Required "powershell.exe" @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $PSScriptRoot "migrate.ps1")) | Out-Null
     }
 
     # Keep the original scheduler as the only owner while the fixture is
     # submitted. Workers are stopped so the task remains affected work after
     # takeover; runtime-a itself is preserved for the pause/unpause fault.
-    Invoke-Required "docker" ($composeArgs + @("stop", "runtime-b", "worker-a", "worker-b")) | Out-Null
+    Invoke-Compose @("stop", "runtime-b", "worker-a", "worker-b") | Out-Null
     $servicesChanged = $true
     Invoke-Required $toolPath @("-mode", "prepare", "-fixture", $fixturePath) | Out-Null
 
@@ -88,8 +92,8 @@ try {
     $before = Get-Content -LiteralPath $fixturePath -Raw | ConvertFrom-Json
 
     # Bring up the peer without replacing the paused original scheduler.
-    Invoke-Required "docker" ($composeArgs + @("up", "-d", "--wait", "runtime-b")) | Out-Null
-    $runtimeAId = (Invoke-Required "docker" ($composeArgs + @("ps", "-q", "runtime-a"))).Trim()
+    Invoke-Compose @("up", "-d", "--wait", "runtime-b") | Out-Null
+    $runtimeAId = (Invoke-Compose @("ps", "-q", "runtime-a")).Trim()
     if ([string]::IsNullOrWhiteSpace($runtimeAId)) { throw "Could not resolve runtime-a container ID." }
     $startedBefore = (Invoke-Required "docker" @("inspect", $runtimeAId, "--format", "{{.State.StartedAt}}")).Trim()
     Invoke-Required "docker" @("pause", $runtimeAId) | Out-Null
