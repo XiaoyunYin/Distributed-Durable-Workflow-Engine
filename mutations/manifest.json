@@ -3,6 +3,7 @@
   "cases": [
     {
       "id": "api-duplicate-json",
+      "kind": "behavioral",
       "file": "internal/api/server.go",
       "old": "return nil, fmt.Errorf(\"%s must be valid JSON without duplicate object keys: %w\", field, err)",
       "new": "return nil, nil // mutation: accept duplicate JSON keys",
@@ -12,6 +13,7 @@
     },
     {
       "id": "state-event-registry",
+      "kind": "behavioral",
       "file": "internal/state/m3.go",
       "old": "return definition.Topic, true",
       "new": "if definition.Topic == TaskTopic { return EventTopic, true }; return EventTopic, true // mutation: ignore the registry topic",
@@ -21,6 +23,7 @@
     },
     {
       "id": "state-lease-timeout-classification",
+      "kind": "behavioral",
       "file": "internal/state/store.go",
       "old": "return (errors.As(err, &pgErr) && pgErr.Code == \"55P03\") || errors.Is(err, context.DeadlineExceeded)",
       "new": "return pgErr != nil && false // mutation: hide retryable lease timeouts",
@@ -30,6 +33,7 @@
     },
     {
       "id": "engine-lease-fence",
+      "kind": "behavioral",
       "file": "internal/engine/engine.go",
       "old": "if !acquired {",
       "new": "if acquired && false { // mutation: borrow another owner's lease",
@@ -39,6 +43,7 @@
     },
     {
       "id": "state-wakeup-lease-lock",
+      "kind": "behavioral",
       "file": "internal/state/runtime.go",
       "old": "if _, err := lockLease(ctx, tx, lease); err != nil {",
       "new": "if false { // mutation: acknowledge wakeup without lease lock",
@@ -48,6 +53,7 @@
     },
     {
       "id": "state-approval-resource",
+      "kind": "behavioral",
       "file": "internal/state/m4.go",
       "old": "if input.ResourceID != approvedTarget {",
       "new": "if false { // mutation: accept an unapproved resource",
@@ -57,6 +63,7 @@
     },
     {
       "id": "state-effect-argument-hash",
+      "kind": "behavioral",
       "file": "internal/state/m4.go",
       "old": "if err != nil || submittedArgumentHash != approvedArgumentHash || input.ArgumentHash != submittedArgumentHash {",
       "new": "if false && (err != nil || submittedArgumentHash != approvedArgumentHash || input.ArgumentHash != submittedArgumentHash) { // mutation: trust a self-asserted argument hash",
@@ -66,6 +73,7 @@
     },
     {
       "id": "invariants-submission-boundary",
+      "kind": "behavioral",
       "file": "internal/invariants/m5.go",
       "old": "if traceHasAnyAttempt(trace, fault.WorkflowID) {",
       "new": "if false { // mutation: allow activity work at submission boundary",
@@ -75,6 +83,7 @@
     },
     {
       "id": "invariants-fault-sequence",
+      "kind": "behavioral",
       "file": "internal/invariants/m5.go",
       "old": "if expected := lastSequence[record.RunID] + 1; record.Sequence != expected {",
       "new": "if expected := lastSequence[record.RunID] + 1; false { // mutation: accept a fault trace sequence gap",
@@ -84,6 +93,7 @@
     },
     {
       "id": "invariants-outbox-state",
+      "kind": "behavioral",
       "file": "internal/invariants/m5.go",
       "old": "} else if !traceHasOutboxEvent(trace, fault.WorkflowID, eventType, outboxStateForBoundary(fault.Boundary)) {",
       "new": "} else if false { // mutation: accept an unpublished outbox boundary",
@@ -93,6 +103,7 @@
     },
     {
       "id": "engine-graph-entry",
+      "kind": "behavioral",
       "file": "internal/engine/engine.go",
       "old": "if len(graph.Nodes) != 1 {",
       "new": "if len(graph.Nodes) == 1 { // mutation: accept ambiguous graph entry",
@@ -102,6 +113,7 @@
     },
     {
       "id": "compose-lock-timeout",
+      "kind": "configuration_tripwire",
       "file": "deploy/local/compose.yaml",
       "old": "- lock_timeout=2s",
       "new": "- lock_timeout=0 # mutation: remove the lock wait bound",

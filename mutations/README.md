@@ -1,10 +1,13 @@
 # DUR-046 mutation gate
 
-The manifest contains selected safety mutations, one per contract guard. The
-gate exports the committed `HEAD` into a disposable directory, applies exactly
-one mutation, runs its named semantic test, and requires a non-zero result with
-the expected failure message. A compile error, skipped test, no-test result,
-or unrelated failure is not a detection.
+The manifest contains selected safety mutations, one per contract guard. It
+currently has twelve behavioral mutations plus one configuration tripwire.
+The gate exports the committed `HEAD` into a disposable directory, applies
+exactly one mutation, and requires the check declared by that case to fail. A
+compile error, skipped test, no-test result, or unrelated failure is not a
+detection. Behavioral cases require a non-zero named-test result containing
+their expected failure message; the configuration tripwire checks that the
+Compose lock-timeout setting is present.
 
 The database-backed cases require `DURABLE_MUTATION_DATABASE_URL` pointing to
 a disposable PostgreSQL database with the numbered migrations applied. The

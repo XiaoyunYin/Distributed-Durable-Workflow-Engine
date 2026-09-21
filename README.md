@@ -47,10 +47,11 @@ blindly.
   arguments, revision, and effect identity in the tested integration path.
 - **Falsifiable evidence:** named-boundary fault injection, persisted snapshots,
   an independent invariant checker, and negative controls that make it fail.
-- **Regression detection:** a 13-case mutation gate, an independent
-  contract-derived reference model, and bounded fuzz targets for request JSON,
-  workflow graphs, and fault traces. The gate rejects skipped/no-test runs and
-  records semantic failures for each selected safety guard.
+- **Regression detection:** a mutation gate with 12 behavioral cases plus one
+  configuration tripwire, an independent contract-derived reference model,
+  and bounded fuzz targets for request JSON, workflow graphs, and fault traces.
+  The gate rejects skipped/no-test runs and records the declared failure type
+  for each selected safety guard.
 
 ## Three measured findings
 

@@ -2,9 +2,11 @@
 """Run DUR-046 mutations in disposable source exports.
 
 The runner never edits the checkout. Each mutation starts from ``git archive
-HEAD``, applies exactly one textual change, and requires the named semantic
-test to fail with its expected message. Build failures, skips, and unrelated
-failures do not count as detections.
+HEAD``, applies exactly one textual change, and runs the check declared by the
+manifest. Behavioral mutations require the named semantic test to fail with
+its expected message; configuration tripwires require their configuration
+assertion to fail. Build failures, skips, and unrelated failures do not count
+as detections.
 """
 
 from __future__ import annotations
@@ -92,6 +94,9 @@ def main() -> int:
             return 1
 
         for case in cases:
+            kind = str(case.get("kind", "behavioral"))
+            if kind not in {"behavioral", "configuration_tripwire"}:
+                raise RuntimeError(f"{case['id']}: unsupported mutation kind {kind!r}")
             scratch = scratch_root / str(case["id"])
             scratch.mkdir()
             export_head(repo, scratch)
@@ -118,6 +123,7 @@ def main() -> int:
             )
             result = {
                 "id": case["id"],
+                "kind": kind,
                 "status": "PASS" if detected else "FAIL",
                 "exit_code": code,
                 "expected_failure": expected,
@@ -127,7 +133,10 @@ def main() -> int:
             if not detected:
                 print(json.dumps(result, indent=2), file=sys.stderr)
                 return 1
-            print(f"PASS {case['id']}: mutation was rejected by its named semantic test")
+            if kind == "configuration_tripwire":
+                print(f"PASS {case['id']}: configuration tripwire detected the removed setting")
+            else:
+                print(f"PASS {case['id']}: mutation was rejected by its named semantic test")
 
         # The mutation exports are disposable, so prove the unmodified
         # checkout still passes after the complete campaign as well.
