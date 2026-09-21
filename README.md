@@ -166,6 +166,7 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 - [Graph interpreter](docs/INTERPRETER.md) and [frozen experiment protocols](docs/PROTOCOLS.md)
 - [Architecture decisions](docs/DECISIONS.md)
 - [Technical report and evidence register](docs/TECHNICAL_REPORT.md)
+- [Public review status and known limitations](docs/REVIEW_STATUS.md)
 - [Experiment reproduction notes](experiments/README.md)
 - [Portfolio recovery campaign scope](experiments/portfolio/README.md)
 
@@ -173,9 +174,10 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 
 - APIs are development-only, unauthenticated, and localhost-bound by default.
   Do not expose them to untrusted clients.
-- **Known liveness issue (R096):** a scheduler stalled inside a transaction can
-  retain the lease-row lock beyond lease expiry and block takeover. Bounded
-  lock-wait and scheduler-iteration handling remain a separate pending repair.
+- **Known liveness issue ([R096](docs/REVIEW_STATUS.md#current-status)):** a
+  scheduler stalled inside a transaction can retain the lease-row lock beyond
+  lease expiry and block takeover. Bounded lock-wait and scheduler-iteration
+  handling remain a separate pending repair.
 - Single-host evidence does not establish multi-host durability, database HA,
   host-loss recovery, sustained production load, or arbitrary exactly-once effects.
 - Historical studies, deterministic fixtures, and the deployed pure-activity

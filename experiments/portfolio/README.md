@@ -25,10 +25,11 @@ stale-owner writes, and clean source-harness reconciliation. It reports
 median/min/max for takeover and useful-progress delays, with counts and
 denominators.
 
-R096 is intentionally deferred under decision D016. The lock-held takeover
-case is excluded from the promoted DUR-041a result. The source harness contains
-a separate lock-contention probe, but its number is not treated as proof of a
-bounded lock wait or scheduler liveness. The result is local Docker
+R096 is intentionally deferred under decision D016 and defined in the
+[public review status](../../docs/REVIEW_STATUS.md#current-status). The
+lock-held takeover case is excluded from the promoted DUR-041a result. The
+source harness contains a separate lock-contention probe, but its number is not
+treated as proof of a bounded lock wait or scheduler liveness. The result is local Docker
 Desktop/WSL2 process evidence, not multi-host or database-host durability.
 
 Generated campaign directories contain `protocol.json`, `pilot.json`,

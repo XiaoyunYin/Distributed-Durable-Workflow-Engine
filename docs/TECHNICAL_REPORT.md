@@ -99,8 +99,10 @@ oracle, not a second call into engine decision logic. The corrected F01
 `submission_committed` boundary stops immediately after the durable submission,
 before lease and attempt setup. The regenerated snapshots contain zero activity
 attempts there, and the independent checker rejects any snapshot with durable
-activity work at that boundary. R057, R083, and R088 were verified closed in
-Claude's round-50 review; the historical review text remains the audit record.
+activity work at that boundary. [R057, R083, and R088](REVIEW_STATUS.md#current-status)
+were verified closed in Claude's round-50 review; the public status record
+preserves their scoped meanings while the historical review text remains the
+audit record.
 
 ### Runtime readiness and production integration
 
@@ -339,10 +341,11 @@ not a feature scorecard or a claim that this project matches any reference.
 - Several studies use an in-process Store/Engine path; DUR-035 includes the real
   Kafka broker and production relay, while DUR-036 readiness exercises the
   deployed runtime. These scopes are not interchangeable.
-- The round-50 residual corrections verified R057's F01 boundary/checker
-  alignment, R083's reachable DUR-027 handoff target, and R088's focused
-  ValidateApprovalGrant guard coverage. The historical R019 claim-retry test
-  gap remains nonblocking and pending review of its committed coverage.
+- The round-50 residual corrections verified [R057, R083, and R088](REVIEW_STATUS.md#current-status):
+  the F01 boundary/checker alignment, the reachable DUR-027 handoff target,
+  and the focused `ValidateApprovalGrant` guard coverage. The historical R019
+  claim-retry test gap remains nonblocking and pending review of its committed
+  coverage.
 - The live-model study used the separately authorized $30 aggregate cap and
   spent $0.04798995. Local CPU, storage, hosting, and operator time were not
   monetized.
@@ -352,7 +355,7 @@ not a feature scorecard or a claim that this project matches any reference.
 - The control API and worker endpoints remain development-only and
   unauthenticated, bound to localhost by default. Authentication is a prerequisite
   for broader exposure.
-- Subsequent review identified a pending liveness repair (R096): a stalled
+- Subsequent review identified a pending liveness repair ([R096](REVIEW_STATUS.md#current-status)): a stalled
   scheduler transaction can hold the lease-row lock beyond lease expiry and
   block takeover. Historical passing campaigns do not establish a bound for
   that scenario. The publication cleanup does not fix it.
