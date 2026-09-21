@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec > >(tee /var/log/durable-dur049-bootstrap.log | logger -t durable-dur049-bootstrap -s 2>/dev/console) 2>&1
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y ca-certificates curl git docker.io docker-compose-v2
+systemctl enable --now docker
+
+install -d -m 0750 /opt/durable-agent-execution-engine
+if [ ! -d /opt/durable-agent-execution-engine/.git ]; then
+  git clone --depth 1 --branch '${repo_ref}' '${repo_url}' /opt/durable-agent-execution-engine
+fi
+
+umask 077
+cat > /opt/durable-agent-execution-engine/deploy/aws/.env <<EOF
+POSTGRES_USER=${postgres_user}
+POSTGRES_DB=${postgres_db}
+POSTGRES_PASSWORD=${postgres_password}
+DATABASE_HOST=${dependency_private_ip}
+KAFKA_BOOTSTRAP_SERVERS=${dependency_private_ip}:9092
+RUNTIME_ROLE=${runtime_role}
+WORKER_ID=${worker_id}
+WORKER_SLOTS=${worker_slots}
+EOF
+
+cd /opt/durable-agent-execution-engine
+docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml up -d --build
+touch /var/lib/durable-dur049-bootstrap-complete

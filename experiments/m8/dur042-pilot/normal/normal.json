@@ -1,0 +1,68 @@
+{
+  "schema": "dur048-http-path.v1",
+  "status": "PASS",
+  "mode": "normal",
+  "generated_at_utc": "2026-09-21T18:42:55.8098615Z",
+  "source_commit": "dcefad7bb92feaa64fa3fce44ad603543e952355",
+  "protocol": {
+    "accepted_workflows": 4,
+    "activity": "pure.echo",
+    "clock_model": "client UTC and database terminal state; no cross-host duration inference",
+    "offered_rate_per_second": 1,
+    "runtime_url": "http://127.0.0.1:8080",
+    "trace_backend": "OTLP collector file exporter",
+    "worker_slots": 4
+  },
+  "rows": [
+    {
+      "workflow_id": "dur048-normal-6b62fe42-f230-4ce0-b50d-b407c289c348",
+      "traceparent": "00-6a916e29e0afb6a1f76f7510ec6b2976-88664d59725bf248-01",
+      "accepted_at": "2026-09-21T18:42:52.2712229Z",
+      "terminal_at": "2026-09-21T18:42:55.2991521Z",
+      "state": "SUCCEEDED",
+      "revision": 7,
+      "latency_ms": 3027
+    },
+    {
+      "workflow_id": "dur048-normal-9a4cf5f1-40c6-4358-a269-d3ab8a61a677",
+      "traceparent": "00-8f955afc78aa10d92232a9cf108ccb8b-67106ef0bddc971a-01",
+      "accepted_at": "2026-09-21T18:42:53.2820322Z",
+      "terminal_at": "2026-09-21T18:42:55.301995Z",
+      "state": "SUCCEEDED",
+      "revision": 7,
+      "latency_ms": 2019
+    },
+    {
+      "workflow_id": "dur048-normal-ada59354-361c-40c7-80bf-eea06b916af8",
+      "traceparent": "00-8e43ac77e9746d54cc8933672afbfebf-c309294ae6f4528c-01",
+      "accepted_at": "2026-09-21T18:42:54.2868922Z",
+      "terminal_at": "2026-09-21T18:42:55.306645Z",
+      "state": "SUCCEEDED",
+      "revision": 7,
+      "latency_ms": 1019
+    },
+    {
+      "workflow_id": "dur048-normal-6a8b728a-96cd-47d6-8f42-b0d729eb391c",
+      "traceparent": "00-13efeaa80ad13044a97ec1e4d777ebe2-64ccdcc08298702e-01",
+      "accepted_at": "2026-09-21T18:42:55.2943183Z",
+      "terminal_at": "2026-09-21T18:42:55.8098615Z",
+      "state": "SUCCEEDED",
+      "revision": 7,
+      "latency_ms": 515
+    }
+  ],
+  "reconciliation": {
+    "accepted": 4,
+    "failed": 0,
+    "pending": 0,
+    "terminal": 4
+  },
+  "validation": {
+    "accepted": 4,
+    "failed_rows": 0,
+    "incomplete": 0,
+    "requires_terminal_for_every_accepted": true,
+    "terminal": 4,
+    "worker_slots_fixed": 4
+  }
+}

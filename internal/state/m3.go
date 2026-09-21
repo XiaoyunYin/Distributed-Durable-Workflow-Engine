@@ -91,6 +91,7 @@ type OutboxEvent struct {
 	LastError         string
 	CreatedAt         time.Time
 	PublishedAt       *time.Time
+	Traceparent       string
 }
 
 type OutboxPublication struct {
@@ -314,7 +315,7 @@ func (s *Store) claimOutbox(ctx context.Context, ownerID string, limit int, leas
 		RETURNING o.event_id::text, o.workflow_id, o.aggregate_revision, o.event_type,
 			o.topic, o.schema_version, o.payload, o.publish_state, o.relay_attempts,
 			o.claim_owner::text, o.claim_expires_at, o.next_attempt_at, o.last_error,
-			o.created_at, o.published_at`, limit, ownerID, durationSeconds(lease), partitionID)
+			o.created_at, o.published_at, o.traceparent`, limit, ownerID, durationSeconds(lease), partitionID)
 	if err != nil {
 		return nil, fmt.Errorf("claim outbox rows: %w", err)
 	}
@@ -346,7 +347,7 @@ func (s *Store) ListOutbox(ctx context.Context, workflowID string, limit int) ([
 		SELECT event_id::text, workflow_id, aggregate_revision, event_type,
 			topic, schema_version, payload, publish_state, relay_attempts,
 			claim_owner::text, claim_expires_at, next_attempt_at, last_error,
-			created_at, published_at
+			created_at, published_at, traceparent
 		FROM engine.outbox`
 	args := []any{limit}
 	if workflowID != "" {
@@ -380,7 +381,7 @@ func (s *Store) ListPendingOutbox(ctx context.Context, partitionID int16, limit 
 		SELECT o.event_id::text, o.workflow_id, o.aggregate_revision, o.event_type,
 			o.topic, o.schema_version, o.payload, o.publish_state, o.relay_attempts,
 			o.claim_owner::text, o.claim_expires_at, o.next_attempt_at, o.last_error,
-			o.created_at, o.published_at
+			o.created_at, o.published_at, o.traceparent
 		FROM engine.outbox o JOIN engine.workflow_executions w ON w.workflow_id = o.workflow_id
 		WHERE w.partition_id = $1 AND o.publish_state IN ('PENDING','CLAIMED')
 		ORDER BY o.created_at, o.event_id LIMIT $2`, partitionID, limit)
@@ -1423,7 +1424,7 @@ func scanOutbox(scanner interface{ Scan(...any) error }) (OutboxEvent, error) {
 	if err := scanner.Scan(&event.EventID, &event.WorkflowID, &event.AggregateRevision,
 		&event.EventType, &event.Topic, &event.SchemaVersion, &event.Payload, &event.PublishState,
 		&event.RelayAttempts, &claimOwner, &event.ClaimExpiresAt, &event.NextAttemptAt,
-		&lastError, &event.CreatedAt, &event.PublishedAt); err != nil {
+		&lastError, &event.CreatedAt, &event.PublishedAt, &event.Traceparent); err != nil {
 		return OutboxEvent{}, err
 	}
 	if claimOwner != nil {

@@ -1,0 +1,43 @@
+name: durable-aws-app
+
+services:
+  runtime:
+    build:
+      context: ../..
+      dockerfile: deploy/local/Dockerfile.runtime
+    environment:
+      RUNTIME_ADDR: 0.0.0.0:8080
+      RUNTIME_ROLE: ${RUNTIME_ROLE}
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@${DATABASE_HOST}:5432/${POSTGRES_DB}?sslmode=disable
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+      RUNTIME_SCHEDULER: "enabled"
+      RUNTIME_NAMESPACE: dur049-aws
+      RUNTIME_ENGINE_MODE: disabled
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "/runtime", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: deploy/local/Dockerfile.worker
+    environment:
+      WORKER_ADDR: 0.0.0.0:8081
+      WORKER_ID: ${WORKER_ID}
+      WORKER_SLOTS: ${WORKER_SLOTS}
+      CONTROL_API_URL: http://runtime:8080
+      KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
+    depends_on:
+      runtime:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-m", "workers", "healthcheck"]
+      interval: 5s
+      timeout: 3s
+      retries: 20

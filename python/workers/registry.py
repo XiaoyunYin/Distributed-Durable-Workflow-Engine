@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import time
 from collections.abc import Callable
 from typing import Any
 
@@ -37,4 +39,13 @@ def default_registry() -> ActivityRegistry:
     registry.register(
         "pure.add", "v1", lambda value: sum(value) if isinstance(value, list) else value
     )
+    # Opt-in fixture activity used only by the deployed DUR-048 recovery
+    # episode. Normal deployments leave the delay at zero.
+    delay_ms = int(os.getenv("DUR048_ACTIVITY_DELAY_MS", "0"))
+    if delay_ms > 0:
+        def delayed(value: Any) -> Any:
+            time.sleep(delay_ms / 1000)
+            return value
+
+        registry.register("dur048.sleep", "v1", delayed)
     return registry

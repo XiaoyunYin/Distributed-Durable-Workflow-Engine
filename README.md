@@ -47,7 +47,7 @@ blindly.
   arguments, revision, and effect identity in the tested integration path.
 - **Falsifiable evidence:** named-boundary fault injection, persisted snapshots,
   an independent invariant checker, and negative controls that make it fail.
-- **Regression detection:** a mutation gate with 12 behavioral cases plus one
+- **Regression detection:** a mutation gate with 13 behavioral cases plus one
   configuration tripwire, an independent contract-derived reference model,
   and bounded fuzz targets for request JSON, workflow graphs, and fault traces.
   The gate rejects skipped/no-test runs and records the declared failure type
@@ -79,6 +79,18 @@ The committed experiment artifacts carry the configurations, computed
 conclusions, limitations, and claim-to-evidence boundaries. Detailed
 engineering records are kept locally rather than published as recruiter-facing
 documentation.
+
+### Deployed HTTP-to-worker pilot
+
+The local Compose pilot exercises HTTP submission → PostgreSQL → transactional
+outbox → Kafka → Python worker → durable receipt, with a normal run and a
+worker-kill recovery run. Both artifacts require accepted work to reach a
+terminal state; the recovery trace is exported as a coherent W3C trace, and
+pure activity produces no effect span because the approved effect service does
+not run. [DUR-048 pilot evidence](experiments/m8/dur042-pilot/)
+
+This is local Compose evidence, not AWS, host-failure, production-throughput,
+or external-effect evidence.
 
 ### Scoped recovery case study
 
@@ -188,8 +200,9 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 The committed fault, measurement, and mutation artifacts are the source of
 truth for the claims above. The current deployment exposes bounded Prometheus
 counters and gauges for leases, claims, results, relay activity, database work,
-workers, and reconciliation age; it does **not** yet claim an end-to-end
-distributed trace from HTTP submission through Kafka, workers, and effects.
+workers, and reconciliation age. The local DUR-048 pilot also exports an
+end-to-end HTTP-to-Kafka-worker trace for its normal and recovery cases; that
+trace is local pilot evidence, not production observability.
 The mutation gate is implemented and locally verified; its selected results are
 available in the [PowerShell artifact](mutations/results-powershell.json) and
 [Linux artifact](mutations/results-bash.json). Hosted CI run
@@ -197,8 +210,8 @@ available in the [PowerShell artifact](mutations/results-powershell.json) and
 passes both the offline and service-backed jobs. The workflow creates and
 drops a disposable migration-complete database for both mutation gates after
 an earlier run exposed shared-database residue from the preceding service
-suite. AWS recovery, tracing, and the required Kubernetes campaign remain
-future work. Internal study notes stay local; only concise claim boundaries
+suite. AWS recovery and the required Kubernetes campaign remain future work.
+Internal study notes stay local; only concise claim boundaries
 and reproducible evidence links are published here.
 
 ## Operating limits

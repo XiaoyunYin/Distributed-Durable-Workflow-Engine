@@ -1,0 +1,71 @@
+{
+  "schema_version": "dur049-aws-recovery.v1",
+  "status": "APPLY_FAILED_CLEANED",
+  "task": "DUR-049",
+  "source_commit": "a3e5a9f",
+  "corrected_topology_commit": "e615f18",
+  "region": "us-west-1",
+  "topology": {
+    "application_hosts": 2,
+    "dependency_hosts": 1,
+    "scheduler_processes": 2,
+    "worker_slots_per_host": 2,
+    "database": "single PostgreSQL host; database-host durability is out of scope",
+    "kafka": "single Kafka broker; Kafka HA is out of scope"
+  },
+  "fault_arms": [
+    "preserved-process network isolation and reconnect",
+    "application-host process loss with work in flight"
+  ],
+  "required_observations": [
+    "network/process/backend confirmation that each fault took effect",
+    "old and new owner IDs and lease epochs",
+    "stale writes attempted after takeover and their durable rejection",
+    "takeover time separate from fault-command time",
+    "first useful progress on affected work",
+    "outstanding obligations and duplicate effects",
+    "post-run resource cleanup and actual cost"
+  ],
+  "acceptance": {
+    "superseded_owner_mutations": 0,
+    "false_takeovers": 0,
+    "terminal_workflows_for_accepted_work": true,
+    "resources_destroyed_after_run": true
+  },
+  "preflight_observation": {
+    "terraform_plan_resources": 15,
+    "apply_started": true,
+    "apply_failure": "AWS permissions denied for ec2:ModifyVpcAttribute and iam:ListRolePolicies",
+    "partial_resources": ["one VPC", "one IAM role"],
+    "cleanup": "verified absent; Terraform state and saved plan removed",
+    "recovery_measurement_started": false
+  },
+  "retry_attempt": {
+    "terraform_plan_resources": 15,
+    "source_variables": {
+      "ami_id": "ami-0bc53423cd57b48b7",
+      "availability_zones": ["us-west-1a", "us-west-1b"],
+      "repo_ref": "a3e5a9f"
+    },
+    "apply_failure": "ec2:ModifySubnetAttribute was denied for map_public_ip_on_launch, then us-west-1b was rejected because it is not enabled for this account",
+    "partial_resources": [
+      "one VPC",
+      "one internet gateway",
+      "one route table",
+      "one subnet",
+      "two security groups",
+      "one IAM role",
+      "one IAM policy attachment",
+      "one instance profile"
+    ],
+    "instances_created": false,
+    "volumes_created": false,
+    "cleanup": "network resources and instance profile removed; IAM role required explicit deletion after Terraform cleanup reported missing iam:ListInstanceProfilesForRole; final absence was verified",
+    "recovery_measurement_started": false
+  },
+  "exclusions": [
+    "R096 lock-held isolation arm remains separately labelled",
+    "database-host failure and disk durability",
+    "multi-region or production availability claims"
+  ]
+}

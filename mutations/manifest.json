@@ -112,6 +112,16 @@
       "requires_database": false
     },
     {
+      "id": "engine-scheduler-trace-link",
+      "kind": "behavioral",
+      "file": "internal/engine/engine.go",
+      "old": "spanOptions = append(spanOptions, trace.WithLinks(trace.Link{SpanContext: parentSpanContext}))",
+      "new": "spanOptions = nil // mutation: remove the durable workflow trace link",
+      "command": ["go", "test", "-p", "1", "./internal/engine", "-run", "^TestM8SchedulerSpanLinksDurableWorkflow$", "-count=1", "-v"],
+      "expected": "scheduler span links",
+      "requires_database": true
+    },
+    {
       "id": "compose-lock-timeout",
       "kind": "configuration_tripwire",
       "file": "deploy/local/compose.yaml",

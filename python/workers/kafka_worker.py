@@ -91,6 +91,10 @@ def delivery_body(message: Any) -> dict[str, Any]:
 
 
 def handle_delivery(consumer: Any, message: Any, control: RetryingControl, worker_id: str) -> None:
+    traceparent = dict(message.headers or []).get("traceparent", b"").decode(
+        "utf-8", errors="replace"
+    )
+    control.traceparent = traceparent
     response = control._post("/v1/worker-deliveries", delivery_body(message))
     if response["commit_offset"]:
         consumer.commit(

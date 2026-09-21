@@ -12,6 +12,8 @@ import (
 
 	"durable-agent-execution-engine/internal/state"
 	"durable-agent-execution-engine/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type Graph struct {
@@ -213,6 +215,7 @@ type Engine struct {
 	RetryBackoff       time.Duration
 	MaxSteps           int
 	Telemetry          *telemetry.Metrics
+	Tracing            *telemetry.Tracing
 	// AfterLeaseAcquired is a diagnostic seam used by deployed fault probes to
 	// make the ownership boundary observable. It is nil in normal operation.
 	AfterLeaseAcquired func(context.Context, state.Lease) error
@@ -245,6 +248,21 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 	wf, err := e.Store.GetWorkflow(ctx, workflowID)
 	if err != nil {
 		return RunResult{}, err
+	}
+	var runSpan trace.Span
+	if e.Tracing != nil {
+		spanOptions := []trace.SpanStartOption{}
+		if storedTraceparent, traceErr := e.Store.GetWorkflowTraceparent(ctx, workflowID); traceErr == nil {
+			parentContext := telemetry.ContextWithTraceparent(context.Background(), storedTraceparent)
+			parentSpanContext := trace.SpanContextFromContext(parentContext)
+			if parentSpanContext.IsValid() {
+				spanOptions = append(spanOptions, trace.WithLinks(trace.Link{SpanContext: parentSpanContext}))
+			}
+		}
+		ctx, runSpan = e.Tracing.Start(ctx, "scheduler.workflow", spanOptions...)
+		runSpan.SetAttributes(attribute.String("durable.workflow_id", workflowID),
+			attribute.Int("durable.partition_id", int(wf.PartitionID)))
+		defer runSpan.End()
 	}
 	definition, err := e.Store.GetDefinition(ctx, wf.DefinitionID, wf.DefinitionVersion)
 	if err != nil {

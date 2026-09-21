@@ -12,7 +12,10 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
 	"github.com/segmentio/kafka-go"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 )
 
 const (
@@ -64,16 +67,20 @@ func (b *KafkaBroker) Publish(ctx context.Context, event state.OutboxEvent) erro
 	if topic == "" {
 		topic = b.defaultTopic
 	}
+	headers := []kafka.Header{
+		{Key: "event-id", Value: []byte(event.EventID)},
+		{Key: "event-type", Value: []byte(event.EventType)},
+		{Key: "schema-version", Value: []byte(fmt.Sprint(event.SchemaVersion))},
+		{Key: "workflow-id", Value: []byte(event.WorkflowID)},
+	}
+	if event.Traceparent != "" {
+		headers = append(headers, kafka.Header{Key: "traceparent", Value: []byte(event.Traceparent)})
+	}
 	return b.writer.WriteMessages(ctx, kafka.Message{
-		Topic: topic,
-		Key:   []byte(event.EventID),
-		Value: event.Payload,
-		Headers: []kafka.Header{
-			{Key: "event-id", Value: []byte(event.EventID)},
-			{Key: "event-type", Value: []byte(event.EventType)},
-			{Key: "schema-version", Value: []byte(fmt.Sprint(event.SchemaVersion))},
-			{Key: "workflow-id", Value: []byte(event.WorkflowID)},
-		},
+		Topic:   topic,
+		Key:     []byte(event.EventID),
+		Value:   event.Payload,
+		Headers: headers,
 	})
 }
 
@@ -146,6 +153,7 @@ type RelayConfig struct {
 	// listener. It is a measurement hook only; notifications remain hints and
 	// the poll fallback still owns correctness.
 	OnNotification func()
+	Tracing        *telemetry.Tracing
 }
 
 type Relay struct {
@@ -199,31 +207,63 @@ func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
 	}
 	report := RelayReport{Claimed: len(events)}
 	for _, event := range events {
+		eventCtx := telemetry.ContextWithTraceparent(ctx, event.Traceparent)
+		var span trace.Span
+		if r.Config.Tracing != nil {
+			eventCtx, span = r.Config.Tracing.Start(eventCtx, "outbox.publish")
+			span.SetAttributes(attribute.String("durable.workflow_id", event.WorkflowID),
+				attribute.String("durable.event_type", event.EventType),
+				attribute.String("messaging.destination", event.Topic))
+		}
 		if !supportedEventType(event.EventType) {
-			if quarantineErr := r.Store.QuarantineOutbox(ctx, event.EventID, r.Config.OwnerID, event.RelayAttempts, "unsupported event type: "+event.EventType); quarantineErr != nil {
+			if quarantineErr := r.Store.QuarantineOutbox(eventCtx, event.EventID, r.Config.OwnerID, event.RelayAttempts, "unsupported event type: "+event.EventType); quarantineErr != nil {
+				if span != nil {
+					span.End()
+				}
 				return report, quarantineErr
+			}
+			if span != nil {
+				span.End()
 			}
 			report.Quarantined++
 			continue
 		}
 		if err := r.boundary("before_publish"); err != nil {
+			if span != nil {
+				span.End()
+			}
 			return report, err
 		}
-		publishErr := r.Broker.Publish(ctx, event)
+		publishErr := r.Broker.Publish(eventCtx, event)
 		if publishErr == nil {
 			if err := r.boundary("after_broker_ack"); err != nil {
+				if span != nil {
+					span.End()
+				}
 				return report, err
 			}
-			if err := r.Store.FinalizeOutboxPublication(ctx, event.EventID, r.Config.OwnerID,
+			if err := r.Store.FinalizeOutboxPublication(eventCtx, event.EventID, r.Config.OwnerID,
 				event.RelayAttempts, true, "", 0); err != nil {
+				if span != nil {
+					span.End()
+				}
 				return report, err
+			}
+			if span != nil {
+				span.End()
 			}
 			report.Published++
 			continue
 		}
-		if err := r.Store.FinalizeOutboxPublication(ctx, event.EventID, r.Config.OwnerID,
+		if err := r.Store.FinalizeOutboxPublication(eventCtx, event.EventID, r.Config.OwnerID,
 			event.RelayAttempts, false, publishErr.Error(), r.Config.RetryBackoff); err != nil {
+			if span != nil {
+				span.End()
+			}
 			return report, err
+		}
+		if span != nil {
+			span.End()
 		}
 		report.Failed++
 	}

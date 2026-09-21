@@ -17,7 +17,9 @@ import (
 
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
 	"github.com/jackc/pgx/v5/pgconn"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -53,10 +55,16 @@ type ApprovalRepository interface {
 type Server struct {
 	repository       Repository
 	workerConsumerID string
+	tracing          *telemetry.Tracing
 }
 
 func NewServer(repository Repository) *Server {
 	return &Server{repository: repository, workerConsumerID: "runtime-workers-v1"}
+}
+
+func (s *Server) WithTracing(tracing *telemetry.Tracing) *Server {
+	s.tracing = tracing
+	return s
 }
 
 func (s *Server) Handler() http.Handler {
@@ -76,7 +84,18 @@ func (s *Server) Handler() http.Handler {
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "route was not found", nil)
 	})
-	return mux
+	if s.tracing == nil {
+		return mux
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		ctx := telemetry.ExtractHTTP(r)
+		ctx, span := s.tracing.Start(ctx, "http "+r.Method+" "+r.URL.Path)
+		span.SetAttributes(attribute.String("http.request.method", r.Method),
+			attribute.String("url.path", r.URL.Path))
+		defer span.End()
+		next := r.WithContext(ctx)
+		mux.ServeHTTP(w, next)
+	})
 }
 
 type approvalRepository interface {

@@ -10,13 +10,14 @@ import (
 
 	"durable-agent-execution-engine/internal/engine"
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
 	"durable-agent-execution-engine/internal/transport"
 )
 
 // Events accelerate the durable repair scan; they are not the source of work.
-func runScheduler(ctx context.Context, store *state.Store, brokers []string, namespace string) {
+func runScheduler(ctx context.Context, store *state.Store, brokers []string, namespace string, tracing *telemetry.Tracing) {
 	wake := make(chan struct{}, 1)
-	serveOptions := engine.ServeOptions{}
+	serveOptions := engine.ServeOptions{Tracing: tracing}
 	if milliseconds, err := strconv.Atoi(os.Getenv("RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS")); err == nil && milliseconds > 0 {
 		hold := time.Duration(milliseconds) * time.Millisecond
 		serveOptions.AfterLeaseAcquired = func(hookContext context.Context, _ state.Lease) error {

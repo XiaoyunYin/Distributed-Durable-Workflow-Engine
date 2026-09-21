@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"net/http/pprof"
 	"os"
 	"os/signal"
 	"strconv"
@@ -48,7 +49,19 @@ func main() {
 
 	role := envOrDefault("RUNTIME_ROLE", "runtime")
 	metrics := telemetry.New(role)
-	handler := newHandlerWithMetrics(role, nil, metrics)
+	tracing, tracingErr := telemetry.NewTracing(context.Background(), "durable-runtime-"+role, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
+	if tracingErr != nil {
+		slog.Error("runtime tracing initialization failed", "error", tracingErr)
+		os.Exit(1)
+	}
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := tracing.Shutdown(shutdownCtx); err != nil {
+			slog.Warn("runtime tracing shutdown failed", "error", err)
+		}
+	}()
+	handler := newHandlerWithMetrics(role, nil, metrics, tracing)
 	var store *state.Store
 	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
 		databaseContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -61,7 +74,7 @@ func main() {
 		}
 		store.SetTelemetry(metrics)
 		defer store.Close()
-		handler = newHandlerWithMetrics(role, store, metrics)
+		handler = newHandlerWithMetrics(role, store, metrics, tracing)
 	}
 	server := &http.Server{
 		Addr:              *addr,
@@ -71,11 +84,25 @@ func main() {
 		WriteTimeout:      10 * time.Second,
 		IdleTimeout:       60 * time.Second,
 	}
+	if envOrDefault("RUNTIME_PPROF_ENABLED", "0") == "1" {
+		pprofAddr := envOrDefault("RUNTIME_PPROF_ADDR", "127.0.0.1:6060")
+		pprofServer := &http.Server{Addr: pprofAddr, Handler: pprofHandler(), ReadHeaderTimeout: 2 * time.Second}
+		go func() {
+			if err := pprofServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				slog.Error("pprof server failed", "error", err)
+			}
+		}()
+		defer func() {
+			shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+			defer cancel()
+			_ = pprofServer.Shutdown(shutdownCtx)
+		}()
+	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if store != nil && envOrDefault("RUNTIME_SCHEDULER", "disabled") == "enabled" {
-		go runScheduler(ctx, store, splitBrokers(os.Getenv("KAFKA_BOOTSTRAP_SERVERS")), envOrDefault("RUNTIME_NAMESPACE", "local-runtime"))
+		go runScheduler(ctx, store, splitBrokers(os.Getenv("KAFKA_BOOTSTRAP_SERVERS")), envOrDefault("RUNTIME_NAMESPACE", "local-runtime"), tracing)
 	}
 	var broker transport.Broker
 	if store != nil {
@@ -88,6 +115,7 @@ func main() {
 				os.Exit(1)
 			}
 			relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID(),
+				Tracing: tracing,
 				OnError: func(err error) {
 					metrics.RecordRelayFailure()
 					slog.Warn("runtime Kafka relay pass failed", "error", err)
@@ -141,14 +169,14 @@ func main() {
 }
 
 func newHandler(role string) http.Handler {
-	return newHandlerWithMetrics(role, nil, telemetry.New(role))
+	return newHandlerWithMetrics(role, nil, telemetry.New(role), nil)
 }
 
 func newHandlerWithStore(role string, store *state.Store) http.Handler {
-	return newHandlerWithMetrics(role, store, telemetry.New(role))
+	return newHandlerWithMetrics(role, store, telemetry.New(role), nil)
 }
 
-func newHandlerWithMetrics(role string, store *state.Store, metrics *telemetry.Metrics) http.Handler {
+func newHandlerWithMetrics(role string, store *state.Store, metrics *telemetry.Metrics, tracing *telemetry.Tracing) http.Handler {
 	mux := http.NewServeMux()
 	health := func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -162,7 +190,7 @@ func newHandlerWithMetrics(role string, store *state.Store, metrics *telemetry.M
 	mux.HandleFunc("GET /readyz", health)
 	mux.Handle("GET /metrics", metricsHandler(role, metrics))
 	if store != nil {
-		mux.Handle("/v1/", api.NewServer(store).Handler())
+		mux.Handle("/v1/", api.NewServer(store).WithTracing(tracing).Handler())
 		if envOrDefault("RUNTIME_ENGINE_MODE", "disabled") == "readiness" {
 			mux.Handle("POST /internal/readiness/run", readinessHandler(store, metrics, role))
 		}
@@ -299,6 +327,16 @@ func metricsHandler(role string, metrics *telemetry.Metrics) http.Handler {
 		}
 		_ = r
 	})
+}
+
+func pprofHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	return mux
 }
 
 func checkHealth() error {

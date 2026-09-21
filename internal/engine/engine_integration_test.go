@@ -14,10 +14,65 @@ import (
 	"testing"
 	"time"
 
+	"go.opentelemetry.io/otel"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
+
 	"durable-agent-execution-engine/internal/invariants"
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
 )
+
+func TestM8SchedulerSpanLinksDurableWorkflow(t *testing.T) {
+	ctx, store := openM1Database(t)
+	defer store.Close()
+	exporter := tracetest.NewInMemoryExporter()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sdktrace.NewSimpleSpanProcessor(exporter)))
+	previousProvider := otel.GetTracerProvider()
+	otel.SetTracerProvider(provider)
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+		otel.SetTracerProvider(previousProvider)
+	})
+	tracing, err := telemetry.NewTracing(ctx, "durable-engine-test", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	parent := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	workflowContext := telemetry.ContextWithTraceparent(ctx, parent)
+	definitionID := "dur048-trace-link-" + state.NewID()
+	workflowID, lease := createM1Workflow(t, workflowContext, store, definitionID,
+		`{"entry":"root","nodes":[{"id":"root","kind":"activity","next":"done"},{"id":"done","kind":"success"}]}`,
+		`{"root":"PURE_ACTIVITY"}`)
+	defer func() {
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE workflow_id = $1`, workflowID)
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, definitionID)
+		_ = store.ReleaseLease(ctx, state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch})
+	}()
+	runner := New(store, ActivityDriverFunc(func(context.Context, Activity) (ActivityResult, error) {
+		return ActivityResult{Payload: []byte(`{"ok":true}`)}, nil
+	}))
+	runner.OwnerID = lease.OwnerID
+	runner.Tracing = tracing
+	result, err := runner.Run(ctx, workflowID)
+	if err != nil || result.Blocked || result.Workflow.State != state.StateSucceeded {
+		t.Fatalf("trace-link run = %+v, err=%v", result, err)
+	}
+	parentContext := telemetry.ContextWithTraceparent(context.Background(), parent)
+	parentSpanContext := trace.SpanContextFromContext(parentContext)
+	for _, span := range exporter.GetSpans() {
+		if span.Name != "scheduler.workflow" {
+			continue
+		}
+		if len(span.Links) != 1 || span.Links[0].SpanContext.TraceID() != parentSpanContext.TraceID() {
+			t.Fatalf("scheduler span links = %+v, want durable workflow trace %s", span.Links, parentSpanContext.TraceID())
+		}
+		return
+	}
+	t.Fatal("scheduler.workflow span was not recorded")
+}
 
 func TestM1CrashResumeWithinNode(t *testing.T) {
 	ctx, store := openM1Database(t)

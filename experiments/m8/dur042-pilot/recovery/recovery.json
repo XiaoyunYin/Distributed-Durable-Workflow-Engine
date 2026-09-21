@@ -1,0 +1,41 @@
+{
+  "schema": "dur048-http-path.v1",
+  "status": "PASS",
+  "mode": "recovery",
+  "generated_at_utc": "2026-09-21T18:44:26.8586042Z",
+  "source_commit": "dcefad7bb92feaa64fa3fce44ad603543e952355",
+  "protocol": {
+    "accepted_workflows": 1,
+    "activity": "dur048.sleep",
+    "clock_model": "client UTC and database terminal state; no cross-host duration inference",
+    "offered_rate_per_second": 1,
+    "runtime_url": "http://127.0.0.1:8080",
+    "trace_backend": "OTLP collector file exporter",
+    "worker_slots": 4
+  },
+  "rows": [
+    {
+      "workflow_id": "dur048-recovery-cea440c4-c005-429a-870a-27ca5a86ac42",
+      "traceparent": "00-b9c7493e5665cfd2af559f34798759ed-5e69491c208b1a5e-01",
+      "accepted_at": "2026-09-21T18:43:21.0463874Z",
+      "terminal_at": "2026-09-21T18:44:26.8586042Z",
+      "state": "SUCCEEDED",
+      "revision": 8,
+      "latency_ms": 65812
+    }
+  ],
+  "reconciliation": {
+    "accepted": 1,
+    "failed": 0,
+    "pending": 0,
+    "terminal": 1
+  },
+  "validation": {
+    "accepted": 1,
+    "failed_rows": 0,
+    "incomplete": 0,
+    "requires_terminal_for_every_accepted": true,
+    "terminal": 1,
+    "worker_slots_fixed": 4
+  }
+}

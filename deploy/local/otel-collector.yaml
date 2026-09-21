@@ -13,6 +13,10 @@ receivers:
 exporters:
   debug:
     verbosity: basic
+  file/traces:
+    path: /var/lib/otel/traces.jsonl
+    format: json
+    flush_interval: 1s
   prometheus:
     endpoint: 0.0.0.0:8889
 
@@ -21,7 +25,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      exporters: [debug]
+      exporters: [file/traces]
     metrics:
       receivers: [otlp]
       exporters: [prometheus]

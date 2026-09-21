@@ -7,12 +7,14 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
 )
 
 const schedulerIterationTimeout = 5 * time.Second
 
 type ServeOptions struct {
 	AfterLeaseAcquired func(context.Context, state.Lease) error
+	Tracing            *telemetry.Tracing
 }
 
 // Serve scans one explicit namespace. It never executes activities in the
@@ -28,6 +30,7 @@ func ServeWithOptions(ctx context.Context, store *state.Store, namespace string,
 	runner := New(store, nil)
 	runner.ExternalActivities = true
 	runner.AfterLeaseAcquired = options.AfterLeaseAcquired
+	runner.Tracing = options.Tracing
 	runner.OwnerID, runner.ActorID = state.NewID(), "runtime-scheduler"
 	runner.LeaseTTL, runner.AttemptLease = 15*time.Second, 30*time.Second
 	cursor := ""

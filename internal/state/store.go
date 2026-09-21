@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/partition"
+	"durable-agent-execution-engine/internal/telemetry"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -201,14 +202,15 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 	err = tx.QueryRow(ctx, `
 		INSERT INTO engine.workflow_executions
 			(workflow_id, namespace, submission_key, submission_payload_hash,
-			 definition_id, definition_version, partition_id, state, revision)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1)
+			 definition_id, definition_version, partition_id, state, revision, traceparent)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 1, $9)
 		ON CONFLICT DO NOTHING
 		RETURNING workflow_id, namespace, submission_key, submission_payload_hash,
 			definition_id, definition_version, partition_id, state, revision,
 			created_at, updated_at`,
 		input.WorkflowID, input.Namespace, input.SubmissionKey, input.SubmissionPayloadHash,
 		input.DefinitionID, input.DefinitionVersion, input.PartitionID, StateRunnable,
+		telemetry.Traceparent(ctx),
 	).Scan(&workflow.WorkflowID, &workflow.Namespace, &workflow.SubmissionKey,
 		&workflow.PayloadHash, &workflow.DefinitionID, &workflow.DefinitionVersion,
 		&workflow.PartitionID, &workflow.State, &workflow.Revision,
@@ -305,6 +307,22 @@ func (s *Store) GetWorkflow(ctx context.Context, workflowID string) (Workflow, e
 		return Workflow{}, fmt.Errorf("%w: %s", ErrWorkflowNotFound, workflowID)
 	}
 	return workflow, err
+}
+
+// GetWorkflowTraceparent returns the durable submission context used to link
+// scheduler work back to the execution that created the workflow. It is kept
+// separate from Workflow so trace context does not become part of the
+// state-transition model or every workflow scan shape.
+func (s *Store) GetWorkflowTraceparent(ctx context.Context, workflowID string) (string, error) {
+	var traceparent string
+	err := s.pool.QueryRow(ctx, `
+		SELECT traceparent
+		FROM engine.workflow_executions
+		WHERE workflow_id = $1`, workflowID).Scan(&traceparent)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", fmt.Errorf("%w: %s", ErrWorkflowNotFound, workflowID)
+	}
+	return traceparent, err
 }
 
 func (s *Store) GetAttempt(ctx context.Context, workflowID, nodeID string, iteration int, attemptNumber int64) (Attempt, error) {
@@ -1750,9 +1768,20 @@ func insertOutbox(ctx context.Context, tx pgx.Tx, workflowID string, revision in
 	if !ok {
 		return fmt.Errorf("%w: %s", ErrInvalidEventType, eventType)
 	}
+	// Scheduler and relay calls often arrive without an HTTP context. Read the
+	// workflow's immutable submission parent so every async event remains in
+	// the same W3C trace without trusting trace metadata for authorization.
+	var traceparent string
+	// Prefer the immutable workflow parent for every later event. A scheduler
+	// pass has its own span, but allowing that span to replace the workflow
+	// parent would split a retry/recovery execution into unrelated traces.
+	_ = tx.QueryRow(ctx, `SELECT traceparent FROM engine.workflow_executions WHERE workflow_id = $1`, workflowID).Scan(&traceparent)
+	if traceparent == "" {
+		traceparent = telemetry.Traceparent(ctx)
+	}
 	if _, err := tx.Exec(ctx, `
-		INSERT INTO engine.outbox (event_id, workflow_id, aggregate_revision, event_type, topic, payload)
-		VALUES ($1, $2, $3, $4, $5, $6)`, NewID(), workflowID, revision, eventType, topic, payload); err != nil {
+		INSERT INTO engine.outbox (event_id, workflow_id, aggregate_revision, event_type, topic, payload, traceparent)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)`, NewID(), workflowID, revision, eventType, topic, payload, traceparent); err != nil {
 		return fmt.Errorf("insert outbox: %w", err)
 	}
 	// NOTIFY is only a prompt. The relay always has a bounded fallback poll,

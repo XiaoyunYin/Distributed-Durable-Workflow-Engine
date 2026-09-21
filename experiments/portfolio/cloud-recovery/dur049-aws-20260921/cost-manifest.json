@@ -1,0 +1,81 @@
+{
+  "schema_version": "dur049-cost-manifest.v1",
+  "status": "APPLY_FAILED_CLEANED",
+  "task": "DUR-049",
+  "region": "us-west-1",
+  "source_commit": "a3e5a9f",
+  "corrected_topology_commit": "e615f18",
+  "ami_id": "ami-0bc53423cd57b48b7",
+  "ami_owner": "099720109477",
+  "expires_at_utc": "2026-10-05T00:00:00Z",
+  "planned_window_hours": 336,
+  "resources": {
+    "application_hosts": 2,
+    "dependency_hosts": 1,
+    "instance_type": "t3.micro",
+    "root_volume_gb_each": 20,
+    "root_volume_type": "gp3",
+    "public_ipv4_addresses": 3,
+    "nat_gateways": 0,
+    "load_balancers": 0,
+    "managed_databases": 0,
+    "managed_kafka_clusters": 0
+  },
+  "planning_price_assumptions_usd": {
+    "t3_micro_instance_hour": 0.0104,
+    "gp3_gb_month": 0.08,
+    "public_ipv4_address_hour": 0.005
+  },
+  "planning_estimate_usd": {
+    "ec2_compute": 10.48,
+    "gp3_storage": 2.24,
+    "public_ipv4": 5.04,
+    "estimated_total": 17.76,
+    "contingency_ceiling": 40.00
+  },
+  "stop_rules": {
+    "stop_creation_at_usd": 160.00,
+    "absolute_cap_usd": 200.00,
+    "destroy_active_resources_within_hours": 24,
+    "remove_retained_artifacts_within_days": 7,
+    "no_continuation_if_remaining_cap_unknown": true
+  },
+  "apply_attempt": {
+    "plan_resources": 15,
+    "resources_created_before_failure": ["one VPC", "one IAM role"],
+    "failure_permissions": ["ec2:ModifyVpcAttribute", "iam:ListRolePolicies"],
+    "cleanup_verified": true,
+    "billable_compute_created": false,
+    "plan_file_removed": true,
+    "terraform_state_removed": true,
+    "retry_attempt": {
+      "plan_resources": 15,
+      "variables": {
+        "ami_id": "ami-0bc53423cd57b48b7",
+        "availability_zones": ["us-west-1a", "us-west-1b"],
+        "repo_ref": "a3e5a9f"
+      },
+      "resources_created_before_failure": [
+        "one VPC",
+        "one internet gateway",
+        "one route table",
+        "one subnet",
+        "two security groups",
+        "one IAM role",
+        "one IAM policy attachment",
+        "one instance profile"
+      ],
+      "failure_permissions": ["ec2:ModifySubnetAttribute"],
+      "failure_configuration": "us-west-1b is not enabled for this account; the account reported us-west-1a and us-west-1c as valid zones",
+      "instances_created": false,
+      "volumes_created": false,
+      "cleanup_verified": true,
+      "remaining_operator_permission": "iam:ListInstanceProfilesForRole is still required for Terraform role cleanup"
+    }
+  },
+  "notes": [
+    "Estimate excludes ordinary outbound transfer and any operator-created resources.",
+    "Confirm actual billing after the campaign and update the final evidence artifact.",
+    "No RDS, MSK, NAT gateway, load balancer, EKS, or retained snapshot is in this plan."
+  ]
+}

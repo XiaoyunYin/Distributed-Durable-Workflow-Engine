@@ -93,7 +93,9 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      DUR048_ACTIVITY_DELAY_MS: ${DUR048_ACTIVITY_DELAY_MS:-0}
       RUNTIME_ENGINE_MODE: ${RUNTIME_ENGINE_MODE:-disabled}
+      DUR048_ALLOW_FIXTURE_ACTIVITY: ${DUR048_ALLOW_FIXTURE_ACTIVITY:-0}
       RUNTIME_SCHEDULER: "enabled"
       RUNTIME_NAMESPACE: local-runtime
       RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS: ${RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS:-0}
@@ -123,6 +125,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      DUR048_ACTIVITY_DELAY_MS: ${DUR048_ACTIVITY_DELAY_MS:-0}
+      DUR048_ALLOW_FIXTURE_ACTIVITY: ${DUR048_ALLOW_FIXTURE_ACTIVITY:-0}
     ports:
       - 127.0.0.1:${RUNTIME_B_PORT:-8081}:8080
     depends_on:
@@ -144,9 +148,12 @@ services:
     environment:
       WORKER_ADDR: 0.0.0.0:8081
       WORKER_ID: worker-a
+      # DUR-048 fixes total normal capacity at four slots: two per replica.
+      WORKER_SLOTS: "2"
       CONTROL_API_URL: http://runtime-a:8080
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      DUR048_ACTIVITY_DELAY_MS: ${DUR048_ACTIVITY_DELAY_MS:-0}
     ports:
       - 127.0.0.1:${WORKER_A_PORT:-8181}:8081
     depends_on:
@@ -166,9 +173,12 @@ services:
     environment:
       WORKER_ADDR: 0.0.0.0:8081
       WORKER_ID: worker-b
+      # DUR-048 fixes total normal capacity at four slots: two per replica.
+      WORKER_SLOTS: "2"
       CONTROL_API_URL: http://runtime-b:8080
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      DUR048_ACTIVITY_DELAY_MS: ${DUR048_ACTIVITY_DELAY_MS:-0}
     ports:
       - 127.0.0.1:${WORKER_B_PORT:-8182}:8081
     depends_on:
@@ -183,9 +193,14 @@ services:
 
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.160.0@sha256:799dc6cf12c96192af37b5bdba804da8c10b3bc563b43cb90c3f3c58d9572ad6
+    # The local file-backed trace store is an explicitly bounded development
+    # backend; production deployments should use a least-privilege collector
+    # image/volume provisioned by the deployment platform.
+    user: "0:0"
     command: ["--config=/etc/otelcol-contrib/config.yaml"]
     volumes:
       - ./otel-collector.yaml:/etc/otelcol-contrib/config.yaml:ro
+      - traces-data:/var/lib/otel
     ports:
       - ${OTEL_GRPC_PORT:-4317}:4317
       - ${OTEL_HTTP_PORT:-4318}:4318
@@ -209,3 +224,4 @@ volumes:
   postgres-data:
   kafka-data:
   prometheus-data:
+  traces-data:

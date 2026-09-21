@@ -9,17 +9,33 @@ import (
 	"encoding/json"
 
 	"durable-agent-execution-engine/internal/state"
+	"durable-agent-execution-engine/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 type Service struct {
-	store *state.Store
+	store   *state.Store
+	tracing *telemetry.Tracing
 }
 
 func New(store *state.Store) *Service {
 	return &Service{store: store}
 }
 
+func (s *Service) WithTracing(tracing *telemetry.Tracing) *Service {
+	s.tracing = tracing
+	return s
+}
+
 func (s *Service) Apply(ctx context.Context, input state.EffectApplyInput) (state.EffectReceipt, error) {
+	if s.tracing != nil {
+		spanCtx, span := s.tracing.Start(ctx, "effect.apply")
+		ctx = spanCtx
+		span.SetAttributes(attribute.String("durable.workflow_id", input.WorkflowID),
+			attribute.String("durable.effect_key", input.LogicalEffectKey),
+			attribute.String("durable.resource", input.ResourceID))
+		defer span.End()
+	}
 	return s.store.ApplyEffect(ctx, input)
 }
 

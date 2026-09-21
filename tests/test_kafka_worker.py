@@ -27,6 +27,35 @@ def test_malformed_delivery_preserves_raw_evidence() -> None:
     assert base64.b64decode(body["payload"]) == b"not-json"
 
 
+def test_traceparent_is_propagated_as_http_header_not_delivery_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    seen: list[tuple[str, dict[str, Any], str]] = []
+
+    def post(self: ControlClient, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        seen.append((path, body, self.traceparent))
+        return {"commit_offset": False, "task": None}
+
+    monkeypatch.setattr(ControlClient, "_post", post)
+    traced = SimpleNamespace(
+        topic="durable-agent.tasks.v1",
+        partition=2,
+        offset=4,
+        key=b"event",
+        value=b"not-json",
+        headers=[("traceparent", b"00-" + b"1" * 32 + b"-" + b"2" * 16 + b"-01")],
+    )
+    handle_delivery(
+        SimpleNamespace(commit=lambda _offsets: None),
+        traced,
+        RetryingControl("http://unused", threading.Event()),
+        "worker",
+    )
+    assert seen[0][0] == "/v1/worker-deliveries"
+    assert "traceparent" not in seen[0][1]
+    assert seen[0][2].startswith("00-")
+
+
 def test_inbox_precedes_offset_and_claim(monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
     bodies: list[dict[str, Any]] = []

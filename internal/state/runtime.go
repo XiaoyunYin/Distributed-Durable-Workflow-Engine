@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"os"
 )
 
 // RuntimeWork is a bounded, keyset-paged repair scan. Wakeups are hints; a
@@ -103,8 +104,9 @@ func RuntimeVersion(definition Definition, nodeID string) (string, bool) {
 		return "", false
 	}
 	version := versions[nodeID]
-	return version, definition.EffectClasses[nodeID] == EffectPure && version == "v1" &&
-		(nodeID == "pure.echo" || nodeID == "pure.add")
+	fixtureEnabled := os.Getenv("DUR048_ALLOW_FIXTURE_ACTIVITY") == "1"
+	allowlisted := nodeID == "pure.echo" || nodeID == "pure.add" || (fixtureEnabled && nodeID == "dur048.sleep")
+	return version, definition.EffectClasses[nodeID] == EffectPure && version == "v1" && allowlisted
 }
 
 func (s *Store) RuntimeActivity(ctx context.Context, namespace string, payload json.RawMessage) (*RuntimeActivity, error) {

@@ -1,9 +1,14 @@
 package telemetry
 
 import (
+	"context"
 	"strings"
 	"testing"
 	"time"
+
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.opentelemetry.io/otel/trace"
 )
 
 func TestMetricsRenderUsesBoundedRegistry(t *testing.T) {
@@ -70,5 +75,34 @@ func TestDurableReadyTimestampIsStable(t *testing.T) {
 	m.MarkDurableReady()
 	if got := m.Snapshot().DurableReadyUnix; got != first {
 		t.Fatalf("durable-ready timestamp changed from %d to %d", first, got)
+	}
+}
+
+func TestTraceparentRoundTripUsesW3CContext(t *testing.T) {
+	parent := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	ctx := ContextWithTraceparent(context.Background(), parent)
+	values := map[string]string{}
+	InjectMap(ctx, values)
+	if got := values["traceparent"]; got != parent {
+		t.Fatalf("traceparent = %q, want %q", got, parent)
+	}
+}
+
+func TestSchedulerSpanCarriesDurableWorkflowLink(t *testing.T) {
+	exporter := tracetest.NewInMemoryExporter()
+	provider := sdktrace.NewTracerProvider(sdktrace.WithSpanProcessor(sdktrace.NewSimpleSpanProcessor(exporter)))
+	tracing := &Tracing{tracer: provider.Tracer("durable-test")}
+	parent := "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"
+	parentContext := ContextWithTraceparent(context.Background(), parent)
+	parentSpanContext := trace.SpanContextFromContext(parentContext)
+	_, span := tracing.Start(context.Background(), "scheduler.workflow",
+		trace.WithLinks(trace.Link{SpanContext: parentSpanContext}))
+	span.End()
+	spans := exporter.GetSpans()
+	if len(spans) != 1 || len(spans[0].Links) != 1 {
+		t.Fatalf("scheduler span links = %+v, want one durable workflow link", spans)
+	}
+	if got := spans[0].Links[0].SpanContext.TraceID().String(); got != parentSpanContext.TraceID().String() {
+		t.Fatalf("linked trace ID = %s, want %s", got, parentSpanContext.TraceID())
 	}
 }

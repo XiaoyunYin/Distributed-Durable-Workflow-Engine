@@ -4,6 +4,11 @@
 !.env.example
 /.aws/
 /.secrets/
+**/.terraform/
+.tools/
+*.tfplan
+*.tfstate
+*.tfstate.*
 
 # Local agent instructions and project-management records.
 # Kept on disk for continued work; excluded from the current publishable tree.

@@ -30,15 +30,19 @@ class Claim:
 class ControlClient:
     """HTTP control client; broker payloads never grant permission to execute."""
 
-    def __init__(self, base_url: str, timeout: float = 10.0) -> None:
+    def __init__(self, base_url: str, timeout: float = 10.0, traceparent: str = "") -> None:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
+        self.traceparent = traceparent
 
     def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        headers = {"Content-Type": "application/json"}
+        if self.traceparent:
+            headers["traceparent"] = self.traceparent
         request = urllib.request.Request(
             f"{self.base_url}{path}",
             data=json.dumps(body, separators=(",", ":")).encode(),
-            headers={"Content-Type": "application/json"},
+            headers=headers,
             method="POST",
         )
         try:

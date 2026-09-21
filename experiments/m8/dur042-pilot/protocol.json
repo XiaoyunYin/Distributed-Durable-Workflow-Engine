@@ -1,0 +1,26 @@
+﻿{
+    "schema":  "dur048-deployed-pilot.v1",
+    "status":  "PASS",
+    "source_commit":  "dcefad7bb92feaa64fa3fce44ad603543e952355",
+    "modes":  [
+                  "normal",
+                  "recovery"
+              ],
+    "worker_slots":  4,
+    "transport":  "HTTP submission -\u003e PostgreSQL -\u003e outbox -\u003e Kafka -\u003e worker -\u003e receipt",
+    "trace_backend":  "OpenTelemetry Collector file exporter",
+    "effect_path":  "not_exercised",
+    "effect_span_scope":  "pure pilot activities do not reach the approved effect service; no effect-span claim is made",
+    "recovery_fault":  "worker-a process kill after confirmed delayed activity dispatch",
+    "fault_confirmation":  "dur048.sleep attempt was observed CLAIMED in PostgreSQL before worker-a was killed and stopped; worker-b resumed the durable replacement",
+    "evidence":  [
+                     "normal/normal.json",
+                     "recovery/recovery.json",
+                     "traces.jsonl"
+                 ],
+    "limitations":  [
+                        "local Compose pilot only; not AWS or production throughput",
+                        "recovery is an application-process kill, not a host or database failure",
+                        "durations use client UTC plus durable terminal state; no cross-host clock claim"
+                    ]
+}
