@@ -69,7 +69,7 @@ def main() -> int:
     scratch_root = Path(tempfile.mkdtemp(prefix="dur046-mutation-"))
     try:
         baseline = [
-            "go", "test", "./internal/reference", "./internal/api", "./internal/engine",
+            "go", "test", "-p", "1", "./internal/reference", "./internal/api", "./internal/engine",
             "./internal/invariants", "./internal/state", "-count=1",
         ]
         code, output = run(baseline, repo, base_env)
