@@ -28,6 +28,15 @@ function Get-Stats([double[]]$Values) {
     }
 }
 
+function Get-RepoRelativePath([string]$Path) {
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    $fullRoot = ([System.IO.Path]::GetFullPath($RepoRoot)).TrimEnd('\') + '\'
+    if (-not $fullPath.StartsWith($fullRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Path is outside the repository: $Path"
+    }
+    return $fullPath.Substring($fullRoot.Length).Replace('\', '/')
+}
+
 try {
     if ($Seed -eq 0) { throw "Seed must be non-zero." }
     if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
@@ -98,8 +107,8 @@ try {
     }
 
     $commit = (& git rev-parse HEAD).Trim()
-    $relativeSource = [System.IO.Path]::GetRelativePath($RepoRoot, $sourcePath).Replace("\", "/")
-    $relativePilot = [System.IO.Path]::GetRelativePath($RepoRoot, $pilotPath).Replace("\", "/")
+    $relativeSource = Get-RepoRelativePath $sourcePath
+    $relativePilot = Get-RepoRelativePath $pilotPath
     $protocol = [ordered]@{
         schema_version = "dur041a-local.v1"
         status = "PASS"
