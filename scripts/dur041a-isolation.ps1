@@ -87,13 +87,13 @@ try {
     Invoke-Required $toolPath @("-mode", "prepare", "-fixture", $fixturePath) | Out-Null
 
     $captured = $false
-    for ($attempt = 0; $attempt -lt 60; $attempt++) {
+    for ($attempt = 0; $attempt -lt 300; $attempt++) {
         $captureOutput = & $toolPath -mode capture -fixture $fixturePath 2>&1 | Out-String
         if ($LASTEXITCODE -eq 0) {
             $captured = $true
             break
         }
-        Start-Sleep -Milliseconds 500
+        Start-Sleep -Milliseconds 100
     }
     if (-not $captured) { throw "runtime-a did not acquire the fixture partition before the capture deadline." }
     $before = Get-Content -LiteralPath $fixturePath -Raw | ConvertFrom-Json

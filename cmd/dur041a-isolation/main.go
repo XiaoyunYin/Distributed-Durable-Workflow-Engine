@@ -23,6 +23,7 @@ type fixture struct {
 	DefinitionID     string    `json:"definition_id"`
 	Namespace        string    `json:"namespace"`
 	PartitionID      int16     `json:"partition_id"`
+	HoldWorkflowIDs  []string  `json:"hold_workflow_ids,omitempty"`
 	OldOwnerID       string    `json:"old_owner_id,omitempty"`
 	OldEpoch         int64     `json:"old_epoch,omitempty"`
 	NewOwnerID       string    `json:"new_owner_id,omitempty"`
@@ -99,7 +100,7 @@ func prepare(ctx context.Context, store *state.Store) fixture {
 	}); err != nil {
 		fatal(err.Error())
 	}
-	if _, err := store.CreateWorkflow(ctx, state.CreateWorkflowInput{
+	mainInput := state.CreateWorkflowInput{
 		WorkflowID:            workflowID,
 		Namespace:             namespace,
 		SubmissionKey:         workflowID,
@@ -110,11 +111,41 @@ func prepare(ctx context.Context, store *state.Store) fixture {
 		InitialNodeID:         "pure.echo",
 		InitialInput:          []byte(`{"value":"isolation-probe"}`),
 		ActorID:               "dur041a-probe",
-	}); err != nil {
+	}
+	if _, err := store.CreateWorkflow(ctx, mainInput); err != nil {
 		fatal(err.Error())
 	}
+	// Keep a same-partition cohort pending while the runtime is observed. The
+	// deployed scheduler acquires and releases a lease per workflow, so a
+	// single tiny fixture can be missed between polling attempts. These
+	// companions make the observation window durable without changing the
+	// fault: the original runtime process still owns the captured lease.
+	holdWorkflowIDs := make([]string, 0, 48)
+	for len(holdWorkflowIDs) < cap(holdWorkflowIDs) {
+		holdID := "dur041a-isolation-hold-" + state.NewID()
+		holdPartition, partitionErr := partition.ID(holdID)
+		if partitionErr != nil || int16(holdPartition) != int16(partitionID) {
+			continue
+		}
+		if _, err := store.CreateWorkflow(ctx, state.CreateWorkflowInput{
+			WorkflowID:            holdID,
+			Namespace:             namespace,
+			SubmissionKey:         holdID,
+			SubmissionPayloadHash: "sub-v1:" + holdID,
+			DefinitionID:          definitionID,
+			DefinitionVersion:     1,
+			PartitionID:           int16(partitionID),
+			InitialNodeID:         "pure.echo",
+			InitialInput:          []byte(`{"value":"isolation-hold"}`),
+			ActorID:               "dur041a-hold",
+		}); err != nil {
+			fatal(err.Error())
+		}
+		holdWorkflowIDs = append(holdWorkflowIDs, holdID)
+	}
 	return fixture{SchemaVersion: "dur041a-isolation.v1", WorkflowID: workflowID,
-		DefinitionID: definitionID, Namespace: namespace, PartitionID: int16(partitionID), ObservedAtUTC: time.Now().UTC()}
+		DefinitionID: definitionID, Namespace: namespace, PartitionID: int16(partitionID),
+		HoldWorkflowIDs: holdWorkflowIDs, ObservedAtUTC: time.Now().UTC()}
 }
 
 func capture(ctx context.Context, store *state.Store, item *fixture) {
@@ -177,7 +208,8 @@ func staleAttempt(ctx context.Context, store *state.Store, item *fixture) {
 }
 
 func cleanup(ctx context.Context, store *state.Store, item fixture) {
-	if _, err := store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE workflow_id = $1`, item.WorkflowID); err != nil {
+	workflowIDs := append([]string{item.WorkflowID}, item.HoldWorkflowIDs...)
+	if _, err := store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE workflow_id = ANY($1::text[])`, workflowIDs); err != nil {
 		fatal(fmt.Sprintf("cleanup workflow: %v", err))
 	}
 	if _, err := store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, item.DefinitionID); err != nil {
