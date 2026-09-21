@@ -34,3 +34,15 @@ Desktop/WSL2 process evidence, not multi-host or database-host durability.
 Generated campaign directories contain `protocol.json`, `pilot.json`,
 `dur027-source.json`, and `summary.json`. Review the source artifact and its
 independent checker output before quoting any result.
+
+## Recorded run
+
+The committed seed `410041` run is available at
+[`local-410041/summary.json`](local-recovery/local-410041/summary.json), with
+the full source episodes in
+[`local-410041/dur027-source.json`](local-recovery/local-410041/dur027-source.json)
+and scope metadata in
+[`local-410041/protocol.json`](local-recovery/local-410041/protocol.json).
+It reports 60 in-scope episodes, 180 fenced stale-owner writes, and zero false
+takeovers. Those numbers are local process evidence only; the lock-held
+takeover case remains R096 and is excluded.
