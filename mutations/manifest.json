@@ -23,7 +23,7 @@
       "id": "state-lease-timeout-classification",
       "file": "internal/state/store.go",
       "old": "return (errors.As(err, &pgErr) && pgErr.Code == \"55P03\") || errors.Is(err, context.DeadlineExceeded)",
-      "new": "return false // mutation: hide retryable lease timeouts",
+      "new": "return pgErr != nil && false // mutation: hide retryable lease timeouts",
       "command": ["go", "test", "./internal/state", "-run", "^TestLeaseAcquisitionTimeoutClassification$", "-count=1", "-v"],
       "expected": "PostgreSQL lock timeout",
       "requires_database": false
@@ -32,7 +32,7 @@
       "id": "engine-lease-fence",
       "file": "internal/engine/engine.go",
       "old": "if !acquired {",
-      "new": "if false { // mutation: borrow another owner's lease",
+      "new": "if acquired && false { // mutation: borrow another owner's lease",
       "command": ["go", "test", "./internal/engine", "-run", "^TestM1RunRequiresPartitionLease$", "-count=1", "-v"],
       "expected": "borrowed lease",
       "requires_database": true
@@ -59,7 +59,7 @@
       "id": "state-effect-argument-hash",
       "file": "internal/state/m4.go",
       "old": "if submittedArgumentHash != input.ArgumentHash {",
-      "new": "if false { // mutation: trust a self-asserted argument hash",
+      "new": "if false && submittedArgumentHash != input.ArgumentHash { // mutation: trust a self-asserted argument hash",
       "command": ["go", "test", "./internal/state", "-run", "^TestM4EffectLedgerAndFencing$", "-count=1", "-v"],
       "expected": "effect argument mismatch",
       "requires_database": true
