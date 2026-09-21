@@ -70,8 +70,10 @@ must be a separate campaign.
 The [48/48 named-fault campaign](experiments/m5/f01-f11-results.json) is separate
 bounded validation evidence, not a comparative performance result. The safeguard
 ablation resolved no cost effect because repeated runs were too variable.
-See the [technical report](docs/TECHNICAL_REPORT.md) for configurations,
-computed conclusions, limitations, and the claim-to-evidence register.
+The committed experiment artifacts carry the configurations, computed
+conclusions, limitations, and claim-to-evidence boundaries. Detailed
+engineering records are kept locally rather than published as recruiter-facing
+documentation.
 
 ### Scoped recovery case study
 
@@ -137,7 +139,7 @@ The deployed demo scans the `local-runtime` namespace and allows only
 `pure.echo/v1` and `pure.add/v1`. Unsupported activities pause instead of
 executing. Approval/effect execution is covered by the separate production-path
 integration test; the default deployment does not run remediation or paid models.
-See the [API reference](api/README.md) and [operations runbook](docs/RUNBOOK.md).
+See the [API reference](api/README.md) for the public endpoint surface.
 
 ## Validation
 
@@ -158,7 +160,7 @@ These commands make no paid model calls. Add `-WithM5` to service-mode CI only
 when intentionally rerunning the live fault campaign.
 
 For clean-source, fresh-volume reproduction and restart checks, use the
-[runbook](docs/RUNBOOK.md). Ordinary stop/resume preserves data:
+bootstrap commands above. Ordinary stop/resume preserves data:
 
 ```powershell
 docker compose --env-file .env -f deploy/local/compose.yaml down
@@ -169,11 +171,6 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 
 ## Design and evidence
 
-- [State, ownership, and effect contracts](docs/CONTRACTS.md)
-- [Graph interpreter](docs/INTERPRETER.md) and [frozen experiment protocols](docs/PROTOCOLS.md)
-- [Architecture decisions](docs/DECISIONS.md)
-- [Technical report and evidence register](docs/TECHNICAL_REPORT.md)
-- [Public review status and known limitations](docs/REVIEW_STATUS.md)
 - [Experiment reproduction notes](experiments/README.md)
 - [Portfolio recovery campaign scope](experiments/portfolio/README.md)
 
@@ -181,7 +178,7 @@ Adding `--volumes` to `down` permanently deletes local dependency data.
 
 - APIs are development-only, unauthenticated, and localhost-bound by default.
   Do not expose them to untrusted clients.
-- **R096 repair verified ([status](docs/REVIEW_STATUS.md#current-status)):**
+- **R096 repair verified:**
   a scheduler stalled inside a transaction can retain the lease-row lock beyond
   lease expiry and block takeover. Claude's round-55 review verified the
   committed repair: it bounds lock acquisition and scheduler iterations with a

@@ -12,12 +12,9 @@
 /CLAUDE.md
 /PLAN.md
 /REVIEW.md
-/docs/BUILD_LOG.md
-/docs/INTERVIEW_EVIDENCE.md
-/docs/R092_STUDY_GUIDE.md
-/docs/PORTFOLIO_ROADMAP.md
-/docs/RELEASE_CHECKLIST.md
-# Keep technical docs, architecture decisions, and reproducible evidence tracked.
+/docs/
+# Keep source, experiment artifacts, and runtime documentation outside docs/
+# tracked when they are part of the public reproduction surface.
 
 # Python
 .venv/
