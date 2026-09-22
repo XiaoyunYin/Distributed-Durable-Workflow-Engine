@@ -7,7 +7,8 @@ param(
     [string]$AwsProfile = $(if ($env:AWS_PROFILE) { $env:AWS_PROFILE } else { "portfolio-dev" }),
     [string]$Region = "us-west-1",
     [string]$TerraformDir = "deploy/aws",
-    [string]$OutputRoot = ""
+    [string]$OutputRoot = "",
+    [switch]$SelfTest
 )
 
 $ErrorActionPreference = "Stop"
@@ -22,6 +23,11 @@ $StartedApp1 = $false
 $StartedApp2 = $false
 $NetworkRulesInserted = $false
 $App1WasStopped = $false
+$FixtureDelayMS = 10000
+$ObservationHoldMS = 5000
+$FixtureActivityEnabled = $true
+$WorkerSlots = 2
+$FaultPorts = @(5432, 9092)
 
 function Invoke-Required([string]$Command, [string[]]$Arguments) {
     $previous = $ErrorActionPreference
@@ -124,19 +130,40 @@ function Get-Lease([string]$DependencyInstanceId, [int]$PartitionID) {
 }
 
 function Get-Workflow([string]$DependencyInstanceId, [string]$WorkflowID) {
-    $sql = "SELECT state, revision, COALESCE((SELECT state FROM engine.activity_attempts a WHERE a.workflow_id=w.workflow_id ORDER BY attempt_number DESC LIMIT 1),'NONE') FROM engine.workflow_executions w WHERE workflow_id='$WorkflowID';"
+    $sql = "SELECT state, revision, COALESCE((SELECT state FROM engine.activity_attempts a WHERE a.workflow_id=w.workflow_id ORDER BY attempt_number DESC LIMIT 1),'NONE'), COALESCE((SELECT attempt_number FROM engine.activity_attempts a WHERE a.workflow_id=w.workflow_id ORDER BY attempt_number DESC LIMIT 1),0), COALESCE((SELECT created_at::text FROM engine.activity_attempts a WHERE a.workflow_id=w.workflow_id ORDER BY attempt_number DESC LIMIT 1),''), updated_at::text FROM engine.workflow_executions w WHERE workflow_id='$WorkflowID';"
     $row = Invoke-DbSql $DependencyInstanceId $sql
-    $parts = $row -split '\|', 3
-    if ($parts.Count -lt 3) { throw "Workflow $WorkflowID was not found in PostgreSQL." }
-    return [ordered]@{ state = $parts[0]; revision = [int64]$parts[1]; attempt_state = $parts[2] }
+    $parts = $row -split '\|', 6
+    if ($parts.Count -lt 6) { throw "Workflow $WorkflowID was not found in PostgreSQL." }
+    return [ordered]@{ state = $parts[0]; revision = [int64]$parts[1]; attempt_state = $parts[2]; attempt_number = [int64]$parts[3]; attempt_created_at = $parts[4]; updated_at = $parts[5] }
 }
 
 function Get-PartitionID([string]$WorkflowID) {
     if ([string]::IsNullOrWhiteSpace($WorkflowID)) { throw "Workflow IDs must be supplied for the fault campaign." }
-    $digest = [System.Security.Cryptography.SHA256]::HashData([Text.Encoding]::UTF8.GetBytes($WorkflowID))
+    $sha256 = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $digest = $sha256.ComputeHash([Text.Encoding]::UTF8.GetBytes($WorkflowID))
+    } finally {
+        $sha256.Dispose()
+    }
     [uint64]$value = 0
     for ($index = 0; $index -lt 8; $index++) { $value = ($value -shl 8) -bor [uint64]$digest[$index] }
     return [int]($value % 16)
+}
+
+function Wait-FirstUsefulProgress([string]$DependencyInstanceId, [string]$WorkflowID, [int64]$PreviousAttemptNumber, [int]$TimeoutSeconds = 150) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $workflow = Get-Workflow $DependencyInstanceId $WorkflowID
+        if ($workflow.attempt_number -gt $PreviousAttemptNumber) {
+            return [ordered]@{ workflow = $workflow; observed_at_utc = ([DateTimeOffset]::Parse($workflow.attempt_created_at)).UtcDateTime }
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    throw "Workflow $WorkflowID did not commit a replacement attempt after the fault."
+}
+
+function DurationMilliseconds([DateTime]$Started, [DateTime]$Finished) {
+    return [math]::Round(($Finished - $Started).TotalMilliseconds, 3)
 }
 
 function Wait-Workflow([string]$DependencyInstanceId, [string]$WorkflowID, [int]$TimeoutSeconds = 120) {
@@ -161,6 +188,28 @@ function Set-AppMode([string]$InstanceId, [int]$DelayMS, [int]$HoldMS) {
     Send-Ssm $InstanceId $commands 300 | Out-Null
 }
 
+function Get-AppConfiguration([string]$InstanceId) {
+    $output = Send-Ssm $InstanceId @(
+        'set -e',
+        'cd /opt/durable-agent-execution-engine',
+        "grep -E '^(DUR048_ACTIVITY_DELAY_MS|DUR048_ALLOW_FIXTURE_ACTIVITY|RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS|WORKER_SLOTS)=' deploy/aws/.env"
+    )
+    $values = @{}
+    foreach ($line in ($output.Trim() -split "\r?\n")) {
+        if ($line -match '^(?<name>[A-Z0-9_]+)=(?<value>.*)$') { $values[$Matches.name] = $Matches.value }
+    }
+    foreach ($name in @('DUR048_ACTIVITY_DELAY_MS', 'DUR048_ALLOW_FIXTURE_ACTIVITY', 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS', 'WORKER_SLOTS')) {
+        if (-not $values.ContainsKey($name)) { throw "Remote app configuration is missing $name." }
+    }
+    return [ordered]@{
+        activity_delay_ms = [int]$values['DUR048_ACTIVITY_DELAY_MS']
+        fixture_activity_enabled = ([int]$values['DUR048_ALLOW_FIXTURE_ACTIVITY']) -eq 1
+        scheduler_hold_after_acquire_ms = [int]$values['RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS']
+        worker_slots = [int]$values['WORKER_SLOTS']
+        runtime_engine_mode = "disabled"
+    }
+}
+
 function Stop-AppRuntime([string]$InstanceId) {
     Send-Ssm $InstanceId @("set -e", "cd /opt/durable-agent-execution-engine", "docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml stop runtime worker") 120 | Out-Null
 }
@@ -181,39 +230,77 @@ function Observe-Runtime([string]$InstanceId) {
 }
 
 function Insert-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
+    $faultCommandAt = [DateTime]::UtcNow
+    $probe = "import socket; s=socket.create_connection(('$DependencyIP', 5432), 2); s.close(); print('reachable')"
+    $workerProbe = "docker compose --env-file '$RemoteEnv' -f '$AppCompose' exec -T worker python -c `"$probe`""
     $output = Send-Ssm $InstanceId @(
         "set -e",
-        "sudo iptables -I OUTPUT -d '$DependencyIP' -p tcp --dport 5432 -j REJECT",
-        "sudo iptables -I OUTPUT -d '$DependencyIP' -p tcp --dport 9092 -j REJECT",
+        "worker_cid=`$(docker compose --env-file '$RemoteEnv' -f '$AppCompose' ps -q worker)",
+        'test -n "$worker_cid"',
+        "printf 'connectivity_before='",
+        $workerProbe,
+        "sudo iptables -I DOCKER-USER -d '$DependencyIP' -p tcp --dport 5432 -j REJECT",
+        "sudo iptables -I DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -j REJECT",
         "cid=`$(docker compose --env-file '$RemoteEnv' -f '$AppCompose' ps -q runtime)",
         'test -n "$cid"',
         "printf 'container_state='",
         'docker inspect --format ''{{.State.Status}}|{{.State.Running}}|{{.State.Pid}}'' "$cid"',
-        "printf 'rules='",
-        "sudo iptables -S OUTPUT | grep -- '$DependencyIP'"
+        'test "$(docker inspect --format ''{{.State.Running}}'' "$cid")" = "true"',
+        "if $workerProbe >/tmp/dur043-connectivity-after.log 2>&1; then echo 'connectivity_after=reachable'; exit 1; else echo 'connectivity_after=blocked'; fi"
     )
+    $faultObservedAt = [DateTime]::UtcNow
+    if ($output -notmatch "connectivity_before=reachable") { throw "Network fault precondition was not observed from the worker container: $output" }
+    if ($output -notmatch "connectivity_after=blocked") { throw "Network fault was not observed from the worker container: $output" }
     if ($output -notmatch "container_state=running\|true\|") { throw "Network fault was not observed with the runtime container still running: $output" }
-    return $output.Trim()
+    return [ordered]@{
+        raw = $output.Trim()
+        command_at_utc = $faultCommandAt
+        observed_at_utc = $faultObservedAt
+        network_chain = "DOCKER-USER"
+        connectivity_before = "reachable"
+        connectivity_after = "blocked"
+        ports = $FaultPorts
+    }
 }
 
 function Remove-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
     Send-Ssm $InstanceId @(
-        "sudo iptables -D OUTPUT -d '$DependencyIP' -p tcp --dport 5432 -j REJECT || true",
-        "sudo iptables -D OUTPUT -d '$DependencyIP' -p tcp --dport 9092 -j REJECT || true"
+        "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 5432 -j REJECT || true",
+        "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -j REJECT || true"
     ) 120 | Out-Null
+}
+
+function Invoke-StaleProbe([string]$InstanceId, [string]$WorkflowID, [int]$PartitionID, [string]$OwnerID, [int64]$Epoch) {
+    $probeCommand = "docker exec `"`$cid`" /dur043-stale-probe -workflow-id '$WorkflowID' -partition-id $PartitionID -owner-id '$OwnerID' -epoch $Epoch"
+    $output = Send-Ssm $InstanceId @(
+        'set -e',
+        "cd /opt/durable-agent-execution-engine",
+        'cid=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml ps -q runtime)',
+        'test -n "$cid"',
+        $probeCommand
+    )
+    $jsonLine = ($output.Trim() -split "\r?\n" | Where-Object { $_ -match '^\s*\{' } | Select-Object -Last 1)
+    if ([string]::IsNullOrWhiteSpace($jsonLine)) { throw "Stale-owner probe returned no JSON: $output" }
+    $probe = $jsonLine | ConvertFrom-Json
+    if (-not $probe.stale_rejected -or $probe.before_revision -ne $probe.after_revision) {
+        throw "Stale-owner probe did not prove fencing: $output"
+    }
+    return $probe
 }
 
 function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [string]$DependencyIP, [string]$WorkflowID, [string]$OutputPath) {
     $partition = Get-PartitionID $WorkflowID
     Stop-AppRuntime $App2
-    Set-AppMode $App1 10000 5000
+    Set-AppMode $App1 $FixtureDelayMS $ObservationHoldMS
+    $app1Configuration = Get-AppConfiguration $App1
     $oldLease = Get-Lease $Dependency $partition
     if ([string]::IsNullOrWhiteSpace($oldLease.owner_id)) { throw "Application host 1 did not own partition $partition before network isolation." }
     $before = Get-Workflow $Dependency $WorkflowID
     if ($before.attempt_state -ne "CLAIMED") { throw "Network fixture must be observed CLAIMED before isolation; observed $($before.attempt_state)." }
     $faultObserved = Insert-NetworkBlock $App1 $DependencyIP
     $script:NetworkRulesInserted = $true
-    Set-AppMode $App2 10000 0
+    Set-AppMode $App2 $FixtureDelayMS 0
+    $app2Configuration = Get-AppConfiguration $App2
     $deadline = (Get-Date).AddSeconds(90)
     do {
         $newLease = Get-Lease $Dependency $partition
@@ -225,13 +312,13 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     Remove-NetworkBlock $App1 $DependencyIP
     $script:NetworkRulesInserted = $false
     $reconnected = Observe-Runtime $App1
+    $staleProbe = Invoke-StaleProbe $App1 $WorkflowID $partition $oldLease.owner_id $oldLease.epoch
+    $usefulProgress = Wait-FirstUsefulProgress $Dependency $WorkflowID $before.attempt_number 150
     $terminal = Wait-Workflow $Dependency $WorkflowID 150
-    $usefulProgressAt = [DateTime]::UtcNow
+    $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Network-isolated workflow did not recover to SUCCEEDED: $($terminal.state)" }
-    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND created_at > clock_timestamp() - interval '5 minutes';")
-    $logs = Send-Ssm $App1 @("cd /opt/durable-agent-execution-engine", "docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml logs --no-color --since 3m runtime 2>&1 | tail -200") 120
+    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND revision > $($before.revision);")
     if ($historyCount -ne 0) { throw "A transition carrying the superseded epoch was committed after takeover: $historyCount" }
-    if ($logs -notmatch '(?i)(not owned|stale|lease)') { throw "The reconnected original scheduler did not expose a stale-lease rejection in its logs." }
     $result = [ordered]@{
         fault = "app-host-postgres-network-isolation-and-reconnect"
         workflow_id = $WorkflowID
@@ -244,10 +331,16 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         original_runtime_observed = $reconnected
         workflow_before = $before
         workflow_after = $terminal
+        first_useful_progress = [ordered]@{ observed_at_utc = $usefulProgress.observed_at_utc.ToString("o"); workflow = $usefulProgress.workflow }
         superseded_epoch_transitions_after_takeover = $historyCount
-        stale_rejection_observed_in_reconnected_runtime_log = $true
+        stale_rejection = $staleProbe
         takeover_observed_at_utc = $takeoverAt.ToString("o")
-        useful_progress_observed_at_utc = $usefulProgressAt.ToString("o")
+        terminal_completion_at_utc = $terminalAt.ToString("o")
+        fault_command_to_observed_ms = DurationMilliseconds $faultObserved.command_at_utc $faultObserved.observed_at_utc
+        fault_observed_to_takeover_ms = DurationMilliseconds $faultObserved.observed_at_utc $takeoverAt
+        takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverAt $usefulProgress.observed_at_utc
+        fault_observed_to_terminal_completion_ms = DurationMilliseconds $faultObserved.observed_at_utc $terminalAt
+        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER" }
         limitation = "This arm isolates the app host from PostgreSQL while preserving its process; it is not a host-stop or database-host durability claim."
     }
     Write-Json $OutputPath $result
@@ -257,7 +350,8 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
 function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]$WorkflowID, [string]$OutputPath) {
     $partition = Get-PartitionID $WorkflowID
     Stop-AppRuntime $App2
-    Set-AppMode $App1 10000 5000
+    Set-AppMode $App1 $FixtureDelayMS $ObservationHoldMS
+    $app1Configuration = Get-AppConfiguration $App1
     $oldLease = Get-Lease $Dependency $partition
     if ([string]::IsNullOrWhiteSpace($oldLease.owner_id)) { throw "Application host 1 did not own partition $partition before host stop." }
     $before = Get-Workflow $Dependency $WorkflowID
@@ -272,9 +366,11 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     } while ($state -ne "stopped" -and (Get-Date) -lt $deadline)
     if ($state -ne "stopped") { throw "The application host did not reach stopped state after forced stop: $state" }
     $stoppedObserved = $true
+    $stoppedAt = [DateTime]::UtcNow
     $script:App1WasStopped = $true
-    $startAt = [DateTime]::UtcNow
-    Set-AppMode $App2 10000 0
+    Set-AppMode $App2 $FixtureDelayMS 0
+    $app2Configuration = Get-AppConfiguration $App2
+    $restartRequestedAt = [DateTime]::UtcNow
     Invoke-Aws @("ec2", "start-instances", "--instance-ids", $App1) | Out-Null
     $deadline = (Get-Date).AddMinutes(5)
     do {
@@ -282,6 +378,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         $state = (Invoke-Aws @("ec2", "describe-instances", "--instance-ids", $App1, "--query", "Reservations[0].Instances[0].State.Name", "--output", "text")).Trim()
     } while ($state -ne "running" -and (Get-Date) -lt $deadline)
     if ($state -ne "running") { throw "The application host did not return to running state: $state" }
+    $runningObservedAt = [DateTime]::UtcNow
     Wait-Ssm $App1
     Start-AppRuntime $App2
     $deadline = (Get-Date).AddSeconds(90)
@@ -291,10 +388,12 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
     if ($newLease.epoch -le $oldLease.epoch -or $newLease.owner_id -eq $oldLease.owner_id) { throw "Peer did not take over after the application host stop." }
+    $takeoverAt = [DateTime]::UtcNow
+    $usefulProgress = Wait-FirstUsefulProgress $Dependency $WorkflowID $before.attempt_number 180
     $terminal = Wait-Workflow $Dependency $WorkflowID 180
-    $usefulProgressAt = [DateTime]::UtcNow
+    $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Host-stop workflow did not recover to SUCCEEDED: $($terminal.state)" }
-    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND created_at > clock_timestamp() - interval '10 minutes';")
+    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND revision > $($before.revision);")
     if ($historyCount -ne 0) { throw "A transition carrying the stopped host's epoch was committed after takeover: $historyCount" }
     $result = [ordered]@{
         fault = "application-host-forced-stop-and-restart"
@@ -304,15 +403,38 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         original_epoch = $oldLease.epoch
         takeover_owner_id = $newLease.owner_id
         takeover_epoch = $newLease.epoch
-        fault_observed = [ordered]@{ stop_requested_at_utc = $stopRequestedAt.ToString("o"); stopped_state = $stoppedObserved; restarted_at_utc = $startAt.ToString("o"); ssm_online_after_restart = $true }
+        fault_observed = [ordered]@{ stop_requested_at_utc = $stopRequestedAt.ToString("o"); stopped_at_utc = $stoppedAt.ToString("o"); stopped_state = $stoppedObserved; restart_requested_at_utc = $restartRequestedAt.ToString("o"); running_observed_at_utc = $runningObservedAt.ToString("o"); ssm_online_after_restart = $true }
         workflow_before = $before
         workflow_after = $terminal
+        first_useful_progress = [ordered]@{ observed_at_utc = $usefulProgress.observed_at_utc.ToString("o"); workflow = $usefulProgress.workflow }
         superseded_epoch_transitions_after_takeover = $historyCount
-        useful_progress_observed_at_utc = $usefulProgressAt.ToString("o")
+        takeover_observed_at_utc = $takeoverAt.ToString("o")
+        terminal_completion_at_utc = $terminalAt.ToString("o")
+        stop_requested_to_running_ms = DurationMilliseconds $stopRequestedAt $runningObservedAt
+        running_to_takeover_ms = DurationMilliseconds $runningObservedAt $takeoverAt
+        takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverAt $usefulProgress.observed_at_utc
+        stop_requested_to_terminal_completion_ms = DurationMilliseconds $stopRequestedAt $terminalAt
+        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "not_applicable_host_stop" }
         limitation = "Host-stop recovery is measured separately from the preserved-process network arm; database-host durability remains out of scope."
     }
     Write-Json $OutputPath $result
     return $result
+}
+
+if ($SelfTest) {
+    $vectors = @(
+        [ordered]@{ workflow_id = "workflow-0001"; partition = 8 },
+        [ordered]@{ workflow_id = "workflow-0002"; partition = 14 },
+        [ordered]@{ workflow_id = "incident-2026-09-14-a"; partition = 0 },
+        [ordered]@{ workflow_id = "retry-key/abc"; partition = 0 },
+        [ordered]@{ workflow_id = "workflow-0003"; partition = 14 }
+    )
+    foreach ($vector in $vectors) {
+        $actual = Get-PartitionID $vector.workflow_id
+        if ($actual -ne $vector.partition) { throw "partition self-test failed for $($vector.workflow_id): got $actual, want $($vector.partition)" }
+    }
+    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 independent partition vectors."
+    return
 }
 
 Push-Location $RepoRoot
@@ -337,13 +459,14 @@ try {
     }
 
     $protocol = [ordered]@{
-        schema_version = "dur043-multihost.v1"
+        schema_version = "dur043-multihost.v2"
         status = "IN_PROGRESS"
         generated_at_utc = [DateTime]::UtcNow.ToString("o")
         git_commit = (git rev-parse HEAD).Trim()
         region = $Region
         topology = [ordered]@{ application_hosts = 2; dependency_hosts = 1; app_instance_ids = $appIDs; dependency_instance_id = $dependency; dependency_private_ip = $dependencyIP }
         scenarios = @($Scenario)
+        configuration = [ordered]@{ activity = "dur048.sleep"; requested_activity_delay_ms = $FixtureDelayMS; requested_scheduler_hold_after_acquire_ms = $ObservationHoldMS; requested_fixture_activity_enabled = $FixtureActivityEnabled; requested_worker_slots = $WorkerSlots; runtime_engine_mode = "disabled"; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER for network arm; not_applicable_host_stop for host arm" }
         required_observation = "SSM, EC2, Docker, and PostgreSQL state must confirm each fault; controller intent alone never produces PASS."
         results = @()
     }
@@ -363,7 +486,7 @@ try {
     Write-Json (Join-Path $OutputRoot "protocol.json") $protocol
     Write-Host "DUR-043 multi-host campaign PASS: $($Results.Count) fault arm(s) completed with zero superseded-epoch transitions."
 } catch {
-    $protocol = [ordered]@{ schema_version = "dur043-multihost.v1"; status = "FAIL"; generated_at_utc = [DateTime]::UtcNow.ToString("o"); git_commit = (git rev-parse HEAD).Trim(); scenarios = @($Scenario); error = $_.Exception.Message; results = $Results }
+    $protocol = [ordered]@{ schema_version = "dur043-multihost.v2"; status = "FAIL"; generated_at_utc = [DateTime]::UtcNow.ToString("o"); git_commit = (git rev-parse HEAD).Trim(); scenarios = @($Scenario); error = $_.Exception.Message; results = $Results }
     if (Test-Path -LiteralPath $OutputRoot) { Write-Json (Join-Path $OutputRoot "protocol.json") $protocol }
     throw
 } finally {

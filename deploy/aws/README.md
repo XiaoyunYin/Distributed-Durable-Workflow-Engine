@@ -71,6 +71,14 @@ rather than treating a requested command as proof that a fault occurred.
 
 ## Multi-host fault harness
 
+Before using AWS, run the local PowerShell 5.1-compatible partition self-test;
+it makes the campaign's independent partition mapping executable without any
+AWS calls:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dur043-multihost.ps1 -SelfTest
+```
+
 Create two active workflow fixtures whose activity is observed `CLAIMED`, one
 for each arm, then run the SSM-backed harness from the repository root:
 
@@ -86,3 +94,7 @@ network arm, drops only its PostgreSQL/Kafka path with host firewall rules,
 and uses a forced EC2 stop for the host arm. It writes `PASS` only after SSM,
 EC2, Docker, PostgreSQL lease/epoch rows, workflow progress, and superseded
 epoch history agree. A requested fault without observed state is a failure.
+The runtime image also contains `/dur043-stale-probe`, a campaign-only
+diagnostic used by the preserved-process arm to attempt a real stale-owner
+transition and verify both rejection and unchanged workflow revision; it is
+not the normal runtime entrypoint.

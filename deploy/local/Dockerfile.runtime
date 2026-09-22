@@ -5,11 +5,14 @@ COPY go.mod ./
 COPY go.sum ./
 COPY cmd ./cmd
 COPY internal ./internal
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/runtime ./cmd/runtime
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/runtime ./cmd/runtime \
+    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur043-stale-probe ./cmd/dur043-stale-probe
 
 FROM scratch
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /out/runtime /runtime
+# Campaign-only diagnostic; it is never the container entrypoint.
+COPY --from=build /out/dur043-stale-probe /dur043-stale-probe
 USER 65532:65532
 EXPOSE 8080
 ENTRYPOINT ["/runtime"]
