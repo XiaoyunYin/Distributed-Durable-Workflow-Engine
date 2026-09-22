@@ -5,7 +5,14 @@ exec > >(tee /var/log/durable-dur049-bootstrap.log | logger -t durable-dur049-bo
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y awscli ca-certificates curl git docker.io docker-compose-v2
+apt-get install -y ca-certificates curl git unzip docker.io docker-compose-v2
+if ! command -v aws >/dev/null 2>&1; then
+  curl --fail --silent --show-error --location https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
+  rm -rf /tmp/aws /usr/local/aws-cli
+  unzip -q /tmp/awscliv2.zip -d /tmp
+  /tmp/aws/install --update
+  rm -rf /tmp/aws /tmp/awscliv2.zip
+fi
 systemctl enable --now docker
 
 if ! swapon --show | grep -q .; then
