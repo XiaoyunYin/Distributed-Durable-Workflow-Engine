@@ -317,7 +317,10 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $terminal = Wait-Workflow $Dependency $WorkflowID 150
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Network-isolated workflow did not recover to SUCCEEDED: $($terminal.state)" }
-    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND revision > $($before.revision) AND created_at > '$($newLease.updated_at)';")
+    # Revision is the durable pre-fault boundary.  Do not use wall-clock
+    # timestamps here: transition_history.created_at is not a commit timestamp
+    # and the old owner may have made legitimate transitions before isolation.
+    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND revision > $($before.revision);")
     if ($historyCount -ne 0) { throw "A transition carrying the superseded epoch was committed after takeover: $historyCount" }
     $result = [ordered]@{
         fault = "app-host-postgres-network-isolation-and-reconnect"
@@ -393,7 +396,9 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $terminal = Wait-Workflow $Dependency $WorkflowID 180
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Host-stop workflow did not recover to SUCCEEDED: $($terminal.state)" }
-    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND revision > $($before.revision) AND created_at > '$($newLease.updated_at)';")
+    # The workflow revision captured before the stop is the authoritative
+    # boundary for post-fault mutations; wall-clock ordering is not.
+    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND revision > $($before.revision);")
     if ($historyCount -ne 0) { throw "A transition carrying the stopped host's epoch was committed after takeover: $historyCount" }
     $result = [ordered]@{
         fault = "application-host-forced-stop-and-restart"
