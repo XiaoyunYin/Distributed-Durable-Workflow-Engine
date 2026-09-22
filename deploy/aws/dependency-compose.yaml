@@ -62,9 +62,9 @@ services:
     volumes:
       - kafka-data:/var/lib/kafka/data
     healthcheck:
-      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server localhost:19092 --list >/dev/null 2>&1"]
+      test: ["CMD-SHELL", "bash -c '</dev/tcp/127.0.0.1/19092'"]
       interval: 10s
-      timeout: 30s
+      timeout: 5s
       retries: 60
       start_period: 120s
 
@@ -77,6 +77,16 @@ services:
       - /bin/bash
       - -ec
       - |
+        for attempt in $(seq 1 60); do
+          if timeout 45s /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --list >/dev/null 2>&1; then
+            break
+          fi
+          if [ "${attempt}" -eq 60 ]; then
+            echo 'Kafka admin API did not become ready' >&2
+            exit 1
+          fi
+          sleep 5
+        done
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic durable-agent.tasks.v1 --partitions 8 --replication-factor 1
         /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --create --if-not-exists --topic durable-agent.events.v1 --partitions 8 --replication-factor 1
 

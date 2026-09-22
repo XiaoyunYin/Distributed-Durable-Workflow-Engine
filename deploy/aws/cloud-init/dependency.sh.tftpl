@@ -47,6 +47,23 @@ cd /opt/durable-agent-execution-engine
 docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml up -d
 
 for attempt in $(seq 1 60); do
+  init_id=$(docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml ps -aq kafka-init || true)
+  init_status=$(docker inspect --format '{{.State.Status}}:{{.State.ExitCode}}' "$${init_id}" 2>/dev/null || true)
+  if [ "$${init_status}" = 'exited:0' ]; then
+    break
+  fi
+  if [[ "$${init_status}" == exited:* && "$${init_status}" != 'exited:0' ]]; then
+    echo "Kafka init failed: $${init_status}" >&2
+    exit 1
+  fi
+  if [ "$${attempt}" -eq 60 ]; then
+    echo 'Kafka init did not complete' >&2
+    exit 1
+  fi
+  sleep 5
+done
+
+for attempt in $(seq 1 60); do
   if docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T postgres pg_isready -U '${postgres_user}' -d '${postgres_db}' >/dev/null 2>&1; then
     break
   fi
