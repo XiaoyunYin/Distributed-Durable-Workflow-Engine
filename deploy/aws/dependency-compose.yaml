@@ -57,6 +57,7 @@ services:
       KAFKA_NUM_PARTITIONS: 8
       KAFKA_LOG_DIRS: /var/lib/kafka/data
       KAFKA_DELETE_TOPIC_ENABLE: "true"
+      KAFKA_HEAP_OPTS: -Xms256m -Xmx512m
     ports:
       - "9092:9092"
     volumes:
