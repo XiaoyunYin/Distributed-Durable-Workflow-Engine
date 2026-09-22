@@ -82,7 +82,7 @@ services:
           if timeout 45s /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --list >/dev/null 2>&1; then
             break
           fi
-          if [ "${attempt}" -eq 60 ]; then
+          if [ "$${attempt}" -eq 60 ]; then
             echo 'Kafka admin API did not become ready' >&2
             exit 1
           fi
