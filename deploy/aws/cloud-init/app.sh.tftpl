@@ -32,7 +32,7 @@ if [ ! -d /opt/durable-agent-execution-engine/.git ]; then
 fi
 
 umask 077
-postgres_password="$$(aws ssm get-parameter --name '${postgres_secret_parameter}' --with-decryption --region '${aws_region}' --query 'Parameter.Value' --output text)"
+postgres_password="$(aws ssm get-parameter --name '${postgres_secret_parameter}' --with-decryption --region '${aws_region}' --query 'Parameter.Value' --output text)"
 cat > /opt/durable-agent-execution-engine/deploy/aws/.env <<EOF
 POSTGRES_USER=${postgres_user}
 POSTGRES_DB=${postgres_db}
