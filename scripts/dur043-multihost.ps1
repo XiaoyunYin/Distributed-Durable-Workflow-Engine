@@ -123,10 +123,10 @@ function Invoke-DbSql([string]$DependencyInstanceId, [string]$Sql) {
 }
 
 function Get-Lease([string]$DependencyInstanceId, [int]$PartitionID) {
-    $row = Invoke-DbSql $DependencyInstanceId "SELECT COALESCE(owner_id::text,''), epoch, COALESCE(lease_expires_at::text,'') FROM engine.partition_leases WHERE partition_id=$PartitionID;"
-    $parts = $row -split '\|', 3
-    if ($parts.Count -lt 3) { throw "Could not read partition lease ${PartitionID}: $row" }
-    return [ordered]@{ owner_id = $parts[0]; epoch = [int64]$parts[1]; lease_expires_at = $parts[2] }
+    $row = Invoke-DbSql $DependencyInstanceId "SELECT COALESCE(owner_id::text,''), epoch, COALESCE(lease_expires_at::text,''), updated_at::text FROM engine.partition_leases WHERE partition_id=$PartitionID;"
+    $parts = $row -split '\|', 4
+    if ($parts.Count -lt 4) { throw "Could not read partition lease ${PartitionID}: $row" }
+    return [ordered]@{ owner_id = $parts[0]; epoch = [int64]$parts[1]; lease_expires_at = $parts[2]; updated_at = $parts[3] }
 }
 
 function Get-Workflow([string]$DependencyInstanceId, [string]$WorkflowID) {
@@ -317,7 +317,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $terminal = Wait-Workflow $Dependency $WorkflowID 150
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Network-isolated workflow did not recover to SUCCEEDED: $($terminal.state)" }
-    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND revision > $($before.revision);")
+    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND revision > $($before.revision) AND created_at > '$($newLease.updated_at)';")
     if ($historyCount -ne 0) { throw "A transition carrying the superseded epoch was committed after takeover: $historyCount" }
     $result = [ordered]@{
         fault = "app-host-postgres-network-isolation-and-reconnect"
@@ -393,7 +393,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $terminal = Wait-Workflow $Dependency $WorkflowID 180
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Host-stop workflow did not recover to SUCCEEDED: $($terminal.state)" }
-    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND revision > $($before.revision);")
+    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch=$($oldLease.epoch) AND revision > $($before.revision) AND created_at > '$($newLease.updated_at)';")
     if ($historyCount -ne 0) { throw "A transition carrying the stopped host's epoch was committed after takeover: $historyCount" }
     $result = [ordered]@{
         fault = "application-host-forced-stop-and-restart"
