@@ -228,6 +228,13 @@ function Get-Lease([string]$DependencyInstanceId, [int]$PartitionID) {
     return [ordered]@{ owner_id = $parts[0]; epoch = [int64]$parts[1]; lease_expires_at = $parts[2]; updated_at = $parts[3] }
 }
 
+function Test-LeaseSnapshotEqual([object]$Left, [object]$Right) {
+    return $Left.owner_id -ceq $Right.owner_id -and
+        [int64]$Left.epoch -eq [int64]$Right.epoch -and
+        $Left.lease_expires_at -ceq $Right.lease_expires_at -and
+        $Left.updated_at -ceq $Right.updated_at
+}
+
 function Get-Workflow([string]$DependencyInstanceId, [string]$WorkflowID) {
     $sql = "SELECT state, revision, COALESCE((SELECT state FROM engine.activity_attempts a WHERE a.workflow_id=w.workflow_id ORDER BY attempt_number DESC LIMIT 1),'NONE'), COALESCE((SELECT attempt_number FROM engine.activity_attempts a WHERE a.workflow_id=w.workflow_id ORDER BY attempt_number DESC LIMIT 1),0), COALESCE((SELECT created_at::text FROM engine.activity_attempts a WHERE a.workflow_id=w.workflow_id ORDER BY attempt_number DESC LIMIT 1),''), updated_at::text FROM engine.workflow_executions w WHERE workflow_id='$WorkflowID';"
     $row = Invoke-DbSql $DependencyInstanceId $sql
@@ -1605,8 +1612,25 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
     $ordering = Assert-LockHeldResultOrdering $takeover $useful
     $terminal = Wait-Workflow $Dependency $WorkflowID 120
     if ($terminal.state -ne 'SUCCEEDED') { throw "Peer did not consume the original attempt result to SUCCEEDED: $($terminal | ConvertTo-Json -Compress)" }
+    # The peer's first acquisition is not the stable post-completion lease
+    # state: a scheduler pass may release or reacquire before the terminal row
+    # leaves its scan. Sample until the durable row is unchanged twice, then
+    # compare the stale call against that state rather than the earlier epoch.
+    $previousLease = $null
+    $leaseBeforeReconnect = $null
+    for ($sample = 0; $sample -lt 30; $sample++) {
+        $currentLease = Get-Lease $Dependency $partition
+        if ($null -ne $previousLease -and (Test-LeaseSnapshotEqual $previousLease $currentLease)) {
+            $leaseBeforeReconnect = $currentLease
+            break
+        }
+        $previousLease = $currentLease
+        Start-Sleep -Seconds 1
+    }
+    if ($null -eq $leaseBeforeReconnect) { throw 'Peer lease row did not reach a stable post-completion state before reconnect.' }
     $checkpoint.peer_useful_progress = $useful
     $checkpoint.workflow_terminal_before_reconnect = $terminal
+    $checkpoint.lease_state_before_reconnect = $leaseBeforeReconnect
     $checkpoint.recovery_ordering = $ordering
     Save-EpisodeCheckpoint $OutputPath $checkpoint 'peer-consumed-result-before-reconnect'
 
@@ -1618,8 +1642,12 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
     $runtimePreserved = Assert-OriginalRuntimePreserved $runtimeBefore $runtimeAfterNetworkRestore
     $staleWrite = Wait-OwnerLockStaleWriteMarker $App1 $WorkflowID $lockMarker.owner_id $lockMarker.epoch 180
     $leaseAfterStaleWrite = Get-Lease $Dependency $partition
-    if ($leaseAfterStaleWrite.owner_id -ne $takeover.owner_id -or $leaseAfterStaleWrite.epoch -ne $takeover.epoch) {
-        throw "The original runtime's stale ReleaseLease changed the peer-owned lease: before=$($takeover | ConvertTo-Json -Compress), after=$($leaseAfterStaleWrite | ConvertTo-Json -Compress)"
+    $checkpoint.original_runtime_post_reconnect_stale_write = $staleWrite
+    $checkpoint.lease_state_before_reconnect = $leaseBeforeReconnect
+    $checkpoint.lease_state_after_stale_write = $leaseAfterStaleWrite
+    Save-EpisodeCheckpoint $OutputPath $checkpoint 'stale-write-rejection-observed'
+    if (-not (Test-LeaseSnapshotEqual $leaseBeforeReconnect $leaseAfterStaleWrite)) {
+        throw "The original runtime's stale ReleaseLease changed the stable lease row: before=$($leaseBeforeReconnect | ConvertTo-Json -Compress), after=$($leaseAfterStaleWrite | ConvertTo-Json -Compress)"
     }
     $workflowAfterStaleWrite = Get-Workflow $Dependency $WorkflowID
     if ($workflowAfterStaleWrite.revision -ne $terminal.revision -or $workflowAfterStaleWrite.state -ne 'SUCCEEDED') {
@@ -1659,6 +1687,7 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
         first_useful_progress = $useful
         recovery_ordering = $ordering
         original_runtime_post_reconnect_stale_write = $staleWrite
+        stable_lease_before_reconnect = $leaseBeforeReconnect
         peer_lease_unchanged_after_stale_write = $leaseAfterStaleWrite
         workflow_unchanged_after_stale_write = $workflowAfterStaleWrite
         workflow_terminal = $terminal
@@ -2035,6 +2064,11 @@ if ($SelfTest) {
     $resultSubmissionRetriedLog = $resultSubmissionLog.Replace('retries=0', 'retries=3')
     $ordinaryAcceptedResultLog = 'activity result submission workflow_id=wf-stale node_id=dur048.sleep iteration=0 attempt_number=7 worker_id=worker-1 attempt_state=SUCCEEDED payload_sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef outcome=accepted status=200 retries=0'
     $genericLeaseLog = 'scheduler lease observation hold enabled'
+    $leaseStable = [ordered]@{ owner_id = ''; epoch = [int64]125; lease_expires_at = ''; updated_at = '2026-09-23 22:30:27.431961+00' }
+    $leaseStableCopy = [ordered]@{ owner_id = ''; epoch = [int64]125; lease_expires_at = ''; updated_at = '2026-09-23 22:30:27.431961+00' }
+    $leaseAdvanced = [ordered]@{ owner_id = ''; epoch = [int64]126; lease_expires_at = ''; updated_at = '2026-09-23 22:30:31.431961+00' }
+    if (-not (Test-LeaseSnapshotEqual $leaseStable $leaseStableCopy)) { throw 'lease snapshot self-test rejected an identical post-completion row' }
+    if (Test-LeaseSnapshotEqual $leaseStable $leaseAdvanced) { throw 'lease snapshot self-test accepted an advanced epoch after the stale-write check' }
     if (-not (Test-WorkerStaleResultLog $staleResultLog 'wf-stale' $staleLogAttempt)) { throw 'stale-result log self-test rejected the positive result-operation control' }
     if (Test-WorkerStaleResultLog $staleHeartbeatLog 'wf-stale' $staleLogAttempt) { throw 'stale-result log self-test accepted a heartbeat rejection as a result rejection' }
     if (Test-WorkerStaleResultLog $genericLeaseLog 'wf-stale' $staleLogAttempt) { throw 'stale-result log self-test accepted an unrelated lease log line' }
@@ -2083,7 +2117,7 @@ if ($SelfTest) {
         $obligationFixture.workflow_duplicate_effect_calls -ne 0) {
         throw "Obligation-summary self-test failed to retain workflow, global, and database-wide counts."
     }
-    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, owner-change and same-owner recovery ordering controls, original worker/runtime identity controls, operation-specific stale-result log controls, row-lock probe controls, global obligation accounting, no-overwrite failure-protocol controls, and BOM-free AWS JSON."
+    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, owner-change and same-owner recovery ordering controls, stable lease snapshot controls, original worker/runtime identity controls, operation-specific stale-result log controls, row-lock probe controls, global obligation accounting, no-overwrite failure-protocol controls, and BOM-free AWS JSON."
     return
 }
 
