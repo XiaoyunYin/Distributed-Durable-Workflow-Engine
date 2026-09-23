@@ -178,7 +178,7 @@ function Wait-FirstUsefulProgress([string]$DependencyInstanceId, [string]$Workfl
 }
 
 function Wait-FirstUsefulRecoveryProgress([string]$DependencyInstanceId, [string]$WorkflowID, [int64]$PreviousAttemptNumber, [int64]$OldEpoch, [int]$TimeoutSeconds = 150) {
-    $sql = "SELECT scheduler_epoch, event_type, COALESCE(attempt_number,0), created_at::text FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch > $OldEpoch AND event_type='TIMEOUT_REPLACEMENT' ORDER BY revision LIMIT 1;"
+    $sql = "SELECT scheduler_epoch, event_type, COALESCE(attempt_number,0), created_at::text FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch > $OldEpoch AND COALESCE(attempt_number,0) > $PreviousAttemptNumber ORDER BY revision LIMIT 1;"
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
         $row = Invoke-DbSql $DependencyInstanceId $sql
