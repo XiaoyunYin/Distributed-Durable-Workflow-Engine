@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import base64
+import logging
 import threading
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
 from workers.control import ControlClient, ControlError
-from workers.kafka_worker import RetryingControl, delivery_body, handle_delivery
+from workers.kafka_worker import ActivityRunner, RetryingControl, delivery_body, handle_delivery
 
 
 def message() -> SimpleNamespace:
@@ -110,6 +111,46 @@ def test_no_offset_on_failed_inbox(monkeypatch: pytest.MonkeyPatch) -> None:
             "worker",
         )
     assert calls == []
+
+
+def test_late_result_rejection_log_identifies_workflow_and_attempt(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="workers.kafka_worker")
+
+    def post(_self: ControlClient, path: str, _body: dict[str, Any]) -> dict[str, Any]:
+        if path.endswith("worker-deliveries"):
+            return {
+                "commit_offset": True,
+                "next_offset": 5,
+                "task": {
+                    "workflow_id": "wf-stale",
+                    "node_id": "dur048.sleep",
+                    "iteration": 0,
+                    "attempt_number": 7,
+                    "activity_name": "dur048.sleep",
+                    "activity_version": "v1",
+                    "input": {},
+                },
+            }
+        raise AssertionError(f"unexpected control request: {path}")
+
+    def reject(_self: ActivityRunner, _task: Any) -> dict[str, Any]:
+        raise ControlError(409, "STALE_ATTEMPT", "attempt was replaced")
+
+    monkeypatch.setattr(ControlClient, "_post", post)
+    monkeypatch.setattr(ActivityRunner, "run_task", reject)
+    handle_delivery(
+        SimpleNamespace(commit=lambda _offsets: None),
+        message(),
+        RetryingControl("http://unused", threading.Event()),
+        "worker-1",
+    )
+
+    assert (
+        "delivery lost claim race workflow_id=wf-stale node_id=dur048.sleep "
+        "attempt_number=7 worker_id=worker-1 code=STALE_ATTEMPT"
+    ) in caplog.text
 
 
 def test_uncertain_result_retries_identical_body(monkeypatch: pytest.MonkeyPatch) -> None:

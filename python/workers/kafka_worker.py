@@ -123,7 +123,19 @@ def handle_delivery(consumer: Any, message: Any, control: RetryingControl, worke
     except ControlError as error:
         if error.code not in {"STALE_CLAIM", "STALE_ATTEMPT"}:
             raise
-        LOG.info("delivery lost claim race: %s", error.code)
+        # Keep the rejected delivery identity in the log. This is the durable
+        # evidence that a late worker result reached the API and was refused;
+        # an uncorrelated error-code line cannot distinguish it from another
+        # workflow's claim race during a recovery campaign.
+        LOG.info(
+            "delivery lost claim race "
+            "workflow_id=%s node_id=%s attempt_number=%s worker_id=%s code=%s",
+            task["workflow_id"],
+            task["node_id"],
+            task["attempt_number"],
+            worker_id,
+            error.code,
+        )
 
 
 def consume_slot(brokers: str, url: str, worker_id: str, stop: threading.Event) -> None:
