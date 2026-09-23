@@ -367,7 +367,8 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
     if ($newLease.epoch -le $oldLease.epoch -or $newLease.owner_id -eq $oldLease.owner_id) { throw "Peer did not take over partition $partition after network isolation." }
-    $takeoverAt = [DateTime]::UtcNow
+    $takeoverObservedAt = [DateTime]::UtcNow
+    $takeoverAt = ([DateTimeOffset]::Parse($newLease.updated_at)).UtcDateTime
     Remove-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP
     $script:NetworkRulesInserted = $false
     $reconnected = Observe-Runtime $App1
@@ -396,7 +397,8 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         first_useful_progress = [ordered]@{ observed_at_utc = $usefulProgress.observed_at_utc.ToString("o"); workflow = $usefulProgress.workflow }
         superseded_epoch_transitions_after_takeover = $historyCount
         stale_rejection = $staleProbe
-        takeover_observed_at_utc = $takeoverAt.ToString("o")
+        takeover_observed_at_utc = $takeoverObservedAt.ToString("o")
+        takeover_row_updated_at_utc = $takeoverAt.ToString("o")
         terminal_completion_at_utc = $terminalAt.ToString("o")
         fault_command_to_observed_ms = DurationMilliseconds $faultObserved.command_at_utc $faultObserved.observed_at_utc
         fault_observed_to_takeover_ms = DurationMilliseconds $faultObserved.observed_at_utc $takeoverAt
@@ -451,7 +453,8 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
     if ($newLease.epoch -le $oldLease.epoch -or $newLease.owner_id -eq $oldLease.owner_id) { throw "Peer did not take over after the application host stop." }
-    $takeoverAt = [DateTime]::UtcNow
+    $takeoverObservedAt = [DateTime]::UtcNow
+    $takeoverAt = ([DateTimeOffset]::Parse($newLease.updated_at)).UtcDateTime
     $usefulProgress = Wait-FirstUsefulProgress $Dependency $WorkflowID $before.attempt_number 180
     $terminal = Wait-Workflow $Dependency $WorkflowID 180
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
@@ -473,7 +476,8 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         workflow_after = $terminal
         first_useful_progress = [ordered]@{ observed_at_utc = $usefulProgress.observed_at_utc.ToString("o"); workflow = $usefulProgress.workflow }
         superseded_epoch_transitions_after_takeover = $historyCount
-        takeover_observed_at_utc = $takeoverAt.ToString("o")
+        takeover_observed_at_utc = $takeoverObservedAt.ToString("o")
+        takeover_row_updated_at_utc = $takeoverAt.ToString("o")
         terminal_completion_at_utc = $terminalAt.ToString("o")
         stop_requested_to_running_ms = DurationMilliseconds $stopRequestedAt $runningObservedAt
         running_to_takeover_ms = DurationMilliseconds $runningObservedAt $takeoverAt
