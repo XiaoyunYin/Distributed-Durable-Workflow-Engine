@@ -206,7 +206,7 @@ function Wait-ClaimedWorkflow([string]$DependencyInstanceId, [string]$WorkflowID
 }
 
 function Wait-LeaseTakeover([string]$DependencyInstanceId, [int]$PartitionID, [string]$OldOwnerID, [int64]$OldEpoch, [int]$TimeoutSeconds = 90) {
-    $sql = "SELECT COALESCE(owner_id::text,''), epoch, COALESCE(lease_expires_at::text,''), to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD`"T`"HH24:MI:SS.MS`"Z`"') FROM engine.partition_leases WHERE partition_id=$PartitionID;"
+    $sql = "SELECT owner_id::text, epoch, lease_expires_at::text, updated_at::text FROM engine.partition_leases WHERE partition_id=$PartitionID;"
     $command = 'set -e; for i in $(seq 1 {0}); do row=$(docker compose --env-file ''{1}'' -f ''{2}'' exec -T postgres psql -U ''{3}'' -d ''{4}'' -At -F ''|'' -c ''{5}''); epoch=$(echo "$row" | cut -d''|'' -f2); owner=$(echo "$row" | cut -d''|'' -f1); if [ "$epoch" -gt ''{6}'' ] && [ "$owner" != ''{7}'' ]; then echo "$row|$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"; exit 0; fi; sleep 1; done; exit 1' -f $TimeoutSeconds, $RemoteEnv, $DependencyCompose, $DependencyUser, $DependencyDatabase, $sql, $OldEpoch, $OldOwnerID
     $output = Send-Ssm $DependencyInstanceId @($command) ($TimeoutSeconds + 30)
     $parts = $output.Trim() -split '\|', 5
