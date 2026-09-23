@@ -24,6 +24,7 @@ $DependencyDatabase = "durable"
 $Results = @()
 $script:CurrentEpisodePath = $null
 $script:CurrentEpisodeState = $null
+$script:OutputRootCreatedByThisRun = $false
 $script:AttemptLedgerPath = $null
 $script:AttemptLedgerSequence = 0
 $protocol = $null
@@ -76,6 +77,12 @@ function Write-Json([string]$Path, [object]$Value) {
     $json = $Value | ConvertTo-Json -Depth 16
     $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
     [System.IO.File]::WriteAllText($Path, $json, $utf8NoBom)
+}
+
+function Save-FailureProtocolIfOwned([bool]$CreatedByThisRun, [string]$OutputPath, [object]$Protocol) {
+    if (-not $CreatedByThisRun -or -not (Test-Path -LiteralPath $OutputPath -PathType Container)) { return $false }
+    Write-Json (Join-Path $OutputPath 'protocol.json') $Protocol
+    return $true
 }
 
 function Append-AttemptLedger([System.Collections.IDictionary]$Episode) {
@@ -1547,7 +1554,22 @@ if ($SelfTest) {
     } finally {
         Remove-Item -LiteralPath $jsonSelfTestPath -Force -ErrorAction SilentlyContinue
     }
-    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original-worker identity controls, row-lock probe positive/negative controls, and BOM-free AWS JSON."
+    $failureProtocolPath = Join-Path $RepoRoot ".scratch/dur043-failure-protocol-selftest"
+    try {
+        New-Item -ItemType Directory -Force -Path $failureProtocolPath | Out-Null
+        $originalProtocol = [ordered]@{ status = 'IN_PROGRESS'; marker = 'preserve-existing' }
+        Write-Json (Join-Path $failureProtocolPath 'protocol.json') $originalProtocol
+        $replacementProtocol = [ordered]@{ status = 'FAIL'; marker = 'must-not-overwrite' }
+        if (Save-FailureProtocolIfOwned $false $failureProtocolPath $replacementProtocol) { throw 'Failure handler wrote into an output directory not created by this invocation.' }
+        $preservedProtocol = Get-Content (Join-Path $failureProtocolPath 'protocol.json') -Raw | ConvertFrom-Json
+        if ($preservedProtocol.status -ne 'IN_PROGRESS' -or $preservedProtocol.marker -ne 'preserve-existing') { throw 'Failure handler modified pre-existing evidence.' }
+        if (-not (Save-FailureProtocolIfOwned $true $failureProtocolPath $replacementProtocol)) { throw 'Failure handler refused to write into its owned output directory.' }
+        $ownedProtocol = Get-Content (Join-Path $failureProtocolPath 'protocol.json') -Raw | ConvertFrom-Json
+        if ($ownedProtocol.status -ne 'FAIL' -or $ownedProtocol.marker -ne 'must-not-overwrite') { throw 'Failure handler did not write the owned failure protocol.' }
+    } finally {
+        Remove-Item -LiteralPath $failureProtocolPath -Recurse -Force -ErrorAction SilentlyContinue
+    }
+    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original-worker identity controls, row-lock probe controls, no-overwrite failure-protocol controls, and BOM-free AWS JSON."
     return
 }
 
@@ -1564,6 +1586,7 @@ try {
     elseif (-not [System.IO.Path]::IsPathRooted($OutputRoot)) { $OutputRoot = Join-Path $RepoRoot $OutputRoot }
     if (Test-Path -LiteralPath $OutputRoot) { throw "Refusing to overwrite existing evidence: $OutputRoot" }
     New-Item -ItemType Directory -Force -Path $OutputRoot | Out-Null
+    $script:OutputRootCreatedByThisRun = $true
     $script:AttemptLedgerPath = Join-Path $OutputRoot "attempt-ledger.jsonl"
     if (Test-Path -LiteralPath $script:AttemptLedgerPath) { throw "Refusing to append to existing attempt ledger: $script:AttemptLedgerPath" }
 
@@ -1664,7 +1687,7 @@ try {
     $protocol.error = $_.Exception.Message
     if ($null -ne $script:CurrentEpisodeState) { $protocol.last_episode_stage = $script:CurrentEpisodeState.stage }
     $protocol.results = $Results
-    if (Test-Path -LiteralPath $OutputRoot) { Write-Json (Join-Path $OutputRoot "protocol.json") $protocol }
+    $null = Save-FailureProtocolIfOwned $script:OutputRootCreatedByThisRun $OutputRoot $protocol
     throw
 } finally {
     if ($NetworkRulesInserted) { try { Remove-NetworkBlock $appIDs[0] $dependency $dependencyIP $appPrivateIPs[0] } catch { Write-Warning "Could not remove network rules during cleanup: $_" } }
