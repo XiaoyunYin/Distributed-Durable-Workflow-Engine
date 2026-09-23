@@ -253,11 +253,11 @@ function Observe-Runtime([string]$InstanceId) {
     return $output.Trim()
 }
 
-function Insert-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
+function Insert-NetworkBlock([string]$AppInstanceId, [string]$DependencyInstanceId, [string]$DependencyIP, [string]$AppPrivateIP) {
     $faultCommandAt = [DateTime]::UtcNow
     $probe = "import socket; s=socket.create_connection(('$DependencyIP', 5432), 2); s.close(); print('reachable')"
     $workerProbe = "docker compose --env-file '$RemoteEnv' -f '$AppCompose' exec -T worker python -c `"$probe`""
-    $output = Send-Ssm $InstanceId @(
+    $appBeforeOutput = Send-Ssm $AppInstanceId @(
         "set -e",
         "worker_cid=`$(docker compose --env-file '$RemoteEnv' -f '$AppCompose' ps -q worker)",
         'test -n "$worker_cid"',
@@ -270,14 +270,27 @@ function Insert-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
         'worker_pid=$(docker inspect --format "{{.State.Pid}}" "$worker_cid")',
         'test "$worker_pid" -gt 0',
         "command -v conntrack",
-        "sudo conntrack -D -d '$DependencyIP' || true",
         "cid=`$(docker compose --env-file '$RemoteEnv' -f '$AppCompose' ps -q runtime)",
         'test -n "$cid"',
         "printf 'container_state='",
         'docker inspect --format ''{{.State.Status}}|{{.State.Running}}|{{.State.Pid}}'' "$cid"',
         'test "$(docker inspect --format ''{{.State.Running}}'' "$cid")" = "true"',
+        "sudo conntrack -D -d '$DependencyIP' || true"
+    )
+    $dependencyOutput = Send-Ssm $DependencyInstanceId @(
+        "set -e",
+        "sudo iptables -I INPUT -s '$AppPrivateIP' -p tcp --dport 5432 -j REJECT",
+        "sudo iptables -I INPUT -s '$AppPrivateIP' -p tcp --dport 5432 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT",
+        "sudo iptables -I INPUT -s '$AppPrivateIP' -p tcp --dport 9092 -j REJECT",
+        "sudo iptables -I INPUT -s '$AppPrivateIP' -p tcp --dport 9092 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT",
+        "command -v conntrack",
+        "sudo conntrack -D -s '$AppPrivateIP' || true"
+    )
+    $appAfterOutput = Send-Ssm $AppInstanceId @(
+        "set -e",
         "if $workerProbe >/tmp/dur043-connectivity-after.log 2>&1; then echo 'connectivity_after=reachable'; exit 1; else echo 'connectivity_after=blocked'; fi"
     )
+    $output = "$appBeforeOutput`n$dependencyOutput`n$appAfterOutput"
     $faultObservedAt = [DateTime]::UtcNow
     if ($output -notmatch "connectivity_before=reachable") { throw "Network fault precondition was not observed from the worker container: $output" }
     if ($output -notmatch "connectivity_after=blocked") { throw "Network fault was not observed from the worker container: $output" }
@@ -286,21 +299,28 @@ function Insert-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
         raw = $output.Trim()
         command_at_utc = $faultCommandAt
         observed_at_utc = $faultObservedAt
-        network_chain = "DOCKER-USER"
+        network_chain = "DOCKER-USER plus dependency INPUT"
         network_match_states = @("NEW", "ESTABLISHED", "RELATED")
         established_flow_termination = "host conntrack deletion for dependency destination"
+        dependency_source_ip = $AppPrivateIP
         connectivity_before = "reachable"
         connectivity_after = "blocked"
         ports = $FaultPorts
     }
 }
 
-function Remove-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
-    Send-Ssm $InstanceId @(
+function Remove-NetworkBlock([string]$AppInstanceId, [string]$DependencyInstanceId, [string]$DependencyIP, [string]$AppPrivateIP) {
+    Send-Ssm $AppInstanceId @(
         "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 5432 -j REJECT || true",
         "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 5432 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT || true",
         "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -j REJECT || true",
         "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT || true"
+    ) 120 | Out-Null
+    Send-Ssm $DependencyInstanceId @(
+        "sudo iptables -D INPUT -s '$AppPrivateIP' -p tcp --dport 5432 -j REJECT || true",
+        "sudo iptables -D INPUT -s '$AppPrivateIP' -p tcp --dport 5432 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT || true",
+        "sudo iptables -D INPUT -s '$AppPrivateIP' -p tcp --dport 9092 -j REJECT || true",
+        "sudo iptables -D INPUT -s '$AppPrivateIP' -p tcp --dport 9092 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT || true"
     ) 120 | Out-Null
 }
 
@@ -322,7 +342,7 @@ function Invoke-StaleProbe([string]$InstanceId, [string]$WorkflowID, [int]$Parti
     return $probe
 }
 
-function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [string]$DependencyIP, [string]$WorkflowID, [string]$OutputPath) {
+function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [string]$DependencyIP, [string]$AppPrivateIP, [string]$WorkflowID, [string]$OutputPath) {
     $partition = Get-PartitionID $WorkflowID
     Stop-AppRuntime $App2
     Set-AppMode $App1 $FixtureDelayMS $ObservationHoldMS
@@ -332,8 +352,8 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $before = $claimed.workflow
     if ([string]::IsNullOrWhiteSpace($oldLease.owner_id)) { throw "Application host 1 did not own partition $partition before network isolation." }
     if ($before.attempt_state -ne "CLAIMED") { throw "Network fixture must be observed CLAIMED before isolation; observed $($before.attempt_state)." }
-    $faultObserved = Insert-NetworkBlock $App1 $DependencyIP
     $script:NetworkRulesInserted = $true
+    $faultObserved = Insert-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP
     Set-AppMode $App2 $FixtureDelayMS 0
     $app2Configuration = Get-AppConfiguration $App2
     $deadline = (Get-Date).AddSeconds(90)
@@ -344,7 +364,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     } while ((Get-Date) -lt $deadline)
     if ($newLease.epoch -le $oldLease.epoch -or $newLease.owner_id -eq $oldLease.owner_id) { throw "Peer did not take over partition $partition after network isolation." }
     $takeoverAt = [DateTime]::UtcNow
-    Remove-NetworkBlock $App1 $DependencyIP
+    Remove-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP
     $script:NetworkRulesInserted = $false
     $reconnected = Observe-Runtime $App1
     $staleProbe = Invoke-StaleProbe $App1 $WorkflowID $partition $oldLease.owner_id $oldLease.epoch
@@ -378,7 +398,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         fault_observed_to_takeover_ms = DurationMilliseconds $faultObserved.observed_at_utc $takeoverAt
         takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverAt $usefulProgress.observed_at_utc
         fault_observed_to_terminal_completion_ms = DurationMilliseconds $faultObserved.observed_at_utc $terminalAt
-        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion for dependency destination" }
+        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion for dependency destination"; dependency_source_ip = $AppPrivateIP }
         limitation = "This arm isolates the app host from PostgreSQL while preserving its process; it is not a host-stop or database-host durability claim."
     }
     Write-Json $OutputPath $result
@@ -503,7 +523,8 @@ try {
     $dependency = [string](Get-OutputValue $outputs "dependency_instance_id")
     $dependencyIP = [string](Get-OutputValue $outputs "dependency_private_ip")
     $appIDs = @((Get-OutputValue $outputs "app_instance_ids") | ForEach-Object { [string]$_ })
-    if ($appIDs.Count -ne 2 -or [string]::IsNullOrWhiteSpace($dependency) -or [string]::IsNullOrWhiteSpace($dependencyIP)) { throw "Terraform outputs do not describe two app hosts and one dependency host." }
+    $appPrivateIPs = @((Get-OutputValue $outputs "app_private_ips") | ForEach-Object { [string]$_ })
+    if ($appIDs.Count -ne 2 -or $appPrivateIPs.Count -ne 2 -or [string]::IsNullOrWhiteSpace($dependency) -or [string]::IsNullOrWhiteSpace($dependencyIP)) { throw "Terraform outputs do not describe two app hosts and one dependency host." }
     foreach ($instance in @($dependency) + $appIDs) {
         $state = (Invoke-Aws @("ec2", "describe-instances", "--instance-ids", $instance, "--query", "Reservations[0].Instances[0].State.Name", "--output", "text")).Trim()
         if ($state -ne "running") { throw "Instance $instance is not running: $state" }
@@ -516,16 +537,16 @@ try {
         generated_at_utc = [DateTime]::UtcNow.ToString("o")
         git_commit = (git rev-parse HEAD).Trim()
         region = $Region
-        topology = [ordered]@{ application_hosts = 2; dependency_hosts = 1; app_instance_ids = $appIDs; dependency_instance_id = $dependency; dependency_private_ip = $dependencyIP }
+        topology = [ordered]@{ application_hosts = 2; dependency_hosts = 1; app_instance_ids = $appIDs; app_private_ips = $appPrivateIPs; dependency_instance_id = $dependency; dependency_private_ip = $dependencyIP }
         scenarios = @($Scenario)
-        configuration = [ordered]@{ activity = "dur048.sleep"; requested_activity_delay_ms = $FixtureDelayMS; requested_scheduler_hold_after_acquire_ms = $ObservationHoldMS; requested_fixture_activity_enabled = $FixtureActivityEnabled; requested_worker_slots = $WorkerSlots; runtime_engine_mode = "disabled"; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER for network arm; not_applicable_host_stop for host arm"; network_match_states = @("NEW", "ESTABLISHED", "RELATED") }
+        configuration = [ordered]@{ activity = "dur048.sleep"; requested_activity_delay_ms = $FixtureDelayMS; requested_scheduler_hold_after_acquire_ms = $ObservationHoldMS; requested_fixture_activity_enabled = $FixtureActivityEnabled; requested_worker_slots = $WorkerSlots; runtime_engine_mode = "disabled"; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT for network arm; not_applicable_host_stop for host arm"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion for dependency destination" }
         required_observation = "SSM, EC2, Docker, and PostgreSQL state must confirm each fault; controller intent alone never produces PASS."
         results = @()
     }
     Write-Json (Join-Path $OutputRoot "protocol.json") $protocol
 
     if ($Scenario -in @("all", "network")) {
-        $networkResult = Run-NetworkArm $appIDs[0] $appIDs[1] $dependency $dependencyIP $NetworkWorkflowId (Join-Path $OutputRoot "network-isolation.json")
+        $networkResult = Run-NetworkArm $appIDs[0] $appIDs[1] $dependency $dependencyIP $appPrivateIPs[0] $NetworkWorkflowId (Join-Path $OutputRoot "network-isolation.json")
         $Results += $networkResult
     }
     if ($Scenario -in @("all", "host")) {
@@ -542,7 +563,7 @@ try {
     if (Test-Path -LiteralPath $OutputRoot) { Write-Json (Join-Path $OutputRoot "protocol.json") $protocol }
     throw
 } finally {
-    if ($NetworkRulesInserted) { try { Remove-NetworkBlock $appIDs[0] $dependencyIP } catch { Write-Warning "Could not remove network rules during cleanup: $_" } }
+    if ($NetworkRulesInserted) { try { Remove-NetworkBlock $appIDs[0] $dependency $dependencyIP $appPrivateIPs[0] } catch { Write-Warning "Could not remove network rules during cleanup: $_" } }
     if ($App1WasStopped) { try { Invoke-Aws @("ec2", "start-instances", "--instance-ids", $appIDs[0]) | Out-Null } catch { Write-Warning "Could not restart app host 1 during cleanup: $_" } }
     Pop-Location
 }
