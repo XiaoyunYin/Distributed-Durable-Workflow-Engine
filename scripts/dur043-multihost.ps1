@@ -508,7 +508,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         takeover_owner_id = $newLease.owner_id
         takeover_epoch = $newLease.epoch
         recovery_transition_epoch = $usefulProgress.transition.scheduler_epoch
-        recovery_transition_epoch_delta = $usefulProgress.transition.scheduler_epoch - $newLease.epoch
+        recovery_transition_matches_observed_epoch = ($usefulProgress.transition.scheduler_epoch -eq $newLease.epoch)
         fault_observed = [ordered]@{ stop_requested_at_utc = $stopRequestedAt.ToString("o"); stopped_at_utc = $stoppedAt.ToString("o"); stopped_state = $stoppedObserved; restart_requested_at_utc = $restartRequestedAt.ToString("o"); running_observed_at_utc = $runningObservedAt.ToString("o"); ssm_online_after_restart = $true; original_runtime_observed = $originalRuntimeObserved }
         workflow_before = $before
         workflow_after = $terminal
@@ -522,7 +522,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         takeover_to_original_reconnect_ms = DurationMilliseconds $takeoverObservedAt $runningObservedAt
         stop_requested_to_first_useful_progress_ms = DurationMilliseconds $stopRequestedAt $usefulProgress.observed_at_utc
         takeover_to_first_useful_progress_ms = $null
-        takeover_to_first_useful_progress_note = "The lease epoch can advance again while the original attempt waits for timeout; initial takeover and recovery-transition epochs are recorded separately. TIMEOUT_REPLACEMENT is the first committed transition for the recovered attempt and stop-to-progress is measured directly."
+        takeover_to_first_useful_progress_note = "partition_leases stores only the current lease, not takeover history; its observed epoch may be newer than the historical recovery transition. TIMEOUT_REPLACEMENT is the first committed transition for the recovered attempt and stop-to-progress is measured directly."
         first_useful_progress_transition = $usefulProgress.transition
         stop_requested_to_terminal_completion_ms = DurationMilliseconds $stopRequestedAt $terminalAt
         configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "not_applicable_host_stop"; network_match_states = @("not_applicable") }
