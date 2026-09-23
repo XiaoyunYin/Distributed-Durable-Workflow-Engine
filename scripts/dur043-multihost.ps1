@@ -24,7 +24,11 @@ $StartedApp2 = $false
 $NetworkRulesInserted = $false
 $App1WasStopped = $false
 $FixtureDelayMS = 10000
-$ObservationHoldMS = 5000
+# Keep the observation hold below the runtime scheduler's fixed 5s iteration
+# deadline.  A hold equal to that deadline makes every fixture pass expire
+# before the scheduler can schedule the activity, producing a false liveness
+# failure instead of a claimed attempt.
+$ObservationHoldMS = 1000
 $FixtureActivityEnabled = $true
 $WorkerSlots = 2
 $FaultPorts = @(5432, 9092)
