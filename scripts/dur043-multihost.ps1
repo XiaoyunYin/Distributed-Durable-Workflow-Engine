@@ -177,20 +177,20 @@ function Wait-FirstUsefulProgress([string]$DependencyInstanceId, [string]$Workfl
     throw "Workflow $WorkflowID did not commit a replacement attempt after the fault."
 }
 
-function Wait-FirstUsefulProgressAfterObservation([string]$DependencyInstanceId, [string]$WorkflowID, [int64]$PreviousAttemptNumber, [DateTime]$TakeoverAt, [int]$TimeoutSeconds = 150) {
+function Wait-FirstUsefulRecoveryProgress([string]$DependencyInstanceId, [string]$WorkflowID, [int64]$PreviousAttemptNumber, [int64]$OldEpoch, [int]$TimeoutSeconds = 150) {
+    $sql = "SELECT scheduler_epoch, event_type, COALESCE(attempt_number,0), created_at::text FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch > $OldEpoch AND event_type='TIMEOUT_REPLACEMENT' ORDER BY revision LIMIT 1;"
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
+        $row = Invoke-DbSql $DependencyInstanceId $sql
         $workflow = Get-Workflow $DependencyInstanceId $WorkflowID
-        if ($workflow.attempt_number -gt $PreviousAttemptNumber) {
-            $attemptCreatedAt = ([DateTimeOffset]::Parse($workflow.attempt_created_at)).UtcDateTime
-            if ($attemptCreatedAt -gt $TakeoverAt) {
-                return [ordered]@{ workflow = $workflow; observed_at_utc = $attemptCreatedAt; observed_after_takeover = $true }
-            }
-            Write-Host "takeover-progress timing: attempt=$($attemptCreatedAt.ToString('o')) takeover_row=$($TakeoverAt.ToString('o'))"
+        $parts = $row.Trim() -split '\|', 4
+        if ($parts.Count -eq 4 -and [int64]$parts[0] -gt $OldEpoch -and [int64]$parts[2] -gt $PreviousAttemptNumber) {
+            $progressAt = ([DateTimeOffset]::Parse($parts[3])).UtcDateTime
+            return [ordered]@{ workflow = $workflow; observed_at_utc = $progressAt; observed_after_takeover = $true; transition = [ordered]@{ scheduler_epoch = [int64]$parts[0]; event_type = $parts[1]; attempt_number = [int64]$parts[2]; created_at_utc = $progressAt.ToString("o") } }
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
-    throw "Workflow $WorkflowID did not commit useful replacement progress after takeover observation."
+    throw "Workflow $WorkflowID did not commit a durable TIMEOUT_REPLACEMENT transition after takeover."
 }
 
 function Wait-ClaimedWorkflow([string]$DependencyInstanceId, [string]$WorkflowID, [int]$PartitionID, [int]$TimeoutSeconds = 45) {
@@ -409,7 +409,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $script:NetworkRulesInserted = $false
     $reconnected = Observe-Runtime $App1
     $staleProbe = Invoke-StaleProbe $App1 $WorkflowID $partition $oldLease.owner_id $oldLease.epoch
-    $usefulProgress = Wait-FirstUsefulProgressAfterObservation $Dependency $WorkflowID $before.attempt_number $takeoverAt 150
+    $usefulProgress = Wait-FirstUsefulRecoveryProgress $Dependency $WorkflowID $before.attempt_number $oldLease.epoch 150
     $terminal = Wait-Workflow $Dependency $WorkflowID 150
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Network-isolated workflow did not recover to SUCCEEDED: $($terminal.state)" }
@@ -437,8 +437,11 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         takeover_row_updated_at_utc = $takeoverAt.ToString("o")
         terminal_completion_at_utc = $terminalAt.ToString("o")
         fault_command_to_observed_ms = DurationMilliseconds $faultObserved.command_at_utc $faultObserved.observed_at_utc
-        fault_observed_to_takeover_ms = DurationMilliseconds $faultObserved.observed_at_utc $takeoverAt
-        takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverObservedAt $usefulProgress.observed_at_utc
+        fault_observed_to_takeover_ms = DurationMilliseconds $faultObserved.observed_at_utc $takeoverObservedAt
+        fault_observed_to_first_useful_progress_ms = DurationMilliseconds $faultObserved.observed_at_utc $usefulProgress.observed_at_utc
+        takeover_to_first_useful_progress_ms = $null
+        takeover_to_first_useful_progress_note = "The exact lease takeover instant is not persisted independently; TIMEOUT_REPLACEMENT is the first committed transition by the new epoch and fault-to-progress is measured directly."
+        first_useful_progress_transition = $usefulProgress.transition
         fault_observed_to_terminal_completion_ms = DurationMilliseconds $faultObserved.observed_at_utc $terminalAt
         configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion for dependency destination"; route_fault = "app-host blackhole route for dependency /32"; dependency_source_ip = $AppPrivateIP }
         limitation = "This arm isolates the app host from PostgreSQL while preserving its process; it is not a host-stop or database-host durability claim."
@@ -486,7 +489,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $newLease = $takeover.lease
     $takeoverObservedAt = $takeover.observed_at_utc
     $takeoverAt = ([DateTimeOffset]::Parse($newLease.updated_at)).UtcDateTime
-    $usefulProgress = Wait-FirstUsefulProgressAfterObservation $Dependency $WorkflowID $before.attempt_number $takeoverAt 180
+    $usefulProgress = Wait-FirstUsefulRecoveryProgress $Dependency $WorkflowID $before.attempt_number $oldLease.epoch 180
     $terminal = Wait-Workflow $Dependency $WorkflowID 180
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Host-stop workflow did not recover to SUCCEEDED: $($terminal.state)" }
@@ -511,8 +514,11 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         takeover_row_updated_at_utc = $takeoverAt.ToString("o")
         terminal_completion_at_utc = $terminalAt.ToString("o")
         stop_requested_to_running_ms = DurationMilliseconds $stopRequestedAt $runningObservedAt
-        running_to_takeover_ms = DurationMilliseconds $runningObservedAt $takeoverAt
-        takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverObservedAt $usefulProgress.observed_at_utc
+        running_to_takeover_ms = DurationMilliseconds $runningObservedAt $takeoverObservedAt
+        stop_requested_to_first_useful_progress_ms = DurationMilliseconds $stopRequestedAt $usefulProgress.observed_at_utc
+        takeover_to_first_useful_progress_ms = $null
+        takeover_to_first_useful_progress_note = "The exact lease takeover instant is not persisted independently; TIMEOUT_REPLACEMENT is the first committed transition by the new epoch and stop-to-progress is measured directly."
+        first_useful_progress_transition = $usefulProgress.transition
         stop_requested_to_terminal_completion_ms = DurationMilliseconds $stopRequestedAt $terminalAt
         configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "not_applicable_host_stop"; network_match_states = @("not_applicable") }
         limitation = "Host-stop recovery is measured separately from the preserved-process network arm; database-host durability remains out of scope."
