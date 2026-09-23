@@ -264,7 +264,9 @@ function Insert-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
         "printf 'connectivity_before='",
         $workerProbe,
         "sudo iptables -I DOCKER-USER -d '$DependencyIP' -p tcp --dport 5432 -j REJECT",
+        "sudo iptables -I DOCKER-USER -d '$DependencyIP' -p tcp --dport 5432 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT",
         "sudo iptables -I DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -j REJECT",
+        "sudo iptables -I DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT",
         "cid=`$(docker compose --env-file '$RemoteEnv' -f '$AppCompose' ps -q runtime)",
         'test -n "$cid"',
         "printf 'container_state='",
@@ -281,6 +283,7 @@ function Insert-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
         command_at_utc = $faultCommandAt
         observed_at_utc = $faultObservedAt
         network_chain = "DOCKER-USER"
+        network_match_states = @("NEW", "ESTABLISHED", "RELATED")
         connectivity_before = "reachable"
         connectivity_after = "blocked"
         ports = $FaultPorts
@@ -290,7 +293,9 @@ function Insert-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
 function Remove-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
     Send-Ssm $InstanceId @(
         "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 5432 -j REJECT || true",
-        "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -j REJECT || true"
+        "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 5432 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT || true",
+        "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -j REJECT || true",
+        "sudo iptables -D DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT || true"
     ) 120 | Out-Null
 }
 
@@ -368,7 +373,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         fault_observed_to_takeover_ms = DurationMilliseconds $faultObserved.observed_at_utc $takeoverAt
         takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverAt $usefulProgress.observed_at_utc
         fault_observed_to_terminal_completion_ms = DurationMilliseconds $faultObserved.observed_at_utc $terminalAt
-        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER" }
+        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER"; network_match_states = @("NEW", "ESTABLISHED", "RELATED") }
         limitation = "This arm isolates the app host from PostgreSQL while preserving its process; it is not a host-stop or database-host durability claim."
     }
     Write-Json $OutputPath $result
@@ -445,7 +450,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         running_to_takeover_ms = DurationMilliseconds $runningObservedAt $takeoverAt
         takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverAt $usefulProgress.observed_at_utc
         stop_requested_to_terminal_completion_ms = DurationMilliseconds $stopRequestedAt $terminalAt
-        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "not_applicable_host_stop" }
+        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "not_applicable_host_stop"; network_match_states = @("not_applicable") }
         limitation = "Host-stop recovery is measured separately from the preserved-process network arm; database-host durability remains out of scope."
     }
     Write-Json $OutputPath $result
@@ -508,7 +513,7 @@ try {
         region = $Region
         topology = [ordered]@{ application_hosts = 2; dependency_hosts = 1; app_instance_ids = $appIDs; dependency_instance_id = $dependency; dependency_private_ip = $dependencyIP }
         scenarios = @($Scenario)
-        configuration = [ordered]@{ activity = "dur048.sleep"; requested_activity_delay_ms = $FixtureDelayMS; requested_scheduler_hold_after_acquire_ms = $ObservationHoldMS; requested_fixture_activity_enabled = $FixtureActivityEnabled; requested_worker_slots = $WorkerSlots; runtime_engine_mode = "disabled"; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER for network arm; not_applicable_host_stop for host arm" }
+        configuration = [ordered]@{ activity = "dur048.sleep"; requested_activity_delay_ms = $FixtureDelayMS; requested_scheduler_hold_after_acquire_ms = $ObservationHoldMS; requested_fixture_activity_enabled = $FixtureActivityEnabled; requested_worker_slots = $WorkerSlots; runtime_engine_mode = "disabled"; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER for network arm; not_applicable_host_stop for host arm"; network_match_states = @("NEW", "ESTABLISHED", "RELATED") }
         required_observation = "SSM, EC2, Docker, and PostgreSQL state must confirm each fault; controller intent alone never produces PASS."
         results = @()
     }
