@@ -415,6 +415,29 @@ function Wait-FirstNewOwnerAcquisition([string]$DependencyInstanceId, [int]$Part
     throw "No first post-fault acquisition by a new owner with epoch above $EpochBoundary was observed after fault at $($FaultObservedAt.ToString('o'))."
 }
 
+function Wait-FirstPostFaultAcquisition([string]$DependencyInstanceId, [int]$PartitionID, [int64]$EpochBoundary, [DateTime]$FaultObservedAt, [int]$TimeoutSeconds = 150) {
+    # The R096 live-holder arm measures bounded lock contention, not owner
+    # failover. Once the external holder releases the row, either scheduler
+    # may acquire it first; preserve that observed owner instead of making a
+    # peer takeover an unstated prerequisite.
+    $faultISO = ([DateTimeOffset]$FaultObservedAt).ToUniversalTime().ToString('o')
+    $sql = "SELECT acquisition_id::text, owner_id::text, epoch, acquired_at::text, lease_expires_at::text FROM engine.lease_acquisitions WHERE partition_id=$PartitionID AND epoch > $EpochBoundary AND acquired_at >= '$faultISO'::timestamptz ORDER BY epoch, acquired_at, acquisition_id LIMIT 1;"
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $row = Invoke-DbSql $DependencyInstanceId $sql
+        if (-not [string]::IsNullOrWhiteSpace($row)) {
+            $parts = $row.Trim() -split '\|', 5
+            if ($parts.Count -eq 5) {
+                $observedAt = [DateTime]::UtcNow
+                $recordedAt = ([DateTimeOffset]::Parse($parts[3])).UtcDateTime
+                return [ordered]@{ acquisition_id = $parts[0]; owner_id = $parts[1]; epoch = [int64]$parts[2]; database_recorded_at_utc = $recordedAt.ToString('o'); controller_observed_at_utc = $observedAt.ToString('o'); observed_at = $observedAt.ToString('o'); lease_expires_at_utc = ([DateTimeOffset]::Parse($parts[4])).UtcDateTime.ToString('o'); fault_observed_at_utc = ([DateTimeOffset]$FaultObservedAt).ToUniversalTime().ToString('o') }
+            }
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    throw "No post-fault lease acquisition with epoch above $EpochBoundary was observed after fault at $($FaultObservedAt.ToString('o'))."
+}
+
 function Get-PartitionID([string]$WorkflowID) {
     if ([string]::IsNullOrWhiteSpace($WorkflowID)) { throw "Workflow IDs must be supplied for the fault campaign." }
     $sha256 = [System.Security.Cryptography.SHA256]::Create()
@@ -560,7 +583,7 @@ ORDER BY consumed.revision LIMIT 1;
                 workflow = $workflow
                 controller_observed_at_utc = $observedAt.ToString('o')
                 observed_at = $observedAt.ToString('o')
-                progress_definition = 'scheduler consumed the original attempt result under the first new-owner lease'
+                progress_definition = 'scheduler consumed the original attempt result under the first post-fault lease acquisition'
                 transition = [ordered]@{
                     revision = [int64]$parts[0]
                     scheduler_epoch = [int64]$parts[1]
@@ -589,7 +612,7 @@ ORDER BY consumed.revision LIMIT 1;
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
-    throw "Workflow $WorkflowID did not consume its recorded result under the first new-owner acquisition."
+    throw "Workflow $WorkflowID did not consume its recorded result under the first post-fault lease acquisition."
 }
 
 function Assert-LockHeldResultOrdering([object]$Acquisition, [object]$Progress) {
@@ -608,19 +631,19 @@ function Assert-LockHeldResultOrdering([object]$Acquisition, [object]$Progress) 
         throw 'The consumed result does not match the result-receipt attempt.'
     }
     if ($consumed.lease_acquisition_id -ne $Acquisition.acquisition_id -or $consumed.lease_owner_id -ne $Acquisition.owner_id -or [int64]$consumed.lease_epoch -ne [int64]$Acquisition.epoch -or [int64]$consumed.scheduler_epoch -ne [int64]$Acquisition.epoch) {
-        throw 'The result was not consumed under the first post-fault owner acquisition.'
+        throw 'The result was not consumed under the first post-fault lease acquisition.'
     }
     if ([int64]$consumed.revision -le [int64]$receipt.revision) {
         throw 'Scheduler consumption did not follow the original attempt result receipt.'
     }
     return [ordered]@{
-        first_new_owner_acquisition_id = $Acquisition.acquisition_id
-        first_new_owner_id = $Acquisition.owner_id
-        first_new_owner_epoch = [int64]$Acquisition.epoch
+        first_post_fault_acquisition_id = $Acquisition.acquisition_id
+        first_post_fault_owner_id = $Acquisition.owner_id
+        first_post_fault_epoch = [int64]$Acquisition.epoch
         result_receipt_revision = [int64]$receipt.revision
         result_consumed_revision = [int64]$consumed.revision
         result_receipt_precedes_consumption = $true
-        result_consumed_under_first_new_owner_acquisition = $true
+        result_consumed_under_first_post_fault_acquisition = $true
         same_original_attempt_completed_without_replacement = $true
     }
 }
@@ -1406,11 +1429,11 @@ function Run-LiveHolderContentionArm([string]$App1, [string]$App2, [string]$Depe
     $checkpoint.other_partition_progress_ms = $progressLatency
     $checkpoint.lock_holder_observed_during_other_partition_progress = $lockHolderObservedDuringProgress
     Save-EpisodeCheckpoint $OutputPath $checkpoint "other-partition-progress-confirmed"
-    $takeover = Wait-FirstNewOwnerAcquisition $Dependency $partition $oldLease.owner_id $epochBoundary $lockObservedAt 150
-    $checkpoint.first_new_owner_acquisition = $takeover
-    Save-EpisodeCheckpoint $OutputPath $checkpoint "new-owner-observed"
-    $usefulProgress = Wait-LockHeldResultConsumption $Dependency $WorkflowID $oldAttempt.attempt_number $before.revision $epochBoundary $takeover 180
-    $orderedProgress = Assert-LockHeldResultOrdering $takeover $usefulProgress
+    $postFaultAcquisition = Wait-FirstPostFaultAcquisition $Dependency $partition $epochBoundary $lockObservedAt ($LockHolderDurationSeconds + 30)
+    $checkpoint.first_post_fault_acquisition = $postFaultAcquisition
+    Save-EpisodeCheckpoint $OutputPath $checkpoint "post-fault-acquisition-observed"
+    $usefulProgress = Wait-LockHeldResultConsumption $Dependency $WorkflowID $oldAttempt.attempt_number $before.revision $epochBoundary $postFaultAcquisition 180
+    $orderedProgress = Assert-LockHeldResultOrdering $postFaultAcquisition $usefulProgress
     $staleProbe = Invoke-StaleProbe $App1 $WorkflowID $partition $oldLease.owner_id $oldLease.epoch
     $checkpoint.first_useful_progress = $usefulProgress
     $checkpoint.stale_owner_probe = $staleProbe
@@ -1443,10 +1466,10 @@ function Run-LiveHolderContentionArm([string]$App1, [string]$App2, [string]$Depe
         pre_fault_epoch_boundary = $epochBoundary
         app2_stopped_before_owner_capture = $app2Stopped
         lock_holder = $lockHolder
-        first_new_owner_acquisition = [ordered]@{ acquisition_id = $takeover.acquisition_id; owner_id = $takeover.owner_id; epoch = $takeover.epoch; database_recorded_at_utc = $takeover.database_recorded_at_utc; controller_observed_at_utc = $takeover.controller_observed_at_utc; lease_expires_at_utc = $takeover.lease_expires_at_utc }
+        first_post_fault_acquisition = [ordered]@{ acquisition_id = $postFaultAcquisition.acquisition_id; owner_id = $postFaultAcquisition.owner_id; epoch = $postFaultAcquisition.epoch; owner_changed = ($postFaultAcquisition.owner_id -ne $oldLease.owner_id); database_recorded_at_utc = $postFaultAcquisition.database_recorded_at_utc; controller_observed_at_utc = $postFaultAcquisition.controller_observed_at_utc; lease_expires_at_utc = $postFaultAcquisition.lease_expires_at_utc }
         recovery_transition_epoch = $recoveryEpoch
         recovery_transition_revision = $recoveryRevision
-        recovery_transition_is_durably_after_first_new_owner = $orderedProgress.result_consumed_under_first_new_owner_acquisition
+        recovery_transition_is_durably_after_first_post_fault_acquisition = $orderedProgress.result_consumed_under_first_post_fault_acquisition
         progress_while_lock_held = $progress
         other_partition_progress_observed_at_utc = $progressObservedAt.ToString("o")
         lock_observed_to_other_partition_progress_ms = $progressLatency
@@ -1462,10 +1485,10 @@ function Run-LiveHolderContentionArm([string]$App1, [string]$App2, [string]$Depe
         lease_acquisition_summary_after_pre_fault_epoch_boundary = $acquisitionSummary
         obligations = $obligations
         durable_invariant_checker = $checker
-        lock_observed_to_first_new_owner_acquisition_observed_ms = DurationMilliseconds $lockObservedAt $takeover.observed_at
-        first_new_owner_acquisition_observed_to_first_useful_progress_observed_ms = DurationMilliseconds $takeover.observed_at $usefulProgress.observed_at
+        lock_observed_to_first_post_fault_acquisition_observed_ms = DurationMilliseconds $lockObservedAt $postFaultAcquisition.observed_at
+        first_post_fault_acquisition_observed_to_first_useful_progress_observed_ms = DurationMilliseconds $postFaultAcquisition.observed_at $usefulProgress.observed_at
         timestamp_semantics = "Intervals use controller UTC observation times after 2-second polling; DB timestamps are transaction-recorded diagnostics, not commit times."
-        recovery_timing_note = "This live-holder contention arm measures the R096 bounded-wait property: other partitions progress while a healthy external lock-holder session retains the target row. It is not network isolation of the owning runtime and does not measure server-side reaping of an isolated lock-holding owner. The original worker durably records its result, and the first new owner consumes that same attempt after the lock is released; this run does not demonstrate a replacement attempt. App2 is a controller-started standby, not a continuously active peer."
+        recovery_timing_note = "This separately labeled live-holder arm measures the R096 bounded-wait property: other partitions progress while a healthy external lock-holder session retains the target row. It is not owner isolation or an owner-takeover measurement. After the row lock is released, the first post-fault lease acquisition may belong to the original owner or the standby; the artifact records which one actually acquired it. The original worker durably records its result, and that same attempt is consumed after the lock is released; this run does not demonstrate a replacement attempt. App2 is a controller-started standby, not a continuously active peer."
         configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; lock_progress_activity_delay_ms = 1000; lock_progress_observation_timeout_seconds = 120; lock_holder_duration_seconds = $LockHolderDurationSeconds; lock_timeout_seconds = 2; attempt_lease_seconds = 30 }
     }
     $checkpoint.status = "PASS"
@@ -1950,6 +1973,13 @@ if ($SelfTest) {
     }
     $lockHeldOrdering = Assert-LockHeldResultOrdering $testAcquisition $lockHeldProgress
     if (-not $lockHeldOrdering.same_original_attempt_completed_without_replacement) { throw 'Lock-held same-attempt recovery self-test did not return a positive result.' }
+    $sameOwnerAcquisition = [ordered]@{ acquisition_id = 'acq-19'; owner_id = 'owner-original'; epoch = 19 }
+    $sameOwnerProgress = [ordered]@{
+        result_receipt_transition = [ordered]@{ revision = 4; reason = 'ATTEMPT_RESULT_RECORDED'; actor_kind = 'worker'; attempt_number = 1 }
+        transition = [ordered]@{ revision = 5; scheduler_epoch = 19; lease_epoch = 19; reason = 'RESULT_CONSUMED'; actor_kind = 'scheduler'; attempt_number = 1; lease_acquisition_id = 'acq-19'; lease_owner_id = 'owner-original' }
+    }
+    $sameOwnerOrdering = Assert-LockHeldResultOrdering $sameOwnerAcquisition $sameOwnerProgress
+    if (-not $sameOwnerOrdering.result_consumed_under_first_post_fault_acquisition -or $sameOwnerOrdering.first_post_fault_owner_id -ne 'owner-original') { throw 'Live-holder liveness self-test rejected valid same-owner resumption after row-lock release.' }
     $wrongLockHeldOrderingRejected = $false
     $lockHeldProgress.transition.revision = 3
     try { $null = Assert-LockHeldResultOrdering $testAcquisition $lockHeldProgress } catch { $wrongLockHeldOrderingRejected = $true }
@@ -2033,7 +2063,7 @@ if ($SelfTest) {
         $obligationFixture.workflow_duplicate_effect_calls -ne 0) {
         throw "Obligation-summary self-test failed to retain workflow, global, and database-wide counts."
     }
-    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original worker/runtime identity controls, operation-specific stale-result log controls, row-lock probe controls, global obligation accounting, no-overwrite failure-protocol controls, and BOM-free AWS JSON."
+    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, owner-change and same-owner recovery ordering controls, original worker/runtime identity controls, operation-specific stale-result log controls, row-lock probe controls, global obligation accounting, no-overwrite failure-protocol controls, and BOM-free AWS JSON."
     return
 }
 
