@@ -201,17 +201,22 @@ function Ensure-FixtureDefinition([string]$DependencyInstanceId) {
     } finally {
         $sha.Dispose()
     }
-    $sql = @"
-WITH inserted AS (
-  INSERT INTO engine.workflow_definitions (definition_id, version, definition_hash, graph, activity_versions, effect_classes)
-  VALUES ('$definitionID', 1, '$definitionHash', '$graph'::jsonb, '$versions'::jsonb, '$effects'::jsonb)
-  ON CONFLICT (definition_id, version) DO NOTHING
-  RETURNING 1
-)
+    # Keep creation and verification as separate statements. A data-modifying
+    # CTE and a sibling SELECT share one PostgreSQL statement snapshot, so on a
+    # fresh database the SELECT cannot see the row inserted by that CTE and
+    # returns no output. That made the first campaign run fail after inserting
+    # an otherwise-correct fixture definition.
+    $insert = @"
+INSERT INTO engine.workflow_definitions (definition_id, version, definition_hash, graph, activity_versions, effect_classes)
+VALUES ('$definitionID', 1, '$definitionHash', '$graph'::jsonb, '$versions'::jsonb, '$effects'::jsonb)
+ON CONFLICT (definition_id, version) DO NOTHING;
+"@
+    [void](Invoke-DbSql $DependencyInstanceId $insert)
+    $verify = @"
 SELECT CASE WHEN definition_hash='$definitionHash' AND graph='$graph'::jsonb AND activity_versions='$versions'::jsonb AND effect_classes='$effects'::jsonb THEN 'MATCH' ELSE 'MISMATCH' END
 FROM engine.workflow_definitions WHERE definition_id='$definitionID' AND version=1;
 "@
-    $observed = Invoke-DbSql $DependencyInstanceId $sql
+    $observed = Invoke-DbSql $DependencyInstanceId $verify
     if ($observed.Trim() -ne "MATCH") { throw "DUR-049 fixture definition differs from the frozen campaign definition: $observed" }
     $script:FixtureDefinitionID = $definitionID
     $script:FixtureDefinitionHash = $definitionHash
@@ -420,16 +425,19 @@ function Get-AppConfiguration([string]$InstanceId) {
     $output = Send-Ssm $InstanceId @(
         'set -e',
         'cd /opt/durable-agent-execution-engine',
-        "grep -E '^(DUR048_ACTIVITY_DELAY_MS|DUR048_ALLOW_FIXTURE_ACTIVITY|RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS|WORKER_SLOTS)=' deploy/aws/.env"
+        "grep -E '^(DUR048_ACTIVITY_DELAY_MS|DUR048_ALLOW_FIXTURE_ACTIVITY|RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS|WORKER_SLOTS)=' deploy/aws/.env",
+        'printf "GIT_COMMIT=%s\n" "$(git rev-parse HEAD)"'
     )
     $values = @{}
     foreach ($line in ($output.Trim() -split "\r?\n")) {
         if ($line -match '^(?<name>[A-Z0-9_]+)=(?<value>.*)$') { $values[$Matches.name] = $Matches.value }
     }
-    foreach ($name in @('DUR048_ACTIVITY_DELAY_MS', 'DUR048_ALLOW_FIXTURE_ACTIVITY', 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS', 'WORKER_SLOTS')) {
+    foreach ($name in @('DUR048_ACTIVITY_DELAY_MS', 'DUR048_ALLOW_FIXTURE_ACTIVITY', 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS', 'WORKER_SLOTS', 'GIT_COMMIT')) {
         if (-not $values.ContainsKey($name)) { throw "Remote app configuration is missing $name." }
     }
+    if ($values['GIT_COMMIT'] -notmatch '^[0-9a-f]{40}$') { throw "Remote app has no full checked-out source commit: $($values['GIT_COMMIT'])" }
     return [ordered]@{
+        repo_commit = $values['GIT_COMMIT']
         activity_delay_ms = [int]$values['DUR048_ACTIVITY_DELAY_MS']
         fixture_activity_enabled = ([int]$values['DUR048_ALLOW_FIXTURE_ACTIVITY']) -eq 1
         scheduler_hold_after_acquire_ms = [int]$values['RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS']
