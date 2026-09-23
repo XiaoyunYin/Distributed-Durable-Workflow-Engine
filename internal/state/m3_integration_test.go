@@ -3,7 +3,6 @@ package state
 import (
 	"context"
 	"errors"
-	"fmt"
 	"os"
 	"sync"
 	"testing"
@@ -277,28 +276,41 @@ func createM3Workflow(t *testing.T, ctx context.Context, store *Store, definitio
 	}
 	ownerID := NewID()
 	var lease Lease
-	var acquired bool
-	var err error
+	leaseHeld := false
+	defer func() {
+		if !leaseHeld {
+			return
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := store.ReleaseLease(cleanupCtx, LeaseRef{PartitionID: lease.PartitionID,
+			OwnerID: lease.OwnerID, Epoch: lease.Epoch}); err != nil && !errors.Is(err, ErrLeaseNotOwned) {
+			t.Errorf("release M3 fixture lease after setup failure: %v", err)
+		}
+	}()
 	// Keep M3 fixtures away from the foundation/M1 integration fixtures, which
-	// intentionally exercise partition 0 in parallel service CI.
-	for partitionID := int16(8); partitionID < 16; partitionID++ {
-		lease, acquired, err = store.AcquireLease(ctx, partitionID, ownerID, time.Minute)
+	// intentionally exercise partition 0 in parallel service CI. Select a
+	// candidate first, then acquire that candidate's partition. Reserving a
+	// random partition and searching only 100 random IDs for a matching hash
+	// made a valid fixture fail probabilistically under hosted CI.
+	for attempt := 0; attempt < 4096; attempt++ {
+		workflowID := "dur-m3-" + NewID()
+		mapped, err := partition.ID(workflowID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if acquired {
-			break
-		}
-	}
-	if !acquired {
-		t.Fatal("could not acquire M3 test lease")
-	}
-	for attempt := 0; attempt < 100; attempt++ {
-		workflowID := "dur-m3-" + NewID()
-		mapped, err := partition.ID(workflowID)
-		if err != nil || int16(mapped) != lease.PartitionID {
+		if mapped < 8 {
 			continue
 		}
+		candidateLease, acquired, err := store.AcquireLease(ctx, int16(mapped), ownerID, time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !acquired {
+			continue
+		}
+		lease = candidateLease
+		leaseHeld = true
 		created, err := store.CreateWorkflow(ctx, CreateWorkflowInput{WorkflowID: workflowID,
 			Namespace: "dur-m3", SubmissionKey: "key-" + workflowID, SubmissionPayloadHash: "sub-v1:" + workflowID,
 			DefinitionID: definitionID, DefinitionVersion: 1, PartitionID: lease.PartitionID,
@@ -306,10 +318,11 @@ func createM3Workflow(t *testing.T, ctx context.Context, store *Store, definitio
 		if err != nil {
 			t.Fatal(err)
 		}
+		leaseHeld = false // cleanupM3Workflow now owns the lease lifecycle.
 		return created.Workflow.WorkflowID, lease
 	}
-	t.Fatal(fmt.Sprintf("could not generate workflow for partition %d", lease.PartitionID))
-	return "", lease
+	t.Fatal("could not acquire a free M3 partition for a generated workflow ID")
+	return "", Lease{}
 }
 
 func cleanupM3Workflow(t *testing.T, ctx context.Context, store *Store, workflowID, definitionID string, lease Lease) {
