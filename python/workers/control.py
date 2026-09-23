@@ -12,11 +12,16 @@ from typing import Any
 class ControlError(RuntimeError):
     """A control request was rejected or could not be completed."""
 
-    def __init__(self, status: int, code: str, message: str) -> None:
+    def __init__(
+        self, status: int, code: str, message: str, operation: str = ""
+    ) -> None:
         super().__init__(f"{code}: {message}")
         self.status = status
         self.code = code
         self.message = message
+        # Filled by ActivityRunner at the control-call boundary. The same
+        # STALE_ATTEMPT code can arise from claim, heartbeat, or result.
+        self.operation = operation
 
 
 @dataclass(frozen=True)

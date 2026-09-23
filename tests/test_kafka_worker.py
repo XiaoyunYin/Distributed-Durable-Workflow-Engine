@@ -136,7 +136,9 @@ def test_late_result_rejection_log_identifies_workflow_and_attempt(
         raise AssertionError(f"unexpected control request: {path}")
 
     def reject(_self: ActivityRunner, _task: Any) -> dict[str, Any]:
-        raise ControlError(409, "STALE_ATTEMPT", "attempt was replaced")
+        raise ControlError(
+            409, "STALE_ATTEMPT", "attempt was replaced", operation="result"
+        )
 
     monkeypatch.setattr(ControlClient, "_post", post)
     monkeypatch.setattr(ActivityRunner, "run_task", reject)
@@ -148,8 +150,8 @@ def test_late_result_rejection_log_identifies_workflow_and_attempt(
     )
 
     assert (
-        "delivery lost claim race workflow_id=wf-stale node_id=dur048.sleep "
-        "attempt_number=7 worker_id=worker-1 code=STALE_ATTEMPT"
+        "delivery control rejected workflow_id=wf-stale node_id=dur048.sleep "
+        "attempt_number=7 worker_id=worker-1 operation=result code=STALE_ATTEMPT"
     ) in caplog.text
 
 

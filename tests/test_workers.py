@@ -15,6 +15,7 @@ class FakeControl:
         self.heartbeats = 0
         self.claims = 0
         self.heartbeat_failures: list[ControlError] = []
+        self.result_failures: list[ControlError] = []
         self.results: list[dict[str, Any]] = []
         self._lock = threading.Lock()
 
@@ -58,6 +59,8 @@ class FakeControl:
         event_type: str = "",
         reconciliation_ref: str = "",
     ) -> dict[str, Any]:
+        if self.result_failures:
+            raise self.result_failures.pop(0)
         result = {"attempt_state": attempt_state, "payload": payload}
         with self._lock:
             self.results.append(result)
@@ -127,9 +130,22 @@ def test_runner_does_not_hide_lost_claim() -> None:
     registry.register("fixture", "v1", lambda value: time.sleep(0.02) or value)
 
     control.heartbeat_failures = [ControlError(409, "STALE_CLAIM", "claim is stale")]
-    with pytest.raises(ControlError, match="STALE_CLAIM"):
+    with pytest.raises(ControlError, match="STALE_CLAIM") as raised:
         ActivityRunner(control, registry, heartbeat_interval=0.001).run_task(task("lost"))
+    assert raised.value.operation == "heartbeat"
     assert len(control.results) == 1
+
+
+def test_runner_attributes_stale_result_rejection_to_result_operation() -> None:
+    control = FakeControl()
+    control.result_failures = [ControlError(409, "STALE_ATTEMPT", "attempt is no longer current")]
+    registry = ActivityRegistry()
+    registry.register("fixture", "v1", lambda value: value)
+
+    with pytest.raises(ControlError, match="STALE_ATTEMPT") as raised:
+        ActivityRunner(control, registry).run_task(task("late-result"))
+
+    assert raised.value.operation == "result"
 
 
 def test_runner_submits_after_transient_heartbeat_failure() -> None:

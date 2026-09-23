@@ -78,14 +78,18 @@ class ActivityRunner:
         # Resolve before claiming. A configuration error must not create a
         # claimed attempt that can only ever be retried.
         activity = self.registry.resolve(task.activity_name, task.activity_version)
-        claim = self.control.claim(
-            task.workflow_id,
-            task.node_id,
-            task.iteration,
-            task.worker_id,
-            task.request_id,
-            task.attempt_lease_ms,
-        )
+        try:
+            claim = self.control.claim(
+                task.workflow_id,
+                task.node_id,
+                task.iteration,
+                task.worker_id,
+                task.request_id,
+                task.attempt_lease_ms,
+            )
+        except ControlError as error:
+            error.operation = "claim"
+            raise
         stop = threading.Event()
         definitive_heartbeat_errors: list[ControlError] = []
 
@@ -103,6 +107,8 @@ class ActivityRunner:
                     )
                     delay = self.heartbeat_interval
                 except Exception as error:
+                    if isinstance(error, ControlError):
+                        error.operation = "heartbeat"
                     if isinstance(error, ControlError) and error.code in {
                         "STALE_CLAIM",
                         "STALE_ATTEMPT",
@@ -128,15 +134,19 @@ class ActivityRunner:
         finally:
             stop.set()
             heartbeat_thread.join(timeout=max(1.0, self.heartbeat_interval))
-        receipt = self.control.result(
-            task.workflow_id,
-            task.node_id,
-            task.iteration,
-            claim.attempt_number,
-            claim.claim_token,
-            attempt_state,
-            payload,
-        )
+        try:
+            receipt = self.control.result(
+                task.workflow_id,
+                task.node_id,
+                task.iteration,
+                claim.attempt_number,
+                claim.claim_token,
+                attempt_state,
+                payload,
+            )
+        except ControlError as error:
+            error.operation = "result"
+            raise
         if definitive_heartbeat_errors:
             # The result/evidence call above is always attempted first. The
             # stale claim remains visible to the caller after that durable

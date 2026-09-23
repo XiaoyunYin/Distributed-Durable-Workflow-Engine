@@ -52,6 +52,16 @@
       "requires_database": true
     },
     {
+      "id": "state-current-owner-stale-epoch",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "if owner == nil || expiry == nil || *owner != ref.OwnerID || epoch != ref.Epoch || !expiry.After(databaseNow) {",
+      "new": "if owner == nil || expiry == nil || *owner != ref.OwnerID || !expiry.After(databaseNow) { // mutation: accept a stale epoch from the current owner",
+      "command": ["go", "test", "./internal/state", "-run", "^TestRuntimeWakeupAcknowledgmentRequiresCurrentLease$", "-count=1", "-v"],
+      "expected": "wakeup acknowledgment = <nil>, want ErrLeaseNotOwned",
+      "requires_database": true
+    },
+    {
       "id": "state-approval-resource",
       "kind": "behavioral",
       "file": "internal/state/m4.go",
