@@ -264,6 +264,37 @@ function Get-ClaimedAttempt([string]$DependencyInstanceId, [string]$WorkflowID) 
     return [ordered]@{ node_id = $parts[0]; iteration = [int]$parts[1]; attempt_number = [int64]$parts[2]; claim_token = $parts[3]; state = $parts[4] }
 }
 
+function Get-AttemptSummary([string]$DependencyInstanceId, [string]$WorkflowID) {
+    $sql = @"
+SELECT attempt_number, state, is_current, effect_class, outcome_disposition,
+       (result IS NOT NULL), COALESCE(worker_id,''), COALESCE(worker_request_id,''),
+       created_at::text, updated_at::text
+FROM engine.activity_attempts
+WHERE workflow_id='$WorkflowID'
+ORDER BY attempt_number;
+"@
+    $rows = Invoke-DbSql $DependencyInstanceId $sql
+    $attempts = @()
+    foreach ($row in ($rows.Trim() -split "\r?\n")) {
+        if ([string]::IsNullOrWhiteSpace($row)) { continue }
+        $parts = $row -split '\|', 10
+        if ($parts.Count -ne 10) { throw "Attempt summary row is malformed: $row" }
+        $attempts += [ordered]@{
+            attempt_number = [int64]$parts[0]
+            state = $parts[1]
+            is_current = $parts[2] -eq 't'
+            effect_class = $parts[3]
+            outcome_disposition = $parts[4]
+            result_recorded = $parts[5] -eq 't'
+            worker_id = $parts[6]
+            worker_request_id = $parts[7]
+            created_at_utc = ([DateTimeOffset]::Parse($parts[8])).UtcDateTime.ToString('o')
+            updated_at_utc = ([DateTimeOffset]::Parse($parts[9])).UtcDateTime.ToString('o')
+        }
+    }
+    return $attempts
+}
+
 function Get-LeaseAcquisitions([string]$DependencyInstanceId, [int]$PartitionID) {
 	$rows = Invoke-DbSql $DependencyInstanceId "SELECT acquisition_id::text, owner_id::text, epoch, acquired_at::text, lease_expires_at::text FROM engine.lease_acquisitions WHERE partition_id=$PartitionID ORDER BY epoch, acquired_at, acquisition_id;"
 	$items = @()
@@ -321,31 +352,74 @@ function Wait-FirstUsefulProgress([string]$DependencyInstanceId, [string]$Workfl
     throw "Workflow $WorkflowID did not commit a replacement attempt after the fault."
 }
 
-function Wait-FirstUsefulRecoveryProgress([string]$DependencyInstanceId, [string]$WorkflowID, [int64]$PreviousAttemptNumber, [int64]$PreviousRevision, [int64]$RecoveryEpoch, [int]$TimeoutSeconds = 180) {
+function Wait-FirstUsefulRecoveryProgress([string]$DependencyInstanceId, [string]$WorkflowID, [int64]$PreviousAttemptNumber, [int64]$PreviousRevision, [string]$RecoveryOwnerID, [int64]$PreviousEpoch, [int]$TimeoutSeconds = 180) {
     # Useful progress means the replacement attempt returned an accepted result,
     # not merely that the scheduler created it or that the workflow terminated.
-    # Revision/epoch ordering is durable; timestamps are diagnostic only.
+    # Tie TIMEOUT_REPLACEMENT to a durable acquisition by the same scheduler
+    # owner. Scheduler epochs advance across passes, so the progress transition
+    # need not use the first takeover epoch. Revisions establish replacement
+    # before result; timestamps below are diagnostic only.
     $sql = @"
-SELECT h.revision, COALESCE(r.scheduler_epoch,0), h.reason, COALESCE(h.attempt_number,0), h.created_at::text, h.actor_kind
+SELECT h.revision, COALESCE(h.scheduler_epoch,0), r.revision, r.scheduler_epoch,
+       a.acquisition_id::text, a.owner_id::text, a.acquired_at::text,
+       h.reason, COALESCE(h.attempt_number,0), h.created_at::text, h.actor_kind,
+       old.state, old.is_current, replacement.state, replacement.is_current
 FROM engine.transition_history h
 JOIN engine.transition_history r
   ON r.workflow_id=h.workflow_id AND r.revision > $PreviousRevision AND r.revision < h.revision
- AND r.reason='TIMEOUT_REPLACEMENT' AND r.scheduler_epoch=$RecoveryEpoch
+ AND r.reason='TIMEOUT_REPLACEMENT' AND r.scheduler_epoch > $PreviousEpoch
  AND r.attempt_number + 1 = h.attempt_number
+JOIN engine.workflow_executions w ON w.workflow_id=h.workflow_id
+JOIN engine.lease_acquisitions a
+  ON a.partition_id=w.partition_id AND a.epoch=r.scheduler_epoch
+ AND a.owner_id::text='$RecoveryOwnerID'
+JOIN engine.activity_attempts old
+  ON old.workflow_id=r.workflow_id AND old.node_id=r.node_id
+ AND old.iteration=r.iteration AND old.attempt_number=r.attempt_number
+JOIN engine.activity_attempts replacement
+  ON replacement.workflow_id=h.workflow_id AND replacement.node_id=h.node_id
+ AND replacement.iteration=h.iteration AND replacement.attempt_number=h.attempt_number
 WHERE h.workflow_id='$WorkflowID' AND h.revision > $PreviousRevision
   AND h.reason='ATTEMPT_RESULT_RECORDED' AND h.actor_kind='worker'
   AND h.attempt_number > $PreviousAttemptNumber
+  AND old.state='TIMED_OUT' AND NOT old.is_current
 ORDER BY h.revision LIMIT 1;
 "@
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
         $row = Invoke-DbSql $DependencyInstanceId $sql
         $workflow = Get-Workflow $DependencyInstanceId $WorkflowID
-        $parts = $row.Trim() -split '\|', 6
-        if ($parts.Count -eq 6 -and [int64]$parts[3] -gt $PreviousAttemptNumber) {
+        $parts = $row.Trim() -split '\|', 15
+        if ($parts.Count -eq 15 -and [int64]$parts[8] -gt $PreviousAttemptNumber) {
             $observedAt = [DateTime]::UtcNow
-            $databaseRecordedAt = ([DateTimeOffset]::Parse($parts[4])).UtcDateTime
-            return [ordered]@{ workflow = $workflow; controller_observed_at_utc = $observedAt.ToString("o"); observed_at = $observedAt; progress_definition = "accepted result recorded for replacement attempt"; observed_after_takeover = $true; transition = [ordered]@{ revision = [int64]$parts[0]; scheduler_epoch = [int64]$parts[1]; reason = $parts[2]; attempt_number = [int64]$parts[3]; database_recorded_at_utc = $databaseRecordedAt.ToString("o"); actor_kind = $parts[5] } }
+            $resultRecordedAt = ([DateTimeOffset]::Parse($parts[9])).UtcDateTime
+            $replacementAcquiredAt = ([DateTimeOffset]::Parse($parts[6])).UtcDateTime
+            $resultEpoch = if ([int64]$parts[1] -eq 0) { $null } else { [int64]$parts[1] }
+            return [ordered]@{
+                workflow = $workflow
+                controller_observed_at_utc = $observedAt.ToString("o")
+                observed_at = $observedAt
+                progress_definition = "accepted result recorded for replacement attempt"
+                transition = [ordered]@{
+                    revision = [int64]$parts[0]
+                    scheduler_epoch = $resultEpoch
+                    reason = $parts[7]
+                    attempt_number = [int64]$parts[8]
+                    database_recorded_at_utc = $resultRecordedAt.ToString("o")
+                    actor_kind = $parts[10]
+                }
+                timeout_replacement_transition = [ordered]@{
+                    revision = [int64]$parts[2]
+                    scheduler_epoch = [int64]$parts[3]
+                    lease_acquisition_id = $parts[4]
+                    lease_owner_id = $parts[5]
+                    lease_acquired_at_utc = $replacementAcquiredAt.ToString("o")
+                    prior_attempt_state = $parts[11]
+                    prior_attempt_is_current = $parts[12] -eq 't'
+                    replacement_attempt_state = $parts[13]
+                    replacement_attempt_is_current = $parts[14] -eq 't'
+                }
+            }
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
@@ -353,15 +427,31 @@ ORDER BY h.revision LIMIT 1;
 }
 
 function Assert-AcquisitionPrecedesProgress([object]$Acquisition, [object]$Progress) {
-    $acquiredObserved = [DateTime]$Acquisition.observed_at
-    $progressObserved = [DateTime]$Progress.observed_at
-    if ($acquiredObserved -gt $progressObserved) {
-        throw "Controller first observed useful progress before the first new-owner acquisition: acquisition=$($acquiredObserved.ToString('o')) progress=$($progressObserved.ToString('o'))."
+    $replacement = $Progress.timeout_replacement_transition
+    $result = $Progress.transition
+    if ($replacement.lease_owner_id -ne $Acquisition.owner_id) {
+        throw "Timeout replacement owner $($replacement.lease_owner_id) differs from first new owner $($Acquisition.owner_id)."
+    }
+    if ([int64]$replacement.scheduler_epoch -lt [int64]$Acquisition.epoch) {
+        throw "Timeout replacement epoch $($replacement.scheduler_epoch) predates first new-owner epoch $($Acquisition.epoch)."
+    }
+    if ([int64]$replacement.revision -ge [int64]$result.revision) {
+        throw "Durable timeout replacement revision $($replacement.revision) does not precede accepted result revision $($result.revision)."
+    }
+    if ($replacement.prior_attempt_state -ne 'TIMED_OUT' -or $replacement.prior_attempt_is_current) {
+        throw "Prior attempt was not durably timed out and settled before the replacement result."
     }
     return [ordered]@{
-        first_new_owner_acquisition_observed_at_utc = $acquiredObserved.ToString("o")
-        first_useful_progress_observed_at_utc = $progressObserved.ToString("o")
-        acquisition_observed_before_progress = $true
+        first_new_owner_acquisition_id = $Acquisition.acquisition_id
+        first_new_owner_id = $Acquisition.owner_id
+        first_new_owner_epoch = [int64]$Acquisition.epoch
+        recovery_transition_acquisition_id = $replacement.lease_acquisition_id
+        recovery_transition_owner_id = $replacement.lease_owner_id
+        recovery_transition_epoch = [int64]$replacement.scheduler_epoch
+        timeout_replacement_revision = [int64]$replacement.revision
+        accepted_result_revision = [int64]$result.revision
+        durable_replacement_precedes_accepted_result = $true
+        controller_observation_times_are_diagnostic = $true
     }
 }
 
@@ -747,7 +837,7 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
     $takeover = Wait-FirstNewOwnerAcquisition $Dependency $partition $oldLease.owner_id $oldLease.epoch $lockObservedAt 150
     $checkpoint.first_new_owner_acquisition = $takeover
     Save-EpisodeCheckpoint $OutputPath $checkpoint "new-owner-observed"
-    $usefulProgress = Wait-FirstUsefulRecoveryProgress $Dependency $WorkflowID $before.attempt_number $before.revision $takeover.epoch 180
+    $usefulProgress = Wait-FirstUsefulRecoveryProgress $Dependency $WorkflowID $before.attempt_number $before.revision $takeover.owner_id $oldLease.epoch 180
     $orderedProgress = Assert-AcquisitionPrecedesProgress $takeover $usefulProgress
     $staleProbe = Invoke-StaleProbe $App1 $WorkflowID $partition $oldLease.owner_id $oldLease.epoch $oldAttempt
     $checkpoint.first_useful_progress = $usefulProgress
@@ -758,6 +848,7 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
     $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND revision > $($before.revision) AND scheduler_epoch IS NOT NULL AND scheduler_epoch < $($takeover.epoch);")
     if ($historyCount -ne 0) { throw "A superseded epoch transition was committed after the lock-held pre-fault boundary: $historyCount" }
     $acquisitions = @(Get-LeaseAcquisitions $Dependency $partition)
+    $attempts = @(Get-AttemptSummary $Dependency $WorkflowID)
     $obligations = Get-ObligationSummary $Dependency $WorkflowID
     $snapshotPath = Join-Path (Split-Path -Parent $OutputPath) "lock-held-durable-trace.json"
     $checker = Invoke-DurableChecker $App1 $WorkflowID $snapshotPath $before.revision $takeover.epoch $oldAttempt.attempt_number
@@ -783,6 +874,7 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
         recovery_ordering = $orderedProgress
         superseded_epoch_transitions_after_pre_fault_boundary = $historyCount
         stale_owner_probe = $staleProbe
+        attempts = $attempts
         lease_acquisitions = $acquisitions
         obligations = $obligations
         durable_invariant_checker = $checker
@@ -832,6 +924,14 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $takeover = Wait-FirstNewOwnerAcquisition $Dependency $partition $oldLease.owner_id $oldLease.epoch $faultObserved.observed_at_utc
     $checkpoint.first_new_owner_acquisition = $takeover
     Save-EpisodeCheckpoint $OutputPath $checkpoint "new-owner-observed"
+    # Keep the original host isolated until the peer has durably timed out the
+    # old claim and accepted a result for its replacement attempt. Reconnecting
+    # immediately after lease acquisition can let an unfinished, still-current
+    # attempt report first; that is not evidence of recovery from stale work.
+    $usefulProgress = Wait-FirstUsefulRecoveryProgress $Dependency $WorkflowID $before.attempt_number $before.revision $takeover.owner_id $oldLease.epoch 240
+    $orderedProgress = Assert-AcquisitionPrecedesProgress $takeover $usefulProgress
+    $checkpoint.first_useful_progress = $usefulProgress
+    Save-EpisodeCheckpoint $OutputPath $checkpoint "replacement-result-observed-while-original-isolated"
     Remove-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP
     $script:NetworkRulesInserted = $false
     $reconnected = Observe-Runtime $App1
@@ -840,8 +940,6 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         throw "The original runtime process did not remain alive across network isolation: before=$($faultObserved.original_runtime_pid), after=$reconnected"
     }
     $staleProbe = Invoke-StaleProbe $App1 $WorkflowID $partition $oldLease.owner_id $oldLease.epoch $oldAttempt
-    $usefulProgress = Wait-FirstUsefulRecoveryProgress $Dependency $WorkflowID $before.attempt_number $before.revision $takeover.epoch 180
-    $orderedProgress = Assert-AcquisitionPrecedesProgress $takeover $usefulProgress
     $checkpoint.original_runtime_observed_after_reconnect = $reconnected
     $checkpoint.stale_owner_probe = $staleProbe
     $checkpoint.first_useful_progress = $usefulProgress
@@ -855,6 +953,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND revision > $($before.revision) AND scheduler_epoch IS NOT NULL AND scheduler_epoch < $($takeover.epoch);")
     if ($historyCount -ne 0) { throw "A transition carrying the superseded epoch was committed after the network-fault pre-fault boundary: $historyCount" }
     $acquisitions = @(Get-LeaseAcquisitions $Dependency $partition)
+    $attempts = @(Get-AttemptSummary $Dependency $WorkflowID)
     $obligations = Get-ObligationSummary $Dependency $WorkflowID
     $snapshotPath = Join-Path (Split-Path -Parent $OutputPath) "network-durable-trace.json"
     $checker = Invoke-DurableChecker $App1 $WorkflowID $snapshotPath $before.revision $takeover.epoch $oldAttempt.attempt_number
@@ -876,6 +975,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         recovery_ordering = $orderedProgress
         superseded_epoch_transitions_after_pre_fault_boundary = $historyCount
         stale_owner_probe = $staleProbe
+        attempts = $attempts
         lease_acquisitions = $acquisitions
         obligations = $obligations
         durable_invariant_checker = $checker
@@ -938,7 +1038,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $takeover = Wait-FirstNewOwnerAcquisition $Dependency $partition $oldLease.owner_id $oldLease.epoch $stoppedAt
     $checkpoint.first_new_owner_acquisition = $takeover
     Save-EpisodeCheckpoint $OutputPath $checkpoint "new-owner-observed"
-    $usefulProgress = Wait-FirstUsefulRecoveryProgress $Dependency $WorkflowID $before.attempt_number $before.revision $takeover.epoch 180
+    $usefulProgress = Wait-FirstUsefulRecoveryProgress $Dependency $WorkflowID $before.attempt_number $before.revision $takeover.owner_id $oldLease.epoch 180
     $orderedProgress = Assert-AcquisitionPrecedesProgress $takeover $usefulProgress
     $checkpoint.first_useful_progress = $usefulProgress
     Save-EpisodeCheckpoint $OutputPath $checkpoint "replacement-result-observed"
@@ -963,6 +1063,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND revision > $($before.revision) AND scheduler_epoch IS NOT NULL AND scheduler_epoch < $($takeover.epoch);")
     if ($historyCount -ne 0) { throw "A transition carrying the stopped host's superseded epoch was committed after the host-stop pre-fault boundary: $historyCount" }
     $acquisitions = @(Get-LeaseAcquisitions $Dependency $partition)
+    $attempts = @(Get-AttemptSummary $Dependency $WorkflowID)
     $obligations = Get-ObligationSummary $Dependency $WorkflowID
     $snapshotPath = Join-Path (Split-Path -Parent $OutputPath) "host-durable-trace.json"
     $checker = Invoke-DurableChecker $App1 $WorkflowID $snapshotPath $before.revision $takeover.epoch $oldAttempt.attempt_number
@@ -983,6 +1084,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         recovery_ordering = $orderedProgress
         superseded_epoch_transitions_after_pre_fault_boundary = $historyCount
         stale_owner_probe = $staleProbe
+        attempts = $attempts
         lease_acquisitions = $acquisitions
         obligations = $obligations
         durable_invariant_checker = $checker
@@ -1017,6 +1119,27 @@ if ($SelfTest) {
         $actual = Get-PartitionID $vector.workflow_id
         if ($actual -ne $vector.partition) { throw "partition self-test failed for $($vector.workflow_id): got $actual, want $($vector.partition)" }
     }
+    $testAcquisition = [ordered]@{ acquisition_id = "acq-17"; owner_id = "owner-new"; epoch = 17 }
+    $testProgress = [ordered]@{
+        timeout_replacement_transition = [ordered]@{ revision = 8; scheduler_epoch = 18; lease_acquisition_id = "acq-18"; lease_owner_id = "owner-new"; prior_attempt_state = "TIMED_OUT"; prior_attempt_is_current = $false }
+        transition = [ordered]@{ revision = 9; scheduler_epoch = $null; reason = "ATTEMPT_RESULT_RECORDED"; attempt_number = 2 }
+    }
+    $ordering = Assert-AcquisitionPrecedesProgress $testAcquisition $testProgress
+    if (-not $ordering.durable_replacement_precedes_accepted_result) { throw "recovery-order self-test did not return a positive result" }
+    $wrongOwnerProgress = [ordered]@{
+        timeout_replacement_transition = [ordered]@{ revision = 8; scheduler_epoch = 18; lease_acquisition_id = "acq-18"; lease_owner_id = "other-owner"; prior_attempt_state = "TIMED_OUT"; prior_attempt_is_current = $false }
+        transition = [ordered]@{ revision = 9; scheduler_epoch = $null; reason = "ATTEMPT_RESULT_RECORDED"; attempt_number = 2 }
+    }
+    $wrongOwnerRejected = $false
+    try { $null = Assert-AcquisitionPrecedesProgress $testAcquisition $wrongOwnerProgress } catch { $wrongOwnerRejected = $true }
+    if (-not $wrongOwnerRejected) { throw "recovery-order self-test accepted a replacement from a different owner" }
+    $reversedProgress = [ordered]@{
+        timeout_replacement_transition = [ordered]@{ revision = 10; scheduler_epoch = 18; lease_acquisition_id = "acq-18"; lease_owner_id = "owner-new"; prior_attempt_state = "TIMED_OUT"; prior_attempt_is_current = $false }
+        transition = [ordered]@{ revision = 9; scheduler_epoch = $null; reason = "ATTEMPT_RESULT_RECORDED"; attempt_number = 2 }
+    }
+    $reversedRejected = $false
+    try { $null = Assert-AcquisitionPrecedesProgress $testAcquisition $reversedProgress } catch { $reversedRejected = $true }
+    if (-not $reversedRejected) { throw "recovery-order self-test accepted a result before its replacement transition" }
     $jsonSelfTestPath = Join-Path $RepoRoot ".scratch/dur043-json-selftest.json"
     try {
         New-Item -ItemType Directory -Force -Path (Split-Path -Parent $jsonSelfTestPath) | Out-Null
@@ -1028,7 +1151,7 @@ if ($SelfTest) {
     } finally {
         Remove-Item -LiteralPath $jsonSelfTestPath -Force -ErrorAction SilentlyContinue
     }
-    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 independent partition vectors and BOM-free AWS JSON."
+    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery owner/revision ordering controls, and BOM-free AWS JSON."
     return
 }
 
