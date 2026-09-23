@@ -823,21 +823,26 @@ function Set-AppMode([string]$InstanceId, [int]$DelayMS, [int]$HoldMS) {
     Send-Ssm $InstanceId $commands 300 | Out-Null
 }
 
-function Set-AppOwnerLockIsolationMode([string]$InstanceId, [string]$WorkflowID, [int]$DelayMS = 250, [int]$HoldMS = 90000) {
+function Set-AppOwnerLockIsolationMode([string]$InstanceId, [string]$WorkflowID, [string]$SourceCommit, [int]$DelayMS = 250, [int]$HoldMS = 90000) {
     if ($WorkflowID -notmatch '^dur049-r71-[a-z0-9-]{1,72}$') { throw "Owner-lock fixture ID is not run-scoped: $WorkflowID" }
+    if ($SourceCommit -notmatch '^[0-9a-f]{40}$') { throw "Owner-lock fixture requires a full immutable source commit, got '$SourceCommit'." }
     if ($HoldMS -lt 30000 -or $HoldMS -gt 180000) { throw "Campaign lock hold must be 30000..180000ms, got $HoldMS." }
     $commands = @(
         'set -e',
         'cd /opt/durable-agent-execution-engine',
+        "git fetch --depth 1 origin '$SourceCommit'",
+        "git checkout --detach '$SourceCommit'",
+        "test `$(git rev-parse HEAD) = '$SourceCommit'",
         "grep -q '^DUR048_ACTIVITY_DELAY_MS=' deploy/aws/.env && sed -i 's/^DUR048_ACTIVITY_DELAY_MS=.*/DUR048_ACTIVITY_DELAY_MS=$DelayMS/' deploy/aws/.env || echo 'DUR048_ACTIVITY_DELAY_MS=$DelayMS' >> deploy/aws/.env",
         "grep -q '^DUR048_ALLOW_FIXTURE_ACTIVITY=' deploy/aws/.env && sed -i 's/^DUR048_ALLOW_FIXTURE_ACTIVITY=.*/DUR048_ALLOW_FIXTURE_ACTIVITY=1/' deploy/aws/.env || echo 'DUR048_ALLOW_FIXTURE_ACTIVITY=1' >> deploy/aws/.env",
         "grep -q '^RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=' deploy/aws/.env && sed -i 's/^RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=.*/RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=0/' deploy/aws/.env || echo 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=0' >> deploy/aws/.env",
         "grep -q '^DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=' deploy/aws/.env && sed -i 's/^DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=.*/DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=$WorkflowID/' deploy/aws/.env || echo 'DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=$WorkflowID' >> deploy/aws/.env",
         "grep -q '^DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=' deploy/aws/.env && sed -i 's/^DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=.*/DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=$HoldMS/' deploy/aws/.env || echo 'DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=$HoldMS' >> deploy/aws/.env",
         "grep -q '^RUNTIME_ENTRYPOINT=' deploy/aws/.env && sed -i 's|^RUNTIME_ENTRYPOINT=.*|RUNTIME_ENTRYPOINT=/runtime-dur049-owner-lock|' deploy/aws/.env || echo 'RUNTIME_ENTRYPOINT=/runtime-dur049-owner-lock' >> deploy/aws/.env",
+        'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml build runtime',
         'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml up -d --force-recreate --wait --wait-timeout 240 runtime worker'
     )
-    Send-Ssm $InstanceId $commands 300 | Out-Null
+    Send-Ssm $InstanceId $commands 900 | Out-Null
 }
 
 function Restore-AppStandardRuntime([string]$InstanceId) {
@@ -1506,8 +1511,12 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
     $script:App2MayBeStopped = $true
     $app2Stopped = Stop-AppRuntime $App2
     $script:OwnerLockRuntimeConfigured = $true
-    Set-AppOwnerLockIsolationMode $App1 $WorkflowID $FixtureDelayMS 180000
+    $campaignSourceCommit = (git rev-parse HEAD).Trim()
+    Set-AppOwnerLockIsolationMode $App1 $WorkflowID $campaignSourceCommit $FixtureDelayMS 180000
     $app1Configuration = Get-AppConfiguration $App1
+    if ($app1Configuration.repo_commit -ne $campaignSourceCommit) {
+        throw "Owner-lock runtime source commit is $($app1Configuration.repo_commit), expected the campaign commit $campaignSourceCommit."
+    }
     if ($app1Configuration.runtime_entrypoint -ne '/runtime-dur049-owner-lock' -or $app1Configuration.owner_lock_campaign_workflow_id -ne $WorkflowID) {
         throw 'The owner-lock scenario is not running in the explicitly tagged campaign runtime with the targeted workflow.'
     }
@@ -1524,6 +1533,7 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
     $checkpoint.original_worker_schedule_lease = $claimed.scheduler_acquisition
     $checkpoint.original_runtime_identity_before_fault = $runtimeBefore
     $checkpoint.app2_stopped_before_owner_capture = $app2Stopped
+    $checkpoint.campaign_runtime_image_configuration = $app1Configuration
     Save-EpisodeCheckpoint $OutputPath $checkpoint 'attempt-claimed'
 
     # The hook runs inside this original runtime after it has locked the lease
@@ -2150,6 +2160,7 @@ try {
             idle_in_transaction_session_timeout_seconds = 10
             owner_lock_target_transaction_timeout_seconds = 120
             owner_lock_target_transaction_timeout_scope = 'transaction_local campaign-only override; global deployment setting remains 10s'
+            owner_lock_runtime_image_source = 'app host fetched the full campaign commit and rebuilt the runtime image before the owner-lock arm'
             claim_observation_semantics = "Wait for a durable CLAIMED attempt; scheduler lease identity is joined from the ATTEMPT_CREATED history epoch because the scheduler releases its lease at pass end."
             peer_mode = "controller-started cold standby for takeover arms; not a continuously active peer"
             pre_fault_refresh = "The original app host runtime and worker are force-recreated and health-checked before each fault fixture; container IDs and start times are recorded in the episode configuration."
