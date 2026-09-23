@@ -517,9 +517,10 @@ func TestPostgresStateRepository(t *testing.T) {
 		}
 
 		workflow, attempt := prepareAt(t, EffectPure, "", time.Now().Add(-time.Second))
+		const claimLease = 2 * time.Second
 		claim, err := store.ClaimAttempt(ctx, ClaimInput{
 			WorkflowID: workflow.WorkflowID, NodeID: "root", WorkerID: "worker-deadline", RequestID: "request-deadline-" + workflow.WorkflowID,
-			AttemptLease: 50 * time.Millisecond,
+			AttemptLease: claimLease,
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -534,7 +535,9 @@ func TestPostgresStateRepository(t *testing.T) {
 		}); err == nil {
 			t.Fatal("fresh claim was immediately timeout-eligible")
 		}
-		time.Sleep(75 * time.Millisecond)
+		if remaining := time.Until(claim.HeartbeatDeadline); remaining > 0 {
+			time.Sleep(remaining + 25*time.Millisecond)
+		}
 		timeout, err := store.TimeoutAttempt(ctx, TimeoutInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: workflow.WorkflowID, NodeID: "root", AttemptNumber: attempt.AttemptNumber,
