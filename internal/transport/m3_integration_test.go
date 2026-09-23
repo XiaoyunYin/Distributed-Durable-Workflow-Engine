@@ -3,7 +3,6 @@ package transport
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -392,28 +391,47 @@ func createM3TransportWorkflow(t *testing.T, ctx context.Context, store *state.S
 	}
 	ownerID := state.NewID()
 	var lease state.Lease
-	var acquired bool
-	// Keep M3 fixtures away from the foundation/M1 integration fixtures, which
-	// intentionally exercise partition 0 in parallel service CI.
-	for partitionID := int16(8); partitionID < 16; partitionID++ {
-		var err error
-		lease, acquired, err = store.AcquireLease(ctx, partitionID, ownerID, time.Minute)
+	leaseHeld := false
+	setupComplete := false
+	defer func() {
+		if setupComplete {
+			return
+		}
+		cleanupCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if leaseHeld {
+			if err := store.ReleaseLease(cleanupCtx, state.LeaseRef{PartitionID: lease.PartitionID,
+				OwnerID: lease.OwnerID, Epoch: lease.Epoch}); err != nil && !errors.Is(err, state.ErrLeaseNotOwned) {
+				t.Errorf("release M3 transport fixture lease after setup failure: %v", err)
+			}
+		}
+		if _, err := store.Pool().Exec(cleanupCtx, `DELETE FROM engine.workflow_definitions WHERE definition_id = $1`, definitionID); err != nil {
+			t.Errorf("clean M3 transport definition after setup failure: %v", err)
+		}
+	}()
+
+	// Choose an ID first, then reserve its mapped partition. Acquiring an
+	// arbitrary lease and searching only 100 random IDs for a match made the
+	// hosted service suite fail probabilistically. Keep M3 fixtures away from
+	// partitions 0-7, used by other integration packages in hosted CI.
+	for attempt := 0; attempt < 4096; attempt++ {
+		workflowID := "dur011-transport-" + state.NewID()
+		mapped, err := partition.ID(workflowID)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if acquired {
-			break
-		}
-	}
-	if !acquired {
-		t.Fatal("could not acquire transport test lease")
-	}
-	for attempt := 0; attempt < 100; attempt++ {
-		workflowID := "dur011-transport-" + state.NewID()
-		mapped, err := partition.ID(workflowID)
-		if err != nil || int16(mapped) != lease.PartitionID {
+		if mapped < 8 {
 			continue
 		}
+		candidateLease, acquired, err := store.AcquireLease(ctx, int16(mapped), ownerID, time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !acquired {
+			continue
+		}
+		lease = candidateLease
+		leaseHeld = true
 		if _, err := store.CreateWorkflow(ctx, state.CreateWorkflowInput{WorkflowID: workflowID,
 			Namespace: "dur011-transport", SubmissionKey: "key-" + workflowID,
 			SubmissionPayloadHash: "sub-v1:" + workflowID, DefinitionID: definitionID,
@@ -421,9 +439,10 @@ func createM3TransportWorkflow(t *testing.T, ctx context.Context, store *state.S
 			InitialInput: []byte(`{}`), ActorID: "m3-test"}); err != nil {
 			t.Fatal(err)
 		}
+		setupComplete = true // cleanupM3TransportWorkflow owns this fixture now.
 		return definitionID, workflowID, lease
 	}
-	t.Fatal(fmt.Sprintf("could not generate workflow for partition %d", lease.PartitionID))
+	t.Fatal("could not acquire a free M3 transport partition for a generated workflow ID")
 	return definitionID, "", lease
 }
 
