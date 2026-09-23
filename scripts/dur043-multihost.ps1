@@ -295,6 +295,8 @@ function Observe-Runtime([string]$InstanceId) {
 
 function Insert-NetworkBlock([string]$AppInstanceId, [string]$DependencyInstanceId, [string]$DependencyIP, [string]$AppPrivateIP) {
     $faultCommandAt = [DateTime]::UtcNow
+    $terminateSql = "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE client_addr='$AppPrivateIP' AND pid <> pg_backend_pid();"
+    $terminateSqlEncoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($terminateSql))
     $probe = "import socket; s=socket.create_connection(('$DependencyIP', 5432), 2); s.close(); print('reachable')"
     $workerProbe = "docker compose --env-file '$RemoteEnv' -f '$AppCompose' exec -T worker python -c `"$probe`""
     $appBeforeOutput = Send-Ssm $AppInstanceId @(
@@ -326,7 +328,8 @@ function Insert-NetworkBlock([string]$AppInstanceId, [string]$DependencyInstance
         "sudo iptables -I INPUT -s '$AppPrivateIP' -p tcp --dport 9092 -j REJECT --reject-with tcp-reset",
         "sudo iptables -I INPUT -s '$AppPrivateIP' -p tcp --dport 9092 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT --reject-with tcp-reset",
         "command -v conntrack",
-        "sudo conntrack -D -s '$AppPrivateIP' || true"
+        "sudo conntrack -D -s '$AppPrivateIP' || true",
+        "echo '$terminateSqlEncoded' | base64 -d | docker compose --env-file '$RemoteEnv' -f '$DependencyCompose' exec -T postgres psql -U '$DependencyUser' -d '$DependencyDatabase' -At -f -"
     )
     $appAfterOutput = Send-Ssm $AppInstanceId @(
         "set -e",
@@ -343,7 +346,8 @@ function Insert-NetworkBlock([string]$AppInstanceId, [string]$DependencyInstance
         observed_at_utc = $faultObservedAt
         network_chain = "DOCKER-USER plus dependency INPUT"
         network_match_states = @("NEW", "ESTABLISHED", "RELATED")
-        established_flow_termination = "host conntrack deletion for dependency destination"
+        established_flow_termination = "host conntrack deletion plus dependency-side PostgreSQL session termination"
+        dependency_session_termination = "pg_terminate_backend for sessions whose client address is the isolated app host"
         route_fault = "app-host blackhole route for dependency /32"
         dependency_source_ip = $AppPrivateIP
         connectivity_before = "reachable"
@@ -443,7 +447,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         takeover_to_first_useful_progress_note = "The exact lease takeover instant is not persisted independently; TIMEOUT_REPLACEMENT is the first committed transition by the new epoch and fault-to-progress is measured directly."
         first_useful_progress_transition = $usefulProgress.transition
         fault_observed_to_terminal_completion_ms = DurationMilliseconds $faultObserved.observed_at_utc $terminalAt
-        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion for dependency destination"; route_fault = "app-host blackhole route for dependency /32"; dependency_source_ip = $AppPrivateIP }
+        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion plus dependency-side PostgreSQL session termination"; route_fault = "app-host blackhole route for dependency /32"; dependency_source_ip = $AppPrivateIP }
         limitation = "This arm isolates the app host from PostgreSQL while preserving its process; it is not a host-stop or database-host durability claim."
     }
     Write-Json $OutputPath $result
@@ -589,7 +593,7 @@ try {
         region = $Region
         topology = [ordered]@{ application_hosts = 2; dependency_hosts = 1; app_instance_ids = $appIDs; app_private_ips = $appPrivateIPs; dependency_instance_id = $dependency; dependency_private_ip = $dependencyIP }
         scenarios = @($Scenario)
-        configuration = [ordered]@{ activity = "dur048.sleep"; requested_activity_delay_ms = $FixtureDelayMS; requested_scheduler_hold_after_acquire_ms = $ObservationHoldMS; takeover_observation_hold_ms = $TakeoverObservationHoldMS; requested_fixture_activity_enabled = $FixtureActivityEnabled; requested_worker_slots = $WorkerSlots; runtime_engine_mode = "disabled"; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT for network arm; not_applicable_host_stop for host arm"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion for dependency destination"; route_fault = "app-host blackhole route for dependency /32" }
+        configuration = [ordered]@{ activity = "dur048.sleep"; requested_activity_delay_ms = $FixtureDelayMS; requested_scheduler_hold_after_acquire_ms = $ObservationHoldMS; takeover_observation_hold_ms = $TakeoverObservationHoldMS; requested_fixture_activity_enabled = $FixtureActivityEnabled; requested_worker_slots = $WorkerSlots; runtime_engine_mode = "disabled"; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT for network arm; not_applicable_host_stop for host arm"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion plus dependency-side PostgreSQL session termination"; route_fault = "app-host blackhole route for dependency /32" }
         required_observation = "SSM, EC2, Docker, and PostgreSQL state must confirm each fault; controller intent alone never produces PASS."
         results = @()
     }
