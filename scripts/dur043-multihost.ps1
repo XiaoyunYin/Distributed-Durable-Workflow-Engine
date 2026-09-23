@@ -818,9 +818,9 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
     $checkpoint.lock_holder = $lockHolder
     Save-EpisodeCheckpoint $OutputPath $checkpoint "lease-row-lock-observed"
     Set-AppEnvironment $App2 1000 $TakeoverObservationHoldMS
-    $app2Configuration = Get-AppConfiguration $App2
     Start-AppRuntimeNoWait $App2
     $script:App2MayBeStopped = $false
+    $app2Configuration = Get-AppConfiguration $App2
     Wait-AppApi $App2
     [void](Submit-FixtureWorkflow $App2 $ProgressWorkflowID)
     $progress = Wait-Workflow $Dependency $ProgressWorkflowID 75
@@ -1032,9 +1032,9 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $checkpoint.host_stopped_at_utc = $stoppedAt.ToString("o")
     Save-EpisodeCheckpoint $OutputPath $checkpoint "host-stop-confirmed"
     Set-AppEnvironment $App2 $FixtureDelayMS $TakeoverObservationHoldMS
-    $app2Configuration = Get-AppConfiguration $App2
     Start-AppRuntimeNoWait $App2
     $script:App2MayBeStopped = $false
+    $app2Configuration = Get-AppConfiguration $App2
     $takeover = Wait-FirstNewOwnerAcquisition $Dependency $partition $oldLease.owner_id $oldLease.epoch $stoppedAt
     $checkpoint.first_new_owner_acquisition = $takeover
     Save-EpisodeCheckpoint $OutputPath $checkpoint "new-owner-observed"
