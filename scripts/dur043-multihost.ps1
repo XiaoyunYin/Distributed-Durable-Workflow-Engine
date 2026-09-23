@@ -430,6 +430,8 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         original_epoch = $oldLease.epoch
         takeover_owner_id = $newLease.owner_id
         takeover_epoch = $newLease.epoch
+        recovery_transition_epoch = $usefulProgress.transition.scheduler_epoch
+        recovery_transition_matches_observed_epoch = ($usefulProgress.transition.scheduler_epoch -eq $newLease.epoch)
         fault_observed = $faultObserved
         original_runtime_observed = $reconnected
         workflow_before = $before
@@ -444,7 +446,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         fault_observed_to_takeover_ms = DurationMilliseconds $faultObserved.observed_at_utc $takeoverObservedAt
         fault_observed_to_first_useful_progress_ms = DurationMilliseconds $faultObserved.observed_at_utc $usefulProgress.observed_at_utc
         takeover_to_first_useful_progress_ms = $null
-        takeover_to_first_useful_progress_note = "The exact lease takeover instant is not persisted independently; TIMEOUT_REPLACEMENT is the first committed transition by the new epoch and fault-to-progress is measured directly."
+        takeover_to_first_useful_progress_note = "partition_leases stores only the current lease, not takeover history; its observed epoch may be newer than the historical recovery transition. TIMEOUT_REPLACEMENT is the first committed transition for the recovered attempt and fault-to-progress is measured directly."
         first_useful_progress_transition = $usefulProgress.transition
         fault_observed_to_terminal_completion_ms = DurationMilliseconds $faultObserved.observed_at_utc $terminalAt
         configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion plus dependency-side PostgreSQL session termination"; route_fault = "app-host blackhole route for dependency /32"; dependency_source_ip = $AppPrivateIP }
