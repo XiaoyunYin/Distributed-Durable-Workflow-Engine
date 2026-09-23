@@ -35,7 +35,7 @@ $ObservationHoldMS = 1000
 # Hold the takeover owner briefly after acquiring the lease so the controller
 # can observe the durable takeover before the replacement attempt is created.
 # This separates observation latency from useful-progress latency.
-$TakeoverObservationHoldMS = 5000
+$TakeoverObservationHoldMS = 2000
 $FixtureActivityEnabled = $true
 $WorkerSlots = 2
 $FaultPorts = @(5432, 9092)
@@ -203,6 +203,18 @@ function Wait-ClaimedWorkflow([string]$DependencyInstanceId, [string]$WorkflowID
         Start-Sleep -Seconds 1
     } while ((Get-Date) -lt $deadline)
     throw "Workflow $WorkflowID was not observed CLAIMED with an owning partition lease before the deadline."
+}
+
+function Wait-LeaseTakeover([string]$DependencyInstanceId, [int]$PartitionID, [string]$OldOwnerID, [int64]$OldEpoch, [int]$TimeoutSeconds = 90) {
+    $sql = "SELECT COALESCE(owner_id::text,''), epoch, COALESCE(lease_expires_at::text,''), to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD`"T`"HH24:MI:SS.MS`"Z`"') FROM engine.partition_leases WHERE partition_id=$PartitionID;"
+    $command = 'set -e; for i in $(seq 1 {0}); do row=$(docker compose --env-file ''{1}'' -f ''{2}'' exec -T postgres psql -U ''{3}'' -d ''{4}'' -At -F ''|'' -c ''{5}''); epoch=$(echo "$row" | cut -d''|'' -f2); owner=$(echo "$row" | cut -d''|'' -f1); if [ "$epoch" -gt ''{6}'' ] && [ "$owner" != ''{7}'' ]; then echo "$row|$(date -u +%Y-%m-%dT%H:%M:%S.%3NZ)"; exit 0; fi; sleep 1; done; exit 1' -f $TimeoutSeconds, $RemoteEnv, $DependencyCompose, $DependencyUser, $DependencyDatabase, $sql, $OldEpoch, $OldOwnerID
+    $output = Send-Ssm $DependencyInstanceId @($command) ($TimeoutSeconds + 30)
+    $parts = $output.Trim() -split '\|', 5
+    if ($parts.Count -lt 5) { throw "Lease takeover observer returned malformed output: $output" }
+    return [ordered]@{
+        lease = [ordered]@{ owner_id = $parts[0]; epoch = [int64]$parts[1]; lease_expires_at = $parts[2]; updated_at = $parts[3] }
+        observed_at_utc = ([DateTimeOffset]::Parse($parts[4])).UtcDateTime
+    }
 }
 
 function DurationMilliseconds([DateTime]$Started, [DateTime]$Finished) {
@@ -379,14 +391,9 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $faultObserved = Insert-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP
     Set-AppMode $App2 $FixtureDelayMS $TakeoverObservationHoldMS
     $app2Configuration = Get-AppConfiguration $App2
-    $deadline = (Get-Date).AddSeconds(90)
-    do {
-        $newLease = Get-Lease $Dependency $partition
-        if ($newLease.epoch -gt $oldLease.epoch -and $newLease.owner_id -ne $oldLease.owner_id) { break }
-        Start-Sleep -Seconds 2
-    } while ((Get-Date) -lt $deadline)
-    if ($newLease.epoch -le $oldLease.epoch -or $newLease.owner_id -eq $oldLease.owner_id) { throw "Peer did not take over partition $partition after network isolation." }
-    $takeoverObservedAt = [DateTime]::UtcNow
+    $takeover = Wait-LeaseTakeover $Dependency $partition $oldLease.owner_id $oldLease.epoch
+    $newLease = $takeover.lease
+    $takeoverObservedAt = $takeover.observed_at_utc
     $takeoverAt = ([DateTimeOffset]::Parse($newLease.updated_at)).UtcDateTime
     Remove-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP
     $script:NetworkRulesInserted = $false
@@ -465,14 +472,9 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $runningObservedAt = [DateTime]::UtcNow
     Wait-Ssm $App1
     Start-AppRuntime $App2
-    $deadline = (Get-Date).AddSeconds(90)
-    do {
-        $newLease = Get-Lease $Dependency $partition
-        if ($newLease.epoch -gt $oldLease.epoch -and $newLease.owner_id -ne $oldLease.owner_id) { break }
-        Start-Sleep -Seconds 2
-    } while ((Get-Date) -lt $deadline)
-    if ($newLease.epoch -le $oldLease.epoch -or $newLease.owner_id -eq $oldLease.owner_id) { throw "Peer did not take over after the application host stop." }
-    $takeoverObservedAt = [DateTime]::UtcNow
+    $takeover = Wait-LeaseTakeover $Dependency $partition $oldLease.owner_id $oldLease.epoch
+    $newLease = $takeover.lease
+    $takeoverObservedAt = $takeover.observed_at_utc
     $takeoverAt = ([DateTimeOffset]::Parse($newLease.updated_at)).UtcDateTime
     $usefulProgress = Wait-FirstUsefulProgressAfterObservation $Dependency $WorkflowID $before.attempt_number $takeoverObservedAt 180
     $terminal = Wait-Workflow $Dependency $WorkflowID 180
