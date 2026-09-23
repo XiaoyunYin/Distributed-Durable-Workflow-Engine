@@ -92,6 +92,17 @@ not run. [DUR-048 pilot evidence](experiments/m8/dur042-pilot/)
 This is local Compose evidence, not AWS, host-failure, production-throughput,
 or external-effect evidence.
 
+A separate [DUR-049 AWS campaign](experiments/portfolio/cloud-recovery/dur049-aws-20260922-host-ao/protocol.json)
+ran a forced application-host stop/restart and a preserved-process network
+isolation/reconnect arm across two application hosts and one dependency host.
+The [network-arm artifact](experiments/portfolio/cloud-recovery/dur049-aws-20260922-network-as/protocol.json)
+records connectivity loss, peer takeover, first replacement-attempt progress,
+stale-owner rejection, and zero superseded-epoch transitions. The
+[cleanup report](experiments/portfolio/cloud-recovery/dur049-aws-20260922-cleanup/cleanup.json)
+records full Terraform teardown. This is bounded application-host recovery
+evidence, not database-host durability, multi-region HA, or production-scale
+reliability evidence.
+
 ### Scoped recovery case study
 
 The committed local portfolio run exercised two failure modes: an owner process
@@ -210,7 +221,8 @@ available in the [PowerShell artifact](mutations/results-powershell.json) and
 passes both the offline and service-backed jobs. The workflow creates and
 drops a disposable migration-complete database for both mutation gates after
 an earlier run exposed shared-database residue from the preceding service
-suite. AWS recovery and the required Kubernetes campaign remain future work.
+suite. The bounded AWS recovery evidence is published separately; the required
+Kubernetes campaign remains future work.
 Internal study notes stay local; only concise claim boundaries
 and reproducible evidence links are published here.
 
@@ -222,10 +234,10 @@ and reproducible evidence links are published here.
   a scheduler stalled inside a transaction can retain the lease-row lock beyond
   lease expiry and block takeover. Independent review verified the committed
   repair: it bounds lock acquisition and scheduler iterations with a
-  distinct retryable error while preserving the fence. The historical local
-  campaign still does not establish multi-host scheduler liveness.
-- Single-host evidence does not establish multi-host durability, database HA,
-  host-loss recovery, sustained production load, or arbitrary exactly-once effects.
+  distinct retryable error while preserving the fence.
+- The AWS campaign establishes bounded application-host and network-isolation
+  recovery only; it does not establish database HA, multi-region durability,
+  sustained production load, or arbitrary exactly-once effects.
 - Historical studies, deterministic fixtures, and the deployed pure-activity
   demo have different scopes; their results are not interchangeable.
 - The existing `v0.1.0` tag identifies `7e4137d`; this branch includes later
