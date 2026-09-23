@@ -76,7 +76,9 @@
     "campaign_workflow_scoped_open_items": 0,
     "database_outbox_rows": 261,
     "database_outbox_pending_or_claimed": 0,
-    "disposition": "CAPTURED_NOT_RESOLVED; obligations are retained and are not represented as completed cleanup"
+    "probe_induced_items": 5,
+    "disposition": "CAPTURED_NOT_RESOLVED; all five global POISON_RECORD items are attributed to historical same-owner stale-epoch probe workflow.created events whose workflow rows were raw-deleted before consumer processing; the items remain recorded and are not represented as resolved or as obligations from the measured recovery workflows",
+    "workflow_id_mapping": "Inferred from retained same-owner probe results and run timestamps; original Kafka payload bytes were not retained"
   },
   "cost": {
     "actual_campaign_invoice_attributed": false,
@@ -147,6 +149,6 @@
     "The network peer is a controller-started cold standby, not a continuously active second scheduler.",
     "Recovery observations are bounded by the 30-second attempt lease and the 60-second fixture activity; do not quote them as general failover performance.",
     "The tested activity is pure. Zero observed effect calls/duplicates is a workload census, not a test of external-effect deduplication.",
-    "Five global POISON_RECORD obligations were still OPEN at teardown and remain unresolved."
+    "Five global POISON_RECORD items were OPEN at teardown and are attributed to historical same-owner stale-epoch negative-control probes (workflow.created followed by raw workflow deletion); their workflow-ID mapping is inferred from retained probe outputs and run timestamps because original Kafka payload bytes were not retained. The records remain open in the captured historical snapshot, not resolved or attributed to the measured recovery workflows."
   ]
 }

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"reflect"
 	"time"
 
@@ -30,6 +31,10 @@ const (
 // migration runner owns schema installation; the repository only operates on
 // the already versioned schema.
 func NewFromURL(ctx context.Context, databaseURL string) (*Store, error) {
+	ledgerSetting := os.Getenv("DUR049_RECORD_LEASE_ACQUISITIONS")
+	if ledgerSetting != "" && ledgerSetting != "0" && ledgerSetting != "1" {
+		return nil, fmt.Errorf("DUR049_RECORD_LEASE_ACQUISITIONS must be 0 or 1, got %q", ledgerSetting)
+	}
 	config, err := pgxpool.ParseConfig(databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("parse database URL: %w", err)
@@ -51,7 +56,7 @@ func NewFromURL(ctx context.Context, databaseURL string) (*Store, error) {
 		pool.Close()
 		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
 	}
-	return New(pool), nil
+	return NewWithOptions(pool, StoreOptions{RecordLeaseAcquisitions: ledgerSetting == "1"}), nil
 }
 
 func NewID() string {
@@ -481,12 +486,14 @@ func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID str
 		WHERE partition_id = $1`, partitionID, lease.OwnerID, lease.Epoch, lease.LeaseExpiresAt); err != nil {
 		return Lease{}, false, fmt.Errorf("acquire partition lease: %w", err)
 	}
-	if _, err := tx.Exec(ctx, `
+	if s.recordLeaseAcquisitions {
+		if _, err := tx.Exec(ctx, `
 		INSERT INTO engine.lease_acquisitions
 			(acquisition_id, partition_id, owner_id, epoch, lease_expires_at, acquired_at)
 		VALUES ($1, $2, $3, $4, $5, clock_timestamp())`,
-		NewID(), lease.PartitionID, lease.OwnerID, lease.Epoch, lease.LeaseExpiresAt); err != nil {
-		return Lease{}, false, fmt.Errorf("record lease acquisition: %w", err)
+			NewID(), lease.PartitionID, lease.OwnerID, lease.Epoch, lease.LeaseExpiresAt); err != nil {
+			return Lease{}, false, fmt.Errorf("record lease acquisition: %w", err)
+		}
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return Lease{}, false, err
@@ -764,6 +771,9 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 	defer func() { _ = tx.Rollback(ctx) }()
 	if _, err := lockLease(ctx, tx, input.Lease); err != nil {
 		return ConsumeResult{}, err
+	}
+	if err := dur049OwnerLockIsolationAfterLeaseLock(ctx, s, tx, input); err != nil {
+		return ConsumeResult{}, fmt.Errorf("DUR-049 owner-lock isolation hook: %w", err)
 	}
 	var workflow Workflow
 	if err := tx.QueryRow(ctx, `

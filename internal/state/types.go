@@ -103,8 +103,17 @@ const (
 )
 
 type Store struct {
-	pool      *pgxpool.Pool
-	telemetry *telemetry.Metrics
+	pool                    *pgxpool.Pool
+	telemetry               *telemetry.Metrics
+	recordLeaseAcquisitions bool
+}
+
+// StoreOptions contains opt-in instrumentation that is not required for
+// normal scheduler correctness. The DUR-049 acquisition ledger is enabled
+// only by the campaign deployment; ordinary stores remain independent of
+// migration 16.
+type StoreOptions struct {
+	RecordLeaseAcquisitions bool
 }
 
 type DefinitionInput struct {
@@ -589,7 +598,11 @@ type GrantValidationInput struct {
 }
 
 func New(pool *pgxpool.Pool) *Store {
-	return &Store{pool: pool}
+	return NewWithOptions(pool, StoreOptions{})
+}
+
+func NewWithOptions(pool *pgxpool.Pool, options StoreOptions) *Store {
+	return &Store{pool: pool, recordLeaseAcquisitions: options.RecordLeaseAcquisitions}
 }
 
 // SetTelemetry attaches the bounded process registry used for operational

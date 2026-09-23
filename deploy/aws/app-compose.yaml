@@ -12,10 +12,16 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: ${KAFKA_BOOTSTRAP_SERVERS}
       RUNTIME_SCHEDULER: "enabled"
       RUNTIME_NAMESPACE: dur049-aws
+      # Bounded campaign evidence only. Normal/local runtime stores leave the
+      # append-only lease-acquisition ledger disabled by default.
+      DUR049_RECORD_LEASE_ACQUISITIONS: "1"
+      DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID: ${DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID:-}
+      DUR049_OWNER_LOCK_ISOLATION_HOLD_MS: ${DUR049_OWNER_LOCK_ISOLATION_HOLD_MS:-0}
       RUNTIME_ENGINE_MODE: disabled
       DUR048_ACTIVITY_DELAY_MS: ${DUR048_ACTIVITY_DELAY_MS:-0}
       DUR048_ALLOW_FIXTURE_ACTIVITY: ${DUR048_ALLOW_FIXTURE_ACTIVITY:-0}
       RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS: ${RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS:-0}
+    entrypoint: ${RUNTIME_ENTRYPOINT:-/runtime}
     ports:
       - "8080:8080"
     restart: unless-stopped

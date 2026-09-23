@@ -1,7 +1,8 @@
 {
     "schema_version":  "dur049-episode.v1",
     "status":  "PASS",
-    "fault":  "lease-row-lock-held-beyond-expiry",
+    "fault":  "live-holder-lease-row-lock-contention",
+    "arm_classification":  "R096 bounded-wait under a healthy external lock holder; not owner isolation while the runtime holds the lease row lock",
     "workflow_id":  "dur049-r71-lock-f48a1",
     "progress_workflow_id":  "dur049-r71-progress-f48a1",
     "partition_id":  1,
@@ -119,7 +120,8 @@
                               "stale_rejected":  true
                           },
     "result":  {
-                   "fault":  "lease-row-lock-held-beyond-expiry",
+                   "fault":  "live-holder-lease-row-lock-contention",
+                   "arm_classification":  "R096 bounded-wait under a healthy external lock holder; not owner isolation while the runtime holds the lease row lock",
                    "workflow_id":  "dur049-r71-lock-f48a1",
                    "partition_id":  1,
                    "progress_workflow_id":  "dur049-r71-progress-f48a1",
@@ -334,7 +336,7 @@
                    "lock_observed_to_first_new_owner_acquisition_observed_ms":  177643.224,
                    "first_new_owner_acquisition_observed_to_first_useful_progress_observed_ms":  7208.406,
                    "timestamp_semantics":  "Intervals use controller UTC observation times after 2-second polling; DB timestamps are transaction-recorded diagnostics, not commit times.",
-                   "recovery_timing_note":  "This is the lock-held isolation arm. The lease fence remains row-locked; the bounded lock timeout lets other partitions progress while the lock holder retains the target row. The original worker durably records its result, and the first new owner consumes that same attempt after the lock is released; this run does not demonstrate a replacement attempt. App2 is a controller-started standby, not a continuously active peer. Report separately from pure network isolation and do not treat this as peer failure-detection latency.",
+                   "recovery_timing_note":  "This is a live-holder lease-row-lock contention arm measuring the R096 bounded-wait property: other partitions progress while a healthy external lock-holder session retains the target row. It is not network isolation of the owning runtime and does not measure server-side reaping of an isolated lock-holding owner. The original worker durably records its result, and the first new owner consumes that same attempt after the lock is released; this run does not demonstrate a replacement attempt. App2 is a controller-started standby, not a continuously active peer.",
                    "configuration":  {
                                          "activity":  "dur048.sleep",
                                          "app1":  {

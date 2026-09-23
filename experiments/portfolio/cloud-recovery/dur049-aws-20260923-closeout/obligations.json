@@ -31,6 +31,10 @@
     {
       "item_id": "e0145735-ae29-48c8-a289-5604b6fa1fd0",
       "kind": "POISON_RECORD",
+      "workflow_id": null,
+      "poison_payload_workflow_id": "dur049-r71-epoch-fence-42b1ff15",
+      "workflow_id_attribution": "inferred from the retained same-owner probe result and the probe/PASS-to-obligation time window; original Kafka payload bytes were not retained",
+      "classification": "PROBE_INDUCED",
       "reference": "transport/runtime-schedulers-v1/durable-agent.events.v1/2/3",
       "status": "OPEN",
       "reason": "outbox event not found",
@@ -40,6 +44,10 @@
     {
       "item_id": "89c20859-49be-476b-8066-941a8fbf0998",
       "kind": "POISON_RECORD",
+      "workflow_id": null,
+      "poison_payload_workflow_id": "dur049-r71-epoch-fence-ff0fb8a8",
+      "workflow_id_attribution": "inferred from the retained same-owner probe result and the probe/PASS-to-obligation time window; original Kafka payload bytes were not retained",
+      "classification": "PROBE_INDUCED",
       "reference": "transport/runtime-schedulers-v1/durable-agent.events.v1/7/15",
       "status": "OPEN",
       "reason": "outbox event not found",
@@ -49,6 +57,10 @@
     {
       "item_id": "daf54f98-0083-4771-9188-5a08cc3dedef",
       "kind": "POISON_RECORD",
+      "workflow_id": null,
+      "poison_payload_workflow_id": "dur049-r71-epoch-fence-e598bb11",
+      "workflow_id_attribution": "inferred from the retained same-owner probe result and the probe/PASS-to-obligation time window; original Kafka payload bytes were not retained",
+      "classification": "PROBE_INDUCED",
       "reference": "transport/runtime-schedulers-v1/durable-agent.events.v1/0/16",
       "status": "OPEN",
       "reason": "outbox event not found",
@@ -58,6 +70,10 @@
     {
       "item_id": "ce627f76-9e16-4900-8347-b4a79e3aa630",
       "kind": "POISON_RECORD",
+      "workflow_id": null,
+      "poison_payload_workflow_id": "dur049-r71-epoch-fence-c93a9b0a",
+      "workflow_id_attribution": "inferred from the retained same-owner probe result and the probe/PASS-to-obligation time window; original Kafka payload bytes were not retained",
+      "classification": "PROBE_INDUCED",
       "reference": "transport/runtime-schedulers-v1/durable-agent.events.v1/7/19",
       "status": "OPEN",
       "reason": "outbox event not found",
@@ -67,6 +83,10 @@
     {
       "item_id": "44b80ffd-9129-4b44-a0e2-2c08a6caecc3",
       "kind": "POISON_RECORD",
+      "workflow_id": null,
+      "poison_payload_workflow_id": "dur049-r71-epoch-fence-ed53b3b8",
+      "workflow_id_attribution": "inferred from the retained same-owner probe result and the probe/PASS-to-obligation time window; original Kafka payload bytes were not retained",
+      "classification": "PROBE_INDUCED",
       "reference": "transport/runtime-schedulers-v1/durable-agent.events.v1/0/21",
       "status": "OPEN",
       "reason": "outbox event not found",
@@ -74,5 +94,11 @@
       "created_at_utc": "2026-09-23T11:45:16.770077Z"
     }
   ],
-  "interpretation": "The two cited DUR-049 workflows were terminal with no workflow-scoped open obligations and the database outbox had no pending or claimed rows. Five global poison-record obligations remained open, each reporting a missing workflow.created outbox event. They are retained as unresolved obligations; teardown does not resolve or dismiss them."
+  "probe_induced_obligations": {
+    "count": 5,
+    "cause": "Historical same-owner stale-epoch probe created workflow.created outbox work and raw-deleted the workflow row; the foreign-key cascade removed the outbox row before the scheduler consumer processed the broker message, which was correctly quarantined as POISON_RECORD.",
+    "workflow_id_mapping": "Inferred from retained same-owner probe results and run timestamps. Original Kafka payload bytes were not retained, so the mapping is not direct payload inspection.",
+    "global_open_obligation_set_at_capture": "These five historical probe-induced items were open at teardown; the reclassification explains their source and does not represent them as resolved or delete their records."
+  },
+  "interpretation": "The two cited DUR-049 workflows were terminal with no workflow-scoped open obligations and the database outbox had no pending or claimed rows. Five global poison-record items remained open at teardown and are attributed to historical same-owner stale-epoch negative-control probes, not to the measured recovery workflows. The records remain captured, not resolved; teardown did not dismiss them."
 }

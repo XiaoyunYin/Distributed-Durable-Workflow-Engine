@@ -37,6 +37,37 @@ def run(command: list[str], cwd: Path, env: dict[str, str]) -> tuple[int, str]:
     return process.returncode, process.stdout
 
 
+def baseline_test_command(command: list[str]) -> list[str] | None:
+    """Return a verbose Go test command for proving a manifest case selects tests."""
+    if not command or command[0] != "go" or len(command) < 2 or command[1] != "test":
+        return None
+    result = list(command)
+    if "-v" not in result:
+        result.insert(2, "-v")
+    return result
+
+
+def validate_case_baseline(
+    case_id: str, command: list[str], cwd: Path, env: dict[str, str]
+) -> tuple[bool, str]:
+    test_command = baseline_test_command(command)
+    if test_command is None:
+        return True, ""
+    code, output = run(test_command, cwd, env)
+    executed = any(
+        line.startswith(("--- PASS:", "--- FAIL:", "--- SKIP:")) for line in output.splitlines()
+    )
+    invalid = (
+        code != 0 or not executed or "--- SKIP:" in output or "no tests to run" in output.lower()
+    )
+    if not invalid:
+        return True, output
+    return False, (
+        f"{case_id}: named-test baseline failed, skipped, or selected no tests; "
+        f"command={test_command!r}\n{output}"
+    )
+
+
 def export_head(repo: Path, destination: Path) -> None:
     archive = subprocess.check_output(["git", "-C", str(repo), "archive", "--format=tar", "HEAD"])
     with tarfile.open(fileobj=io.BytesIO(archive), mode="r:") as handle:
@@ -80,8 +111,16 @@ def main() -> int:
     scratch_root = Path(tempfile.mkdtemp(prefix="dur046-mutation-"))
     try:
         baseline = [
-            "go", "test", "-p", "1", "./internal/reference", "./internal/api", "./internal/engine",
-            "./internal/invariants", "./internal/state", "-count=1",
+            "go",
+            "test",
+            "-p",
+            "1",
+            "./internal/reference",
+            "./internal/api",
+            "./internal/engine",
+            "./internal/invariants",
+            "./internal/state",
+            "-count=1",
         ]
         code, output = run(baseline, repo, base_env)
         if code != 0 or "SKIP" in output or "no tests to run" in output.lower():
@@ -107,12 +146,26 @@ def main() -> int:
             count = source.count(old)
             if count != 1:
                 raise RuntimeError(f"{case['id']}: expected one patch site, found {count}")
-            path.write_text(source.replace(old, new, 1), encoding="utf-8", newline="\n")
-
             command = [str(item) for item in case["command"]]
             env = dict(base_env)
             if command[0] == "go":
                 env["GOCACHE"] = str(Path(tempfile.mkdtemp(prefix="dur046-case-cache-")))
+            # Prove the exact selector passes on the unmodified source before
+            # applying the mutation. This catches misspelled -run patterns and
+            # skipped/no-test cases; running this after patching would confuse
+            # an expected mutation failure with a broken baseline.
+            baseline_ok, baseline_output = validate_case_baseline(
+                str(case["id"]), command, scratch, env
+            )
+            if not baseline_ok:
+                print(baseline_output, file=sys.stderr)
+                print(
+                    "DUR-046 mutation case has no passing, executed baseline; "
+                    "refusing to apply mutation",
+                    file=sys.stderr,
+                )
+                return 1
+            path.write_text(source.replace(old, new, 1), encoding="utf-8", newline="\n")
             code, output = run(command, scratch, env)
             expected = str(case["expected"])
             detected = (

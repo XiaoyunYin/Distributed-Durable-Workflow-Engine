@@ -1,11 +1,12 @@
 [CmdletBinding()]
 param(
-    [ValidateSet("all", "network", "host", "lock-held")]
+    [ValidateSet("all", "network", "host", "live-holder-contention", "owner-lock-isolation")]
     [string]$Scenario = "all",
     [string]$NetworkWorkflowId = "",
     [string]$HostWorkflowId = "",
     [string]$LockWorkflowId = "",
     [string]$LockProgressWorkflowId = "",
+    [string]$OwnerLockWorkflowId = "",
     [string]$AwsProfile = $(if ($env:AWS_PROFILE) { $env:AWS_PROFILE } else { "admin-learning" }),
     [string]$Region = "us-west-1",
     [string]$TerraformDir = "deploy/aws",
@@ -33,6 +34,7 @@ $StartedApp2 = $false
 $NetworkRulesInserted = $false
 $App1WasStopped = $false
 $App2MayBeStopped = $false
+$OwnerLockRuntimeConfigured = $false
 # Cross-host SSM observations can take several seconds. Keep the activity
 # claimed long enough to observe the durable pre-fault boundary before the
 # network or host fault is injected.
@@ -785,11 +787,40 @@ function Set-AppMode([string]$InstanceId, [int]$DelayMS, [int]$HoldMS) {
     Send-Ssm $InstanceId $commands 300 | Out-Null
 }
 
+function Set-AppOwnerLockIsolationMode([string]$InstanceId, [string]$WorkflowID, [int]$DelayMS = 250, [int]$HoldMS = 90000) {
+    if ($WorkflowID -notmatch '^dur049-r71-[a-z0-9-]{1,72}$') { throw "Owner-lock fixture ID is not run-scoped: $WorkflowID" }
+    if ($HoldMS -lt 30000 -or $HoldMS -gt 180000) { throw "Campaign lock hold must be 30000..180000ms, got $HoldMS." }
+    $commands = @(
+        'set -e',
+        'cd /opt/durable-agent-execution-engine',
+        "grep -q '^DUR048_ACTIVITY_DELAY_MS=' deploy/aws/.env && sed -i 's/^DUR048_ACTIVITY_DELAY_MS=.*/DUR048_ACTIVITY_DELAY_MS=$DelayMS/' deploy/aws/.env || echo 'DUR048_ACTIVITY_DELAY_MS=$DelayMS' >> deploy/aws/.env",
+        "grep -q '^DUR048_ALLOW_FIXTURE_ACTIVITY=' deploy/aws/.env && sed -i 's/^DUR048_ALLOW_FIXTURE_ACTIVITY=.*/DUR048_ALLOW_FIXTURE_ACTIVITY=1/' deploy/aws/.env || echo 'DUR048_ALLOW_FIXTURE_ACTIVITY=1' >> deploy/aws/.env",
+        "grep -q '^RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=' deploy/aws/.env && sed -i 's/^RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=.*/RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=0/' deploy/aws/.env || echo 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=0' >> deploy/aws/.env",
+        "grep -q '^DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=' deploy/aws/.env && sed -i 's/^DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=.*/DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=$WorkflowID/' deploy/aws/.env || echo 'DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=$WorkflowID' >> deploy/aws/.env",
+        "grep -q '^DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=' deploy/aws/.env && sed -i 's/^DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=.*/DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=$HoldMS/' deploy/aws/.env || echo 'DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=$HoldMS' >> deploy/aws/.env",
+        "grep -q '^RUNTIME_ENTRYPOINT=' deploy/aws/.env && sed -i 's|^RUNTIME_ENTRYPOINT=.*|RUNTIME_ENTRYPOINT=/runtime-dur049-owner-lock|' deploy/aws/.env || echo 'RUNTIME_ENTRYPOINT=/runtime-dur049-owner-lock' >> deploy/aws/.env",
+        'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml up -d --force-recreate --wait --wait-timeout 240 runtime worker'
+    )
+    Send-Ssm $InstanceId $commands 300 | Out-Null
+}
+
+function Restore-AppStandardRuntime([string]$InstanceId) {
+    $commands = @(
+        'set -e',
+        'cd /opt/durable-agent-execution-engine',
+        "grep -q '^DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=' deploy/aws/.env && sed -i 's/^DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=.*/DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID=/' deploy/aws/.env || true",
+        "grep -q '^DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=' deploy/aws/.env && sed -i 's/^DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=.*/DUR049_OWNER_LOCK_ISOLATION_HOLD_MS=0/' deploy/aws/.env || true",
+        "grep -q '^RUNTIME_ENTRYPOINT=' deploy/aws/.env && sed -i 's|^RUNTIME_ENTRYPOINT=.*|RUNTIME_ENTRYPOINT=/runtime|' deploy/aws/.env || echo 'RUNTIME_ENTRYPOINT=/runtime' >> deploy/aws/.env",
+        'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml up -d --force-recreate --wait --wait-timeout 240 runtime worker'
+    )
+    Send-Ssm $InstanceId $commands 300 | Out-Null
+}
+
 function Get-AppConfiguration([string]$InstanceId) {
     $output = Send-Ssm $InstanceId @(
         'set -e',
         'cd /opt/durable-agent-execution-engine',
-        "grep -E '^(DUR048_ACTIVITY_DELAY_MS|DUR048_ALLOW_FIXTURE_ACTIVITY|RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS|WORKER_SLOTS)=' deploy/aws/.env",
+        "grep -E '^(DUR048_ACTIVITY_DELAY_MS|DUR048_ALLOW_FIXTURE_ACTIVITY|RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS|DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID|DUR049_OWNER_LOCK_ISOLATION_HOLD_MS|RUNTIME_ENTRYPOINT|WORKER_SLOTS)=' deploy/aws/.env",
         'runtime_cid=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml ps -q runtime)',
         'worker_cid=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml ps -q worker)',
         'test -n "$runtime_cid" && test -n "$worker_cid"',
@@ -805,7 +836,7 @@ function Get-AppConfiguration([string]$InstanceId) {
     foreach ($line in ($output.Trim() -split "\r?\n")) {
         if ($line -match '^(?<name>[A-Z0-9_]+)=(?<value>.*)$') { $values[$Matches.name] = $Matches.value }
     }
-    foreach ($name in @('DUR048_ACTIVITY_DELAY_MS', 'DUR048_ALLOW_FIXTURE_ACTIVITY', 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS', 'WORKER_SLOTS', 'GIT_COMMIT', 'RUNTIME_CONTAINER_ID', 'RUNTIME_STARTED_AT', 'WORKER_CONTAINER_ID', 'WORKER_STARTED_AT', 'RUNTIME_IMAGE_ID', 'WORKER_IMAGE_ID')) {
+    foreach ($name in @('DUR048_ACTIVITY_DELAY_MS', 'DUR048_ALLOW_FIXTURE_ACTIVITY', 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS', 'DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID', 'DUR049_OWNER_LOCK_ISOLATION_HOLD_MS', 'RUNTIME_ENTRYPOINT', 'WORKER_SLOTS', 'GIT_COMMIT', 'RUNTIME_CONTAINER_ID', 'RUNTIME_STARTED_AT', 'WORKER_CONTAINER_ID', 'WORKER_STARTED_AT', 'RUNTIME_IMAGE_ID', 'WORKER_IMAGE_ID')) {
         if (-not $values.ContainsKey($name)) { throw "Remote app configuration is missing $name." }
     }
     if ($values['GIT_COMMIT'] -notmatch '^[0-9a-f]{40}$') { throw "Remote app has no full checked-out source commit: $($values['GIT_COMMIT'])" }
@@ -823,6 +854,9 @@ function Get-AppConfiguration([string]$InstanceId) {
         activity_delay_ms = [int]$values['DUR048_ACTIVITY_DELAY_MS']
         fixture_activity_enabled = ([int]$values['DUR048_ALLOW_FIXTURE_ACTIVITY']) -eq 1
         scheduler_hold_after_acquire_ms = [int]$values['RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS']
+        owner_lock_campaign_workflow_id = $values['DUR049_OWNER_LOCK_ISOLATION_WORKFLOW_ID']
+        owner_lock_campaign_hold_ms = [int]$values['DUR049_OWNER_LOCK_ISOLATION_HOLD_MS']
+        runtime_entrypoint = $values['RUNTIME_ENTRYPOINT']
         worker_slots = [int]$values['WORKER_SLOTS']
         runtime_engine_mode = "disabled"
     }
@@ -856,6 +890,105 @@ function Observe-Runtime([string]$InstanceId) {
         'docker inspect --format ''{{.State.Status}}|{{.State.Running}}|{{.State.Pid}}'' "$cid"'
     )
     return $output.Trim()
+}
+
+function Observe-RuntimeIdentity([string]$InstanceId) {
+    $output = Send-Ssm $InstanceId @(
+        'set -e',
+        'cd /opt/durable-agent-execution-engine',
+        'cid=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml ps -q runtime)',
+        'test -n "$cid"',
+        'docker inspect --format ''{{.Id}}|{{.State.Status}}|{{.State.Running}}|{{.State.Pid}}'' "$cid"'
+    )
+    $parts = $output.Trim() -split '\|', 4
+    if ($parts.Count -ne 4) { throw "Runtime identity observation is malformed: $output" }
+    return [ordered]@{ container_id = $parts[0]; state = $parts[1]; running = $parts[2] -eq 'true'; host_pid = [int]$parts[3] }
+}
+
+function Assert-OriginalRuntimePreserved([object]$Before, [object]$After) {
+    if (-not $After.running -or $After.state -ne 'running') { throw "Original scheduler runtime is not running after reconnect: $($After | ConvertTo-Json -Compress)" }
+    if ($Before.container_id -ne $After.container_id -or [int]$Before.host_pid -ne [int]$After.host_pid) {
+        throw "Scheduler runtime identity changed across isolation: before=$($Before | ConvertTo-Json -Compress) after=$($After | ConvertTo-Json -Compress)"
+    }
+    return [ordered]@{ container_id = $After.container_id; state = $After.state; running = $After.running; host_pid = $After.host_pid; same_container = $true; same_process = $true }
+}
+
+function Read-OwnerLockCampaignMarkers([string]$InstanceId, [string]$WorkflowID) {
+    $output = Send-Ssm $InstanceId @(
+        'set -e',
+        'cd /opt/durable-agent-execution-engine',
+        'cid=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml ps -q runtime)',
+        'test -n "$cid"',
+        'docker logs "$cid" 2>&1 | grep -F "workflow_id=' + $WorkflowID + '" | grep -E "DUR049_OWNER_LOCK_(HELD|STALE_WRITE) " || true'
+    )
+    return @($output -split "\r?\n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
+}
+
+function Wait-OwnerLockHeldMarker([string]$InstanceId, [string]$WorkflowID, [int]$TimeoutSeconds = 300) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $lines = @(Read-OwnerLockCampaignMarkers $InstanceId $WorkflowID)
+        $line = $lines | Where-Object { $_ -match 'DUR049_OWNER_LOCK_HELD ' } | Select-Object -Last 1
+        if ($line) {
+            $line = $line.Substring($line.IndexOf('DUR049_OWNER_LOCK_HELD '))
+            $fields = @{}
+            foreach ($match in [regex]::Matches($line, '(?<name>[a-z_]+)=(?<value>[^ ]+)')) { $fields[$match.Groups['name'].Value] = $match.Groups['value'].Value }
+            foreach ($name in @('workflow_id', 'partition_id', 'owner_id', 'epoch', 'backend_pid', 'idle_timeout', 'hold_ms', 'started_at_utc')) {
+                if (-not $fields.ContainsKey($name)) { throw "Owner-lock marker omitted ${name}: $line" }
+            }
+            if ($fields.workflow_id -ne $WorkflowID -or [int]$fields.hold_ms -lt 30000) { throw "Owner-lock marker identity/duration mismatch: $line" }
+            return [ordered]@{ line = $line; workflow_id = $fields.workflow_id; partition_id = [int]$fields.partition_id; owner_id = $fields.owner_id; epoch = [int64]$fields.epoch; backend_pid = [int]$fields.backend_pid; idle_timeout = $fields.idle_timeout; hold_ms = [int]$fields.hold_ms; started_at_utc = ([DateTimeOffset]::Parse($fields.started_at_utc)).UtcDateTime.ToString('o'); observed_at_utc = [DateTime]::UtcNow.ToString('o') }
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    throw "The deployed owner-lock runtime never reported that its own scheduler transaction held the lease row for $WorkflowID."
+}
+
+function Get-PostgresBackendState([string]$DependencyInstanceId, [int]$BackendPID) {
+    $sql = @"
+SELECT state || '|' || COALESCE(wait_event_type,'') || '|' ||
+       COALESCE(to_char(backend_start AT TIME ZONE 'UTC','YYYY-MM-DD"T"HH24:MI:SS.US'),'') || '|' ||
+       COALESCE(client_addr::text,'')
+FROM pg_stat_activity WHERE pid=$BackendPID;
+"@
+    $row = Invoke-DbSql $DependencyInstanceId $sql
+    if ([string]::IsNullOrWhiteSpace($row)) { return $null }
+    $parts = $row.Trim() -split '\|', 4
+    if ($parts.Count -ne 4) { throw "PostgreSQL backend state row is malformed: $row" }
+    return [ordered]@{ state = $parts[0]; wait_event_type = $parts[1]; backend_start_utc = $parts[2]; client_addr = $parts[3] }
+}
+
+function Wait-PostgresBackendReaped([string]$DependencyInstanceId, [int]$BackendPID, [int]$TimeoutSeconds = 45) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $initial = Get-PostgresBackendState $DependencyInstanceId $BackendPID
+    if ($null -eq $initial -or $initial.state -ne 'idle in transaction' -or $initial.wait_event_type -ne 'Client') {
+        throw "The backend was not observed idle in an open transaction before isolation; pid=$BackendPID state=$($initial | ConvertTo-Json -Compress)"
+    }
+    do {
+        Start-Sleep -Seconds 1
+        $current = Get-PostgresBackendState $DependencyInstanceId $BackendPID
+        if ($null -eq $current -or $current.backend_start_utc -ne $initial.backend_start_utc) {
+            return [ordered]@{ backend_pid = $BackendPID; initial_state = $initial; reaped_observed_at_utc = [DateTime]::UtcNow.ToString('o'); backend_absent_or_pid_reused = $true }
+        }
+    } while ((Get-Date) -lt $deadline)
+    throw "PostgreSQL did not reap the isolated idle-in-transaction backend $BackendPID within ${TimeoutSeconds}s; last=$($current | ConvertTo-Json -Compress)"
+}
+
+function Wait-OwnerLockStaleWriteMarker([string]$InstanceId, [string]$WorkflowID, [string]$OwnerID, [int64]$Epoch, [int]$TimeoutSeconds = 180) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $lines = @(Read-OwnerLockCampaignMarkers $InstanceId $WorkflowID)
+        $line = $lines | Where-Object { $_ -match 'DUR049_OWNER_LOCK_STALE_WRITE ' } | Select-Object -Last 1
+        if ($line) {
+            $line = $line.Substring($line.IndexOf('DUR049_OWNER_LOCK_STALE_WRITE '))
+            foreach ($expected in @("owner_id=$OwnerID", "epoch=$Epoch", 'operation=ReleaseLease', 'stale_write_rejected=true')) {
+                if (-not $line.Contains($expected)) { throw "Original runtime stale-write marker did not prove ${expected}: $line" }
+            }
+            return [ordered]@{ observed = $true; source = 'same original campaign runtime process after network restoration'; line = $line; observed_at_utc = [DateTime]::UtcNow.ToString('o') }
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    throw "Original runtime process did not attempt and observe stale ReleaseLease rejection after reconnect for $WorkflowID."
 }
 
 function Observe-Worker([string]$InstanceId) {
@@ -922,6 +1055,53 @@ SELECT
   (SELECT COALESCE(sum(n-1),0) FROM (SELECT logical_effect_key, count(*) AS n FROM effects.effect_call_attempts WHERE workflow_id='$WorkflowID' GROUP BY logical_effect_key) duplicates);
 "@
     return Convert-ObligationSummaryRow (Invoke-DbSql $DependencyInstanceId $sql).Trim()
+}
+
+function Get-GlobalOpenObligations([string]$DependencyInstanceId) {
+    $sql = @"
+SELECT COALESCE(json_agg(json_build_object('item_id', item_id::text, 'kind', kind, 'reference', reference)
+    ORDER BY item_id)::text, '[]')
+FROM engine.reconciliation_items
+WHERE workflow_id IS NULL AND status = 'OPEN';
+"@
+    $raw = Invoke-DbSql $DependencyInstanceId $sql
+    $parsed = ConvertFrom-Json -InputObject $raw
+    if ($null -eq $parsed) { return ,([object[]]@()) }
+    return ,([object[]]@($parsed))
+}
+
+function Get-SchedulerConsumerDrain([string]$DependencyInstanceId) {
+    $sql = @"
+SELECT
+  (SELECT count(*) FROM engine.outbox WHERE publish_state IN ('PENDING','CLAIMED')) || '|' ||
+  (SELECT count(*) FROM engine.outbox o
+   WHERE o.topic = 'durable-agent.events.v1' AND o.publish_state = 'PUBLISHED'
+     AND NOT EXISTS (SELECT 1 FROM engine.event_inbox i
+                     WHERE i.consumer_id = 'runtime-schedulers-v1' AND i.event_id = o.event_id)
+     AND NOT EXISTS (SELECT 1 FROM engine.transport_quarantine q
+                     WHERE q.consumer_id = 'runtime-schedulers-v1' AND q.event_id = o.event_id::text));
+"@
+    $parts = (Invoke-DbSql $DependencyInstanceId $sql).Trim() -split '\|', 2
+    if ($parts.Count -ne 2) { throw "Scheduler consumer drain snapshot was malformed: $($parts -join '|')" }
+    return [ordered]@{ outbox_pending_or_claimed = [int]$parts[0]; published_scheduler_events_without_inbox_or_quarantine = [int]$parts[1]; observed_at_utc = [DateTime]::UtcNow.ToString('o') }
+}
+
+function Wait-SchedulerConsumerDrain([string]$DependencyInstanceId, [int]$TimeoutSeconds = 120) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    $stableEmptyReads = 0
+    $observations = @()
+    do {
+        $snapshot = Get-SchedulerConsumerDrain $DependencyInstanceId
+        $observations += $snapshot
+        if ($snapshot.outbox_pending_or_claimed -eq 0 -and $snapshot.published_scheduler_events_without_inbox_or_quarantine -eq 0) {
+            $stableEmptyReads++
+            if ($stableEmptyReads -ge 2) { return [ordered]@{ drained = $true; observations = $observations; rule = 'two consecutive database snapshots show no pending/claimed outbox rows and no published scheduler event lacking inbox or quarantine evidence' } }
+        } else {
+            $stableEmptyReads = 0
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    throw "Scheduler consumer did not drain before timeout: $($observations | ConvertTo-Json -Depth 8 -Compress)"
 }
 
 function Convert-ObligationSummaryRow([string]$Row) {
@@ -1110,7 +1290,7 @@ function Invoke-SameOwnerEpochProbe([string]$InstanceId, [string]$WorkflowID) {
     $jsonLine = ($output.Trim() -split "\r?\n" | Where-Object { $_ -match '^\s*\{' } | Select-Object -Last 1)
     if ([string]::IsNullOrWhiteSpace($jsonLine)) { throw "Same-owner stale-epoch probe returned no JSON: $output" }
     $probe = $jsonLine | ConvertFrom-Json
-    if ($probe.status -ne 'PASS' -or -not $probe.same_owner -or [int64]$probe.current_epoch -le [int64]$probe.stale_epoch -or [int64]$probe.before_revision -ne [int64]$probe.after_revision) {
+    if ($probe.status -ne 'PASS' -or -not $probe.same_owner -or [int64]$probe.current_epoch -le [int64]$probe.stale_epoch -or [int64]$probe.before_revision -ne [int64]$probe.after_revision -or -not $probe.probe_workflow_retained -or $probe.probe_workflow_final_state -ne 'CANCELED' -or -not $probe.probe_outbox_suppressed -or [int64]$probe.probe_outbox_rows_observed -ne 0) {
         throw "Same-owner stale-epoch fence control failed: $jsonLine"
     }
     return $probe
@@ -1167,11 +1347,11 @@ function Observe-LockHolder([string]$InstanceId, [int64]$HostProcessID, [int]$Pa
     return [ordered]@{ observed = $true; controller_observed_at_utc = [DateTime]::UtcNow.ToString('o'); host_process_id = $HostProcessID; output = $output.Trim(); lock_holder_binary_visible_in_container_process_list = $true; row_lock_probe = $probe; row_lock_confirmed_by_partition_id = $PartitionID }
 }
 
-function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [string]$WorkflowID, [string]$ProgressWorkflowID, [string]$OutputPath) {
+function Run-LiveHolderContentionArm([string]$App1, [string]$App2, [string]$Dependency, [string]$WorkflowID, [string]$ProgressWorkflowID, [string]$OutputPath) {
     $partition = Get-PartitionID $WorkflowID
     $progressPartition = Get-PartitionID $ProgressWorkflowID
     if ($partition -eq $progressPartition) { throw "Lock-held progress workflow must map to a different partition." }
-    $checkpoint = [ordered]@{ schema_version = "dur049-episode.v1"; status = "IN_PROGRESS"; fault = "lease-row-lock-held-beyond-expiry"; workflow_id = $WorkflowID; progress_workflow_id = $ProgressWorkflowID; partition_id = $partition; progress_partition_id = $progressPartition; source_commit = (git rev-parse HEAD).Trim(); started_at_utc = [DateTime]::UtcNow.ToString("o") }
+    $checkpoint = [ordered]@{ schema_version = "dur049-episode.v1"; status = "IN_PROGRESS"; fault = "live-holder-lease-row-lock-contention"; arm_classification = "R096 bounded-wait with a healthy external lock holder; not isolation of the owning runtime"; workflow_id = $WorkflowID; progress_workflow_id = $ProgressWorkflowID; partition_id = $partition; progress_partition_id = $progressPartition; source_commit = (git rev-parse HEAD).Trim(); started_at_utc = [DateTime]::UtcNow.ToString("o") }
     Save-EpisodeCheckpoint $OutputPath $checkpoint "starting"
     $script:App2MayBeStopped = $true
     $app2Stopped = Stop-AppRuntime $App2
@@ -1238,7 +1418,8 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
     # transition prefix and superseded epochs.
     $checker = Invoke-DurableChecker $App1 $WorkflowID $snapshotPath $before.revision $recoveryRevision $recoveryEpoch 0
     $result = [ordered]@{
-        fault = "lease-row-lock-held-beyond-expiry"
+        fault = "live-holder-lease-row-lock-contention"
+        arm_classification = "R096 bounded-wait under a healthy external lock holder; not owner isolation while the runtime holds the lease row lock"
         workflow_id = $WorkflowID
         partition_id = $partition
         progress_workflow_id = $ProgressWorkflowID
@@ -1271,12 +1452,176 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
         lock_observed_to_first_new_owner_acquisition_observed_ms = DurationMilliseconds $lockObservedAt $takeover.observed_at
         first_new_owner_acquisition_observed_to_first_useful_progress_observed_ms = DurationMilliseconds $takeover.observed_at $usefulProgress.observed_at
         timestamp_semantics = "Intervals use controller UTC observation times after 2-second polling; DB timestamps are transaction-recorded diagnostics, not commit times."
-        recovery_timing_note = "This is the lock-held isolation arm. The lease fence remains row-locked; the bounded lock timeout lets other partitions progress while the lock holder retains the target row. The original worker durably records its result, and the first new owner consumes that same attempt after the lock is released; this run does not demonstrate a replacement attempt. App2 is a controller-started standby, not a continuously active peer. Report separately from pure network isolation and do not treat this as peer failure-detection latency."
+        recovery_timing_note = "This live-holder contention arm measures the R096 bounded-wait property: other partitions progress while a healthy external lock-holder session retains the target row. It is not network isolation of the owning runtime and does not measure server-side reaping of an isolated lock-holding owner. The original worker durably records its result, and the first new owner consumes that same attempt after the lock is released; this run does not demonstrate a replacement attempt. App2 is a controller-started standby, not a continuously active peer."
         configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; lock_progress_activity_delay_ms = 1000; lock_progress_observation_timeout_seconds = 120; lock_holder_duration_seconds = $LockHolderDurationSeconds; lock_timeout_seconds = 2; attempt_lease_seconds = 30 }
     }
     $checkpoint.status = "PASS"
     $checkpoint.result = $result
     Save-EpisodeCheckpoint $OutputPath $checkpoint "complete"
+    $script:CurrentEpisodePath = $null
+    $script:CurrentEpisodeState = $null
+    return $result
+}
+
+function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Dependency, [string]$DependencyIP, [string]$AppPrivateIP, [string]$WorkflowID, [string]$OutputPath) {
+    $partition = Get-PartitionID $WorkflowID
+    $checkpoint = [ordered]@{ schema_version = 'dur049-episode.v1'; status = 'IN_PROGRESS'; fault = 'owner-runtime-network-isolation-during-lease-row-lock'; arm_classification = 'required R131 owner-lock isolation: the owning runtime holds the real ConsumeResult lease-row lock; PostgreSQL idle-in-transaction timeout must reap its backend'; workflow_id = $WorkflowID; partition_id = $partition; source_commit = (git rev-parse HEAD).Trim(); started_at_utc = [DateTime]::UtcNow.ToString('o') }
+    Save-EpisodeCheckpoint $OutputPath $checkpoint 'starting'
+    $script:App2MayBeStopped = $true
+    $app2Stopped = Stop-AppRuntime $App2
+    $script:OwnerLockRuntimeConfigured = $true
+    Set-AppOwnerLockIsolationMode $App1 $WorkflowID $FixtureDelayMS 120000
+    $app1Configuration = Get-AppConfiguration $App1
+    if ($app1Configuration.runtime_entrypoint -ne '/runtime-dur049-owner-lock' -or $app1Configuration.owner_lock_campaign_workflow_id -ne $WorkflowID) {
+        throw 'The owner-lock scenario is not running in the explicitly tagged campaign runtime with the targeted workflow.'
+    }
+    $runtimeBefore = Observe-RuntimeIdentity $App1
+    if (-not $runtimeBefore.running) { throw 'The original campaign scheduler runtime was not running before fixture creation.' }
+
+    [void](Submit-FixtureWorkflow $App1 $WorkflowID)
+    $claimed = Wait-ClaimedWorkflow $Dependency $WorkflowID
+    $before = $claimed.workflow
+    $oldAttempt = $claimed.attempt
+    if ($before.attempt_state -ne 'CLAIMED') { throw "Owner-lock fixture must be observed CLAIMED before the result boundary; got $($before.attempt_state)." }
+    $checkpoint.workflow_before = $before
+    $checkpoint.attempt_before = $oldAttempt
+    $checkpoint.original_worker_schedule_lease = $claimed.scheduler_acquisition
+    $checkpoint.original_runtime_identity_before_fault = $runtimeBefore
+    $checkpoint.app2_stopped_before_owner_capture = $app2Stopped
+    Save-EpisodeCheckpoint $OutputPath $checkpoint 'attempt-claimed'
+
+    # The hook runs inside this original runtime after it has locked the lease
+    # row in ConsumeResult. Confirm both its precise backend and independent
+    # row-lock contention before issuing the network fault.
+    $lockMarker = Wait-OwnerLockHeldMarker $App1 $WorkflowID
+    if ($lockMarker.partition_id -ne $partition -or $lockMarker.owner_id -ne $claimed.scheduler_acquisition.owner_id) {
+        throw "Owner-lock marker does not identify the workflow's partition and original scheduler owner: $($lockMarker | ConvertTo-Json -Compress)"
+    }
+    if ($lockMarker.idle_timeout -ne '10s') { throw "Campaign runtime PostgreSQL session timeout is $($lockMarker.idle_timeout), expected 10s." }
+    $serverTimeouts = (Invoke-DbSql $Dependency "SELECT current_setting('idle_in_transaction_session_timeout') || '|' || current_setting('tcp_keepalives_idle');") -split '\|', 2
+    if ($serverTimeouts.Count -ne 2 -or $serverTimeouts[0] -ne '10s' -or $serverTimeouts[1] -ne '30') {
+        throw "Dependency PostgreSQL server settings are not the declared reaping configuration: $($serverTimeouts -join '|')"
+    }
+    $backendState = Get-PostgresBackendState $Dependency $lockMarker.backend_pid
+    if ($null -eq $backendState -or $backendState.state -ne 'idle in transaction' -or $backendState.wait_event_type -ne 'Client') {
+        throw "The actual runtime backend was not observed idle in transaction while the hook held ConsumeResult: pid=$($lockMarker.backend_pid), state=$($backendState | ConvertTo-Json -Compress)"
+    }
+    $lockProbeOutput = Send-Ssm $App1 @(
+        'set -e',
+        'cd /opt/durable-agent-execution-engine',
+        'cid=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml ps -q runtime)',
+        'test -n "$cid"',
+        (Get-AppRuntimePartitionLockProbeCommand $partition)
+    )
+    $lockProbe = Assert-LeaseRowLockProbe $lockProbeOutput
+    $resultReceiptCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND reason='ATTEMPT_RESULT_RECORDED' AND attempt_number=$($oldAttempt.attempt_number);")
+    if ($resultReceiptCount -ne 1) { throw "The original result was not durably recorded before the owner-lock fault (count=$resultReceiptCount)." }
+    $checkpoint.owner_runtime_lock_marker = $lockMarker
+    $checkpoint.dependency_server_settings = [ordered]@{ idle_in_transaction_session_timeout = $serverTimeouts[0]; tcp_keepalives_idle = $serverTimeouts[1] }
+    $checkpoint.backend_before_fault = $backendState
+    $checkpoint.independent_row_lock_probe_before_fault = $lockProbe
+    $checkpoint.original_attempt_result_receipt_count_before_fault = $resultReceiptCount
+    Save-EpisodeCheckpoint $OutputPath $checkpoint 'owning-runtime-transaction-and-result-confirmed'
+
+    $epochBoundary = Get-LeaseEpochBoundary $Dependency $partition
+    $checkpoint.pre_fault_epoch_boundary = $epochBoundary
+    $script:NetworkRulesInserted = $true
+    $fault = Insert-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP $false
+    $checkpoint.fault_observed = $fault
+    Save-EpisodeCheckpoint $OutputPath $checkpoint 'owner-host-isolated-process-preserved'
+
+    $backendReaped = Wait-PostgresBackendReaped $Dependency $lockMarker.backend_pid 45
+    $checkpoint.backend_reaped_by_postgresql = $backendReaped
+    $checkpoint.server_reaped_to_observed_at_utc = [DateTime]::UtcNow.ToString('o')
+    Save-EpisodeCheckpoint $OutputPath $checkpoint 'postgres-backend-reaped'
+
+    Set-AppEnvironment $App2 $FixtureDelayMS $TakeoverObservationHoldMS
+    Start-AppRuntimeNoWait $App2
+    $script:App2MayBeStopped = $false
+    Wait-AppApi $App2
+    $takeover = Wait-FirstNewOwnerAcquisition $Dependency $partition $lockMarker.owner_id $epochBoundary ([DateTimeOffset]::Parse($fault.observed_at_utc).UtcDateTime) 150
+    if ($takeover.owner_id -eq $lockMarker.owner_id -or $takeover.epoch -le $lockMarker.epoch) {
+        throw "Takeover did not advance to a different owner and higher epoch: $($takeover | ConvertTo-Json -Compress)"
+    }
+    $checkpoint.peer_takeover = $takeover
+    Save-EpisodeCheckpoint $OutputPath $checkpoint 'peer-takeover-observed'
+
+    $useful = Wait-LockHeldResultConsumption $Dependency $WorkflowID $oldAttempt.attempt_number $before.revision $epochBoundary $takeover 180
+    $ordering = Assert-LockHeldResultOrdering $takeover $useful
+    $terminal = Wait-Workflow $Dependency $WorkflowID 120
+    if ($terminal.state -ne 'SUCCEEDED') { throw "Peer did not consume the original attempt result to SUCCEEDED: $($terminal | ConvertTo-Json -Compress)" }
+    $checkpoint.peer_useful_progress = $useful
+    $checkpoint.workflow_terminal_before_reconnect = $terminal
+    $checkpoint.recovery_ordering = $ordering
+    Save-EpisodeCheckpoint $OutputPath $checkpoint 'peer-consumed-result-before-reconnect'
+
+    # Remove only the network fault; preserve the same app1 container/process.
+    Remove-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP
+    $script:NetworkRulesInserted = $false
+    $reconnectedAt = [DateTime]::UtcNow
+    $runtimeAfterNetworkRestore = Observe-RuntimeIdentity $App1
+    $runtimePreserved = Assert-OriginalRuntimePreserved $runtimeBefore $runtimeAfterNetworkRestore
+    $staleWrite = Wait-OwnerLockStaleWriteMarker $App1 $WorkflowID $lockMarker.owner_id $lockMarker.epoch 180
+    $leaseAfterStaleWrite = Get-Lease $Dependency $partition
+    if ($leaseAfterStaleWrite.owner_id -ne $takeover.owner_id -or $leaseAfterStaleWrite.epoch -ne $takeover.epoch) {
+        throw "The original runtime's stale ReleaseLease changed the peer-owned lease: before=$($takeover | ConvertTo-Json -Compress), after=$($leaseAfterStaleWrite | ConvertTo-Json -Compress)"
+    }
+    $workflowAfterStaleWrite = Get-Workflow $Dependency $WorkflowID
+    if ($workflowAfterStaleWrite.revision -ne $terminal.revision -or $workflowAfterStaleWrite.state -ne 'SUCCEEDED') {
+        throw "The stale write changed workflow state after the peer completed it: before=$($terminal | ConvertTo-Json -Compress), after=$($workflowAfterStaleWrite | ConvertTo-Json -Compress)"
+    }
+    $runtimeAfterStaleWrite = Observe-RuntimeIdentity $App1
+    $runtimePreservedAfterStale = Assert-OriginalRuntimePreserved $runtimeBefore $runtimeAfterStaleWrite
+    $recoveryRevision = [int64]$useful.transition.revision
+    $recoveryEpoch = [int64]$useful.transition.scheduler_epoch
+    $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND revision > $recoveryRevision AND scheduler_epoch IS NOT NULL AND scheduler_epoch < $recoveryEpoch;")
+    if ($historyCount -ne 0) { throw "A superseded scheduler epoch committed a transition after recovery: $historyCount" }
+    $attempts = @(Get-AttemptSummary $Dependency $WorkflowID)
+    $obligations = Get-ObligationSummary $Dependency $WorkflowID
+    $snapshotPath = Join-Path (Split-Path -Parent $OutputPath) 'owner-lock-isolation-durable-trace.json'
+    $checker = Invoke-DurableChecker $App1 $WorkflowID $snapshotPath $before.revision $recoveryRevision $recoveryEpoch 0
+
+    Restore-AppStandardRuntime $App1
+    $script:OwnerLockRuntimeConfigured = $false
+    $result = [ordered]@{
+        fault = 'owner-runtime-network-isolation-during-lease-row-lock'
+        arm_classification = 'R131 owner-lock isolation with PostgreSQL-side idle-transaction reaping; distinct from the R096 live-holder contention arm'
+        workflow_id = $WorkflowID
+        partition_id = $partition
+        original_owner_id = $lockMarker.owner_id
+        original_epoch = $lockMarker.epoch
+        original_runtime_identity_before_fault = $runtimeBefore
+        original_runtime_identity_after_reconnect = $runtimePreserved
+        original_runtime_identity_after_stale_write = $runtimePreservedAfterStale
+        original_owner_lock_marker = $lockMarker
+        postgres_backend_before_fault = $backendState
+        independent_row_lock_probe = $lockProbe
+        network_fault_observed = $fault
+        dependency_session_termination = $false
+        server_side_backend_reaping = $backendReaped
+        first_new_owner_acquisition = $takeover
+        first_useful_progress = $useful
+        recovery_ordering = $ordering
+        original_runtime_post_reconnect_stale_write = $staleWrite
+        peer_lease_unchanged_after_stale_write = $leaseAfterStaleWrite
+        workflow_unchanged_after_stale_write = $workflowAfterStaleWrite
+        workflow_terminal = $terminal
+        superseded_epoch_transitions_after_recovery_boundary = $historyCount
+        attempts = $attempts
+        obligations = $obligations
+        durable_invariant_checker = $checker
+        timings_ms = [ordered]@{
+            fault_observed_to_server_backend_reaped = DurationMilliseconds $fault.observed_at_utc $backendReaped.reaped_observed_at_utc
+            backend_reaped_to_takeover_observed = DurationMilliseconds $backendReaped.reaped_observed_at_utc $takeover.observed_at
+            takeover_to_first_useful_progress_observed = DurationMilliseconds $takeover.observed_at $useful.observed_at
+            reconnect_to_stale_write_rejection_observed = DurationMilliseconds $reconnectedAt $staleWrite.observed_at_utc
+        }
+        configuration = [ordered]@{ idle_in_transaction_session_timeout_seconds = 10; app_tcp_keepalive_idle_seconds = 30; owner_lock_hook_hold_ms = $lockMarker.hold_ms; runtime_entrypoint = $app1Configuration.runtime_entrypoint; runtime_image_id = $app1Configuration.runtime_image_id; worker_slots_per_host = $app1Configuration.worker_slots; activity = 'dur048.sleep'; dependency_session_termination = $false }
+        limitation = 'Single AWS region and one dependency host; this arm validates scheduler-owner lock isolation and PostgreSQL backend reaping, not database-host durability or multi-region behavior.'
+    }
+    $checkpoint.status = 'PASS'
+    $checkpoint.result = $result
+    Save-EpisodeCheckpoint $OutputPath $checkpoint 'owner-lock-isolation-accepted'
     $script:CurrentEpisodePath = $null
     $script:CurrentEpisodeState = $null
     return $result
@@ -1604,6 +1949,15 @@ if ($SelfTest) {
     $workerRestartRejected = $false
     try { $null = Assert-OriginalWorkerPreserved $workerBefore (('a' * 64) + '|running|true|5678') } catch { $workerRestartRejected = $true }
     if (-not $workerRestartRejected) { throw "worker identity self-test accepted a restarted worker process" }
+    $runtimeBefore = [ordered]@{ container_id = ('c' * 64); state = 'running'; running = $true; host_pid = 4321 }
+    $runtimeSame = Assert-OriginalRuntimePreserved $runtimeBefore ([ordered]@{ container_id = ('c' * 64); state = 'running'; running = $true; host_pid = 4321 })
+    if (-not $runtimeSame.same_container -or -not $runtimeSame.same_process) { throw 'runtime identity self-test did not preserve the original owner process' }
+    $runtimeReplacementRejected = $false
+    try { $null = Assert-OriginalRuntimePreserved $runtimeBefore ([ordered]@{ container_id = ('d' * 64); state = 'running'; running = $true; host_pid = 4321 }) } catch { $runtimeReplacementRejected = $true }
+    if (-not $runtimeReplacementRejected) { throw 'runtime identity self-test accepted a replacement container' }
+    $runtimeRestartRejected = $false
+    try { $null = Assert-OriginalRuntimePreserved $runtimeBefore ([ordered]@{ container_id = ('c' * 64); state = 'running'; running = $true; host_pid = 4322 }) } catch { $runtimeRestartRejected = $true }
+    if (-not $runtimeRestartRejected) { throw 'runtime identity self-test accepted a restarted runtime process' }
     $staleLogAttempt = [ordered]@{ node_id = 'dur048.sleep'; attempt_number = 7; worker_id = 'worker-1' }
     $staleResultLog = 'delivery control rejected workflow_id=wf-stale node_id=dur048.sleep attempt_number=7 worker_id=worker-1 operation=result code=STALE_ATTEMPT'
     $staleHeartbeatLog = 'delivery control rejected workflow_id=wf-stale node_id=dur048.sleep attempt_number=7 worker_id=worker-1 operation=heartbeat code=STALE_ATTEMPT'
@@ -1659,7 +2013,7 @@ if ($SelfTest) {
         $obligationFixture.workflow_duplicate_effect_calls -ne 0) {
         throw "Obligation-summary self-test failed to retain workflow, global, and database-wide counts."
     }
-    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original-worker identity controls, operation-specific stale-result log controls, row-lock probe controls, global obligation accounting, no-overwrite failure-protocol controls, and BOM-free AWS JSON."
+    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original worker/runtime identity controls, operation-specific stale-result log controls, row-lock probe controls, global obligation accounting, no-overwrite failure-protocol controls, and BOM-free AWS JSON."
     return
 }
 
@@ -1668,8 +2022,9 @@ try {
     if ([string]::IsNullOrWhiteSpace($AwsProfile)) { throw "AWS profile is required." }
     if ($Scenario -in @("all", "network") -and [string]::IsNullOrWhiteSpace($NetworkWorkflowId)) { throw "-NetworkWorkflowId is required; provide a unique run-scoped workflow ID." }
     if ($Scenario -in @("all", "host") -and [string]::IsNullOrWhiteSpace($HostWorkflowId)) { throw "-HostWorkflowId is required; provide a unique run-scoped workflow ID." }
-    if ($Scenario -in @("all", "lock-held") -and ([string]::IsNullOrWhiteSpace($LockWorkflowId) -or [string]::IsNullOrWhiteSpace($LockProgressWorkflowId))) { throw "-LockWorkflowId and -LockProgressWorkflowId are required; provide unique run-scoped workflow IDs." }
-    foreach ($workflowID in @($NetworkWorkflowId, $HostWorkflowId, $LockWorkflowId, $LockProgressWorkflowId)) {
+    if ($Scenario -in @("all", "live-holder-contention") -and ([string]::IsNullOrWhiteSpace($LockWorkflowId) -or [string]::IsNullOrWhiteSpace($LockProgressWorkflowId))) { throw "-LockWorkflowId and -LockProgressWorkflowId are required; provide unique run-scoped workflow IDs." }
+    if ($Scenario -in @("all", "owner-lock-isolation") -and [string]::IsNullOrWhiteSpace($OwnerLockWorkflowId)) { throw "-OwnerLockWorkflowId is required; provide a unique run-scoped workflow ID." }
+    foreach ($workflowID in @($NetworkWorkflowId, $HostWorkflowId, $LockWorkflowId, $LockProgressWorkflowId, $OwnerLockWorkflowId)) {
     if (-not [string]::IsNullOrWhiteSpace($workflowID) -and $workflowID -notmatch '^dur049-r71-[a-z0-9-]{1,72}$') { throw "Workflow IDs must use the safe run-scoped form dur049-r71-<label>-<unique-suffix>: $workflowID" }
     }
     if ([string]::IsNullOrWhiteSpace($OutputRoot)) { $OutputRoot = Join-Path $RepoRoot ("experiments/portfolio/cloud-recovery/dur049-aws-" + [DateTime]::UtcNow.ToString("yyyyMMddTHHmmssZ")) }
@@ -1696,7 +2051,7 @@ try {
     }
 
     $protocol = [ordered]@{
-        schema_version = "dur049-multihost.v6"
+        schema_version = "dur049-multihost.v8"
         status = "IN_PROGRESS"
         generated_at_utc = [DateTime]::UtcNow.ToString("o")
         git_commit = (git rev-parse HEAD).Trim()
@@ -1706,7 +2061,7 @@ try {
         aws_profile = $AwsProfile
         topology = [ordered]@{ application_hosts = 2; dependency_hosts = 1; app_instance_ids = $appIDs; app_private_ips = $appPrivateIPs; dependency_instance_id = $dependency; dependency_private_ip = $dependencyIP; instances = $instanceDetails }
         scenarios = @($Scenario)
-        fixture_workflow_ids = [ordered]@{ network = $NetworkWorkflowId; host_stop = $HostWorkflowId; lock_held = $LockWorkflowId; lock_held_progress = $LockProgressWorkflowId }
+        fixture_workflow_ids = [ordered]@{ network = $NetworkWorkflowId; host_stop = $HostWorkflowId; lock_held = $LockWorkflowId; lock_held_progress = $LockProgressWorkflowId; owner_lock_isolation = $OwnerLockWorkflowId }
         configuration = [ordered]@{
             activity = "dur048.sleep"
             fixture_definition_id = $FixtureDefinitionID
@@ -1723,7 +2078,7 @@ try {
             runtime_engine_mode = "disabled"
             runtime_scheduler = "enabled"
             fault_network_ports = $FaultPorts
-            network_chain = "DOCKER-USER plus dependency INPUT for network arm; not_applicable host stop; row lock for lock-held"
+            network_chain = "DOCKER-USER plus dependency INPUT for network arm; not_applicable host stop; healthy external lock holder for R096 bounded-wait contention, not owner isolation"
             network_match_states = @("NEW", "ESTABLISHED", "RELATED")
             established_flow_termination = "host conntrack deletion"
             dependency_session_termination = [bool]$TerminateDatabaseSessions
@@ -1731,8 +2086,8 @@ try {
             route_fault = "app-host blackhole route for dependency /32"
             lock_timeout_seconds = 2
             attempt_lease_seconds = 30
-            tcp_keepalives_idle_seconds = 60
-            idle_in_transaction_session_timeout_seconds = 600
+            tcp_keepalives_idle_seconds = 30
+            idle_in_transaction_session_timeout_seconds = 10
             claim_observation_semantics = "Wait for a durable CLAIMED attempt; scheduler lease identity is joined from the ATTEMPT_CREATED history epoch because the scheduler releases its lease at pass end."
             peer_mode = "controller-started cold standby for takeover arms; not a continuously active peer"
             pre_fault_refresh = "The original app host runtime and worker are force-recreated and health-checked before each fault fixture; container IDs and start times are recorded in the episode configuration."
@@ -1750,19 +2105,43 @@ try {
         $hostResult = Run-HostArm $appIDs[0] $appIDs[1] $dependency $HostWorkflowId (Join-Path $OutputRoot "host-stop.json")
         $Results += $hostResult
     }
-    if ($Scenario -in @("all", "lock-held")) {
-        $lockResult = Run-LockHeldArm $appIDs[0] $appIDs[1] $dependency $LockWorkflowId $LockProgressWorkflowId (Join-Path $OutputRoot "lock-held.json")
+    if ($Scenario -in @("all", "live-holder-contention")) {
+        $lockResult = Run-LiveHolderContentionArm $appIDs[0] $appIDs[1] $dependency $LockWorkflowId $LockProgressWorkflowId (Join-Path $OutputRoot "live-holder-contention.json")
         $Results += $lockResult
     }
+    if ($Scenario -in @("all", "owner-lock-isolation")) {
+        $ownerLockResult = Run-OwnerLockIsolationArm $appIDs[0] $appIDs[1] $dependency $dependencyIP $appPrivateIPs[0] $OwnerLockWorkflowId (Join-Path $OutputRoot "owner-lock-isolation.json")
+        $Results += $ownerLockResult
+    }
+    $globalObligationsBefore = @(Get-GlobalOpenObligations $dependency)
+    $consumerDrain = Wait-SchedulerConsumerDrain $dependency
     $epochProbeWorkflowID = "dur049-r71-epoch-fence-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
     $sameOwnerEpochProbe = Invoke-SameOwnerEpochProbe $appIDs[0] $epochProbeWorkflowID
+    $consumerDrainAfterProbe = Wait-SchedulerConsumerDrain $dependency
+    $globalObligationsAfter = @(Get-GlobalOpenObligations $dependency)
+    $beforeJSON = ConvertTo-Json -InputObject $globalObligationsBefore -Depth 8 -Compress
+    $afterJSON = ConvertTo-Json -InputObject $globalObligationsAfter -Depth 8 -Compress
+    if ($beforeJSON -cne $afterJSON) { throw "Same-owner epoch probe changed the global open-obligation set: before=$beforeJSON after=$afterJSON" }
     Write-Json (Join-Path $OutputRoot "same-owner-stale-epoch.json") $sameOwnerEpochProbe
-    $protocol.status = "PASS"
+    $ownerLockCompleted = @($Results | Where-Object { $_.fault -eq 'owner-runtime-network-isolation-during-lease-row-lock' }).Count -eq 1
+    $fullCampaignRequested = $Scenario -eq 'all'
+    $fullCampaignAccepted = $fullCampaignRequested -and $ownerLockCompleted -and @($Results).Count -eq 4
+    $protocol.status = if ($fullCampaignAccepted) { 'PASS' } elseif ($ownerLockCompleted) { 'OWNER_LOCK_ISOLATION_PASS_OTHER_ARMS_NOT_REQUESTED' } else { 'INCOMPLETE_REQUIRED_OWNER_LOCK_ISOLATION' }
     $protocol.results = $Results
-    $protocol.negative_controls = [ordered]@{ same_owner_stale_epoch_fence = $sameOwnerEpochProbe; interpretation = "A disposable RUNNABLE workflow was protected by the same owner at a strictly newer lease epoch; an owner transition using that same owner's prior epoch was rejected without changing revision." }
-    $protocol.acceptance = [ordered]@{ fault_confirmation = $true; peer_takeover = $true; superseded_epoch_transitions = 0; useful_work_checked = $true; result_rejections_recorded = $true; same_owner_stale_epoch_control = $true; durable_invariant_checker = $true; obligations_recorded = $true; lock_held_arm_separate = $true; session_termination_variant = [bool]$TerminateDatabaseSessions; no_cleanup_claim = "Terraform teardown remains a separate operator step and is recorded after the campaign." }
+    $protocol.negative_controls = [ordered]@{ same_owner_stale_epoch_fence = $sameOwnerEpochProbe; global_open_obligations_before = $globalObligationsBefore; global_open_obligations_after = $globalObligationsAfter; consumer_drain_before = $consumerDrain; consumer_drain_after = $consumerDrainAfterProbe; global_open_obligation_set_unchanged = $true; interpretation = "A retained CANCELED workflow was created without outbox rows, the old epoch was rejected without revision change, and a scheduler-consumer drain before and after left the global open-obligation set unchanged." }
+    $protocol.scope_completion = [ordered]@{
+        requested_scenarios_completed = $true
+        full_dur049_acceptance_complete = $fullCampaignAccepted
+        required_owner_lock_isolation = $(if ($ownerLockCompleted) { 'PASS' } else { 'NOT_RUN' })
+        measured_lock_arm = 'live-holder-contention; R096 bounded-wait only'
+        owner_lock_isolation_artifact = $(if ($ownerLockCompleted) { 'owner-lock-isolation.json' } else { $null })
+        reason = $(if ($fullCampaignAccepted) { 'All four declared arms completed, including the real owner-runtime lock isolation and PostgreSQL backend-reaping scenario.' } elseif ($ownerLockCompleted) { 'The R131 owner-lock arm passed independently; other arms were not requested in this invocation, so this artifact does not claim full campaign completion.' } else { 'Owner-runtime isolation while ConsumeResult holds the lease-row lock was not run; this artifact is incomplete for DUR-049 acceptance.' })
+    }
+    $protocol.acceptance = [ordered]@{ fault_confirmation = $true; peer_takeover = $true; superseded_epoch_transitions = 0; useful_work_checked = $true; result_rejections_recorded = $true; same_owner_stale_epoch_control = $true; durable_invariant_checker = $true; obligations_recorded = $true; live_holder_contention_labeled_separately = $true; owner_lock_isolation = $ownerLockCompleted; full_dur049_acceptance_complete = $fullCampaignAccepted; session_termination_variant = [bool]$TerminateDatabaseSessions; no_cleanup_claim = "Terraform teardown remains a separate operator step and is recorded after the campaign." }
     Write-Json (Join-Path $OutputRoot "protocol.json") $protocol
-    Write-Host "DUR-043 multi-host campaign PASS: $($Results.Count) fault arm(s) completed with zero superseded-epoch transitions."
+    if ($fullCampaignAccepted) { Write-Host "DUR-049 all four declared scenarios PASS, including R131 owner-lock isolation and server-side backend reaping. Superseded-epoch transitions observed: 0." }
+    elseif ($ownerLockCompleted) { Write-Host "DUR-049 owner-lock isolation PASS; this invocation did not request every campaign arm, so full acceptance remains incomplete." }
+    else { Write-Host "DUR-049 required owner-lock isolation remains NOT RUN; full acceptance is incomplete. Superseded-epoch transitions observed: 0." }
 } catch {
     if ($null -ne $script:CurrentEpisodeState -and $script:CurrentEpisodeState.status -eq "IN_PROGRESS") {
         $script:CurrentEpisodeState.status = "FAIL"
@@ -1770,7 +2149,7 @@ try {
         Save-EpisodeCheckpoint $script:CurrentEpisodePath $script:CurrentEpisodeState "failed"
     }
     if ($null -eq $protocol) {
-    $protocol = [ordered]@{ schema_version = "dur049-multihost.v6"; status = "FAIL"; generated_at_utc = [DateTime]::UtcNow.ToString("o"); git_commit = (git rev-parse HEAD).Trim(); scenarios = @($Scenario) }
+    $protocol = [ordered]@{ schema_version = "dur049-multihost.v8"; status = "FAIL"; generated_at_utc = [DateTime]::UtcNow.ToString("o"); git_commit = (git rev-parse HEAD).Trim(); scenarios = @($Scenario) }
     }
     $protocol.status = "FAIL"
     $protocol.failed_at_utc = [DateTime]::UtcNow.ToString("o")
@@ -1781,6 +2160,7 @@ try {
     throw
 } finally {
     if ($NetworkRulesInserted) { try { Remove-NetworkBlock $appIDs[0] $dependency $dependencyIP $appPrivateIPs[0] } catch { Write-Warning "Could not remove network rules during cleanup: $_" } }
+    if ($OwnerLockRuntimeConfigured) { try { Restore-AppStandardRuntime $appIDs[0] } catch { Write-Warning "Could not restore the default runtime after the owner-lock campaign: $_" } }
     if ($App1WasStopped) { try { Invoke-Aws @("ec2", "start-instances", "--instance-ids", $appIDs[0]) | Out-Null; Wait-Ssm $appIDs[0]; Start-AppRuntime $appIDs[0] } catch { Write-Warning "Could not restart app host 1 during cleanup: $_" } }
     if ($App2MayBeStopped) { try { Start-AppRuntime $appIDs[1] } catch { Write-Warning "Could not restart app host 2 during cleanup: $_" } }
     Pop-Location

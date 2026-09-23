@@ -148,7 +148,7 @@
       "old": "if fence.StaleResultRecorded {",
       "new": "if false { // mutation: ignore an accepted stale attempt result",
       "command": ["go", "test", "./cmd/dur049-checker", "-run", "^TestFenceCheckRejectsAcceptedStaleAttemptResult$", "-count=1", "-v"],
-      "expected": "want accepted stale result rejected",
+      "expected": "fence check accepted a recorded stale attempt result",
       "requires_database": false
     },
     {

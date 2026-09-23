@@ -45,3 +45,36 @@ func TestFenceCheckRejectsMissingOrNonIncreasingRecoveryBoundary(t *testing.T) {
 		})
 	}
 }
+
+func TestFenceCheckRejectsPostBoundarySupersededEpoch(t *testing.T) {
+	oldEpoch, recoveryEpoch := int64(7), int64(8)
+	trace := invariants.Trace{History: []invariants.HistoryRecord{
+		{WorkflowID: "wf", Revision: 5, ActorKind: "scheduler", SchedulerEpoch: &oldEpoch},
+	}}
+	verdict, fence := check(trace, 4, 4, recoveryEpoch, 0)
+	const expected = "1 post-recovery history records carry an epoch older than the recovery owner"
+	if fence == nil || fence.SupersededCount != 1 || !containsViolation(verdict.Violations, expected) {
+		t.Fatalf("fence check accepted a post-boundary history row; fence=%+v violations=%v", fence, verdict.Violations)
+	}
+}
+
+func TestFenceCheckRejectsAcceptedStaleAttemptResult(t *testing.T) {
+	trace := invariants.Trace{Attempts: []invariants.AttemptRecord{{
+		WorkflowID: "wf", NodeID: "activity", AttemptNumber: 1,
+		State: "TIMED_OUT", IsCurrent: false, ResultRecorded: true,
+	}}}
+	verdict, fence := check(trace, 1, 2, 8, 1)
+	const expected = "stale attempt has a recorded result after the stale-result rejection probe"
+	if fence == nil || !fence.StaleAttemptFound || !fence.StaleResultRecorded || !containsViolation(verdict.Violations, expected) {
+		t.Fatalf("fence check accepted a recorded stale attempt result; fence=%+v violations=%v", fence, verdict.Violations)
+	}
+}
+
+func containsViolation(violations []string, expected string) bool {
+	for _, violation := range violations {
+		if violation == expected {
+			return true
+		}
+	}
+	return false
+}

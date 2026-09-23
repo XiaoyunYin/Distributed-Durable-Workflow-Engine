@@ -403,5 +403,13 @@
                        "lock_held_arm_separate":  true,
                        "session_termination_variant":  false,
                        "no_cleanup_claim":  "Terraform teardown remains a separate operator step and is recorded after the campaign."
-                   }
+                   },
+    "source_ci":  {
+        "conclusion":  "failure",
+        "run_id":  35855958767,
+        "run_url":  "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/35855958767",
+        "source_commit":  "0c8165eb3634c9d6dcace370f5d260ab464fa9e5",
+        "failed_jobs_and_steps":  ["Go, Python, and offline evidence: Run repository checks", "PostgreSQL, Kafka, and deployed smoke: Run service-backed checks and race tests"],
+        "failure_cause":  "Not diagnosed in the retained public run summary; the campaign result is not represented as having been produced by a green CI commit."
+    }
 }

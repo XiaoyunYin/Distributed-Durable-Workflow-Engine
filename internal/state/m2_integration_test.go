@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -150,6 +151,100 @@ func TestRuntimeWakeupAcknowledgmentRequiresCurrentLease(t *testing.T) {
 			t.Fatalf("current owner: consumed=%v resolved=%v, want both true", consumed, resolved)
 		}
 	})
+}
+
+func TestM2LeaseAcquisitionLedgerIsCampaignOptInAndFailureAtomic(t *testing.T) {
+	t.Setenv("DUR049_RECORD_LEASE_ACQUISITIONS", "0")
+	databaseURL := integrationDatabaseURL(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	storeOff, err := NewFromURL(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open default-off PostgreSQL store: %v", err)
+	}
+	t.Cleanup(storeOff.Close)
+
+	ownerOff := NewID()
+	leaseOff, acquired, err := acquireTestLease(ctx, storeOff, ownerOff)
+	if err != nil || !acquired {
+		t.Fatalf("default-off lease acquisition = %+v acquired=%v err=%v", leaseOff, acquired, err)
+	}
+	if err := storeOff.ReleaseLease(ctx, LeaseRef{PartitionID: leaseOff.PartitionID, OwnerID: leaseOff.OwnerID, Epoch: leaseOff.Epoch}); err != nil {
+		t.Fatalf("release default-off lease: %v", err)
+	}
+	var defaultOffRows int
+	if err := storeOff.Pool().QueryRow(ctx, `SELECT count(*) FROM engine.lease_acquisitions WHERE owner_id = $1`, ownerOff).Scan(&defaultOffRows); err != nil || defaultOffRows != 0 {
+		t.Fatalf("default-off ledger rows = %d err=%v, want 0", defaultOffRows, err)
+	}
+
+	t.Setenv("DUR049_RECORD_LEASE_ACQUISITIONS", "1")
+	storeOn, err := NewFromURL(ctx, databaseURL)
+	if err != nil {
+		t.Fatalf("open campaign-enabled PostgreSQL store: %v", err)
+	}
+	t.Cleanup(storeOn.Close)
+	ownerOn := NewID()
+	leaseOn, acquired, err := acquireTestLease(ctx, storeOn, ownerOn)
+	if err != nil || !acquired {
+		t.Fatalf("campaign-enabled lease acquisition = %+v acquired=%v err=%v", leaseOn, acquired, err)
+	}
+	defer func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		if err := storeOn.ReleaseLease(cleanupCtx, LeaseRef{PartitionID: leaseOn.PartitionID, OwnerID: leaseOn.OwnerID, Epoch: leaseOn.Epoch}); err != nil && !errors.Is(err, ErrLeaseNotOwned) {
+			t.Errorf("release campaign-enabled lease: %v", err)
+		}
+		if _, err := storeOn.Pool().Exec(cleanupCtx, `DELETE FROM engine.lease_acquisitions WHERE owner_id = $1`, ownerOn); err != nil {
+			t.Errorf("remove this test's acquisition-ledger row: %v", err)
+		}
+	}()
+	var recorded int
+	if err := storeOn.Pool().QueryRow(ctx, `SELECT count(*) FROM engine.lease_acquisitions WHERE owner_id = $1`, ownerOn).Scan(&recorded); err != nil || recorded != 1 {
+		t.Fatalf("campaign-enabled lease acquisition rows = %d err=%v, want 1", recorded, err)
+	}
+
+	const createFailureTrigger = `
+CREATE OR REPLACE FUNCTION engine.dur049_test_fail_lease_acquisition_insert()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'dur049 injected lease acquisition ledger failure'; END;
+$$;
+CREATE TRIGGER dur049_test_fail_lease_acquisition_insert
+BEFORE INSERT ON engine.lease_acquisitions
+FOR EACH ROW EXECUTE FUNCTION engine.dur049_test_fail_lease_acquisition_insert();`
+	if _, err := storeOn.Pool().Exec(ctx, createFailureTrigger); err != nil {
+		t.Fatalf("install acquisition-ledger failure control: %v", err)
+	}
+	// Force the next call through the update-and-ledger-insert path. An
+	// unexpired same-owner acquisition is a harmless no-op and would never
+	// exercise the trigger below.
+	if _, err := storeOn.Pool().Exec(ctx, `UPDATE engine.partition_leases
+		SET lease_expires_at = clock_timestamp() - interval '1 second'
+		WHERE partition_id = $1 AND owner_id::text = $2 AND epoch = $3`,
+		leaseOn.PartitionID, leaseOn.OwnerID, leaseOn.Epoch); err != nil {
+		t.Fatalf("expire campaign lease for insert-failure control: %v", err)
+	}
+	var expiryBeforeFailure time.Time
+	if err := storeOn.Pool().QueryRow(ctx, `SELECT lease_expires_at FROM engine.partition_leases WHERE partition_id = $1`, leaseOn.PartitionID).Scan(&expiryBeforeFailure); err != nil {
+		t.Fatalf("read expired lease before insert-failure control: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_, _ = storeOn.Pool().Exec(cleanupCtx, `DROP TRIGGER IF EXISTS dur049_test_fail_lease_acquisition_insert ON engine.lease_acquisitions`)
+		_, _ = storeOn.Pool().Exec(cleanupCtx, `DROP FUNCTION IF EXISTS engine.dur049_test_fail_lease_acquisition_insert()`)
+	})
+	if _, _, err := storeOn.AcquireLease(ctx, leaseOn.PartitionID, ownerOn, time.Minute); err == nil || !strings.Contains(err.Error(), "dur049 injected lease acquisition ledger failure") {
+		t.Fatalf("campaign ledger insert failure = %v, want injected SQL failure", err)
+	}
+	var ownerAfter string
+	var epochAfter int64
+	var expiryAfter time.Time
+	if err := storeOn.Pool().QueryRow(ctx, `SELECT owner_id::text, epoch, lease_expires_at FROM engine.partition_leases WHERE partition_id=$1`, leaseOn.PartitionID).Scan(&ownerAfter, &epochAfter, &expiryAfter); err != nil {
+		t.Fatal(err)
+	}
+	if ownerAfter != ownerOn || epochAfter != leaseOn.Epoch || !expiryAfter.Equal(expiryBeforeFailure) {
+		t.Fatalf("failed ledger insert partially changed lease row: owner=%s epoch=%d expiry=%s; want owner=%s epoch=%d expiry=%s", ownerAfter, epochAfter, expiryAfter, ownerOn, leaseOn.Epoch, expiryBeforeFailure)
+	}
 }
 
 func TestM2LeaseRenewalAndTakeoverFence(t *testing.T) {

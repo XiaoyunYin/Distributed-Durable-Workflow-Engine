@@ -99,7 +99,10 @@ for each arm, then run the SSM-backed harness from the repository root:
 ```powershell
 pwsh -File scripts/dur043-multihost.ps1 -Scenario all `
   -NetworkWorkflowId <claimed-network-fixture> `
-  -HostWorkflowId <claimed-host-stop-fixture>
+  -HostWorkflowId <claimed-host-stop-fixture> `
+  -LockWorkflowId <live-holder-contention-fixture> `
+  -LockProgressWorkflowId <other-partition-progress-fixture> `
+  -OwnerLockWorkflowId <owner-lock-isolation-fixture>
 ```
 
 The harness obtains Terraform outputs, requires all three instances to be
@@ -108,6 +111,15 @@ network arm, drops only its PostgreSQL/Kafka path with host firewall rules,
 and uses a forced EC2 stop for the host arm. It writes `PASS` only after SSM,
 EC2, Docker, PostgreSQL lease/epoch rows, workflow progress, and superseded
 epoch history agree. A requested fault without observed state is a failure.
+The `all` run includes the required R131 owner-lock isolation scenario: a
+campaign-only tagged runtime is intended to pause inside `ConsumeResult` after
+it holds the lease row, then isolate the app host without terminating sessions.
+Acceptance requires PostgreSQL's 10-second idle-in-transaction timeout to reap
+the observed backend, the peer to consume the already-recorded result, and the
+same original runtime process to reconnect and attempt a stale `ReleaseLease`.
+That write must receive `ErrLeaseNotOwned` without changing the peer lease or
+completed workflow. This arm remains unverified until its deployed artifact
+passes; the ordinary `/runtime` entrypoint does not include the fault hook.
 The runtime image also contains `/dur043-stale-probe`, a campaign-only
 diagnostic used by the preserved-process arm to attempt a real stale-owner
 transition and verify both rejection and unchanged workflow revision; it is

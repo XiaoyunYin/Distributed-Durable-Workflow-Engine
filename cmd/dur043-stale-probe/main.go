@@ -34,16 +34,21 @@ type probeResult struct {
 }
 
 type sameOwnerEpochResult struct {
-	Status         string `json:"status"`
-	WorkflowID     string `json:"workflow_id"`
-	PartitionID    int16  `json:"partition_id"`
-	OwnerID        string `json:"owner_id"`
-	StaleEpoch     int64  `json:"stale_epoch"`
-	CurrentEpoch   int64  `json:"current_epoch"`
-	SameOwner      bool   `json:"same_owner"`
-	BeforeRevision int64  `json:"before_revision"`
-	AfterRevision  int64  `json:"after_revision"`
-	Error          string `json:"error"`
+	Status                      string `json:"status"`
+	WorkflowID                  string `json:"workflow_id"`
+	PartitionID                 int16  `json:"partition_id"`
+	OwnerID                     string `json:"owner_id"`
+	StaleEpoch                  int64  `json:"stale_epoch"`
+	CurrentEpoch                int64  `json:"current_epoch"`
+	SameOwner                   bool   `json:"same_owner"`
+	BeforeRevision              int64  `json:"before_revision"`
+	AfterRevision               int64  `json:"after_revision"`
+	ProbeWorkflowRetained       bool   `json:"probe_workflow_retained"`
+	ProbeWorkflowFinalState     string `json:"probe_workflow_final_state,omitempty"`
+	ProbeOutboxSuppressed       bool   `json:"probe_outbox_suppressed"`
+	ProbeOutboxRowsObserved     int64  `json:"probe_outbox_rows_observed"`
+	ProbeOutboxRowsAfterCleanup int64  `json:"probe_outbox_rows_after_cleanup"`
+	Error                       string `json:"error"`
 }
 
 func main() {
@@ -59,6 +64,9 @@ func main() {
 	flag.Parse()
 	if *workflowID == "" {
 		fatal("workflow-id is required")
+	}
+	if *sameOwnerEpoch && !campaignOutboxSuppressionEnabled() {
+		fatal("same-owner stale-epoch probe requires the campaign-only outbox-suppression build")
 	}
 	if !*sameOwnerEpoch && (*partitionID < 0 || *ownerID == "" || *epoch <= 0) {
 		fatal("partition-id, owner-id, and a positive epoch are required")
@@ -144,7 +152,7 @@ func main() {
 	}
 }
 
-func runSameOwnerStaleEpoch(ctx context.Context, store *state.Store, workflowID string) (sameOwnerEpochResult, error) {
+func runSameOwnerStaleEpoch(ctx context.Context, store *state.Store, workflowID string) (result sameOwnerEpochResult, returnErr error) {
 	partitionValue, err := partition.ID(workflowID)
 	if err != nil {
 		return sameOwnerEpochResult{}, fmt.Errorf("map probe workflow partition: %w", err)
@@ -153,7 +161,7 @@ func runSameOwnerStaleEpoch(ctx context.Context, store *state.Store, workflowID 
 		return sameOwnerEpochResult{}, fmt.Errorf("probe workflow mapped outside the frozen %d-partition map: %d", partition.PartitionCount, partitionValue)
 	}
 	partitionNumber := int16(partitionValue)
-	result := sameOwnerEpochResult{Status: "FAIL", WorkflowID: workflowID, PartitionID: partitionNumber}
+	result = sameOwnerEpochResult{Status: "FAIL", WorkflowID: workflowID, PartitionID: partitionNumber}
 	ownerID := state.NewID()
 	first, err := acquireProbeLease(ctx, store, partitionNumber, ownerID)
 	if err != nil {
@@ -178,23 +186,55 @@ func runSameOwnerStaleEpoch(ctx context.Context, store *state.Store, workflowID 
 	}
 
 	workflowCreated := false
+	probeCtx := campaignProbeContext(ctx)
 	cleanup := func() error {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		defer cancel()
+		cleanupProbeCtx := campaignProbeContext(cleanupCtx)
 		if workflowCreated {
-			if _, err := store.Pool().Exec(cleanupCtx, `DELETE FROM engine.workflow_executions WHERE workflow_id = $1`, workflowID); err != nil {
-				return fmt.Errorf("delete probe workflow: %w", err)
+			workflow, err := store.GetWorkflow(cleanupCtx, workflowID)
+			if err != nil {
+				return fmt.Errorf("read probe workflow for terminal cleanup: %w", err)
 			}
+			if !isTerminalProbeState(workflow.State) {
+				if err := store.ApplyOwnerTransition(cleanupProbeCtx, state.OwnerTransitionInput{
+					Lease: currentRef, WorkflowID: workflowID, ExpectedRevision: workflow.Revision,
+					NewState: state.StateCanceled, ActorID: "dur049-epoch-probe",
+					Reason: "DUR049_SAME_OWNER_STALE_EPOCH_PROBE_CLEANUP",
+				}); err != nil {
+					return fmt.Errorf("terminalize probe workflow without deleting its durable identity: %w", err)
+				}
+			}
+			workflow, err = store.GetWorkflow(cleanupCtx, workflowID)
+			if err != nil {
+				return fmt.Errorf("verify terminal probe workflow: %w", err)
+			}
+			if workflow.State != state.StateCanceled {
+				return fmt.Errorf("probe workflow final state = %s, want CANCELED", workflow.State)
+			}
+			if err := store.Pool().QueryRow(cleanupCtx, `SELECT count(*) FROM engine.outbox WHERE workflow_id = $1`, workflowID).Scan(&result.ProbeOutboxRowsAfterCleanup); err != nil {
+				return fmt.Errorf("verify cleanup emitted no outbox rows: %w", err)
+			}
+			if result.ProbeOutboxRowsAfterCleanup != 0 {
+				return fmt.Errorf("terminal probe cleanup left %d outbox rows, want 0", result.ProbeOutboxRowsAfterCleanup)
+			}
+			result.ProbeWorkflowRetained = true
+			result.ProbeWorkflowFinalState = string(workflow.State)
+			result.ProbeOutboxSuppressed = true
 		}
 		if err := store.ReleaseLease(cleanupCtx, currentRef); err != nil && !errors.Is(err, state.ErrLeaseNotOwned) {
 			return fmt.Errorf("release current probe lease: %w", err)
 		}
 		return nil
 	}
-	defer func() { _ = cleanup() }()
+	defer func() {
+		if err := cleanup(); err != nil && returnErr == nil {
+			returnErr = err
+		}
+	}()
 
 	digest := sha256.Sum256([]byte(workflowID))
-	created, err := store.CreateWorkflow(ctx, state.CreateWorkflowInput{
+	created, err := store.CreateWorkflow(probeCtx, state.CreateWorkflowInput{
 		WorkflowID: workflowID, Namespace: "dur049-epoch-probe", SubmissionKey: workflowID,
 		SubmissionPayloadHash: "sub-v1:" + hex.EncodeToString(digest[:]),
 		DefinitionID:          "dur049-fault-fixture-v1", DefinitionVersion: 1,
@@ -206,7 +246,13 @@ func runSameOwnerStaleEpoch(ctx context.Context, store *state.Store, workflowID 
 	}
 	workflowCreated = true
 	result.BeforeRevision = created.Workflow.Revision
-	transitionErr := store.ApplyOwnerTransition(ctx, state.OwnerTransitionInput{
+	if err := store.Pool().QueryRow(probeCtx, `SELECT count(*) FROM engine.outbox WHERE workflow_id = $1`, workflowID).Scan(&result.ProbeOutboxRowsObserved); err != nil {
+		return result, fmt.Errorf("verify probe workflow did not create outbox work: %w", err)
+	}
+	if result.ProbeOutboxRowsObserved != 0 {
+		return result, fmt.Errorf("probe workflow created %d outbox rows; campaign negative control requires suppression", result.ProbeOutboxRowsObserved)
+	}
+	transitionErr := store.ApplyOwnerTransition(probeCtx, state.OwnerTransitionInput{
 		Lease: staleRef, WorkflowID: workflowID, ExpectedRevision: created.Workflow.Revision,
 		NewState: state.StateCanceled, ActorID: "dur049-epoch-probe",
 		Reason: "DUR049_SAME_OWNER_STALE_EPOCH_NEGATIVE_CONTROL",
@@ -218,14 +264,19 @@ func runSameOwnerStaleEpoch(ctx context.Context, store *state.Store, workflowID 
 	}
 	result.AfterRevision = workflowAfter.Revision
 	result.Status = "PASS"
-	if !errors.Is(transitionErr, state.ErrLeaseNotOwned) || result.AfterRevision != result.BeforeRevision {
+	if !errors.Is(transitionErr, state.ErrLeaseNotOwned) || result.AfterRevision != result.BeforeRevision || !result.ProbeWorkflowRetained || result.ProbeWorkflowFinalState != string(state.StateCanceled) || !result.ProbeOutboxSuppressed || result.ProbeOutboxRowsObserved != 0 || result.ProbeOutboxRowsAfterCleanup != 0 {
 		result.Status = "FAIL"
 	}
-	if err := cleanup(); err != nil {
-		return result, err
-	}
-	workflowCreated = false
 	return result, nil
+}
+
+func isTerminalProbeState(value state.WorkflowState) bool {
+	switch value {
+	case state.StateSucceeded, state.StateFailed, state.StateRejected, state.StateCanceled, state.StateAbandoned:
+		return true
+	default:
+		return false
+	}
 }
 
 func acquireProbeLease(ctx context.Context, store *state.Store, partitionID int16, ownerID string) (state.Lease, error) {
