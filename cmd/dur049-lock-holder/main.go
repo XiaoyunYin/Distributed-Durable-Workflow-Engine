@@ -25,7 +25,7 @@ func main() {
 	if databaseURL == "" {
 		fatal("DATABASE_URL is required")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), *duration+30*time.Second)
 	defer cancel()
 	store, err := state.NewFromURL(ctx, databaseURL)
 	if err != nil {
@@ -44,10 +44,48 @@ func main() {
 	if err := os.WriteFile(*marker, []byte(fmt.Sprintf("partition=%d epoch=%d locked_at=%s\n", *partition, epoch, time.Now().UTC().Format(time.RFC3339Nano))), 0600); err != nil {
 		fatal(err.Error())
 	}
-	timer := time.NewTimer(*duration)
-	<-timer.C
+	if err := holdTransaction(ctx, *duration, 2*time.Second, func(pingCtx context.Context) error {
+		var one int
+		return tx.QueryRow(pingCtx, `SELECT 1`).Scan(&one)
+	}); err != nil {
+		fatal(err.Error())
+	}
 	if err := tx.Rollback(context.Background()); err != nil {
 		fatal(err.Error())
+	}
+}
+
+// holdTransaction keeps an otherwise idle transaction active while it holds
+// the lease-row lock. PostgreSQL's idle_in_transaction_session_timeout is
+// intentionally enabled, so the callback must run more frequently than that
+// timeout or the backend would release the lock while this process remained
+// alive.
+func holdTransaction(ctx context.Context, duration, keepaliveInterval time.Duration, keepalive func(context.Context) error) error {
+	if duration <= 0 {
+		return fmt.Errorf("duration must be positive")
+	}
+	if keepaliveInterval <= 0 {
+		return fmt.Errorf("keepalive interval must be positive")
+	}
+	if keepalive == nil {
+		return fmt.Errorf("keepalive callback is required")
+	}
+
+	timer := time.NewTimer(duration)
+	defer timer.Stop()
+	ticker := time.NewTicker(keepaliveInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-timer.C:
+			return nil
+		case <-ticker.C:
+			if err := keepalive(ctx); err != nil {
+				return fmt.Errorf("refresh lock-holder transaction: %w", err)
+			}
+		}
 	}
 }
 

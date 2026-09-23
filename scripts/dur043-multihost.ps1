@@ -186,6 +186,19 @@ function Get-AppRuntimeComposeLookupLine() {
     return 'cid=$(' + (Get-AppRuntimeComposeLookupCommand) + ')'
 }
 
+function Get-AppRuntimePartitionLockProbeCommand([int]$PartitionID) {
+    if ($PartitionID -lt 0 -or $PartitionID -ge 16) { throw "Partition ID must be 0..15 for a database lock probe." }
+    return 'probe=$(docker exec "$cid" /dur049-db-probe -partition-id ' + $PartitionID + '); printf "lock_probe_json=%s\n" "$probe"'
+}
+
+function Assert-LeaseRowLockProbe([string]$Output) {
+    $match = [regex]::Match($Output, '(?m)^lock_probe_json=(\{[^\r\n]*\})$')
+    if (-not $match.Success) { throw "The in-container PostgreSQL row-lock probe returned no JSON observation: $Output" }
+    $probe = $match.Groups[1].Value | ConvertFrom-Json
+    if ($probe.status -ne 'row_lock_held') { throw "The lease row was not observed locked during other-partition progress: $($match.Groups[1].Value)" }
+    return $probe
+}
+
 function Get-Lease([string]$DependencyInstanceId, [int]$PartitionID) {
     $row = Invoke-DbSql $DependencyInstanceId "SELECT COALESCE(owner_id::text,''), epoch, COALESCE(lease_expires_at::text,''), updated_at::text FROM engine.partition_leases WHERE partition_id=$PartitionID;"
     $parts = $row -split '\|', 4
@@ -950,21 +963,24 @@ function Start-LockHolder([string]$InstanceId, [int]$PartitionID, [int]$Duration
     throw "Lock-holder's locked-at marker was not observed in the host-side log before the deadline."
 }
 
-function Observe-LockHolder([string]$InstanceId, [int64]$HostProcessID) {
+function Observe-LockHolder([string]$InstanceId, [int64]$HostProcessID, [int]$PartitionID) {
     $runtimeLookupLine = Get-AppRuntimeComposeLookupLine
+    $lockProbeCommand = Get-AppRuntimePartitionLockProbeCommand $PartitionID
     $commands = @(
         'set -e',
         $runtimeLookupLine,
         'test -n "$cid"',
         "kill -0 $HostProcessID",
         'printf "host_lock_holder_pid_alive=true\n"',
-        'docker top "$cid" -eo pid,args | grep -F -- "/dur049-lock-holder"'
+        'docker top "$cid" -eo pid,args | grep -F -- "/dur049-lock-holder"',
+        $lockProbeCommand
     )
     $output = Send-Ssm $InstanceId $commands 30
     if ($output -notmatch 'host_lock_holder_pid_alive=true' -or $output -notmatch '/dur049-lock-holder') {
         throw "The lock-holder process was not observed alive in the runtime container while progress was observed: $output"
     }
-    return [ordered]@{ observed = $true; controller_observed_at_utc = [DateTime]::UtcNow.ToString('o'); host_process_id = $HostProcessID; output = $output.Trim(); lock_holder_binary_visible_in_container_process_list = $true }
+    $probe = Assert-LeaseRowLockProbe $output
+    return [ordered]@{ observed = $true; controller_observed_at_utc = [DateTime]::UtcNow.ToString('o'); host_process_id = $HostProcessID; output = $output.Trim(); lock_holder_binary_visible_in_container_process_list = $true; row_lock_probe = $probe; row_lock_confirmed_by_partition_id = $PartitionID }
 }
 
 function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [string]$WorkflowID, [string]$ProgressWorkflowID, [string]$OutputPath) {
@@ -1007,7 +1023,7 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
     if ($progressResults -lt 1) { throw "Other partition reached SUCCEEDED without a durable consumed result while lock-held partition was contended." }
     $progressLatency = DurationMilliseconds $lockObservedAt $progressObservedAt
     if ($progressLatency -ge ($lockHolder.duration_seconds * 1000)) { throw "Other-partition progress was not observed before the lock-holder's bounded hold elapsed: ${progressLatency}ms." }
-    $lockHolderObservedDuringProgress = Observe-LockHolder $App1 $lockHolder.host_process_id
+    $lockHolderObservedDuringProgress = Observe-LockHolder $App1 $lockHolder.host_process_id $partition
     $checkpoint.other_partition_progress = $progress
     $checkpoint.other_partition_progress_observed_at_utc = $progressObservedAt.ToString("o")
     $checkpoint.other_partition_progress_ms = $progressLatency
@@ -1320,6 +1336,7 @@ if ($SelfTest) {
     if ($LockHolderDurationSeconds -lt 150) { throw "Lock-holder duration must leave margin over measured cold-standby progress latency." }
     $composeLookup = Get-AppRuntimeComposeLookupCommand
     $composeLookupLine = Get-AppRuntimeComposeLookupLine
+    $lockProbeCommand = Get-AppRuntimePartitionLockProbeCommand 13
     $markerLogPath = "/tmp/dur049-lock-holder-13.log"
     $startHolderCommand = 'nohup docker exec "$cid" /dur049-lock-holder -partition-id 13 -duration 180s -marker /dev/stdout > ' + "'$markerLogPath'" + ' 2>&1 < /dev/null & holder_pid=$!; printf "lock_holder_pid=%s\n" "$holder_pid"'
     $markerPollCommand = "if grep -m1 'locked_at=' '$markerLogPath'; then exit 0; elif grep -q 'fatal:' '$markerLogPath'; then cat '$markerLogPath'; exit 1; else printf 'lock_holder_waiting=true\n'; fi"
@@ -1330,6 +1347,14 @@ if ($SelfTest) {
         throw "Lock-holder compose lookup incorrectly treats app-compose.yaml as its environment file: $composeLookup"
     }
     if ($composeLookupLine -ne "cid=`$($composeLookup)") { throw "Lock-holder remote lookup shell line is malformed: $composeLookupLine" }
+    if ($lockProbeCommand -notmatch 'docker exec "\$cid" /dur049-db-probe -partition-id 13' -or $lockProbeCommand -notmatch 'lock_probe_json=') {
+        throw "The lock-held arm must verify the actual PostgreSQL row lock from inside the runtime container."
+    }
+    $positiveLockProbe = Assert-LeaseRowLockProbe 'lock_probe_json={"status":"row_lock_held","sqlstate":"55P03"}'
+    if ($positiveLockProbe.status -ne 'row_lock_held' -or $positiveLockProbe.sqlstate -ne '55P03') { throw "Lock-held probe positive control was not retained." }
+    $availableLockRejected = $false
+    try { $null = Assert-LeaseRowLockProbe 'lock_probe_json={"status":"row_lock_available"}' } catch { $availableLockRejected = $true }
+    if (-not $availableLockRejected) { throw "Lock-held probe accepted a free lease row." }
     if ($startHolderCommand -notmatch '-marker /dev/stdout' -or $startHolderCommand -notmatch 'nohup docker exec' -or $markerPollCommand -notmatch "grep -m1 'locked_at='") {
         throw "Lock-holder marker must be captured and polled on the host, not by shell utilities inside the scratch runtime container."
     }
