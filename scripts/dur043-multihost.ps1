@@ -689,7 +689,10 @@ function Test-WorkerResultSubmissionLog([string]$Line, [string]$WorkflowID, [obj
 }
 
 function Wait-WorkerStaleResultObservation([string]$InstanceId, [string]$WorkflowID, [object]$Attempt, [int]$TimeoutSeconds = 90) {
-    $identityNeedle = "workflow_id=$WorkflowID node_id=$($Attempt.node_id) attempt_number=$($Attempt.attempt_number) worker_id=$($Attempt.worker_id)"
+    # iteration is emitted between node_id and attempt_number on result
+    # submission records, so grep only the contiguous workflow token and let
+    # the local predicate validate every identity field independently.
+    $identityNeedle = "workflow_id=$WorkflowID"
         $command = "docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml logs --timestamps --no-color worker | grep -F '$identityNeedle' || true"
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
