@@ -1,0 +1,13 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T02:42:36.5351935Z",
+    "git_commit":  "ddb48c3e0d40870d226c825184f9b63e8fc881c7",
+    "scenarios":  [
+                      "host"
+                  ],
+    "error":  "Workflow dur049-host-20260922-aa did not commit useful replacement progress after takeover observation.",
+    "results":  [
+
+                ]
+}

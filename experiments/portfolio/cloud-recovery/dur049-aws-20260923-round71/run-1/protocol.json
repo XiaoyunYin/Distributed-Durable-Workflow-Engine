@@ -1,0 +1,14 @@
+{
+    "schema_version":  "dur049-multihost.v4",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T06:26:58.4779595Z",
+    "git_commit":  "0a69f02baa163d1190598927adbb99583ddc6378",
+    "scenarios":  [
+                      "all"
+                  ],
+    "failed_at_utc":  "2026-09-23T06:26:58.5226497Z",
+    "error":  "DUR-049 fixture definition differs from the frozen campaign definition: ",
+    "results":  [
+
+                ]
+}

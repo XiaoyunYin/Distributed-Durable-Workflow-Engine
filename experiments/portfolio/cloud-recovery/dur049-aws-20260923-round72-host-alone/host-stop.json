@@ -1,0 +1,85 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "application-host-forced-stop-and-restart",
+    "workflow_id":  "dur049-r71-host-d573ac88f059",
+    "partition_id":  3,
+    "source_commit":  "f7dd686aac7bf2a315420ae786a6698b1c6b1146",
+    "started_at_utc":  "2026-09-23T08:48:34.1625310Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T08:54:44.0960534Z",
+    "original_owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+    "original_epoch":  1,
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  8,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 08:48:51.03569+00",
+                            "updated_at":  "2026-09-23 08:51:23.650705+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-0"
+                       },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "pre_fault_epoch_boundary":  176,
+    "host_stopped_at_utc":  "2026-09-23T08:52:10.5201320Z",
+    "first_new_owner_acquisition":  {
+                                        "acquisition_id":  "0ae18ff0-67a5-4db5-b074-c9fb6817aa13",
+                                        "owner_id":  "0fc57c10-1bfa-4283-a356-a8bf37b0225c",
+                                        "epoch":  182,
+                                        "database_recorded_at_utc":  "2026-09-23T08:52:15.4902690Z",
+                                        "controller_observed_at_utc":  "2026-09-23T08:52:30.2539744Z",
+                                        "observed_at":  "2026-09-23T08:52:30.2539744Z",
+                                        "lease_expires_at_utc":  "2026-09-23T08:52:30.4852990Z",
+                                        "fault_observed_at_utc":  "2026-09-23T08:52:10.5201320+00:00"
+                                    },
+    "first_useful_progress":  {
+                                  "workflow":  {
+                                                   "state":  "SUCCEEDED",
+                                                   "revision":  13,
+                                                   "attempt_state":  "SUCCEEDED",
+                                                   "attempt_number":  2,
+                                                   "attempt_created_at":  "2026-09-23 08:52:52.81597+00",
+                                                   "updated_at":  "2026-09-23 08:53:53.17703+00"
+                                               },
+                                  "controller_observed_at_utc":  "2026-09-23T08:54:00.4526277Z",
+                                  "observed_at":  "2026-09-23T08:54:00.4526277Z",
+                                  "progress_definition":  "accepted result recorded for replacement attempt",
+                                  "transition":  {
+                                                     "revision":  10,
+                                                     "scheduler_epoch":  null,
+                                                     "reason":  "ATTEMPT_RESULT_RECORDED",
+                                                     "attempt_number":  2,
+                                                     "database_recorded_at_utc":  "2026-09-23T08:53:52.9422210Z",
+                                                     "actor_kind":  "worker"
+                                                 },
+                                  "timeout_replacement_transition":  {
+                                                                         "revision":  9,
+                                                                         "scheduler_epoch":  217,
+                                                                         "lease_acquisition_id":  "053fba56-d9e7-4b95-9f0c-e713da56195e",
+                                                                         "lease_owner_id":  "0fc57c10-1bfa-4283-a356-a8bf37b0225c",
+                                                                         "lease_acquired_at_utc":  "2026-09-23T08:52:51.7847660Z",
+                                                                         "prior_attempt_state":  "TIMED_OUT",
+                                                                         "prior_attempt_is_current":  false,
+                                                                         "replacement_attempt_state":  "SUCCEEDED",
+                                                                         "replacement_attempt_is_current":  false
+                                                                     }
+                              },
+    "restarted_runtime_observed_after_host_stop":  "running|true|1135",
+    "deployed_stale_identity_smoke_test":  {
+                                               "workflow_id":  "dur049-r71-host-d573ac88f059",
+                                               "partition_id":  3,
+                                               "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                               "epoch":  1,
+                                               "before_revision":  13,
+                                               "after_revision":  13,
+                                               "error":  "scheduler lease is not owned or has expired",
+                                               "stale_rejected":  true
+                                           },
+    "error":  "Exception calling \"Parse\" with \"1\" argument(s): \"String was not recognized as a valid DateTime.\""
+}

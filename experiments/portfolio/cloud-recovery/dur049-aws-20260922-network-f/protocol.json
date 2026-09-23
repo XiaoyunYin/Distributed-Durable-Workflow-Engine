@@ -1,0 +1,13 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T00:52:32.2962844Z",
+    "git_commit":  "9b3c2ca1f14f1ed2ae435cf6d2df55f7da50e072",
+    "scenarios":  [
+                      "network"
+                  ],
+    "error":  "Workflow dur049-network-20260922-f was not observed CLAIMED with an owning partition lease before the deadline.",
+    "results":  [
+
+                ]
+}

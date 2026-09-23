@@ -1,0 +1,141 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "PASS",
+    "generated_at_utc":  "2026-09-23T03:06:10.0132856Z",
+    "git_commit":  "e13e85f32b00ca5dfec49dd7305e0c19b0e4bf44",
+    "region":  "us-west-1",
+    "topology":  {
+                     "application_hosts":  2,
+                     "dependency_hosts":  1,
+                     "app_instance_ids":  [
+                                              "i-0bdd3118c0f0ffcf6",
+                                              "i-01e2c624c07cae07a"
+                                          ],
+                     "app_private_ips":  [
+                                             "10.49.1.157",
+                                             "10.49.2.54"
+                                         ],
+                     "dependency_instance_id":  "i-0425341ebe28700e3",
+                     "dependency_private_ip":  "10.49.1.71"
+                 },
+    "scenarios":  [
+                      "host"
+                  ],
+    "configuration":  {
+                          "activity":  "dur048.sleep",
+                          "requested_activity_delay_ms":  60000,
+                          "requested_scheduler_hold_after_acquire_ms":  1000,
+                          "takeover_observation_hold_ms":  4000,
+                          "requested_fixture_activity_enabled":  true,
+                          "requested_worker_slots":  2,
+                          "runtime_engine_mode":  "disabled",
+                          "fault_network_ports":  [
+                                                      5432,
+                                                      9092
+                                                  ],
+                          "network_chain":  "DOCKER-USER plus dependency INPUT for network arm; not_applicable_host_stop for host arm",
+                          "network_match_states":  [
+                                                       "NEW",
+                                                       "ESTABLISHED",
+                                                       "RELATED"
+                                                   ],
+                          "established_flow_termination":  "host conntrack deletion for dependency destination",
+                          "route_fault":  "app-host blackhole route for dependency /32"
+                      },
+    "required_observation":  "SSM, EC2, Docker, and PostgreSQL state must confirm each fault; controller intent alone never produces PASS.",
+    "results":  [
+                    {
+                        "fault":  "application-host-forced-stop-and-restart",
+                        "workflow_id":  "dur049-host-20260922-ag",
+                        "partition_id":  15,
+                        "original_owner_id":  "073e8228-c58c-4ea6-bdea-631dcaffcd96",
+                        "original_epoch":  179,
+                        "takeover_owner_id":  "9abac69c-254f-49ad-9599-11ed71e48f7d",
+                        "takeover_epoch":  186,
+                        "fault_observed":  {
+                                               "stop_requested_at_utc":  "2026-09-23T03:06:31.4460005Z",
+                                               "stopped_at_utc":  "2026-09-23T03:07:07.9166285Z",
+                                               "stopped_state":  true,
+                                               "restart_requested_at_utc":  "2026-09-23T03:07:14.9498265Z",
+                                               "running_observed_at_utc":  "2026-09-23T03:07:22.5409132Z",
+                                               "ssm_online_after_restart":  true
+                                           },
+                        "workflow_before":  {
+                                                "state":  "WAITING_ACTIVITY",
+                                                "revision":  3,
+                                                "attempt_state":  "CLAIMED",
+                                                "attempt_number":  1,
+                                                "attempt_created_at":  "2026-09-23 03:05:59.091557+00",
+                                                "updated_at":  "2026-09-23 03:05:59.096111+00"
+                                            },
+                        "workflow_after":  {
+                                               "state":  "SUCCEEDED",
+                                               "revision":  8,
+                                               "attempt_state":  "SUCCEEDED",
+                                               "attempt_number":  2,
+                                               "attempt_created_at":  "2026-09-23 03:08:09.084738+00",
+                                               "updated_at":  "2026-09-23 03:09:12.759223+00"
+                                           },
+                        "first_useful_progress":  {
+                                                      "observed_at_utc":  "2026-09-23T03:09:12.7306400Z",
+                                                      "workflow":  {
+                                                                       "state":  "SUCCEEDED",
+                                                                       "revision":  8,
+                                                                       "attempt_state":  "SUCCEEDED",
+                                                                       "attempt_number":  2,
+                                                                       "attempt_created_at":  "2026-09-23 03:08:09.084738+00",
+                                                                       "updated_at":  "2026-09-23 03:09:12.759223+00"
+                                                                   }
+                                                  },
+                        "superseded_epoch_transitions_after_takeover":  0,
+                        "takeover_observed_at_utc":  "2026-09-23T03:08:13.9150000Z",
+                        "takeover_row_updated_at_utc":  "2026-09-23T03:08:13.1680820Z",
+                        "terminal_completion_at_utc":  "2026-09-23T03:09:12.7592230Z",
+                        "stop_requested_to_running_ms":  51094.913,
+                        "running_to_takeover_ms":  51374.087,
+                        "stop_requested_to_first_useful_progress_ms":  161284.64,
+                        "takeover_to_first_useful_progress_ms":  null,
+                        "takeover_to_first_useful_progress_note":  "The exact lease takeover instant is not persisted independently; TIMEOUT_REPLACEMENT is the first committed transition by the new epoch and stop-to-progress is measured directly.",
+                        "first_useful_progress_transition":  {
+                                                                 "scheduler_epoch":  205,
+                                                                 "reason":  "RESULT_CONSUMED",
+                                                                 "attempt_number":  2,
+                                                                 "created_at_utc":  "2026-09-23T03:09:12.7306400Z"
+                                                             },
+                        "stop_requested_to_terminal_completion_ms":  161313.222,
+                        "configuration":  {
+                                              "activity":  "dur048.sleep",
+                                              "app1":  {
+                                                           "activity_delay_ms":  60000,
+                                                           "fixture_activity_enabled":  true,
+                                                           "scheduler_hold_after_acquire_ms":  1000,
+                                                           "worker_slots":  2,
+                                                           "runtime_engine_mode":  "disabled"
+                                                       },
+                                              "app2":  {
+                                                           "activity_delay_ms":  60000,
+                                                           "fixture_activity_enabled":  true,
+                                                           "scheduler_hold_after_acquire_ms":  4000,
+                                                           "worker_slots":  2,
+                                                           "runtime_engine_mode":  "disabled"
+                                                       },
+                                              "fault_network_ports":  [
+                                                                          5432,
+                                                                          9092
+                                                                      ],
+                                              "network_chain":  "not_applicable_host_stop",
+                                              "network_match_states":  [
+                                                                           "not_applicable"
+                                                                       ]
+                                          },
+                        "limitation":  "Host-stop recovery is measured separately from the preserved-process network arm; database-host durability remains out of scope."
+                    }
+                ],
+    "acceptance":  {
+                       "fault_confirmation":  true,
+                       "peer_takeover":  true,
+                       "superseded_epoch_transitions":  0,
+                       "useful_work_checked":  true,
+                       "no_cleanup_claim":  "Terraform teardown remains a separate operator step and is recorded after the campaign."
+                   }
+}

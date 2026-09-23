@@ -1,0 +1,31 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "application-host-forced-stop-and-restart",
+    "workflow_id":  "dur049-r71-host-04",
+    "partition_id":  8,
+    "source_commit":  "cabf6813616470538dbb028157fbc61e7f70dcd9",
+    "started_at_utc":  "2026-09-23T07:18:52.3480038Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T07:20:28.8976831Z",
+    "original_owner_id":  "857c3a29-5140-487c-8b19-5dcfd41c234c",
+    "original_epoch":  47,
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  4,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 07:19:09.306497+00",
+                            "updated_at":  "2026-09-23 07:19:39.721877+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "claim_token":  "9195b6d3-4ac7-4b27-b145-3d2223df1f32",
+                           "state":  "CLAIMED"
+                       },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "host_stopped_at_utc":  "2026-09-23T07:20:21.6039400Z",
+    "error":  "Remote app reports an invalid image ID for RUNTIME_IMAGE_ID: "
+}

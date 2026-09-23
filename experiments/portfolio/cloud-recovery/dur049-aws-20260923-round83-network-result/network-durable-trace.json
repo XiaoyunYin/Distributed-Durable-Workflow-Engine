@@ -1,0 +1,404 @@
+{
+    "History":  [
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "Revision":  1,
+                        "ActorKind":  "client",
+                        "SchedulerEpoch":  null,
+                        "OldState":  "",
+                        "NewState":  "RUNNABLE",
+                        "Reason":  "WORKFLOW_CREATED"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "Revision":  2,
+                        "ActorKind":  "scheduler",
+                        "SchedulerEpoch":  11,
+                        "OldState":  "RUNNABLE",
+                        "NewState":  "WAITING_ACTIVITY",
+                        "Reason":  "ACTIVITY_SCHEDULED"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "Revision":  3,
+                        "ActorKind":  "scheduler",
+                        "SchedulerEpoch":  11,
+                        "OldState":  "WAITING_ACTIVITY",
+                        "NewState":  "WAITING_ACTIVITY",
+                        "Reason":  "ATTEMPT_CREATED"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "Revision":  4,
+                        "ActorKind":  "scheduler",
+                        "SchedulerEpoch":  66,
+                        "OldState":  "WAITING_ACTIVITY",
+                        "NewState":  "WAITING_ACTIVITY",
+                        "Reason":  "TIMEOUT_REPLACEMENT"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "Revision":  5,
+                        "ActorKind":  "worker",
+                        "SchedulerEpoch":  null,
+                        "OldState":  "WAITING_ACTIVITY",
+                        "NewState":  "WAITING_ACTIVITY",
+                        "Reason":  "ATTEMPT_RESULT_RECORDED"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "Revision":  6,
+                        "ActorKind":  "scheduler",
+                        "SchedulerEpoch":  124,
+                        "OldState":  "WAITING_ACTIVITY",
+                        "NewState":  "RUNNABLE",
+                        "Reason":  "RESULT_CONSUMED"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "Revision":  7,
+                        "ActorKind":  "scheduler",
+                        "SchedulerEpoch":  124,
+                        "OldState":  "RUNNABLE",
+                        "NewState":  "RUNNABLE",
+                        "Reason":  "GRAPH_ADVANCED"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "Revision":  8,
+                        "ActorKind":  "scheduler",
+                        "SchedulerEpoch":  124,
+                        "OldState":  "RUNNABLE",
+                        "NewState":  "SUCCEEDED",
+                        "Reason":  "GRAPH_ADVANCED"
+                    }
+                ],
+    "Results":  [
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "NodeID":  "dur048.sleep",
+                        "Iteration":  0,
+                        "Accepted":  true
+                    }
+                ],
+    "Submissions":  [
+                        {
+                            "Namespace":  "dur049-aws",
+                            "Key":  "dur049-r71-network-r83-c0ffee02",
+                            "Hash":  "sub-v1:c2fda64575fdcfbb600fd7c2687d1f4e53ca03e3fb8bf85c551a36c39f21f5f1",
+                            "WorkflowID":  "dur049-r71-network-r83-c0ffee02"
+                        }
+                    ],
+    "Attempts":  [
+                     {
+                         "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                         "NodeID":  "dur048.sleep",
+                         "Iteration":  0,
+                         "AttemptNumber":  1,
+                         "State":  "TIMED_OUT",
+                         "ClaimToken":  "0cffcad0-d6d5-47c0-ba5f-9190393aabf5",
+                         "WorkerID":  "worker-1-0",
+                         "WorkerRequestID":  "worker-1-0:f6c00534-9f39-4297-ac11-b403c77958d5",
+                         "Outcome":  "NONE",
+                         "IsCurrent":  false,
+                         "ResultRecorded":  false
+                     },
+                     {
+                         "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                         "NodeID":  "dur048.sleep",
+                         "Iteration":  0,
+                         "AttemptNumber":  2,
+                         "State":  "SUCCEEDED",
+                         "ClaimToken":  "decdf5d5-a354-4cad-a065-9eaf4a9bd36d",
+                         "WorkerID":  "worker-2-1",
+                         "WorkerRequestID":  "worker-2-1:fe42efe5-d45e-40ab-99d8-f90e44546169",
+                         "Outcome":  "KNOWN_SUCCESS",
+                         "IsCurrent":  false,
+                         "ResultRecorded":  true
+                     }
+                 ],
+    "Outbox":  [
+                   {
+                       "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                       "EventID":  "100c26bc-da94-4e2a-a59f-fbb5e4eb18c1",
+                       "AggregateRevision":  1,
+                       "EventType":  "workflow.created",
+                       "Topic":  "durable-agent.events.v1",
+                       "PublishState":  "PUBLISHED",
+                       "PayloadValid":  true
+                   },
+                   {
+                       "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                       "EventID":  "4bc224e2-10df-4d3c-9729-5526e3c0b380",
+                       "AggregateRevision":  3,
+                       "EventType":  "attempt.dispatch",
+                       "Topic":  "durable-agent.tasks.v1",
+                       "PublishState":  "PUBLISHED",
+                       "PayloadValid":  true
+                   },
+                   {
+                       "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                       "EventID":  "887e8291-5018-42aa-b490-b524cead92ef",
+                       "AggregateRevision":  4,
+                       "EventType":  "attempt.dispatch",
+                       "Topic":  "durable-agent.tasks.v1",
+                       "PublishState":  "PUBLISHED",
+                       "PayloadValid":  true
+                   },
+                   {
+                       "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                       "EventID":  "479e9244-3ff1-4672-8382-5aef7786a2e3",
+                       "AggregateRevision":  5,
+                       "EventType":  "activity.result",
+                       "Topic":  "durable-agent.events.v1",
+                       "PublishState":  "PUBLISHED",
+                       "PayloadValid":  true
+                   },
+                   {
+                       "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                       "EventID":  "9c1c3f16-e9a3-40cc-bd9a-2b62917d3d12",
+                       "AggregateRevision":  6,
+                       "EventType":  "workflow.result_consumed",
+                       "Topic":  "durable-agent.events.v1",
+                       "PublishState":  "PUBLISHED",
+                       "PayloadValid":  true
+                   },
+                   {
+                       "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                       "EventID":  "42fa39a0-853d-4982-b942-08285636ca10",
+                       "AggregateRevision":  7,
+                       "EventType":  "graph.advanced",
+                       "Topic":  "durable-agent.events.v1",
+                       "PublishState":  "PUBLISHED",
+                       "PayloadValid":  true
+                   },
+                   {
+                       "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                       "EventID":  "858fdbb2-aaba-40b1-bb98-f512e2dd575d",
+                       "AggregateRevision":  8,
+                       "EventType":  "graph.advanced",
+                       "Topic":  "durable-agent.events.v1",
+                       "PublishState":  "PUBLISHED",
+                       "PayloadValid":  true
+                   }
+               ],
+    "Inbox":  [
+                  {
+                      "ConsumerID":  "runtime-workers-v1",
+                      "EventID":  "4bc224e2-10df-4d3c-9729-5526e3c0b380",
+                      "Topic":  "durable-agent.tasks.v1",
+                      "Partition":  3,
+                      "Offset":  9,
+                      "Disposition":  "ACCEPTED"
+                  },
+                  {
+                      "ConsumerID":  "runtime-schedulers-v1",
+                      "EventID":  "100c26bc-da94-4e2a-a59f-fbb5e4eb18c1",
+                      "Topic":  "durable-agent.events.v1",
+                      "Partition":  5,
+                      "Offset":  27,
+                      "Disposition":  "ACCEPTED"
+                  },
+                  {
+                      "ConsumerID":  "runtime-workers-v1",
+                      "EventID":  "887e8291-5018-42aa-b490-b524cead92ef",
+                      "Topic":  "durable-agent.tasks.v1",
+                      "Partition":  6,
+                      "Offset":  7,
+                      "Disposition":  "ACCEPTED"
+                  },
+                  {
+                      "ConsumerID":  "runtime-schedulers-v1",
+                      "EventID":  "479e9244-3ff1-4672-8382-5aef7786a2e3",
+                      "Topic":  "durable-agent.events.v1",
+                      "Partition":  3,
+                      "Offset":  28,
+                      "Disposition":  "ACCEPTED"
+                  },
+                  {
+                      "ConsumerID":  "runtime-schedulers-v1",
+                      "EventID":  "9c1c3f16-e9a3-40cc-bd9a-2b62917d3d12",
+                      "Topic":  "durable-agent.events.v1",
+                      "Partition":  6,
+                      "Offset":  27,
+                      "Disposition":  "ACCEPTED"
+                  },
+                  {
+                      "ConsumerID":  "runtime-schedulers-v1",
+                      "EventID":  "42fa39a0-853d-4982-b942-08285636ca10",
+                      "Topic":  "durable-agent.events.v1",
+                      "Partition":  2,
+                      "Offset":  15,
+                      "Disposition":  "ACCEPTED"
+                  },
+                  {
+                      "ConsumerID":  "runtime-schedulers-v1",
+                      "EventID":  "858fdbb2-aaba-40b1-bb98-f512e2dd575d",
+                      "Topic":  "durable-agent.events.v1",
+                      "Partition":  1,
+                      "Offset":  15,
+                      "Disposition":  "ACCEPTED"
+                  }
+              ],
+    "Wakeups":  [
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "EventID":  "100c26bc-da94-4e2a-a59f-fbb5e4eb18c1",
+                        "PartitionID":  10,
+                        "State":  "CONSUMED"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "EventID":  "479e9244-3ff1-4672-8382-5aef7786a2e3",
+                        "PartitionID":  10,
+                        "State":  "CONSUMED"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "EventID":  "9c1c3f16-e9a3-40cc-bd9a-2b62917d3d12",
+                        "PartitionID":  10,
+                        "State":  "CONSUMED"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "EventID":  "42fa39a0-853d-4982-b942-08285636ca10",
+                        "PartitionID":  10,
+                        "State":  "CONSUMED"
+                    },
+                    {
+                        "WorkflowID":  "dur049-r71-network-r83-c0ffee02",
+                        "EventID":  "858fdbb2-aaba-40b1-bb98-f512e2dd575d",
+                        "PartitionID":  10,
+                        "State":  "CONSUMED"
+                    }
+                ],
+    "Reconciliation":  [
+                           {
+                               "WorkflowID":  "",
+                               "Kind":  "POISON_RECORD",
+                               "Reference":  "transport/runtime-schedulers-v1/durable-agent.events.v1/2/3",
+                               "Status":  "OPEN"
+                           },
+                           {
+                               "WorkflowID":  "",
+                               "Kind":  "POISON_RECORD",
+                               "Reference":  "transport/runtime-schedulers-v1/durable-agent.events.v1/7/15",
+                               "Status":  "OPEN"
+                           },
+                           {
+                               "WorkflowID":  "",
+                               "Kind":  "POISON_RECORD",
+                               "Reference":  "transport/runtime-schedulers-v1/durable-agent.events.v1/0/16",
+                               "Status":  "OPEN"
+                           },
+                           {
+                               "WorkflowID":  "",
+                               "Kind":  "POISON_RECORD",
+                               "Reference":  "transport/runtime-schedulers-v1/durable-agent.events.v1/7/19",
+                               "Status":  "OPEN"
+                           }
+                       ],
+    "Checkpoints":  null,
+    "Effects":  null,
+    "EffectCalls":  null,
+    "Approvals":  null,
+    "Timers":  null,
+    "ConsumerOffsets":  [
+                            {
+                                "ConsumerID":  "runtime-workers-v1",
+                                "Topic":  "durable-agent.tasks.v1",
+                                "Partition":  4,
+                                "NextOffset":  6
+                            },
+                            {
+                                "ConsumerID":  "runtime-schedulers-v1",
+                                "Topic":  "durable-agent.events.v1",
+                                "Partition":  7,
+                                "NextOffset":  20
+                            },
+                            {
+                                "ConsumerID":  "runtime-workers-v1",
+                                "Topic":  "durable-agent.tasks.v1",
+                                "Partition":  1,
+                                "NextOffset":  9
+                            },
+                            {
+                                "ConsumerID":  "runtime-workers-v1",
+                                "Topic":  "durable-agent.tasks.v1",
+                                "Partition":  5,
+                                "NextOffset":  12
+                            },
+                            {
+                                "ConsumerID":  "runtime-schedulers-v1",
+                                "Topic":  "durable-agent.events.v1",
+                                "Partition":  4,
+                                "NextOffset":  11
+                            },
+                            {
+                                "ConsumerID":  "runtime-schedulers-v1",
+                                "Topic":  "durable-agent.events.v1",
+                                "Partition":  0,
+                                "NextOffset":  21
+                            },
+                            {
+                                "ConsumerID":  "runtime-workers-v1",
+                                "Topic":  "durable-agent.tasks.v1",
+                                "Partition":  3,
+                                "NextOffset":  10
+                            },
+                            {
+                                "ConsumerID":  "runtime-schedulers-v1",
+                                "Topic":  "durable-agent.events.v1",
+                                "Partition":  5,
+                                "NextOffset":  28
+                            },
+                            {
+                                "ConsumerID":  "runtime-workers-v1",
+                                "Topic":  "durable-agent.tasks.v1",
+                                "Partition":  6,
+                                "NextOffset":  8
+                            },
+                            {
+                                "ConsumerID":  "runtime-schedulers-v1",
+                                "Topic":  "durable-agent.events.v1",
+                                "Partition":  3,
+                                "NextOffset":  29
+                            },
+                            {
+                                "ConsumerID":  "runtime-schedulers-v1",
+                                "Topic":  "durable-agent.events.v1",
+                                "Partition":  6,
+                                "NextOffset":  28
+                            },
+                            {
+                                "ConsumerID":  "runtime-schedulers-v1",
+                                "Topic":  "durable-agent.events.v1",
+                                "Partition":  2,
+                                "NextOffset":  16
+                            },
+                            {
+                                "ConsumerID":  "runtime-schedulers-v1",
+                                "Topic":  "durable-agent.events.v1",
+                                "Partition":  1,
+                                "NextOffset":  16
+                            },
+                            {
+                                "ConsumerID":  "runtime-workers-v1",
+                                "Topic":  "durable-agent.tasks.v1",
+                                "Partition":  2,
+                                "NextOffset":  9
+                            },
+                            {
+                                "ConsumerID":  "runtime-workers-v1",
+                                "Topic":  "durable-agent.tasks.v1",
+                                "Partition":  7,
+                                "NextOffset":  8
+                            },
+                            {
+                                "ConsumerID":  "runtime-workers-v1",
+                                "Topic":  "durable-agent.tasks.v1",
+                                "Partition":  0,
+                                "NextOffset":  6
+                            }
+                        ]
+}

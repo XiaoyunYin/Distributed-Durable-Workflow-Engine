@@ -47,7 +47,7 @@ blindly.
   arguments, revision, and effect identity in the tested integration path.
 - **Falsifiable evidence:** named-boundary fault injection, persisted snapshots,
   an independent invariant checker, and negative controls that make it fail.
-- **Regression detection:** a mutation gate with 15 behavioral cases plus one
+- **Regression detection:** a mutation gate with 17 behavioral cases plus one
   configuration tripwire, an independent contract-derived reference model,
   and bounded fuzz targets for request JSON, workflow graphs, and fault traces.
   The gate rejects skipped/no-test runs and records the declared failure type
@@ -92,14 +92,25 @@ not run. [DUR-048 pilot evidence](experiments/m8/dur042-pilot/)
 This is local Compose evidence, not AWS, host-failure, production-throughput,
 or external-effect evidence.
 
-A separate [DUR-049 AWS campaign](experiments/portfolio/cloud-recovery/dur049-aws-20260922-host-ao/protocol.json)
-ran a forced application-host stop/restart and a preserved-process network
-isolation/reconnect arm across two application hosts and one dependency host.
-The [network-arm artifact](experiments/portfolio/cloud-recovery/dur049-aws-20260922-network-as/protocol.json)
-records connectivity loss, peer takeover, first replacement-attempt progress,
-stale-owner rejection, and zero superseded-epoch transitions. The
-[cleanup report](experiments/portfolio/cloud-recovery/dur049-aws-20260922-cleanup/cleanup.json)
-records full Terraform teardown. This is bounded application-host recovery
+A separate [DUR-049 AWS campaign](experiments/portfolio/cloud-recovery/dur049-aws-20260923-round80-final/protocol.json)
+ran two repetitions each of preserved-process network isolation, forced
+application-host stop, and lease-row-lock contention. All six episodes passed
+their recorded gates with zero superseded-epoch transitions. Two additional
+[strict network-only runs](experiments/portfolio/cloud-recovery/dur049-aws-20260923-round86-network-final/protocol.json)
+and [repeat](experiments/portfolio/cloud-recovery/dur049-aws-20260923-round87-network-final/protocol.json)
+disabled server-side PostgreSQL session termination, preserved the original
+runtime and worker, and observed the original worker's late result rejected as
+`STALE_ATTEMPT`. The peer was a controller-started cold standby, and recovery
+timings are bounded by the 30-second attempt lease and 60-second fixture; they
+are not general failover-performance estimates. The tested activity was pure,
+so zero effect calls does not test external-effect deduplication. The
+[attempt ledger](experiments/portfolio/cloud-recovery/dur049-attempt-ledger.md)
+retains failed, incomplete, missing, and passing attempt history, including
+eight early network-only failures whose cause cannot be determined from the
+retained observations. The [closeout report](experiments/portfolio/cloud-recovery/dur049-aws-20260923-closeout/closeout.json)
+records Terraform teardown and a gross reconstructed price estimate of about
+$0.78, not a final invoice; five global poison-record obligations remained
+open and unresolved at teardown. This is bounded application-host recovery
 evidence, not database-host durability, multi-region HA, or production-scale
 reliability evidence.
 

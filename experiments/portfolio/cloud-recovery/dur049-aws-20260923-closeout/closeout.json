@@ -1,0 +1,152 @@
+{
+  "schema_version": "dur049-aws-closeout.v1",
+  "status": "TEARDOWN_VERIFIED_COST_ESTIMATE_NOT_FINAL_INVOICE",
+  "generated_at_utc": "2026-09-23T13:15:40Z",
+  "campaign": "DUR-049",
+  "source_commit": "0c8165eb3634c9d6dcace370f5d260ab464fa9e5",
+  "authorization": {
+    "decision": "D022",
+    "account_switch_decision": "D023",
+    "aws_account_id": "372206265946",
+    "aws_principal": "arn:aws:iam::372206265946:user/admin-learning",
+    "region": "us-west-1",
+    "maximum_authorized_spend_usd": 200.0,
+    "terraform_apply_principal": "arn:aws:iam::372206265946:user/admin-learning",
+    "terraform_destroy_principal": "arn:aws:iam::372206265946:user/admin-learning",
+    "identity_evidence": "D023 operator identity, campaign caller identity records, and CloudTrail apply/destroy checks",
+    "cap_scope": "D022 is one aggregate campaign cap across both the earlier unsuccessful portfolio-dev account attempt and the authorized admin-learning campaign; it is not a per-account allowance.",
+    "prior_account_attempt": {
+      "aws_account_id": "475666096889",
+      "billable_compute_created": false,
+      "basis": "experiments/portfolio/cloud-recovery/dur049-aws-20260921/cost-manifest.json",
+      "final_invoice_attribution_available": false
+    }
+  },
+  "terraform_destroy": {
+    "planned_add": 0,
+    "planned_change": 0,
+    "planned_destroy": 18,
+    "completed": true,
+    "state_list_after_destroy": [],
+    "terraform_state_and_backup_files_remaining": false,
+    "terraform_plan_files_remaining": false,
+    "local_artifact_check_scope": "recursive under deploy/aws, including ignored .terraform directories",
+    "post_destroy_local_artifact_check": {
+      "observed_at_utc": "2026-09-23T13:15:40Z",
+      "state_backup_or_lock_files_found": false,
+      "plan_files_found": false,
+      "scope": "recursive under deploy/aws, including hidden directories"
+    },
+    "destroyed_resource_checks": {
+      "campaign_vpc_absent": true,
+      "campaign_instances_running": 0,
+      "campaign_volumes_remaining": 0,
+      "campaign_iam_role_absent": true,
+      "campaign_instance_profile_absent": true,
+      "campaign_ssm_secure_string_absent": true
+    },
+    "final_instance_termination_events": [
+      {
+        "instance_id": "i-0fb4ff0b1fb90e24f",
+        "instance_type": "t3.micro",
+        "state": "terminated",
+        "cloudtrail_event_time_local": "2026-09-23T05:10:33-07:00"
+      },
+      {
+        "instance_id": "i-028d1afd3f2e56be0",
+        "instance_type": "t3.micro",
+        "state": "terminated",
+        "cloudtrail_event_time_local": "2026-09-23T05:10:33-07:00"
+      },
+      {
+        "instance_id": "i-029cc071f24b6b155",
+        "instance_type": "t3.small",
+        "state": "terminated",
+        "cloudtrail_event_time_local": "2026-09-23T05:11:03-07:00"
+      }
+    ],
+    "termination_principal": "arn:aws:iam::372206265946:user/admin-learning"
+  },
+  "reconciliation_snapshot_before_teardown": {
+    "artifact": "obligations.json",
+    "observed_at_utc": "2026-09-23T12:05:33.395997Z",
+    "global_poison_record_items_total": 5,
+    "global_poison_record_items_open": 5,
+    "campaign_workflows_terminal": 2,
+    "campaign_workflow_scoped_open_items": 0,
+    "database_outbox_rows": 261,
+    "database_outbox_pending_or_claimed": 0,
+    "disposition": "CAPTURED_NOT_RESOLVED; obligations are retained and are not represented as completed cleanup"
+  },
+  "cost": {
+    "actual_campaign_invoice_attributed": false,
+    "cost_explorer_observed_at_utc": "2026-09-23T12:35:01Z",
+    "cost_explorer_account_level_observations": [
+      {
+        "date": "2026-09-21",
+        "ec2_compute_usd": 0.0,
+        "ec2_other_usd": 0.0,
+        "vpc_usd": 0.0,
+        "aws_kms_usd": -0.0000000517
+      },
+      {
+        "date": "2026-09-22",
+        "ec2_compute_usd": 0.0,
+        "ec2_other_usd": 0.0117523154,
+        "vpc_usd": 0.0,
+        "aws_data_transfer_usd": -0.0117524215,
+        "aws_kms_usd": -0.0000000484,
+        "aws_cloudshell_usd": 0.0000000878,
+        "aws_s3_usd": 0.0000000181,
+        "note": "EC2-Other was a data-transfer line paired with an AWS Data Transfer offset. This account-level observation is not resource-attributed."
+      },
+      {
+        "date": "2026-09-23",
+        "ec2_compute_entry_present": false,
+        "ec2_other_entry_present": false,
+        "vpc_entry_present": false,
+        "note": "Billing data was incomplete/lagging at query time; absence of a line is not evidence of zero charge."
+      }
+    ],
+    "resource_id_grouping_supported": false,
+    "resource_id_grouping_note": "Cost Explorer rejected RESOURCE_ID as a grouping dimension for this query, so realized campaign cost could not be attributed by instance/resource.",
+    "reconstructed_gross_price_estimate": {
+      "classification": "estimate, not billed actual",
+      "tagged_instance_lifecycles_count": 15,
+      "cloudtrail_aggregated_active_instance_hours": 33.5736,
+      "ec2_compute_usd": 0.5102,
+      "public_ipv4_usd": 0.1679,
+      "gp3_storage_gib_hours": 773.633,
+      "gp3_storage_usd": 0.1032,
+      "gross_subtotal_usd": 0.7812,
+      "rounding_note": "Subtotal is calculated from unrounded usage calculations; displayed component estimates are rounded independently to four decimal places.",
+      "rate_assumptions": {
+        "t3_micro_per_hour_usd": 0.0124,
+        "t3_small_per_hour_usd": 0.0248,
+        "public_in_use_ipv4_per_hour_usd": 0.005,
+        "gp3_per_gib_month_usd": 0.096,
+        "gp3_month_hours_assumed": 720
+      },
+      "compute_pricing_method": "Observed instance lifecycles were priced using each observed instance type's hourly rate before aggregation; the dependency host is t3.small and application hosts are t3.micro.",
+      "rate_sources": [
+        "https://aws.amazon.com/ec2/pricing/on-demand/",
+        "https://aws.amazon.com/vpc/pricing/",
+        "https://aws.amazon.com/ebs/pricing/"
+      ],
+      "exclusions": [
+        "unattributed data transfer and service/API charges",
+        "taxes",
+        "billing ingestion and Cost Explorer lag",
+        "free-tier, credits, or account-level offsets"
+      ]
+    },
+    "cost_cap_assessment": "The reconstructed gross resource-price subtotal is below the D022 USD 200 cap. Final invoice attribution remains pending; the estimate is not stated as the actual amount billed."
+  },
+  "limitations": [
+    "Application-host recovery only; this does not test database-host disk loss or database failover.",
+    "The network peer is a controller-started cold standby, not a continuously active second scheduler.",
+    "Recovery observations are bounded by the 30-second attempt lease and the 60-second fixture activity; do not quote them as general failover performance.",
+    "The tested activity is pure. Zero observed effect calls/duplicates is a workload census, not a test of external-effect deduplication.",
+    "Five global POISON_RECORD obligations were still OPEN at teardown and remain unresolved."
+  ]
+}

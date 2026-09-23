@@ -1,0 +1,49 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "IN_PROGRESS",
+    "generated_at_utc":  "2026-09-23T02:48:48.6353856Z",
+    "git_commit":  "ad96ec759afc1a249d36ce7e7d28ff32b207f97a",
+    "region":  "us-west-1",
+    "topology":  {
+                     "application_hosts":  2,
+                     "dependency_hosts":  1,
+                     "app_instance_ids":  [
+                                              "i-0bdd3118c0f0ffcf6",
+                                              "i-01e2c624c07cae07a"
+                                          ],
+                     "app_private_ips":  [
+                                             "10.49.1.157",
+                                             "10.49.2.54"
+                                         ],
+                     "dependency_instance_id":  "i-0425341ebe28700e3",
+                     "dependency_private_ip":  "10.49.1.71"
+                 },
+    "scenarios":  [
+                      "host"
+                  ],
+    "configuration":  {
+                          "activity":  "dur048.sleep",
+                          "requested_activity_delay_ms":  60000,
+                          "requested_scheduler_hold_after_acquire_ms":  1000,
+                          "takeover_observation_hold_ms":  4000,
+                          "requested_fixture_activity_enabled":  true,
+                          "requested_worker_slots":  2,
+                          "runtime_engine_mode":  "disabled",
+                          "fault_network_ports":  [
+                                                      5432,
+                                                      9092
+                                                  ],
+                          "network_chain":  "DOCKER-USER plus dependency INPUT for network arm; not_applicable_host_stop for host arm",
+                          "network_match_states":  [
+                                                       "NEW",
+                                                       "ESTABLISHED",
+                                                       "RELATED"
+                                                   ],
+                          "established_flow_termination":  "host conntrack deletion for dependency destination",
+                          "route_fault":  "app-host blackhole route for dependency /32"
+                      },
+    "required_observation":  "SSM, EC2, Docker, and PostgreSQL state must confirm each fault; controller intent alone never produces PASS.",
+    "results":  [
+
+                ]
+}

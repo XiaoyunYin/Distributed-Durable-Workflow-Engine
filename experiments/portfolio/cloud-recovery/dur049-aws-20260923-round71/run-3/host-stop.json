@@ -1,0 +1,12 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "application-host-forced-stop-and-restart",
+    "workflow_id":  "dur049-r71-host-03",
+    "partition_id":  8,
+    "source_commit":  "5aa4ad719aace44b1d062e6e712e1dad56ad7383",
+    "started_at_utc":  "2026-09-23T07:03:36.9467126Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T07:03:53.2940184Z",
+    "error":  "SSM command 8b5789d2-fe85-4ac0-b564-5aeaf03208ad on i-028d1afd3f2e56be0 ended Failed:  Container durable-aws-app-runtime-1  Running\n Container durable-aws-app-worker-1  Running\n Container durable-aws-app-runtime-1  Waiting\n Container durable-aws-app-runtime-1  Healthy\n Container durable-aws-app-worker-1  Waiting\n Container durable-aws-app-runtime-1  Waiting\n Container durable-aws-app-runtime-1  Healthy\ncontainer durable-aws-app-worker-1 is unhealthy\nfailed to run commands: exit status 1 "
+}

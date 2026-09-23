@@ -1,0 +1,99 @@
+{
+    "fault":  "application-host-forced-stop-and-restart",
+    "workflow_id":  "dur049-host-20260922-an",
+    "partition_id":  13,
+    "original_owner_id":  "5278e1f5-da47-4b69-b663-1ad5a06f8788",
+    "original_epoch":  191,
+    "takeover_owner_id":  "8119f038-eed0-4f50-a2eb-59ae4aa0f968",
+    "takeover_epoch":  205,
+    "recovery_transition_epoch":  197,
+    "recovery_transition_epoch_delta":  -8,
+    "fault_observed":  {
+                           "stop_requested_at_utc":  "2026-09-23T03:28:03.7280206Z",
+                           "stopped_at_utc":  "2026-09-23T03:28:34.3646190Z",
+                           "stopped_state":  true,
+                           "restart_requested_at_utc":  "2026-09-23T03:29:01.2037921Z",
+                           "running_observed_at_utc":  "2026-09-23T03:29:08.9091475Z",
+                           "ssm_online_after_restart":  true,
+                           "original_runtime_observed":  "running|true|1147"
+                       },
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 03:27:18.842654+00",
+                            "updated_at":  "2026-09-23 03:27:18.84752+00"
+                        },
+    "workflow_after":  {
+                           "state":  "SUCCEEDED",
+                           "revision":  8,
+                           "attempt_state":  "SUCCEEDED",
+                           "attempt_number":  2,
+                           "attempt_created_at":  "2026-09-23 03:28:43.907698+00",
+                           "updated_at":  "2026-09-23 03:29:50.291961+00"
+                       },
+    "first_useful_progress":  {
+                                  "observed_at_utc":  "2026-09-23T03:28:43.9153000Z",
+                                  "workflow":  {
+                                                   "state":  "WAITING_ACTIVITY",
+                                                   "revision":  4,
+                                                   "attempt_state":  "CLAIMED",
+                                                   "attempt_number":  2,
+                                                   "attempt_created_at":  "2026-09-23 03:28:43.907698+00",
+                                                   "updated_at":  "2026-09-23 03:28:43.912729+00"
+                                               }
+                              },
+    "superseded_epoch_transitions_after_takeover":  0,
+    "stale_rejection":  {
+                            "workflow_id":  "dur049-host-20260922-an",
+                            "partition_id":  13,
+                            "owner_id":  "5278e1f5-da47-4b69-b663-1ad5a06f8788",
+                            "epoch":  191,
+                            "before_revision":  4,
+                            "after_revision":  4,
+                            "error":  "scheduler lease is not owned or has expired",
+                            "stale_rejected":  true
+                        },
+    "takeover_observed_at_utc":  "2026-09-23T03:28:51.7640000Z",
+    "takeover_row_updated_at_utc":  "2026-09-23T03:28:51.2018800Z",
+    "terminal_completion_at_utc":  "2026-09-23T03:29:50.2919610Z",
+    "stop_requested_to_running_ms":  65181.127,
+    "takeover_to_original_reconnect_ms":  17145.148,
+    "stop_requested_to_first_useful_progress_ms":  40187.279,
+    "takeover_to_first_useful_progress_ms":  null,
+    "takeover_to_first_useful_progress_note":  "The lease epoch can advance again while the original attempt waits for timeout; initial takeover and recovery-transition epochs are recorded separately. TIMEOUT_REPLACEMENT is the first committed transition for the recovered attempt and stop-to-progress is measured directly.",
+    "first_useful_progress_transition":  {
+                                             "scheduler_epoch":  197,
+                                             "reason":  "TIMEOUT_REPLACEMENT",
+                                             "attempt_number":  1,
+                                             "created_at_utc":  "2026-09-23T03:28:43.9153000Z"
+                                         },
+    "stop_requested_to_terminal_completion_ms":  106563.94,
+    "configuration":  {
+                          "activity":  "dur048.sleep",
+                          "app1":  {
+                                       "activity_delay_ms":  60000,
+                                       "fixture_activity_enabled":  true,
+                                       "scheduler_hold_after_acquire_ms":  1000,
+                                       "worker_slots":  2,
+                                       "runtime_engine_mode":  "disabled"
+                                   },
+                          "app2":  {
+                                       "activity_delay_ms":  60000,
+                                       "fixture_activity_enabled":  true,
+                                       "scheduler_hold_after_acquire_ms":  1000,
+                                       "worker_slots":  2,
+                                       "runtime_engine_mode":  "disabled"
+                                   },
+                          "fault_network_ports":  [
+                                                      5432,
+                                                      9092
+                                                  ],
+                          "network_chain":  "not_applicable_host_stop",
+                          "network_match_states":  [
+                                                       "not_applicable"
+                                                   ]
+                      },
+    "limitation":  "Host-stop recovery is measured separately from the preserved-process network arm; database-host durability remains out of scope."
+}

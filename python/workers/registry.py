@@ -43,6 +43,7 @@ def default_registry() -> ActivityRegistry:
     # episode. Normal deployments leave the delay at zero.
     delay_ms = int(os.getenv("DUR048_ACTIVITY_DELAY_MS", "0"))
     if delay_ms > 0:
+
         def delayed(value: Any) -> Any:
             time.sleep(delay_ms / 1000)
             return value

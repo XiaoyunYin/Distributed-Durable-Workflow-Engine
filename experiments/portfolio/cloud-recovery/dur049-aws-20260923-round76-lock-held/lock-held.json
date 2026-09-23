@@ -1,0 +1,69 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "lease-row-lock-held-beyond-expiry",
+    "workflow_id":  "dur049-r71-lock-r76-e1",
+    "progress_workflow_id":  "dur049-r71-progress-r76-e1",
+    "partition_id":  5,
+    "progress_partition_id":  3,
+    "source_commit":  "2ca2f584b236895eaaf7f5d38eecc898e03272f8",
+    "started_at_utc":  "2026-09-23T09:34:44.5138028Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T09:39:33.5032463Z",
+    "original_owner_id":  "7151432b-9ffe-4df8-8dee-094ce6683527",
+    "original_epoch":  116,
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 09:35:11.972042+00",
+                            "updated_at":  "2026-09-23 09:35:11.973446+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-0"
+                       },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "lock_holder":  {
+                        "marker_log":  "/tmp/dur049-lock-holder-5.log",
+                        "host_process_id":  15230,
+                        "launch_output":  "lock_holder_pid=15230",
+                        "observed_at_utc":  "2026-09-23T09:35:36.8352350Z",
+                        "locked_at_utc":  "2026-09-23T09:35:28.8388124Z",
+                        "marker_contents":  "partition=5 epoch=133 locked_at=2026-09-23T09:35:28.838812362Z",
+                        "duration_seconds":  180,
+                        "marker_transport":  "lock-holder stdout captured in host-side file; runtime image has no shell or /tmp"
+                    },
+    "other_partition_progress":  {
+                                     "state":  "SUCCEEDED",
+                                     "revision":  7,
+                                     "attempt_state":  "SUCCEEDED",
+                                     "attempt_number":  1,
+                                     "attempt_created_at":  "2026-09-23 09:35:58.72456+00",
+                                     "updated_at":  "2026-09-23 09:36:13.459505+00"
+                                 },
+    "other_partition_progress_observed_at_utc":  "2026-09-23T09:36:20.4628011Z",
+    "other_partition_progress_ms":  43627.566,
+    "lock_holder_observed_during_other_partition_progress":  {
+                                                                 "observed":  true,
+                                                                 "controller_observed_at_utc":  "2026-09-23T09:36:27.7768987Z",
+                                                                 "host_process_id":  15230,
+                                                                 "output":  "host_lock_holder_pid_alive=true\n15250               /dur049-lock-holder -partition-id 5 -duration 180s -marker /dev/stdout",
+                                                                 "lock_holder_binary_visible_in_container_process_list":  true
+                                                             },
+    "first_new_owner_acquisition":  {
+                                        "acquisition_id":  "f6ecc1cd-b92e-48b5-b5f2-bc5a4a77792c",
+                                        "owner_id":  "63ffc5df-da62-44ea-bdc3-87a05adac8fd",
+                                        "epoch":  165,
+                                        "database_recorded_at_utc":  "2026-09-23T09:36:11.7135830Z",
+                                        "controller_observed_at_utc":  "2026-09-23T09:36:31.3413684Z",
+                                        "observed_at":  "2026-09-23T09:36:31.3413684Z",
+                                        "lease_expires_at_utc":  "2026-09-23T09:36:26.7112970Z",
+                                        "fault_observed_at_utc":  "2026-09-23T09:35:36.8352350+00:00"
+                                    },
+    "error":  "Workflow dur049-r71-lock-r76-e1 did not record an accepted result from a replacement attempt after first new-owner acquisition."
+}

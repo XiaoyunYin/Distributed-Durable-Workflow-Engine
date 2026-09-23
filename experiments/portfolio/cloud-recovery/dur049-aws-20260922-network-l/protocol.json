@@ -1,0 +1,13 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T01:40:15.8113404Z",
+    "git_commit":  "7a339becbe1e47964136fa94ba6448da41904bec",
+    "scenarios":  [
+                      "network"
+                  ],
+    "error":  "Workflow dur049-network-20260922-l did not commit a replacement attempt after the fault.",
+    "results":  [
+
+                ]
+}

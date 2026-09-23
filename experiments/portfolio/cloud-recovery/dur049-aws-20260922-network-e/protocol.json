@@ -1,0 +1,13 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T00:49:51.8806767Z",
+    "git_commit":  "2b8677f015deeffa8eba132e3907f3c3764687d9",
+    "scenarios":  [
+                      "network"
+                  ],
+    "error":  "Application host 1 did not own partition 5 before network isolation.",
+    "results":  [
+
+                ]
+}

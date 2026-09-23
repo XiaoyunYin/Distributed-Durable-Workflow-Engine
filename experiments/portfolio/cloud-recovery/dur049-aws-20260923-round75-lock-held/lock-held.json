@@ -1,0 +1,41 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "lease-row-lock-held-beyond-expiry",
+    "workflow_id":  "dur049-r71-lock-r75-d3",
+    "progress_workflow_id":  "dur049-r71-progress-r75-d3",
+    "partition_id":  2,
+    "progress_partition_id":  3,
+    "source_commit":  "127f6bafe033a72933d2b9d0b77348a499281c6e",
+    "started_at_utc":  "2026-09-23T09:24:31.5866384Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T09:27:07.1363642Z",
+    "original_owner_id":  "638f1159-3fd4-43f1-8399-3150706475ef",
+    "original_epoch":  187,
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 09:24:59.15671+00",
+                            "updated_at":  "2026-09-23 09:24:59.15812+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-0"
+                       },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "lock_holder":  {
+                        "marker_log":  "/tmp/dur049-lock-holder-2.log",
+                        "launch_output":  "lock_holder_pid=9794",
+                        "observed_at_utc":  "2026-09-23T09:25:24.028Z",
+                        "locked_at_utc":  "2026-09-23T09:25:16.087Z",
+                        "marker_contents":  "partition=2 epoch=204 locked_at=2026-09-23T09:25:16.087777626Z",
+                        "duration_seconds":  45,
+                        "marker_transport":  "lock-holder stdout captured in host-side file; runtime image has no shell or /tmp"
+                    },
+    "error":  "Other-partition progress was not observed before the lock-holder\u0027s bounded hold elapsed: 99575.95ms."
+}

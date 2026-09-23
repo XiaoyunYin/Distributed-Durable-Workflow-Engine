@@ -1,0 +1,12 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "application-host-forced-stop-and-restart",
+    "workflow_id":  "dur049-r71-host-811875364549",
+    "partition_id":  8,
+    "source_commit":  "f7dd686aac7bf2a315420ae786a6698b1c6b1146",
+    "started_at_utc":  "2026-09-23T08:38:47.3255998Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T08:44:05.9700351Z",
+    "error":  "Workflow dur049-r71-host-811875364549 was not observed CLAIMED within 300s."
+}

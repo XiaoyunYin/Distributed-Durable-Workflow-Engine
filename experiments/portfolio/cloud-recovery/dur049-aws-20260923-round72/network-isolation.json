@@ -1,0 +1,1175 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "PASS",
+    "fault":  "app-host-postgres-network-isolation-and-reconnect",
+    "workflow_id":  "dur049-r71-network-811875364549",
+    "partition_id":  5,
+    "source_commit":  "f7dd686aac7bf2a315420ae786a6698b1c6b1146",
+    "started_at_utc":  "2026-09-23T08:35:12.0494866Z",
+    "stage":  "complete",
+    "updated_at_utc":  "2026-09-23T08:38:47.2953065Z",
+    "original_owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+    "original_epoch":  1,
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 08:35:28.543503+00",
+                            "updated_at":  "2026-09-23 08:35:28.544925+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-1"
+                       },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "pre_fault_epoch_boundary":  15,
+    "fault_observed":  {
+                           "raw":  "connectivity_before=reachable\nruntime_database_before={\"status\":\"reachable\",\"observed_at_utc\":\"2026-09-23T08:35:45.915689433Z\"}\nworker_container_state=369d3f364c92b59f3c2be2c41c1993108783ad55ef7ad8c6222c1a75f5a7ba9a|running|true|40593\n/usr/sbin/conntrack\ncontainer_state=running|true|40474\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.123 sport=58714 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=58714 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=39652 dport=5432 src=10.49.1.123 dst=10.49.1.94 sport=5432 dport=39652 [ASSURED] mark=0 use=1\ntcp      6 431985 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=39648 dport=5432 src=10.49.1.123 dst=10.49.1.94 sport=5432 dport=39648 [ASSURED] mark=0 use=1\ntcp      6 9 CLOSE src=172.18.0.2 dst=10.49.1.123 sport=51460 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=51460 [ASSURED] mark=0 use=1\ntcp      6 431998 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=46246 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=46246 [ASSURED] mark=0 use=1\ntcp      6 9 CLOSE src=172.18.0.2 dst=10.49.1.123 sport=51470 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=51470 [ASSURED] mark=0 use=1\ntcp      6 119 TIME_WAIT src=172.18.0.3 dst=10.49.1.123 sport=60312 dport=5432 src=10.49.1.123 dst=10.49.1.94 sport=5432 dport=60312 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=46262 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=46262 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=49978 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=49978 [ASSURED] mark=0 use=1\ntcp      6 9 CLOSE src=172.18.0.2 dst=10.49.1.123 sport=51484 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=51484 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.123 sport=58734 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=58734 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.123 sport=58720 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=58720 [ASSURED] mark=0 use=1\ntcp      6 119 TIME_WAIT src=172.18.0.2 dst=10.49.1.123 sport=56700 dport=5432 src=10.49.1.123 dst=10.49.1.94 sport=5432 dport=56700 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=37960 dport=5432 src=10.49.1.123 dst=10.49.1.94 sport=5432 dport=37960 [ASSURED] mark=0 use=1\ntcp      6 431982 ESTABLISHED src=172.18.0.3 dst=10.49.1.123 sport=58718 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=58718 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.123 sport=51482 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=51482 [ASSURED] mark=0 use=1\nblackhole 10.49.1.123 \n\n/usr/sbin/conntrack\ntcp      6 431982 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=39648 dport=5432 src=172.18.0.3 dst=10.49.1.94 sport=5432 dport=39648 [ASSURED] mark=0 use=1\ntcp      6 431979 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=58718 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=58718 [ASSURED] mark=0 use=1\ntcp      6 299 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=58714 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=58714 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=51460 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=51460 [ASSURED] mark=0 use=1\ntcp      6 116 TIME_WAIT src=10.49.1.94 dst=10.49.1.123 sport=56700 dport=5432 src=172.18.0.3 dst=10.49.1.94 sport=5432 dport=56700 [ASSURED] mark=0 use=1\ntcp      6 116 TIME_WAIT src=10.49.1.94 dst=10.49.1.123 sport=60312 dport=5432 src=172.18.0.3 dst=10.49.1.94 sport=5432 dport=60312 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=58734 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=58734 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=51470 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=51470 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=51482 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=51482 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=39652 dport=5432 src=172.18.0.3 dst=10.49.1.94 sport=5432 dport=39652 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=49978 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=49978 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=51484 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=51484 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=37960 dport=5432 src=172.18.0.3 dst=10.49.1.94 sport=5432 dport=37960 [ASSURED] mark=0 use=1\ntcp      6 431995 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=46246 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=46246 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=46262 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=46262 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=58720 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=58720 [ASSURED] mark=0 use=1\n\nconnectivity_after=blocked\nruntime_database_after=blocked\n{\"status\":\"unreachable\",\"observed_at_utc\":\"2026-09-23T08:35:58.019799622Z\"}",
+                           "command_at_utc":  "2026-09-23T08:35:44.2710800Z",
+                           "observed_at_utc":  "2026-09-23T08:36:00.5183893Z",
+                           "network_chain":  "DOCKER-USER plus dependency INPUT",
+                           "network_match_states":  [
+                                                        "NEW",
+                                                        "ESTABLISHED",
+                                                        "RELATED"
+                                                    ],
+                           "established_flow_termination":  "host conntrack deletion",
+                           "dependency_session_termination":  false,
+                           "dependency_session_termination_method":  "none; network fault only",
+                           "route_fault":  "app-host blackhole route for dependency /32",
+                           "dependency_source_ip":  "10.49.1.94",
+                           "connectivity_before":  "reachable",
+                           "connectivity_after":  "blocked",
+                           "runtime_container_database_probe_before":  "reachable",
+                           "runtime_container_database_probe_after":  "unreachable",
+                           "original_runtime_pid":  40474,
+                           "original_worker_container_id":  "369d3f364c92b59f3c2be2c41c1993108783ad55ef7ad8c6222c1a75f5a7ba9a",
+                           "original_worker_pid":  40593,
+                           "ports":  [
+                                         5432,
+                                         9092
+                                     ]
+                       },
+    "first_new_owner_acquisition":  {
+                                        "acquisition_id":  "fda9eca1-cdfa-472f-bd2f-9e81ff12c307",
+                                        "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                        "epoch":  20,
+                                        "database_recorded_at_utc":  "2026-09-23T08:36:05.5195530Z",
+                                        "controller_observed_at_utc":  "2026-09-23T08:36:20.2199644Z",
+                                        "observed_at":  "2026-09-23T08:36:20.2199644Z",
+                                        "lease_expires_at_utc":  "2026-09-23T08:36:20.5147100Z",
+                                        "fault_observed_at_utc":  "2026-09-23T08:36:00.5183893+00:00"
+                                    },
+    "first_useful_progress":  {
+                                  "workflow":  {
+                                                   "state":  "SUCCEEDED",
+                                                   "revision":  8,
+                                                   "attempt_state":  "SUCCEEDED",
+                                                   "attempt_number":  2,
+                                                   "attempt_created_at":  "2026-09-23 08:36:43.889494+00",
+                                                   "updated_at":  "2026-09-23 08:37:44.242276+00"
+                                               },
+                                  "controller_observed_at_utc":  "2026-09-23T08:37:58.5595790Z",
+                                  "observed_at":  "2026-09-23T08:37:58.5595790Z",
+                                  "progress_definition":  "accepted result recorded for replacement attempt",
+                                  "transition":  {
+                                                     "revision":  5,
+                                                     "scheduler_epoch":  null,
+                                                     "reason":  "ATTEMPT_RESULT_RECORDED",
+                                                     "attempt_number":  2,
+                                                     "database_recorded_at_utc":  "2026-09-23T08:37:44.0806490Z",
+                                                     "actor_kind":  "worker"
+                                                 },
+                                  "timeout_replacement_transition":  {
+                                                                         "revision":  4,
+                                                                         "scheduler_epoch":  56,
+                                                                         "lease_acquisition_id":  "aacca025-ea9a-4f6b-94d4-725d120a5609",
+                                                                         "lease_owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                                         "lease_acquired_at_utc":  "2026-09-23T08:36:42.8574980Z",
+                                                                         "prior_attempt_state":  "TIMED_OUT",
+                                                                         "prior_attempt_is_current":  false,
+                                                                         "replacement_attempt_state":  "SUCCEEDED",
+                                                                         "replacement_attempt_is_current":  false
+                                                                     }
+                              },
+    "original_runtime_observed_after_reconnect":  "running|true|40474",
+    "original_worker_observed_after_reconnect":  {
+                                                     "container_id":  "369d3f364c92b59f3c2be2c41c1993108783ad55ef7ad8c6222c1a75f5a7ba9a",
+                                                     "state":  "running",
+                                                     "running":  true,
+                                                     "host_pid":  40593,
+                                                     "same_container":  true,
+                                                     "same_process":  true
+                                                 },
+    "original_worker_late_result_rejection":  {
+                                                  "observed":  true,
+                                                  "source":  "original worker container stdout after reconnect",
+                                                  "workflow_id":  "dur049-r71-network-811875364549",
+                                                  "attempt_number":  1,
+                                                  "worker_id":  "worker-1-1",
+                                                  "api_rejection":  "STALE_ATTEMPT",
+                                                  "observed_at_utc":  "2026-09-23T08:38:16.4470285Z",
+                                                  "log_line":  "worker-1  | INFO:workers.kafka_worker:delivery lost claim race workflow_id=dur049-r71-network-811875364549 node_id=dur048.sleep attempt_number=1 worker_id=worker-1-1 code=STALE_ATTEMPT"
+                                              },
+    "deployed_stale_identity_smoke_test":  {
+                                               "workflow_id":  "dur049-r71-network-811875364549",
+                                               "partition_id":  5,
+                                               "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                               "epoch":  1,
+                                               "before_revision":  8,
+                                               "after_revision":  8,
+                                               "error":  "scheduler lease is not owned or has expired",
+                                               "stale_rejected":  true
+                                           },
+    "result":  {
+                   "fault":  "app-host-postgres-network-isolation-and-reconnect",
+                   "workflow_id":  "dur049-r71-network-811875364549",
+                   "partition_id":  5,
+                   "original_owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                   "original_epoch":  1,
+                   "pre_fault_lease_acquisition":  {
+                                                       "partition_id":  5,
+                                                       "acquisition_id":  "2bc6d45a-58d3-4533-9840-71bc07fb4bc3",
+                                                       "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                       "epoch":  1,
+                                                       "acquired_at_utc":  "2026-09-23T08:35:27.5237690Z",
+                                                       "lease_expires_at_utc":  "2026-09-23T08:35:42.5225100Z"
+                                                   },
+                   "pre_fault_epoch_boundary":  15,
+                   "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+                   "first_new_owner_acquisition":  {
+                                                       "acquisition_id":  "fda9eca1-cdfa-472f-bd2f-9e81ff12c307",
+                                                       "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                       "epoch":  20,
+                                                       "database_recorded_at_utc":  "2026-09-23T08:36:05.5195530Z",
+                                                       "controller_observed_at_utc":  "2026-09-23T08:36:20.2199644Z",
+                                                       "lease_expires_at_utc":  "2026-09-23T08:36:20.5147100Z"
+                                                   },
+                   "recovery_transition_epoch":  56,
+                   "recovery_transition_revision":  4,
+                   "recovery_transition_is_durably_after_first_new_owner":  true,
+                   "fault_observed":  {
+                                          "raw":  "connectivity_before=reachable\nruntime_database_before={\"status\":\"reachable\",\"observed_at_utc\":\"2026-09-23T08:35:45.915689433Z\"}\nworker_container_state=369d3f364c92b59f3c2be2c41c1993108783ad55ef7ad8c6222c1a75f5a7ba9a|running|true|40593\n/usr/sbin/conntrack\ncontainer_state=running|true|40474\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.123 sport=58714 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=58714 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=39652 dport=5432 src=10.49.1.123 dst=10.49.1.94 sport=5432 dport=39652 [ASSURED] mark=0 use=1\ntcp      6 431985 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=39648 dport=5432 src=10.49.1.123 dst=10.49.1.94 sport=5432 dport=39648 [ASSURED] mark=0 use=1\ntcp      6 9 CLOSE src=172.18.0.2 dst=10.49.1.123 sport=51460 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=51460 [ASSURED] mark=0 use=1\ntcp      6 431998 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=46246 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=46246 [ASSURED] mark=0 use=1\ntcp      6 9 CLOSE src=172.18.0.2 dst=10.49.1.123 sport=51470 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=51470 [ASSURED] mark=0 use=1\ntcp      6 119 TIME_WAIT src=172.18.0.3 dst=10.49.1.123 sport=60312 dport=5432 src=10.49.1.123 dst=10.49.1.94 sport=5432 dport=60312 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=46262 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=46262 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=49978 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=49978 [ASSURED] mark=0 use=1\ntcp      6 9 CLOSE src=172.18.0.2 dst=10.49.1.123 sport=51484 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=51484 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.123 sport=58734 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=58734 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.123 sport=58720 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=58720 [ASSURED] mark=0 use=1\ntcp      6 119 TIME_WAIT src=172.18.0.2 dst=10.49.1.123 sport=56700 dport=5432 src=10.49.1.123 dst=10.49.1.94 sport=5432 dport=56700 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.2 dst=10.49.1.123 sport=37960 dport=5432 src=10.49.1.123 dst=10.49.1.94 sport=5432 dport=37960 [ASSURED] mark=0 use=1\ntcp      6 431982 ESTABLISHED src=172.18.0.3 dst=10.49.1.123 sport=58718 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=58718 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.123 sport=51482 dport=9092 src=10.49.1.123 dst=10.49.1.94 sport=9092 dport=51482 [ASSURED] mark=0 use=1\nblackhole 10.49.1.123 \n\n/usr/sbin/conntrack\ntcp      6 431982 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=39648 dport=5432 src=172.18.0.3 dst=10.49.1.94 sport=5432 dport=39648 [ASSURED] mark=0 use=1\ntcp      6 431979 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=58718 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=58718 [ASSURED] mark=0 use=1\ntcp      6 299 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=58714 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=58714 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=51460 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=51460 [ASSURED] mark=0 use=1\ntcp      6 116 TIME_WAIT src=10.49.1.94 dst=10.49.1.123 sport=56700 dport=5432 src=172.18.0.3 dst=10.49.1.94 sport=5432 dport=56700 [ASSURED] mark=0 use=1\ntcp      6 116 TIME_WAIT src=10.49.1.94 dst=10.49.1.123 sport=60312 dport=5432 src=172.18.0.3 dst=10.49.1.94 sport=5432 dport=60312 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=58734 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=58734 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=51470 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=51470 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=51482 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=51482 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=39652 dport=5432 src=172.18.0.3 dst=10.49.1.94 sport=5432 dport=39652 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=49978 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=49978 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=51484 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=51484 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=37960 dport=5432 src=172.18.0.3 dst=10.49.1.94 sport=5432 dport=37960 [ASSURED] mark=0 use=1\ntcp      6 431995 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=46246 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=46246 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=46262 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=46262 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.94 dst=10.49.1.123 sport=58720 dport=9092 src=172.18.0.2 dst=10.49.1.94 sport=9092 dport=58720 [ASSURED] mark=0 use=1\n\nconnectivity_after=blocked\nruntime_database_after=blocked\n{\"status\":\"unreachable\",\"observed_at_utc\":\"2026-09-23T08:35:58.019799622Z\"}",
+                                          "command_at_utc":  "2026-09-23T08:35:44.2710800Z",
+                                          "observed_at_utc":  "2026-09-23T08:36:00.5183893Z",
+                                          "network_chain":  "DOCKER-USER plus dependency INPUT",
+                                          "network_match_states":  [
+                                                                       "NEW",
+                                                                       "ESTABLISHED",
+                                                                       "RELATED"
+                                                                   ],
+                                          "established_flow_termination":  "host conntrack deletion",
+                                          "dependency_session_termination":  false,
+                                          "dependency_session_termination_method":  "none; network fault only",
+                                          "route_fault":  "app-host blackhole route for dependency /32",
+                                          "dependency_source_ip":  "10.49.1.94",
+                                          "connectivity_before":  "reachable",
+                                          "connectivity_after":  "blocked",
+                                          "runtime_container_database_probe_before":  "reachable",
+                                          "runtime_container_database_probe_after":  "unreachable",
+                                          "original_runtime_pid":  40474,
+                                          "original_worker_container_id":  "369d3f364c92b59f3c2be2c41c1993108783ad55ef7ad8c6222c1a75f5a7ba9a",
+                                          "original_worker_pid":  40593,
+                                          "ports":  [
+                                                        5432,
+                                                        9092
+                                                    ]
+                                      },
+                   "original_runtime_observed":  "running|true|40474",
+                   "original_worker_observed_after_reconnect":  {
+                                                                    "container_id":  "369d3f364c92b59f3c2be2c41c1993108783ad55ef7ad8c6222c1a75f5a7ba9a",
+                                                                    "state":  "running",
+                                                                    "running":  true,
+                                                                    "host_pid":  40593,
+                                                                    "same_container":  true,
+                                                                    "same_process":  true
+                                                                },
+                   "workflow_before":  {
+                                           "state":  "WAITING_ACTIVITY",
+                                           "revision":  3,
+                                           "attempt_state":  "CLAIMED",
+                                           "attempt_number":  1,
+                                           "attempt_created_at":  "2026-09-23 08:35:28.543503+00",
+                                           "updated_at":  "2026-09-23 08:35:28.544925+00"
+                                       },
+                   "workflow_after":  {
+                                          "state":  "SUCCEEDED",
+                                          "revision":  8,
+                                          "attempt_state":  "SUCCEEDED",
+                                          "attempt_number":  2,
+                                          "attempt_created_at":  "2026-09-23 08:36:43.889494+00",
+                                          "updated_at":  "2026-09-23 08:37:44.242276+00"
+                                      },
+                   "first_useful_progress":  {
+                                                 "definition":  "accepted result recorded for replacement attempt",
+                                                 "controller_observed_at_utc":  "2026-09-23T08:37:58.5595790Z",
+                                                 "workflow":  {
+                                                                  "state":  "SUCCEEDED",
+                                                                  "revision":  8,
+                                                                  "attempt_state":  "SUCCEEDED",
+                                                                  "attempt_number":  2,
+                                                                  "attempt_created_at":  "2026-09-23 08:36:43.889494+00",
+                                                                  "updated_at":  "2026-09-23 08:37:44.242276+00"
+                                                              }
+                                             },
+                   "recovery_ordering":  {
+                                             "first_new_owner_acquisition_id":  "fda9eca1-cdfa-472f-bd2f-9e81ff12c307",
+                                             "first_new_owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                             "first_new_owner_epoch":  20,
+                                             "recovery_transition_acquisition_id":  "aacca025-ea9a-4f6b-94d4-725d120a5609",
+                                             "recovery_transition_owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                             "recovery_transition_epoch":  56,
+                                             "timeout_replacement_revision":  4,
+                                             "accepted_result_revision":  5,
+                                             "durable_replacement_precedes_accepted_result":  true,
+                                             "controller_observation_times_are_diagnostic":  true
+                                         },
+                   "superseded_epoch_transitions_after_recovery_boundary":  0,
+                   "original_worker_late_result_rejection":  {
+                                                                 "observed":  true,
+                                                                 "source":  "original worker container stdout after reconnect",
+                                                                 "workflow_id":  "dur049-r71-network-811875364549",
+                                                                 "attempt_number":  1,
+                                                                 "worker_id":  "worker-1-1",
+                                                                 "api_rejection":  "STALE_ATTEMPT",
+                                                                 "observed_at_utc":  "2026-09-23T08:38:16.4470285Z",
+                                                                 "log_line":  "worker-1  | INFO:workers.kafka_worker:delivery lost claim race workflow_id=dur049-r71-network-811875364549 node_id=dur048.sleep attempt_number=1 worker_id=worker-1-1 code=STALE_ATTEMPT"
+                                                             },
+                   "deployed_stale_identity_smoke_test":  {
+                                                              "workflow_id":  "dur049-r71-network-811875364549",
+                                                              "partition_id":  5,
+                                                              "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                              "epoch":  1,
+                                                              "before_revision":  8,
+                                                              "after_revision":  8,
+                                                              "error":  "scheduler lease is not owned or has expired",
+                                                              "stale_rejected":  true
+                                                          },
+                   "attempts":  [
+                                    {
+                                        "attempt_number":  1,
+                                        "state":  "TIMED_OUT",
+                                        "is_current":  false,
+                                        "effect_class":  "PURE_ACTIVITY",
+                                        "outcome_disposition":  "NONE",
+                                        "result_recorded":  false,
+                                        "worker_id":  "worker-1-1",
+                                        "worker_request_id":  "worker-1-1:85413933-24b9-4ba0-bab7-de19f1019e26",
+                                        "created_at_utc":  "2026-09-23T08:35:28.5435030Z",
+                                        "updated_at_utc":  "2026-09-23T08:36:43.8869660Z"
+                                    },
+                                    {
+                                        "attempt_number":  2,
+                                        "state":  "SUCCEEDED",
+                                        "is_current":  false,
+                                        "effect_class":  "PURE_ACTIVITY",
+                                        "outcome_disposition":  "KNOWN_SUCCESS",
+                                        "result_recorded":  true,
+                                        "worker_id":  "worker-2-0",
+                                        "worker_request_id":  "worker-2-0:83e2514a-6dd2-4c1b-b8fd-7e3e7bb330de",
+                                        "created_at_utc":  "2026-09-23T08:36:43.8894940Z",
+                                        "updated_at_utc":  "2026-09-23T08:37:44.0746840Z"
+                                    }
+                                ],
+                   "lease_acquisitions":  [
+                                              {
+                                                  "acquisition_id":  "2bc6d45a-58d3-4533-9840-71bc07fb4bc3",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  1,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:27.5237690Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:42.5225100Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "0e61f311-6828-4256-850a-5cc23da5096f",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  2,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:28.5679750Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:43.5668340Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "ac48201b-cdbd-4571-b9c5-1d6a98fe1dff",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  3,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:29.5826740Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:44.5820340Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "f4bd6ba6-c43a-4b46-a672-620529115b75",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  4,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:30.5987140Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:45.5980450Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "7bc0f0ec-b56e-4053-b905-2a9edb33d94e",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  5,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:31.6125230Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:46.6119100Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "fc0ac36a-8342-45a9-b3b6-84cebb2ff672",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  6,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:32.6271890Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:47.6265730Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "748597fe-5986-472e-87c6-1fdf3286eb7f",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  7,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:33.6453750Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:48.6448620Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "fb0b859b-b3de-4da3-a932-76a154c07ed6",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  8,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:34.6609460Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:49.6602450Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "1583459d-517a-42e9-ab75-fe82acffd951",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  9,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:35.6737300Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:50.6732480Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "d3896a60-80d7-432d-8e1b-349f69cc3cd5",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  10,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:36.6869950Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:51.6862380Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "784e18f6-308f-45c0-89df-ef6b512f3f3d",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  11,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:37.7003040Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:52.6997910Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "fac53951-761e-4ed6-9c41-18298e7a027b",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  12,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:38.7133700Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:53.7128050Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "a3bf693e-0371-4dc2-88b0-d056e8c12035",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  13,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:39.7269540Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:54.7263170Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "117c170b-50e5-4d4b-9764-3e6fe6829456",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  14,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:40.7413270Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:55.7408020Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "5d38d0a1-443f-4a50-84b5-22c78a36e398",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  15,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:41.7551540Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:56.7545590Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "3a2dde4d-a4f4-452a-a4e5-bf6b9b21cfbc",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  16,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:42.7677610Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:57.7671900Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "feabf03d-ddd3-49de-8e35-31d6149309b3",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  17,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:43.7812030Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:58.7806680Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "6a0e1c32-5803-4b18-aeeb-2d0ea3f78c9a",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  18,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:44.7937270Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:35:59.7932390Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "b9025930-1699-4116-91f3-44453dcf02fb",
+                                                  "owner_id":  "f6b04515-7d60-4626-8f9b-f491cdfb7c86",
+                                                  "epoch":  19,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:35:45.8057210Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:00.8050620Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "fda9eca1-cdfa-472f-bd2f-9e81ff12c307",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  20,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:05.5195530Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:20.5147100Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "2a00a682-1c05-465b-a20f-27b70dd36262",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  21,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:06.5684630Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:21.5661570Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "c529f6cc-b6eb-419a-b8f4-1a8d14352c74",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  22,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:07.6050240Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:22.6026710Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "5ed469c5-efb0-476c-a439-7fa27cec1c93",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  23,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:08.6429240Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:23.6404980Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "148f2416-3798-4606-9d7f-fb3882a2830b",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  24,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:09.6801710Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:24.6778140Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "440cb65f-9bdb-4572-8b0e-174cb3780c35",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  25,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:10.7180020Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:25.7155930Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "2a465268-947b-4eee-8f1b-065ddcc9c2b6",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  26,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:11.7550050Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:26.7527340Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "a9effb89-d11c-404d-81d0-bec01fdeafa9",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  27,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:12.7908140Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:27.7885220Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "7272957b-ae91-4ea0-b162-f579b61c376a",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  28,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:13.8268730Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:28.8245270Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "6964d43c-658c-4496-bb99-4263b9e0414d",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  29,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:14.8633160Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:29.8610680Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "4770f0d9-8d39-4e04-b28a-0ad749cf037e",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  30,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:15.8994810Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:30.8972010Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "7d57429c-dd50-43be-9bfb-4fa3f44a7fe6",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  31,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:16.9362340Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:31.9338640Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "4b67dd02-0248-40bd-8d52-232201a7b127",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  32,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:17.9733530Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:32.9709740Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "ea5edf9a-cd5b-4253-be4a-4f6b2201ca31",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  33,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:19.0093630Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:34.0071230Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "9aec4508-eee9-425d-aef1-a6bba4de1fd0",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  34,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:20.0490310Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:35.0466920Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "fc6d7bff-09b2-4158-8a03-6f1c49974046",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  35,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:21.0862010Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:36.0839350Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "8efe3707-d00d-411c-a1e5-c981c0799992",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  36,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:22.1228530Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:37.1204740Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "b0f94582-d4c8-4586-be0f-6bbcb5241662",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  37,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:23.1595170Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:38.1571870Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "0026eec1-2c7f-4adb-ae9e-f7e74cef7631",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  38,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:24.1960670Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:39.1937870Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "8abdf3c6-04a7-487c-840e-74d201faa296",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  39,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:25.2344730Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:40.2322210Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "af593dd6-e228-4e02-814f-78d9762b8486",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  40,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:26.2718970Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:41.2695840Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "ba5bcd17-51b6-46ae-abe3-c635004ed02a",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  41,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:27.3079180Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:42.3056140Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "d3f56168-883d-4ad3-8b51-40938f7f9df9",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  42,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:28.3433630Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:43.3411000Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "35b94905-e72a-4cc9-ae8a-7eb897ed97ee",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  43,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:29.3804850Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:44.3782050Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "7a4bfbc7-3bb8-4ea3-812f-8c3fabcf481b",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  44,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:30.4214320Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:45.4191070Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "870df399-7078-4280-876c-4a5f8b565ca7",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  45,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:31.4582570Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:46.4559860Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "338fc5ba-70df-43da-89b8-4b45cee55a35",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  46,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:32.4942050Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:47.4918940Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "4a9aba50-012d-4c36-8c86-d56247c1473d",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  47,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:33.5308730Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:48.5286690Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "9f86362b-b105-4eb9-b07a-9700b3d5b82e",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  48,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:34.5669640Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:49.5647260Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "d9e1ebfd-2314-415e-b45c-ac23725e067c",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  49,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:35.6033440Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:50.6010480Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "43e21a0c-03f1-430b-afbd-b9f97070ea24",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  50,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:36.6402140Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:51.6379180Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "f07d6901-e8fd-4f19-8b4d-3a6ad2b36f99",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  51,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:37.6767500Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:52.6743700Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "d8e3b88b-ef90-493c-9486-86389730d0dc",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  52,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:38.7124010Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:53.7101000Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "72a4846b-73d1-49c0-af98-c6af1cfc6639",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  53,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:39.7503340Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:54.7480480Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "2af08857-96c1-4af5-b4ed-ea43e63a097e",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  54,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:40.7860870Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:55.7838880Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "ae1551aa-2020-48fa-92de-16d37be1cc27",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  55,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:41.8215340Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:56.8193560Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "aacca025-ea9a-4f6b-94d4-725d120a5609",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  56,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:42.8574980Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:57.8552210Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "4af2592c-1fb9-4e85-a20d-46c0b9b8844b",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  57,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:43.9418080Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:58.9393030Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "d211b665-aea7-4601-9263-932b678fa402",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  58,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:44.9976710Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:36:59.9929360Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "9cc7ea46-47d0-423e-a637-4ca40cbc6a8c",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  59,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:46.0345880Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:01.0321890Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "dc9e7947-0f88-40bf-86bf-300e9af17e58",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  60,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:47.0716930Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:02.0691950Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "7ec15bd8-a2d1-4a19-8f51-64ec4a1d7160",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  61,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:48.1109910Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:03.1079390Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "4ea0ff49-01a1-44f8-b29d-efddb7c9d68e",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  62,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:49.1478570Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:04.1454020Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "cb730b1d-5e3d-4c98-bad2-67550eb03cf3",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  63,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:50.1852840Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:05.1829060Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "993e7c8e-e3f1-402f-9a80-82140f76d23f",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  64,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:51.2218870Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:06.2196210Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "c6070400-c325-42c7-b84e-bdb64453bea0",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  65,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:52.2604430Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:07.2581600Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "b2eebf3b-2b5d-4c43-906c-297ce551435b",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  66,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:53.2954730Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:08.2932860Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "10bf5e7d-b909-4651-9c0f-d6e4aca7350f",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  67,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:54.3309360Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:09.3287110Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "ba55e67e-1434-4364-a08b-a97c9898b4da",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  68,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:55.3664900Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:10.3642000Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "6906e105-4fb8-4e73-839d-01c65dc4c4a9",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  69,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:56.4027500Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:11.4004150Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "1f5ea007-4e93-4855-8464-22aa9719a19c",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  70,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:57.4397840Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:12.4374290Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "1ae10c45-e756-42b4-8feb-6e04319d3968",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  71,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:58.4753610Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:13.4730040Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "e0f41049-ad5e-4d8c-8d2b-0a2641883524",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  72,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:36:59.5115570Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:14.5092760Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "2c24173d-10e0-43e7-9413-7abe90549976",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  73,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:00.5497840Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:15.5472860Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "b34f7391-390f-4454-8ce3-abbd29a48070",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  74,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:01.6520560Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:16.6450070Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "06597353-4e71-4fbd-b028-53b6cfd2c3d6",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  75,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:02.7213570Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:17.7160380Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "e6ea653d-f48e-45ee-96ac-65a48221a69f",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  76,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:03.7581270Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:18.7556250Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "b3078472-d9e4-4bdb-9ea2-a04a908d7560",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  77,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:04.7943180Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:19.7919860Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "32954db1-d123-48f2-aa9e-dd56409dba80",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  78,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:05.8308950Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:20.8285030Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "e7c82caa-50f3-4579-90e1-ea97a1e6ed6c",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  79,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:06.8665410Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:21.8643060Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "8c6ae739-c65e-42ef-b61e-10213e50c947",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  80,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:07.9029000Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:22.9006470Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "06396a58-2e49-4368-8330-556702a381bd",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  81,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:08.9387660Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:23.9363860Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "67d97f92-d8e4-4e7f-9c8d-b63f9f45679c",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  82,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:09.9761830Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:24.9738970Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "78923fe7-81c5-41b1-a6ba-85b3f4ca9dfd",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  83,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:11.0128600Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:26.0105480Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "9c34927f-b554-4080-8045-eb3b41bab55b",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  84,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:12.0479030Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:27.0456740Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "efbea77b-bf70-4b6a-bfa2-c5cde6ba398b",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  85,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:13.0848880Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:28.0824310Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "7166783a-3f12-4fbe-910a-2cbcb3f20c28",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  86,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:14.1204370Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:29.1181600Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "b53b38c8-b6ec-465c-8e9b-0e506c937ed1",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  87,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:15.1568920Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:30.1546030Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "9d829118-2ba2-4c44-8810-550a201eb017",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  88,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:16.1933720Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:31.1911310Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "80402e28-1758-404c-a59a-97c5a1f26da3",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  89,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:17.2303220Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:32.2280280Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "5f26d5cd-e96d-4f26-a126-fef2af8adf9a",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  90,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:18.2658290Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:33.2635560Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "5ad83884-17a3-4aab-9fad-3010a951d5bd",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  91,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:19.3014150Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:34.2991610Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "9a1f2428-4225-40ce-b28e-8c58b0348aab",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  92,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:20.3372850Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:35.3348860Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "0271bc6c-e5ba-41c5-b2e0-67e2e75d07b9",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  93,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:21.3731510Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:36.3709050Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "f4130725-29f6-4bd1-8055-9ab2622847a4",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  94,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:22.4081440Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:37.4059270Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "f551bdf3-1422-4055-b00f-6c2f12833cdb",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  95,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:23.4444250Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:38.4421270Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "4332b81a-3033-4f18-a9a5-d3c7b47a8798",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  96,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:24.4801720Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:39.4778630Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "70b5e80c-04e4-4954-8cb6-d96c3e35ae10",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  97,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:25.5165700Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:40.5142350Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "715f6a4f-7b43-4c40-8308-84297a343958",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  98,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:26.5519990Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:41.5497490Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "c6bc8d83-7075-425c-b45c-15b124f20330",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  99,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:27.5873700Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:42.5851570Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "9fcb41fe-2552-415b-943a-411cf16f6f67",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  100,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:28.6235250Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:43.6211730Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "42865aff-195e-4f9f-a385-5bbb1806ffde",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  101,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:29.6595030Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:44.6572290Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "3699ef9f-d2cf-4465-a14d-d4af0154d781",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  102,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:30.6964630Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:45.6941950Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "2e1a1ea6-cafa-45ce-acfb-aef23e52589a",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  103,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:31.7330390Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:46.7307200Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "6e9213af-5232-43ba-972e-1cc9833d16fe",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  104,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:32.7695140Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:47.7672640Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "726bf331-97c1-4866-b5a7-64d8ea4a7aa7",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  105,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:33.8050560Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:48.8028210Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "4a634c3f-8a6d-47fd-822c-8d85ae6e009a",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  106,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:34.8412450Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:49.8390590Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "63afa332-c70f-435b-8239-ed46a4dbe33a",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  107,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:35.8783080Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:50.8757070Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "5371e7b2-02fb-426b-9251-e47539634263",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  108,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:36.9149410Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:51.9126840Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "e713e1ff-d619-4ff2-a3b4-f06501db7239",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  109,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:37.9530940Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:52.9506990Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "970222c7-565f-4d9a-9faf-07c354633127",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  110,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:38.9900020Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:53.9875200Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "211f425f-2a4c-448e-9662-69d5de44b3bd",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  111,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:40.0266090Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:55.0242710Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "9de5cc01-4bbe-4f12-9bcb-36a5f86caa19",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  112,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:41.0628850Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:56.0605640Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "3d6286c0-1077-40c1-9cae-7d87543ca0b5",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  113,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:42.0991390Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:57.0968530Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "624f69ab-d018-4f52-a10d-9f4c13fc8056",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  114,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:43.1352790Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:58.1330070Z"
+                                              },
+                                              {
+                                                  "acquisition_id":  "c52773d4-fe8c-4838-a1ae-f37667a6dd66",
+                                                  "owner_id":  "436d11f5-7864-47f4-99c5-0ce3bbb52b19",
+                                                  "epoch":  115,
+                                                  "database_recorded_at_utc":  "2026-09-23T08:37:44.2818250Z",
+                                                  "lease_expires_at_utc":  "2026-09-23T08:37:59.2793740Z"
+                                              }
+                                          ],
+                   "obligations":  {
+                                       "reconciliation_items_total":  0,
+                                       "reconciliation_items_open":  0,
+                                       "outbox_rows":  7,
+                                       "outbox_pending_or_claimed":  0,
+                                       "effect_records":  0,
+                                       "duplicate_effect_calls":  0
+                                   },
+                   "durable_invariant_checker":  {
+                                                     "live":  {
+                                                                  "valid":  true,
+                                                                  "violations":  [
+                                                                                     null
+                                                                                 ]
+                                                              },
+                                                     "offline":  {
+                                                                     "valid":  true,
+                                                                     "violations":  [
+                                                                                        null
+                                                                                    ]
+                                                                 },
+                                                     "fence":  {
+                                                                   "pre_fault_revision":  3,
+                                                                   "recovery_revision":  4,
+                                                                   "recovery_epoch":  56,
+                                                                   "superseded_epoch_transitions_after_recovery_boundary":  0,
+                                                                   "stale_attempt_number":  1,
+                                                                   "stale_attempt_found":  true,
+                                                                   "stale_attempt_current":  false,
+                                                                   "stale_result_recorded":  false
+                                                               },
+                                                     "snapshot":  "network-durable-trace.json"
+                                                 },
+                   "terminal_completion_at_utc":  "2026-09-23T08:37:44.2422760Z",
+                   "fault_command_to_observed_ms":  16247.309,
+                   "fault_observed_to_first_new_owner_acquisition_observed_ms":  19701.575,
+                   "fault_observed_to_first_useful_progress_observed_ms":  118041.19,
+                   "first_new_owner_acquisition_observed_to_first_useful_progress_observed_ms":  98339.615,
+                   "timestamp_semantics":  "Intervals use controller UTC observation times after 2-second polling; DB timestamps are transaction-recorded diagnostics, not commit times.",
+                   "first_useful_progress_transition":  {
+                                                            "revision":  5,
+                                                            "scheduler_epoch":  null,
+                                                            "reason":  "ATTEMPT_RESULT_RECORDED",
+                                                            "attempt_number":  2,
+                                                            "database_recorded_at_utc":  "2026-09-23T08:37:44.0806490Z",
+                                                            "actor_kind":  "worker"
+                                                        },
+                   "fault_observed_to_terminal_completion_ms":  103723.887,
+                   "configuration":  {
+                                         "activity":  "dur048.sleep",
+                                         "app1":  {
+                                                      "repo_commit":  "f7dd686aac7bf2a315420ae786a6698b1c6b1146",
+                                                      "runtime_image_id":  "sha256:7d794abf565c5c29707a1d93524ec54324b8b54f2b4d23f3dd64bfd61dada534",
+                                                      "worker_image_id":  "sha256:69ac465af488cc331a9996db617a7b2bfaf6e78e74910050bc4578f864d5ea64",
+                                                      "activity_delay_ms":  60000,
+                                                      "fixture_activity_enabled":  true,
+                                                      "scheduler_hold_after_acquire_ms":  1000,
+                                                      "worker_slots":  2,
+                                                      "runtime_engine_mode":  "disabled"
+                                                  },
+                                         "app2":  {
+                                                      "repo_commit":  "f7dd686aac7bf2a315420ae786a6698b1c6b1146",
+                                                      "runtime_image_id":  "sha256:c548da5695a8d9e5fbe1e51002887ced422b8a84cf7f550eaa655533a5e2344b",
+                                                      "worker_image_id":  "sha256:3fe4b4ec45017faae082b1c7120b396004acc15d38c0c757dcb936d45cfb6669",
+                                                      "activity_delay_ms":  60000,
+                                                      "fixture_activity_enabled":  true,
+                                                      "scheduler_hold_after_acquire_ms":  1000,
+                                                      "worker_slots":  2,
+                                                      "runtime_engine_mode":  "disabled"
+                                                  },
+                                         "fault_network_ports":  [
+                                                                     5432,
+                                                                     9092
+                                                                 ],
+                                         "network_chain":  "DOCKER-USER plus dependency INPUT",
+                                         "network_match_states":  [
+                                                                      "NEW",
+                                                                      "ESTABLISHED",
+                                                                      "RELATED"
+                                                                  ],
+                                         "established_flow_termination":  "host conntrack deletion",
+                                         "session_termination_enabled":  false,
+                                         "session_termination_method":  "none; network-only arm",
+                                         "route_fault":  "app-host blackhole route for dependency /32",
+                                         "dependency_source_ip":  "10.49.1.94"
+                                     },
+                   "peer_mode":  "controller-started cold standby; app2 runtime is started after confirmed isolation, not a continuously active peer",
+                   "recovery_timing_note":  "Useful progress follows the 30-second AttemptLease and activity execution; these measurements are bounded recovery observations for this configuration, not general failover performance.",
+                   "limitation":  "This arm isolates the app host from PostgreSQL while preserving the original runtime and worker processes; it is not a host-stop or database-host durability claim. The stale worker result rejection is observed from the original worker\u0027s correlated log, while the separate scheduler identity probe is only a deployed fence smoke test."
+               }
+}

@@ -1,0 +1,13 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T02:58:27.0977436Z",
+    "git_commit":  "0c7a07d8511ed5907b0d6ee9c9dfe753046eb9ee",
+    "scenarios":  [
+                      "host"
+                  ],
+    "error":  "Workflow dur049-host-20260922-ae did not commit a durable TIMEOUT_REPLACEMENT transition after takeover.",
+    "results":  [
+
+                ]
+}

@@ -1,0 +1,375 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "PASS",
+    "fault":  "lease-row-lock-held-beyond-expiry",
+    "workflow_id":  "dur049-r71-lock-f48a1",
+    "progress_workflow_id":  "dur049-r71-progress-f48a1",
+    "partition_id":  1,
+    "progress_partition_id":  0,
+    "source_commit":  "48e42e32ff3588d4fd42c8c8a57e4312f941b82a",
+    "started_at_utc":  "2026-09-23T10:35:59.0706629Z",
+    "stage":  "complete",
+    "updated_at_utc":  "2026-09-23T10:40:25.0105896Z",
+    "original_owner_id":  "c6bddcdf-fc21-404d-985e-f96b2d25e0c8",
+    "original_epoch":  1,
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 10:36:29.506575+00",
+                            "updated_at":  "2026-09-23 10:36:29.508013+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-0"
+                       },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "lock_holder":  {
+                        "marker_log":  "/tmp/dur049-lock-holder-1.log",
+                        "host_process_id":  2515,
+                        "launch_output":  "lock_holder_pid=2515",
+                        "observed_at_utc":  "2026-09-23T10:36:54.2669466Z",
+                        "locked_at_utc":  "2026-09-23T10:36:46.4197760Z",
+                        "marker_contents":  "partition=1 epoch=18 locked_at=2026-09-23T10:36:46.419775994Z",
+                        "duration_seconds":  180,
+                        "marker_transport":  "lock-holder stdout captured in host-side file; runtime image has no shell or /tmp"
+                    },
+    "other_partition_progress":  {
+                                     "state":  "SUCCEEDED",
+                                     "revision":  7,
+                                     "attempt_state":  "SUCCEEDED",
+                                     "attempt_number":  1,
+                                     "attempt_created_at":  "2026-09-23 10:37:21.803957+00",
+                                     "updated_at":  "2026-09-23 10:37:31.898018+00"
+                                 },
+    "other_partition_progress_observed_at_utc":  "2026-09-23T10:37:38.1898918Z",
+    "other_partition_progress_ms":  43922.945,
+    "lock_holder_observed_during_other_partition_progress":  {
+                                                                 "observed":  true,
+                                                                 "controller_observed_at_utc":  "2026-09-23T10:37:45.3446991Z",
+                                                                 "host_process_id":  2515,
+                                                                 "output":  "host_lock_holder_pid_alive=true\n2535                /dur049-lock-holder -partition-id 1 -duration 180s -marker /dev/stdout\nlock_probe_json={\"status\":\"row_lock_held\",\"observed_at_utc\":\"2026-09-23T10:37:43.130160477Z\",\"sqlstate\":\"55P03\"}",
+                                                                 "lock_holder_binary_visible_in_container_process_list":  true,
+                                                                 "row_lock_probe":  {
+                                                                                        "status":  "row_lock_held",
+                                                                                        "observed_at_utc":  "2026-09-23T10:37:43.130160477Z",
+                                                                                        "sqlstate":  "55P03"
+                                                                                    },
+                                                                 "row_lock_confirmed_by_partition_id":  1
+                                                             },
+    "first_new_owner_acquisition":  {
+                                        "acquisition_id":  "69b5d1d1-d8e8-4c36-8310-e59b0d18dd7c",
+                                        "owner_id":  "5317e4c2-5f02-4b51-ba27-f00c68f09b47",
+                                        "epoch":  19,
+                                        "database_recorded_at_utc":  "2026-09-23T10:39:46.4239950Z",
+                                        "controller_observed_at_utc":  "2026-09-23T10:39:51.9101709Z",
+                                        "observed_at":  "2026-09-23T10:39:51.9101709Z",
+                                        "lease_expires_at_utc":  "2026-09-23T10:39:57.8234850Z",
+                                        "fault_observed_at_utc":  "2026-09-23T10:36:54.2669466+00:00"
+                                    },
+    "first_useful_progress":  {
+                                  "workflow":  {
+                                                   "state":  "SUCCEEDED",
+                                                   "revision":  7,
+                                                   "attempt_state":  "SUCCEEDED",
+                                                   "attempt_number":  1,
+                                                   "attempt_created_at":  "2026-09-23 10:36:29.506575+00",
+                                                   "updated_at":  "2026-09-23 10:39:47.505902+00"
+                                               },
+                                  "controller_observed_at_utc":  "2026-09-23T10:39:59.1185764Z",
+                                  "observed_at":  "2026-09-23T10:39:59.1185764Z",
+                                  "progress_definition":  "scheduler consumed the original attempt result under the first new-owner lease",
+                                  "transition":  {
+                                                     "revision":  5,
+                                                     "scheduler_epoch":  19,
+                                                     "attempt_number":  1,
+                                                     "actor_kind":  "scheduler",
+                                                     "reason":  "RESULT_CONSUMED",
+                                                     "database_recorded_at_utc":  "2026-09-23T10:39:47.4508610Z",
+                                                     "lease_acquisition_id":  "69b5d1d1-d8e8-4c36-8310-e59b0d18dd7c",
+                                                     "lease_owner_id":  "5317e4c2-5f02-4b51-ba27-f00c68f09b47",
+                                                     "lease_epoch":  19
+                                                 },
+                                  "result_receipt_transition":  {
+                                                                    "revision":  4,
+                                                                    "attempt_number":  1,
+                                                                    "actor_kind":  "worker",
+                                                                    "reason":  "ATTEMPT_RESULT_RECORDED",
+                                                                    "database_recorded_at_utc":  "2026-09-23T10:37:29.5914280Z"
+                                                                },
+                                  "consumed_under_acquisition":  {
+                                                                     "acquisition_id":  "69b5d1d1-d8e8-4c36-8310-e59b0d18dd7c",
+                                                                     "owner_id":  "5317e4c2-5f02-4b51-ba27-f00c68f09b47",
+                                                                     "epoch":  19,
+                                                                     "database_recorded_at_utc":  "2026-09-23T10:39:46.4239950Z"
+                                                                 }
+                              },
+    "stale_owner_probe":  {
+                              "workflow_id":  "dur049-r71-lock-f48a1",
+                              "partition_id":  1,
+                              "owner_id":  "c6bddcdf-fc21-404d-985e-f96b2d25e0c8",
+                              "epoch":  1,
+                              "before_revision":  7,
+                              "after_revision":  7,
+                              "error":  "scheduler lease is not owned or has expired",
+                              "stale_rejected":  true
+                          },
+    "result":  {
+                   "fault":  "lease-row-lock-held-beyond-expiry",
+                   "workflow_id":  "dur049-r71-lock-f48a1",
+                   "partition_id":  1,
+                   "progress_workflow_id":  "dur049-r71-progress-f48a1",
+                   "progress_partition_id":  0,
+                   "original_owner_id":  "c6bddcdf-fc21-404d-985e-f96b2d25e0c8",
+                   "original_epoch":  1,
+                   "pre_fault_lease_acquisition":  {
+                                                       "partition_id":  1,
+                                                       "acquisition_id":  "0386133f-d8a5-4efb-83f3-b0f258760f3c",
+                                                       "owner_id":  "c6bddcdf-fc21-404d-985e-f96b2d25e0c8",
+                                                       "epoch":  1,
+                                                       "acquired_at_utc":  "2026-09-23T10:36:28.4776970Z",
+                                                       "lease_expires_at_utc":  "2026-09-23T10:36:43.4764450Z"
+                                                   },
+                   "pre_fault_epoch_boundary":  15,
+                   "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+                   "lock_holder":  {
+                                       "marker_log":  "/tmp/dur049-lock-holder-1.log",
+                                       "host_process_id":  2515,
+                                       "launch_output":  "lock_holder_pid=2515",
+                                       "observed_at_utc":  "2026-09-23T10:36:54.2669466Z",
+                                       "locked_at_utc":  "2026-09-23T10:36:46.4197760Z",
+                                       "marker_contents":  "partition=1 epoch=18 locked_at=2026-09-23T10:36:46.419775994Z",
+                                       "duration_seconds":  180,
+                                       "marker_transport":  "lock-holder stdout captured in host-side file; runtime image has no shell or /tmp"
+                                   },
+                   "first_new_owner_acquisition":  {
+                                                       "acquisition_id":  "69b5d1d1-d8e8-4c36-8310-e59b0d18dd7c",
+                                                       "owner_id":  "5317e4c2-5f02-4b51-ba27-f00c68f09b47",
+                                                       "epoch":  19,
+                                                       "database_recorded_at_utc":  "2026-09-23T10:39:46.4239950Z",
+                                                       "controller_observed_at_utc":  "2026-09-23T10:39:51.9101709Z",
+                                                       "lease_expires_at_utc":  "2026-09-23T10:39:57.8234850Z"
+                                                   },
+                   "recovery_transition_epoch":  19,
+                   "recovery_transition_revision":  5,
+                   "recovery_transition_is_durably_after_first_new_owner":  true,
+                   "progress_while_lock_held":  {
+                                                    "state":  "SUCCEEDED",
+                                                    "revision":  7,
+                                                    "attempt_state":  "SUCCEEDED",
+                                                    "attempt_number":  1,
+                                                    "attempt_created_at":  "2026-09-23 10:37:21.803957+00",
+                                                    "updated_at":  "2026-09-23 10:37:31.898018+00"
+                                                },
+                   "other_partition_progress_observed_at_utc":  "2026-09-23T10:37:38.1898918Z",
+                   "lock_observed_to_other_partition_progress_ms":  43922.945,
+                   "lock_holder_observed_during_other_partition_progress":  {
+                                                                                "observed":  true,
+                                                                                "controller_observed_at_utc":  "2026-09-23T10:37:45.3446991Z",
+                                                                                "host_process_id":  2515,
+                                                                                "output":  "host_lock_holder_pid_alive=true\n2535                /dur049-lock-holder -partition-id 1 -duration 180s -marker /dev/stdout\nlock_probe_json={\"status\":\"row_lock_held\",\"observed_at_utc\":\"2026-09-23T10:37:43.130160477Z\",\"sqlstate\":\"55P03\"}",
+                                                                                "lock_holder_binary_visible_in_container_process_list":  true,
+                                                                                "row_lock_probe":  {
+                                                                                                       "status":  "row_lock_held",
+                                                                                                       "observed_at_utc":  "2026-09-23T10:37:43.130160477Z",
+                                                                                                       "sqlstate":  "55P03"
+                                                                                                   },
+                                                                                "row_lock_confirmed_by_partition_id":  1
+                                                                            },
+                   "workflow_before":  {
+                                           "state":  "WAITING_ACTIVITY",
+                                           "revision":  3,
+                                           "attempt_state":  "CLAIMED",
+                                           "attempt_number":  1,
+                                           "attempt_created_at":  "2026-09-23 10:36:29.506575+00",
+                                           "updated_at":  "2026-09-23 10:36:29.508013+00"
+                                       },
+                   "workflow_after":  {
+                                          "state":  "SUCCEEDED",
+                                          "revision":  7,
+                                          "attempt_state":  "SUCCEEDED",
+                                          "attempt_number":  1,
+                                          "attempt_created_at":  "2026-09-23 10:36:29.506575+00",
+                                          "updated_at":  "2026-09-23 10:39:47.505902+00"
+                                      },
+                   "first_useful_progress":  {
+                                                 "definition":  "scheduler consumed the original attempt result under the first new-owner lease",
+                                                 "controller_observed_at_utc":  "2026-09-23T10:39:59.1185764Z",
+                                                 "result_receipt_transition":  {
+                                                                                   "revision":  4,
+                                                                                   "attempt_number":  1,
+                                                                                   "actor_kind":  "worker",
+                                                                                   "reason":  "ATTEMPT_RESULT_RECORDED",
+                                                                                   "database_recorded_at_utc":  "2026-09-23T10:37:29.5914280Z"
+                                                                               },
+                                                 "transition":  {
+                                                                    "revision":  5,
+                                                                    "scheduler_epoch":  19,
+                                                                    "attempt_number":  1,
+                                                                    "actor_kind":  "scheduler",
+                                                                    "reason":  "RESULT_CONSUMED",
+                                                                    "database_recorded_at_utc":  "2026-09-23T10:39:47.4508610Z",
+                                                                    "lease_acquisition_id":  "69b5d1d1-d8e8-4c36-8310-e59b0d18dd7c",
+                                                                    "lease_owner_id":  "5317e4c2-5f02-4b51-ba27-f00c68f09b47",
+                                                                    "lease_epoch":  19
+                                                                },
+                                                 "workflow":  {
+                                                                  "state":  "SUCCEEDED",
+                                                                  "revision":  7,
+                                                                  "attempt_state":  "SUCCEEDED",
+                                                                  "attempt_number":  1,
+                                                                  "attempt_created_at":  "2026-09-23 10:36:29.506575+00",
+                                                                  "updated_at":  "2026-09-23 10:39:47.505902+00"
+                                                              }
+                                             },
+                   "first_useful_progress_transition":  {
+                                                            "revision":  5,
+                                                            "scheduler_epoch":  19,
+                                                            "attempt_number":  1,
+                                                            "actor_kind":  "scheduler",
+                                                            "reason":  "RESULT_CONSUMED",
+                                                            "database_recorded_at_utc":  "2026-09-23T10:39:47.4508610Z",
+                                                            "lease_acquisition_id":  "69b5d1d1-d8e8-4c36-8310-e59b0d18dd7c",
+                                                            "lease_owner_id":  "5317e4c2-5f02-4b51-ba27-f00c68f09b47",
+                                                            "lease_epoch":  19
+                                                        },
+                   "recovery_ordering":  {
+                                             "first_new_owner_acquisition_id":  "69b5d1d1-d8e8-4c36-8310-e59b0d18dd7c",
+                                             "first_new_owner_id":  "5317e4c2-5f02-4b51-ba27-f00c68f09b47",
+                                             "first_new_owner_epoch":  19,
+                                             "result_receipt_revision":  4,
+                                             "result_consumed_revision":  5,
+                                             "result_receipt_precedes_consumption":  true,
+                                             "result_consumed_under_first_new_owner_acquisition":  true,
+                                             "same_original_attempt_completed_without_replacement":  true
+                                         },
+                   "superseded_epoch_transitions_after_recovery_boundary":  0,
+                   "deployed_stale_identity_smoke_test":  {
+                                                              "workflow_id":  "dur049-r71-lock-f48a1",
+                                                              "partition_id":  1,
+                                                              "owner_id":  "c6bddcdf-fc21-404d-985e-f96b2d25e0c8",
+                                                              "epoch":  1,
+                                                              "before_revision":  7,
+                                                              "after_revision":  7,
+                                                              "error":  "scheduler lease is not owned or has expired",
+                                                              "stale_rejected":  true
+                                                          },
+                   "attempts":  [
+                                    {
+                                        "attempt_number":  1,
+                                        "state":  "SUCCEEDED",
+                                        "is_current":  false,
+                                        "effect_class":  "PURE_ACTIVITY",
+                                        "outcome_disposition":  "KNOWN_SUCCESS",
+                                        "result_recorded":  true,
+                                        "worker_id":  "worker-1-0",
+                                        "worker_request_id":  "worker-1-0:c9e72a5c-6cc6-4937-9ab5-6863c1c8753b",
+                                        "created_at_utc":  "2026-09-23T10:36:29.5065750Z",
+                                        "updated_at_utc":  "2026-09-23T10:37:29.5900070Z"
+                                    }
+                                ],
+                   "lease_acquisition_summary_after_pre_fault_epoch_boundary":  [
+                                                                                    {
+                                                                                        "owner_id":  "c6bddcdf-fc21-404d-985e-f96b2d25e0c8",
+                                                                                        "acquisition_count":  3,
+                                                                                        "first_epoch":  16,
+                                                                                        "last_epoch":  18,
+                                                                                        "first_database_recorded_at_utc":  "2026-09-23T10:36:43.7297180Z",
+                                                                                        "last_database_recorded_at_utc":  "2026-09-23T10:36:45.7567130Z"
+                                                                                    },
+                                                                                    {
+                                                                                        "owner_id":  "5317e4c2-5f02-4b51-ba27-f00c68f09b47",
+                                                                                        "acquisition_count":  2,
+                                                                                        "first_epoch":  19,
+                                                                                        "last_epoch":  20,
+                                                                                        "first_database_recorded_at_utc":  "2026-09-23T10:39:46.4239950Z",
+                                                                                        "last_database_recorded_at_utc":  "2026-09-23T10:39:47.5705620Z"
+                                                                                    }
+                                                                                ],
+                   "obligations":  {
+                                       "workflow_reconciliation_items_total":  0,
+                                       "workflow_reconciliation_items_open":  0,
+                                       "global_reconciliation_items_total":  2,
+                                       "global_reconciliation_items_open":  2,
+                                       "database_reconciliation_items_total":  2,
+                                       "database_reconciliation_items_open":  2,
+                                       "workflow_outbox_rows":  6,
+                                       "workflow_outbox_pending_or_claimed":  0,
+                                       "database_outbox_rows":  193,
+                                       "database_outbox_pending_or_claimed":  0,
+                                       "workflow_effect_records":  0,
+                                       "workflow_duplicate_effect_calls":  0,
+                                       "observed_at_utc":  "2026-09-23T10:40:20.9024193Z",
+                                       "scope_note":  "Reconciliation counts include workflow-scoped items for this workflow, global NULL-workflow poison obligations, and a database-wide snapshot; outbox and effect counts are reported for this workflow and outbox pending counts also database-wide."
+                                   },
+                   "durable_invariant_checker":  {
+                                                     "live":  {
+                                                                  "valid":  true,
+                                                                  "violations":  [
+                                                                                     null
+                                                                                 ]
+                                                              },
+                                                     "offline":  {
+                                                                     "valid":  true,
+                                                                     "violations":  [
+                                                                                        null
+                                                                                    ]
+                                                                 },
+                                                     "fence":  {
+                                                                   "pre_fault_revision":  3,
+                                                                   "recovery_revision":  5,
+                                                                   "recovery_epoch":  19,
+                                                                   "superseded_epoch_transitions_after_recovery_boundary":  0,
+                                                                   "stale_attempt_number":  0,
+                                                                   "stale_attempt_found":  false,
+                                                                   "stale_attempt_current":  false,
+                                                                   "stale_result_recorded":  false
+                                                               },
+                                                     "snapshot":  "lock-held-durable-trace.json"
+                                                 },
+                   "lock_observed_to_first_new_owner_acquisition_observed_ms":  177643.224,
+                   "first_new_owner_acquisition_observed_to_first_useful_progress_observed_ms":  7208.406,
+                   "timestamp_semantics":  "Intervals use controller UTC observation times after 2-second polling; DB timestamps are transaction-recorded diagnostics, not commit times.",
+                   "recovery_timing_note":  "This is the lock-held isolation arm. The lease fence remains row-locked; the bounded lock timeout lets other partitions progress while the lock holder retains the target row. The original worker durably records its result, and the first new owner consumes that same attempt after the lock is released; this run does not demonstrate a replacement attempt. App2 is a controller-started standby, not a continuously active peer. Report separately from pure network isolation and do not treat this as peer failure-detection latency.",
+                   "configuration":  {
+                                         "activity":  "dur048.sleep",
+                                         "app1":  {
+                                                      "repo_commit":  "f7810da5b3f68a12299c358768b3c1fd734eb70d",
+                                                      "runtime_container_id":  "35d56c13b65bc8e8147a4e881040c0bc0357adb27961f25a5c8fedc077fd4185",
+                                                      "runtime_started_at_utc":  "2026-09-23T10:36:11.296216368Z",
+                                                      "worker_container_id":  "37835e876276713c7ecaf4b9d7bee69ff695a525d597c1668e3b31e4802fc061",
+                                                      "worker_started_at_utc":  "2026-09-23T10:36:16.980325275Z",
+                                                      "runtime_image_id":  "sha256:cdd66b022d25b6eeacf34a290f6bf81c1b2d5a4fa211b9f5d46d8b6de6ae20d5",
+                                                      "worker_image_id":  "sha256:69ac465af488cc331a9996db617a7b2bfaf6e78e74910050bc4578f864d5ea64",
+                                                      "activity_delay_ms":  60000,
+                                                      "fixture_activity_enabled":  true,
+                                                      "scheduler_hold_after_acquire_ms":  1000,
+                                                      "worker_slots":  2,
+                                                      "runtime_engine_mode":  "disabled"
+                                                  },
+                                         "app2":  {
+                                                      "repo_commit":  "f7810da5b3f68a12299c358768b3c1fd734eb70d",
+                                                      "runtime_container_id":  "a9445dd40c93ffa42a2be2ad24173903232dfff41ffa9185252f5886535caa64",
+                                                      "runtime_started_at_utc":  "2026-09-23T10:36:59.112408728Z",
+                                                      "worker_container_id":  "08048aa27f58d33e21349fe414b31e982c76a4b799c38bfeab7c7bc1d776aaff",
+                                                      "worker_started_at_utc":  "2026-09-23T10:37:04.810450262Z",
+                                                      "runtime_image_id":  "sha256:2974d818506f87b023fb023fc21b5cb90fb6858296979a3e99b05723f17d155c",
+                                                      "worker_image_id":  "sha256:3fe4b4ec45017faae082b1c7120b396004acc15d38c0c757dcb936d45cfb6669",
+                                                      "activity_delay_ms":  1000,
+                                                      "fixture_activity_enabled":  true,
+                                                      "scheduler_hold_after_acquire_ms":  1000,
+                                                      "worker_slots":  2,
+                                                      "runtime_engine_mode":  "disabled"
+                                                  },
+                                         "lock_progress_activity_delay_ms":  1000,
+                                         "lock_progress_observation_timeout_seconds":  120,
+                                         "lock_holder_duration_seconds":  180,
+                                         "lock_timeout_seconds":  2,
+                                         "attempt_lease_seconds":  30
+                                     }
+               }
+}

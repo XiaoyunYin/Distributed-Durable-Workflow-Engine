@@ -72,6 +72,17 @@ gone. The recovery harness must separately record fault-command time, takeover
 time, and first useful progress, and must confirm network/process/backend state
 rather than treating a requested command as proof that a fault occurred.
 
+After recording the Terraform state list and AWS absence checks, remove local
+state, backups, and plan files before publishing the closeout. The final local
+artifact check must recursively find no `*.tfstate*` or `*.tfplan` files,
+including under Terraform's ignored `.terraform/` directory:
+
+```powershell
+$terraformArtifacts = @(Get-ChildItem -LiteralPath deploy/aws -File -Force -Recurse |
+  Where-Object { $_.Name -like "*.tfstate*" -or $_.Extension -eq ".tfplan" })
+if ($terraformArtifacts.Count -ne 0) { throw "Sensitive Terraform artifacts remain." }
+```
+
 ## Multi-host fault harness
 
 Before using AWS, run the local PowerShell 5.1-compatible partition self-test;

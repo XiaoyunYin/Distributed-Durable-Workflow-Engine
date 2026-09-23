@@ -1,0 +1,14 @@
+{
+    "schema_version":  "dur049-multihost.v6",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T10:13:18.2358505Z",
+    "git_commit":  "bb907f42186e3202be1d2edf6e638cf411a28b1d",
+    "scenarios":  [
+                      "lock-held"
+                  ],
+    "failed_at_utc":  "2026-09-23T10:13:18.2761005Z",
+    "error":  "Refusing to overwrite existing evidence: D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\portfolio\\cloud-recovery\\dur049-aws-20260923-round78-lock-held",
+    "results":  [
+
+                ]
+}

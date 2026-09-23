@@ -152,6 +152,16 @@
       "requires_database": false
     },
     {
+      "id": "dur049-stale-attempt-result-api-fence",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "if nodeCurrentAttempt == nil || *nodeCurrentAttempt != input.AttemptNumber || !current || state != AttemptClaimed {",
+      "new": "if false { // mutation: accept a result for a superseded attempt",
+      "command": ["go", "test", "-race", "-p", "1", "./internal/api", "-run", "^TestM2WorkerAPIConcurrencyRetriesAndStaleResult$", "-count=1", "-v"],
+      "expected": "stale API result = 200",
+      "requires_database": true
+    },
+    {
       "id": "compose-lock-timeout",
       "kind": "configuration_tripwire",
       "file": "deploy/local/compose.yaml",

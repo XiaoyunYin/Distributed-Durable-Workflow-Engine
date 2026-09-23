@@ -1,0 +1,13 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T02:23:27.1649076Z",
+    "git_commit":  "fdc3ea9e48d01c0c3d0d9a053bdc9b8e5c12a8b7",
+    "scenarios":  [
+                      "host"
+                  ],
+    "error":  "SSM command e8686aec-cd67-4797-8ee7-d3eaa4d3d64c on i-0425341ebe28700e3 ended Failed: ERROR:  syntax error at or near \")\"\nLINE 1: SELECT COALESCE(owner_id::text,), epoch, COALESCE(lease_expi...\n                                       ^\nfailed to run commands: exit status 1 ",
+    "results":  [
+
+                ]
+}

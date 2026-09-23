@@ -1,0 +1,13 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T02:09:20.9203579Z",
+    "git_commit":  "61b83030dddfcd831c47d974ffa2868cb317ba94",
+    "scenarios":  [
+                      "host"
+                  ],
+    "error":  "Workflow dur049-host-20260922-r was not found in PostgreSQL.",
+    "results":  [
+
+                ]
+}

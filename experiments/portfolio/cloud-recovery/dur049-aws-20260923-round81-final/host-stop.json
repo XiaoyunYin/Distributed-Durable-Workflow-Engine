@@ -1,0 +1,317 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "PASS",
+    "fault":  "application-host-forced-stop-and-restart",
+    "workflow_id":  "dur049-r71-host-f48a2",
+    "partition_id":  15,
+    "source_commit":  "48e42e32ff3588d4fd42c8c8a57e4312f941b82a",
+    "started_at_utc":  "2026-09-23T10:44:52.6273645Z",
+    "stage":  "complete",
+    "updated_at_utc":  "2026-09-23T10:48:35.3023676Z",
+    "original_owner_id":  "97d14c04-1eca-4d93-8cd7-eefd84fb1b59",
+    "original_epoch":  10,
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 10:45:23.198185+00",
+                            "updated_at":  "2026-09-23 10:45:23.200203+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-0"
+                       },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "pre_fault_epoch_boundary":  23,
+    "host_stopped_at_utc":  "2026-09-23T10:45:57.7175253Z",
+    "first_new_owner_acquisition":  {
+                                        "acquisition_id":  "5e61fe7e-3427-4018-86f5-a0a46923fdda",
+                                        "owner_id":  "5c6896d7-acf2-42f3-94bd-c6ca33a9a320",
+                                        "epoch":  28,
+                                        "database_recorded_at_utc":  "2026-09-23T10:46:02.7569300Z",
+                                        "controller_observed_at_utc":  "2026-09-23T10:46:17.4654806Z",
+                                        "observed_at":  "2026-09-23T10:46:17.4654806Z",
+                                        "lease_expires_at_utc":  "2026-09-23T10:46:17.7394360Z",
+                                        "fault_observed_at_utc":  "2026-09-23T10:45:57.7175253+00:00"
+                                    },
+    "first_useful_progress":  {
+                                  "workflow":  {
+                                                   "state":  "SUCCEEDED",
+                                                   "revision":  8,
+                                                   "attempt_state":  "SUCCEEDED",
+                                                   "attempt_number":  2,
+                                                   "attempt_created_at":  "2026-09-23 10:46:39.119013+00",
+                                                   "updated_at":  "2026-09-23 10:47:39.547662+00"
+                                               },
+                                  "controller_observed_at_utc":  "2026-09-23T10:47:46.5957893Z",
+                                  "observed_at":  "2026-09-23T10:47:46.5957893Z",
+                                  "progress_definition":  "accepted result recorded for replacement attempt",
+                                  "transition":  {
+                                                     "revision":  5,
+                                                     "scheduler_epoch":  null,
+                                                     "reason":  "ATTEMPT_RESULT_RECORDED",
+                                                     "attempt_number":  2,
+                                                     "database_recorded_at_utc":  "2026-09-23T10:47:39.2760010Z",
+                                                     "actor_kind":  "worker"
+                                                 },
+                                  "timeout_replacement_transition":  {
+                                                                         "revision":  4,
+                                                                         "scheduler_epoch":  62,
+                                                                         "lease_acquisition_id":  "5ac0179f-783f-4dd4-8303-2bdb30eddef5",
+                                                                         "lease_owner_id":  "5c6896d7-acf2-42f3-94bd-c6ca33a9a320",
+                                                                         "lease_acquired_at_utc":  "2026-09-23T10:46:38.0862180Z",
+                                                                         "prior_attempt_state":  "TIMED_OUT",
+                                                                         "prior_attempt_is_current":  false,
+                                                                         "replacement_attempt_state":  "SUCCEEDED",
+                                                                         "replacement_attempt_is_current":  false
+                                                                     }
+                              },
+    "restarted_runtime_observed_after_host_stop":  "running|true|1160",
+    "deployed_stale_identity_smoke_test":  {
+                                               "workflow_id":  "dur049-r71-host-f48a2",
+                                               "partition_id":  15,
+                                               "owner_id":  "97d14c04-1eca-4d93-8cd7-eefd84fb1b59",
+                                               "epoch":  10,
+                                               "before_revision":  8,
+                                               "after_revision":  8,
+                                               "error":  "scheduler lease is not owned or has expired",
+                                               "stale_rejected":  true
+                                           },
+    "result":  {
+                   "fault":  "application-host-forced-stop-and-restart",
+                   "workflow_id":  "dur049-r71-host-f48a2",
+                   "partition_id":  15,
+                   "original_owner_id":  "97d14c04-1eca-4d93-8cd7-eefd84fb1b59",
+                   "original_epoch":  10,
+                   "pre_fault_lease_acquisition":  {
+                                                       "partition_id":  15,
+                                                       "acquisition_id":  "d9937e00-4f19-4a88-b436-8ef590018213",
+                                                       "owner_id":  "97d14c04-1eca-4d93-8cd7-eefd84fb1b59",
+                                                       "epoch":  10,
+                                                       "acquired_at_utc":  "2026-09-23T10:45:22.1728140Z",
+                                                       "lease_expires_at_utc":  "2026-09-23T10:45:37.1709670Z"
+                                                   },
+                   "pre_fault_epoch_boundary":  23,
+                   "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+                   "first_new_owner_acquisition":  {
+                                                       "acquisition_id":  "5e61fe7e-3427-4018-86f5-a0a46923fdda",
+                                                       "owner_id":  "5c6896d7-acf2-42f3-94bd-c6ca33a9a320",
+                                                       "epoch":  28,
+                                                       "database_recorded_at_utc":  "2026-09-23T10:46:02.7569300Z",
+                                                       "controller_observed_at_utc":  "2026-09-23T10:46:17.4654806Z",
+                                                       "lease_expires_at_utc":  "2026-09-23T10:46:17.7394360Z"
+                                                   },
+                   "recovery_transition_epoch":  62,
+                   "recovery_transition_revision":  4,
+                   "recovery_transition_is_durably_after_first_new_owner":  true,
+                   "fault_observed":  {
+                                          "stop_requested_at_utc":  "2026-09-23T10:45:38.7049696Z",
+                                          "stopped_at_utc":  "2026-09-23T10:45:57.7175253Z",
+                                          "stopped_state":  true,
+                                          "restart_requested_at_utc":  "2026-09-23T10:47:46.5957893Z",
+                                          "running_observed_at_utc":  "2026-09-23T10:47:54.1005947Z",
+                                          "ssm_online_after_restart":  true,
+                                          "restarted_runtime_observed":  "running|true|1160"
+                                      },
+                   "workflow_before":  {
+                                           "state":  "WAITING_ACTIVITY",
+                                           "revision":  3,
+                                           "attempt_state":  "CLAIMED",
+                                           "attempt_number":  1,
+                                           "attempt_created_at":  "2026-09-23 10:45:23.198185+00",
+                                           "updated_at":  "2026-09-23 10:45:23.200203+00"
+                                       },
+                   "workflow_after":  {
+                                          "state":  "SUCCEEDED",
+                                          "revision":  8,
+                                          "attempt_state":  "SUCCEEDED",
+                                          "attempt_number":  2,
+                                          "attempt_created_at":  "2026-09-23 10:46:39.119013+00",
+                                          "updated_at":  "2026-09-23 10:47:39.547662+00"
+                                      },
+                   "first_useful_progress":  {
+                                                 "definition":  "accepted result recorded for replacement attempt",
+                                                 "controller_observed_at_utc":  "2026-09-23T10:47:46.5957893Z",
+                                                 "workflow":  {
+                                                                  "state":  "SUCCEEDED",
+                                                                  "revision":  8,
+                                                                  "attempt_state":  "SUCCEEDED",
+                                                                  "attempt_number":  2,
+                                                                  "attempt_created_at":  "2026-09-23 10:46:39.119013+00",
+                                                                  "updated_at":  "2026-09-23 10:47:39.547662+00"
+                                                              }
+                                             },
+                   "recovery_ordering":  {
+                                             "first_new_owner_acquisition_id":  "5e61fe7e-3427-4018-86f5-a0a46923fdda",
+                                             "first_new_owner_id":  "5c6896d7-acf2-42f3-94bd-c6ca33a9a320",
+                                             "first_new_owner_epoch":  28,
+                                             "recovery_transition_acquisition_id":  "5ac0179f-783f-4dd4-8303-2bdb30eddef5",
+                                             "recovery_transition_owner_id":  "5c6896d7-acf2-42f3-94bd-c6ca33a9a320",
+                                             "recovery_transition_epoch":  62,
+                                             "timeout_replacement_revision":  4,
+                                             "accepted_result_revision":  5,
+                                             "durable_replacement_precedes_accepted_result":  true,
+                                             "controller_observation_times_are_diagnostic":  true
+                                         },
+                   "superseded_epoch_transitions_after_recovery_boundary":  0,
+                   "original_worker_late_result_observation":  {
+                                                                   "expected":  false,
+                                                                   "reason":  "The forced EC2 host stop terminated the original worker process before it could submit a late result."
+                                                               },
+                   "deployed_stale_identity_smoke_test":  {
+                                                              "workflow_id":  "dur049-r71-host-f48a2",
+                                                              "partition_id":  15,
+                                                              "owner_id":  "97d14c04-1eca-4d93-8cd7-eefd84fb1b59",
+                                                              "epoch":  10,
+                                                              "before_revision":  8,
+                                                              "after_revision":  8,
+                                                              "error":  "scheduler lease is not owned or has expired",
+                                                              "stale_rejected":  true
+                                                          },
+                   "attempts":  [
+                                    {
+                                        "attempt_number":  1,
+                                        "state":  "TIMED_OUT",
+                                        "is_current":  false,
+                                        "effect_class":  "PURE_ACTIVITY",
+                                        "outcome_disposition":  "NONE",
+                                        "result_recorded":  false,
+                                        "worker_id":  "worker-1-0",
+                                        "worker_request_id":  "worker-1-0:9121e64f-559c-4de2-a6c8-fb38adff3014",
+                                        "created_at_utc":  "2026-09-23T10:45:23.1981850Z",
+                                        "updated_at_utc":  "2026-09-23T10:46:39.1163790Z"
+                                    },
+                                    {
+                                        "attempt_number":  2,
+                                        "state":  "SUCCEEDED",
+                                        "is_current":  false,
+                                        "effect_class":  "PURE_ACTIVITY",
+                                        "outcome_disposition":  "KNOWN_SUCCESS",
+                                        "result_recorded":  true,
+                                        "worker_id":  "worker-2-1",
+                                        "worker_request_id":  "worker-2-1:ef627255-8a75-4ebc-912c-fb827dcd21d8",
+                                        "created_at_utc":  "2026-09-23T10:46:39.1190130Z",
+                                        "updated_at_utc":  "2026-09-23T10:47:39.2698280Z"
+                                    }
+                                ],
+                   "lease_acquisition_summary_after_pre_fault_epoch_boundary":  [
+                                                                                    {
+                                                                                        "owner_id":  "97d14c04-1eca-4d93-8cd7-eefd84fb1b59",
+                                                                                        "acquisition_count":  4,
+                                                                                        "first_epoch":  24,
+                                                                                        "last_epoch":  27,
+                                                                                        "first_database_recorded_at_utc":  "2026-09-23T10:45:36.4500770Z",
+                                                                                        "last_database_recorded_at_utc":  "2026-09-23T10:45:39.4925430Z"
+                                                                                    },
+                                                                                    {
+                                                                                        "owner_id":  "5c6896d7-acf2-42f3-94bd-c6ca33a9a320",
+                                                                                        "acquisition_count":  94,
+                                                                                        "first_epoch":  28,
+                                                                                        "last_epoch":  121,
+                                                                                        "first_database_recorded_at_utc":  "2026-09-23T10:46:02.7569300Z",
+                                                                                        "last_database_recorded_at_utc":  "2026-09-23T10:47:39.5857230Z"
+                                                                                    }
+                                                                                ],
+                   "obligations":  {
+                                       "workflow_reconciliation_items_total":  0,
+                                       "workflow_reconciliation_items_open":  0,
+                                       "global_reconciliation_items_total":  3,
+                                       "global_reconciliation_items_open":  3,
+                                       "database_reconciliation_items_total":  3,
+                                       "database_reconciliation_items_open":  3,
+                                       "workflow_outbox_rows":  7,
+                                       "workflow_outbox_pending_or_claimed":  0,
+                                       "database_outbox_rows":  207,
+                                       "database_outbox_pending_or_claimed":  0,
+                                       "workflow_effect_records":  0,
+                                       "workflow_duplicate_effect_calls":  0,
+                                       "observed_at_utc":  "2026-09-23T10:48:31.3526629Z",
+                                       "scope_note":  "Reconciliation counts include workflow-scoped items for this workflow, global NULL-workflow poison obligations, and a database-wide snapshot; outbox and effect counts are reported for this workflow and outbox pending counts also database-wide."
+                                   },
+                   "durable_invariant_checker":  {
+                                                     "live":  {
+                                                                  "valid":  true,
+                                                                  "violations":  [
+                                                                                     null
+                                                                                 ]
+                                                              },
+                                                     "offline":  {
+                                                                     "valid":  true,
+                                                                     "violations":  [
+                                                                                        null
+                                                                                    ]
+                                                                 },
+                                                     "fence":  {
+                                                                   "pre_fault_revision":  3,
+                                                                   "recovery_revision":  4,
+                                                                   "recovery_epoch":  62,
+                                                                   "superseded_epoch_transitions_after_recovery_boundary":  0,
+                                                                   "stale_attempt_number":  1,
+                                                                   "stale_attempt_found":  true,
+                                                                   "stale_attempt_current":  false,
+                                                                   "stale_result_recorded":  false
+                                                               },
+                                                     "snapshot":  "host-durable-trace.json"
+                                                 },
+                   "terminal_observed_at_utc":  "2026-09-23T10:48:17.0005476Z",
+                   "stop_requested_to_running_ms":  135395.625,
+                   "stop_observed_to_first_new_owner_acquisition_observed_ms":  19747.955,
+                   "stop_observed_to_first_useful_progress_observed_ms":  108878.264,
+                   "first_new_owner_acquisition_observed_to_first_useful_progress_observed_ms":  89130.309,
+                   "timestamp_semantics":  "Intervals use controller UTC observation times after 2-second polling; DB timestamps are transaction-recorded diagnostics, not commit times.",
+                   "first_useful_progress_transition":  {
+                                                            "revision":  5,
+                                                            "scheduler_epoch":  null,
+                                                            "reason":  "ATTEMPT_RESULT_RECORDED",
+                                                            "attempt_number":  2,
+                                                            "database_recorded_at_utc":  "2026-09-23T10:47:39.2760010Z",
+                                                            "actor_kind":  "worker"
+                                                        },
+                   "peer_mode":  "controller-started cold standby; app2 runtime is started after the host is observed stopped, not a continuously active peer",
+                   "recovery_timing_note":  "App2 is a controller-started standby, not a continuously active peer. Useful progress is bounded by the 30-second AttemptLease plus cold standby activation; it is not a host failover performance claim.",
+                   "configuration":  {
+                                         "activity":  "dur048.sleep",
+                                         "app1":  {
+                                                      "repo_commit":  "f7810da5b3f68a12299c358768b3c1fd734eb70d",
+                                                      "runtime_container_id":  "fa12423260deb5f71956cdf7fb7853f34dcece43d45024f6099cb118349bf9cc",
+                                                      "runtime_started_at_utc":  "2026-09-23T10:45:03.978105176Z",
+                                                      "worker_container_id":  "272dbf175d585a61d072be11870a2d6e0f253b39021a7a4f83ccdf8df89fddc6",
+                                                      "worker_started_at_utc":  "2026-09-23T10:45:09.670460121Z",
+                                                      "runtime_image_id":  "sha256:cdd66b022d25b6eeacf34a290f6bf81c1b2d5a4fa211b9f5d46d8b6de6ae20d5",
+                                                      "worker_image_id":  "sha256:69ac465af488cc331a9996db617a7b2bfaf6e78e74910050bc4578f864d5ea64",
+                                                      "activity_delay_ms":  60000,
+                                                      "fixture_activity_enabled":  true,
+                                                      "scheduler_hold_after_acquire_ms":  1000,
+                                                      "worker_slots":  2,
+                                                      "runtime_engine_mode":  "disabled"
+                                                  },
+                                         "app2":  {
+                                                      "repo_commit":  "f7810da5b3f68a12299c358768b3c1fd734eb70d",
+                                                      "runtime_container_id":  "cf9e9db9bfd15507db0bb0b5087fee39bbe854d263e188bbce215867f4ece849",
+                                                      "runtime_started_at_utc":  "2026-09-23T10:46:02.511937163Z",
+                                                      "worker_container_id":  "080a6c1b95bbbbf2b268d9212119254bbb2aa19b04a8078d0e4fbb3899692993",
+                                                      "worker_started_at_utc":  "2026-09-23T10:46:08.208951472Z",
+                                                      "runtime_image_id":  "sha256:2974d818506f87b023fb023fc21b5cb90fb6858296979a3e99b05723f17d155c",
+                                                      "worker_image_id":  "sha256:3fe4b4ec45017faae082b1c7120b396004acc15d38c0c757dcb936d45cfb6669",
+                                                      "activity_delay_ms":  60000,
+                                                      "fixture_activity_enabled":  true,
+                                                      "scheduler_hold_after_acquire_ms":  1000,
+                                                      "worker_slots":  2,
+                                                      "runtime_engine_mode":  "disabled"
+                                                  },
+                                         "fault_network_ports":  [
+                                                                     5432,
+                                                                     9092
+                                                                 ],
+                                         "network_chain":  "not_applicable_host_stop",
+                                         "network_match_states":  [
+                                                                      "not_applicable"
+                                                                  ]
+                                     },
+                   "limitation":  "Host-stop recovery is measured separately from the preserved-process network arm; database-host durability remains out of scope."
+               }
+}

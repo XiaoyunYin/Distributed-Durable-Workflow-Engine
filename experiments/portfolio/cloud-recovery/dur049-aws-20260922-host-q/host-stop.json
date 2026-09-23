@@ -1,0 +1,78 @@
+{
+    "fault":  "application-host-forced-stop-and-restart",
+    "workflow_id":  "dur049-host-20260922-q",
+    "partition_id":  13,
+    "original_owner_id":  "7b70e312-a749-4899-a84b-b2bef5cee711",
+    "original_epoch":  16,
+    "takeover_owner_id":  "e54e196d-7725-4e32-9b81-7858fc8e304b",
+    "takeover_epoch":  96,
+    "fault_observed":  {
+                           "stop_requested_at_utc":  "2026-09-23T01:59:45.5385544Z",
+                           "stopped_at_utc":  "2026-09-23T02:00:10.3205352Z",
+                           "stopped_state":  true,
+                           "restart_requested_at_utc":  "2026-09-23T02:00:28.6044927Z",
+                           "running_observed_at_utc":  "2026-09-23T02:00:36.2283617Z",
+                           "ssm_online_after_restart":  true
+                       },
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 01:59:27.974357+00",
+                            "updated_at":  "2026-09-23 01:59:27.976033+00"
+                        },
+    "workflow_after":  {
+                           "state":  "SUCCEEDED",
+                           "revision":  8,
+                           "attempt_state":  "SUCCEEDED",
+                           "attempt_number":  2,
+                           "attempt_created_at":  "2026-09-23 02:00:43.488538+00",
+                           "updated_at":  "2026-09-23 02:01:44.275933+00"
+                       },
+    "first_useful_progress":  {
+                                  "observed_at_utc":  "2026-09-23T02:00:43.4885380Z",
+                                  "workflow":  {
+                                                   "state":  "WAITING_ACTIVITY",
+                                                   "revision":  4,
+                                                   "attempt_state":  "CLAIMED",
+                                                   "attempt_number":  2,
+                                                   "attempt_created_at":  "2026-09-23 02:00:43.488538+00",
+                                                   "updated_at":  "2026-09-23 02:00:43.497975+00"
+                                               }
+                              },
+    "superseded_epoch_transitions_after_takeover":  0,
+    "takeover_observed_at_utc":  "2026-09-23T02:00:55.5392134Z",
+    "takeover_row_updated_at_utc":  "2026-09-23T02:00:53.0820680Z",
+    "terminal_completion_at_utc":  "2026-09-23T02:01:44.2759330Z",
+    "stop_requested_to_running_ms":  50689.807,
+    "running_to_takeover_ms":  16853.706,
+    "takeover_to_first_useful_progress_ms":  -9593.53,
+    "stop_requested_to_terminal_completion_ms":  118737.379,
+    "configuration":  {
+                          "activity":  "dur048.sleep",
+                          "app1":  {
+                                       "activity_delay_ms":  60000,
+                                       "fixture_activity_enabled":  true,
+                                       "scheduler_hold_after_acquire_ms":  1000,
+                                       "worker_slots":  2,
+                                       "runtime_engine_mode":  "disabled"
+                                   },
+                          "app2":  {
+                                       "activity_delay_ms":  60000,
+                                       "fixture_activity_enabled":  true,
+                                       "scheduler_hold_after_acquire_ms":  0,
+                                       "worker_slots":  2,
+                                       "runtime_engine_mode":  "disabled"
+                                   },
+                          "fault_network_ports":  [
+                                                      5432,
+                                                      9092
+                                                  ],
+                          "network_chain":  "not_applicable_host_stop",
+                          "network_match_states":  [
+                                                       "not_applicable"
+                                                   ]
+                      },
+    "limitation":  "Host-stop recovery is measured separately from the preserved-process network arm; database-host durability remains out of scope."
+}

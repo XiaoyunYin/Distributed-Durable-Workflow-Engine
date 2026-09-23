@@ -1,0 +1,12 @@
+{
+    "status":  "PASS",
+    "workflow_id":  "dur049-r71-epoch-fence-c93a9b0a",
+    "partition_id":  9,
+    "owner_id":  "3dec9b9c-a8b0-4347-9276-60a426e3e989",
+    "stale_epoch":  60,
+    "current_epoch":  61,
+    "same_owner":  true,
+    "before_revision":  1,
+    "after_revision":  1,
+    "error":  "scheduler lease is not owned or has expired"
+}

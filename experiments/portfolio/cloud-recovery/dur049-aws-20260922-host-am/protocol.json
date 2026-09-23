@@ -1,0 +1,13 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T03:25:50.2768663Z",
+    "git_commit":  "2da86ece151e76ce0f4b042fdc0ca056d9d00071",
+    "scenarios":  [
+                      "host"
+                  ],
+    "error":  "Recovery transition epoch 131 did not match observed takeover epoch 122.",
+    "results":  [
+
+                ]
+}

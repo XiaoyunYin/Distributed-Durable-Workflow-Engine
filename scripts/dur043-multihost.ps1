@@ -1609,12 +1609,15 @@ if ($SelfTest) {
     $staleHeartbeatLog = 'delivery control rejected workflow_id=wf-stale node_id=dur048.sleep attempt_number=7 worker_id=worker-1 operation=heartbeat code=STALE_ATTEMPT'
     $resultSubmissionLog = 'activity result submission workflow_id=wf-stale node_id=dur048.sleep iteration=0 attempt_number=7 worker_id=worker-1 attempt_state=SUCCEEDED payload_sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef outcome=rejected status=409 code=STALE_ATTEMPT retries=0'
     $resultSubmissionRetriedLog = $resultSubmissionLog.Replace('retries=0', 'retries=3')
+    $ordinaryAcceptedResultLog = 'activity result submission workflow_id=wf-stale node_id=dur048.sleep iteration=0 attempt_number=7 worker_id=worker-1 attempt_state=SUCCEEDED payload_sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef outcome=accepted status=200 retries=0'
     $genericLeaseLog = 'scheduler lease observation hold enabled'
     if (-not (Test-WorkerStaleResultLog $staleResultLog 'wf-stale' $staleLogAttempt)) { throw 'stale-result log self-test rejected the positive result-operation control' }
     if (Test-WorkerStaleResultLog $staleHeartbeatLog 'wf-stale' $staleLogAttempt) { throw 'stale-result log self-test accepted a heartbeat rejection as a result rejection' }
     if (Test-WorkerStaleResultLog $genericLeaseLog 'wf-stale' $staleLogAttempt) { throw 'stale-result log self-test accepted an unrelated lease log line' }
     if (-not (Test-WorkerResultSubmissionLog $resultSubmissionLog 'wf-stale' $staleLogAttempt)) { throw 'result-submission self-test rejected valid redacted metadata' }
     if (-not (Test-WorkerResultSubmissionLog $resultSubmissionRetriedLog 'wf-stale' $staleLogAttempt)) { throw 'result-submission self-test rejected a retried request with a recorded retry count' }
+    if (Test-WorkerStaleResultLog $ordinaryAcceptedResultLog 'wf-stale' $staleLogAttempt) { throw 'stale-result log self-test accepted an ordinary successful result as a stale rejection' }
+    if (Test-WorkerResultSubmissionLog $ordinaryAcceptedResultLog 'wf-stale' $staleLogAttempt) { throw 'stale-result submission self-test accepted an ordinary HTTP 200 result as a stale rejection' }
     if (Test-WorkerResultSubmissionLog ($resultSubmissionLog.Replace('payload_sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef','payload=plaintext')) 'wf-stale' $staleLogAttempt) { throw 'result-submission self-test accepted an unhashed payload' }
     $jsonSelfTestPath = Join-Path $RepoRoot ".scratch/dur043-json-selftest.json"
     try {
