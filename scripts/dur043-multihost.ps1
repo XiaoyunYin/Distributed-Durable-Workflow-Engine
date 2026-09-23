@@ -186,6 +186,7 @@ function Wait-FirstUsefulProgressAfterObservation([string]$DependencyInstanceId,
             if ($attemptCreatedAt -gt $ObservedAt) {
                 return [ordered]@{ workflow = $workflow; observed_at_utc = $attemptCreatedAt; observed_after_takeover = $true }
             }
+            Write-Host "takeover-progress timing: attempt=$($attemptCreatedAt.ToString('o')) observed=$($ObservedAt.ToString('o'))"
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
