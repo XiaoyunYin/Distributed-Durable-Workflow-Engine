@@ -177,16 +177,16 @@ function Wait-FirstUsefulProgress([string]$DependencyInstanceId, [string]$Workfl
     throw "Workflow $WorkflowID did not commit a replacement attempt after the fault."
 }
 
-function Wait-FirstUsefulProgressAfterObservation([string]$DependencyInstanceId, [string]$WorkflowID, [int64]$PreviousAttemptNumber, [DateTime]$ObservedAt, [int]$TimeoutSeconds = 150) {
+function Wait-FirstUsefulProgressAfterObservation([string]$DependencyInstanceId, [string]$WorkflowID, [int64]$PreviousAttemptNumber, [DateTime]$TakeoverAt, [int]$TimeoutSeconds = 150) {
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
         $workflow = Get-Workflow $DependencyInstanceId $WorkflowID
         if ($workflow.attempt_number -gt $PreviousAttemptNumber) {
             $attemptCreatedAt = ([DateTimeOffset]::Parse($workflow.attempt_created_at)).UtcDateTime
-            if ($attemptCreatedAt -gt $ObservedAt) {
+            if ($attemptCreatedAt -gt $TakeoverAt) {
                 return [ordered]@{ workflow = $workflow; observed_at_utc = $attemptCreatedAt; observed_after_takeover = $true }
             }
-            Write-Host "takeover-progress timing: attempt=$($attemptCreatedAt.ToString('o')) observed=$($ObservedAt.ToString('o'))"
+            Write-Host "takeover-progress timing: attempt=$($attemptCreatedAt.ToString('o')) takeover_row=$($TakeoverAt.ToString('o'))"
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
@@ -409,7 +409,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $script:NetworkRulesInserted = $false
     $reconnected = Observe-Runtime $App1
     $staleProbe = Invoke-StaleProbe $App1 $WorkflowID $partition $oldLease.owner_id $oldLease.epoch
-    $usefulProgress = Wait-FirstUsefulProgressAfterObservation $Dependency $WorkflowID $before.attempt_number $takeoverObservedAt 150
+    $usefulProgress = Wait-FirstUsefulProgressAfterObservation $Dependency $WorkflowID $before.attempt_number $takeoverAt 150
     $terminal = Wait-Workflow $Dependency $WorkflowID 150
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Network-isolated workflow did not recover to SUCCEEDED: $($terminal.state)" }
@@ -486,7 +486,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $newLease = $takeover.lease
     $takeoverObservedAt = $takeover.observed_at_utc
     $takeoverAt = ([DateTimeOffset]::Parse($newLease.updated_at)).UtcDateTime
-    $usefulProgress = Wait-FirstUsefulProgressAfterObservation $Dependency $WorkflowID $before.attempt_number $takeoverObservedAt 180
+    $usefulProgress = Wait-FirstUsefulProgressAfterObservation $Dependency $WorkflowID $before.attempt_number $takeoverAt 180
     $terminal = Wait-Workflow $Dependency $WorkflowID 180
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Host-stop workflow did not recover to SUCCEEDED: $($terminal.state)" }
