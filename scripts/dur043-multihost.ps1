@@ -323,14 +323,19 @@ ORDER BY attempt_number;
     return $attempts
 }
 
-function Get-LeaseAcquisitions([string]$DependencyInstanceId, [int]$PartitionID) {
-	$rows = Invoke-DbSql $DependencyInstanceId "SELECT acquisition_id::text, owner_id::text, epoch, acquired_at::text, lease_expires_at::text FROM engine.lease_acquisitions WHERE partition_id=$PartitionID ORDER BY epoch, acquired_at, acquisition_id;"
+function Get-LeaseAcquisitionSummary([string]$DependencyInstanceId, [int]$PartitionID, [int64]$AfterEpoch) {
+	# The runtime records an acquisition on every scheduler pass. Exporting the
+	# full lifetime history via SSM can exceed its output limit and truncate a
+	# row; keep this diagnostic bounded and preserve the exact first takeover in
+	# first_new_owner_acquisition separately.
+	$sql = "SELECT owner_id::text, count(*), min(epoch), max(epoch), min(acquired_at)::text, max(acquired_at)::text FROM engine.lease_acquisitions WHERE partition_id=$PartitionID AND epoch > $AfterEpoch GROUP BY owner_id ORDER BY min(epoch), owner_id;"
+	$rows = Invoke-DbSql $DependencyInstanceId $sql
 	$items = @()
 	foreach ($row in ($rows.Trim() -split "\r?\n")) {
 		if ([string]::IsNullOrWhiteSpace($row)) { continue }
-		$parts = $row -split '\|', 5
-		if ($parts.Count -lt 5) { throw "Lease acquisition ledger row is malformed: $row" }
-		$items += [ordered]@{ acquisition_id = $parts[0]; owner_id = $parts[1]; epoch = [int64]$parts[2]; database_recorded_at_utc = ([DateTimeOffset]::Parse($parts[3])).UtcDateTime.ToString("o"); lease_expires_at_utc = ([DateTimeOffset]::Parse($parts[4])).UtcDateTime.ToString("o") }
+		$parts = $row -split '\|', 6
+		if ($parts.Count -lt 6) { throw "Lease acquisition summary row is malformed: $row" }
+		$items += [ordered]@{ owner_id = $parts[0]; acquisition_count = [int64]$parts[1]; first_epoch = [int64]$parts[2]; last_epoch = [int64]$parts[3]; first_database_recorded_at_utc = ([DateTimeOffset]::Parse($parts[4])).UtcDateTime.ToString("o"); last_database_recorded_at_utc = ([DateTimeOffset]::Parse($parts[5])).UtcDateTime.ToString("o") }
 	}
 	return $items
 }
@@ -576,7 +581,17 @@ function Set-AppEnvironment([string]$InstanceId, [int]$DelayMS, [int]$HoldMS) {
 
 function Set-AppMode([string]$InstanceId, [int]$DelayMS, [int]$HoldMS) {
     Set-AppEnvironment $InstanceId $DelayMS $HoldMS
-    Start-AppRuntime $InstanceId
+    # A prior network-isolation arm can leave a long-lived Kafka connection
+    # waiting for the client's request timeout. Environment values may be
+    # unchanged in the next arm, so ordinary `compose up` could retain that
+    # stuck process. Reset the original app stack before creating a new fault
+    # fixture and wait for both services to become healthy.
+    $commands = @(
+        'set -e',
+        'cd /opt/durable-agent-execution-engine',
+        'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml up -d --force-recreate --wait --wait-timeout 240 runtime worker'
+    )
+    Send-Ssm $InstanceId $commands 300 | Out-Null
 }
 
 function Get-AppConfiguration([string]$InstanceId) {
@@ -588,6 +603,10 @@ function Get-AppConfiguration([string]$InstanceId) {
         'worker_cid=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml ps -q worker)',
         'test -n "$runtime_cid" && test -n "$worker_cid"',
         'printf "GIT_COMMIT=%s\n" "$(git rev-parse HEAD)"',
+        'printf "RUNTIME_CONTAINER_ID=%s\n" "$runtime_cid"',
+        'printf "RUNTIME_STARTED_AT=%s\n" "$(docker inspect --format ''{{.State.StartedAt}}'' "$runtime_cid")"',
+        'printf "WORKER_CONTAINER_ID=%s\n" "$worker_cid"',
+        'printf "WORKER_STARTED_AT=%s\n" "$(docker inspect --format ''{{.State.StartedAt}}'' "$worker_cid")"',
         'printf "RUNTIME_IMAGE_ID=%s\n" "$(docker inspect --format ''{{.Image}}'' "$runtime_cid")"',
         'printf "WORKER_IMAGE_ID=%s\n" "$(docker inspect --format ''{{.Image}}'' "$worker_cid")"'
     )
@@ -595,7 +614,7 @@ function Get-AppConfiguration([string]$InstanceId) {
     foreach ($line in ($output.Trim() -split "\r?\n")) {
         if ($line -match '^(?<name>[A-Z0-9_]+)=(?<value>.*)$') { $values[$Matches.name] = $Matches.value }
     }
-    foreach ($name in @('DUR048_ACTIVITY_DELAY_MS', 'DUR048_ALLOW_FIXTURE_ACTIVITY', 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS', 'WORKER_SLOTS', 'GIT_COMMIT', 'RUNTIME_IMAGE_ID', 'WORKER_IMAGE_ID')) {
+    foreach ($name in @('DUR048_ACTIVITY_DELAY_MS', 'DUR048_ALLOW_FIXTURE_ACTIVITY', 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS', 'WORKER_SLOTS', 'GIT_COMMIT', 'RUNTIME_CONTAINER_ID', 'RUNTIME_STARTED_AT', 'WORKER_CONTAINER_ID', 'WORKER_STARTED_AT', 'RUNTIME_IMAGE_ID', 'WORKER_IMAGE_ID')) {
         if (-not $values.ContainsKey($name)) { throw "Remote app configuration is missing $name." }
     }
     if ($values['GIT_COMMIT'] -notmatch '^[0-9a-f]{40}$') { throw "Remote app has no full checked-out source commit: $($values['GIT_COMMIT'])" }
@@ -604,6 +623,10 @@ function Get-AppConfiguration([string]$InstanceId) {
     }
     return [ordered]@{
         repo_commit = $values['GIT_COMMIT']
+        runtime_container_id = $values['RUNTIME_CONTAINER_ID']
+        runtime_started_at_utc = $values['RUNTIME_STARTED_AT']
+        worker_container_id = $values['WORKER_CONTAINER_ID']
+        worker_started_at_utc = $values['WORKER_STARTED_AT']
         runtime_image_id = $values['RUNTIME_IMAGE_ID']
         worker_image_id = $values['WORKER_IMAGE_ID']
         activity_delay_ms = [int]$values['DUR048_ACTIVITY_DELAY_MS']
@@ -969,7 +992,7 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
     $recoveryEpoch = [int64]$usefulProgress.timeout_replacement_transition.scheduler_epoch
     $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND revision > $recoveryRevision AND scheduler_epoch IS NOT NULL AND scheduler_epoch < $recoveryEpoch;")
     if ($historyCount -ne 0) { throw "A superseded epoch transition was committed after the durable recovery boundary: $historyCount" }
-    $acquisitions = @(Get-LeaseAcquisitions $Dependency $partition)
+    $acquisitionSummary = @(Get-LeaseAcquisitionSummary $Dependency $partition $epochBoundary)
     $attempts = @(Get-AttemptSummary $Dependency $WorkflowID)
     $obligations = Get-ObligationSummary $Dependency $WorkflowID
     $snapshotPath = Join-Path (Split-Path -Parent $OutputPath) "lock-held-durable-trace.json"
@@ -1000,7 +1023,7 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
         superseded_epoch_transitions_after_recovery_boundary = $historyCount
         deployed_stale_identity_smoke_test = $staleProbe
         attempts = $attempts
-        lease_acquisitions = $acquisitions
+        lease_acquisition_summary_after_pre_fault_epoch_boundary = $acquisitionSummary
         obligations = $obligations
         durable_invariant_checker = $checker
         lock_observed_to_first_new_owner_acquisition_observed_ms = DurationMilliseconds $lockObservedAt $takeover.observed_at
@@ -1077,7 +1100,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $checkpoint.first_useful_progress = $usefulProgress
     Save-EpisodeCheckpoint $OutputPath $checkpoint "reconnected-stale-rejection-and-progress-observed"
     $terminal = Wait-Workflow $Dependency $WorkflowID 150
-    $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
+    $terminalObservedAt = [DateTime]::UtcNow
     if ($terminal.state -ne "SUCCEEDED") { throw "Network-isolated workflow did not recover to SUCCEEDED: $($terminal.state)" }
     # Count only scheduler transitions after the durable recovery boundary.
     # Pre-fault pass epochs are expected to be lower and are not violations.
@@ -1085,7 +1108,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $recoveryEpoch = [int64]$usefulProgress.timeout_replacement_transition.scheduler_epoch
     $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND revision > $recoveryRevision AND scheduler_epoch IS NOT NULL AND scheduler_epoch < $recoveryEpoch;")
     if ($historyCount -ne 0) { throw "A scheduler transition with an epoch older than recovery was committed after the recovery boundary: $historyCount" }
-    $acquisitions = @(Get-LeaseAcquisitions $Dependency $partition)
+    $acquisitionSummary = @(Get-LeaseAcquisitionSummary $Dependency $partition $epochBoundary)
     $attempts = @(Get-AttemptSummary $Dependency $WorkflowID)
     $obligations = Get-ObligationSummary $Dependency $WorkflowID
     $snapshotPath = Join-Path (Split-Path -Parent $OutputPath) "network-durable-trace.json"
@@ -1114,17 +1137,17 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         original_worker_late_result_rejection = $lateResultObservation
         deployed_stale_identity_smoke_test = $staleProbe
         attempts = $attempts
-        lease_acquisitions = $acquisitions
+        lease_acquisition_summary_after_pre_fault_epoch_boundary = $acquisitionSummary
         obligations = $obligations
         durable_invariant_checker = $checker
-        terminal_completion_at_utc = $terminalAt.ToString("o")
+        terminal_observed_at_utc = $terminalObservedAt.ToString("o")
         fault_command_to_observed_ms = DurationMilliseconds $faultObserved.command_at_utc $faultObserved.observed_at_utc
         fault_observed_to_first_new_owner_acquisition_observed_ms = DurationMilliseconds $faultObserved.observed_at_utc $takeover.observed_at
         fault_observed_to_first_useful_progress_observed_ms = DurationMilliseconds $faultObserved.observed_at_utc $usefulProgress.observed_at
         first_new_owner_acquisition_observed_to_first_useful_progress_observed_ms = DurationMilliseconds $takeover.observed_at $usefulProgress.observed_at
         timestamp_semantics = "Intervals use controller UTC observation times after 2-second polling; DB timestamps are transaction-recorded diagnostics, not commit times."
         first_useful_progress_transition = $usefulProgress.transition
-        fault_observed_to_terminal_completion_ms = DurationMilliseconds $faultObserved.observed_at_utc $terminalAt
+        fault_observed_to_terminal_observed_ms = DurationMilliseconds $faultObserved.observed_at_utc $terminalObservedAt
         configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion"; session_termination_enabled = [bool]$TerminateDatabaseSessions; session_termination_method = $(if ($TerminateDatabaseSessions) { "pg_terminate_backend optional variant" } else { "none; network-only arm" }); route_fault = "app-host blackhole route for dependency /32"; dependency_source_ip = $AppPrivateIP }
         peer_mode = "controller-started cold standby; app2 runtime is started after confirmed isolation, not a continuously active peer"
         recovery_timing_note = "Useful progress follows the 30-second AttemptLease and activity execution; these measurements are bounded recovery observations for this configuration, not general failover performance."
@@ -1200,13 +1223,13 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $checkpoint.deployed_stale_identity_smoke_test = $staleProbe
     Save-EpisodeCheckpoint $OutputPath $checkpoint "restart-and-stale-rejection-observed"
     $terminal = Wait-Workflow $Dependency $WorkflowID 180
-    $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
+    $terminalObservedAt = [DateTime]::UtcNow
     if ($terminal.state -ne "SUCCEEDED") { throw "Host-stop workflow did not recover to SUCCEEDED: $($terminal.state)" }
     $recoveryRevision = [int64]$usefulProgress.timeout_replacement_transition.revision
     $recoveryEpoch = [int64]$usefulProgress.timeout_replacement_transition.scheduler_epoch
     $historyCount = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND revision > $recoveryRevision AND scheduler_epoch IS NOT NULL AND scheduler_epoch < $recoveryEpoch;")
     if ($historyCount -ne 0) { throw "A scheduler transition with an epoch older than recovery was committed after the recovery boundary: $historyCount" }
-    $acquisitions = @(Get-LeaseAcquisitions $Dependency $partition)
+    $acquisitionSummary = @(Get-LeaseAcquisitionSummary $Dependency $partition $epochBoundary)
     $attempts = @(Get-AttemptSummary $Dependency $WorkflowID)
     $obligations = Get-ObligationSummary $Dependency $WorkflowID
     $snapshotPath = Join-Path (Split-Path -Parent $OutputPath) "host-durable-trace.json"
@@ -1233,10 +1256,10 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         original_worker_late_result_observation = [ordered]@{ expected = $false; reason = "The forced EC2 host stop terminated the original worker process before it could submit a late result." }
         deployed_stale_identity_smoke_test = $staleProbe
         attempts = $attempts
-        lease_acquisitions = $acquisitions
+        lease_acquisition_summary_after_pre_fault_epoch_boundary = $acquisitionSummary
         obligations = $obligations
         durable_invariant_checker = $checker
-        terminal_completion_at_utc = $terminalAt.ToString("o")
+        terminal_observed_at_utc = $terminalObservedAt.ToString("o")
         stop_requested_to_running_ms = DurationMilliseconds $stopRequestedAt $runningObservedAt
         stop_observed_to_first_new_owner_acquisition_observed_ms = DurationMilliseconds $stoppedAt $takeover.observed_at
         stop_observed_to_first_useful_progress_observed_ms = DurationMilliseconds $stoppedAt $usefulProgress.observed_at
@@ -1388,6 +1411,7 @@ try {
             idle_in_transaction_session_timeout_seconds = 600
             claim_observation_semantics = "Wait for a durable CLAIMED attempt; scheduler lease identity is joined from the ATTEMPT_CREATED history epoch because the scheduler releases its lease at pass end."
             peer_mode = "controller-started cold standby for takeover arms; not a continuously active peer"
+            pre_fault_refresh = "The original app host runtime and worker are force-recreated and health-checked before each fault fixture; container IDs and start times are recorded in the episode configuration."
         }
         required_observation = "SSM, EC2, Docker, and PostgreSQL state must confirm each fault; controller intent alone never produces PASS."
         results = @()
