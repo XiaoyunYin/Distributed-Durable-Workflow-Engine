@@ -178,13 +178,13 @@ function Wait-FirstUsefulProgress([string]$DependencyInstanceId, [string]$Workfl
 }
 
 function Wait-FirstUsefulRecoveryProgress([string]$DependencyInstanceId, [string]$WorkflowID, [int64]$PreviousAttemptNumber, [int64]$OldEpoch, [int]$TimeoutSeconds = 150) {
-    $sql = "SELECT scheduler_epoch, reason, COALESCE(attempt_number,0), created_at::text FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND scheduler_epoch > $OldEpoch AND (reason='TIMEOUT_REPLACEMENT' OR COALESCE(attempt_number,0) > $PreviousAttemptNumber) ORDER BY revision LIMIT 1;"
+    $sql = "SELECT scheduler_epoch, reason, COALESCE(attempt_number,0), created_at::text FROM engine.transition_history WHERE workflow_id='$WorkflowID' AND reason='TIMEOUT_REPLACEMENT' ORDER BY revision LIMIT 1;"
     $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
     do {
         $row = Invoke-DbSql $DependencyInstanceId $sql
         $workflow = Get-Workflow $DependencyInstanceId $WorkflowID
         $parts = $row.Trim() -split '\|', 4
-        if ($parts.Count -eq 4 -and [int64]$parts[0] -gt $OldEpoch -and [int64]$parts[2] -gt $PreviousAttemptNumber) {
+        if ($parts.Count -eq 4 -and [int64]$parts[0] -gt $OldEpoch -and [int64]$parts[2] -ge $PreviousAttemptNumber) {
             $progressAt = ([DateTimeOffset]::Parse($parts[3])).UtcDateTime
             return [ordered]@{ workflow = $workflow; observed_at_utc = $progressAt; observed_after_takeover = $true; transition = [ordered]@{ scheduler_epoch = [int64]$parts[0]; reason = $parts[1]; attempt_number = [int64]$parts[2]; created_at_utc = $progressAt.ToString("o") } }
         }
