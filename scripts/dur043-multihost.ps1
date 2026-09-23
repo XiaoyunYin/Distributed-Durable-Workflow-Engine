@@ -187,6 +187,19 @@ function Invoke-DbSql([string]$DependencyInstanceId, [string]$Sql) {
     return (Send-Ssm $DependencyInstanceId @("set -e", $command)).Trim()
 }
 
+function Get-DbSqlTcpCommand([string]$Sql) {
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Sql))
+    # PostgreSQL reports tcp_keepalives_idle as zero for Unix-domain sessions,
+    # even when the server's TCP listener is configured. Read the setting over
+    # TCP and pass the existing password from the dependency container's env;
+    # never put the secret in an SSM command argument or its logged output.
+    return "cd /opt/durable-agent-execution-engine && set -a && . '$RemoteEnv' && set +a && export PGPASSWORD=`$POSTGRES_PASSWORD && echo '$encoded' | base64 -d | docker compose --env-file '$RemoteEnv' -f '$DependencyCompose' exec -e PGPASSWORD -T postgres psql -h 127.0.0.1 -U `$POSTGRES_USER -d `$POSTGRES_DB -At -f -"
+}
+
+function Invoke-DbSqlTcp([string]$DependencyInstanceId, [string]$Sql) {
+    return (Send-Ssm $DependencyInstanceId @("set -e", (Get-DbSqlTcpCommand $Sql))).Trim()
+}
+
 function Get-AppRuntimeComposeLookupCommand() {
     return "docker compose --env-file '$RemoteEnv' -f '$AppCompose' ps -q runtime"
 }
@@ -1498,7 +1511,7 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
         throw "Owner-lock marker does not identify the workflow's partition and original scheduler owner: $($lockMarker | ConvertTo-Json -Compress)"
     }
     if ($lockMarker.idle_timeout -ne '10s') { throw "Campaign runtime PostgreSQL session timeout is $($lockMarker.idle_timeout), expected 10s." }
-    $serverTimeouts = (Invoke-DbSql $Dependency "SELECT current_setting('idle_in_transaction_session_timeout') || '|' || current_setting('tcp_keepalives_idle');") -split '\|', 2
+    $serverTimeouts = (Invoke-DbSqlTcp $Dependency "SELECT current_setting('idle_in_transaction_session_timeout') || '|' || current_setting('tcp_keepalives_idle');") -split '\|', 2
     if ($serverTimeouts.Count -ne 2 -or $serverTimeouts[0] -ne '10s' -or $serverTimeouts[1] -ne '30') {
         throw "Dependency PostgreSQL server settings are not the declared reaping configuration: $($serverTimeouts -join '|')"
     }
@@ -1868,6 +1881,13 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
 
 if ($SelfTest) {
     if ($LockHolderDurationSeconds -lt 150) { throw "Lock-holder duration must leave margin over measured cold-standby progress latency." }
+    $tcpSettingsCommand = Get-DbSqlTcpCommand "SELECT current_setting('idle_in_transaction_session_timeout') || '|' || current_setting('tcp_keepalives_idle');"
+    if ($tcpSettingsCommand -notmatch 'psql -h 127\.0\.0\.1' -or
+        $tcpSettingsCommand -notmatch 'exec -e PGPASSWORD -T postgres' -or
+        $tcpSettingsCommand -notmatch 'export PGPASSWORD=\$POSTGRES_PASSWORD' -or
+        $tcpSettingsCommand -match 'PGPASSWORD=[^\s$]') {
+        throw 'Server keepalive verification must use TCP and must not expose the database password in command arguments.'
+    }
     $composeLookup = Get-AppRuntimeComposeLookupCommand
     $composeLookupLine = Get-AppRuntimeComposeLookupLine
     $lockProbeCommand = Get-AppRuntimePartitionLockProbeCommand 13
