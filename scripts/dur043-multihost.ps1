@@ -231,16 +231,20 @@ function Wait-Workflow([string]$DependencyInstanceId, [string]$WorkflowID, [int]
     throw "Workflow $WorkflowID did not reach a terminal state before the deadline."
 }
 
-function Set-AppMode([string]$InstanceId, [int]$DelayMS, [int]$HoldMS) {
+function Set-AppEnvironment([string]$InstanceId, [int]$DelayMS, [int]$HoldMS) {
     $commands = @(
         "set -e",
         "cd /opt/durable-agent-execution-engine",
         "grep -q '^DUR048_ACTIVITY_DELAY_MS=' deploy/aws/.env && sed -i 's/^DUR048_ACTIVITY_DELAY_MS=.*/DUR048_ACTIVITY_DELAY_MS=$DelayMS/' deploy/aws/.env || echo 'DUR048_ACTIVITY_DELAY_MS=$DelayMS' >> deploy/aws/.env",
         "grep -q '^DUR048_ALLOW_FIXTURE_ACTIVITY=' deploy/aws/.env && sed -i 's/^DUR048_ALLOW_FIXTURE_ACTIVITY=.*/DUR048_ALLOW_FIXTURE_ACTIVITY=1/' deploy/aws/.env || echo 'DUR048_ALLOW_FIXTURE_ACTIVITY=1' >> deploy/aws/.env",
-        "grep -q '^RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=' deploy/aws/.env && sed -i 's/^RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=.*/RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=$HoldMS/' deploy/aws/.env || echo 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=$HoldMS' >> deploy/aws/.env",
-        "docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml up -d --force-recreate --wait runtime worker"
+        "grep -q '^RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=' deploy/aws/.env && sed -i 's/^RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=.*/RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=$HoldMS/' deploy/aws/.env || echo 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=$HoldMS' >> deploy/aws/.env"
     )
     Send-Ssm $InstanceId $commands 300 | Out-Null
+}
+
+function Set-AppMode([string]$InstanceId, [int]$DelayMS, [int]$HoldMS) {
+    Set-AppEnvironment $InstanceId $DelayMS $HoldMS
+    Start-AppRuntime $InstanceId
 }
 
 function Get-AppConfiguration([string]$InstanceId) {
@@ -271,6 +275,10 @@ function Stop-AppRuntime([string]$InstanceId) {
 
 function Start-AppRuntime([string]$InstanceId) {
     Send-Ssm $InstanceId @("set -e", "cd /opt/durable-agent-execution-engine", "docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml up -d --wait runtime worker") 300 | Out-Null
+}
+
+function Start-AppRuntimeNoWait([string]$InstanceId) {
+    Send-Ssm $InstanceId @("set -e", "cd /opt/durable-agent-execution-engine", "docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml up -d runtime worker") 120 | Out-Null
 }
 
 function Observe-Runtime([string]$InstanceId) {
@@ -389,7 +397,8 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     if ($before.attempt_state -ne "CLAIMED") { throw "Network fixture must be observed CLAIMED before isolation; observed $($before.attempt_state)." }
     $script:NetworkRulesInserted = $true
     $faultObserved = Insert-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP
-    Set-AppMode $App2 $FixtureDelayMS $TakeoverObservationHoldMS
+    Set-AppEnvironment $App2 $FixtureDelayMS $TakeoverObservationHoldMS
+    Start-AppRuntimeNoWait $App2
     $app2Configuration = Get-AppConfiguration $App2
     $takeover = Wait-LeaseTakeover $Dependency $partition $oldLease.owner_id $oldLease.epoch
     $newLease = $takeover.lease
@@ -459,7 +468,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $stoppedObserved = $true
     $stoppedAt = [DateTime]::UtcNow
     $script:App1WasStopped = $true
-    Set-AppMode $App2 $FixtureDelayMS $TakeoverObservationHoldMS
+    Set-AppEnvironment $App2 $FixtureDelayMS $TakeoverObservationHoldMS
     $app2Configuration = Get-AppConfiguration $App2
     $restartRequestedAt = [DateTime]::UtcNow
     Invoke-Aws @("ec2", "start-instances", "--instance-ids", $App1) | Out-Null
@@ -471,7 +480,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     if ($state -ne "running") { throw "The application host did not return to running state: $state" }
     $runningObservedAt = [DateTime]::UtcNow
     Wait-Ssm $App1
-    Start-AppRuntime $App2
+    Start-AppRuntimeNoWait $App2
     $takeover = Wait-LeaseTakeover $Dependency $partition $oldLease.owner_id $oldLease.epoch
     $newLease = $takeover.lease
     $takeoverObservedAt = $takeover.observed_at_utc
