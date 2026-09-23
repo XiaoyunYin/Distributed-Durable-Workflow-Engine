@@ -23,7 +23,46 @@ func TestRuntimeDispatchRecoveryAndDeliveryFence(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer store.Close()
-	id := "runtime-test-" + state.NewID()
+	ownerID := state.NewID()
+	var reservedLease state.Lease
+	reserved := false
+	for partitionID := int16(0); partitionID < 16; partitionID++ {
+		lease, acquired, acquireErr := store.AcquireLease(ctx, partitionID, ownerID, time.Minute)
+		if acquireErr != nil {
+			t.Fatalf("reserve a runtime-test partition: %v", acquireErr)
+		}
+		if acquired {
+			reservedLease, reserved = lease, true
+			break
+		}
+	}
+	if !reserved {
+		t.Fatal("could not reserve a free partition for runtime dispatch test")
+	}
+	defer func() {
+		cleanup, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		if releaseErr := store.ReleaseLease(cleanup, state.LeaseRef{
+			PartitionID: reservedLease.PartitionID, OwnerID: reservedLease.OwnerID, Epoch: reservedLease.Epoch,
+		}); releaseErr != nil && !errors.Is(releaseErr, state.ErrLeaseNotOwned) {
+			t.Errorf("release reserved runtime-test partition: %v", releaseErr)
+		}
+	}()
+	id := ""
+	for attempts := 0; attempts < 512; attempts++ {
+		candidate := "runtime-test-" + state.NewID()
+		mapped, mapErr := partition.ID(candidate)
+		if mapErr != nil {
+			t.Fatalf("map runtime-test workflow partition: %v", mapErr)
+		}
+		if int16(mapped) == reservedLease.PartitionID {
+			id = candidate
+			break
+		}
+	}
+	if id == "" {
+		t.Fatalf("could not generate workflow ID for reserved partition %d", reservedLease.PartitionID)
+	}
 	t.Setenv("RUNTIME_NAMESPACE", id)
 	if err := store.CreateDefinition(ctx, state.DefinitionInput{DefinitionID: id, Version: 1, DefinitionHash: id,
 		Graph:            []byte(`{"entry":"pure.echo","nodes":[{"id":"pure.echo","kind":"activity","next":"done"},{"id":"done","kind":"success"}]}`),
@@ -35,7 +74,7 @@ func TestRuntimeDispatchRecoveryAndDeliveryFence(t *testing.T) {
 		_, _ = store.Pool().Exec(context.Background(), `DELETE FROM engine.workflow_definitions WHERE definition_id=$1`, id)
 		_, _ = store.Pool().Exec(context.Background(), `DELETE FROM engine.consumer_offsets WHERE consumer_id=$1`, id)
 	}()
-	part, _ := partition.ID(id)
+	part := uint64(reservedLease.PartitionID)
 	if _, err := store.CreateWorkflow(ctx, state.CreateWorkflowInput{WorkflowID: id, Namespace: id, SubmissionKey: id,
 		SubmissionPayloadHash: "sub-v1:" + id, DefinitionID: id, DefinitionVersion: 1, PartitionID: int16(part), InitialNodeID: "pure.echo",
 		InitialInput: []byte(`{"value":7}`), ActorID: "runtime-test"}); err != nil {
@@ -43,6 +82,11 @@ func TestRuntimeDispatchRecoveryAndDeliveryFence(t *testing.T) {
 	}
 	runner := engine.New(store, nil)
 	runner.ExternalActivities = true
+	// The integration database is shared by many tests with a 16-partition
+	// lease table. Pin this runtime's owner to the lease reserved above so an
+	// unrelated fixture cannot make the dispatch test fail as a false fencing
+	// error merely by landing on the same partition.
+	runner.OwnerID = ownerID
 	runner.AttemptLease = time.Minute
 	if _, err := runner.Run(ctx, id); err != nil {
 		t.Fatal(err)
