@@ -426,18 +426,28 @@ function Get-AppConfiguration([string]$InstanceId) {
         'set -e',
         'cd /opt/durable-agent-execution-engine',
         "grep -E '^(DUR048_ACTIVITY_DELAY_MS|DUR048_ALLOW_FIXTURE_ACTIVITY|RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS|WORKER_SLOTS)=' deploy/aws/.env",
-        'printf "GIT_COMMIT=%s\n" "$(git rev-parse HEAD)"'
+        'runtime_cid=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml ps -q runtime)',
+        'worker_cid=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml ps -q worker)',
+        'test -n "$runtime_cid" && test -n "$worker_cid"',
+        'printf "GIT_COMMIT=%s\n" "$(git rev-parse HEAD)"',
+        'printf "RUNTIME_IMAGE_ID=%s\n" "$(docker inspect --format ''{{.Image}}'' "$runtime_cid")"',
+        'printf "WORKER_IMAGE_ID=%s\n" "$(docker inspect --format ''{{.Image}}'' "$worker_cid")"'
     )
     $values = @{}
     foreach ($line in ($output.Trim() -split "\r?\n")) {
         if ($line -match '^(?<name>[A-Z0-9_]+)=(?<value>.*)$') { $values[$Matches.name] = $Matches.value }
     }
-    foreach ($name in @('DUR048_ACTIVITY_DELAY_MS', 'DUR048_ALLOW_FIXTURE_ACTIVITY', 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS', 'WORKER_SLOTS', 'GIT_COMMIT')) {
+    foreach ($name in @('DUR048_ACTIVITY_DELAY_MS', 'DUR048_ALLOW_FIXTURE_ACTIVITY', 'RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS', 'WORKER_SLOTS', 'GIT_COMMIT', 'RUNTIME_IMAGE_ID', 'WORKER_IMAGE_ID')) {
         if (-not $values.ContainsKey($name)) { throw "Remote app configuration is missing $name." }
     }
     if ($values['GIT_COMMIT'] -notmatch '^[0-9a-f]{40}$') { throw "Remote app has no full checked-out source commit: $($values['GIT_COMMIT'])" }
+    foreach ($name in @('RUNTIME_IMAGE_ID', 'WORKER_IMAGE_ID')) {
+        if ($values[$name] -notmatch '^sha256:[0-9a-f]{64}$') { throw "Remote app reports an invalid image ID for ${name}: $($values[$name])" }
+    }
     return [ordered]@{
         repo_commit = $values['GIT_COMMIT']
+        runtime_image_id = $values['RUNTIME_IMAGE_ID']
+        worker_image_id = $values['WORKER_IMAGE_ID']
         activity_delay_ms = [int]$values['DUR048_ACTIVITY_DELAY_MS']
         fixture_activity_enabled = ([int]$values['DUR048_ALLOW_FIXTURE_ACTIVITY']) -eq 1
         scheduler_hold_after_acquire_ms = [int]$values['RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS']
