@@ -12,12 +12,7 @@ import threading
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from faults.client import FailpointClient
-
 from workers import __version__
-from workers.kafka_worker import start_pool
-from workers.registry import default_registry
-from workers.runner import ActivityTask, runner_for_url
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -45,6 +40,10 @@ class HealthHandler(BaseHTTPRequestHandler):
 
 
 def run() -> None:
+    from faults.client import FailpointClient
+
+    from workers.kafka_worker import start_pool
+
     host, port_text = os.getenv("WORKER_ADDR", "0.0.0.0:8081").rsplit(":", 1)
     server = ThreadingHTTPServer((host, int(port_text)), HealthHandler)
     logging.basicConfig(level=logging.INFO)
@@ -101,6 +100,9 @@ def healthcheck() -> None:
 
 
 def run_task(arguments: list[str]) -> None:
+    from workers.registry import default_registry
+    from workers.runner import ActivityTask, runner_for_url
+
     parser = argparse.ArgumentParser(prog="python -m workers run-task")
     parser.add_argument(
         "--control-url", default=os.getenv("CONTROL_API_URL", "http://127.0.0.1:8080")
