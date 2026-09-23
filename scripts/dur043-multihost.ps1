@@ -474,6 +474,13 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $script:App1WasStopped = $true
     Set-AppEnvironment $App2 $FixtureDelayMS $TakeoverObservationHoldMS
     $app2Configuration = Get-AppConfiguration $App2
+    Start-AppRuntimeNoWait $App2
+    $takeover = Wait-LeaseTakeover $Dependency $partition $oldLease.owner_id $oldLease.epoch
+    $newLease = $takeover.lease
+    $takeoverObservedAt = $takeover.observed_at_utc
+    $takeoverAt = ([DateTimeOffset]::Parse($newLease.updated_at)).UtcDateTime
+    $usefulProgress = Wait-FirstUsefulRecoveryProgress $Dependency $WorkflowID $before.attempt_number $oldLease.epoch 180
+    if ($usefulProgress.transition.scheduler_epoch -ne $newLease.epoch) { throw "Recovery transition epoch $($usefulProgress.transition.scheduler_epoch) did not match observed takeover epoch $($newLease.epoch)." }
     $restartRequestedAt = [DateTime]::UtcNow
     Invoke-Aws @("ec2", "start-instances", "--instance-ids", $App1) | Out-Null
     $deadline = (Get-Date).AddMinutes(5)
@@ -484,12 +491,8 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     if ($state -ne "running") { throw "The application host did not return to running state: $state" }
     $runningObservedAt = [DateTime]::UtcNow
     Wait-Ssm $App1
-    Start-AppRuntimeNoWait $App2
-    $takeover = Wait-LeaseTakeover $Dependency $partition $oldLease.owner_id $oldLease.epoch
-    $newLease = $takeover.lease
-    $takeoverObservedAt = $takeover.observed_at_utc
-    $takeoverAt = ([DateTimeOffset]::Parse($newLease.updated_at)).UtcDateTime
-    $usefulProgress = Wait-FirstUsefulRecoveryProgress $Dependency $WorkflowID $before.attempt_number $oldLease.epoch 180
+    $originalRuntimeObserved = Observe-Runtime $App1
+    $staleProbe = Invoke-StaleProbe $App1 $WorkflowID $partition $oldLease.owner_id $oldLease.epoch
     $terminal = Wait-Workflow $Dependency $WorkflowID 180
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Host-stop workflow did not recover to SUCCEEDED: $($terminal.state)" }
@@ -505,16 +508,17 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         original_epoch = $oldLease.epoch
         takeover_owner_id = $newLease.owner_id
         takeover_epoch = $newLease.epoch
-        fault_observed = [ordered]@{ stop_requested_at_utc = $stopRequestedAt.ToString("o"); stopped_at_utc = $stoppedAt.ToString("o"); stopped_state = $stoppedObserved; restart_requested_at_utc = $restartRequestedAt.ToString("o"); running_observed_at_utc = $runningObservedAt.ToString("o"); ssm_online_after_restart = $true }
+        fault_observed = [ordered]@{ stop_requested_at_utc = $stopRequestedAt.ToString("o"); stopped_at_utc = $stoppedAt.ToString("o"); stopped_state = $stoppedObserved; restart_requested_at_utc = $restartRequestedAt.ToString("o"); running_observed_at_utc = $runningObservedAt.ToString("o"); ssm_online_after_restart = $true; original_runtime_observed = $originalRuntimeObserved }
         workflow_before = $before
         workflow_after = $terminal
         first_useful_progress = [ordered]@{ observed_at_utc = $usefulProgress.observed_at_utc.ToString("o"); workflow = $usefulProgress.workflow }
         superseded_epoch_transitions_after_takeover = $historyCount
+        stale_rejection = $staleProbe
         takeover_observed_at_utc = $takeoverObservedAt.ToString("o")
         takeover_row_updated_at_utc = $takeoverAt.ToString("o")
         terminal_completion_at_utc = $terminalAt.ToString("o")
         stop_requested_to_running_ms = DurationMilliseconds $stopRequestedAt $runningObservedAt
-        running_to_takeover_ms = DurationMilliseconds $runningObservedAt $takeoverObservedAt
+        takeover_to_original_reconnect_ms = DurationMilliseconds $takeoverObservedAt $runningObservedAt
         stop_requested_to_first_useful_progress_ms = DurationMilliseconds $stopRequestedAt $usefulProgress.observed_at_utc
         takeover_to_first_useful_progress_ms = $null
         takeover_to_first_useful_progress_note = "The exact lease takeover instant is not persisted independently; TIMEOUT_REPLACEMENT is the first committed transition by the new epoch and stop-to-progress is measured directly."
