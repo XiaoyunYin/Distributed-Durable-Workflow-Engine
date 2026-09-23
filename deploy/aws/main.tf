@@ -166,7 +166,7 @@ resource "aws_iam_instance_profile" "ssm" {
 resource "aws_instance" "dependency" {
   depends_on                  = [aws_iam_role_policy_attachment.postgres_secret_read]
   ami                         = var.ami_id
-  instance_type               = var.instance_type
+  instance_type               = var.dependency_instance_type
   subnet_id                   = aws_subnet.public[0].id
   vpc_security_group_ids      = [aws_security_group.dependency.id]
   associate_public_ip_address = true

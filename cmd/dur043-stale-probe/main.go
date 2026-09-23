@@ -17,14 +17,17 @@ import (
 )
 
 type probeResult struct {
-	WorkflowID     string `json:"workflow_id"`
-	PartitionID    int16  `json:"partition_id"`
-	OwnerID        string `json:"owner_id"`
-	Epoch          int64  `json:"epoch"`
-	BeforeRevision int64  `json:"before_revision"`
-	AfterRevision  int64  `json:"after_revision"`
-	Error          string `json:"error"`
-	StaleRejected  bool   `json:"stale_rejected"`
+	WorkflowID          string `json:"workflow_id"`
+	PartitionID         int16  `json:"partition_id"`
+	OwnerID             string `json:"owner_id"`
+	Epoch               int64  `json:"epoch"`
+	BeforeRevision      int64  `json:"before_revision"`
+	AfterRevision       int64  `json:"after_revision"`
+	Error               string `json:"error"`
+	StaleRejected       bool   `json:"stale_rejected"`
+	ResultAttemptNumber int64  `json:"result_attempt_number,omitempty"`
+	ResultError         string `json:"result_error,omitempty"`
+	ResultRejected      bool   `json:"result_rejected,omitempty"`
 }
 
 func main() {
@@ -32,6 +35,10 @@ func main() {
 	partitionID := flag.Int("partition-id", -1, "partition captured before takeover")
 	ownerID := flag.String("owner-id", "", "owner captured before takeover")
 	epoch := flag.Int64("epoch", 0, "epoch captured before takeover")
+	nodeID := flag.String("node-id", "", "superseded attempt node for an optional late-result probe")
+	iteration := flag.Int("iteration", 0, "superseded attempt iteration for an optional late-result probe")
+	attemptNumber := flag.Int64("attempt-number", 0, "superseded attempt number for an optional late-result probe")
+	claimToken := flag.String("claim-token", "", "superseded attempt claim token for an optional late-result probe")
 	flag.Parse()
 	if *workflowID == "" || *partitionID < 0 || *ownerID == "" || *epoch <= 0 {
 		fatal("workflow-id, partition-id, owner-id, and a positive epoch are required")
@@ -74,11 +81,27 @@ func main() {
 		fatal(readErr.Error())
 	}
 	result.AfterRevision = workflowAfter.Revision
-	if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
-		fatal(err.Error())
-	}
 	if !result.StaleRejected || result.BeforeRevision != result.AfterRevision {
 		fatal("stale owner transition was not rejected without a durable revision change")
+	}
+	if *nodeID != "" || *attemptNumber != 0 || *claimToken != "" {
+		if *nodeID == "" || *attemptNumber <= 0 || *claimToken == "" {
+			fatal("node-id, positive attempt-number, and claim-token are required together")
+		}
+		result.ResultAttemptNumber = *attemptNumber
+		_, resultErr := store.RecordResultReceipt(ctx, state.ResultInput{
+			WorkflowID: workflow.WorkflowID, NodeID: *nodeID, Iteration: *iteration,
+			AttemptNumber: *attemptNumber, ClaimToken: *claimToken,
+			AttemptState: state.AttemptSucceeded, Payload: json.RawMessage(`{"dur043":"late-result"}`),
+		})
+		result.ResultError = fmt.Sprint(resultErr)
+		result.ResultRejected = errors.Is(resultErr, state.ErrAttemptNotCurrent) || errors.Is(resultErr, state.ErrLeaseNotOwned)
+		if !result.ResultRejected {
+			fatal("superseded attempt result was not rejected: " + result.ResultError)
+		}
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
+		fatal(err.Error())
 	}
 }
 

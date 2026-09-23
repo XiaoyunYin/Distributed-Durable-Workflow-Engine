@@ -69,9 +69,15 @@ variable "admin_cidrs" {
 }
 
 variable "instance_type" {
-  description = "Small bounded instance type for all three hosts."
+  description = "Small bounded instance type for the two application hosts."
   type        = string
   default     = "t3.micro"
+}
+
+variable "dependency_instance_type" {
+  description = "Bounded instance type for the dependency host."
+  type        = string
+  default     = "t3.small"
 }
 
 variable "root_volume_size_gb" {

@@ -481,6 +481,13 @@ func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID str
 		WHERE partition_id = $1`, partitionID, lease.OwnerID, lease.Epoch, lease.LeaseExpiresAt); err != nil {
 		return Lease{}, false, fmt.Errorf("acquire partition lease: %w", err)
 	}
+	if _, err := tx.Exec(ctx, `
+		INSERT INTO engine.lease_acquisitions
+			(acquisition_id, partition_id, owner_id, epoch, lease_expires_at, acquired_at)
+		VALUES ($1, $2, $3, $4, $5, clock_timestamp())`,
+		NewID(), lease.PartitionID, lease.OwnerID, lease.Epoch, lease.LeaseExpiresAt); err != nil {
+		return Lease{}, false, fmt.Errorf("record lease acquisition: %w", err)
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return Lease{}, false, err
 	}

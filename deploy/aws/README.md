@@ -8,8 +8,9 @@ security group only; operator API access is optional and restricted by
 original host process without replacing it.
 
 The topology is intentionally not a production deployment. It is a reproducible
-experiment with a single dependency host, one Kafka broker, bounded `t3.micro`
-instances, encrypted gp3 roots, and an explicit expiration tag. It cannot
+experiment with a single dependency host, one Kafka broker, two bounded
+`t3.micro` application instances and a bounded dependency instance whose type
+is recorded per run, encrypted gp3 roots, and an explicit expiration tag. It cannot
 establish database-host durability, Kafka HA, or multi-region availability.
 
 ## Preflight
@@ -19,7 +20,7 @@ SHA. A short SHA, tag, or branch cannot be fetched as the pinned campaign
 input and is rejected by Terraform validation:
 
 ```powershell
-$env:AWS_PROFILE = "portfolio-dev"
+$env:AWS_PROFILE = "admin-learning"
 aws sts get-caller-identity
 terraform -chdir=deploy/aws fmt -check -recursive
 terraform -chdir=deploy/aws init -backend=false
@@ -36,6 +37,8 @@ plans remain sensitive and must stay ignored.
 
 ```powershell
 $env:TF_VAR_ami_id = "ami-..."
+$env:TF_VAR_instance_type = "t3.micro"
+$env:TF_VAR_dependency_instance_type = "t3.small"
 $env:TF_VAR_repo_ref = "<full-40-character-reviewed-commit-sha>"
 $env:TF_VAR_expires_at = "2026-10-05T00:00:00Z"
 $env:TF_VAR_postgres_password = "<ephemeral-alphanumeric-secret>"
