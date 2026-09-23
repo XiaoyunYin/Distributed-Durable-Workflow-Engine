@@ -267,6 +267,10 @@ function Insert-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
         "sudo iptables -I DOCKER-USER -d '$DependencyIP' -p tcp --dport 5432 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT",
         "sudo iptables -I DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -j REJECT",
         "sudo iptables -I DOCKER-USER -d '$DependencyIP' -p tcp --dport 9092 -m conntrack --ctstate ESTABLISHED,RELATED -j REJECT",
+        'worker_pid=$(docker inspect --format "{{.State.Pid}}" "$worker_cid")',
+        'test "$worker_pid" -gt 0',
+        "sudo nsenter -t `$worker_pid -n ss -K dst '$DependencyIP' dport = :5432 || true",
+        "sudo nsenter -t `$worker_pid -n ss -K dst '$DependencyIP' dport = :9092 || true",
         "cid=`$(docker compose --env-file '$RemoteEnv' -f '$AppCompose' ps -q runtime)",
         'test -n "$cid"',
         "printf 'container_state='",
@@ -284,6 +288,7 @@ function Insert-NetworkBlock([string]$InstanceId, [string]$DependencyIP) {
         observed_at_utc = $faultObservedAt
         network_chain = "DOCKER-USER"
         network_match_states = @("NEW", "ESTABLISHED", "RELATED")
+        established_flow_termination = "namespace-scoped ss -K for worker TCP flows"
         connectivity_before = "reachable"
         connectivity_after = "blocked"
         ports = $FaultPorts
@@ -373,7 +378,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         fault_observed_to_takeover_ms = DurationMilliseconds $faultObserved.observed_at_utc $takeoverAt
         takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverAt $usefulProgress.observed_at_utc
         fault_observed_to_terminal_completion_ms = DurationMilliseconds $faultObserved.observed_at_utc $terminalAt
-        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER"; network_match_states = @("NEW", "ESTABLISHED", "RELATED") }
+        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "namespace-scoped ss -K for worker TCP flows" }
         limitation = "This arm isolates the app host from PostgreSQL while preserving its process; it is not a host-stop or database-host durability claim."
     }
     Write-Json $OutputPath $result
