@@ -8,7 +8,8 @@ COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/runtime ./cmd/runtime \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur043-stale-probe ./cmd/dur043-stale-probe \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-checker ./cmd/dur049-checker \
-    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-lock-holder ./cmd/dur049-lock-holder
+    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-lock-holder ./cmd/dur049-lock-holder \
+    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-db-probe ./cmd/dur049-db-probe
 
 FROM scratch
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
@@ -19,6 +20,8 @@ COPY --from=build /out/dur043-stale-probe /dur043-stale-probe
 COPY --from=build /out/dur049-checker /dur049-checker
 # Campaign-only lock-holder; it is never the container entrypoint.
 COPY --from=build /out/dur049-lock-holder /dur049-lock-holder
+# Campaign-only in-container PostgreSQL connectivity probe.
+COPY --from=build /out/dur049-db-probe /dur049-db-probe
 USER 65532:65532
 EXPOSE 8080
 ENTRYPOINT ["/runtime"]

@@ -25,9 +25,9 @@ type report struct {
 }
 
 type fenceReport struct {
-	RecoveryRevision    int64 `json:"recovery_revision"`
+	PreFaultRevision    int64 `json:"pre_fault_revision"`
 	RecoveryEpoch       int64 `json:"recovery_epoch"`
-	SupersededCount     int   `json:"superseded_epoch_transitions_after_recovery"`
+	SupersededCount     int   `json:"superseded_epoch_transitions_after_pre_fault_boundary"`
 	StaleAttemptNumber  int64 `json:"stale_attempt_number"`
 	StaleAttemptFound   bool  `json:"stale_attempt_found"`
 	StaleAttemptCurrent bool  `json:"stale_attempt_current"`
@@ -38,7 +38,7 @@ func main() {
 	workflowIDs := flag.String("workflow-ids", "", "comma-separated workflow IDs to export")
 	snapshotPath := flag.String("snapshot", "", "offline Trace JSON snapshot")
 	databaseURL := flag.String("database-url", os.Getenv("DATABASE_URL"), "PostgreSQL URL for live export")
-	recoveryRevision := flag.Int64("recovery-revision", 0, "durable revision at the first new-owner acquisition")
+	preFaultRevision := flag.Int64("pre-fault-revision", 0, "durable revision captured before fault injection; the lower bound for post-fault fence checks")
 	recoveryEpoch := flag.Int64("recovery-epoch", 0, "epoch at the first new-owner acquisition")
 	staleAttemptNumber := flag.Int64("stale-attempt-number", 0, "old attempt number that must remain unrecorded and non-current")
 	flag.Parse()
@@ -52,7 +52,7 @@ func main() {
 		if err := json.Unmarshal(data, &trace); err != nil {
 			fatal(err)
 		}
-		verdict, fence := check(trace, *recoveryRevision, *recoveryEpoch, *staleAttemptNumber)
+		verdict, fence := check(trace, *preFaultRevision, *recoveryEpoch, *staleAttemptNumber)
 		write(report{Status: status(verdict.Valid), Trace: &trace, Valid: verdict.Valid, Violations: verdict.Violations, Fence: fence})
 		if !verdict.Valid {
 			os.Exit(1)
@@ -73,29 +73,29 @@ func main() {
 	if err != nil {
 		fatal(err)
 	}
-	verdict, fence := check(trace, *recoveryRevision, *recoveryEpoch, *staleAttemptNumber)
+	verdict, fence := check(trace, *preFaultRevision, *recoveryEpoch, *staleAttemptNumber)
 	write(report{Status: status(verdict.Valid), WorkflowIDs: ids, Trace: &trace, Valid: verdict.Valid, Violations: verdict.Violations, Fence: fence})
 	if !verdict.Valid {
 		os.Exit(1)
 	}
 }
 
-func check(trace invariants.Trace, recoveryRevision, recoveryEpoch, staleAttemptNumber int64) (invariants.Verdict, *fenceReport) {
+func check(trace invariants.Trace, preFaultRevision, recoveryEpoch, staleAttemptNumber int64) (invariants.Verdict, *fenceReport) {
 	verdict := invariants.Check(trace)
-	if recoveryRevision == 0 && recoveryEpoch == 0 && staleAttemptNumber == 0 {
+	if preFaultRevision == 0 && recoveryEpoch == 0 && staleAttemptNumber == 0 {
 		return verdict, nil
 	}
-	fence := &fenceReport{RecoveryRevision: recoveryRevision, RecoveryEpoch: recoveryEpoch, StaleAttemptNumber: staleAttemptNumber}
-	if recoveryRevision <= 0 || recoveryEpoch <= 0 {
-		verdict.Violations = append(verdict.Violations, "recovery fence evidence requires positive revision and epoch")
+	fence := &fenceReport{PreFaultRevision: preFaultRevision, RecoveryEpoch: recoveryEpoch, StaleAttemptNumber: staleAttemptNumber}
+	if preFaultRevision <= 0 || recoveryEpoch <= 0 {
+		verdict.Violations = append(verdict.Violations, "recovery fence evidence requires positive pre-fault revision and epoch")
 	}
 	for _, record := range trace.History {
-		if record.Revision > recoveryRevision && record.SchedulerEpoch != nil && *record.SchedulerEpoch < recoveryEpoch {
+		if record.Revision > preFaultRevision && record.SchedulerEpoch != nil && *record.SchedulerEpoch < recoveryEpoch {
 			fence.SupersededCount++
 		}
 	}
 	if fence.SupersededCount != 0 {
-		verdict.Violations = append(verdict.Violations, fmt.Sprintf("%d post-recovery history records carry a superseded scheduler epoch", fence.SupersededCount))
+		verdict.Violations = append(verdict.Violations, fmt.Sprintf("%d post-pre-fault history records carry a superseded scheduler epoch", fence.SupersededCount))
 	}
 	if staleAttemptNumber > 0 {
 		for _, attempt := range trace.Attempts {

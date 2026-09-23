@@ -122,6 +122,26 @@
       "requires_database": true
     },
     {
+      "id": "dur049-post-boundary-fence-checker",
+      "kind": "behavioral",
+      "file": "cmd/dur049-checker/main.go",
+      "old": "if fence.SupersededCount != 0 {",
+      "new": "if false { // mutation: ignore superseded durable transitions",
+      "command": ["go", "test", "./cmd/dur049-checker", "-run", "^TestFenceCheckRejectsPostBoundarySupersededEpoch$", "-count=1", "-v"],
+      "expected": "fence check accepted a post-boundary history row",
+      "requires_database": false
+    },
+    {
+      "id": "dur049-stale-attempt-result-checker",
+      "kind": "behavioral",
+      "file": "cmd/dur049-checker/main.go",
+      "old": "if fence.StaleResultRecorded {",
+      "new": "if false { // mutation: ignore an accepted stale attempt result",
+      "command": ["go", "test", "./cmd/dur049-checker", "-run", "^TestFenceCheckRejectsAcceptedStaleAttemptResult$", "-count=1", "-v"],
+      "expected": "want accepted stale result rejected",
+      "requires_database": false
+    },
+    {
       "id": "compose-lock-timeout",
       "kind": "configuration_tripwire",
       "file": "deploy/local/compose.yaml",

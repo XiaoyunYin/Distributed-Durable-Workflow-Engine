@@ -1,7 +1,7 @@
 # DUR-046 mutation gate
 
 The manifest contains selected safety mutations, one per contract guard. It
-currently has thirteen behavioral mutations plus one configuration tripwire.
+currently has fifteen behavioral mutations plus one configuration tripwire.
 The gate exports the committed `HEAD` into a disposable directory, applies
 exactly one mutation, and requires the check declared by that case to fail. A
 compile error, skipped test, no-test result, or unrelated failure is not a
