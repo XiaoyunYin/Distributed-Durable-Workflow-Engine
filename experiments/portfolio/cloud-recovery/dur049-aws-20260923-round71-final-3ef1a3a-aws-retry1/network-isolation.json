@@ -1,0 +1,420 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "PASS",
+    "fault":  "app-host-postgres-network-isolation-and-reconnect",
+    "workflow_id":  "dur049-r71-network-3ef1a3a-01",
+    "partition_id":  6,
+    "source_commit":  "3ef1a3af9a4ce5d22fa8309d2003077c57706a26",
+    "started_at_utc":  "2026-09-23T22:09:08.4797068Z",
+    "stage":  "complete",
+    "updated_at_utc":  "2026-09-23T22:12:46.5072249Z",
+    "original_owner_id":  "10aba622-c35a-485c-959a-52642ebd9bed",
+    "original_epoch":  224,
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 22:09:39.435721+00",
+                            "updated_at":  "2026-09-23 22:09:39.437418+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-0"
+                       },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "pre_fault_epoch_boundary":  238,
+    "fault_observed":  {
+                           "raw":  "connectivity_before=reachable\nruntime_database_before={\"status\":\"reachable\",\"observed_at_utc\":\"2026-09-23T22:09:57.17444423Z\"}\nworker_container_state=d281d5b0d6aaa006203e6ea6d82468a498c304a6f78e40cbf17e121d5d7d2cef|running|true|15469\n/usr/sbin/conntrack\ncontainer_state=running|true|15351\ntcp      6 89 TIME_WAIT src=172.18.0.3 dst=10.49.1.219 sport=37826 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37826 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=56272 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=56272 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43488 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43488 [ASSURED] mark=0 use=1\ntcp      6 119 TIME_WAIT src=172.18.0.3 dst=10.49.1.219 sport=43994 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=43994 [ASSURED] mark=0 use=1\ntcp      6 119 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=54380 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=54380 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43436 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43436 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.3 dst=10.49.1.219 sport=53298 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=53298 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43390 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43390 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.219 sport=37834 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37834 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43420 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43420 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.219 sport=37874 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37874 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=40904 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=40904 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=59476 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=59476 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43504 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43504 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=59482 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=59482 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=56258 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=56258 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43518 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43518 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43470 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43470 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=56282 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=56282 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43526 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43526 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=54842 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=54842 [ASSURED] mark=0 use=1\ntcp      6 299 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=33186 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=33186 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43450 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43450 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43462 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43462 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=37354 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=37354 [ASSURED] mark=0 use=1\ntcp      6 431981 ESTABLISHED src=172.18.0.3 dst=10.49.1.219 sport=37848 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37848 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43428 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43428 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=37358 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=37358 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.3 dst=10.49.1.219 sport=53286 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=53286 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43412 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43412 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43392 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43392 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.219 sport=37858 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37858 [ASSURED] mark=0 use=1\ntcp      6 89 TIME_WAIT src=172.18.0.3 dst=10.49.1.219 sport=37810 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37810 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43468 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43468 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43410 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43410 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=56266 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=56266 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=54856 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=54856 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43464 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43464 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=46994 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=46994 [ASSURED] mark=0 use=1\nblackhole 10.49.1.219 \n\n/usr/sbin/conntrack\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=40904 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=40904 [ASSURED] mark=0 use=1\ntcp      6 299 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37834 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37834 [ASSURED] mark=0 use=1\ntcp      6 116 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=54380 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=54380 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43504 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43504 [ASSURED] mark=0 use=1\ntcp      6 86 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=37826 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37826 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43468 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43468 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=46994 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=46994 [ASSURED] mark=0 use=1\ntcp      6 86 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=37810 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37810 [ASSURED] mark=0 use=1\ntcp      6 431979 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37848 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37848 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=59482 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=59482 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43526 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43526 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37354 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=37354 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37858 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37858 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43488 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43488 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43470 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43470 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=53286 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=53286 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=54856 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=54856 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=56258 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=56258 [ASSURED] mark=0 use=1\ntcp      6 80 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=59476 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=59476 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43412 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43412 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=33186 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=33186 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=56266 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=56266 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43420 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43420 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37874 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37874 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43428 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43428 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43464 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43464 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43518 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43518 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43436 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43436 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=56272 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=56272 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43410 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43410 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=53298 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=53298 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37358 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=37358 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43392 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43392 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43450 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43450 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43390 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43390 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43462 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43462 [ASSURED] mark=0 use=1\ntcp      6 116 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43994 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=43994 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=54842 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=54842 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=56282 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=56282 [ASSURED] mark=0 use=1\n\nconnectivity_after=blocked\nruntime_database_after=blocked\n{\"status\":\"unreachable\",\"observed_at_utc\":\"2026-09-23T22:10:09.287124232Z\"}",
+                           "command_at_utc":  "2026-09-23T22:09:53.1015287Z",
+                           "observed_at_utc":  "2026-09-23T22:10:09.7473830Z",
+                           "network_chain":  "DOCKER-USER plus dependency INPUT",
+                           "network_match_states":  [
+                                                        "NEW",
+                                                        "ESTABLISHED",
+                                                        "RELATED"
+                                                    ],
+                           "established_flow_termination":  "host conntrack deletion",
+                           "dependency_session_termination":  false,
+                           "dependency_session_termination_method":  "none; network fault only",
+                           "route_fault":  "app-host blackhole route for dependency /32",
+                           "dependency_source_ip":  "10.49.1.126",
+                           "connectivity_before":  "reachable",
+                           "connectivity_after":  "blocked",
+                           "runtime_container_database_probe_before":  "reachable",
+                           "runtime_container_database_probe_after":  "unreachable",
+                           "original_runtime_pid":  15351,
+                           "original_worker_container_id":  "d281d5b0d6aaa006203e6ea6d82468a498c304a6f78e40cbf17e121d5d7d2cef",
+                           "original_worker_pid":  15469,
+                           "ports":  [
+                                         5432,
+                                         9092
+                                     ]
+                       },
+    "first_new_owner_acquisition":  {
+                                        "acquisition_id":  "06fbcc80-0a73-4f9c-9c88-6efd93af8fd8",
+                                        "owner_id":  "5a82559e-5412-4e95-b626-0db790a4d70e",
+                                        "epoch":  243,
+                                        "database_recorded_at_utc":  "2026-09-23T22:10:17.4611720Z",
+                                        "controller_observed_at_utc":  "2026-09-23T22:10:30.0969237Z",
+                                        "observed_at":  "2026-09-23T22:10:30.0969237Z",
+                                        "lease_expires_at_utc":  "2026-09-23T22:10:32.4570870Z",
+                                        "fault_observed_at_utc":  "2026-09-23T22:10:09.7473830+00:00"
+                                    },
+    "first_useful_progress":  {
+                                  "workflow":  {
+                                                   "state":  "SUCCEEDED",
+                                                   "revision":  8,
+                                                   "attempt_state":  "SUCCEEDED",
+                                                   "attempt_number":  2,
+                                                   "attempt_created_at":  "2026-09-23 22:10:54.752628+00",
+                                                   "updated_at":  "2026-09-23 22:11:55.877132+00"
+                                               },
+                                  "controller_observed_at_utc":  "2026-09-23T22:12:01.7963360Z",
+                                  "observed_at":  "2026-09-23T22:12:01.7963360Z",
+                                  "progress_definition":  "accepted result recorded for replacement attempt",
+                                  "transition":  {
+                                                     "revision":  5,
+                                                     "scheduler_epoch":  null,
+                                                     "reason":  "ATTEMPT_RESULT_RECORDED",
+                                                     "attempt_number":  2,
+                                                     "database_recorded_at_utc":  "2026-09-23T22:11:54.8913360Z",
+                                                     "actor_kind":  "worker"
+                                                 },
+                                  "timeout_replacement_transition":  {
+                                                                         "revision":  4,
+                                                                         "scheduler_epoch":  278,
+                                                                         "lease_acquisition_id":  "46df27d2-2113-439d-b034-9368f1f6b09c",
+                                                                         "lease_owner_id":  "5a82559e-5412-4e95-b626-0db790a4d70e",
+                                                                         "lease_acquired_at_utc":  "2026-09-23T22:10:53.7248690Z",
+                                                                         "prior_attempt_state":  "TIMED_OUT",
+                                                                         "prior_attempt_is_current":  false,
+                                                                         "replacement_attempt_state":  "SUCCEEDED",
+                                                                         "replacement_attempt_is_current":  false
+                                                                     }
+                              },
+    "original_runtime_observed_after_reconnect":  "running|true|15351",
+    "original_worker_observed_after_reconnect":  {
+                                                     "container_id":  "d281d5b0d6aaa006203e6ea6d82468a498c304a6f78e40cbf17e121d5d7d2cef",
+                                                     "state":  "running",
+                                                     "running":  true,
+                                                     "host_pid":  15469,
+                                                     "same_container":  true,
+                                                     "same_process":  true
+                                                 },
+    "original_worker_late_result_rejection":  {
+                                                  "observed":  true,
+                                                  "source":  "original worker container stdout; matching result submission metadata and result-operation rejection after reconnect",
+                                                  "workflow_id":  "dur049-r71-network-3ef1a3a-01",
+                                                  "attempt_number":  1,
+                                                  "worker_id":  "worker-1-0",
+                                                  "operation":  "result",
+                                                  "api_rejection":  "STALE_ATTEMPT",
+                                                  "attempt_state":  "SUCCEEDED",
+                                                  "payload_sha256":  "8d4ee853ea756f8b39c56352fd6ffd1e966612a7fc9d2ee24992f7b97339c63b",
+                                                  "submission_retry_count":  7,
+                                                  "retry_behavior":  "HTTP 409 is not retried; preceding uncertain 5xx outcomes are retried with the identical body.",
+                                                  "observed_at_utc":  "2026-09-23T22:12:20.2102394Z",
+                                                  "submission_log_line":  "worker-1  | 2026-09-23T22:12:05.866494125Z INFO:workers.runner:activity result submission workflow_id=dur049-r71-network-3ef1a3a-01 node_id=dur048.sleep iteration=0 attempt_number=1 worker_id=worker-1-0 attempt_state=SUCCEEDED payload_sha256=8d4ee853ea756f8b39c56352fd6ffd1e966612a7fc9d2ee24992f7b97339c63b outcome=rejected status=409 code=STALE_ATTEMPT retries=7",
+                                                  "rejection_log_line":  "worker-1  | 2026-09-23T22:12:05.866986657Z INFO:workers.kafka_worker:delivery control rejected workflow_id=dur049-r71-network-3ef1a3a-01 node_id=dur048.sleep attempt_number=1 worker_id=worker-1-0 operation=result code=STALE_ATTEMPT"
+                                              },
+    "deployed_stale_identity_smoke_test":  {
+                                               "workflow_id":  "dur049-r71-network-3ef1a3a-01",
+                                               "partition_id":  6,
+                                               "owner_id":  "10aba622-c35a-485c-959a-52642ebd9bed",
+                                               "epoch":  224,
+                                               "before_revision":  8,
+                                               "after_revision":  8,
+                                               "error":  "scheduler lease is not owned or has expired",
+                                               "stale_rejected":  true
+                                           },
+    "result":  {
+                   "fault":  "app-host-postgres-network-isolation-and-reconnect",
+                   "workflow_id":  "dur049-r71-network-3ef1a3a-01",
+                   "partition_id":  6,
+                   "original_owner_id":  "10aba622-c35a-485c-959a-52642ebd9bed",
+                   "original_epoch":  224,
+                   "pre_fault_lease_acquisition":  {
+                                                       "partition_id":  6,
+                                                       "acquisition_id":  "a04912dd-1e2b-439c-a6c8-bdabe06a2768",
+                                                       "owner_id":  "10aba622-c35a-485c-959a-52642ebd9bed",
+                                                       "epoch":  224,
+                                                       "acquired_at_utc":  "2026-09-23T22:09:38.4117720Z",
+                                                       "lease_expires_at_utc":  "2026-09-23T22:09:53.4100280Z"
+                                                   },
+                   "pre_fault_epoch_boundary":  238,
+                   "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+                   "first_new_owner_acquisition":  {
+                                                       "acquisition_id":  "06fbcc80-0a73-4f9c-9c88-6efd93af8fd8",
+                                                       "owner_id":  "5a82559e-5412-4e95-b626-0db790a4d70e",
+                                                       "epoch":  243,
+                                                       "database_recorded_at_utc":  "2026-09-23T22:10:17.4611720Z",
+                                                       "controller_observed_at_utc":  "2026-09-23T22:10:30.0969237Z",
+                                                       "lease_expires_at_utc":  "2026-09-23T22:10:32.4570870Z"
+                                                   },
+                   "recovery_transition_epoch":  278,
+                   "recovery_transition_revision":  4,
+                   "recovery_transition_is_durably_after_first_new_owner":  true,
+                   "fault_observed":  {
+                                          "raw":  "connectivity_before=reachable\nruntime_database_before={\"status\":\"reachable\",\"observed_at_utc\":\"2026-09-23T22:09:57.17444423Z\"}\nworker_container_state=d281d5b0d6aaa006203e6ea6d82468a498c304a6f78e40cbf17e121d5d7d2cef|running|true|15469\n/usr/sbin/conntrack\ncontainer_state=running|true|15351\ntcp      6 89 TIME_WAIT src=172.18.0.3 dst=10.49.1.219 sport=37826 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37826 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=56272 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=56272 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43488 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43488 [ASSURED] mark=0 use=1\ntcp      6 119 TIME_WAIT src=172.18.0.3 dst=10.49.1.219 sport=43994 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=43994 [ASSURED] mark=0 use=1\ntcp      6 119 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=54380 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=54380 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43436 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43436 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.3 dst=10.49.1.219 sport=53298 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=53298 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43390 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43390 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.219 sport=37834 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37834 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43420 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43420 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.219 sport=37874 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37874 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=40904 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=40904 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=59476 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=59476 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43504 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43504 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=59482 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=59482 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=56258 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=56258 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43518 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43518 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43470 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43470 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=56282 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=56282 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43526 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43526 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=54842 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=54842 [ASSURED] mark=0 use=1\ntcp      6 299 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=33186 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=33186 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43450 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43450 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43462 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43462 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=37354 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=37354 [ASSURED] mark=0 use=1\ntcp      6 431981 ESTABLISHED src=172.18.0.3 dst=10.49.1.219 sport=37848 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37848 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43428 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43428 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=37358 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=37358 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.3 dst=10.49.1.219 sport=53286 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=53286 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43412 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43412 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43392 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43392 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.219 sport=37858 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37858 [ASSURED] mark=0 use=1\ntcp      6 89 TIME_WAIT src=172.18.0.3 dst=10.49.1.219 sport=37810 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=37810 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43468 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43468 [ASSURED] mark=0 use=1\ntcp      6 111 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43410 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43410 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=56266 dport=5432 src=10.49.1.219 dst=10.49.1.126 sport=5432 dport=56266 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.219 sport=54856 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=54856 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.219 sport=43464 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=43464 [ASSURED] mark=0 use=1\ntcp      6 82 TIME_WAIT src=172.18.0.2 dst=10.49.1.219 sport=46994 dport=9092 src=10.49.1.219 dst=10.49.1.126 sport=9092 dport=46994 [ASSURED] mark=0 use=1\nblackhole 10.49.1.219 \n\n/usr/sbin/conntrack\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=40904 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=40904 [ASSURED] mark=0 use=1\ntcp      6 299 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37834 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37834 [ASSURED] mark=0 use=1\ntcp      6 116 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=54380 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=54380 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43504 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43504 [ASSURED] mark=0 use=1\ntcp      6 86 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=37826 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37826 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43468 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43468 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=46994 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=46994 [ASSURED] mark=0 use=1\ntcp      6 86 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=37810 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37810 [ASSURED] mark=0 use=1\ntcp      6 431979 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37848 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37848 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=59482 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=59482 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43526 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43526 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37354 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=37354 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37858 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37858 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43488 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43488 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43470 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43470 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=53286 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=53286 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=54856 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=54856 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=56258 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=56258 [ASSURED] mark=0 use=1\ntcp      6 80 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=59476 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=59476 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43412 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43412 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=33186 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=33186 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=56266 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=56266 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43420 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43420 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37874 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=37874 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43428 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43428 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43464 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43464 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43518 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43518 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43436 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43436 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=56272 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=56272 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43410 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43410 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=53298 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=53298 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=37358 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=37358 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43392 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43392 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43450 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43450 [ASSURED] mark=0 use=1\ntcp      6 108 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43390 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43390 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=43462 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=43462 [ASSURED] mark=0 use=1\ntcp      6 116 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=43994 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=43994 [ASSURED] mark=0 use=1\ntcp      6 431996 ESTABLISHED src=10.49.1.126 dst=10.49.1.219 sport=54842 dport=9092 src=172.18.0.2 dst=10.49.1.126 sport=9092 dport=54842 [ASSURED] mark=0 use=1\ntcp      6 79 TIME_WAIT src=10.49.1.126 dst=10.49.1.219 sport=56282 dport=5432 src=172.18.0.3 dst=10.49.1.126 sport=5432 dport=56282 [ASSURED] mark=0 use=1\n\nconnectivity_after=blocked\nruntime_database_after=blocked\n{\"status\":\"unreachable\",\"observed_at_utc\":\"2026-09-23T22:10:09.287124232Z\"}",
+                                          "command_at_utc":  "2026-09-23T22:09:53.1015287Z",
+                                          "observed_at_utc":  "2026-09-23T22:10:09.7473830Z",
+                                          "network_chain":  "DOCKER-USER plus dependency INPUT",
+                                          "network_match_states":  [
+                                                                       "NEW",
+                                                                       "ESTABLISHED",
+                                                                       "RELATED"
+                                                                   ],
+                                          "established_flow_termination":  "host conntrack deletion",
+                                          "dependency_session_termination":  false,
+                                          "dependency_session_termination_method":  "none; network fault only",
+                                          "route_fault":  "app-host blackhole route for dependency /32",
+                                          "dependency_source_ip":  "10.49.1.126",
+                                          "connectivity_before":  "reachable",
+                                          "connectivity_after":  "blocked",
+                                          "runtime_container_database_probe_before":  "reachable",
+                                          "runtime_container_database_probe_after":  "unreachable",
+                                          "original_runtime_pid":  15351,
+                                          "original_worker_container_id":  "d281d5b0d6aaa006203e6ea6d82468a498c304a6f78e40cbf17e121d5d7d2cef",
+                                          "original_worker_pid":  15469,
+                                          "ports":  [
+                                                        5432,
+                                                        9092
+                                                    ]
+                                      },
+                   "original_runtime_observed":  "running|true|15351",
+                   "original_worker_observed_after_reconnect":  {
+                                                                    "container_id":  "d281d5b0d6aaa006203e6ea6d82468a498c304a6f78e40cbf17e121d5d7d2cef",
+                                                                    "state":  "running",
+                                                                    "running":  true,
+                                                                    "host_pid":  15469,
+                                                                    "same_container":  true,
+                                                                    "same_process":  true
+                                                                },
+                   "workflow_before":  {
+                                           "state":  "WAITING_ACTIVITY",
+                                           "revision":  3,
+                                           "attempt_state":  "CLAIMED",
+                                           "attempt_number":  1,
+                                           "attempt_created_at":  "2026-09-23 22:09:39.435721+00",
+                                           "updated_at":  "2026-09-23 22:09:39.437418+00"
+                                       },
+                   "workflow_after":  {
+                                          "state":  "SUCCEEDED",
+                                          "revision":  8,
+                                          "attempt_state":  "SUCCEEDED",
+                                          "attempt_number":  2,
+                                          "attempt_created_at":  "2026-09-23 22:10:54.752628+00",
+                                          "updated_at":  "2026-09-23 22:11:55.877132+00"
+                                      },
+                   "first_useful_progress":  {
+                                                 "definition":  "accepted result recorded for replacement attempt",
+                                                 "controller_observed_at_utc":  "2026-09-23T22:12:01.7963360Z",
+                                                 "workflow":  {
+                                                                  "state":  "SUCCEEDED",
+                                                                  "revision":  8,
+                                                                  "attempt_state":  "SUCCEEDED",
+                                                                  "attempt_number":  2,
+                                                                  "attempt_created_at":  "2026-09-23 22:10:54.752628+00",
+                                                                  "updated_at":  "2026-09-23 22:11:55.877132+00"
+                                                              }
+                                             },
+                   "recovery_ordering":  {
+                                             "first_new_owner_acquisition_id":  "06fbcc80-0a73-4f9c-9c88-6efd93af8fd8",
+                                             "first_new_owner_id":  "5a82559e-5412-4e95-b626-0db790a4d70e",
+                                             "first_new_owner_epoch":  243,
+                                             "recovery_transition_acquisition_id":  "46df27d2-2113-439d-b034-9368f1f6b09c",
+                                             "recovery_transition_owner_id":  "5a82559e-5412-4e95-b626-0db790a4d70e",
+                                             "recovery_transition_epoch":  278,
+                                             "timeout_replacement_revision":  4,
+                                             "accepted_result_revision":  5,
+                                             "durable_replacement_precedes_accepted_result":  true,
+                                             "controller_observation_times_are_diagnostic":  true
+                                         },
+                   "superseded_epoch_transitions_after_recovery_boundary":  0,
+                   "original_worker_late_result_rejection":  {
+                                                                 "observed":  true,
+                                                                 "source":  "original worker container stdout; matching result submission metadata and result-operation rejection after reconnect",
+                                                                 "workflow_id":  "dur049-r71-network-3ef1a3a-01",
+                                                                 "attempt_number":  1,
+                                                                 "worker_id":  "worker-1-0",
+                                                                 "operation":  "result",
+                                                                 "api_rejection":  "STALE_ATTEMPT",
+                                                                 "attempt_state":  "SUCCEEDED",
+                                                                 "payload_sha256":  "8d4ee853ea756f8b39c56352fd6ffd1e966612a7fc9d2ee24992f7b97339c63b",
+                                                                 "submission_retry_count":  7,
+                                                                 "retry_behavior":  "HTTP 409 is not retried; preceding uncertain 5xx outcomes are retried with the identical body.",
+                                                                 "observed_at_utc":  "2026-09-23T22:12:20.2102394Z",
+                                                                 "submission_log_line":  "worker-1  | 2026-09-23T22:12:05.866494125Z INFO:workers.runner:activity result submission workflow_id=dur049-r71-network-3ef1a3a-01 node_id=dur048.sleep iteration=0 attempt_number=1 worker_id=worker-1-0 attempt_state=SUCCEEDED payload_sha256=8d4ee853ea756f8b39c56352fd6ffd1e966612a7fc9d2ee24992f7b97339c63b outcome=rejected status=409 code=STALE_ATTEMPT retries=7",
+                                                                 "rejection_log_line":  "worker-1  | 2026-09-23T22:12:05.866986657Z INFO:workers.kafka_worker:delivery control rejected workflow_id=dur049-r71-network-3ef1a3a-01 node_id=dur048.sleep attempt_number=1 worker_id=worker-1-0 operation=result code=STALE_ATTEMPT"
+                                                             },
+                   "deployed_stale_identity_smoke_test":  {
+                                                              "workflow_id":  "dur049-r71-network-3ef1a3a-01",
+                                                              "partition_id":  6,
+                                                              "owner_id":  "10aba622-c35a-485c-959a-52642ebd9bed",
+                                                              "epoch":  224,
+                                                              "before_revision":  8,
+                                                              "after_revision":  8,
+                                                              "error":  "scheduler lease is not owned or has expired",
+                                                              "stale_rejected":  true
+                                                          },
+                   "attempts":  [
+                                    {
+                                        "attempt_number":  1,
+                                        "state":  "TIMED_OUT",
+                                        "is_current":  false,
+                                        "effect_class":  "PURE_ACTIVITY",
+                                        "outcome_disposition":  "NONE",
+                                        "result_recorded":  false,
+                                        "worker_id":  "worker-1-0",
+                                        "worker_request_id":  "worker-1-0:f7966973-ee0b-4721-bf91-90a792bf959f",
+                                        "created_at_utc":  "2026-09-23T22:09:39.4357210Z",
+                                        "updated_at_utc":  "2026-09-23T22:10:54.7504130Z"
+                                    },
+                                    {
+                                        "attempt_number":  2,
+                                        "state":  "SUCCEEDED",
+                                        "is_current":  false,
+                                        "effect_class":  "PURE_ACTIVITY",
+                                        "outcome_disposition":  "KNOWN_SUCCESS",
+                                        "result_recorded":  true,
+                                        "worker_id":  "worker-2-0",
+                                        "worker_request_id":  "worker-2-0:f1572358-6fe3-4046-b9c9-00fa32606162",
+                                        "created_at_utc":  "2026-09-23T22:10:54.7526280Z",
+                                        "updated_at_utc":  "2026-09-23T22:11:54.8862700Z"
+                                    }
+                                ],
+                   "lease_acquisition_summary_after_pre_fault_epoch_boundary":  [
+                                                                                    {
+                                                                                        "owner_id":  "10aba622-c35a-485c-959a-52642ebd9bed",
+                                                                                        "acquisition_count":  4,
+                                                                                        "first_epoch":  239,
+                                                                                        "last_epoch":  242,
+                                                                                        "first_database_recorded_at_utc":  "2026-09-23T22:09:53.6810790Z",
+                                                                                        "last_database_recorded_at_utc":  "2026-09-23T22:09:56.7259970Z"
+                                                                                    },
+                                                                                    {
+                                                                                        "owner_id":  "5a82559e-5412-4e95-b626-0db790a4d70e",
+                                                                                        "acquisition_count":  96,
+                                                                                        "first_epoch":  243,
+                                                                                        "last_epoch":  338,
+                                                                                        "first_database_recorded_at_utc":  "2026-09-23T22:10:17.4611720Z",
+                                                                                        "last_database_recorded_at_utc":  "2026-09-23T22:11:55.9032120Z"
+                                                                                    }
+                                                                                ],
+                   "obligations":  {
+                                       "workflow_reconciliation_items_total":  0,
+                                       "workflow_reconciliation_items_open":  0,
+                                       "global_reconciliation_items_total":  0,
+                                       "global_reconciliation_items_open":  0,
+                                       "database_reconciliation_items_total":  0,
+                                       "database_reconciliation_items_open":  0,
+                                       "workflow_outbox_rows":  7,
+                                       "workflow_outbox_pending_or_claimed":  0,
+                                       "database_outbox_rows":  97,
+                                       "database_outbox_pending_or_claimed":  0,
+                                       "workflow_effect_records":  0,
+                                       "workflow_duplicate_effect_calls":  0,
+                                       "observed_at_utc":  "2026-09-23T22:12:42.2204967Z",
+                                       "scope_note":  "Reconciliation counts include workflow-scoped items for this workflow, global NULL-workflow poison obligations, and a database-wide snapshot; outbox and effect counts are reported for this workflow and outbox pending counts also database-wide."
+                                   },
+                   "durable_invariant_checker":  {
+                                                     "live":  {
+                                                                  "valid":  true,
+                                                                  "violations":  [
+                                                                                     null
+                                                                                 ]
+                                                              },
+                                                     "offline":  {
+                                                                     "valid":  true,
+                                                                     "violations":  [
+                                                                                        null
+                                                                                    ]
+                                                                 },
+                                                     "fence":  {
+                                                                   "pre_fault_revision":  3,
+                                                                   "recovery_revision":  4,
+                                                                   "recovery_epoch":  278,
+                                                                   "superseded_epoch_transitions_after_recovery_boundary":  0,
+                                                                   "stale_attempt_number":  1,
+                                                                   "stale_attempt_found":  true,
+                                                                   "stale_attempt_current":  false,
+                                                                   "stale_result_recorded":  false
+                                                               },
+                                                     "snapshot":  "network-durable-trace.json"
+                                                 },
+                   "terminal_observed_at_utc":  "2026-09-23T22:12:27.6019266Z",
+                   "fault_command_to_observed_ms":  16645.854,
+                   "fault_observed_to_first_new_owner_acquisition_observed_ms":  20349.541,
+                   "fault_observed_to_first_useful_progress_observed_ms":  112048.953,
+                   "first_new_owner_acquisition_observed_to_first_useful_progress_observed_ms":  91699.412,
+                   "timestamp_semantics":  "Intervals use controller UTC observation times after 2-second polling; DB timestamps are transaction-recorded diagnostics, not commit times.",
+                   "first_useful_progress_transition":  {
+                                                            "revision":  5,
+                                                            "scheduler_epoch":  null,
+                                                            "reason":  "ATTEMPT_RESULT_RECORDED",
+                                                            "attempt_number":  2,
+                                                            "database_recorded_at_utc":  "2026-09-23T22:11:54.8913360Z",
+                                                            "actor_kind":  "worker"
+                                                        },
+                   "fault_observed_to_terminal_observed_ms":  137854.544,
+                   "configuration":  {
+                                         "activity":  "dur048.sleep",
+                                         "app1":  {
+                                                      "repo_commit":  "cbd1a9ea1c97b0d7147a5640ec0fa80f24ccdea4",
+                                                      "runtime_container_id":  "4b363301ed489222cf50682eb94b35a2a412a752f0ff4953c1a810eb0e1eed28",
+                                                      "runtime_started_at_utc":  "2026-09-23T22:09:20.213950374Z",
+                                                      "worker_container_id":  "d281d5b0d6aaa006203e6ea6d82468a498c304a6f78e40cbf17e121d5d7d2cef",
+                                                      "worker_started_at_utc":  "2026-09-23T22:09:25.913032539Z",
+                                                      "runtime_image_id":  "sha256:469e9409d91358303c415ac8a8b25c7e2d5b90ea1392bf1d951e99cd47c4b468",
+                                                      "worker_image_id":  "sha256:9d56d88bf2034c60e98d6857e870078c5824662fefe9c6ed5ee48c49e3f16fde",
+                                                      "activity_delay_ms":  60000,
+                                                      "fixture_activity_enabled":  true,
+                                                      "scheduler_hold_after_acquire_ms":  1000,
+                                                      "owner_lock_campaign_workflow_id":  "",
+                                                      "owner_lock_campaign_hold_ms":  0,
+                                                      "runtime_entrypoint":  "/runtime",
+                                                      "worker_slots":  2,
+                                                      "runtime_engine_mode":  "disabled"
+                                                  },
+                                         "app2":  {
+                                                      "repo_commit":  "cbd1a9ea1c97b0d7147a5640ec0fa80f24ccdea4",
+                                                      "runtime_container_id":  "c2af551dd4499581e3d3de9c7c7f83cf92500667a78d01bd3f74756cc88b1ec5",
+                                                      "runtime_started_at_utc":  "2026-09-23T22:10:17.191914922Z",
+                                                      "worker_container_id":  "b16d865c2df64916113f7637c7ac1b2d54529a98c6b303257327afa93758143b",
+                                                      "worker_started_at_utc":  "2026-09-23T22:10:22.959266426Z",
+                                                      "runtime_image_id":  "sha256:749d7bf01b1d2bc6d0ca05402112ef74230aad1b67d5ca4c792e0ce71f2cb074",
+                                                      "worker_image_id":  "sha256:469bed895439b1f1b7a29ce79c222f1ff86fd9ae2e56e7e184a2eba25de14b3a",
+                                                      "activity_delay_ms":  60000,
+                                                      "fixture_activity_enabled":  true,
+                                                      "scheduler_hold_after_acquire_ms":  1000,
+                                                      "owner_lock_campaign_workflow_id":  "",
+                                                      "owner_lock_campaign_hold_ms":  0,
+                                                      "runtime_entrypoint":  "/runtime",
+                                                      "worker_slots":  2,
+                                                      "runtime_engine_mode":  "disabled"
+                                                  },
+                                         "fault_network_ports":  [
+                                                                     5432,
+                                                                     9092
+                                                                 ],
+                                         "network_chain":  "DOCKER-USER plus dependency INPUT",
+                                         "network_match_states":  [
+                                                                      "NEW",
+                                                                      "ESTABLISHED",
+                                                                      "RELATED"
+                                                                  ],
+                                         "established_flow_termination":  "host conntrack deletion",
+                                         "session_termination_enabled":  false,
+                                         "session_termination_method":  "none; network-only arm",
+                                         "route_fault":  "app-host blackhole route for dependency /32",
+                                         "dependency_source_ip":  "10.49.1.126"
+                                     },
+                   "peer_mode":  "controller-started cold standby; app2 runtime is started after confirmed isolation, not a continuously active peer",
+                   "recovery_timing_note":  "Useful progress follows the 30-second AttemptLease and activity execution; these measurements are bounded recovery observations for this configuration, not general failover performance.",
+                   "limitation":  "This arm isolates the app host from PostgreSQL while preserving the original runtime and worker processes; it is not a host-stop or database-host durability claim. The stale worker result rejection is observed from the original worker\u0027s correlated log, while the separate scheduler identity probe is only a deployed fence smoke test."
+               }
+}

@@ -96,11 +96,27 @@ A separate [DUR-049 AWS campaign](experiments/portfolio/cloud-recovery/dur049-aw
 ran two repetitions each of preserved-process network isolation, forced
 application-host stop, and live-holder lease-row-lock contention. All six
 episodes passed their recorded gates with zero superseded-epoch transitions.
-That lock arm measures R096 bounded waiting while a healthy external holder
+That lock arm measures bounded waiting while a healthy external holder
 contends on one partition; it is not isolation of the owning scheduler while
-it holds the row lock. A separate owner-isolation-and-server-reaping scenario
-remains unmeasured. Four strict network-only runs (two embedded in the round
-80/81 campaigns and two standalone) in
+it holds the row lock. A later [full four-arm AWS rerun](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/protocol.json)
+on commit `0adbac0` passed preserved-process network isolation, forced
+application-host stop, live-holder contention, and isolation of the original
+scheduler while it held the lease-row lock. In the owner-lock arm, PostgreSQL
+was observed to reap the isolated backend; a peer took over, consumed the
+already-recorded result, and made useful progress; the same original runtime
+reconnected and its stale lease write was rejected without changing the stable
+lease row. The independent live and offline invariant checks passed, with zero
+superseded-epoch transitions. The target transaction used a campaign-only
+120-second idle timeout, while the dependency's global idle timeout was 10s
+and TCP keepalive idle was 30s; the backend disappeared 26.1s after the
+confirmed fault, so that observation is not attributed uniquely to one
+timer. The same-owner stale-epoch control retained its workflow as CANCELED,
+recorded zero outbox rows, rejected the old epoch without a revision change,
+and left the global open-obligation set unchanged after consumer drain.
+The accompanying [cleanup record](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/cleanup.json)
+documents destruction and post-destroy absence checks for the campaign
+resources; invoice attribution was not queried. Four strict network-only runs
+(two embedded in the round 80/81 campaigns and two standalone) in
 [round 86](experiments/portfolio/cloud-recovery/dur049-aws-20260923-round86-network-final/protocol.json)
 and [round 87](experiments/portfolio/cloud-recovery/dur049-aws-20260923-round87-network-final/protocol.json)
 disabled server-side PostgreSQL session termination, preserved the original

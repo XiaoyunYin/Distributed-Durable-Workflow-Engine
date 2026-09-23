@@ -9,9 +9,10 @@ there is no retained directory or result from which to infer a status.
 
 The initial suffix series is `a` through `as` (45 slots): 8 PASS, 22 FAIL,
 3 retained IN_PROGRESS records, and 12 slots without a retained directory.
-The later supplemental series below adds 25 runs: 9 PASS and 16 FAIL. These
-counts are attempt history, not independent statistical samples; protocols,
-fixtures, and acceptance predicates changed between attempts.
+The round-71/72 supplemental series below adds 25 runs: 9 PASS and 16 FAIL.
+The later September 23 follow-up attempts are listed separately. These counts
+are attempt history, not independent statistical samples; protocols, fixtures,
+and acceptance predicates changed between attempts.
 Retained initial artifacts use the directory pattern
 `dur049-aws-20260922-{host,network}-{suffix}/`; supplemental records are in
 the explicitly named `dur049-aws-20260923-round*` directories below this
@@ -101,13 +102,33 @@ reconstructed for them.
 | round86-network-final | strict network-only isolation/reconnect | `0c8165eb3634c9d6dcace370f5d260ab464fa9e5` | PASS | Session termination disabled; original runtime/worker retained; worker’s late result rejected as `STALE_ATTEMPT`; live and offline checker valid. |
 | round87-network-final | strict network-only isolation/reconnect | `0c8165eb3634c9d6dcace370f5d260ab464fa9e5` | PASS | Independent strict repeat; session termination disabled; stale result rejection and live/offline checker valid. |
 
+## Final remediation attempts (2026-09-23)
+
+| Attempt directory | Arm | Source commit | Status and retained error | Classification and reasoning |
+|---|---|---|---|---|
+| `dur049-aws-20260923-round71-final-3ef1a3a` | full campaign setup | `3ef1a3af9a4ce5d22fa8309d2003077c57706a26` | FAIL; Terraform output was parsed as invalid JSON (`Invalid JSON primitive: terraform.exe`) | Local harness output/quoting defect; no campaign result. |
+| `dur049-aws-20260923-round71-final-3ef1a3a-terraform-retry1` | AWS preflight | `3ef1a3af9a4ce5d22fa8309d2003077c57706a26` | FAIL; `admin-learning` profile not found | Environment credential/profile failure before AWS provisioning; no campaign result. |
+| `dur049-aws-20260923-round71-final-3ef1a3a-aws-retry1` | full campaign | `3ef1a3af9a4ce5d22fa8309d2003077c57706a26` | FAIL; owner-lock marker omitted required `idle_timeout_scope` | Earlier arms ran, but the required owner-lock evidence schema was incomplete; not a full pass. |
+| `dur049-aws-20260923-round71-final-4ebef2b` | full campaign | `4ebef2b0109ae7f55ed4698c9a61668bd94c5724` | FAIL; no first post-fault acquisition by a new owner observed | Required takeover observation absent; no recovery conclusion. |
+| `dur049-aws-20260923-round71-final-881966a` | owner-lock isolation | `881966add1dcbec9762f273d86d4be57d01d0d88` | FAIL; actual runtime backend not observed idle in transaction while hook held `ConsumeResult` | Fault precondition was not proven; no owner-isolation result. |
+| `dur049-aws-20260923-round71-r131` | owner-lock deployment | `cbd1a9ea1c97b0d7147a5640ec0fa80f24ccdea4` | FAIL; remote dependency Compose reported `service "postgres" is not running` | Deployment/setup failure; no owner-lock episode. |
+| `dur049-aws-20260923-round71-r131-readiness-retry1` | network/readiness setup | `cbd1a9ea1c97b0d7147a5640ec0fa80f24ccdea4` | FAIL; remote readiness command exited 1 | Required runtime readiness was not established; retained output does not support a recovery conclusion. |
+| `dur049-aws-20260923-round71-r131-ready1` | dependency preflight | `cbd1a9ea1c97b0d7147a5640ec0fa80f24ccdea4` | FAIL; observed dependency server settings `10s|0` did not match declared reaping settings | Configuration precondition failed; no owner-isolation result. |
+| `dur049-aws-20260923-round71-r131-runtime-rebuild1` | owner-lock isolation | `6087e4faab6eaec42f3ab14cb09acb461cb16f4c` | FAIL; stale `ReleaseLease` observation changed the peer-owned lease row | Rejected by the campaign safety gate; the later stable-lease comparison and full run supersede this attempt, not its retained failure. |
+| `dur049-aws-20260923-round71-r131-stable-lease1` | owner-lock + same-owner epoch control | `04fb8a1d99000ec3021fc47b24a4814914a2057a` | FAIL; same-owner probe output was marked FAIL although stale transition was rejected | R129 reporting-order defect: the PASS predicate ran before cleanup evidence was populated. Superseded by the dedicated R129 control and full campaign after `0adbac0`. |
+| `dur049-aws-20260923-r129-control-0adbac0` | owner-lock isolation + same-owner epoch control | `0adbac0816a0a65d0ccafed6dae6c8efd717edec` | `OWNER_LOCK_ISOLATION_PASS_OTHER_ARMS_NOT_REQUESTED`; same-owner control PASS | Focused control only, not a full matrix. The probe retained and terminalized its workflow without an outbox row; after consumer drain, the global open-obligation set was unchanged. |
+| `dur049-aws-20260923-full-0adbac0` | four-arm full campaign | `0adbac0816a0a65d0ccafed6dae6c8efd717edec` | PASS | Preserved-process network isolation, forced application-host stop, live-holder contention, and original-runtime owner-lock isolation all passed. The R129 control recorded the active peer lease, rejected the stale transition without changing revision, retained a CANCELED workflow with zero outbox rows, and left the global open-obligation set unchanged after consumer drain. |
+
 ## Interpretation boundary
 
-The strict final network-only sample is two runs (rounds 86 and 87), not the
-entire historical network attempt series. The older `ar`/`as` variants used
-server-side session termination and remain separately labelled. The three-arm
-rounds 80 and 81 provide six successful episodes (two per arm). The pure
-fixture produced zero effect records and zero duplicate effect calls; it did
-not exercise a non-idempotent external effect. The closeout artifact separately
-records five unresolved global poison obligations, which are not erased by the
-campaign workflows reaching terminal state.
+The strict final network-only sample is four runs: two network episodes in
+rounds 80/81 and two standalone runs in rounds 86/87. Each records server-side
+session termination disabled and the original worker's late result rejected as
+`STALE_ATTEMPT`; the older `ar`/`as` variants used server-side session
+termination and remain separately labelled. The three-arm rounds 80 and 81
+provide six successful episodes (two per arm). The pure fixture produced zero
+effect records and zero duplicate effect calls; it did not exercise a
+non-idempotent external effect. The earlier closeout artifact separately
+records five historical poison obligations. The full `0adbac0` campaign's
+R129 control does not create more obligations: its before/after global sets
+match after consumer drain.

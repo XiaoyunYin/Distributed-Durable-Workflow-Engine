@@ -1,0 +1,46 @@
+{
+  "schema_version": "dur049-cleanup.v1",
+  "verified_at_utc": "2026-09-23T23:27:36Z",
+  "campaign_protocol": "experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/protocol.json",
+  "campaign_source_commit": "0adbac0816a0a65d0ccafed6dae6c8efd717edec",
+  "campaign_status": "PASS",
+  "aws": {
+    "account_id": "372206265946",
+    "principal": "arn:aws:iam::372206265946:user/admin-learning",
+    "profile": "admin-learning",
+    "region": "us-west-1"
+  },
+  "terraform_teardown": {
+    "terraform_version": "1.16.3",
+    "plan_scope": "18 resources, all delete; zero adds and zero changes",
+    "apply_result": "Resources: 0 added, 0 changed, 18 destroyed",
+    "completed_at_utc": "2026-09-23T23:26:41.4911287Z",
+    "state_resource_count_after_apply": 0
+  },
+  "absence_checks": {
+    "instances": {
+      "i-08ea998f45a63d3b1": "terminated",
+      "i-034a4d2ea7432ef1f": "terminated",
+      "i-05a503e7618f61d90": "terminated"
+    },
+    "root_ebs_volumes": {
+      "vol-0368a84d95664a2c5": "InvalidVolume.NotFound",
+      "vol-0757ae308279a621e": "InvalidVolume.NotFound",
+      "vol-0b4b58007f3e3e190": "InvalidVolume.NotFound"
+    },
+    "campaign_vpc": "vpc-0cfaf9bfe0594da9f: InvalidVpcID.NotFound",
+    "campaign_security_groups": "none in campaign VPC",
+    "campaign_subnets": "none in campaign VPC",
+    "campaign_internet_gateway": "none attached to campaign VPC",
+    "iam_role": "post-teardown lookup reported absent (AWS CLI exit 254; exact service error code was not retained)",
+    "iam_instance_profile": "post-teardown lookup reported absent (AWS CLI exit 254; exact service error code was not retained)",
+    "iam_policy": "post-teardown lookup reported absent (AWS CLI exit 254; exact service error code was not retained)",
+    "ssm_parameter": "post-teardown lookup reported absent (AWS CLI exit 254; exact service error code was not retained)",
+    "readback_note": "The admin-learning profile is unavailable in the current environment, so these post-teardown lookups could not be independently repeated while preparing this record.",
+    "terraform_state": "empty"
+  },
+  "cost_attribution": {
+    "account_invoice_attribution": "not queried; no actual-cost amount is claimed",
+    "gross_list_price_estimate": "See the prior DUR-049 closeout; this record does not reinterpret it as billed cost."
+  }
+}

@@ -1,0 +1,104 @@
+{
+    "schema_version":  "dur049-multihost.v8",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T17:38:03.6892809Z",
+    "git_commit":  "cbd1a9ea1c97b0d7147a5640ec0fa80f24ccdea4",
+    "region":  "us-west-1",
+    "aws_account_id":  "372206265946",
+    "aws_principal":  "arn:aws:iam::372206265946:user/admin-learning",
+    "aws_profile":  "admin-learning",
+    "topology":  {
+                     "application_hosts":  2,
+                     "dependency_hosts":  1,
+                     "app_instance_ids":  [
+                                              "i-08ea998f45a63d3b1",
+                                              "i-034a4d2ea7432ef1f"
+                                          ],
+                     "app_private_ips":  [
+                                             "10.49.1.126",
+                                             "10.49.2.113"
+                                         ],
+                     "dependency_instance_id":  "i-05a503e7618f61d90",
+                     "dependency_private_ip":  "10.49.1.219",
+                     "instances":  [
+                                       {
+                                           "id":  "i-034a4d2ea7432ef1f",
+                                           "type":  "t3.micro",
+                                           "availability_zone":  "us-west-1c",
+                                           "private_ip":  "10.49.2.113",
+                                           "launch_time_utc":  "2026-09-23T17:30:07+00:00",
+                                           "credit_specification":  "standard"
+                                       },
+                                       {
+                                           "id":  "i-05a503e7618f61d90",
+                                           "type":  "t3.small",
+                                           "availability_zone":  "us-west-1a",
+                                           "private_ip":  "10.49.1.219",
+                                           "launch_time_utc":  "2026-09-23T17:29:54+00:00",
+                                           "credit_specification":  "standard"
+                                       },
+                                       {
+                                           "id":  "i-08ea998f45a63d3b1",
+                                           "type":  "t3.micro",
+                                           "availability_zone":  "us-west-1a",
+                                           "private_ip":  "10.49.1.126",
+                                           "launch_time_utc":  "2026-09-23T17:30:07+00:00",
+                                           "credit_specification":  "standard"
+                                       }
+                                   ]
+                 },
+    "scenarios":  [
+                      "all"
+                  ],
+    "fixture_workflow_ids":  {
+                                 "network":  "dur049-r71-network-c7625161",
+                                 "host_stop":  "dur049-r71-host-a0695c1b",
+                                 "lock_held":  "dur049-r71-lock-132023dd",
+                                 "lock_held_progress":  "dur049-r71-progress-975c5aeb",
+                                 "owner_lock_isolation":  "dur049-r71-owner-lock-10dee94b"
+                             },
+    "configuration":  {
+                          "activity":  "dur048.sleep",
+                          "fixture_definition_id":  "dur049-fault-fixture-v1",
+                          "fixture_definition_hash":  "e8a92b4875365e22a8befe3e323c0aea8e7c73a5a3cdb015a2e89a333b87824c",
+                          "requested_activity_delay_ms":  60000,
+                          "claim_observation_timeout_seconds":  300,
+                          "lock_progress_activity_delay_ms":  1000,
+                          "lock_progress_observation_timeout_seconds":  120,
+                          "lock_holder_duration_seconds":  180,
+                          "requested_scheduler_hold_after_acquire_ms":  1000,
+                          "takeover_observation_hold_ms":  1000,
+                          "requested_fixture_activity_enabled":  true,
+                          "requested_worker_slots":  2,
+                          "runtime_engine_mode":  "disabled",
+                          "runtime_scheduler":  "enabled",
+                          "fault_network_ports":  [
+                                                      5432,
+                                                      9092
+                                                  ],
+                          "network_chain":  "DOCKER-USER plus dependency INPUT for network arm; not_applicable host stop; healthy external lock holder for R096 bounded-wait contention, not owner isolation",
+                          "network_match_states":  [
+                                                       "NEW",
+                                                       "ESTABLISHED",
+                                                       "RELATED"
+                                                   ],
+                          "established_flow_termination":  "host conntrack deletion",
+                          "dependency_session_termination":  false,
+                          "dependency_session_termination_method":  "none; network-only arm",
+                          "route_fault":  "app-host blackhole route for dependency /32",
+                          "lock_timeout_seconds":  2,
+                          "attempt_lease_seconds":  30,
+                          "tcp_keepalives_idle_seconds":  30,
+                          "idle_in_transaction_session_timeout_seconds":  10,
+                          "claim_observation_semantics":  "Wait for a durable CLAIMED attempt; scheduler lease identity is joined from the ATTEMPT_CREATED history epoch because the scheduler releases its lease at pass end.",
+                          "peer_mode":  "controller-started cold standby for takeover arms; not a continuously active peer",
+                          "pre_fault_refresh":  "The original app host runtime and worker are force-recreated and health-checked before each fault fixture; container IDs and start times are recorded in the episode configuration."
+                      },
+    "required_observation":  "SSM, EC2, Docker, and PostgreSQL state must confirm each fault; controller intent alone never produces PASS.",
+    "results":  [
+
+                ],
+    "failed_at_utc":  "2026-09-23T17:38:33.0416610Z",
+    "error":  "SSM command ef493967-e77f-4ab7-ac52-43d28c4e0c4c on i-034a4d2ea7432ef1f ended Failed: failed to run commands: exit status 1 ",
+    "last_episode_stage":  "failed"
+}

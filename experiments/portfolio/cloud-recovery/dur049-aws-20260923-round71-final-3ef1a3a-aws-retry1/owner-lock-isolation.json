@@ -1,0 +1,43 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "owner-runtime-network-isolation-during-lease-row-lock",
+    "arm_classification":  "required R131 owner-lock isolation: the owning runtime holds the real ConsumeResult lease-row lock; PostgreSQL idle-in-transaction timeout must reap its backend",
+    "workflow_id":  "dur049-r71-ownerlock-3ef1a3a-01",
+    "partition_id":  8,
+    "source_commit":  "3ef1a3af9a4ce5d22fa8309d2003077c57706a26",
+    "started_at_utc":  "2026-09-23T22:20:57.5608934Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T22:22:30.1490954Z",
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 22:21:28.985399+00",
+                            "updated_at":  "2026-09-23 22:21:28.987367+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-1"
+                       },
+    "original_worker_schedule_lease":  {
+                                           "partition_id":  8,
+                                           "acquisition_id":  "9d32bebc-752d-419d-b574-c8f35bd8f89d",
+                                           "owner_id":  "afa4223b-9920-4bd5-8d04-212bc909a564",
+                                           "epoch":  1,
+                                           "acquired_at_utc":  "2026-09-23T22:21:28.9645060Z",
+                                           "lease_expires_at_utc":  "2026-09-23T22:21:43.9625570Z"
+                                       },
+    "original_runtime_identity_before_fault":  {
+                                                   "container_id":  "67c7a7381dab7924db2446f8b66548058fb4e0b66ef980e3121cf9f56fc18215",
+                                                   "state":  "running",
+                                                   "running":  true,
+                                                   "host_pid":  4725
+                                               },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "error":  "Owner-lock marker omitted idle_timeout_scope: DUR049_OWNER_LOCK_HELD workflow_id=dur049-r71-ownerlock-3ef1a3a-01 partition_id=8 owner_id=afa4223b-9920-4bd5-8d04-212bc909a564 epoch=123 backend_pid=50595 idle_timeout=10s hold_ms=180000 started_at_utc=2026-09-23T22:22:29.123812563Z"
+}

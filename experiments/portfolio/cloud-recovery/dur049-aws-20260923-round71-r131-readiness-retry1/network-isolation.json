@@ -1,0 +1,12 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "app-host-postgres-network-isolation-and-reconnect",
+    "workflow_id":  "dur049-r71-network-c7625161",
+    "partition_id":  6,
+    "source_commit":  "cbd1a9ea1c97b0d7147a5640ec0fa80f24ccdea4",
+    "started_at_utc":  "2026-09-23T17:38:03.8471538Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T17:38:33.0396611Z",
+    "error":  "SSM command ef493967-e77f-4ab7-ac52-43d28c4e0c4c on i-034a4d2ea7432ef1f ended Failed: failed to run commands: exit status 1 "
+}

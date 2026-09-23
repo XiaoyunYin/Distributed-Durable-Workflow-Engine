@@ -1,0 +1,43 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "owner-runtime-network-isolation-during-lease-row-lock",
+    "arm_classification":  "required R131 owner-lock isolation: the owning runtime holds the real ConsumeResult lease-row lock; PostgreSQL idle-in-transaction timeout must reap its backend",
+    "workflow_id":  "dur049-r71-ownerlock-881966a-01",
+    "partition_id":  10,
+    "source_commit":  "881966add1dcbec9762f273d86d4be57d01d0d88",
+    "started_at_utc":  "2026-09-23T21:49:51.6428648Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T21:51:34.0593255Z",
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 21:50:21.548925+00",
+                            "updated_at":  "2026-09-23 21:50:21.550732+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-1"
+                       },
+    "original_worker_schedule_lease":  {
+                                           "partition_id":  10,
+                                           "acquisition_id":  "8b523662-5c47-4c69-a432-f704829db91d",
+                                           "owner_id":  "2a984bd6-7ea4-45fe-b21b-8f0fc09b939c",
+                                           "epoch":  36,
+                                           "acquired_at_utc":  "2026-09-23T21:50:21.5295970Z",
+                                           "lease_expires_at_utc":  "2026-09-23T21:50:36.5278480Z"
+                                       },
+    "original_runtime_identity_before_fault":  {
+                                                   "container_id":  "560758ddb71d5ddc5488e20a219ecb22118b8fb88590211a32182d9de11cd653",
+                                                   "state":  "running",
+                                                   "running":  true,
+                                                   "host_pid":  4840
+                                               },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "error":  "The actual runtime backend was not observed idle in transaction while the hook held ConsumeResult: pid=44616, state="
+}

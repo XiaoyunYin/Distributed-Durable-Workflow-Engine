@@ -1,0 +1,43 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "owner-runtime-network-isolation-during-lease-row-lock",
+    "arm_classification":  "required R131 owner-lock isolation: the owning runtime holds the real ConsumeResult lease-row lock; PostgreSQL idle-in-transaction timeout must reap its backend",
+    "workflow_id":  "dur049-r71-owner-lock-de8b7d3c",
+    "partition_id":  13,
+    "source_commit":  "cbd1a9ea1c97b0d7147a5640ec0fa80f24ccdea4",
+    "started_at_utc":  "2026-09-23T18:06:41.9848003Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T18:08:19.9516994Z",
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 18:07:08.987181+00",
+                            "updated_at":  "2026-09-23 18:07:08.98928+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-0"
+                       },
+    "original_worker_schedule_lease":  {
+                                           "partition_id":  13,
+                                           "acquisition_id":  "52bea7de-f4a3-4837-af11-155a4ee810ee",
+                                           "owner_id":  "c7f07ad6-af42-47a7-a118-762328ceaa32",
+                                           "epoch":  1,
+                                           "acquired_at_utc":  "2026-09-23T18:07:08.9608320Z",
+                                           "lease_expires_at_utc":  "2026-09-23T18:07:23.9586650Z"
+                                       },
+    "original_runtime_identity_before_fault":  {
+                                                   "container_id":  "c00763ee6349afa4ef45162b63e9bd6ae2b1bb8ebe82dbd33f87fb26b8eb1e10",
+                                                   "state":  "running",
+                                                   "running":  true,
+                                                   "host_pid":  4717
+                                               },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "error":  "Dependency PostgreSQL server settings are not the declared reaping configuration: 10s|0"
+}

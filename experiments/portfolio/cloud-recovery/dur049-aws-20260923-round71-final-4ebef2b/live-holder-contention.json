@@ -1,0 +1,66 @@
+{
+    "schema_version":  "dur049-episode.v1",
+    "status":  "FAIL",
+    "fault":  "live-holder-lease-row-lock-contention",
+    "arm_classification":  "R096 bounded-wait with a healthy external lock holder; not isolation of the owning runtime",
+    "workflow_id":  "dur049-r71-final-holder-c",
+    "progress_workflow_id":  "dur049-r71-final-progress-e",
+    "partition_id":  11,
+    "progress_partition_id":  10,
+    "source_commit":  "4ebef2b0109ae7f55ed4699c8a61668bd94c5724",
+    "started_at_utc":  "2026-09-23T18:32:14.6136374Z",
+    "stage":  "failed",
+    "updated_at_utc":  "2026-09-23T18:37:24.8444073Z",
+    "original_owner_id":  "f94459f1-6bf4-4d28-b1f2-da534a4720f9",
+    "original_epoch":  1,
+    "workflow_before":  {
+                            "state":  "WAITING_ACTIVITY",
+                            "revision":  3,
+                            "attempt_state":  "CLAIMED",
+                            "attempt_number":  1,
+                            "attempt_created_at":  "2026-09-23 18:32:42.77743+00",
+                            "updated_at":  "2026-09-23 18:32:42.779666+00"
+                        },
+    "attempt_before":  {
+                           "node_id":  "dur048.sleep",
+                           "iteration":  0,
+                           "attempt_number":  1,
+                           "state":  "CLAIMED",
+                           "worker_id":  "worker-1-0"
+                       },
+    "app2_stopped_before_owner_capture":  "runtime=exited\nworker=exited",
+    "lock_holder":  {
+                        "marker_log":  "/tmp/dur049-lock-holder-11.log",
+                        "host_process_id":  2465,
+                        "launch_output":  "lock_holder_pid=2465",
+                        "observed_at_utc":  "2026-09-23T18:33:10.3248169Z",
+                        "locked_at_utc":  "2026-09-23T18:32:59.7494892Z",
+                        "marker_contents":  "partition=11 epoch=18 locked_at=2026-09-23T18:32:59.749489229Z",
+                        "duration_seconds":  180,
+                        "marker_transport":  "lock-holder stdout captured in host-side file; runtime image has no shell or /tmp"
+                    },
+    "other_partition_progress":  {
+                                     "state":  "SUCCEEDED",
+                                     "revision":  7,
+                                     "attempt_state":  "SUCCEEDED",
+                                     "attempt_number":  1,
+                                     "attempt_created_at":  "2026-09-23 18:33:37.156727+00",
+                                     "updated_at":  "2026-09-23 18:34:43.254964+00"
+                                 },
+    "other_partition_progress_observed_at_utc":  "2026-09-23T18:34:45.6973091Z",
+    "other_partition_progress_ms":  95372.492,
+    "lock_holder_observed_during_other_partition_progress":  {
+                                                                 "observed":  true,
+                                                                 "controller_observed_at_utc":  "2026-09-23T18:34:52.9177866Z",
+                                                                 "host_process_id":  2465,
+                                                                 "output":  "host_lock_holder_pid_alive=true\n2486                /dur049-lock-holder -partition-id 11 -duration 180s -marker /dev/stdout\nlock_probe_json={\"status\":\"row_lock_held\",\"observed_at_utc\":\"2026-09-23T18:34:50.644445171Z\",\"sqlstate\":\"55P03\"}",
+                                                                 "lock_holder_binary_visible_in_container_process_list":  true,
+                                                                 "row_lock_probe":  {
+                                                                                        "status":  "row_lock_held",
+                                                                                        "observed_at_utc":  "2026-09-23T18:34:50.644445171Z",
+                                                                                        "sqlstate":  "55P03"
+                                                                                    },
+                                                                 "row_lock_confirmed_by_partition_id":  11
+                                                             },
+    "error":  "No first post-fault acquisition by a new owner with epoch above 14 was observed after fault at 2026-09-23T11:33:10.3248169-07:00."
+}

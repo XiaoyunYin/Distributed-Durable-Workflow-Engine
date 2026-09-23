@@ -1,0 +1,14 @@
+{
+    "schema_version":  "dur049-multihost.v8",
+    "status":  "FAIL",
+    "generated_at_utc":  "2026-09-23T17:33:00.1197210Z",
+    "git_commit":  "cbd1a9ea1c97b0d7147a5640ec0fa80f24ccdea4",
+    "scenarios":  [
+                      "all"
+                  ],
+    "failed_at_utc":  "2026-09-23T17:33:00.1604521Z",
+    "error":  "SSM command 01227a4e-936f-4962-924a-d3ce13834b3b on i-05a503e7618f61d90 ended Failed: service \"postgres\" is not running\nfailed to run commands: exit status 1 ",
+    "results":  [
+
+                ]
+}

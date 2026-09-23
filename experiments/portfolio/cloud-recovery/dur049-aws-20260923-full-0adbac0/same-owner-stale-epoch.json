@@ -1,0 +1,21 @@
+{
+    "status":  "PASS",
+    "workflow_id":  "dur049-r71-epoch-fence-6b266c0b",
+    "partition_id":  13,
+    "owner_id":  "97e8c9d2-2802-4f2b-83a5-bae6f5419410",
+    "stale_epoch":  128,
+    "current_epoch":  129,
+    "same_owner":  true,
+    "before_revision":  1,
+    "after_revision":  1,
+    "probe_workflow_retained":  true,
+    "probe_workflow_final_state":  "CANCELED",
+    "probe_outbox_suppressed":  true,
+    "probe_outbox_rows_observed":  0,
+    "probe_outbox_rows_after_cleanup":  0,
+    "stale_transition_rejected":  true,
+    "current_lease_owner_id":  "97e8c9d2-2802-4f2b-83a5-bae6f5419410",
+    "current_lease_epoch":  129,
+    "current_lease_active":  true,
+    "error":  "scheduler lease is not owned or has expired"
+}
