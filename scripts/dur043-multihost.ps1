@@ -916,28 +916,30 @@ function Invoke-SameOwnerEpochProbe([string]$InstanceId, [string]$WorkflowID) {
 }
 
 function Start-LockHolder([string]$InstanceId, [int]$PartitionID, [int]$DurationSeconds = 45) {
-    $marker = "/tmp/dur049-lock-holder-$PartitionID.ready"
+    # The runtime image is FROM scratch: it has no shell, cat, or /tmp. Have
+    # the lock-holder write its marker to stdout and capture that stream in a
+    # host-side log while docker exec remains attached in the background.
+    $marker = "/tmp/dur049-lock-holder-$PartitionID.log"
     $runtimeLookupLine = Get-AppRuntimeComposeLookupLine
+    $startHolderCommand = 'nohup docker exec "$cid" /dur049-lock-holder -partition-id ' + $PartitionID + ' -duration ' + $DurationSeconds + 's -marker /dev/stdout > ' + "'$marker'" + ' 2>&1 < /dev/null & holder_pid=$!; printf "lock_holder_pid=%s\n" "$holder_pid"'
     $output = Send-Ssm $InstanceId @(
         'set -e',
         $runtimeLookupLine,
         'test -n "$cid"',
-        "docker exec `"`$cid`" rm -f '$marker' || true",
-        "docker exec -d `"`$cid`" /dur049-lock-holder -partition-id $PartitionID -duration ${DurationSeconds}s -marker '$marker'"
+        "rm -f '$marker'",
+        $startHolderCommand
     )
+    if ($output -notmatch 'lock_holder_pid=\d+') { throw "Lock-holder launch did not report its host-side process ID: $output" }
     $deadline = (Get-Date).AddSeconds(30)
     do {
         Start-Sleep -Seconds 2
-        $runtimeLookupLine = Get-AppRuntimeComposeLookupLine
         $markerOutput = Send-Ssm $InstanceId @(
             'set -e',
-            $runtimeLookupLine,
-            'test -n "$cid"',
-            "if docker exec `"`$cid`" test -f '$marker'; then docker exec `"`$cid`" cat '$marker'; fi"
+            "if grep -m1 'locked_at=' '$marker'; then exit 0; elif grep -q 'fatal:' '$marker'; then cat '$marker'; exit 1; else printf 'lock_holder_waiting=true\n'; fi"
         ) 30
         if (-not [string]::IsNullOrWhiteSpace($markerOutput) -and $markerOutput -match 'locked_at=') {
             $lockedAtText = ($markerOutput.Trim() -split 'locked_at=', 2)[1].Trim()
-            return [ordered]@{ marker = $marker; launch_output = $output.Trim(); observed_at_utc = [DateTime]::UtcNow; locked_at_utc = ([DateTimeOffset]::Parse($lockedAtText)).UtcDateTime; marker_contents = $markerOutput.Trim(); duration_seconds = $DurationSeconds }
+            return [ordered]@{ marker_log = $marker; launch_output = $output.Trim(); observed_at_utc = [DateTime]::UtcNow; locked_at_utc = ([DateTimeOffset]::Parse($lockedAtText)).UtcDateTime; marker_contents = $markerOutput.Trim(); duration_seconds = $DurationSeconds; marker_transport = "lock-holder stdout captured in host-side file; runtime image has no shell or /tmp" }
         }
     } while ((Get-Date) -lt $deadline)
     throw "Lock-holder marker was not observed inside the running runtime container."
@@ -1292,6 +1294,9 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
 if ($SelfTest) {
     $composeLookup = Get-AppRuntimeComposeLookupCommand
     $composeLookupLine = Get-AppRuntimeComposeLookupLine
+    $markerLogPath = "/tmp/dur049-lock-holder-13.log"
+    $startHolderCommand = 'nohup docker exec "$cid" /dur049-lock-holder -partition-id 13 -duration 45s -marker /dev/stdout > ' + "'$markerLogPath'" + ' 2>&1 < /dev/null & holder_pid=$!; printf "lock_holder_pid=%s\n" "$holder_pid"'
+    $markerPollCommand = "if grep -m1 'locked_at=' '$markerLogPath'; then exit 0; elif grep -q 'fatal:' '$markerLogPath'; then cat '$markerLogPath'; exit 1; else printf 'lock_holder_waiting=true\n'; fi"
     if ($composeLookup -notmatch [regex]::Escape("--env-file '$RemoteEnv' -f '$AppCompose' ps -q runtime")) {
         throw "Lock-holder compose lookup must specify the environment file and compose file independently: $composeLookup"
     }
@@ -1299,6 +1304,9 @@ if ($SelfTest) {
         throw "Lock-holder compose lookup incorrectly treats app-compose.yaml as its environment file: $composeLookup"
     }
     if ($composeLookupLine -ne "cid=`$($composeLookup)") { throw "Lock-holder remote lookup shell line is malformed: $composeLookupLine" }
+    if ($startHolderCommand -notmatch '-marker /dev/stdout' -or $startHolderCommand -notmatch 'nohup docker exec' -or $markerPollCommand -notmatch "grep -m1 'locked_at='") {
+        throw "Lock-holder marker must be captured and polled on the host, not by shell utilities inside the scratch runtime container."
+    }
     $vectors = @(
         [ordered]@{ workflow_id = "workflow-0001"; partition = 8 },
         [ordered]@{ workflow_id = "workflow-0002"; partition = 14 },
@@ -1357,7 +1365,7 @@ if ($SelfTest) {
     } finally {
         Remove-Item -LiteralPath $jsonSelfTestPath -Force -ErrorAction SilentlyContinue
     }
-    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original-worker identity controls, and BOM-free AWS JSON."
+    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original-worker identity controls, lock-holder Compose/host-marker command controls, and BOM-free AWS JSON."
     return
 }
 
