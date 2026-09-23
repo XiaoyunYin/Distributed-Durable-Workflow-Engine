@@ -174,6 +174,14 @@ function Invoke-DbSql([string]$DependencyInstanceId, [string]$Sql) {
     return (Send-Ssm $DependencyInstanceId @("set -e", $command)).Trim()
 }
 
+function Get-AppRuntimeComposeLookupCommand() {
+    return "docker compose --env-file '$RemoteEnv' -f '$AppCompose' ps -q runtime"
+}
+
+function Get-AppRuntimeComposeLookupLine() {
+    return 'cid=$(' + (Get-AppRuntimeComposeLookupCommand) + ')'
+}
+
 function Get-Lease([string]$DependencyInstanceId, [int]$PartitionID) {
     $row = Invoke-DbSql $DependencyInstanceId "SELECT COALESCE(owner_id::text,''), epoch, COALESCE(lease_expires_at::text,''), updated_at::text FROM engine.partition_leases WHERE partition_id=$PartitionID;"
     $parts = $row -split '\|', 4
@@ -909,9 +917,10 @@ function Invoke-SameOwnerEpochProbe([string]$InstanceId, [string]$WorkflowID) {
 
 function Start-LockHolder([string]$InstanceId, [int]$PartitionID, [int]$DurationSeconds = 45) {
     $marker = "/tmp/dur049-lock-holder-$PartitionID.ready"
+    $runtimeLookupLine = Get-AppRuntimeComposeLookupLine
     $output = Send-Ssm $InstanceId @(
         'set -e',
-        'cid=$(docker compose --env-file /opt/durable-agent-execution-engine/deploy/aws/.env -f /opt/durable-agent-execution-engine/deploy/aws/app-compose.yaml ps -q runtime)',
+        $runtimeLookupLine,
         'test -n "$cid"',
         "docker exec `"`$cid`" rm -f '$marker' || true",
         "docker exec -d `"`$cid`" /dur049-lock-holder -partition-id $PartitionID -duration ${DurationSeconds}s -marker '$marker'"
@@ -919,9 +928,10 @@ function Start-LockHolder([string]$InstanceId, [int]$PartitionID, [int]$Duration
     $deadline = (Get-Date).AddSeconds(30)
     do {
         Start-Sleep -Seconds 2
+        $runtimeLookupLine = Get-AppRuntimeComposeLookupLine
         $markerOutput = Send-Ssm $InstanceId @(
             'set -e',
-            'cid=$(docker compose --env-file /opt/durable-agent-execution-engine/deploy/aws/app-compose.yaml ps -q runtime)',
+            $runtimeLookupLine,
             'test -n "$cid"',
             "if docker exec `"`$cid`" test -f '$marker'; then docker exec `"`$cid`" cat '$marker'; fi"
         ) 30
@@ -1280,6 +1290,15 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
 }
 
 if ($SelfTest) {
+    $composeLookup = Get-AppRuntimeComposeLookupCommand
+    $composeLookupLine = Get-AppRuntimeComposeLookupLine
+    if ($composeLookup -notmatch [regex]::Escape("--env-file '$RemoteEnv' -f '$AppCompose' ps -q runtime")) {
+        throw "Lock-holder compose lookup must specify the environment file and compose file independently: $composeLookup"
+    }
+    if ($composeLookup -match "--env-file '$AppCompose'") {
+        throw "Lock-holder compose lookup incorrectly treats app-compose.yaml as its environment file: $composeLookup"
+    }
+    if ($composeLookupLine -ne "cid=`$($composeLookup)") { throw "Lock-holder remote lookup shell line is malformed: $composeLookupLine" }
     $vectors = @(
         [ordered]@{ workflow_id = "workflow-0001"; partition = 8 },
         [ordered]@{ workflow_id = "workflow-0002"; partition = 14 },
