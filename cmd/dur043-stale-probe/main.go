@@ -48,6 +48,10 @@ type sameOwnerEpochResult struct {
 	ProbeOutboxSuppressed       bool   `json:"probe_outbox_suppressed"`
 	ProbeOutboxRowsObserved     int64  `json:"probe_outbox_rows_observed"`
 	ProbeOutboxRowsAfterCleanup int64  `json:"probe_outbox_rows_after_cleanup"`
+	StaleTransitionRejected     bool   `json:"stale_transition_rejected"`
+	CurrentLeaseOwnerID         string `json:"current_lease_owner_id"`
+	CurrentLeaseEpoch           int64  `json:"current_lease_epoch"`
+	CurrentLeaseActive          bool   `json:"current_lease_active"`
 	Error                       string `json:"error"`
 }
 
@@ -94,10 +98,6 @@ func main() {
 		}
 		if err := json.NewEncoder(os.Stdout).Encode(result); err != nil {
 			fatal(err.Error())
-		}
-		if result.Status != "PASS" {
-			store.Close()
-			os.Exit(1)
 		}
 		return
 	}
@@ -186,6 +186,7 @@ func runSameOwnerStaleEpoch(ctx context.Context, store *state.Store, workflowID 
 	}
 
 	workflowCreated := false
+	cleanupCompleted := false
 	probeCtx := campaignProbeContext(ctx)
 	cleanup := func() error {
 		cleanupCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -228,8 +229,10 @@ func runSameOwnerStaleEpoch(ctx context.Context, store *state.Store, workflowID 
 		return nil
 	}
 	defer func() {
-		if err := cleanup(); err != nil && returnErr == nil {
-			returnErr = err
+		if !cleanupCompleted {
+			if err := cleanup(); err != nil && returnErr == nil {
+				returnErr = err
+			}
 		}
 	}()
 
@@ -252,22 +255,53 @@ func runSameOwnerStaleEpoch(ctx context.Context, store *state.Store, workflowID 
 	if result.ProbeOutboxRowsObserved != 0 {
 		return result, fmt.Errorf("probe workflow created %d outbox rows; campaign negative control requires suppression", result.ProbeOutboxRowsObserved)
 	}
+	var activeOwner *string
+	var activeEpoch int64
+	var leaseExpiry *time.Time
+	var databaseNow time.Time
+	if err := store.Pool().QueryRow(probeCtx, `
+		SELECT owner_id::text, epoch, lease_expires_at, clock_timestamp()
+		FROM engine.partition_leases WHERE partition_id = $1`, partitionNumber).Scan(&activeOwner, &activeEpoch, &leaseExpiry, &databaseNow); err != nil {
+		return result, fmt.Errorf("confirm current lease before stale-epoch control: %w", err)
+	}
+	result.CurrentLeaseEpoch = activeEpoch
+	if activeOwner != nil {
+		result.CurrentLeaseOwnerID = *activeOwner
+	}
+	result.CurrentLeaseActive = activeOwner != nil && *activeOwner == ownerID && activeEpoch == current.Epoch && leaseExpiry != nil && leaseExpiry.After(databaseNow)
+	if !result.CurrentLeaseActive {
+		result.Error = fmt.Sprintf("current lease is not active before stale-epoch control: owner=%q epoch=%d expires=%v database_now=%s", result.CurrentLeaseOwnerID, activeEpoch, leaseExpiry, databaseNow.UTC().Format(time.RFC3339Nano))
+		return result, nil
+	}
 	transitionErr := store.ApplyOwnerTransition(probeCtx, state.OwnerTransitionInput{
 		Lease: staleRef, WorkflowID: workflowID, ExpectedRevision: created.Workflow.Revision,
 		NewState: state.StateCanceled, ActorID: "dur049-epoch-probe",
 		Reason: "DUR049_SAME_OWNER_STALE_EPOCH_NEGATIVE_CONTROL",
 	})
 	result.Error = fmt.Sprint(transitionErr)
+	result.StaleTransitionRejected = errors.Is(transitionErr, state.ErrLeaseNotOwned)
 	workflowAfter, err := store.GetWorkflow(ctx, workflowID)
 	if err != nil {
 		return result, fmt.Errorf("read probe workflow after stale transition: %w", err)
 	}
 	result.AfterRevision = workflowAfter.Revision
+	if err := cleanup(); err != nil {
+		return result, err
+	}
+	cleanupCompleted = true
 	result.Status = "PASS"
-	if !errors.Is(transitionErr, state.ErrLeaseNotOwned) || result.AfterRevision != result.BeforeRevision || !result.ProbeWorkflowRetained || result.ProbeWorkflowFinalState != string(state.StateCanceled) || !result.ProbeOutboxSuppressed || result.ProbeOutboxRowsObserved != 0 || result.ProbeOutboxRowsAfterCleanup != 0 {
+	if !sameOwnerEpochControlPassed(result) {
 		result.Status = "FAIL"
 	}
 	return result, nil
+}
+
+func sameOwnerEpochControlPassed(result sameOwnerEpochResult) bool {
+	return result.SameOwner && result.CurrentEpoch > result.StaleEpoch && result.CurrentLeaseActive &&
+		result.CurrentLeaseOwnerID == result.OwnerID && result.CurrentLeaseEpoch == result.CurrentEpoch &&
+		result.StaleTransitionRejected && result.AfterRevision == result.BeforeRevision &&
+		result.ProbeWorkflowRetained && result.ProbeWorkflowFinalState == string(state.StateCanceled) &&
+		result.ProbeOutboxSuppressed && result.ProbeOutboxRowsObserved == 0 && result.ProbeOutboxRowsAfterCleanup == 0
 }
 
 func isTerminalProbeState(value state.WorkflowState) bool {

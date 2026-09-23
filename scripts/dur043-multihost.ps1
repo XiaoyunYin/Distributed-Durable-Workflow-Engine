@@ -1328,7 +1328,7 @@ function Invoke-StaleProbe([string]$InstanceId, [string]$WorkflowID, [int]$Parti
     return $probe
 }
 
-function Invoke-SameOwnerEpochProbe([string]$InstanceId, [string]$WorkflowID) {
+function Invoke-SameOwnerEpochProbe([string]$InstanceId, [string]$WorkflowID, [string]$EvidencePath) {
     $command = "docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml run --rm --no-deps --entrypoint /dur043-stale-probe runtime -same-owner-stale-epoch -workflow-id '$WorkflowID'"
     $output = Send-Ssm $InstanceId @(
         'set -e',
@@ -1338,7 +1338,8 @@ function Invoke-SameOwnerEpochProbe([string]$InstanceId, [string]$WorkflowID) {
     $jsonLine = ($output.Trim() -split "\r?\n" | Where-Object { $_ -match '^\s*\{' } | Select-Object -Last 1)
     if ([string]::IsNullOrWhiteSpace($jsonLine)) { throw "Same-owner stale-epoch probe returned no JSON: $output" }
     $probe = $jsonLine | ConvertFrom-Json
-    if ($probe.status -ne 'PASS' -or -not $probe.same_owner -or [int64]$probe.current_epoch -le [int64]$probe.stale_epoch -or [int64]$probe.before_revision -ne [int64]$probe.after_revision -or -not $probe.probe_workflow_retained -or $probe.probe_workflow_final_state -ne 'CANCELED' -or -not $probe.probe_outbox_suppressed -or [int64]$probe.probe_outbox_rows_observed -ne 0) {
+    Write-Json $EvidencePath $probe
+    if ($probe.status -ne 'PASS' -or -not $probe.same_owner -or [int64]$probe.current_epoch -le [int64]$probe.stale_epoch -or -not $probe.current_lease_active -or $probe.current_lease_owner_id -ne $probe.owner_id -or [int64]$probe.current_lease_epoch -ne [int64]$probe.current_epoch -or -not $probe.stale_transition_rejected -or [int64]$probe.before_revision -ne [int64]$probe.after_revision -or -not $probe.probe_workflow_retained -or $probe.probe_workflow_final_state -ne 'CANCELED' -or -not $probe.probe_outbox_suppressed -or [int64]$probe.probe_outbox_rows_observed -ne 0 -or [int64]$probe.probe_outbox_rows_after_cleanup -ne 0) {
         throw "Same-owner stale-epoch fence control failed: $jsonLine"
     }
     return $probe
@@ -2223,7 +2224,7 @@ try {
     $globalObligationsBefore = @(Get-GlobalOpenObligations $dependency)
     $consumerDrain = Wait-SchedulerConsumerDrain $dependency
     $epochProbeWorkflowID = "dur049-r71-epoch-fence-" + [guid]::NewGuid().ToString("N").Substring(0, 8)
-    $sameOwnerEpochProbe = Invoke-SameOwnerEpochProbe $appIDs[0] $epochProbeWorkflowID
+    $sameOwnerEpochProbe = Invoke-SameOwnerEpochProbe $appIDs[0] $epochProbeWorkflowID (Join-Path $OutputRoot "same-owner-stale-epoch.json")
     $consumerDrainAfterProbe = Wait-SchedulerConsumerDrain $dependency
     $globalObligationsAfter = @(Get-GlobalOpenObligations $dependency)
     $beforeJSON = ConvertTo-Json -InputObject $globalObligationsBefore -Depth 8 -Compress
