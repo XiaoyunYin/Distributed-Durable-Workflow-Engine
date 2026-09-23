@@ -23,7 +23,10 @@ $StartedApp1 = $false
 $StartedApp2 = $false
 $NetworkRulesInserted = $false
 $App1WasStopped = $false
-$FixtureDelayMS = 10000
+# Cross-host SSM observations can take several seconds. Keep the activity
+# claimed long enough to observe the durable pre-fault boundary before the
+# network or host fault is injected.
+$FixtureDelayMS = 60000
 # Keep the observation hold below the runtime scheduler's fixed 5s iteration
 # deadline.  A hold equal to that deadline makes every fixture pass expire
 # before the scheduler can schedule the activity, producing a false liveness
