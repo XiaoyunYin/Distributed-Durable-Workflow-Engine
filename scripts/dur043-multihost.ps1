@@ -35,7 +35,7 @@ $ObservationHoldMS = 1000
 # Hold the takeover owner briefly after acquiring the lease so the controller
 # can observe the durable takeover before the replacement attempt is created.
 # This separates observation latency from useful-progress latency.
-$TakeoverObservationHoldMS = 2000
+$TakeoverObservationHoldMS = 4000
 $FixtureActivityEnabled = $true
 $WorkerSlots = 2
 $FaultPorts = @(5432, 9092)
