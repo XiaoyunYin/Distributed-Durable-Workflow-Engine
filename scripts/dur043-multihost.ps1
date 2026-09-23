@@ -170,6 +170,19 @@ function Wait-FirstUsefulProgress([string]$DependencyInstanceId, [string]$Workfl
     throw "Workflow $WorkflowID did not commit a replacement attempt after the fault."
 }
 
+function Wait-ClaimedWorkflow([string]$DependencyInstanceId, [string]$WorkflowID, [int]$PartitionID, [int]$TimeoutSeconds = 45) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $workflow = Get-Workflow $DependencyInstanceId $WorkflowID
+        $lease = Get-Lease $DependencyInstanceId $PartitionID
+        if ($workflow.attempt_state -eq "CLAIMED" -and -not [string]::IsNullOrWhiteSpace($lease.owner_id)) {
+            return [ordered]@{ workflow = $workflow; lease = $lease }
+        }
+        Start-Sleep -Seconds 1
+    } while ((Get-Date) -lt $deadline)
+    throw "Workflow $WorkflowID was not observed CLAIMED with an owning partition lease before the deadline."
+}
+
 function DurationMilliseconds([DateTime]$Started, [DateTime]$Finished) {
     return [math]::Round(($Finished - $Started).TotalMilliseconds, 3)
 }
@@ -301,9 +314,10 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     Stop-AppRuntime $App2
     Set-AppMode $App1 $FixtureDelayMS $ObservationHoldMS
     $app1Configuration = Get-AppConfiguration $App1
-    $oldLease = Get-Lease $Dependency $partition
+    $claimed = Wait-ClaimedWorkflow $Dependency $WorkflowID $partition
+    $oldLease = $claimed.lease
+    $before = $claimed.workflow
     if ([string]::IsNullOrWhiteSpace($oldLease.owner_id)) { throw "Application host 1 did not own partition $partition before network isolation." }
-    $before = Get-Workflow $Dependency $WorkflowID
     if ($before.attempt_state -ne "CLAIMED") { throw "Network fixture must be observed CLAIMED before isolation; observed $($before.attempt_state)." }
     $faultObserved = Insert-NetworkBlock $App1 $DependencyIP
     $script:NetworkRulesInserted = $true
@@ -363,9 +377,10 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     Stop-AppRuntime $App2
     Set-AppMode $App1 $FixtureDelayMS $ObservationHoldMS
     $app1Configuration = Get-AppConfiguration $App1
-    $oldLease = Get-Lease $Dependency $partition
+    $claimed = Wait-ClaimedWorkflow $Dependency $WorkflowID $partition
+    $oldLease = $claimed.lease
+    $before = $claimed.workflow
     if ([string]::IsNullOrWhiteSpace($oldLease.owner_id)) { throw "Application host 1 did not own partition $partition before host stop." }
-    $before = Get-Workflow $Dependency $WorkflowID
     if ($before.attempt_state -ne "CLAIMED") { throw "Host-stop fixture must be observed CLAIMED before the stop; observed $($before.attempt_state)." }
     $stopRequestedAt = [DateTime]::UtcNow
     Invoke-Aws @("ec2", "stop-instances", "--instance-ids", $App1, "--force") | Out-Null
