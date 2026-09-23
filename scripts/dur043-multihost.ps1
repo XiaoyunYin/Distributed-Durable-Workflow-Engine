@@ -862,20 +862,38 @@ function Get-ObligationSummary([string]$DependencyInstanceId, [string]$WorkflowI
 SELECT
   (SELECT count(*) FROM engine.reconciliation_items WHERE workflow_id='$WorkflowID') || '|' ||
   (SELECT count(*) FROM engine.reconciliation_items WHERE workflow_id='$WorkflowID' AND status='OPEN') || '|' ||
+  (SELECT count(*) FROM engine.reconciliation_items WHERE workflow_id IS NULL) || '|' ||
+  (SELECT count(*) FROM engine.reconciliation_items WHERE workflow_id IS NULL AND status='OPEN') || '|' ||
+  (SELECT count(*) FROM engine.reconciliation_items) || '|' ||
+  (SELECT count(*) FROM engine.reconciliation_items WHERE status='OPEN') || '|' ||
   (SELECT count(*) FROM engine.outbox WHERE workflow_id='$WorkflowID') || '|' ||
   (SELECT count(*) FROM engine.outbox WHERE workflow_id='$WorkflowID' AND publish_state IN ('PENDING','CLAIMED')) || '|' ||
+  (SELECT count(*) FROM engine.outbox) || '|' ||
+  (SELECT count(*) FROM engine.outbox WHERE publish_state IN ('PENDING','CLAIMED')) || '|' ||
   (SELECT count(*) FROM effects.effect_records WHERE workflow_id='$WorkflowID') || '|' ||
   (SELECT COALESCE(sum(n-1),0) FROM (SELECT logical_effect_key, count(*) AS n FROM effects.effect_call_attempts WHERE workflow_id='$WorkflowID' GROUP BY logical_effect_key) duplicates);
 "@
-    $parts = (Invoke-DbSql $DependencyInstanceId $sql).Trim() -split '\|', 6
-    if ($parts.Count -lt 6) { throw "Obligation summary was malformed: $($parts -join '|')" }
+    return Convert-ObligationSummaryRow (Invoke-DbSql $DependencyInstanceId $sql).Trim()
+}
+
+function Convert-ObligationSummaryRow([string]$Row) {
+    $parts = $Row -split '\|', 12
+    if ($parts.Count -ne 12) { throw "Obligation summary was malformed: $Row" }
     return [ordered]@{
-        reconciliation_items_total = [int]$parts[0]
-        reconciliation_items_open = [int]$parts[1]
-        outbox_rows = [int]$parts[2]
-        outbox_pending_or_claimed = [int]$parts[3]
-        effect_records = [int]$parts[4]
-        duplicate_effect_calls = [int]$parts[5]
+        workflow_reconciliation_items_total = [int]$parts[0]
+        workflow_reconciliation_items_open = [int]$parts[1]
+        global_reconciliation_items_total = [int]$parts[2]
+        global_reconciliation_items_open = [int]$parts[3]
+        database_reconciliation_items_total = [int]$parts[4]
+        database_reconciliation_items_open = [int]$parts[5]
+        workflow_outbox_rows = [int]$parts[6]
+        workflow_outbox_pending_or_claimed = [int]$parts[7]
+        database_outbox_rows = [int]$parts[8]
+        database_outbox_pending_or_claimed = [int]$parts[9]
+        workflow_effect_records = [int]$parts[10]
+        workflow_duplicate_effect_calls = [int]$parts[11]
+        observed_at_utc = [DateTime]::UtcNow.ToString('o')
+        scope_note = "Reconciliation counts include workflow-scoped items for this workflow, global NULL-workflow poison obligations, and a database-wide snapshot; outbox and effect counts are reported for this workflow and outbox pending counts also database-wide."
     }
 }
 
@@ -1569,7 +1587,16 @@ if ($SelfTest) {
     } finally {
         Remove-Item -LiteralPath $failureProtocolPath -Recurse -Force -ErrorAction SilentlyContinue
     }
-    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original-worker identity controls, row-lock probe controls, no-overwrite failure-protocol controls, and BOM-free AWS JSON."
+    $obligationFixture = Convert-ObligationSummaryRow '1|0|2|1|4|1|6|0|99|2|3|0'
+    if ($obligationFixture.workflow_reconciliation_items_total -ne 1 -or
+        $obligationFixture.global_reconciliation_items_total -ne 2 -or
+        $obligationFixture.global_reconciliation_items_open -ne 1 -or
+        $obligationFixture.database_reconciliation_items_open -ne 1 -or
+        $obligationFixture.database_outbox_pending_or_claimed -ne 2 -or
+        $obligationFixture.workflow_duplicate_effect_calls -ne 0) {
+        throw "Obligation-summary self-test failed to retain workflow, global, and database-wide counts."
+    }
+    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original-worker identity controls, row-lock probe controls, global obligation accounting, no-overwrite failure-protocol controls, and BOM-free AWS JSON."
     return
 }
 
