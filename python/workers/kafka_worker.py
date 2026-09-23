@@ -32,16 +32,43 @@ class RetryingControl(ControlClient):
         super().__init__(url)
         self.stop = stop
         self.expected_attempt = 0
+        self.worker_id = ""
+        self.last_result_retry_count = 0
 
     def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         delay = 0.1
+        operation = path.rsplit("/", 1)[-1]
+        retry_count = 0
+        if operation == "result":
+            self.last_result_retry_count = 0
         while not self.stop.is_set():
             try:
-                return super()._post(path, body)
+                response = super()._post(path, body)
+                if operation == "result":
+                    self.last_result_retry_count = retry_count
+                return response
             except ControlError as error:
+                error.operation = operation
+                error.retry_count = retry_count
                 if error.status < 500:
                     raise
-                LOG.warning("control request unavailable: %s", error.code)
+                retry_count += 1
+                error.retry_count = retry_count
+                if operation == "result":
+                    LOG.info(
+                        "control result retry scheduled "
+                        "workflow_id=%s node_id=%s attempt_number=%s worker_id=%s "
+                        "retry_number=%s status=%s code=%s",
+                        path.split("/")[3] if len(path.split("/")) > 3 else "",
+                        path.split("/")[5] if len(path.split("/")) > 5 else "",
+                        body.get("attempt_number", ""),
+                        self.worker_id,
+                        retry_count,
+                        error.status,
+                        error.code,
+                    )
+                else:
+                    LOG.warning("control request unavailable: %s", error.code)
                 self.stop.wait(delay)
                 delay = min(5.0, delay * 2)
         raise ControlError(503, "SHUTTING_DOWN", "worker is stopping")
@@ -91,8 +118,8 @@ def delivery_body(message: Any) -> dict[str, Any]:
 
 
 def handle_delivery(consumer: Any, message: Any, control: RetryingControl, worker_id: str) -> None:
-    traceparent = dict(message.headers or []).get("traceparent", b"").decode(
-        "utf-8", errors="replace"
+    traceparent = (
+        dict(message.headers or []).get("traceparent", b"").decode("utf-8", errors="replace")
     )
     control.traceparent = traceparent
     response = control._post("/v1/worker-deliveries", delivery_body(message))
@@ -107,6 +134,7 @@ def handle_delivery(consumer: Any, message: Any, control: RetryingControl, worke
     task = response.get("task")
     if task is None:
         return
+    control.worker_id = worker_id
     control.expected_attempt = int(task["attempt_number"])
     work = ActivityTask(
         workflow_id=task["workflow_id"],

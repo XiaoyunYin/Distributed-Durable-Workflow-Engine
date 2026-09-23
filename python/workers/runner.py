@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
 import threading
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
@@ -9,6 +12,8 @@ from typing import Any, Protocol
 
 from workers.control import Claim, ControlClient, ControlError
 from workers.registry import ActivityRegistry
+
+LOG = logging.getLogger(__name__)
 
 
 class WorkerControl(Protocol):
@@ -134,6 +139,11 @@ class ActivityRunner:
         finally:
             stop.set()
             heartbeat_thread.join(timeout=max(1.0, self.heartbeat_interval))
+        payload_fingerprint = hashlib.sha256(
+            json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
+                "utf-8"
+            )
+        ).hexdigest()
         try:
             receipt = self.control.result(
                 task.workflow_id,
@@ -146,7 +156,36 @@ class ActivityRunner:
             )
         except ControlError as error:
             error.operation = "result"
+            LOG.info(
+                "activity result submission "
+                "workflow_id=%s node_id=%s iteration=%s attempt_number=%s worker_id=%s "
+                "attempt_state=%s payload_sha256=%s outcome=rejected status=%s code=%s retries=%s",
+                task.workflow_id,
+                task.node_id,
+                task.iteration,
+                claim.attempt_number,
+                task.worker_id,
+                attempt_state,
+                payload_fingerprint,
+                error.status,
+                error.code,
+                error.retry_count,
+            )
             raise
+        retry_count = int(getattr(self.control, "last_result_retry_count", 0))
+        LOG.info(
+            "activity result submission "
+            "workflow_id=%s node_id=%s iteration=%s attempt_number=%s worker_id=%s "
+            "attempt_state=%s payload_sha256=%s outcome=accepted retries=%s",
+            task.workflow_id,
+            task.node_id,
+            task.iteration,
+            claim.attempt_number,
+            task.worker_id,
+            attempt_state,
+            payload_fingerprint,
+            retry_count,
+        )
         if definitive_heartbeat_errors:
             # The result/evidence call above is always attempted first. The
             # stale claim remains visible to the caller after that durable

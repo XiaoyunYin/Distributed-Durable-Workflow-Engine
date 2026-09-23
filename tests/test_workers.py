@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import threading
 import time
 from typing import Any
@@ -146,6 +147,25 @@ def test_runner_attributes_stale_result_rejection_to_result_operation() -> None:
         ActivityRunner(control, registry).run_task(task("late-result"))
 
     assert raised.value.operation == "result"
+
+
+def test_runner_logs_rejected_result_metadata_without_payload(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger="workers.runner")
+    control = FakeControl()
+    control.result_failures = [ControlError(409, "STALE_ATTEMPT", "attempt is no longer current")]
+    registry = ActivityRegistry()
+    registry.register("fixture", "v1", lambda _value: {"sensitive": "do-not-log"})
+
+    with pytest.raises(ControlError):
+        ActivityRunner(control, registry).run_task(task("late-result"))
+
+    assert "activity result submission workflow_id=workflow" in caplog.text
+    assert "attempt_state=SUCCEEDED" in caplog.text
+    assert "payload_sha256=" in caplog.text
+    assert "outcome=rejected status=409 code=STALE_ATTEMPT retries=0" in caplog.text
+    assert "do-not-log" not in caplog.text
 
 
 def test_runner_submits_after_transient_heartbeat_failure() -> None:

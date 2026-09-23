@@ -136,9 +136,7 @@ def test_late_result_rejection_log_identifies_workflow_and_attempt(
         raise AssertionError(f"unexpected control request: {path}")
 
     def reject(_self: ActivityRunner, _task: Any) -> dict[str, Any]:
-        raise ControlError(
-            409, "STALE_ATTEMPT", "attempt was replaced", operation="result"
-        )
+        raise ControlError(409, "STALE_ATTEMPT", "attempt was replaced", operation="result")
 
     monkeypatch.setattr(ControlClient, "_post", post)
     monkeypatch.setattr(ActivityRunner, "run_task", reject)
@@ -155,7 +153,10 @@ def test_late_result_rejection_log_identifies_workflow_and_attempt(
     ) in caplog.text
 
 
-def test_uncertain_result_retries_identical_body(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_uncertain_result_retries_identical_body(
+    monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    caplog.set_level(logging.INFO, logger="workers.kafka_worker")
     bodies: list[dict[str, Any]] = []
 
     def post(_self: ControlClient, path: str, body: dict[str, Any]) -> dict[str, Any]:
@@ -166,5 +167,11 @@ def test_uncertain_result_retries_identical_body(monkeypatch: pytest.MonkeyPatch
 
     monkeypatch.setattr(ControlClient, "_post", post)
     control = RetryingControl("http://unused", threading.Event())
+    control.worker_id = "worker-test"
     assert control.result("wf", "node", 0, 3, "token", "SUCCEEDED", {"answer": 8})
     assert len(bodies) == 2 and bodies[0] == bodies[1]
+    assert control.last_result_retry_count == 1
+    assert (
+        "workflow_id=wf node_id=node attempt_number=3 worker_id=worker-test retry_number=1"
+        in caplog.text
+    )
