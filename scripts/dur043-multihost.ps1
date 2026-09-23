@@ -36,6 +36,10 @@ $App2MayBeStopped = $false
 # claimed long enough to observe the durable pre-fault boundary before the
 # network or host fault is injected.
 $FixtureDelayMS = 60000
+# The lock-held arm must outlast standby activation, Kafka group assignment,
+# and one useful result. A shorter hold made the fixture time out before its
+# progress assertion and could not establish overlap with the locked row.
+$LockHolderDurationSeconds = 180
 # Keep the observation hold below the runtime scheduler's fixed 5s iteration
 # deadline.  A hold equal to that deadline makes every fixture pass expire
 # before the scheduler can schedule the activity, producing a false liveness
@@ -915,7 +919,7 @@ function Invoke-SameOwnerEpochProbe([string]$InstanceId, [string]$WorkflowID) {
     return $probe
 }
 
-function Start-LockHolder([string]$InstanceId, [int]$PartitionID, [int]$DurationSeconds = 45) {
+function Start-LockHolder([string]$InstanceId, [int]$PartitionID, [int]$DurationSeconds = 180) {
     # The runtime image is FROM scratch: it has no shell, cat, or /tmp. Have
     # the lock-holder write its marker to stdout and capture that stream in a
     # host-side log while docker exec remains attached in the background.
@@ -929,7 +933,8 @@ function Start-LockHolder([string]$InstanceId, [int]$PartitionID, [int]$Duration
         "rm -f '$marker'",
         $startHolderCommand
     )
-    if ($output -notmatch 'lock_holder_pid=\d+') { throw "Lock-holder launch did not report its host-side process ID: $output" }
+    if ($output -notmatch 'lock_holder_pid=(?<pid>\d+)') { throw "Lock-holder launch did not report its host-side process ID: $output" }
+    $hostProcessID = [int64]$Matches.pid
     $deadline = (Get-Date).AddSeconds(30)
     do {
         Start-Sleep -Seconds 2
@@ -939,10 +944,27 @@ function Start-LockHolder([string]$InstanceId, [int]$PartitionID, [int]$Duration
         ) 30
         if (-not [string]::IsNullOrWhiteSpace($markerOutput) -and $markerOutput -match 'locked_at=') {
             $lockedAtText = ($markerOutput.Trim() -split 'locked_at=', 2)[1].Trim()
-            return [ordered]@{ marker_log = $marker; launch_output = $output.Trim(); observed_at_utc = [DateTime]::UtcNow; locked_at_utc = ([DateTimeOffset]::Parse($lockedAtText)).UtcDateTime; marker_contents = $markerOutput.Trim(); duration_seconds = $DurationSeconds; marker_transport = "lock-holder stdout captured in host-side file; runtime image has no shell or /tmp" }
+            return [ordered]@{ marker_log = $marker; host_process_id = $hostProcessID; launch_output = $output.Trim(); observed_at_utc = [DateTime]::UtcNow.ToString('o'); locked_at_utc = ([DateTimeOffset]::Parse($lockedAtText)).UtcDateTime.ToString('o'); marker_contents = $markerOutput.Trim(); duration_seconds = $DurationSeconds; marker_transport = "lock-holder stdout captured in host-side file; runtime image has no shell or /tmp" }
         }
     } while ((Get-Date) -lt $deadline)
-    throw "Lock-holder marker was not observed inside the running runtime container."
+    throw "Lock-holder's locked-at marker was not observed in the host-side log before the deadline."
+}
+
+function Observe-LockHolder([string]$InstanceId, [int64]$HostProcessID) {
+    $runtimeLookupLine = Get-AppRuntimeComposeLookupLine
+    $commands = @(
+        'set -e',
+        $runtimeLookupLine,
+        'test -n "$cid"',
+        "kill -0 $HostProcessID",
+        'printf "host_lock_holder_pid_alive=true\n"',
+        'docker top "$cid" -eo pid,args | grep -F -- "/dur049-lock-holder"'
+    )
+    $output = Send-Ssm $InstanceId $commands 30
+    if ($output -notmatch 'host_lock_holder_pid_alive=true' -or $output -notmatch '/dur049-lock-holder') {
+        throw "The lock-holder process was not observed alive in the runtime container while progress was observed: $output"
+    }
+    return [ordered]@{ observed = $true; controller_observed_at_utc = [DateTime]::UtcNow.ToString('o'); host_process_id = $HostProcessID; output = $output.Trim(); lock_holder_binary_visible_in_container_process_list = $true }
 }
 
 function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [string]$WorkflowID, [string]$ProgressWorkflowID, [string]$OutputPath) {
@@ -968,7 +990,7 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
     $checkpoint.app2_stopped_before_owner_capture = $app2Stopped
     Save-EpisodeCheckpoint $OutputPath $checkpoint "claimed"
     $epochBoundary = Get-LeaseEpochBoundary $Dependency $partition
-    $lockHolder = Start-LockHolder $App1 $partition 45
+    $lockHolder = Start-LockHolder $App1 $partition $LockHolderDurationSeconds
     $lockObservedAt = $lockHolder.observed_at_utc
     $checkpoint.lock_holder = $lockHolder
     Save-EpisodeCheckpoint $OutputPath $checkpoint "lease-row-lock-observed"
@@ -978,16 +1000,18 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
     $app2Configuration = Get-AppConfiguration $App2
     Wait-AppApi $App2
     [void](Submit-FixtureWorkflow $App2 $ProgressWorkflowID)
-    $progress = Wait-Workflow $Dependency $ProgressWorkflowID 75
+    $progress = Wait-Workflow $Dependency $ProgressWorkflowID 120
     $progressObservedAt = [DateTime]::UtcNow
     if ($progress.state -ne "SUCCEEDED") { throw "Other partition did not complete successfully while lock-held partition was contended: $($progress.state)." }
     $progressResults = [int](Invoke-DbSql $Dependency "SELECT count(*) FROM engine.transition_history WHERE workflow_id='$ProgressWorkflowId' AND reason='RESULT_CONSUMED';")
     if ($progressResults -lt 1) { throw "Other partition reached SUCCEEDED without a durable consumed result while lock-held partition was contended." }
     $progressLatency = DurationMilliseconds $lockObservedAt $progressObservedAt
     if ($progressLatency -ge ($lockHolder.duration_seconds * 1000)) { throw "Other-partition progress was not observed before the lock-holder's bounded hold elapsed: ${progressLatency}ms." }
+    $lockHolderObservedDuringProgress = Observe-LockHolder $App1 $lockHolder.host_process_id
     $checkpoint.other_partition_progress = $progress
     $checkpoint.other_partition_progress_observed_at_utc = $progressObservedAt.ToString("o")
     $checkpoint.other_partition_progress_ms = $progressLatency
+    $checkpoint.lock_holder_observed_during_other_partition_progress = $lockHolderObservedDuringProgress
     Save-EpisodeCheckpoint $OutputPath $checkpoint "other-partition-progress-confirmed"
     $takeover = Wait-FirstNewOwnerAcquisition $Dependency $partition $oldLease.owner_id $epochBoundary $lockObservedAt 150
     $checkpoint.first_new_owner_acquisition = $takeover
@@ -1028,6 +1052,7 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
         progress_while_lock_held = $progress
         other_partition_progress_observed_at_utc = $progressObservedAt.ToString("o")
         lock_observed_to_other_partition_progress_ms = $progressLatency
+        lock_holder_observed_during_other_partition_progress = $lockHolderObservedDuringProgress
         workflow_before = $before
         workflow_after = $terminal
         first_useful_progress = [ordered]@{ definition = $usefulProgress.progress_definition; controller_observed_at_utc = $usefulProgress.controller_observed_at_utc; workflow = $usefulProgress.workflow }
@@ -1042,7 +1067,7 @@ function Run-LockHeldArm([string]$App1, [string]$App2, [string]$Dependency, [str
         first_new_owner_acquisition_observed_to_first_useful_progress_observed_ms = DurationMilliseconds $takeover.observed_at $usefulProgress.observed_at
         timestamp_semantics = "Intervals use controller UTC observation times after 2-second polling; DB timestamps are transaction-recorded diagnostics, not commit times."
         recovery_timing_note = "This is the lock-held isolation arm. The lease fence remains row-locked; the bounded lock timeout lets other partitions progress while takeover waits. App2 is a controller-started standby, not a continuously active peer. The 30-second AttemptLease bounds replacement timing. Report separately from pure network isolation and do not treat this as peer failure-detection latency."
-        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; lock_progress_activity_delay_ms = 1000; lock_holder_duration_seconds = 45; lock_timeout_seconds = 2; attempt_lease_seconds = 30 }
+        configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; lock_progress_activity_delay_ms = 1000; lock_progress_observation_timeout_seconds = 120; lock_holder_duration_seconds = $LockHolderDurationSeconds; lock_timeout_seconds = 2; attempt_lease_seconds = 30 }
     }
     $checkpoint.status = "PASS"
     $checkpoint.result = $result
@@ -1292,10 +1317,11 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
 }
 
 if ($SelfTest) {
+    if ($LockHolderDurationSeconds -lt 150) { throw "Lock-holder duration must leave margin over measured cold-standby progress latency." }
     $composeLookup = Get-AppRuntimeComposeLookupCommand
     $composeLookupLine = Get-AppRuntimeComposeLookupLine
     $markerLogPath = "/tmp/dur049-lock-holder-13.log"
-    $startHolderCommand = 'nohup docker exec "$cid" /dur049-lock-holder -partition-id 13 -duration 45s -marker /dev/stdout > ' + "'$markerLogPath'" + ' 2>&1 < /dev/null & holder_pid=$!; printf "lock_holder_pid=%s\n" "$holder_pid"'
+    $startHolderCommand = 'nohup docker exec "$cid" /dur049-lock-holder -partition-id 13 -duration 180s -marker /dev/stdout > ' + "'$markerLogPath'" + ' 2>&1 < /dev/null & holder_pid=$!; printf "lock_holder_pid=%s\n" "$holder_pid"'
     $markerPollCommand = "if grep -m1 'locked_at=' '$markerLogPath'; then exit 0; elif grep -q 'fatal:' '$markerLogPath'; then cat '$markerLogPath'; exit 1; else printf 'lock_holder_waiting=true\n'; fi"
     if ($composeLookup -notmatch [regex]::Escape("--env-file '$RemoteEnv' -f '$AppCompose' ps -q runtime")) {
         throw "Lock-holder compose lookup must specify the environment file and compose file independently: $composeLookup"
@@ -1365,7 +1391,7 @@ if ($SelfTest) {
     } finally {
         Remove-Item -LiteralPath $jsonSelfTestPath -Force -ErrorAction SilentlyContinue
     }
-    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original-worker identity controls, lock-holder Compose/host-marker command controls, and BOM-free AWS JSON."
+    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 partition vectors, recovery ordering controls, original-worker identity controls, lock-holder command/marker/hold controls, and BOM-free AWS JSON."
     return
 }
 
@@ -1419,6 +1445,8 @@ try {
             requested_activity_delay_ms = $FixtureDelayMS
             claim_observation_timeout_seconds = 300
             lock_progress_activity_delay_ms = 1000
+            lock_progress_observation_timeout_seconds = 120
+            lock_holder_duration_seconds = $LockHolderDurationSeconds
             requested_scheduler_hold_after_acquire_ms = $ObservationHoldMS
             takeover_observation_hold_ms = $TakeoverObservationHoldMS
             requested_fixture_activity_enabled = $FixtureActivityEnabled
