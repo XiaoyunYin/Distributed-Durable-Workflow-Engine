@@ -680,12 +680,12 @@ function Test-WorkerResultSubmissionLog([string]$Line, [string]$WorkflowID, [obj
         "attempt_number=$($Attempt.attempt_number)",
         "worker_id=$($Attempt.worker_id)",
         'attempt_state=SUCCEEDED',
-        'outcome=rejected status=409 code=STALE_ATTEMPT retries=0'
+        'outcome=rejected status=409 code=STALE_ATTEMPT'
     )
     foreach ($fragment in $required) {
         if (-not $Line.Contains($fragment)) { return $false }
     }
-    return $Line -match 'payload_sha256=[0-9a-f]{64}'
+    return ($Line -match 'payload_sha256=[0-9a-f]{64}' -and $Line -match 'retries=\d+')
 }
 
 function Wait-WorkerStaleResultObservation([string]$InstanceId, [string]$WorkflowID, [object]$Attempt, [int]$TimeoutSeconds = 90) {
@@ -704,6 +704,8 @@ function Wait-WorkerStaleResultObservation([string]$InstanceId, [string]$Workflo
         if (-not [string]::IsNullOrWhiteSpace($submissionLine) -and -not [string]::IsNullOrWhiteSpace($rejectionLine)) {
             $fingerprintMatch = [regex]::Match($submissionLine, 'payload_sha256=(?<hash>[0-9a-f]{64})')
             if (-not $fingerprintMatch.Success) { throw 'Rejected result log did not contain a SHA-256 payload fingerprint.' }
+            $retryMatch = [regex]::Match($submissionLine, 'retries=(?<count>\d+)')
+            if (-not $retryMatch.Success) { throw 'Rejected result log did not contain a retry count.' }
             return [ordered]@{
                 observed = $true
                 source = 'original worker container stdout; matching result submission metadata and result-operation rejection after reconnect'
@@ -714,8 +716,8 @@ function Wait-WorkerStaleResultObservation([string]$InstanceId, [string]$Workflo
                 api_rejection = 'STALE_ATTEMPT'
                 attempt_state = 'SUCCEEDED'
                 payload_sha256 = $fingerprintMatch.Groups['hash'].Value
-                submission_retry_count = 0
-                retry_behavior = 'HTTP 409 was not retried; only uncertain 5xx control outcomes are retried with the identical body.'
+                submission_retry_count = [int]$retryMatch.Groups['count'].Value
+                retry_behavior = 'HTTP 409 is not retried; preceding uncertain 5xx outcomes are retried with the identical body.'
                 observed_at_utc = [DateTime]::UtcNow.ToString('o')
                 submission_log_line = $submissionLine.Trim()
                 rejection_log_line = $rejectionLine.Trim()
@@ -1603,11 +1605,13 @@ if ($SelfTest) {
     $staleResultLog = 'delivery control rejected workflow_id=wf-stale node_id=dur048.sleep attempt_number=7 worker_id=worker-1 operation=result code=STALE_ATTEMPT'
     $staleHeartbeatLog = 'delivery control rejected workflow_id=wf-stale node_id=dur048.sleep attempt_number=7 worker_id=worker-1 operation=heartbeat code=STALE_ATTEMPT'
     $resultSubmissionLog = 'activity result submission workflow_id=wf-stale node_id=dur048.sleep iteration=0 attempt_number=7 worker_id=worker-1 attempt_state=SUCCEEDED payload_sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef outcome=rejected status=409 code=STALE_ATTEMPT retries=0'
+    $resultSubmissionRetriedLog = $resultSubmissionLog.Replace('retries=0', 'retries=3')
     $genericLeaseLog = 'scheduler lease observation hold enabled'
     if (-not (Test-WorkerStaleResultLog $staleResultLog 'wf-stale' $staleLogAttempt)) { throw 'stale-result log self-test rejected the positive result-operation control' }
     if (Test-WorkerStaleResultLog $staleHeartbeatLog 'wf-stale' $staleLogAttempt) { throw 'stale-result log self-test accepted a heartbeat rejection as a result rejection' }
     if (Test-WorkerStaleResultLog $genericLeaseLog 'wf-stale' $staleLogAttempt) { throw 'stale-result log self-test accepted an unrelated lease log line' }
     if (-not (Test-WorkerResultSubmissionLog $resultSubmissionLog 'wf-stale' $staleLogAttempt)) { throw 'result-submission self-test rejected valid redacted metadata' }
+    if (-not (Test-WorkerResultSubmissionLog $resultSubmissionRetriedLog 'wf-stale' $staleLogAttempt)) { throw 'result-submission self-test rejected a retried request with a recorded retry count' }
     if (Test-WorkerResultSubmissionLog ($resultSubmissionLog.Replace('payload_sha256=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef','payload=plaintext')) 'wf-stale' $staleLogAttempt) { throw 'result-submission self-test accepted an unhashed payload' }
     $jsonSelfTestPath = Join-Path $RepoRoot ".scratch/dur043-json-selftest.json"
     try {
