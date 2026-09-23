@@ -969,11 +969,11 @@ function Wait-OwnerLockHeldMarker([string]$InstanceId, [string]$WorkflowID, [int
             $line = $line.Substring($line.IndexOf('DUR049_OWNER_LOCK_HELD '))
             $fields = @{}
             foreach ($match in [regex]::Matches($line, '(?<name>[a-z_]+)=(?<value>[^ ]+)')) { $fields[$match.Groups['name'].Value] = $match.Groups['value'].Value }
-            foreach ($name in @('workflow_id', 'partition_id', 'owner_id', 'epoch', 'backend_pid', 'idle_timeout', 'hold_ms', 'started_at_utc')) {
+            foreach ($name in @('workflow_id', 'partition_id', 'owner_id', 'epoch', 'backend_pid', 'idle_timeout', 'idle_timeout_scope', 'hold_ms', 'started_at_utc')) {
                 if (-not $fields.ContainsKey($name)) { throw "Owner-lock marker omitted ${name}: $line" }
             }
             if ($fields.workflow_id -ne $WorkflowID -or [int]$fields.hold_ms -lt 30000) { throw "Owner-lock marker identity/duration mismatch: $line" }
-            return [ordered]@{ line = $line; workflow_id = $fields.workflow_id; partition_id = [int]$fields.partition_id; owner_id = $fields.owner_id; epoch = [int64]$fields.epoch; backend_pid = [int]$fields.backend_pid; idle_timeout = $fields.idle_timeout; hold_ms = [int]$fields.hold_ms; started_at_utc = ([DateTimeOffset]::Parse($fields.started_at_utc)).UtcDateTime.ToString('o'); observed_at_utc = [DateTime]::UtcNow.ToString('o') }
+            return [ordered]@{ line = $line; workflow_id = $fields.workflow_id; partition_id = [int]$fields.partition_id; owner_id = $fields.owner_id; epoch = [int64]$fields.epoch; backend_pid = [int]$fields.backend_pid; idle_timeout = $fields.idle_timeout; idle_timeout_scope = $fields.idle_timeout_scope; hold_ms = [int]$fields.hold_ms; started_at_utc = ([DateTimeOffset]::Parse($fields.started_at_utc)).UtcDateTime.ToString('o'); observed_at_utc = [DateTime]::UtcNow.ToString('o') }
         }
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
@@ -1506,7 +1506,7 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
     $script:App2MayBeStopped = $true
     $app2Stopped = Stop-AppRuntime $App2
     $script:OwnerLockRuntimeConfigured = $true
-    Set-AppOwnerLockIsolationMode $App1 $WorkflowID $FixtureDelayMS 120000
+    Set-AppOwnerLockIsolationMode $App1 $WorkflowID $FixtureDelayMS 180000
     $app1Configuration = Get-AppConfiguration $App1
     if ($app1Configuration.runtime_entrypoint -ne '/runtime-dur049-owner-lock' -or $app1Configuration.owner_lock_campaign_workflow_id -ne $WorkflowID) {
         throw 'The owner-lock scenario is not running in the explicitly tagged campaign runtime with the targeted workflow.'
@@ -1529,15 +1529,19 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
     # The hook runs inside this original runtime after it has locked the lease
     # row in ConsumeResult. Confirm both its precise backend and independent
     # row-lock contention before issuing the network fault.
-    $lockMarker = Wait-OwnerLockHeldMarker $App1 $WorkflowID
-    if ($lockMarker.partition_id -ne $partition -or $lockMarker.owner_id -ne $claimed.scheduler_acquisition.owner_id) {
-        throw "Owner-lock marker does not identify the workflow's partition and original scheduler owner: $($lockMarker | ConvertTo-Json -Compress)"
-    }
-    if ($lockMarker.idle_timeout -ne '10s') { throw "Campaign runtime PostgreSQL session timeout is $($lockMarker.idle_timeout), expected 10s." }
+    # Read global settings before the targeted transaction enters its idle
+    # lock-holding window. The tagged hook extends only that transaction-local
+    # timer so controller observations cannot consume the normal 10s budget.
     $serverTimeouts = (Invoke-DbSqlTcp $Dependency "SELECT current_setting('idle_in_transaction_session_timeout') || '|' || current_setting('tcp_keepalives_idle');") -split '\|', 2
     if ($serverTimeouts.Count -ne 2 -or $serverTimeouts[0] -ne '10s' -or $serverTimeouts[1] -ne '30') {
         throw "Dependency PostgreSQL server settings are not the declared reaping configuration: $($serverTimeouts -join '|')"
     }
+    $lockMarker = Wait-OwnerLockHeldMarker $App1 $WorkflowID
+    if ($lockMarker.partition_id -ne $partition -or $lockMarker.owner_id -ne $claimed.scheduler_acquisition.owner_id) {
+        throw "Owner-lock marker does not identify the workflow's partition and original scheduler owner: $($lockMarker | ConvertTo-Json -Compress)"
+    }
+    if ($lockMarker.idle_timeout -ne '2min' -or $lockMarker.idle_timeout_scope -ne 'transaction_local') { throw "Campaign lock-owner session timeout is $($lockMarker.idle_timeout) ($($lockMarker.idle_timeout_scope)), expected transaction-local 2min." }
+    # This must be the first remote observation after receiving the marker.
     $backendState = Get-PostgresBackendState $Dependency $lockMarker.backend_pid
     if ($null -eq $backendState -or $backendState.state -ne 'idle in transaction' -or $backendState.wait_event_type -ne 'Client') {
         throw "The actual runtime backend was not observed idle in transaction while the hook held ConsumeResult: pid=$($lockMarker.backend_pid), state=$($backendState | ConvertTo-Json -Compress)"
@@ -1564,9 +1568,14 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
     $script:NetworkRulesInserted = $true
     $fault = Insert-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP $false
     $checkpoint.fault_observed = $fault
+    $backendAfterFault = Get-PostgresBackendState $Dependency $lockMarker.backend_pid
+    if ($null -eq $backendAfterFault -or $backendAfterFault.state -ne 'idle in transaction' -or $backendAfterFault.wait_event_type -ne 'Client') {
+        throw "The owner backend was not observed still idle in its open transaction after confirmed network isolation: pid=$($lockMarker.backend_pid), state=$($backendAfterFault | ConvertTo-Json -Compress)"
+    }
+    $checkpoint.backend_after_confirmed_isolation = $backendAfterFault
     Save-EpisodeCheckpoint $OutputPath $checkpoint 'owner-host-isolated-process-preserved'
 
-    $backendReaped = Wait-PostgresBackendReaped $Dependency $lockMarker.backend_pid 45
+    $backendReaped = Wait-PostgresBackendReaped $Dependency $lockMarker.backend_pid 150
     $checkpoint.backend_reaped_by_postgresql = $backendReaped
     $checkpoint.server_reaped_to_observed_at_utc = [DateTime]::UtcNow.ToString('o')
     Save-EpisodeCheckpoint $OutputPath $checkpoint 'postgres-backend-reaped'
@@ -1631,6 +1640,7 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
         original_runtime_identity_after_stale_write = $runtimePreservedAfterStale
         original_owner_lock_marker = $lockMarker
         postgres_backend_before_fault = $backendState
+        postgres_backend_after_confirmed_isolation = $backendAfterFault
         independent_row_lock_probe = $lockProbe
         network_fault_observed = $fault
         dependency_session_termination = $false
@@ -1652,7 +1662,7 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
             takeover_to_first_useful_progress_observed = DurationMilliseconds $takeover.observed_at $useful.observed_at
             reconnect_to_stale_write_rejection_observed = DurationMilliseconds $reconnectedAt $staleWrite.observed_at_utc
         }
-        configuration = [ordered]@{ idle_in_transaction_session_timeout_seconds = 10; app_tcp_keepalive_idle_seconds = 30; owner_lock_hook_hold_ms = $lockMarker.hold_ms; runtime_entrypoint = $app1Configuration.runtime_entrypoint; runtime_image_id = $app1Configuration.runtime_image_id; worker_slots_per_host = $app1Configuration.worker_slots; activity = 'dur048.sleep'; dependency_session_termination = $false }
+        configuration = [ordered]@{ idle_in_transaction_session_timeout_seconds = 10; target_transaction_idle_timeout_seconds = 120; target_transaction_idle_timeout_scope = 'transaction_local campaign-only override'; app_tcp_keepalive_idle_seconds = 30; owner_lock_hook_hold_ms = $lockMarker.hold_ms; runtime_entrypoint = $app1Configuration.runtime_entrypoint; runtime_image_id = $app1Configuration.runtime_image_id; worker_slots_per_host = $app1Configuration.worker_slots; activity = 'dur048.sleep'; dependency_session_termination = $false }
         limitation = 'Single AWS region and one dependency host; this arm validates scheduler-owner lock isolation and PostgreSQL backend reaping, not database-host durability or multi-region behavior.'
     }
     $checkpoint.status = 'PASS'
@@ -2138,6 +2148,8 @@ try {
             attempt_lease_seconds = 30
             tcp_keepalives_idle_seconds = 30
             idle_in_transaction_session_timeout_seconds = 10
+            owner_lock_target_transaction_timeout_seconds = 120
+            owner_lock_target_transaction_timeout_scope = 'transaction_local campaign-only override; global deployment setting remains 10s'
             claim_observation_semantics = "Wait for a durable CLAIMED attempt; scheduler lease identity is joined from the ATTEMPT_CREATED history epoch because the scheduler releases its lease at pass end."
             peer_mode = "controller-started cold standby for takeover arms; not a continuously active peer"
             pre_fault_refresh = "The original app host runtime and worker are force-recreated and health-checked before each fault fixture; container IDs and start times are recorded in the episode configuration."

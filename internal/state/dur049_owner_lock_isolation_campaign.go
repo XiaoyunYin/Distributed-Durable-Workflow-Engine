@@ -16,6 +16,8 @@ import (
 
 var dur049OwnerLockIsolationUsed atomic.Bool
 
+const dur049OwnerLockSessionIdleTimeout = "2min"
+
 // dur049OwnerLockIsolationAfterLeaseLock is compiled only into the explicit
 // DUR-049 campaign runtime. It deliberately leaves the real ConsumeResult
 // transaction idle while holding the partition lease row lock. After the
@@ -35,14 +37,24 @@ func dur049OwnerLockIsolationAfterLeaseLock(ctx context.Context, store *Store, t
 	if err != nil || holdMS < 30000 || holdMS > 180000 {
 		return fmt.Errorf("DUR049_OWNER_LOCK_ISOLATION_HOLD_MS must be 30000..180000, got %q", holdText)
 	}
+	// The normal server default is 10s. The campaign controller needs several
+	// SSM observations to confirm isolation across three hosts, so extend only
+	// this tagged fixture transaction. This is transaction-local, not a change
+	// to the deployed/global PostgreSQL setting, and is recorded in the artifact.
+	if _, err := tx.Exec(ctx, `SET LOCAL idle_in_transaction_session_timeout = '2min'`); err != nil {
+		return fmt.Errorf("set campaign-local idle transaction timeout: %w", err)
+	}
 	var backendPID int
 	var idleTimeout string
 	if err := tx.QueryRow(ctx, `SELECT pg_backend_pid(), current_setting('idle_in_transaction_session_timeout')`).Scan(&backendPID, &idleTimeout); err != nil {
 		return fmt.Errorf("observe lock-owning PostgreSQL backend: %w", err)
 	}
+	if idleTimeout != dur049OwnerLockSessionIdleTimeout {
+		return fmt.Errorf("campaign-local idle transaction timeout = %q, want %q", idleTimeout, dur049OwnerLockSessionIdleTimeout)
+	}
 	startedAt := time.Now().UTC()
 	_, _ = fmt.Fprintf(os.Stderr,
-		"DUR049_OWNER_LOCK_HELD workflow_id=%s partition_id=%d owner_id=%s epoch=%d backend_pid=%d idle_timeout=%s hold_ms=%d started_at_utc=%s\n",
+		"DUR049_OWNER_LOCK_HELD workflow_id=%s partition_id=%d owner_id=%s epoch=%d backend_pid=%d idle_timeout=%s idle_timeout_scope=transaction_local hold_ms=%d started_at_utc=%s\n",
 		input.WorkflowID, input.Lease.PartitionID, input.Lease.OwnerID, input.Lease.Epoch,
 		backendPID, idleTimeout, holdMS, startedAt.Format(time.RFC3339Nano))
 
