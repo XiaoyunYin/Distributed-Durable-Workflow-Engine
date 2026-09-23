@@ -117,7 +117,7 @@ jobs:
             if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
           }
           $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
-          $mutationDatabase = 'dur046_mutation'
+          $mutationDatabase = 'dur046_mutation_powershell'
           $port = $values['POSTGRES_PORT']
           if ([string]::IsNullOrWhiteSpace($port)) { $port = '5432' }
           $encodedUser = [uri]::EscapeDataString($values['POSTGRES_USER'])
@@ -141,17 +141,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          compose=(docker compose --env-file .env -f deploy/local/compose.yaml)
           user_name="$(sed -n 's/^POSTGRES_USER=//p' .env)"
           password="$(sed -n 's/^POSTGRES_PASSWORD=//p' .env)"
-          database="dur046_mutation"
+          database="dur046_mutation_linux"
           port="$(sed -n 's/^POSTGRES_PORT=//p' .env)"
           : "${port:=5432}"
+          "${compose[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U "$user_name" -d postgres -c "DROP DATABASE IF EXISTS $database WITH (FORCE)"
+          "${compose[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U "$user_name" -d postgres -c "CREATE DATABASE $database"
+          for migration in migrations/*.up.sql; do
+            "${compose[@]}" exec -T postgres psql -v ON_ERROR_STOP=1 -U "$user_name" -d "$database" < "$migration"
+          done
           encoded_user="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$user_name")"
           encoded_password="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$password")"
           export DURABLE_MUTATION_DATABASE_URL="postgresql://${encoded_user}:${encoded_password}@127.0.0.1:${port}/${database}?sslmode=disable"
           bash scripts/mutation-gate.sh
 
-      - name: Drop isolated mutation database
+      - name: Drop isolated mutation databases
         if: always()
         shell: pwsh
         run: |
@@ -160,7 +166,10 @@ jobs:
             if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
           }
           $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
-          docker compose @compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $values['POSTGRES_USER'] -d postgres -c 'DROP DATABASE IF EXISTS dur046_mutation WITH (FORCE)'
+          foreach ($database in @('dur046_mutation_powershell', 'dur046_mutation_linux')) {
+            docker compose @compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $values['POSTGRES_USER'] -d postgres -c "DROP DATABASE IF EXISTS $database WITH (FORCE)"
+            if ($LASTEXITCODE -ne 0) { throw "Could not drop isolated mutation database $database." }
+          }
 
       - name: Restore deployed relays after mutation gates
         if: always()
