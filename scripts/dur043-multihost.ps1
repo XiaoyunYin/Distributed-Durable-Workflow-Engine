@@ -51,7 +51,11 @@ function Invoke-Aws([string[]]$Arguments) {
 }
 
 function Write-Json([string]$Path, [object]$Value) {
-    $Value | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $Path -Encoding UTF8
+    # Windows PowerShell's Set-Content -Encoding UTF8 writes a BOM. AWS CLI
+    # rejects that BOM when the file is supplied through --cli-input-json.
+    $json = $Value | ConvertTo-Json -Depth 16
+    $utf8NoBom = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllText($Path, $json, $utf8NoBom)
 }
 
 function Resolve-Terraform {
@@ -442,7 +446,18 @@ if ($SelfTest) {
         $actual = Get-PartitionID $vector.workflow_id
         if ($actual -ne $vector.partition) { throw "partition self-test failed for $($vector.workflow_id): got $actual, want $($vector.partition)" }
     }
-    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 independent partition vectors."
+    $jsonSelfTestPath = Join-Path $RepoRoot ".scratch/dur043-json-selftest.json"
+    try {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $jsonSelfTestPath) | Out-Null
+        Write-Json $jsonSelfTestPath ([ordered]@{ self_test = $true })
+        $jsonBytes = [System.IO.File]::ReadAllBytes($jsonSelfTestPath)
+        if ($jsonBytes.Length -ge 3 -and $jsonBytes[0] -eq 0xEF -and $jsonBytes[1] -eq 0xBB -and $jsonBytes[2] -eq 0xBF) {
+            throw "JSON self-test wrote a UTF-8 BOM; AWS CLI input JSON must be BOM-free."
+        }
+    } finally {
+        Remove-Item -LiteralPath $jsonSelfTestPath -Force -ErrorAction SilentlyContinue
+    }
+    Write-Host "DUR-043 PowerShell 5.1 self-test PASS: 5 independent partition vectors and BOM-free AWS JSON."
     return
 }
 
