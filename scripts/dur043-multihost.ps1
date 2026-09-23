@@ -32,6 +32,10 @@ $FixtureDelayMS = 60000
 # before the scheduler can schedule the activity, producing a false liveness
 # failure instead of a claimed attempt.
 $ObservationHoldMS = 1000
+# Hold the takeover owner briefly after acquiring the lease so the controller
+# can observe the durable takeover before the replacement attempt is created.
+# This separates observation latency from useful-progress latency.
+$TakeoverObservationHoldMS = 5000
 $FixtureActivityEnabled = $true
 $WorkerSlots = 2
 $FaultPorts = @(5432, 9092)
@@ -171,6 +175,21 @@ function Wait-FirstUsefulProgress([string]$DependencyInstanceId, [string]$Workfl
         Start-Sleep -Seconds 2
     } while ((Get-Date) -lt $deadline)
     throw "Workflow $WorkflowID did not commit a replacement attempt after the fault."
+}
+
+function Wait-FirstUsefulProgressAfterObservation([string]$DependencyInstanceId, [string]$WorkflowID, [int64]$PreviousAttemptNumber, [DateTime]$ObservedAt, [int]$TimeoutSeconds = 150) {
+    $deadline = (Get-Date).AddSeconds($TimeoutSeconds)
+    do {
+        $workflow = Get-Workflow $DependencyInstanceId $WorkflowID
+        if ($workflow.attempt_number -gt $PreviousAttemptNumber) {
+            $attemptCreatedAt = ([DateTimeOffset]::Parse($workflow.attempt_created_at)).UtcDateTime
+            if ($attemptCreatedAt -gt $ObservedAt) {
+                return [ordered]@{ workflow = $workflow; observed_at_utc = $attemptCreatedAt; observed_after_takeover = $true }
+            }
+        }
+        Start-Sleep -Seconds 2
+    } while ((Get-Date) -lt $deadline)
+    throw "Workflow $WorkflowID did not commit useful replacement progress after takeover observation."
 }
 
 function Wait-ClaimedWorkflow([string]$DependencyInstanceId, [string]$WorkflowID, [int]$PartitionID, [int]$TimeoutSeconds = 45) {
@@ -358,7 +377,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     if ($before.attempt_state -ne "CLAIMED") { throw "Network fixture must be observed CLAIMED before isolation; observed $($before.attempt_state)." }
     $script:NetworkRulesInserted = $true
     $faultObserved = Insert-NetworkBlock $App1 $Dependency $DependencyIP $AppPrivateIP
-    Set-AppMode $App2 $FixtureDelayMS 0
+    Set-AppMode $App2 $FixtureDelayMS $TakeoverObservationHoldMS
     $app2Configuration = Get-AppConfiguration $App2
     $deadline = (Get-Date).AddSeconds(90)
     do {
@@ -373,7 +392,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
     $script:NetworkRulesInserted = $false
     $reconnected = Observe-Runtime $App1
     $staleProbe = Invoke-StaleProbe $App1 $WorkflowID $partition $oldLease.owner_id $oldLease.epoch
-    $usefulProgress = Wait-FirstUsefulProgress $Dependency $WorkflowID $before.attempt_number 150
+    $usefulProgress = Wait-FirstUsefulProgressAfterObservation $Dependency $WorkflowID $before.attempt_number $takeoverObservedAt 150
     $terminal = Wait-Workflow $Dependency $WorkflowID 150
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Network-isolated workflow did not recover to SUCCEEDED: $($terminal.state)" }
@@ -402,7 +421,7 @@ function Run-NetworkArm([string]$App1, [string]$App2, [string]$Dependency, [stri
         terminal_completion_at_utc = $terminalAt.ToString("o")
         fault_command_to_observed_ms = DurationMilliseconds $faultObserved.command_at_utc $faultObserved.observed_at_utc
         fault_observed_to_takeover_ms = DurationMilliseconds $faultObserved.observed_at_utc $takeoverAt
-        takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverAt $usefulProgress.observed_at_utc
+        takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverObservedAt $usefulProgress.observed_at_utc
         fault_observed_to_terminal_completion_ms = DurationMilliseconds $faultObserved.observed_at_utc $terminalAt
         configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion for dependency destination"; route_fault = "app-host blackhole route for dependency /32"; dependency_source_ip = $AppPrivateIP }
         limitation = "This arm isolates the app host from PostgreSQL while preserving its process; it is not a host-stop or database-host durability claim."
@@ -433,7 +452,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     $stoppedObserved = $true
     $stoppedAt = [DateTime]::UtcNow
     $script:App1WasStopped = $true
-    Set-AppMode $App2 $FixtureDelayMS 0
+    Set-AppMode $App2 $FixtureDelayMS $TakeoverObservationHoldMS
     $app2Configuration = Get-AppConfiguration $App2
     $restartRequestedAt = [DateTime]::UtcNow
     Invoke-Aws @("ec2", "start-instances", "--instance-ids", $App1) | Out-Null
@@ -455,7 +474,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
     if ($newLease.epoch -le $oldLease.epoch -or $newLease.owner_id -eq $oldLease.owner_id) { throw "Peer did not take over after the application host stop." }
     $takeoverObservedAt = [DateTime]::UtcNow
     $takeoverAt = ([DateTimeOffset]::Parse($newLease.updated_at)).UtcDateTime
-    $usefulProgress = Wait-FirstUsefulProgress $Dependency $WorkflowID $before.attempt_number 180
+    $usefulProgress = Wait-FirstUsefulProgressAfterObservation $Dependency $WorkflowID $before.attempt_number $takeoverObservedAt 180
     $terminal = Wait-Workflow $Dependency $WorkflowID 180
     $terminalAt = ([DateTimeOffset]::Parse($terminal.updated_at)).UtcDateTime
     if ($terminal.state -ne "SUCCEEDED") { throw "Host-stop workflow did not recover to SUCCEEDED: $($terminal.state)" }
@@ -481,7 +500,7 @@ function Run-HostArm([string]$App1, [string]$App2, [string]$Dependency, [string]
         terminal_completion_at_utc = $terminalAt.ToString("o")
         stop_requested_to_running_ms = DurationMilliseconds $stopRequestedAt $runningObservedAt
         running_to_takeover_ms = DurationMilliseconds $runningObservedAt $takeoverAt
-        takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverAt $usefulProgress.observed_at_utc
+        takeover_to_first_useful_progress_ms = DurationMilliseconds $takeoverObservedAt $usefulProgress.observed_at_utc
         stop_requested_to_terminal_completion_ms = DurationMilliseconds $stopRequestedAt $terminalAt
         configuration = [ordered]@{ activity = "dur048.sleep"; app1 = $app1Configuration; app2 = $app2Configuration; fault_network_ports = $FaultPorts; network_chain = "not_applicable_host_stop"; network_match_states = @("not_applicable") }
         limitation = "Host-stop recovery is measured separately from the preserved-process network arm; database-host durability remains out of scope."
@@ -547,7 +566,7 @@ try {
         region = $Region
         topology = [ordered]@{ application_hosts = 2; dependency_hosts = 1; app_instance_ids = $appIDs; app_private_ips = $appPrivateIPs; dependency_instance_id = $dependency; dependency_private_ip = $dependencyIP }
         scenarios = @($Scenario)
-        configuration = [ordered]@{ activity = "dur048.sleep"; requested_activity_delay_ms = $FixtureDelayMS; requested_scheduler_hold_after_acquire_ms = $ObservationHoldMS; requested_fixture_activity_enabled = $FixtureActivityEnabled; requested_worker_slots = $WorkerSlots; runtime_engine_mode = "disabled"; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT for network arm; not_applicable_host_stop for host arm"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion for dependency destination"; route_fault = "app-host blackhole route for dependency /32" }
+        configuration = [ordered]@{ activity = "dur048.sleep"; requested_activity_delay_ms = $FixtureDelayMS; requested_scheduler_hold_after_acquire_ms = $ObservationHoldMS; takeover_observation_hold_ms = $TakeoverObservationHoldMS; requested_fixture_activity_enabled = $FixtureActivityEnabled; requested_worker_slots = $WorkerSlots; runtime_engine_mode = "disabled"; fault_network_ports = $FaultPorts; network_chain = "DOCKER-USER plus dependency INPUT for network arm; not_applicable_host_stop for host arm"; network_match_states = @("NEW", "ESTABLISHED", "RELATED"); established_flow_termination = "host conntrack deletion for dependency destination"; route_fault = "app-host blackhole route for dependency /32" }
         required_observation = "SSM, EC2, Docker, and PostgreSQL state must confirm each fault; controller intent alone never produces PASS."
         results = @()
     }
