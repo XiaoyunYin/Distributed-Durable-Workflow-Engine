@@ -1,0 +1,172 @@
+{
+    "schema_version":  "dur043-multihost.v2",
+    "status":  "PASS",
+    "generated_at_utc":  "2026-09-23T03:39:26.7636587Z",
+    "git_commit":  "460f423be895ee0a43706580659d3ea67814d0e7",
+    "region":  "us-west-1",
+    "topology":  {
+                     "application_hosts":  2,
+                     "dependency_hosts":  1,
+                     "app_instance_ids":  [
+                                              "i-0bdd3118c0f0ffcf6",
+                                              "i-01e2c624c07cae07a"
+                                          ],
+                     "app_private_ips":  [
+                                             "10.49.1.157",
+                                             "10.49.2.54"
+                                         ],
+                     "dependency_instance_id":  "i-0425341ebe28700e3",
+                     "dependency_private_ip":  "10.49.1.71"
+                 },
+    "scenarios":  [
+                      "network"
+                  ],
+    "configuration":  {
+                          "activity":  "dur048.sleep",
+                          "requested_activity_delay_ms":  60000,
+                          "requested_scheduler_hold_after_acquire_ms":  1000,
+                          "takeover_observation_hold_ms":  1000,
+                          "requested_fixture_activity_enabled":  true,
+                          "requested_worker_slots":  2,
+                          "runtime_engine_mode":  "disabled",
+                          "fault_network_ports":  [
+                                                      5432,
+                                                      9092
+                                                  ],
+                          "network_chain":  "DOCKER-USER plus dependency INPUT for network arm; not_applicable_host_stop for host arm",
+                          "network_match_states":  [
+                                                       "NEW",
+                                                       "ESTABLISHED",
+                                                       "RELATED"
+                                                   ],
+                          "established_flow_termination":  "host conntrack deletion plus dependency-side PostgreSQL session termination",
+                          "route_fault":  "app-host blackhole route for dependency /32"
+                      },
+    "required_observation":  "SSM, EC2, Docker, and PostgreSQL state must confirm each fault; controller intent alone never produces PASS.",
+    "results":  [
+                    {
+                        "fault":  "app-host-postgres-network-isolation-and-reconnect",
+                        "workflow_id":  "dur049-network-20260922-as",
+                        "partition_id":  8,
+                        "original_owner_id":  "4abe575a-2ea5-449c-913b-40488bae8fae",
+                        "original_epoch":  134,
+                        "takeover_owner_id":  "89fa1fdc-35d5-4a6f-8c84-6e918eb01749",
+                        "takeover_epoch":  150,
+                        "recovery_transition_epoch":  154,
+                        "recovery_transition_matches_observed_epoch":  false,
+                        "fault_observed":  {
+                                               "raw":  "connectivity_before=reachable\n/usr/sbin/conntrack\ncontainer_state=running|true|1146\ntcp      6 431999 ESTABLISHED src=172.18.0.2 dst=10.49.1.71 sport=53868 dport=5432 src=10.49.1.71 dst=10.49.1.157 sport=5432 dport=53868 [ASSURED] mark=0 use=1\ntcp      6 431997 ESTABLISHED src=172.18.0.2 dst=10.49.1.71 sport=38854 dport=9092 src=10.49.1.71 dst=10.49.1.157 sport=9092 dport=38854 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.71 sport=34516 dport=9092 src=10.49.1.71 dst=10.49.1.157 sport=9092 dport=34516 [ASSURED] mark=0 use=1\ntcp      6 431993 ESTABLISHED src=172.18.0.2 dst=10.49.1.71 sport=36998 dport=5432 src=10.49.1.71 dst=10.49.1.157 sport=5432 dport=36998 [ASSURED] mark=0 use=1\ntcp      6 431989 ESTABLISHED src=172.18.0.2 dst=10.49.1.71 sport=50382 dport=5432 src=10.49.1.71 dst=10.49.1.157 sport=5432 dport=50382 [ASSURED] mark=0 use=1\ntcp      6 431998 ESTABLISHED src=172.18.0.2 dst=10.49.1.71 sport=38870 dport=9092 src=10.49.1.71 dst=10.49.1.157 sport=9092 dport=38870 [ASSURED] mark=0 use=1\ntcp      6 9 CLOSE src=172.18.0.2 dst=10.49.1.71 sport=53878 dport=5432 src=10.49.1.71 dst=10.49.1.157 sport=5432 dport=53878 [ASSURED] mark=0 use=1\ntcp      6 119 TIME_WAIT src=172.18.0.3 dst=10.49.1.71 sport=55322 dport=5432 src=10.49.1.71 dst=10.49.1.157 sport=5432 dport=55322 [ASSURED] mark=0 use=1\ntcp      6 431989 ESTABLISHED src=172.18.0.2 dst=10.49.1.71 sport=50370 dport=5432 src=10.49.1.71 dst=10.49.1.157 sport=5432 dport=50370 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=172.18.0.3 dst=10.49.1.71 sport=34504 dport=9092 src=10.49.1.71 dst=10.49.1.157 sport=9092 dport=34504 [ASSURED] mark=0 use=1\ntcp      6 225 ESTABLISHED src=172.18.0.2 dst=10.49.1.71 sport=40174 dport=5432 [UNREPLIED] src=10.49.1.71 dst=10.49.1.157 sport=5432 dport=40174 mark=0 use=1\ntcp      6 170 ESTABLISHED src=172.18.0.2 dst=10.49.1.71 sport=44132 dport=5432 [UNREPLIED] src=10.49.1.71 dst=10.49.1.157 sport=5432 dport=44132 mark=0 use=1\ntcp      6 431998 ESTABLISHED src=172.18.0.3 dst=10.49.1.71 sport=34532 dport=9092 src=10.49.1.71 dst=10.49.1.157 sport=9092 dport=34532 [ASSURED] mark=0 use=1\ntcp      6 9 CLOSE src=172.18.0.2 dst=10.49.1.71 sport=38946 dport=9092 src=10.49.1.71 dst=10.49.1.157 sport=9092 dport=38946 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.71 sport=38950 dport=9092 src=10.49.1.71 dst=10.49.1.157 sport=9092 dport=38950 [ASSURED] mark=0 use=1\ntcp      6 431998 ESTABLISHED src=172.18.0.3 dst=10.49.1.71 sport=34526 dport=9092 src=10.49.1.71 dst=10.49.1.157 sport=9092 dport=34526 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.71 sport=38956 dport=9092 src=10.49.1.71 dst=10.49.1.157 sport=9092 dport=38956 [ASSURED] mark=0 use=1\ntcp      6 119 FIN_WAIT src=172.18.0.2 dst=10.49.1.71 sport=38930 dport=9092 src=10.49.1.71 dst=10.49.1.157 sport=9092 dport=38930 [ASSURED] mark=0 use=1\nblackhole 10.49.1.71 \n\n/usr/sbin/conntrack\ntcp      6 298 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=38950 dport=9092 src=172.18.0.2 dst=10.49.1.157 sport=9092 dport=38950 [ASSURED] mark=0 use=1\ntcp      6 299 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=53878 dport=5432 src=172.18.0.3 dst=10.49.1.157 sport=5432 dport=53878 [ASSURED] mark=0 use=1\ntcp      6 431981 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=53868 dport=5432 src=172.18.0.3 dst=10.49.1.157 sport=5432 dport=53868 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=34532 dport=9092 src=172.18.0.2 dst=10.49.1.157 sport=9092 dport=34532 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=34526 dport=9092 src=172.18.0.2 dst=10.49.1.157 sport=9092 dport=34526 [ASSURED] mark=0 use=1\ntcp      6 116 TIME_WAIT src=10.49.1.157 dst=10.49.1.71 sport=55322 dport=5432 src=172.18.0.3 dst=10.49.1.157 sport=5432 dport=55322 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=38956 dport=9092 src=172.18.0.2 dst=10.49.1.157 sport=9092 dport=38956 [ASSURED] mark=0 use=1\ntcp      6 431994 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=38854 dport=9092 src=172.18.0.2 dst=10.49.1.157 sport=9092 dport=38854 [ASSURED] mark=0 use=1\ntcp      6 431990 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=36998 dport=5432 src=172.18.0.3 dst=10.49.1.157 sport=5432 dport=36998 [ASSURED] mark=0 use=1\ntcp      6 431999 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=50370 dport=5432 src=172.18.0.3 dst=10.49.1.157 sport=5432 dport=50370 [ASSURED] mark=0 use=1\ntcp      6 431995 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=38870 dport=9092 src=172.18.0.2 dst=10.49.1.157 sport=9092 dport=38870 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=38930 dport=9092 src=172.18.0.2 dst=10.49.1.157 sport=9092 dport=38930 [ASSURED] mark=0 use=1\ntcp      6 431986 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=50382 dport=5432 src=172.18.0.3 dst=10.49.1.157 sport=5432 dport=50382 [ASSURED] mark=0 use=1\ntcp      6 298 ESTABLISHED src=10.49.1.157 dst=10.49.1.71 sport=38946 dport=9092 src=172.18.0.2 dst=10.49.1.157 sport=9092 dport=38946 [ASSURED] mark=0 use=1\nt\nt\nt\nt\nt\n\nconnectivity_after=blocked",
+                                               "command_at_utc":  "\/Date(1790134790970)\/",
+                                               "observed_at_utc":  "\/Date(1790134804522)\/",
+                                               "network_chain":  "DOCKER-USER plus dependency INPUT",
+                                               "network_match_states":  [
+                                                                            "NEW",
+                                                                            "ESTABLISHED",
+                                                                            "RELATED"
+                                                                        ],
+                                               "established_flow_termination":  "host conntrack deletion plus dependency-side PostgreSQL session termination",
+                                               "dependency_session_termination":  "pg_terminate_backend for sessions whose client address is the isolated app host",
+                                               "route_fault":  "app-host blackhole route for dependency /32",
+                                               "dependency_source_ip":  "10.49.1.157",
+                                               "connectivity_before":  "reachable",
+                                               "connectivity_after":  "blocked",
+                                               "ports":  [
+                                                             5432,
+                                                             9092
+                                                         ]
+                                           },
+                        "original_runtime_observed":  "running|true|1146",
+                        "workflow_before":  {
+                                                "state":  "WAITING_ACTIVITY",
+                                                "revision":  3,
+                                                "attempt_state":  "CLAIMED",
+                                                "attempt_number":  1,
+                                                "attempt_created_at":  "2026-09-23 03:39:10.861321+00",
+                                                "updated_at":  "2026-09-23 03:39:10.863407+00"
+                                            },
+                        "workflow_after":  {
+                                               "state":  "SUCCEEDED",
+                                               "revision":  8,
+                                               "attempt_state":  "SUCCEEDED",
+                                               "attempt_number":  2,
+                                               "attempt_created_at":  "2026-09-23 03:40:26.033249+00",
+                                               "updated_at":  "2026-09-23 03:41:26.50546+00"
+                                           },
+                        "first_useful_progress":  {
+                                                      "observed_at_utc":  "2026-09-23T03:40:26.0415970Z",
+                                                      "workflow":  {
+                                                                       "state":  "WAITING_ACTIVITY",
+                                                                       "revision":  4,
+                                                                       "attempt_state":  "CLAIMED",
+                                                                       "attempt_number":  2,
+                                                                       "attempt_created_at":  "2026-09-23 03:40:26.033249+00",
+                                                                       "updated_at":  "2026-09-23 03:40:26.038775+00"
+                                                                   }
+                                                  },
+                        "superseded_epoch_transitions_after_takeover":  0,
+                        "stale_rejection":  {
+                                                "workflow_id":  "dur049-network-20260922-as",
+                                                "partition_id":  8,
+                                                "owner_id":  "4abe575a-2ea5-449c-913b-40488bae8fae",
+                                                "epoch":  134,
+                                                "before_revision":  4,
+                                                "after_revision":  4,
+                                                "error":  "scheduler lease is not owned or has expired",
+                                                "stale_rejected":  true
+                                            },
+                        "takeover_observed_at_utc":  "2026-09-23T03:40:21.8620000Z",
+                        "takeover_row_updated_at_utc":  "2026-09-23T03:40:20.8714670Z",
+                        "terminal_completion_at_utc":  "2026-09-23T03:41:26.5054600Z",
+                        "fault_command_to_observed_ms":  13552.541,
+                        "fault_observed_to_takeover_ms":  17339.286,
+                        "fault_observed_to_first_useful_progress_ms":  21518.883,
+                        "takeover_to_first_useful_progress_ms":  null,
+                        "takeover_to_first_useful_progress_note":  "partition_leases stores only the current lease, not takeover history; its observed epoch may be newer than the historical recovery transition. TIMEOUT_REPLACEMENT is the first committed transition for the recovered attempt and fault-to-progress is measured directly.",
+                        "first_useful_progress_transition":  {
+                                                                 "scheduler_epoch":  154,
+                                                                 "reason":  "TIMEOUT_REPLACEMENT",
+                                                                 "attempt_number":  1,
+                                                                 "created_at_utc":  "2026-09-23T03:40:26.0415970Z"
+                                                             },
+                        "fault_observed_to_terminal_completion_ms":  81982.746,
+                        "configuration":  {
+                                              "activity":  "dur048.sleep",
+                                              "app1":  {
+                                                           "activity_delay_ms":  60000,
+                                                           "fixture_activity_enabled":  true,
+                                                           "scheduler_hold_after_acquire_ms":  1000,
+                                                           "worker_slots":  2,
+                                                           "runtime_engine_mode":  "disabled"
+                                                       },
+                                              "app2":  {
+                                                           "activity_delay_ms":  60000,
+                                                           "fixture_activity_enabled":  true,
+                                                           "scheduler_hold_after_acquire_ms":  1000,
+                                                           "worker_slots":  2,
+                                                           "runtime_engine_mode":  "disabled"
+                                                       },
+                                              "fault_network_ports":  [
+                                                                          5432,
+                                                                          9092
+                                                                      ],
+                                              "network_chain":  "DOCKER-USER plus dependency INPUT",
+                                              "network_match_states":  [
+                                                                           "NEW",
+                                                                           "ESTABLISHED",
+                                                                           "RELATED"
+                                                                       ],
+                                              "established_flow_termination":  "host conntrack deletion plus dependency-side PostgreSQL session termination",
+                                              "route_fault":  "app-host blackhole route for dependency /32",
+                                              "dependency_source_ip":  "10.49.1.157"
+                                          },
+                        "limitation":  "This arm isolates the app host from PostgreSQL while preserving its process; it is not a host-stop or database-host durability claim."
+                    }
+                ],
+    "acceptance":  {
+                       "fault_confirmation":  true,
+                       "peer_takeover":  true,
+                       "superseded_epoch_transitions":  0,
+                       "useful_work_checked":  true,
+                       "no_cleanup_claim":  "Terraform teardown remains a separate operator step and is recorded after the campaign."
+                   }
+}
