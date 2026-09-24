@@ -6,26 +6,31 @@ COPY go.sum ./
 COPY cmd ./cmd
 COPY internal ./internal
 RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/runtime ./cmd/runtime \
-    && CGO_ENABLED=0 go build -tags dur049_owner_lock_isolation -trimpath -ldflags="-s -w" -o /out/runtime-dur049-owner-lock ./cmd/runtime \
+    && test -s /out/runtime
+
+FROM build AS dur049-campaign-build
+RUN CGO_ENABLED=0 go build -tags dur049_owner_lock_isolation -trimpath -ldflags="-s -w" -o /out/runtime-dur049-owner-lock ./cmd/runtime \
     && CGO_ENABLED=0 go build -tags dur034_ablation -trimpath -ldflags="-s -w" -o /out/dur043-stale-probe ./cmd/dur043-stale-probe \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-checker ./cmd/dur049-checker \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-lock-holder ./cmd/dur049-lock-holder \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-db-probe ./cmd/dur049-db-probe
 
-FROM scratch
+FROM scratch AS dur049-campaign
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /out/runtime /runtime
-# Campaign-only runtime used to hold the real scheduler transaction while its
-# app host is network-isolated. The default entrypoint remains /runtime.
-COPY --from=build /out/runtime-dur049-owner-lock /runtime-dur049-owner-lock
-# Campaign-only diagnostic; it is never the container entrypoint.
-COPY --from=build /out/dur043-stale-probe /dur043-stale-probe
-# Campaign-only durable snapshot/checker; it is never the container entrypoint.
-COPY --from=build /out/dur049-checker /dur049-checker
-# Campaign-only lock-holder; it is never the container entrypoint.
-COPY --from=build /out/dur049-lock-holder /dur049-lock-holder
-# Campaign-only in-container PostgreSQL connectivity probe.
-COPY --from=build /out/dur049-db-probe /dur049-db-probe
+COPY --from=dur049-campaign-build /out/runtime-dur049-owner-lock /runtime-dur049-owner-lock
+COPY --from=dur049-campaign-build /out/dur043-stale-probe /dur043-stale-probe
+COPY --from=dur049-campaign-build /out/dur049-checker /dur049-checker
+COPY --from=dur049-campaign-build /out/dur049-lock-holder /dur049-lock-holder
+COPY --from=dur049-campaign-build /out/dur049-db-probe /dur049-db-probe
+USER 65532:65532
+EXPOSE 8080
+ENTRYPOINT ["/runtime"]
+
+# Keep the final/default image free of campaign hooks and ablation binaries.
+FROM scratch AS runtime
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=build /out/runtime /runtime
 USER 65532:65532
 EXPOSE 8080
 ENTRYPOINT ["/runtime"]

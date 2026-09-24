@@ -2,7 +2,7 @@
     "schema_version":  "dur049-episode.v1",
     "status":  "PASS",
     "fault":  "owner-runtime-network-isolation-during-lease-row-lock",
-    "arm_classification":  "required R131 owner-lock isolation: the owning runtime holds the real ConsumeResult lease-row lock; PostgreSQL idle-in-transaction timeout must reap its backend",
+    "arm_classification":  "R131 owner-lock isolation: the owning runtime holds the real ConsumeResult lease-row lock; the observed backend reaper was TCP keepalive failure. The transaction-local 2-minute idle timeout overrides the production 10-second setting, whose reaping path was not measured.",
     "workflow_id":  "dur049-r71-ownerlock-0adbac0-2",
     "partition_id":  10,
     "source_commit":  "0adbac0816a0a65d0ccafed6dae6c8efd717edec",
@@ -216,7 +216,7 @@
                                       },
     "result":  {
                    "fault":  "owner-runtime-network-isolation-during-lease-row-lock",
-                   "arm_classification":  "R131 owner-lock isolation with PostgreSQL-side idle-transaction reaping; distinct from the R096 live-holder contention arm",
+                   "arm_classification":  "R131 owner-lock isolation with observed PostgreSQL TCP keepalive reaping (about 62 seconds after last activity); transaction-local idle_in_transaction_session_timeout was 2 minutes, overriding the production 10-second setting, whose reaping path was not measured; distinct from the R096 live-holder contention arm",
                    "workflow_id":  "dur049-r71-ownerlock-0adbac0-2",
                    "partition_id":  10,
                    "original_owner_id":  "27deb347-f069-494a-83cb-83e0100a2db4",

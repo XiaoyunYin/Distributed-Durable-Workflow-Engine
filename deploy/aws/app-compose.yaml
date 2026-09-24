@@ -5,6 +5,7 @@ services:
     build:
       context: ../..
       dockerfile: deploy/local/Dockerfile.runtime
+      target: dur049-campaign
     environment:
       RUNTIME_ADDR: 0.0.0.0:8080
       RUNTIME_ROLE: ${RUNTIME_ROLE}

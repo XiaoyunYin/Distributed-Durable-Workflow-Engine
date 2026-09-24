@@ -1514,7 +1514,7 @@ function Run-LiveHolderContentionArm([string]$App1, [string]$App2, [string]$Depe
 
 function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Dependency, [string]$DependencyIP, [string]$AppPrivateIP, [string]$WorkflowID, [string]$OutputPath) {
     $partition = Get-PartitionID $WorkflowID
-    $checkpoint = [ordered]@{ schema_version = 'dur049-episode.v1'; status = 'IN_PROGRESS'; fault = 'owner-runtime-network-isolation-during-lease-row-lock'; arm_classification = 'required R131 owner-lock isolation: the owning runtime holds the real ConsumeResult lease-row lock; PostgreSQL idle-in-transaction timeout must reap its backend'; workflow_id = $WorkflowID; partition_id = $partition; source_commit = (git rev-parse HEAD).Trim(); started_at_utc = [DateTime]::UtcNow.ToString('o') }
+    $checkpoint = [ordered]@{ schema_version = 'dur049-episode.v1'; status = 'IN_PROGRESS'; fault = 'owner-runtime-network-isolation-during-lease-row-lock'; arm_classification = 'R131 owner-lock isolation: the owning runtime holds the real ConsumeResult lease-row lock; the observed backend reaper was TCP keepalive failure. The transaction-local 2-minute idle timeout overrides the production 10-second setting, whose reaping path was not measured.'; workflow_id = $WorkflowID; partition_id = $partition; source_commit = (git rev-parse HEAD).Trim(); started_at_utc = [DateTime]::UtcNow.ToString('o') }
     Save-EpisodeCheckpoint $OutputPath $checkpoint 'starting'
     $script:App2MayBeStopped = $true
     $app2Stopped = Stop-AppRuntime $App2
@@ -1669,7 +1669,7 @@ function Run-OwnerLockIsolationArm([string]$App1, [string]$App2, [string]$Depend
     $script:OwnerLockRuntimeConfigured = $false
     $result = [ordered]@{
         fault = 'owner-runtime-network-isolation-during-lease-row-lock'
-        arm_classification = 'R131 owner-lock isolation with PostgreSQL-side idle-transaction reaping; distinct from the R096 live-holder contention arm'
+        arm_classification = 'R131 owner-lock isolation with observed PostgreSQL TCP keepalive reaping (about 62 seconds after last activity); transaction-local idle_in_transaction_session_timeout was 2 minutes, overriding the production 10-second setting, whose reaping path was not measured; distinct from the R096 live-holder contention arm'
         workflow_id = $WorkflowID
         partition_id = $partition
         original_owner_id = $lockMarker.owner_id

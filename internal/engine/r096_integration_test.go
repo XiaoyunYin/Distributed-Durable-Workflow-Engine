@@ -82,7 +82,10 @@ func TestM2SchedulerContinuesAfterContendedPartition(t *testing.T) {
 	serveDone := make(chan error, 1)
 	go func() { serveDone <- Serve(serveCtx, store, namespace, make(chan struct{})) }()
 
-	deadline := time.NewTimer(8 * time.Second)
+	// The scan can first spend one bounded iteration on the locked partition,
+	// then a second iteration completing this workflow. Keep the test budget
+	// below the 15-second lease TTL while allowing both passes plus CI margin.
+	deadline := time.NewTimer(2*schedulerIterationTimeout + 2*time.Second)
 	defer deadline.Stop()
 	for {
 		workflow, err := store.GetWorkflow(ctx, freeID)

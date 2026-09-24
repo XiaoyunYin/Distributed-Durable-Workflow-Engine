@@ -102,15 +102,16 @@ it holds the row lock. A later [full four-arm AWS rerun](experiments/portfolio/c
 on commit `0adbac0` passed preserved-process network isolation, forced
 application-host stop, live-holder contention, and isolation of the original
 scheduler while it held the lease-row lock. In the owner-lock arm, PostgreSQL
-was observed to reap the isolated backend; a peer took over, consumed the
-already-recorded result, and made useful progress; the same original runtime
-reconnected and its stale lease write was rejected without changing the stable
-lease row. The independent live and offline invariant checks passed, with zero
-superseded-epoch transitions. The target transaction used a campaign-only
-120-second idle timeout, while the dependency's global idle timeout was 10s
-and TCP keepalive idle was 30s; the backend disappeared 26.1s after the
-confirmed fault, so that observation is not attributed uniquely to one
-timer. The same-owner stale-epoch control retained its workflow as CANCELED,
+was observed to be reaped after TCP keepalive failure; a peer took over,
+consumed the already-recorded result, and made useful progress; the same
+original runtime reconnected and its stale lease write was rejected without
+changing the stable lease row. The independent live and offline invariant
+checks passed, with zero superseded-epoch transitions. The target transaction
+overrode the production 10-second idle-in-transaction timeout with a
+campaign-only 120-second timeout, so that production timeout path was not
+measured. The backend was reaped about 62 seconds after its last activity,
+consistent with the observed TCP keepalive settings (30-second idle plus three
+10-second probes). The same-owner stale-epoch control retained its workflow as CANCELED,
 recorded zero outbox rows, rejected the old epoch without a revision change,
 and left the global open-obligation set unchanged after consumer drain.
 The accompanying [cleanup record](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/cleanup.json)

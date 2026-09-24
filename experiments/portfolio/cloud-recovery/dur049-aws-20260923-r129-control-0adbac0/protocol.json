@@ -101,7 +101,7 @@
     "results":  [
                     {
                         "fault":  "owner-runtime-network-isolation-during-lease-row-lock",
-                        "arm_classification":  "R131 owner-lock isolation with PostgreSQL-side idle-transaction reaping; distinct from the R096 live-holder contention arm",
+                        "arm_classification":  "R131 owner-lock isolation with observed PostgreSQL TCP keepalive reaping (about 62 seconds after last activity); transaction-local idle_in_transaction_session_timeout was 2 minutes, overriding the production 10-second setting, whose reaping path was not measured; distinct from the R096 live-holder contention arm",
                         "workflow_id":  "dur049-r71-ownerlock-0adbac0-01",
                         "partition_id":  7,
                         "original_owner_id":  "d28266bb-6e13-429b-8a1b-390a35adf876",
