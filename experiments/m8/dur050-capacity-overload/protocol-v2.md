@@ -322,4 +322,3 @@ cap, the $75 DUR-050 envelope, 14-day window, current `admin-learning` login,
 us-west-1 availability/prices, and total concurrent On-Demand vCPU <=32. Notify
 the user before an AWS login refresh or GitHub push is needed. No resource is
 retained past the authorized cleanup window.
-
