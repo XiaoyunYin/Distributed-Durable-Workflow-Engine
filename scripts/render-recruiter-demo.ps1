@@ -129,7 +129,13 @@ try {
     $dbPassword = [uri]::EscapeDataString($values['POSTGRES_PASSWORD'])
     $dbName = [uri]::EscapeDataString($values['POSTGRES_DB'])
     $databaseUrl = 'postgresql://{0}:{1}@postgres:5432/{2}?sslmode=disable' -f $dbUser, $dbPassword, $dbName
-    $runtimeLines = @("DATABASE_URL=$databaseUrl", 'VHS_API_URL=http://runtime-a:8080')
+    $runtimeLines = @(
+        "DATABASE_URL=$databaseUrl",
+        'VHS_API_URL=http://runtime-a:8080',
+        # The renderer joins the Compose network; use Kafka's internal listener,
+        # not the host-mapped EXTERNAL port.
+        'KAFKA_BROKERS=kafka:19092'
+    )
     [System.IO.File]::WriteAllLines($rendererEnv, $runtimeLines, [System.Text.UTF8Encoding]::new($false))
 
     $mount = 'type=bind,source={0},target=/vhs' -f $repoRoot
