@@ -95,26 +95,6 @@ func (s *Store) checkAdmissionCapacity(ctx context.Context, tx pgx.Tx, namespace
 	return nil
 }
 
-func (s *Store) checkOutboxInsertCapacity(ctx context.Context, tx pgx.Tx, namespace string) error {
-	if err := s.dur050Admission.validate(); err != nil {
-		return err
-	}
-	if !s.dur050Admission.enabled() || !isDur050Namespace(namespace) {
-		return nil
-	}
-	if _, err := s.lockAdmissionNamespace(ctx, tx, namespace); err != nil {
-		return err
-	}
-	pending, err := pendingOutboxCount(ctx, tx, namespace)
-	if err != nil {
-		return err
-	}
-	if pending >= s.dur050Admission.MaxPendingOutbox {
-		return ErrAdmissionBackpressure
-	}
-	return nil
-}
-
 func pendingOutboxCount(ctx context.Context, tx pgx.Tx, namespace string) (int64, error) {
 	var pending int64
 	if err := tx.QueryRow(ctx, `

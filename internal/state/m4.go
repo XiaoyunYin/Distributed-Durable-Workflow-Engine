@@ -421,8 +421,8 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 			&input.Lease.Epoch, input.NodeID, &input.Iteration, nil, &workflow.State, newState, "APPROVAL_REQUESTED"); err != nil {
 			return ApprovalIntent{}, err
 		}
-		if err := s.insertOutbox(ctx, tx, workflow.Namespace, input.WorkflowID, newRevision, "approval.requested",
-			json.RawMessage(fmt.Sprintf(`{"intent_id":%q,"workflow_id":%q}`, intentID, input.WorkflowID)), false); err != nil {
+		if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "approval.requested",
+			json.RawMessage(fmt.Sprintf(`{"intent_id":%q,"workflow_id":%q}`, intentID, input.WorkflowID))); err != nil {
 			return ApprovalIntent{}, err
 		}
 	}
@@ -609,8 +609,8 @@ func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (Ap
 			&input.Lease.Epoch, input.NodeID, &input.Iteration, nil, &workflow.State, StateRejected, "APPROVAL_REJECTED"); err != nil {
 			return ApprovalGrant{}, err
 		}
-		if err := s.insertOutbox(ctx, tx, workflow.Namespace, input.WorkflowID, newRevision, "approval.rejected",
-			json.RawMessage(fmt.Sprintf(`{"intent_id":%q}`, input.IntentID)), false); err != nil {
+		if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "approval.rejected",
+			json.RawMessage(fmt.Sprintf(`{"intent_id":%q}`, input.IntentID))); err != nil {
 			return ApprovalGrant{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -644,8 +644,8 @@ func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (Ap
 		&input.Lease.Epoch, input.NodeID, &input.Iteration, nil, &workflow.State, StateRunnable, "APPROVAL_GRANTED"); err != nil {
 		return ApprovalGrant{}, err
 	}
-	if err := s.insertOutbox(ctx, tx, workflow.Namespace, input.WorkflowID, newRevision, "approval.granted",
-		json.RawMessage(fmt.Sprintf(`{"intent_id":%q,"grant_scope_hash":%q}`, input.IntentID, grantScope)), false); err != nil {
+	if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "approval.granted",
+		json.RawMessage(fmt.Sprintf(`{"intent_id":%q,"grant_scope_hash":%q}`, input.IntentID, grantScope))); err != nil {
 		return ApprovalGrant{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -865,8 +865,8 @@ func cancelWorkflowTx(ctx context.Context, tx pgx.Tx, store *Store, lease LeaseR
 		&lease.Epoch, "", nil, nil, &workflow.State, StateCanceled, "CANCELED_ALL_ACTIVE_NODES"); err != nil {
 		return err
 	}
-	if err := store.insertOutbox(ctx, tx, workflow.Namespace, workflow.WorkflowID, newRevision, "workflow.canceled",
-		json.RawMessage(fmt.Sprintf(`{"workflow_id":%q}`, workflow.WorkflowID)), false); err != nil {
+	if err := store.insertOutbox(ctx, tx, workflow.WorkflowID, newRevision, "workflow.canceled",
+		json.RawMessage(fmt.Sprintf(`{"workflow_id":%q}`, workflow.WorkflowID))); err != nil {
 		return err
 	}
 	workflow.State = StateCanceled

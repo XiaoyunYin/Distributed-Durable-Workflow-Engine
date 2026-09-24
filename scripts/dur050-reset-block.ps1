@@ -116,29 +116,30 @@ try {
     )
     [void](Invoke-Ssm "restore-db-kafka-volumes" $DependencyInstanceID $restore)
 
-    $startApps = @('set -euo pipefail', 'cd /opt/durable-agent-execution-engine', 'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml up -d --wait --no-build runtime worker', 'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml ps -q runtime worker | xargs -r docker inspect --format ''{{.Id}} {{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}''')
+    $startApps = @('set -euo pipefail', 'cd /opt/durable-agent-execution-engine', '# The scheduler loop runs inside the runtime service; start it and every worker after dependency-volume restore.', 'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml up -d --wait --no-build runtime worker', 'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml ps -q runtime worker | xargs -r docker inspect --format ''{{.Id}} {{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}''')
     foreach ($id in $AppInstanceIDs) { [void](Invoke-Ssm "restart-runtime-worker" $id $startApps) }
 
     $verifyGroup = @(
         'set -euo pipefail',
         'cd /opt/durable-agent-execution-engine',
-        'group_output=""',
-        'for attempt in $(seq 1 30); do',
-        '  group_output=$(docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:19092 --describe --group runtime-workers-v1 --members --verbose 2>&1 || true)',
-        '  if printf "%s\n" "$group_output" | awk ''NF >= 5 && $1 == "runtime-workers-v1" { found = 1 } END { exit !found }''; then printf ''DUR050_WORKER_GROUP_ACTIVE\n%s\n'' "$group_output"; exit 0; fi',
-        '  sleep 2',
-        'done',
-        'printf "%s\n" "$group_output" >&2',
-        'echo "Kafka worker group did not show an assigned consumer after runtime/worker restart." >&2',
-        'exit 1'
+        'for group in runtime-workers-v1 runtime-schedulers-v1; do',
+        '  group_output=""',
+        '  found_group=0',
+        '  for attempt in $(seq 1 30); do',
+        '    group_output=$(docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:19092 --describe --group "$group" --members --verbose 2>&1 || true)',
+        '    if printf "%s\n" "$group_output" | awk -v expected="$group" ''NF >= 6 && $1 == expected && $2 != "-" && $5 ~ /^[0-9]+$/ && $5 > 0 && $6 != "-" { found = 1 } END { exit !found }''; then printf ''DUR050_CONSUMER_GROUP_ACTIVE %s\n%s\n'' "$group" "$group_output"; found_group=1; break; fi',
+        '    sleep 2',
+        '  done',
+        '  if [ "$found_group" -ne 1 ]; then printf "%s\n" "$group_output" >&2; echo "Kafka consumer group $group did not show an assigned member after runtime/worker restart." >&2; exit 1; fi',
+        'done'
     )
     [void](Invoke-Ssm "verify-worker-group-assignment" $DependencyInstanceID $verifyGroup)
 
     $warmup = @(
         'set -euo pipefail',
         'export DUR050_WARMUP_WORKFLOW_IDS_FILE="' + $WarmupWorkflowIDsPath + '"',
-        'test -x "' + $WarmupScriptPath + '"',
-        '"' + $WarmupScriptPath + '"',
+        'test -f "' + $WarmupScriptPath + '"',
+        'bash "' + $WarmupScriptPath + '"',
         'test -s "' + $WarmupWorkflowIDsPath + '"',
         'warmup_count=$(awk ''NF {print $1}'' "' + $WarmupWorkflowIDsPath + '" | wc -l); warmup_unique=$(awk ''NF {print $1}'' "' + $WarmupWorkflowIDsPath + '" | sort -u | wc -l); test "$warmup_count" -eq 8 && test "$warmup_unique" -eq 8'
     )

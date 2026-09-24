@@ -18,7 +18,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var columns = []string{"record_type", "sequence", "workflow_id", "scheduled_at_utc", "observed_at_utc", "state", "created_at_db", "updated_at_db", "terminal_transition_at_db", "query_duration_ms", "poll_gap_ms", "max_poll_gap_ms", "max_preterminal_gap_ms", "observer_qps", "valid", "reason"}
+var columns = []string{"record_type", "sequence", "workflow_id", "scheduled_at_utc", "observed_at_utc", "state", "created_at_db", "updated_at_db", "terminal_transition_at_db", "query_duration_ms", "poll_gap_ms", "max_poll_gap_ms", "max_preterminal_gap_ms", "observer_qps", "valid", "reason", "scheduled_at_monotonic_ns", "observed_at_monotonic_ns"}
 
 type workflowSnapshot struct {
 	ID         string
@@ -44,6 +44,9 @@ func main() {
 func run(mode, workflowID, workflowIDsPath, outputPath, databaseURL string, maximumDuration time.Duration) error {
 	if outputPath == "" || databaseURL == "" || maximumDuration <= 0 {
 		return errors.New("-output, a read-only database URL, and a positive -timeout are required")
+	}
+	if !dur050.HasSharedMonotonicClock() {
+		return errors.New("DUR-050 measurement requires the shared Linux CLOCK_MONOTONIC clock")
 	}
 	if mode != "fine" && mode != "batch" {
 		return errors.New("-mode must be fine or batch")
@@ -198,9 +201,18 @@ func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.
 			return fmt.Errorf("observer timed out after %s: %w", time.Since(started), ctx.Err())
 		case scheduled := <-ticker.C:
 			sequence++
+			scheduledMonoNow, err := dur050.SharedMonotonicNanoseconds()
+			if err != nil {
+				return fmt.Errorf("read shared monotonic clock before observer query: %w", err)
+			}
+			scheduledMono := scheduledMonoNow - time.Since(scheduled).Nanoseconds()
 			queryStarted := time.Now()
 			snapshots, err := query(ctx, ids)
 			observed := time.Now()
+			observedMono, clockErr := dur050.SharedMonotonicNanoseconds()
+			if clockErr != nil {
+				return fmt.Errorf("read shared monotonic clock after observer query: %w", clockErr)
+			}
 			queryDuration := observed.Sub(queryStarted)
 			gap := observed.Sub(lastObserved)
 			if gap > maxGap {
@@ -214,7 +226,7 @@ func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.
 			lastObserved = observed
 			if err != nil {
 				failedQueries++
-				if writeErr := writeRow(writer, []string{"poll_error", fmt.Sprint(sequence), "", scheduled.UTC().Format(time.RFC3339Nano), observed.UTC().Format(time.RFC3339Nano), "", "", "", "", fmt.Sprintf("%.3f", float64(queryDuration.Microseconds())/1000), fmt.Sprintf("%.3f", float64(gap.Microseconds())/1000), "", "", "", "false", err.Error()}); writeErr != nil {
+				if writeErr := writeRow(writer, append([]string{"poll_error", fmt.Sprint(sequence), "", scheduled.UTC().Format(time.RFC3339Nano), observed.UTC().Format(time.RFC3339Nano), "", "", "", "", fmt.Sprintf("%.3f", float64(queryDuration.Microseconds())/1000), fmt.Sprintf("%.3f", float64(gap.Microseconds())/1000), "", "", "", "false", err.Error()}, fmt.Sprint(scheduledMono), fmt.Sprint(observedMono))); writeErr != nil {
 					return writeErr
 				}
 				continue
@@ -241,7 +253,7 @@ func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.
 							if !terminalValid {
 								terminalReason = "preterminal_observation_gap_exceeded"
 							}
-							if writeErr := writeRow(writer, []string{"first_terminal_observation", fmt.Sprint(sequence), id, scheduled.UTC().Format(time.RFC3339Nano), observed.UTC().Format(time.RFC3339Nano), state, createdAt, updatedAt, terminalAt, fmt.Sprintf("%.3f", float64(queryDuration.Microseconds())/1000), fmt.Sprintf("%.3f", float64(gap.Microseconds())/1000), "", fmt.Sprintf("%.3f", float64(preterminalGap.Microseconds())/1000), "", fmt.Sprint(terminalValid), terminalReason}); writeErr != nil {
+							if writeErr := writeRow(writer, append([]string{"first_terminal_observation", fmt.Sprint(sequence), id, scheduled.UTC().Format(time.RFC3339Nano), observed.UTC().Format(time.RFC3339Nano), state, createdAt, updatedAt, terminalAt, fmt.Sprintf("%.3f", float64(queryDuration.Microseconds())/1000), fmt.Sprintf("%.3f", float64(gap.Microseconds())/1000), "", fmt.Sprintf("%.3f", float64(preterminalGap.Microseconds())/1000), "", fmt.Sprint(terminalValid), terminalReason}, fmt.Sprint(scheduledMono), fmt.Sprint(observedMono))); writeErr != nil {
 								return writeErr
 							}
 						}
@@ -256,7 +268,7 @@ func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.
 				if !valid {
 					reason = "observer_gap_exceeded"
 				}
-				if writeErr := writeRow(writer, []string{"snapshot", fmt.Sprint(sequence), id, scheduled.UTC().Format(time.RFC3339Nano), observed.UTC().Format(time.RFC3339Nano), state, createdAt, updatedAt, terminalAt, fmt.Sprintf("%.3f", float64(queryDuration.Microseconds())/1000), fmt.Sprintf("%.3f", float64(gap.Microseconds())/1000), "", "", "", fmt.Sprint(valid), reason}); writeErr != nil {
+				if writeErr := writeRow(writer, append([]string{"snapshot", fmt.Sprint(sequence), id, scheduled.UTC().Format(time.RFC3339Nano), observed.UTC().Format(time.RFC3339Nano), state, createdAt, updatedAt, terminalAt, fmt.Sprintf("%.3f", float64(queryDuration.Microseconds())/1000), fmt.Sprintf("%.3f", float64(gap.Microseconds())/1000), "", "", "", fmt.Sprint(valid), reason}, fmt.Sprint(scheduledMono), fmt.Sprint(observedMono))); writeErr != nil {
 					return writeErr
 				}
 			}
@@ -264,6 +276,10 @@ func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.
 	}
 	elapsed := time.Since(started)
 	qps := float64(sequence) / elapsed.Seconds()
+	observedMono, err := dur050.SharedMonotonicNanoseconds()
+	if err != nil {
+		return fmt.Errorf("read shared monotonic clock for observer summary: %w", err)
+	}
 	valid := failedQueries == 0 && (maxGap == 0 || dur050.PollGapValid(maxGap, maximumGap))
 	reason := ""
 	if failedQueries != 0 {
@@ -271,7 +287,7 @@ func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.
 	} else if !valid {
 		reason = "observer_sampling_gap_exceeded"
 	}
-	if err := writeRow(writer, []string{"summary", fmt.Sprint(sequence), "", "", time.Now().UTC().Format(time.RFC3339Nano), "", "", "", "", "", "", fmt.Sprintf("%.3f", float64(maxGap.Microseconds())/1000), "", fmt.Sprintf("%.6f", qps), fmt.Sprint(valid), fmt.Sprintf("queries=%d terminal_workflows_seen=%d failed_queries=%d %s", sequence, terminalWorkflowsSeen, failedQueries, reason)}); err != nil {
+	if err := writeRow(writer, append([]string{"summary", fmt.Sprint(sequence), "", "", time.Now().UTC().Format(time.RFC3339Nano), "", "", "", "", "", "", fmt.Sprintf("%.3f", float64(maxGap.Microseconds())/1000), "", fmt.Sprintf("%.6f", qps), fmt.Sprint(valid), fmt.Sprintf("queries=%d terminal_workflows_seen=%d failed_queries=%d %s", sequence, terminalWorkflowsSeen, failedQueries, reason)}, "", fmt.Sprint(observedMono))); err != nil {
 		return err
 	}
 	if !valid {
@@ -281,6 +297,12 @@ func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.
 }
 
 func writeRow(writer *csv.Writer, row []string) error {
+	for len(row) < len(columns) {
+		row = append(row, "")
+	}
+	if len(row) != len(columns) {
+		return fmt.Errorf("observer row has %d fields, want %d", len(row), len(columns))
+	}
 	if err := writer.Write(row); err != nil {
 		return err
 	}

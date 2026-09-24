@@ -349,13 +349,12 @@ func (s *Store) ScheduleTimer(ctx context.Context, input ScheduleTimerInput) (st
 		return "", err
 	}
 	var workflowState WorkflowState
-	var workflowNamespace string
 	var revision int64
 	var partitionID int16
 	if err := tx.QueryRow(ctx, `
-		SELECT state, namespace, revision, partition_id
+		SELECT state, revision, partition_id
 		FROM engine.workflow_executions
-		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState, &workflowNamespace, &revision, &partitionID); err != nil {
+		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState, &revision, &partitionID); err != nil {
 		return "", fmt.Errorf("lock workflow for timer: %w", err)
 	}
 	if partitionID != input.Lease.PartitionID {
@@ -408,7 +407,7 @@ func (s *Store) ScheduleTimer(ctx context.Context, input ScheduleTimerInput) (st
 	}
 	payload := json.RawMessage(fmt.Sprintf(`{"workflow_id":%q,"node_id":%q,"iteration":%d,"timer_id":%q,"purpose":%q}`,
 		input.WorkflowID, input.NodeID, input.Iteration, timerID, input.Purpose))
-	if err := s.insertOutbox(ctx, tx, workflowNamespace, input.WorkflowID, newRevision, "timer.scheduled", payload, false); err != nil {
+	if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "timer.scheduled", payload); err != nil {
 		return "", err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -538,8 +537,8 @@ func (s *Store) CancelWorkflow(ctx context.Context, input CancelWorkflowInput) (
 		&input.Lease.Epoch, "", nil, nil, &workflow.State, StateCanceled, "CANCELED_ALL_ACTIVE_NODES"); err != nil {
 		return Workflow{}, err
 	}
-	if err := s.insertOutbox(ctx, tx, workflow.Namespace, input.WorkflowID, newRevision, "workflow.canceled",
-		json.RawMessage(fmt.Sprintf(`{"workflow_id":%q}`, input.WorkflowID)), false); err != nil {
+	if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "workflow.canceled",
+		json.RawMessage(fmt.Sprintf(`{"workflow_id":%q}`, input.WorkflowID))); err != nil {
 		return Workflow{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -742,7 +741,7 @@ func (s *Store) AdvanceGraph(ctx context.Context, input AdvanceGraphInput) (Adva
 	if err != nil {
 		return AdvanceGraphResult{}, err
 	}
-	if err := s.insertOutbox(ctx, tx, workflow.Namespace, input.WorkflowID, newRevision, "graph.advanced", payload, false); err != nil {
+	if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "graph.advanced", payload); err != nil {
 		return AdvanceGraphResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

@@ -167,12 +167,12 @@ func TestDUR050AdmissionPendingOutboxCapIsConcurrentAndScoped(t *testing.T) {
 	}
 	if _, err := store.CreateAttempt(ctx, AttemptInput{Lease: LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch},
 		WorkflowID: acceptedInputs[0].WorkflowID, NodeID: "root", ExpectedRevision: 2, EffectClass: EffectPure,
-		HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "dur050-test"}); !errors.Is(err, ErrAdmissionBackpressure) {
-		t.Fatalf("event insertion at pending-outbox cap = %v, want ErrAdmissionBackpressure", err)
+		HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "dur050-test"}); err != nil {
+		t.Fatalf("internal transition at the submission admission threshold: %v", err)
 	}
 	unchanged, err := store.GetWorkflow(ctx, acceptedInputs[0].WorkflowID)
-	if err != nil || unchanged.State != StateWaitingActivity || unchanged.Revision != 2 {
-		t.Fatalf("workflow changed despite rejected outbox insertion: %+v err=%v", unchanged, err)
+	if err != nil || unchanged.State != StateWaitingActivity || unchanged.Revision != 3 {
+		t.Fatalf("internal transition did not commit beyond the admission threshold: %+v err=%v", unchanged, err)
 	}
 	var attempts, pending int
 	if err := store.Pool().QueryRow(ctx, `SELECT count(*) FROM engine.activity_attempts WHERE workflow_id = $1`, acceptedInputs[0].WorkflowID).Scan(&attempts); err != nil {
@@ -182,8 +182,8 @@ func TestDUR050AdmissionPendingOutboxCapIsConcurrentAndScoped(t *testing.T) {
 		WHERE w.namespace = $1 AND o.publish_state IN ('PENDING','CLAIMED')`, namespace).Scan(&pending); err != nil {
 		t.Fatal(err)
 	}
-	if attempts != 0 || pending != 2 {
-		t.Fatalf("backpressured event was partially committed: attempts=%d pending=%d; want 0 and 2", attempts, pending)
+	if attempts != 1 || pending != 3 {
+		t.Fatalf("internal event was incorrectly gated: attempts=%d pending=%d; want 1 and 3", attempts, pending)
 	}
 
 	// The same pending-event pressure in another namespace cannot block an
@@ -192,6 +192,153 @@ func TestDUR050AdmissionPendingOutboxCapIsConcurrentAndScoped(t *testing.T) {
 	createdIDs = append(createdIDs, outside.WorkflowID)
 	if result, err := store.CreateWorkflow(ctx, outside); err != nil || !result.Created {
 		t.Fatalf("non-DUR-050 namespace was affected by pending cap: result=%+v err=%v", result, err)
+	}
+}
+
+func TestDUR050InternalTransitionsDoNotTakeNamespaceAdmissionLock(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	store := dur050AdmissionTestStore(t, ctx, AdmissionGateConfig{MaxActiveWorkflows: 100, MaxPendingOutbox: 50000})
+	namespace := "dur050-" + NewID()
+	definitionID := createDur050ControlDefinition(t, ctx, store)
+	var workflowIDs []string
+	var leases []Lease
+	t.Cleanup(func() {
+		for _, lease := range leases {
+			_ = store.ReleaseLease(context.Background(), LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch})
+		}
+		cleanupDur050Workflows(t, store, workflowIDs, definitionID)
+	})
+
+	for partitionID := int16(0); partitionID < 16 && len(leases) < 2; partitionID++ {
+		lease, acquired, err := store.AcquireLease(ctx, partitionID, NewID(), time.Minute)
+		if err != nil {
+			t.Fatalf("acquire partition %d for independent transition: %v", partitionID, err)
+		}
+		if acquired {
+			leases = append(leases, lease)
+		}
+	}
+	if len(leases) != 2 {
+		t.Fatalf("acquired %d independent partition leases, want 2", len(leases))
+	}
+	inputs := make([]CreateWorkflowInput, len(leases))
+	for index, lease := range leases {
+		inputs[index] = dur050CreateInputForPartition(t, namespace, definitionID, fmt.Sprintf("independent-%d", index), lease.PartitionID)
+		workflowIDs = append(workflowIDs, inputs[index].WorkflowID)
+		if result, err := store.CreateWorkflow(ctx, inputs[index]); err != nil || !result.Created {
+			t.Fatalf("create workflow on partition %d: result=%+v err=%v", lease.PartitionID, result, err)
+		}
+		waiting := StateWaitingActivity
+		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{Lease: LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch},
+			WorkflowID: inputs[index].WorkflowID, ExpectedRevision: 1, NewState: StateWaitingActivity,
+			NodeID: "root", NodeState: &waiting, ActorID: "dur050-test", Reason: "TEST_OPEN_TRANSITION"}); err != nil {
+			t.Fatalf("prepare workflow %s: %v", inputs[index].WorkflowID, err)
+		}
+	}
+
+	suffix := strings.ReplaceAll(NewID(), "-", "")
+	functionName := "dur050_hold_history_" + suffix
+	triggerName := "dur050_hold_history_" + suffix
+	functionSQL := fmt.Sprintf(`CREATE FUNCTION engine.%s() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.actor_id = 'dur050-concurrency-test' AND NEW.reason = 'ATTEMPT_CREATED' THEN
+    PERFORM pg_sleep(2);
+  END IF;
+  RETURN NEW;
+	END; $$`, functionName)
+	if _, err := store.pool.Exec(ctx, functionSQL); err != nil {
+		t.Fatalf("install open-transition trigger function: %v", err)
+	}
+	t.Cleanup(func() {
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cleanupCancel()
+		_, _ = store.pool.Exec(cleanupCtx, fmt.Sprintf("DROP TRIGGER IF EXISTS %s ON engine.transition_history", triggerName))
+		_, _ = store.pool.Exec(cleanupCtx, fmt.Sprintf("DROP FUNCTION IF EXISTS engine.%s()", functionName))
+	})
+	triggerSQL := fmt.Sprintf(`CREATE TRIGGER %s BEFORE INSERT ON engine.transition_history
+FOR EACH ROW EXECUTE FUNCTION engine.%s()`, triggerName, functionName)
+	if _, err := store.pool.Exec(ctx, triggerSQL); err != nil {
+		t.Fatalf("install open-transition observation trigger: %v", err)
+	}
+
+	lockConn, err := store.pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lockHeld := false
+	unlockNamespace := func() {
+		if lockHeld {
+			_, _ = lockConn.Exec(context.Background(), `SELECT pg_advisory_unlock(hashtextextended($1, 50050))`, namespace)
+			lockHeld = false
+		}
+	}
+	defer func() {
+		unlockNamespace()
+		lockConn.Release()
+	}()
+	if _, err := lockConn.Exec(ctx, `SELECT pg_advisory_lock(hashtextextended($1, 50050))`, namespace); err != nil {
+		t.Fatalf("hold submission-only namespace lock: %v", err)
+	}
+	lockHeld = true
+
+	type transitionResult struct {
+		workflowID string
+		err        error
+	}
+	results := make(chan transitionResult, len(inputs))
+	start := make(chan struct{})
+	for index, input := range inputs {
+		lease := leases[index]
+		go func(input CreateWorkflowInput, lease Lease) {
+			<-start
+			_, err := store.CreateAttempt(ctx, AttemptInput{Lease: LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch},
+				WorkflowID: input.WorkflowID, NodeID: "root", ExpectedRevision: 2, EffectClass: EffectPure,
+				HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "dur050-concurrency-test"})
+			results <- transitionResult{workflowID: input.WorkflowID, err: err}
+		}(input, lease)
+	}
+	close(start)
+
+	deadline := time.Now().Add(10 * time.Second)
+	openTransitionsObserved := false
+	var sleepers, advisoryWaiters int
+	for time.Now().Before(deadline) {
+		if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM pg_stat_activity
+			WHERE datname = current_database() AND state = 'active' AND wait_event = 'PgSleep'`).Scan(&sleepers); err != nil {
+			t.Fatalf("observe open transition triggers: %v", err)
+		}
+		if sleepers == len(inputs) {
+			if err := store.pool.QueryRow(ctx, `SELECT count(*) FROM pg_locks l
+				JOIN pg_stat_activity a USING (pid)
+				WHERE a.datname = current_database() AND l.locktype = 'advisory' AND NOT l.granted`).Scan(&advisoryWaiters); err != nil {
+				t.Fatalf("inspect advisory-lock waiters: %v", err)
+			}
+			openTransitionsObserved = true
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if !openTransitionsObserved {
+		unlockNamespace()
+		for range inputs {
+			<-results
+		}
+		t.Fatalf("internal transitions did not both remain open concurrently while the namespace lock was held: pg_sleep sessions=%d", sleepers)
+	}
+	if advisoryWaiters != 0 {
+		unlockNamespace()
+		for range inputs {
+			<-results
+		}
+		t.Fatalf("internal transitions waited on %d advisory locks while open; want no namespace admission-lock waiters", advisoryWaiters)
+	}
+	unlockNamespace()
+	for range inputs {
+		result := <-results
+		if result.err != nil {
+			t.Fatalf("internal transition for %s failed while namespace lock was held: %v", result.workflowID, result.err)
+		}
 	}
 }
 

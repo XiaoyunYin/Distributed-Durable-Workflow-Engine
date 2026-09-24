@@ -15,6 +15,10 @@
   populated protocol and calibration artifact before any final study run. No
   Terraform apply before this design review and D022 preflight; no final paid
   run before the populated-protocol review.
+- Pre-pilot amendment: R149 changes the pending-outbox rule to an admission
+  check only; R150 uses the generator host's shared Linux `CLOCK_MONOTONIC`.
+  This amendment is pending Claude review. No pilot or final paid run may use it
+  until that review is complete.
 
 ## Question and claim boundary
 
@@ -106,41 +110,75 @@ payload, activity implementation, image digests, and seed algorithm fixed.
 Final measured repeats contain 2,000 unique workflows (1,000/family) with seeds
 `50050`, `50051`, and `50052`.
 
-Arrivals are open-loop against monotonic deadlines. The separate load generator
-uses a fixed 64-request HTTP pool. A run is invalid if p99 scheduled-to-submit
-delay exceeds 50 ms, generator CPU exceeds 80% for over 1% of its window, or a
-scheduled request is omitted. Reconcile a dropped/uncertain response with the
-same submission key before counting unique acceptance. Run eight warmups (four
-per family) and drain them before a measured run.
+Arrivals are open-loop against fixed deadlines. The separate load generator
+uses a fixed 64-request HTTP pool and records each scheduled arrival whether it
+is submitted, rejected, ambiguous, or missed. Both the load generator and
+observer run on the same Linux generator host and record the shared
+`CLOCK_MONOTONIC` nanosecond value (via `clock_gettime(CLOCK_MONOTONIC)`); UTC
+timestamps are for human-readable provenance only. A measurement binary must
+refuse to run when that shared clock is unavailable. A run is invalid if p99
+scheduled-to-submit delay exceeds 50 ms, generator CPU exceeds 80% for over 1%
+of its window, or a scheduled request is omitted. Reconcile a dropped/uncertain
+response with the same submission key and client workflow ID before counting
+unique acceptance. Run eight warmups (four per family) and drain them before a
+measured run.
 
 ## Campaign-scoped admission gate (R143)
 
 The admission gate is **campaign-only behavior**, enabled only for `dur050-*`
 namespaces by an explicit campaign configuration. It is not a new general
-product/API guarantee. Its fixed limits are:
+product/API guarantee. Its fixed submission-admission limits are:
 
 - at most 1,000 nonterminal accepted workflows per `dur050-*` namespace;
-- at most 50,000 pending outbox events per such namespace.
+- reject a new submission when that namespace already has at least 50,000
+  pending outbox events.
 
-The reservation check and workflow/outbox insertion are atomic under concurrent
-submissions. Return HTTP `429 ADMISSION_LIMIT` at the workflow limit and `503
-BACKPRESSURE` at the pending-event limit, both with `Retry-After: 1`; a rejection
-creates no workflow, attempt, or dispatch event. An already accepted identical
-key resolves to its original workflow even at the cap; an unaccepted key may be
-retried after capacity frees. Slot release occurs **in the same transaction as
-the terminal state transition**, exactly once. `SUCCEEDED`, `FAILED`, and
-`CANCELED` each release one slot in that transaction. `RECONCILIATION_REQUIRED`
-is nonterminal and **continues to hold its slot** until an operator resolution
-or other valid transition makes the workflow terminal; that terminal transition
-releases the slot in the same transaction. Tests must cover all three terminal
-paths, retention while reconciliation is required, eventual release from that
-state, rollback at the terminal-update/release boundary, and idempotent retries.
-The limits/metrics are identical
-in every final arm: capacity search; 50/80/100% points; baseline and optimized
-matched comparison; overload; and soak. The gate is never disabled for a final
-arm and is not eligible to be the one optimization. If a future optimization
-would alter it, register that as campaign-code tuning and get a new protocol
-review first.
+Only `CreateWorkflow` checks either limit, while holding the per-namespace
+advisory transaction lock that serializes concurrent submissions. The active
+slot reservation, initial workflow row, `workflow.created` event and the
+submission-capacity decision commit atomically. Return HTTP `429 ADMISSION_LIMIT`
+at the active-workflow limit and `503 BACKPRESSURE` when the existing pending
+outbox count is at least 50,000; both include `Retry-After: 1`. A rejected
+submission creates no workflow, attempt, or dispatch event. An already accepted
+identical key resolves to its original workflow even at the cap; an unaccepted
+key may be retried after capacity frees.
+
+Internal scheduler, worker, timer, approval, cancellation and reconciliation
+transitions insert their outbox event in their existing transaction but do not
+take the namespace admission lock, count pending events, or refuse progress at
+the 50,000 threshold. This is necessary to avoid serializing every transition
+through a lock held across commit/WAL flush. The 50,000 value is therefore a
+measured overload invariant for the declared workload, not an enforced internal
+event limit. A violation must be reported as a measured invariant failure; it
+must never be "fixed" by suppressing or rejecting an already accepted
+workflow's durable transition.
+
+For the fault-free declared graph, derive the maximum event count before relay
+publication from the committed engine path: `seq-8` has 1 `workflow.created` +
+8 × (`attempt.dispatch` + `activity.result` + `workflow.result_consumed`) + 9
+`graph.advanced` events = **34 events/workflow**. `fanout-8` has 1 initial event
++ 8 × the same three activity events + 11 `graph.advanced` events (fanout
+expansion, eight branch completions, join, final node) = **36 events/workflow**.
+Thus 1,000 simultaneously active, unretried workflows from a drained baseline
+can contribute at most **36,000 pending events** for these two families. This
+is a workload-specific derivation, not a general workflow bound: retries,
+pre-existing pending rows, non-drained baselines, or other graphs can add more.
+Record and check the actual pending count and oldest age throughout overload.
+
+Slot release occurs **in the same transaction as the terminal state
+transition**, exactly once. `SUCCEEDED`, `FAILED`, and `CANCELED` each release
+one slot in that transaction. `RECONCILIATION_REQUIRED` is nonterminal and
+**continues to hold its slot** until an operator resolution or other valid
+transition makes the workflow terminal; that terminal transition releases the
+slot in the same transaction. Tests cover all three terminal paths, retention
+while reconciliation is required, eventual release from that state, rollback
+at the terminal-update/release boundary, idempotent retries, and that unrelated
+internal transitions do not take the namespace lock or block one another. The
+active-slot limit and admission check are identical in every final arm:
+capacity search; 50/80/100% points; baseline and optimized matched comparison;
+overload; and soak. The gate is never disabled for a final arm and is not
+eligible to be the one optimization. If a future optimization would alter it,
+register that as campaign-code tuning and get a new protocol review first.
 
 Before the pilot, fault-inject between writing the terminal workflow state and
 releasing its admission slot. The injected transaction must roll back both
@@ -148,10 +186,12 @@ changes; after retry, both must commit once. Also test both caps concurrently,
 idempotent duplicate submissions at the cap, and slot release after terminal
 commit. The campaign gate must not affect namespaces outside `dur050-*`.
 
-The gate ON/OFF comparison exists **only in the low-rate pilot** to measure
-per-submission and per-completion overhead; all final arms remain ON with the
-same limits. Report paired median and p95 transaction durations and deltas.
-Pilot gate-OFF data is calibration only and is not mixed into final results.
+The gate ON/OFF comparison exists **only in the pilot** to measure
+per-submission and per-completion overhead at both a low offered rate and one
+pilot-informed loaded-rate point (80% of the highest passing pilot staircase
+rate). Report paired median and p95 transaction durations and deltas. Gate-OFF
+data is calibration only and is not mixed into final results; all final arms
+remain ON with the same limits.
 
 ## Pilot and numeric SLO freeze (R145)
 
@@ -179,18 +219,20 @@ record the sample count and selected rank so another reviewer can recompute it.
    100 ms; otherwise retain it with `valid=false` and a reason, exclude it
    from the SLO percentile input, and report the invalid count. Derive
    per-family p50/p95/range and valid sample counts from these rows.
-2. **Gate overhead:** at 0.25 workflows/s, use six fresh 100-workflow blocks,
-   50 per family each, ordered OFF/ON/ON/OFF/OFF/ON (three blocks per mode).
+2. **Gate overhead:** at both 0.25 workflows/s and 80% of the highest passing
+   pilot staircase rate, use six fresh 100-workflow blocks per rate, 50 per
+   family each, ordered OFF/ON/ON/OFF/OFF/ON (three paired blocks per mode).
    Retain every API `CreateWorkflow` and terminal-transition transaction
    duration row with mode, family, block/pair ID, and validity. Pair adjacent
    ON/OFF blocks and summarize median/p95 deltas. No workflow from this
    comparison enters final data.
-3. **Generator validity:** run its private HTTP sink check for five minutes at
-   64 scheduled requests/s. Retain per-request scheduled/actual send time,
-   acknowledgement, schedule lag, and gap/error plus timestamped CPU samples.
-   The DB observer is not active during this sink-only check (record its QPS as
-   not applicable). Require no missed request, p99 schedule lag <=50 ms, and
-   generator CPU <=80%.
+3. **Generator validity:** start the separate `dur050-sink` process on
+   `127.0.0.1:8787` and run `dur050-loadgen` for five minutes at 64 scheduled
+   requests/s against that loopback URL. Retain per-request scheduled/actual
+   send time, acknowledgement, schedule lag, and gap/error plus timestamped
+   `pidstat` CPU samples. The DB observer is not active during this sink-only
+   check (record its QPS as not applicable). Require no missed request, p99
+   schedule lag <=50 ms, and generator CPU <=80%.
 4. **Pilot knee:** run a short open-loop staircase at
    0.25/0.5/1/2/4/8/16/32/64 workflows/s, holding each rate for 60 seconds
    (at most nine minutes total). Stop at the first invalid generator condition
@@ -232,8 +274,9 @@ duration, failed polls, and maximum sampling gap. If it misses a one-second
 interval by more than one interval, invalidate that run. No 100-ms API GET loop
 and no observer connection from the 64-request submitter pool.
 
-Primary end-to-end latency is load-generator monotonic time from each scheduled
-arrival to the first batch snapshot seeing that workflow terminal. This includes
+Primary end-to-end latency is shared Linux `CLOCK_MONOTONIC` time on the
+load-generator host, from each scheduled arrival to the first batch snapshot
+seeing that workflow terminal. This includes
 submission, durable work, execution, and at most one second of observer delay;
 the numeric per-family p99 SLO applies to this metric in each repeat. Also
 report scheduled-arrival-to-HTTP-accept latency separately. As a diagnostic,
@@ -346,15 +389,17 @@ Do not leave profiler instrumentation active in final measured arms.
 
 ## Overload and bounded soak
 
-With the optimized build and the gate still ON, offer `min(5 × optimized
-lambda*, 64)` workflows/s for up to 20 minutes or until the admission limit
-rejects work. Record offered/accepted/rejected rates, outstanding count (never
-above 1,000), pending events (never above 50,000), Kafka lag, oldest age, and
-the exact point of each rejection. Stop submissions and require all accepted
-work to terminalize and durable/outbox/Kafka work to drain within 10 minutes,
-with the independent checker passing. If no rejection occurs before the limit,
-call the backpressure demonstration incomplete. If `lambda* >=64`, the overload
-arm is incomplete as stated above.
+With the optimized build and the gate still ON, offer `min(5 x optimized
+lambda*, 64)` workflows/s for up to 20 minutes or until the submission gate
+rejects work. Record offered/accepted/rejected rates, outstanding count (the
+enforced active limit is 1,000), pending events and oldest age (50,000 is a
+measured invariant, not an internal-transition limit), Kafka lag, and the exact
+point of each submission rejection. If pending events exceed 50,000, record an
+invariant violation; do not suppress internal transitions. Stop submissions
+and require all accepted work to terminalize and durable/outbox/Kafka work to
+drain within 10 minutes, with the independent checker passing. If no rejection
+occurs before the limit, call the backpressure demonstration incomplete. If
+`lambda* >=64`, the overload arm is incomplete as stated above.
 
 Run a 60-minute soak at 80% of optimized `lambda*`, sample every 10 seconds,
 then drain for at most 10 minutes. Report resource, connection, backlog-age,

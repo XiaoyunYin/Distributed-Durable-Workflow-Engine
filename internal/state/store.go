@@ -353,7 +353,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 		nil, input.InitialNodeID, nil, nil, nil, StateRunnable, "WORKFLOW_CREATED"); err != nil {
 		return CreateWorkflowResult{}, err
 	}
-	if err := s.insertOutbox(ctx, tx, input.Namespace, workflow.WorkflowID, 1, "workflow.created", json.RawMessage(fmt.Sprintf(`{"workflow_id":%q}`, workflow.WorkflowID)), admissionLocked); err != nil {
+	if err := s.insertOutbox(ctx, tx, workflow.WorkflowID, 1, "workflow.created", json.RawMessage(fmt.Sprintf(`{"workflow_id":%q}`, workflow.WorkflowID))); err != nil {
 		return CreateWorkflowResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -987,7 +987,7 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 	}
 	payload := json.RawMessage(fmt.Sprintf(`{"workflow_id":%q,"node_id":%q,"iteration":%d,"attempt_number":%d,"attempt_state":%q}`,
 		input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber, attemptState))
-	if err := s.insertOutbox(ctx, tx, workflow.Namespace, input.WorkflowID, newRevision, "workflow.result_consumed", payload, false); err != nil {
+	if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "workflow.result_consumed", payload); err != nil {
 		return ConsumeResult{}, err
 	}
 	workflow.State = input.NewWorkflowState
@@ -1053,16 +1053,15 @@ func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt,
 		return Attempt{}, err
 	}
 	var workflowState WorkflowState
-	var workflowNamespace string
 	var revision int64
 	var partitionID int16
 	var definitionID string
 	var definitionVersion int
 	if err := tx.QueryRow(ctx, `
-		SELECT state, namespace, revision, partition_id, definition_id, definition_version
+		SELECT state, revision, partition_id, definition_id, definition_version
 		FROM engine.workflow_executions
 		WHERE workflow_id = $1
-		FOR UPDATE`, input.WorkflowID).Scan(&workflowState, &workflowNamespace, &revision, &partitionID, &definitionID, &definitionVersion); err != nil {
+		FOR UPDATE`, input.WorkflowID).Scan(&workflowState, &revision, &partitionID, &definitionID, &definitionVersion); err != nil {
 		return Attempt{}, fmt.Errorf("lock workflow for attempt: %w", err)
 	}
 	if partitionID != input.Lease.PartitionID {
@@ -1174,7 +1173,7 @@ func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt,
 	}
 	payload := json.RawMessage(fmt.Sprintf(`{"workflow_id":%q,"node_id":%q,"iteration":%d,"attempt_number":%d}`,
 		input.WorkflowID, input.NodeID, input.Iteration, attemptNumber))
-	if err := s.insertOutbox(ctx, tx, workflowNamespace, input.WorkflowID, newRevision, "attempt.dispatch", payload, false); err != nil {
+	if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "attempt.dispatch", payload); err != nil {
 		return Attempt{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -1398,10 +1397,9 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
 	var workflowState WorkflowState
-	var workflowNamespace string
 	if err := tx.QueryRow(ctx, `
-		SELECT state, namespace FROM engine.workflow_executions
-		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState, &workflowNamespace); err != nil {
+		SELECT state FROM engine.workflow_executions
+		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ResultReceipt{}, ErrWorkflowNotFound
 		}
@@ -1502,7 +1500,7 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 		workflowState, "ATTEMPT_RESULT_RECORDED"); err != nil {
 		return ResultReceipt{}, err
 	}
-	if err := s.insertOutbox(ctx, tx, workflowNamespace, input.WorkflowID, newRevision, input.EventType, input.Payload, false); err != nil {
+	if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, input.EventType, input.Payload); err != nil {
 		return ResultReceipt{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -1526,13 +1524,12 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 		return TimeoutResult{}, err
 	}
 	var workflowState WorkflowState
-	var workflowNamespace string
 	var revision int64
 	var partitionID int16
 	if err := tx.QueryRow(ctx, `
-		SELECT state, namespace, revision, partition_id
+		SELECT state, revision, partition_id
 		FROM engine.workflow_executions
-		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState, &workflowNamespace, &revision, &partitionID); err != nil {
+		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState, &revision, &partitionID); err != nil {
 		return TimeoutResult{}, fmt.Errorf("lock workflow for timeout: %w", err)
 	}
 	if partitionID != input.Lease.PartitionID {
@@ -1597,7 +1594,7 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 			return TimeoutResult{}, err
 		}
 		payload := json.RawMessage(fmt.Sprintf(`{"workflow_id":%q,"node_id":%q,"iteration":%d,"attempt_number":%d}`, input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber))
-		if err := s.insertOutbox(ctx, tx, workflowNamespace, input.WorkflowID, newRevision, "attempt.redispatch", payload, false); err != nil {
+		if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "attempt.redispatch", payload); err != nil {
 			return TimeoutResult{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -1638,7 +1635,7 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 		}
 		payload := json.RawMessage(fmt.Sprintf(`{"workflow_id":%q,"node_id":%q,"iteration":%d,"attempt_number":%d,"reference":%q}`,
 			input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber, reconciliationReference))
-		if err := s.insertOutbox(ctx, tx, workflowNamespace, input.WorkflowID, newRevision, "reconciliation.required", payload, false); err != nil {
+		if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "reconciliation.required", payload); err != nil {
 			return TimeoutResult{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -1673,7 +1670,7 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 		return TimeoutResult{}, err
 	}
 	payload := json.RawMessage(fmt.Sprintf(`{"workflow_id":%q,"node_id":%q,"iteration":%d,"attempt_number":%d}`, input.WorkflowID, input.NodeID, input.Iteration, newAttempt))
-	if err := s.insertOutbox(ctx, tx, workflowNamespace, input.WorkflowID, newRevision, "attempt.dispatch", payload, false); err != nil {
+	if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, "attempt.dispatch", payload); err != nil {
 		return TimeoutResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -1848,15 +1845,10 @@ func insertHistory(ctx context.Context, tx pgx.Tx, workflowID string, revision i
 	return nil
 }
 
-func (s *Store) insertOutbox(ctx context.Context, tx pgx.Tx, namespace, workflowID string, revision int64,
-	eventType string, payload json.RawMessage, admissionAlreadyChecked bool) error {
+func (s *Store) insertOutbox(ctx context.Context, tx pgx.Tx, workflowID string, revision int64,
+	eventType string, payload json.RawMessage) error {
 	if suppressOutbox(ctx) {
 		return nil
-	}
-	if !admissionAlreadyChecked {
-		if err := s.checkOutboxInsertCapacity(ctx, tx, namespace); err != nil {
-			return err
-		}
 	}
 	if len(payload) == 0 {
 		payload = json.RawMessage(`{}`)
