@@ -155,11 +155,12 @@ summary is checked.
 3. **Generator validity:** run its private HTTP sink check for five minutes at
    64 scheduled requests/s. Require no missed request, p99 schedule lag <=50 ms,
    and generator CPU <=80%; record observer QPS and any schedule gaps.
-4. **Pilot knee:** run a short 60-second open-loop staircase at
-   0.25/0.5/1/2/4/8/16/32/64 workflows/s, stopping at the first invalid
-   generator condition or sustained growth in outstanding work. This is only
-   for selecting the final grid's starting rate; its throughput/latencies are
-   not results and do not count toward capacity.
+4. **Pilot knee:** run a short open-loop staircase at
+   0.25/0.5/1/2/4/8/16/32/64 workflows/s, holding each rate for 60 seconds
+   (at most nine minutes total). Stop at the first invalid generator condition
+   or sustained growth in outstanding work. This is only for selecting the
+   final grid's starting rate; its throughput/latencies are not results and do
+   not count toward capacity.
 
 Derive numeric SLO as `ceil_to_0.5s(max(2.5s, 2 × max(unloaded family p95) +
 1.0s))`. The factor of two is explicit headroom above the measured unloaded
