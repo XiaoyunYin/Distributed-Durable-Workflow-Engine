@@ -197,7 +197,10 @@ func TestRepositoryClientErrorMappingsAndUnknownRoutes(t *testing.T) {
 		err    error
 		status int
 		code   string
+		retry  string
 	}{
+		{name: "campaign admission", err: state.ErrAdmissionLimit, status: http.StatusTooManyRequests, code: "ADMISSION_LIMIT", retry: "1"},
+		{name: "campaign backpressure", err: state.ErrAdmissionBackpressure, status: http.StatusServiceUnavailable, code: "BACKPRESSURE", retry: "1"},
 		{name: "definition", err: state.ErrDefinitionNotFound, status: http.StatusNotFound, code: "DEFINITION_NOT_FOUND"},
 		{name: "node", err: state.ErrUnknownNode, status: http.StatusUnprocessableEntity, code: "UNKNOWN_INITIAL_NODE"},
 		{name: "workflow ID", err: state.ErrWorkflowIDConflict, status: http.StatusConflict, code: "WORKFLOW_ID_CONFLICT"},
@@ -210,6 +213,9 @@ func TestRepositoryClientErrorMappingsAndUnknownRoutes(t *testing.T) {
 			NewServer(fake).Handler().ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/v1/workflows", strings.NewReader(requestBody)))
 			if recorder.Code != testCase.status || !strings.Contains(recorder.Body.String(), testCase.code) {
 				t.Fatalf("response = %d %s", recorder.Code, recorder.Body.String())
+			}
+			if got := recorder.Header().Get("Retry-After"); got != testCase.retry {
+				t.Fatalf("Retry-After = %q, want %q", got, testCase.retry)
 			}
 		})
 	}

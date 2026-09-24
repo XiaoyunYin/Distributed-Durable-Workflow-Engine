@@ -17,6 +17,8 @@ services:
       - -c
       - full_page_writes=on
       - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
       - lock_timeout=2s
       - -c
       - statement_timeout=8s
@@ -91,6 +93,9 @@ services:
       RUNTIME_ADDR: 0.0.0.0:8080
       RUNTIME_ROLE: scheduler-a
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      DUR049_RECORD_LEASE_ACQUISITIONS: ${DUR049_RECORD_LEASE_ACQUISITIONS:-0}
+      DUR050_ADMISSION_MAX_ACTIVE: ${DUR050_ADMISSION_MAX_ACTIVE:-0}
+      DUR050_ADMISSION_MAX_PENDING_OUTBOX: ${DUR050_ADMISSION_MAX_PENDING_OUTBOX:-0}
       KAFKA_BOOTSTRAP_SERVERS: kafka:19092
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
       DUR048_ACTIVITY_DELAY_MS: ${DUR048_ACTIVITY_DELAY_MS:-0}

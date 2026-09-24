@@ -822,6 +822,12 @@ func makeHistoryView(record state.TransitionRecord) historyView {
 
 func writeRepositoryError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, state.ErrAdmissionLimit):
+		w.Header().Set("Retry-After", "1")
+		writeError(w, http.StatusTooManyRequests, "ADMISSION_LIMIT", "campaign admission limit is full", nil)
+	case errors.Is(err, state.ErrAdmissionBackpressure):
+		w.Header().Set("Retry-After", "1")
+		writeError(w, http.StatusServiceUnavailable, "BACKPRESSURE", "campaign pending-event limit is full", nil)
 	case errors.Is(err, state.ErrSubmissionConflict):
 		writeError(w, http.StatusConflict, "PAYLOAD_CONFLICT", "submission key already has a different payload", nil)
 	case errors.Is(err, state.ErrDefinitionNotFound):

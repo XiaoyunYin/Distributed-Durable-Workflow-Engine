@@ -56,6 +56,8 @@ var (
 	ErrEffectNotFound          = errors.New("effect record not found")
 	ErrAmbiguousEffect         = errors.New("effect outcome is ambiguous")
 	ErrCancellationConflict    = errors.New("cancellation request conflicts with durable state")
+	ErrAdmissionLimit          = errors.New("DUR-050 campaign admission limit reached")
+	ErrAdmissionBackpressure   = errors.New("DUR-050 campaign pending-event limit reached")
 )
 
 const (
@@ -106,14 +108,23 @@ type Store struct {
 	pool                    *pgxpool.Pool
 	telemetry               *telemetry.Metrics
 	recordLeaseAcquisitions bool
+	dur050Admission         AdmissionGateConfig
 }
 
-// StoreOptions contains opt-in instrumentation that is not required for
-// normal scheduler correctness. The DUR-049 acquisition ledger is enabled
-// only by the campaign deployment; ordinary stores remain independent of
-// migration 16.
+// StoreOptions contains campaign-specific runtime behavior and optional
+// instrumentation. The DUR-049 acquisition ledger is enabled only by the
+// campaign deployment; the DUR-050 admission gate is separately opt-in and
+// namespace-scoped.
 type StoreOptions struct {
 	RecordLeaseAcquisitions bool
+	DUR050Admission         AdmissionGateConfig
+}
+
+// AdmissionGateConfig is opt-in and applies only to dur050-* namespaces.
+// Zero limits leave ordinary Store behavior unchanged.
+type AdmissionGateConfig struct {
+	MaxActiveWorkflows int64
+	MaxPendingOutbox   int64
 }
 
 type DefinitionInput struct {
@@ -602,7 +613,8 @@ func New(pool *pgxpool.Pool) *Store {
 }
 
 func NewWithOptions(pool *pgxpool.Pool, options StoreOptions) *Store {
-	return &Store{pool: pool, recordLeaseAcquisitions: options.RecordLeaseAcquisitions}
+	return &Store{pool: pool, recordLeaseAcquisitions: options.RecordLeaseAcquisitions,
+		dur050Admission: options.DUR050Admission}
 }
 
 // SetTelemetry attaches the bounded process registry used for operational

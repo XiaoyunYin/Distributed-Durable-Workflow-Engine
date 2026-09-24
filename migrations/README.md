@@ -33,3 +33,11 @@ transaction.
 Migration `000013` records the approving intent and approved resource on each
 new effect receipt so the checker can reconcile applied sink mutations with
 their authorization evidence.
+Migration `000017` adds the opt-in DUR-050 active-slot table. Admission
+enforcement is disabled unless both `DUR050_ADMISSION_MAX_ACTIVE` and
+`DUR050_ADMISSION_MAX_PENDING_OUTBOX` are positive, and then applies only to
+`dur050-*` namespaces. Slots are deleted in the same transaction as terminal
+workflow transitions, keeping this campaign control table bounded to active
+work rather than becoming a second workflow-history ledger. Migration `000018`
+installs `pg_stat_statements`; the PostgreSQL service must preload the
+extension before this migration runs.

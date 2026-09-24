@@ -28,6 +28,26 @@ output "app_public_ips" {
   value       = aws_instance.app[*].public_ip
 }
 
+output "load_generator_security_group_id" {
+  description = "Private security group for the DUR-050 load-generator/observer host."
+  value       = try(aws_security_group.load_generator[0].id, null)
+}
+
+output "load_generator_instance_ids" {
+  description = "DUR-050 generator/observer host IDs; empty while the opt-in host is disabled."
+  value       = aws_instance.load_generator[*].id
+}
+
+output "load_generator_instance_profile_name" {
+  description = "Least-privilege SSM profile for a separately provisioned load-generator host."
+  value       = try(aws_iam_instance_profile.load_generator_ssm[0].name, null)
+}
+
+output "dur050_observer_secret_parameter_name" {
+  description = "SSM SecureString parameter name for the read-only observer login."
+  value       = try(aws_ssm_parameter.dur050_observer_password[0].name, null)
+}
+
 output "resource_expiration" {
   description = "Expiration tag applied to all campaign resources."
   value       = var.expires_at

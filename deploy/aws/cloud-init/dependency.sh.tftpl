@@ -33,11 +33,17 @@ fi
 
 umask 077
 postgres_password="$(aws ssm get-parameter --name '${postgres_secret_parameter}' --with-decryption --region '${aws_region}' --query 'Parameter.Value' --output text)"
+%{ if enable_dur050_observer ~}
+observer_password="$(aws ssm get-parameter --name '${observer_secret_parameter}' --with-decryption --region '${aws_region}' --query 'Parameter.Value' --output text)"
+%{ endif ~}
 dependency_private_ip="$(hostname -I | cut -d ' ' -f 1)"
 cat > /opt/durable-agent-execution-engine/deploy/aws/.env <<EOF
 POSTGRES_USER=${postgres_user}
 POSTGRES_DB=${postgres_db}
 POSTGRES_PASSWORD=$${postgres_password}
+%{ if enable_dur050_observer ~}
+DUR050_OBSERVER_PASSWORD=$${observer_password}
+%{ endif ~}
 POSTGRES_IMAGE=${postgres_image}
 KAFKA_IMAGE=${kafka_image}
 DEPENDENCY_PRIVATE_IP=$${dependency_private_ip}
@@ -78,5 +84,11 @@ for migration in migrations/*.up.sql; do
   echo "Applying $${migration}"
   docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T postgres psql -v ON_ERROR_STOP=1 -U '${postgres_user}' -d '${postgres_db}' < "$${migration}"
 done
+
+%{ if enable_dur050_observer ~}
+docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T postgres \
+  psql -v ON_ERROR_STOP=1 -v observer_password="$${observer_password}" -v postgres_db='${postgres_db}' \
+  -U '${postgres_user}' -d '${postgres_db}' -f - < deploy/aws/dur050-observer.sql
+%{ endif ~}
 
 touch /var/lib/durable-dur049-bootstrap-complete

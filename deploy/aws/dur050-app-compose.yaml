@@ -1,0 +1,12 @@
+name: durable-aws-app
+
+# Overlay used only by DUR-050. The base AWS deployment remains the DUR-049
+# campaign configuration; this file opts into the reviewed capacity gate and
+# disables DUR-049's append-only lease ledger.
+services:
+  runtime:
+    environment:
+      RUNTIME_NAMESPACE: ${DUR050_NAMESPACE:?set a unique dur050-* namespace}
+      DUR049_RECORD_LEASE_ACQUISITIONS: "0"
+      DUR050_ADMISSION_MAX_ACTIVE: "1000"
+      DUR050_ADMISSION_MAX_PENDING_OUTBOX: "50000"

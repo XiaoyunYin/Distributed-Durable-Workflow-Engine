@@ -174,8 +174,11 @@ record the sample count and selected rank so another reviewer can recompute it.
    in `unloaded-observer-polls.csv`. Retain each workflow's family, run/block
    ID, scheduled-arrival and first-terminal-observation timestamps, outcome,
    and validity/rejection reason in `unloaded-latency.csv`. Record actual query
-   QPS and maximum sampling gap; derive per-family p50/p95/range and sample
-   counts from these rows.
+   QPS and maximum sampling gap. A workflow row is valid only if the maximum
+   gap from observer start through its first terminal observation is at most
+   100 ms; otherwise retain it with `valid=false` and a reason, exclude it
+   from the SLO percentile input, and report the invalid count. Derive
+   per-family p50/p95/range and valid sample counts from these rows.
 2. **Gate overhead:** at 0.25 workflows/s, use six fresh 100-workflow blocks,
    50 per family each, ordered OFF/ON/ON/OFF/OFF/ON (three blocks per mode).
    Retain every API `CreateWorkflow` and terminal-transition transaction

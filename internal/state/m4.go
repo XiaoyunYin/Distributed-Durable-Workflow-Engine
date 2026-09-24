@@ -421,8 +421,8 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 			&input.Lease.Epoch, input.NodeID, &input.Iteration, nil, &workflow.State, newState, "APPROVAL_REQUESTED"); err != nil {
 			return ApprovalIntent{}, err
 		}
-		if err := insertOutbox(ctx, tx, input.WorkflowID, newRevision, "approval.requested",
-			json.RawMessage(fmt.Sprintf(`{"intent_id":%q,"workflow_id":%q}`, intentID, input.WorkflowID))); err != nil {
+		if err := s.insertOutbox(ctx, tx, workflow.Namespace, input.WorkflowID, newRevision, "approval.requested",
+			json.RawMessage(fmt.Sprintf(`{"intent_id":%q,"workflow_id":%q}`, intentID, input.WorkflowID)), false); err != nil {
 			return ApprovalIntent{}, err
 		}
 	}
@@ -601,12 +601,16 @@ func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (Ap
 		if _, err := tx.Exec(ctx, `UPDATE engine.workflow_executions SET state = 'REJECTED', revision = $2, updated_at = clock_timestamp() WHERE workflow_id = $1`, input.WorkflowID, newRevision); err != nil {
 			return ApprovalGrant{}, err
 		}
+		if err := s.releaseAdmissionSlotTx(ctx, tx, workflow.Namespace, input.WorkflowID,
+			workflow.State, StateRejected); err != nil {
+			return ApprovalGrant{}, err
+		}
 		if err := insertHistory(ctx, tx, input.WorkflowID, newRevision, "scheduler", input.ActorID,
 			&input.Lease.Epoch, input.NodeID, &input.Iteration, nil, &workflow.State, StateRejected, "APPROVAL_REJECTED"); err != nil {
 			return ApprovalGrant{}, err
 		}
-		if err := insertOutbox(ctx, tx, input.WorkflowID, newRevision, "approval.rejected",
-			json.RawMessage(fmt.Sprintf(`{"intent_id":%q}`, input.IntentID))); err != nil {
+		if err := s.insertOutbox(ctx, tx, workflow.Namespace, input.WorkflowID, newRevision, "approval.rejected",
+			json.RawMessage(fmt.Sprintf(`{"intent_id":%q}`, input.IntentID)), false); err != nil {
 			return ApprovalGrant{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -640,8 +644,8 @@ func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (Ap
 		&input.Lease.Epoch, input.NodeID, &input.Iteration, nil, &workflow.State, StateRunnable, "APPROVAL_GRANTED"); err != nil {
 		return ApprovalGrant{}, err
 	}
-	if err := insertOutbox(ctx, tx, input.WorkflowID, newRevision, "approval.granted",
-		json.RawMessage(fmt.Sprintf(`{"intent_id":%q,"grant_scope_hash":%q}`, input.IntentID, grantScope))); err != nil {
+	if err := s.insertOutbox(ctx, tx, workflow.Namespace, input.WorkflowID, newRevision, "approval.granted",
+		json.RawMessage(fmt.Sprintf(`{"intent_id":%q,"grant_scope_hash":%q}`, input.IntentID, grantScope)), false); err != nil {
 		return ApprovalGrant{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -774,7 +778,7 @@ func (s *Store) ApplyCancellationRequest(ctx context.Context, lease LeaseRef, re
 		}
 		return workflow, nil
 	}
-	if err := cancelWorkflowTx(ctx, tx, lease, &workflow, actorID); err != nil {
+	if err := cancelWorkflowTx(ctx, tx, s, lease, &workflow, actorID); err != nil {
 		return Workflow{}, err
 	}
 	if _, err := tx.Exec(ctx, `UPDATE engine.cancellation_requests SET status = 'APPLIED', applied_at = clock_timestamp() WHERE request_id = $1`, requestID); err != nil {
@@ -789,7 +793,7 @@ func (s *Store) ApplyCancellationRequest(ctx context.Context, lease LeaseRef, re
 // cancelWorkflowTx applies the owner-side cancellation while the lease and
 // workflow rows are already locked. Keeping the request and transition in one
 // transaction closes the race where a grant could be issued between them.
-func cancelWorkflowTx(ctx context.Context, tx pgx.Tx, lease LeaseRef, workflow *Workflow, actorID string) error {
+func cancelWorkflowTx(ctx context.Context, tx pgx.Tx, store *Store, lease LeaseRef, workflow *Workflow, actorID string) error {
 	rows, err := tx.Query(ctx, `
 		SELECT node_id, iteration, state, current_attempt_number
 		FROM engine.node_instances
@@ -853,12 +857,16 @@ func cancelWorkflowTx(ctx context.Context, tx pgx.Tx, lease LeaseRef, workflow *
 		WHERE workflow_id = $1`, workflow.WorkflowID, newRevision); err != nil {
 		return err
 	}
+	if err := store.releaseAdmissionSlotTx(ctx, tx, workflow.Namespace, workflow.WorkflowID,
+		workflow.State, StateCanceled); err != nil {
+		return err
+	}
 	if err := insertHistory(ctx, tx, workflow.WorkflowID, newRevision, "scheduler", actorID,
 		&lease.Epoch, "", nil, nil, &workflow.State, StateCanceled, "CANCELED_ALL_ACTIVE_NODES"); err != nil {
 		return err
 	}
-	if err := insertOutbox(ctx, tx, workflow.WorkflowID, newRevision, "workflow.canceled",
-		json.RawMessage(fmt.Sprintf(`{"workflow_id":%q}`, workflow.WorkflowID))); err != nil {
+	if err := store.insertOutbox(ctx, tx, workflow.Namespace, workflow.WorkflowID, newRevision, "workflow.canceled",
+		json.RawMessage(fmt.Sprintf(`{"workflow_id":%q}`, workflow.WorkflowID)), false); err != nil {
 		return err
 	}
 	workflow.State = StateCanceled

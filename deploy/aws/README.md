@@ -46,6 +46,46 @@ $env:TF_VAR_admin_cidrs = '["203.0.113.10/32"]'
 terraform -chdir=deploy/aws plan -out=dur049.tfplan
 ```
 
+For DUR-050, the separate load-generator security group is the only additional
+source allowed to reach PostgreSQL on 5432 and the private runtime API on 8080.
+The database bootstrap creates `dur050_observer` with a distinct SCRAM
+credential, read-only transactions, a two-connection limit, and column-level
+SELECT grants only on workflow status and terminal-history fields. App hosts
+cannot read that credential; the separately provisioned generator profile can
+read only its SSM parameter. No observer grant includes write, sequence, or
+effect-service access.
+
+The DUR-050 host is opt-in: set `enable_dur050_load_generator = true` (or
+`TF_VAR_enable_dur050_load_generator=true`) before planning its four-host
+topology. It creates one `c7i.large` generator/observer host in the first
+campaign AZ, builds the observer from the exact full-SHA repository checkout,
+and exposes its instance ID as `load_generator_instance_ids`. The normal
+DUR-049 recovery topology leaves this host disabled. For DUR-050, also set the
+two app hosts to `c7i.large` and the dependency host to `m7i.large` as required
+by the reviewed protocol; the complete four-host plan is still subject to the
+D022 quota and cost preflight.
+
+Only when enabling this host, provide a separate ephemeral observer password
+before planning; the observer SSM parameter, load-generator SG rules, IAM
+profile, and host are all conditional on `enable_dur050_load_generator=true`.
+The default DUR-049 plan does not create observer credentials or open the
+generator-only network paths. The DUR-050 app overlay enables the fixed
+`dur050-*` admission caps and sets `DUR049_RECORD_LEASE_ACQUISITIONS=0`; the
+base app compose retains the DUR-049 default. PostgreSQL preloads
+`pg_stat_statements` via `shared_preload_libraries`, then migration 000018
+installs the extension. After each volume restore, use the reviewed
+`scripts/dur050-reset-block.ps1` procedure to restart the application hosts,
+verify the Kafka worker group has active consumer assignment, submit and drain
+warmups, and retain the per-block reset and database snapshot artifacts before
+measured work begins. The protocol-matched warmup submitter and its eight fresh
+workflow IDs are supplied for each block; the reset script fails if the IDs
+are missing, duplicated, or do not drain to terminal state.
+
+```powershell
+$env:TF_VAR_enable_dur050_load_generator = "true"
+$env:TF_VAR_dur050_observer_password = "<different-24-to-64-character-secret>"
+```
+
 The three burstable instances use `cpu_credits = "standard"` so campaign
 timings are not silently changed by unlimited-credit billing. The current
 account must allow EC2 quota `L-1216C47A` at or above 6 vCPUs; a 1-vCPU limit

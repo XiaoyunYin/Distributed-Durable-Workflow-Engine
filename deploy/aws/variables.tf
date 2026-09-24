@@ -80,6 +80,18 @@ variable "dependency_instance_type" {
   default     = "t3.small"
 }
 
+variable "enable_dur050_load_generator" {
+  description = "Create the separate DUR-050 load-generator/observer host. Keep disabled for DUR-049 recovery campaigns."
+  type        = bool
+  default     = false
+}
+
+variable "load_generator_instance_type" {
+  description = "DUR-050 load-generator instance type; excluded from plans unless enable_dur050_load_generator is true."
+  type        = string
+  default     = "c7i.large"
+}
+
 variable "root_volume_size_gb" {
   description = "Encrypted root volume size for each host."
   type        = number
@@ -109,6 +121,18 @@ variable "postgres_password" {
   validation {
     condition     = can(regex("^[A-Za-z0-9]{20,64}$", var.postgres_password))
     error_message = "postgres_password must be 20-64 alphanumeric characters so the generated DATABASE_URL is unambiguous."
+  }
+}
+
+variable "dur050_observer_password" {
+  description = "Separate ephemeral SCRAM credential for the DUR-050 SELECT-only observer role, stored in encrypted SSM Parameter Store."
+  type        = string
+  sensitive   = true
+  default     = ""
+
+  validation {
+    condition     = var.enable_dur050_load_generator ? can(regex("^[A-Za-z0-9]{24,64}$", var.dur050_observer_password)) : var.dur050_observer_password == ""
+    error_message = "When the DUR-050 load generator is enabled, dur050_observer_password must be 24-64 alphanumeric characters; otherwise leave it empty."
   }
 }
 

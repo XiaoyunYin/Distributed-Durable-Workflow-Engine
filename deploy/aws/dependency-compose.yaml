@@ -17,6 +17,8 @@ services:
       - -c
       - full_page_writes=on
       - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
       - lock_timeout=2s
       - -c
       - statement_timeout=8s

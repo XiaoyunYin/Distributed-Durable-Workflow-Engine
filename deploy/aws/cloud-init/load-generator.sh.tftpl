@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec > >(tee /var/log/durable-dur050-generator-bootstrap.log | logger -t durable-dur050-generator -s 2>/dev/console) 2>&1
+export DEBIAN_FRONTEND=noninteractive
+
+apt-get update
+apt-get install -y ca-certificates curl git unzip
+if ! command -v aws >/dev/null 2>&1; then
+  curl --fail --silent --show-error --location https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
+  unzip -q /tmp/awscliv2.zip -d /tmp
+  /tmp/aws/install
+  rm -rf /tmp/aws /tmp/awscliv2.zip
+fi
+
+go_archive=/tmp/go1.27.1.linux-amd64.tar.gz
+curl --fail --silent --show-error --location https://go.dev/dl/go1.27.1.linux-amd64.tar.gz -o "$${go_archive}"
+echo '63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445  /tmp/go1.27.1.linux-amd64.tar.gz' | sha256sum --check --status
+tar -C /usr/local -xzf "$${go_archive}"
+rm -f "$${go_archive}"
+export PATH="/usr/local/go/bin:$${PATH}"
+test "$(go version)" = 'go version go1.27.1 linux/amd64'
+
+install -d -m 0750 /opt/durable-agent-execution-engine
+git -C /opt/durable-agent-execution-engine init
+git -C /opt/durable-agent-execution-engine remote add origin '${repo_url}'
+git -C /opt/durable-agent-execution-engine fetch --depth 1 origin '${repo_ref}'
+git -C /opt/durable-agent-execution-engine checkout --detach FETCH_HEAD
+test "$(git -C /opt/durable-agent-execution-engine rev-parse HEAD)" = '${repo_ref}'
+
+install -d -m 0755 /opt/durable-agent-execution-engine/bin
+cd /opt/durable-agent-execution-engine
+go build -trimpath -o bin/dur050-observer ./cmd/dur050-observer
+chmod 0755 bin/dur050-observer
+touch /var/lib/durable-dur050-generator-bootstrap-complete
