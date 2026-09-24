@@ -93,8 +93,11 @@ AWS calls:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dur043-multihost.ps1 -SelfTest
 ```
 
-Create two active workflow fixtures whose activity is observed `CLAIMED`, one
-for each arm, then run the SSM-backed harness from the repository root:
+Create five run-scoped workflow fixtures for the parameters below. The network,
+host-stop, live-holder-contention, and owner-lock-isolation activity fixtures
+must each be observed `CLAIMED` before their fault; use a separate fixture for
+other-partition progress. Then run the SSM-backed harness from the repository
+root:
 
 ```powershell
 pwsh -File scripts/dur043-multihost.ps1 -Scenario all `
