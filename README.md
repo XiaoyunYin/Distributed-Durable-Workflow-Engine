@@ -22,21 +22,43 @@ flowchart LR
 
 ## Evidence highlights
 
-- **Scheduler capacity:** two schedulers kept up at 2 offered workflows/s
-  where one did not, on the in-process engine path with four fixed workers.
-  [Study](experiments/m7/dur026/results.json)
-- **Dispatch path:** in one campaign, notification-direct beat Kafka at the
-  resolved terminal stage; ready-to-claim was unresolved.
-  [Study](experiments/m7/dur035/results.json)
-- **Checkpoint cost:** every-chunk took 7.5552x the boundary-only median at one
-  SHA-256 work unit/chunk. [Study](experiments/m7/dur028/results.json)
+- **AWS lease fencing:** the four-arm DUR-049 campaign's independent checker
+  found zero superseded-epoch transitions; the preserved worker's late result
+  was rejected as `STALE_ATTEMPT`. [Network episode](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/network-isolation.json).
+  Cold standby, one region and one dependency host; not database-host durability.
+- **Local recovery:** 60 takeovers, 60 useful recoveries, 180 fenced stale-owner
+  writes and zero false takeovers. [60-episode study](experiments/portfolio/local-recovery/local-410041/summary.json).
+  Docker Desktop/WSL2 process faults, not independent-host recovery.
+- **Named faults:** 48/48 cases (16 boundaries × 3 seeds) passed the independent
+  invariant checker. [Campaign evidence](experiments/m5/f01-f11-results.json).
+  This is a bounded case set, not a universal exactly-once proof.
+- **Regression gate:** all 17 selected behavioral safety mutations were
+  detected in [hosted CI](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/35941481466),
+  alongside a reference model and Go fuzz targets. [Mutation results](mutations/results-powershell.json).
+  The gate covers representative guards, not every line.
 
-Separate validation: [48/48 named-fault cases](experiments/m5/f01-f11-results.json).
-Performance studies are single-host Docker Desktop/WSL2 harness results, not
-deployed throughput. PostgreSQL fences transitions by lease epoch, workflow
-revision, and attempt token; uncertain external effects stop for reconciliation.
-This educational project makes no production-readiness or universal
-exactly-once claim.
+## Engineering focus
+
+- Partition ownership and lease-epoch fencing.
+- Durable workflow recovery and reconciliation.
+- Transactional outbox/inbox, duplicate delivery and offset safety.
+- Approval-bound effects and explicit uncertain-outcome handling.
+- Falsifiable fault evidence, an independent reference model and fuzzing.
+
+## Measurements
+
+- Two schedulers met 2 offered workflows/s where one did not, through the
+  in-process engine path with four fixed worker processes; single-host
+  Docker Desktop/WSL2, not end-to-end deployed capacity. [DUR-026](experiments/m7/dur026/results.json)
+- Notification-direct beat Kafka at the resolved terminal stage; ready-to-claim
+  was unresolved in the named campaign. [DUR-035](experiments/m7/dur035/results.json)
+- Every-chunk checkpointing took 7.5552× the boundary-only median at one
+  SHA-256 work unit per chunk, under an in-process panic model; not a crossover
+  estimate. [DUR-028](experiments/m7/dur028/results.json)
+
+PostgreSQL fences transitions by lease epoch, workflow revision, and attempt
+token; uncertain external effects stop for reconciliation. This educational
+project makes no production-readiness or universal exactly-once claim.
 
 More: [failure case study](experiments/portfolio/recruiter/failure-case-study.md) ·
 [role-specific resume claims](experiments/portfolio/recruiter/claim-evidence.md) ·
@@ -54,60 +76,14 @@ not run. [DUR-048 pilot evidence](experiments/m8/dur042-pilot/)
 This is local Compose evidence, not AWS, host-failure, production-throughput,
 or external-effect evidence.
 
-A separate [DUR-049 AWS campaign](experiments/portfolio/cloud-recovery/dur049-aws-20260923-round80-final/protocol.json)
-ran two repetitions each of preserved-process network isolation, forced
-application-host stop, and live-holder lease-row-lock contention. All six
-episodes passed their recorded gates with zero superseded-epoch transitions.
-That lock arm measures bounded waiting while a healthy external holder
-contends on one partition; it is not isolation of the owning scheduler while
-it holds the row lock. A later [full four-arm AWS rerun](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/protocol.json)
-on commit `0adbac0` passed preserved-process network isolation, forced
-application-host stop, live-holder contention, and isolation of the original
-scheduler while it held the lease-row lock. In the owner-lock arm, PostgreSQL
-was observed to be reaped after TCP keepalive failure; a peer took over,
-consumed the already-recorded result, and made useful progress; the same
-original runtime reconnected and its stale lease write was rejected without
-changing the stable lease row. The independent live and offline invariant
-checks passed, with zero superseded-epoch transitions. The target transaction
-overrode the production 10-second idle-in-transaction timeout with a
-campaign-only 120-second timeout, so that production timeout path was not
-measured. The backend was reaped about 62 seconds after its last activity,
-consistent with the observed TCP keepalive settings (30-second idle plus three
-10-second probes). The same-owner stale-epoch control retained its workflow as CANCELED,
-recorded zero outbox rows, rejected the old epoch without a revision change,
-and left the global open-obligation set unchanged after consumer drain.
-The accompanying [cleanup record](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/cleanup.json)
-documents destruction and post-destroy absence checks for the campaign
-resources; invoice attribution was not queried. Four strict network-only runs
-(two embedded in the round 80/81 campaigns and two standalone) in
-[round 86](experiments/portfolio/cloud-recovery/dur049-aws-20260923-round86-network-final/protocol.json)
-and [round 87](experiments/portfolio/cloud-recovery/dur049-aws-20260923-round87-network-final/protocol.json)
-disabled server-side PostgreSQL session termination, preserved the original
-runtime and worker, and observed the original worker's late result rejected as
-`STALE_ATTEMPT`. The peer was a controller-started cold standby, and recovery
-timings are bounded by the 30-second attempt lease and 60-second fixture; they
-are not general failover-performance estimates. The tested activity was pure,
-so zero effect calls does not test external-effect deduplication. The
-[attempt ledger](experiments/portfolio/cloud-recovery/dur049-attempt-ledger.md)
-retains failed, incomplete, missing, and passing attempt history, including
-eight early network-only failures whose cause cannot be determined from the
-retained observations. The [closeout report](experiments/portfolio/cloud-recovery/dur049-aws-20260923-closeout/closeout.json)
-records Terraform teardown and a gross reconstructed price estimate of about
-$0.78, not a final invoice. Five global poison-record items recorded at
-teardown are attributed to the historical same-owner epoch negative-control
-probe: it created a `workflow.created` event and then deleted the workflow
-row, so the consumer correctly quarantined the orphan. Their workflow-ID
-mapping is inferred from retained probe results and run timestamps; the
-original Kafka payload bytes were not retained. The campaign probe now
-suppresses its outbox event, retains and terminalizes its workflow, and checks
-that a drained scheduler consumer leaves the global open-obligation set
-unchanged. This is bounded application-host recovery evidence, not
-database-host durability, multi-region HA, or production-scale reliability
-evidence.
-
-The hosted CI runs for the commits that produced the round 80/81 and 86/87
-artifacts failed; each protocol records the exact run and failed steps. The
-campaign measurements are not presented as having come from green-CI commits.
+The four-arm [DUR-049 AWS campaign](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/protocol.json)
+recorded zero superseded-epoch transitions; in its preserved-process network
+arm, the original worker's late result was rejected as `STALE_ATTEMPT`
+([episode](experiments/portfolio/cloud-recovery/dur049-aws-20260923-full-0adbac0/network-isolation.json)).
+The peer was a controller-started cold standby in one region. Owner-lock
+reaping, campaign-only timeout overrides, failed-attempt history, cleanup, and
+the limits of these measurements are documented in the campaign records and
+[failure case study](experiments/portfolio/recruiter/failure-case-study.md).
 
 ### Scoped recovery case study
 

@@ -4,7 +4,11 @@
 Compose stack. The helper creates a temporary workflow definition, submits the
 workflow through the API, waits for Python-worker results and scheduler
 consumption, and checks persisted history with the independent invariant
-checker. It removes its workflow and definition when finished.
+checker. Before cleanup, it waits until every workflow outbox row is published,
+has a durable inbox record, and the corresponding Kafka consumer-group offset
+is committed past that record. It then removes the inbox records, workflow and
+definition in one transaction; if the demo fails before that safe point, it
+leaves the durable rows available for diagnosis.
 
 ## Render
 

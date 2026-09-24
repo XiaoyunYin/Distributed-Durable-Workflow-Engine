@@ -78,6 +78,8 @@ $n = (Get-Content "$d/network-isolation.json" -Raw | ConvertFrom-Json).result
 Observed output: epoch `56`, `20503.524` ms, `STALE_ATTEMPT`, recovery attempt
 `2`, and `0` superseded-epoch transitions. For a new AWS run, follow the
 fixture and preflight procedure in
-[`deploy/aws/README.md`](../../../deploy/aws/README.md), create fresh claimed
-fixtures, and use a new output directory. That run provisions resources and
-must remain within the D022 budget and cleanup procedure.
+[`deploy/aws/README.md`](../../../deploy/aws/README.md), pass five fresh,
+unused workflow IDs; the harness submits each fixture and
+waits until each activity fixture is CLAIMED before its fault. Use a new output
+directory. That run provisions resources and must remain within the D022 budget
+and cleanup procedure.

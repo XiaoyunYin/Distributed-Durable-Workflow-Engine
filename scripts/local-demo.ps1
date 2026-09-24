@@ -4,6 +4,7 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $previousDatabase = $env:DATABASE_URL
 $previousGoCache = $env:GOCACHE
+$previousKafkaBrokers = $env:KAFKA_BROKERS
 Push-Location $RepoRoot
 try {
     $values = @{}
@@ -13,6 +14,7 @@ try {
     $user = [uri]::EscapeDataString($values['POSTGRES_USER'])
     $password = [uri]::EscapeDataString($values['POSTGRES_PASSWORD'])
     $env:DATABASE_URL = 'postgresql://{0}:{1}@127.0.0.1:{2}/{3}?sslmode=disable' -f $user,$password,$values['POSTGRES_PORT'],$values['POSTGRES_DB']
+    $env:KAFKA_BROKERS = 'localhost:{0}' -f $values['KAFKA_PORT']
     $env:GOCACHE = Join-Path $RepoRoot '.scratch/dur045/gocache-local-demo'
     New-Item -ItemType Directory -Force -Path $env:GOCACHE | Out-Null
     & go run ./cmd/local-demo -api "http://127.0.0.1:$($values['RUNTIME_A_PORT'])"
@@ -20,5 +22,6 @@ try {
 } finally {
     $env:DATABASE_URL = $previousDatabase
     $env:GOCACHE = $previousGoCache
+    $env:KAFKA_BROKERS = $previousKafkaBrokers
     Pop-Location
 }
