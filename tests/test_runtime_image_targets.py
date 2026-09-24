@@ -18,9 +18,7 @@ def test_default_runtime_image_excludes_campaign_binaries() -> None:
     assert names[-1] == "runtime", "default Docker build must end at the production runtime stage"
 
     default_stage = stages[-1][1]
-    default_binary_copies = re.findall(
-        r"(?m)^COPY --from=\S+ /out/(\S+) /(\S+)\s*$", default_stage
-    )
+    default_binary_copies = re.findall(r"(?m)^COPY --from=\S+ /out/(\S+) /(\S+)\s*$", default_stage)
     assert default_binary_copies == [("runtime", "runtime")]
     assert "dur034_ablation" not in default_stage
     assert "dur049_owner_lock_isolation" not in default_stage
