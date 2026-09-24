@@ -98,8 +98,9 @@ func run() error {
 			if verdict := invariants.Check(trace); !verdict.Valid {
 				return fmt.Errorf("invariant violations: %+v", verdict.Violations)
 			}
-			return json.NewEncoder(os.Stdout).Encode(map[string]any{"status": "PASS", "workflow_id": id, "state": wf.State,
-				"python_claims": claims, "task_inbox": tasks, "event_inbox": events, "result": 6, "invariants_valid": true})
+			fmt.Printf("workflow: %s\nstate: %s\nactivity result: 6\nPython worker claims: %d\ninvariant checker: PASS\n",
+				id, wf.State, claims)
+			return nil
 		}
 		if wf.State == state.StateFailed {
 			return fmt.Errorf("workflow failed at revision %d", wf.Revision)

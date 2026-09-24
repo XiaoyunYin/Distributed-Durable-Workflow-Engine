@@ -1,84 +1,46 @@
 # Distributed Durable Workflow Engine
 
-A Go/Python workflow runtime built around one question: **how do schedulers and
-workers recover from crashes, duplicate messages, and stale ownership without
-losing committed progress or silently repeating external effects?**
+[![CI](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/workflows/ci.yml)
 
-**Stack:** Go, PostgreSQL, Kafka, Python, Docker Compose, OpenTelemetry, Prometheus.
-PostgreSQL owns workflow state; Kafka transports dispatch and completion events.
-An incident-investigation application adds retrieval, citations, and
-approval-gated sandbox actions as a bounded applied-AI use case.
+**Problem:** recover committed workflows safely across scheduler failover,
+duplicate delivery, worker retries, and uncertain external effects. **Stack:**
+Go, PostgreSQL, Kafka, Python, Docker, OpenTelemetry, and Prometheus, plus a
+bounded retrieval-and-approval incident-investigation example.
 
-This is an educational systems project with reproducible experiments, not a
-production-ready service or a universal exactly-once execution claim.
-
-## Architecture at a glance
+## Architecture
 
 ```mermaid
 flowchart LR
-    API[Go API] --> DB[(PostgreSQL<br/>workflow state)]
-    S[Schedulers<br/>partition leases + fencing] --> DB
-    S --> O[Transactional outbox]
-    O --> K[Kafka relay / topics]
-    K --> W[Python workers]
-    W --> R[Claim + result receipt]
-    R --> DB
-    DB --> C[Independent checker]
-    S --> T[Metrics / traces]
-    W --> T
+  C[Client] --> A[Go API]
+  A --> P[(PostgreSQL state)]
+  S[Schedulers + interpreter<br/>lease epochs] --> P
+  P --> O[Transactional outbox] --> K[Kafka] --> W[Python workers]
+  W --> A
+  P --> I[Invariant checker]
+  S --> E[Approval-gated effects]
 ```
 
-The safety boundary is PostgreSQL: Kafka delivery may duplicate, workers may
-retry, and schedulers may change ownership, but durable transitions require
-the current lease epoch, workflow revision, and attempt token. Effects that
-cannot prove their outcome stop in reconciliation instead of being retried
-blindly.
+## Evidence highlights
 
-## Engineering focus
+- **Scheduler capacity:** two schedulers kept up at 2 offered workflows/s
+  where one did not, on the in-process engine path with four fixed workers.
+  [Study](experiments/m7/dur026/results.json)
+- **Dispatch path:** in one campaign, notification-direct beat Kafka at the
+  resolved terminal stage; ready-to-claim was unresolved.
+  [Study](experiments/m7/dur035/results.json)
+- **Checkpoint cost:** every-chunk took 7.5552x the boundary-only median at one
+  SHA-256 work unit/chunk. [Study](experiments/m7/dur028/results.json)
 
-- **Ownership and concurrency:** partition leases, epoch fencing, ordered row
-  locks, exclusive worker claims, and idempotent submission/result receipts.
-- **Durable recovery:** explicit workflow graphs, checkpoints, timers, retries,
-  fan-out/join, cancellation, and reconciliation of uncertain outcomes.
-- **Reliable messaging:** transactional outbox, Kafka relay, durable inbox/offset
-  handling, poison-record obligations, and a database-backed repair scan.
-- **Effect safety:** cooperating sinks reuse receipts; unknown non-cooperating
-  outcomes stop automatic retries. Approval grants bind the resource, canonical
-  arguments, revision, and effect identity in the tested integration path.
-- **Falsifiable evidence:** named-boundary fault injection, persisted snapshots,
-  an independent invariant checker, and negative controls that make it fail.
-- **Regression detection:** a mutation gate with 17 behavioral cases plus one
-  configuration tripwire, an independent contract-derived reference model,
-  and bounded fuzz targets for request JSON, workflow graphs, and fault traces.
-  The gate rejects skipped/no-test runs and records the declared failure type
-  for each selected safety guard.
+Separate validation: [48/48 named-fault cases](experiments/m5/f01-f11-results.json).
+Performance studies are single-host Docker Desktop/WSL2 harness results, not
+deployed throughput. PostgreSQL fences transitions by lease epoch, workflow
+revision, and attempt token; uncertain external effects stop for reconciliation.
+This educational project makes no production-readiness or universal
+exactly-once claim.
 
-## Three measured findings
-
-These single-host Docker Desktop/WSL2 measurements predate the current deployed
-scheduler/Kafka-worker wiring. They describe the named study harnesses, **not
-end-to-end throughput or latency of the current deployment**. A deployed rerun
-must be a separate campaign.
-
-1. **Scheduler capacity:** with a fixed four-process worker pool, two schedulers
-   kept up with the tested 2 workflows/s offered rate where one scheduler did
-   not on the engine path. [Throughput study evidence](experiments/m7/dur026/results.json)
-2. **Transport tradeoff:** notification-direct was faster than Kafka at the
-   resolved terminal stage in the quoted campaign. The ready-to-claim comparison
-   was unresolved and varied across campaigns; no stable dispatch-stage gain is
-   claimed. [Dispatch-path study evidence](experiments/m7/dur035/results.json)
-3. **Checkpoint cost:** at one SHA-256 work unit per chunk, every-chunk
-   checkpointing took 7.5552 times the boundary-only median under the recorded
-   in-process panic workload. This is neither a general checkpoint policy nor a
-   crossover estimate. [Checkpoint study evidence](experiments/m7/dur028/results.json)
-
-The [48/48 named-fault campaign](experiments/m5/f01-f11-results.json) is separate
-bounded validation evidence, not a comparative performance result. The safeguard
-ablation resolved no cost effect because repeated runs were too variable.
-The committed experiment artifacts carry the configurations, computed
-conclusions, limitations, and claim-to-evidence boundaries. Detailed
-engineering records are kept locally rather than published as recruiter-facing
-documentation.
+More: [failure case study](experiments/portfolio/recruiter/failure-case-study.md) ·
+[role-specific resume claims](experiments/portfolio/recruiter/claim-evidence.md) ·
+[scripted demo](demos/recruiter-demo.gif) ([tape and instructions](demos/README.md)).
 
 ### Deployed HTTP-to-worker pilot
 

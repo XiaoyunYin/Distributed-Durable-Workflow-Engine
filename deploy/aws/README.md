@@ -93,19 +93,18 @@ AWS calls:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/dur043-multihost.ps1 -SelfTest
 ```
 
-Create five run-scoped workflow fixtures for the parameters below. The network,
-host-stop, live-holder-contention, and owner-lock-isolation activity fixtures
-must each be observed `CLAIMED` before their fault; use a separate fixture for
-other-partition progress. Then run the SSM-backed harness from the repository
-root:
+Pass five fresh, unused workflow IDs; the harness submits each fixture and
+waits until each activity fixture is observed `CLAIMED` before its fault. The
+other-partition progress arm uses its own separate fixture. Then run the
+SSM-backed harness from the repository root:
 
 ```powershell
 pwsh -File scripts/dur043-multihost.ps1 -Scenario all `
-  -NetworkWorkflowId <claimed-network-fixture> `
-  -HostWorkflowId <claimed-host-stop-fixture> `
-  -LockWorkflowId <live-holder-contention-fixture> `
-  -LockProgressWorkflowId <other-partition-progress-fixture> `
-  -OwnerLockWorkflowId <owner-lock-isolation-fixture>
+  -NetworkWorkflowId <fresh-network-id> `
+  -HostWorkflowId <fresh-host-stop-id> `
+  -LockWorkflowId <fresh-live-holder-id> `
+  -LockProgressWorkflowId <fresh-progress-id> `
+  -OwnerLockWorkflowId <fresh-owner-lock-id>
 ```
 
 The harness obtains Terraform outputs, requires all three instances to be
