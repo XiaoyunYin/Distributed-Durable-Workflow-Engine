@@ -57,10 +57,11 @@ the application security group and the load-generator security group; the latter
 is solely for the observer running on the generator host, which uses a dedicated
 PostgreSQL role with SELECT-only access to the minimum status data it needs and
 no write/sequence privileges. Record the rule, source SG IDs, exact role grants,
-and successful observer connection in each campaign's preflight. No public
-database ingress is allowed. No NAT Gateway, EKS, load balancer, public managed
-service, or retained snapshot. Campaign state lives on dedicated disposable
-PostgreSQL/Kafka volumes, not the local development stack.
+and successful observer connection in each campaign's preflight. Define the
+generator-SG-to-PostgreSQL ingress rule in `deploy/aws` Terraform; do not add it
+out of band. No public database ingress is allowed. No NAT Gateway, EKS, load
+balancer, public managed service, or retained snapshot. Campaign state lives on
+dedicated disposable PostgreSQL/Kafka volumes, not the local development stack.
 
 ### Cost envelope
 
@@ -166,9 +167,15 @@ record the sample count and selected rank so another reviewer can recompute it.
 
 1. **Unloaded latency:** with the gate ON, one workflow in flight at a time;
    collect 300 observations per family in three fresh 100-workflow blocks.
-   Retain one row per workflow with family, run/block ID, scheduled and
-   observed times, outcome, and validity/rejection reason. Derive per-family
-   p50/p95/range and sample counts from these rows.
+   Measure on the load-generator host with its monotonic clock, using a
+   single-workflow read-only PostgreSQL status query every 50 ms. This is the
+   pilot's fine-resolution mode, not the final one-second batch observer.
+   Retain every query's scheduled/actual time, workflow ID, and returned state
+   in `unloaded-observer-polls.csv`. Retain each workflow's family, run/block
+   ID, scheduled-arrival and first-terminal-observation timestamps, outcome,
+   and validity/rejection reason in `unloaded-latency.csv`. Record actual query
+   QPS and maximum sampling gap; derive per-family p50/p95/range and sample
+   counts from these rows.
 2. **Gate overhead:** at 0.25 workflows/s, use six fresh 100-workflow blocks,
    50 per family each, ordered OFF/ON/ON/OFF/OFF/ON (three blocks per mode).
    Retain every API `CreateWorkflow` and terminal-transition transaction
@@ -190,16 +197,20 @@ record the sample count and selected rank so another reviewer can recompute it.
    are not results and do not count toward capacity.
 
 Derive numeric SLO as `ceil_to_0.5s(max(2.5s, 2 × max(unloaded family p95) +
-1.0s))`. The factor of two is explicit headroom above the measured unloaded
-baseline; the extra second covers the batch observer's maximum sampling
-interval. Record the exact two pilot p95s, arithmetic, resulting numeric SLO,
-and rationale here and in `pilot-calibration/slo-derivation.json`, including
-the formula/version, input-file hashes, valid sample counts/ranks, and computed
-SLO. Each unique campaign's `pilot-calibration/` contains `README.md`,
-`unloaded-latency.csv`, `gate-overhead.csv`, `generator-sink.json`,
-`generator-requests.csv`, `knee-staircase.csv`, and `slo-derivation.json`; its
-README labels it **CALIBRATION — NOT RESULTS** and prohibits using these rows as
-capacity results. Do not substitute an expected value for a measurement. If a
+1.0s))`. The unloaded p95 includes at most the measured 50 ms pilot sampling
+delay. The factor of two is headroom above that fine-resolution baseline; the
+single extra second covers the final observer's maximum sampling interval,
+which is not included in the unloaded p95. Record the exact two pilot p95s,
+arithmetic, resulting numeric SLO, and rationale here and in
+`pilot-calibration/slo-derivation.json`, including the formula/version,
+input-file hashes, unloaded observer method/resolution (`single_workflow_read_only_poll`,
+50 ms), actual query QPS and maximum gap, valid sample counts/ranks, and
+computed SLO. Each unique campaign's `pilot-calibration/` contains `README.md`,
+`unloaded-latency.csv`, `unloaded-observer-polls.csv`, `gate-overhead.csv`,
+`generator-sink.json`, `generator-requests.csv`, `knee-staircase.csv`, and
+`slo-derivation.json`; its README labels it **CALIBRATION — NOT RESULTS** and
+prohibits using these rows as capacity results. Do not substitute an expected
+value for a measurement. If a
 family's pilot has fewer than 300 valid observations or the generator check
 fails, retain the failed rows, use a new run ID for the repeat, and do not set
 the SLO until the pilot passes. After populating the pilot summary, raw
@@ -208,8 +219,9 @@ review of that exact target before final paid runs.
 
 ## End-to-end latency and observer model (R144)
 
-Do not poll workflow status per workflow. A dedicated observer runs on the
-load-generator host (the same monotonic clock used for submission scheduling),
+For final capacity, optimization, overload, and soak measurements, do not poll
+workflow status per workflow. A dedicated observer runs on the load-generator
+host (the same monotonic clock used for submission scheduling),
 uses the read-only PostgreSQL role and a separate database pool capped at two
 connections, and runs **one batched status query per second** over the measured
 IDs. Record actual observer QPS, query
