@@ -1,17 +1,20 @@
 # DUR-050 capacity, optimization, overload, and bounded-soak protocol v2
 
 - Protocol: `dur050-capacity-overload.v2`
-- Design frozen for pilot-method review: 2026-09-24
+- Design amended for pilot-method review: 2026-09-24
 - State: **pilot protocol only; not final-run-ready**. The numeric p99 SLO is
   deliberately pending measurement by the pilot below.
 - Scope authority: D025; aggregate cloud authority and stop rules: D022;
   account/region selection: D023
 - Review gates: Claude reviews this pilot design; then the pilot runs only after
-  D022 preflight. Its durable output is the pilot summary and derived numeric SLO
-  inserted into this protocol (no separate pilot-results artifact). Claude must
-  review that updated, committed protocol before any final capacity, optimization,
-  overload, or soak run. No Terraform apply before the first review and D022
-  preflight; no final paid run before the second review.
+  D022 preflight. Commit the pilot summary and numeric SLO in this protocol
+  together with immutable raw calibration files under
+  `experiments/m8/dur050-capacity-overload/<campaign-id>/pilot-calibration/`.
+  Label that directory **CALIBRATION — NOT RESULTS** and exclude its rows from
+  every capacity, optimization, overload, and soak claim. Claude must review the
+  populated protocol and calibration artifact before any final study run. No
+  Terraform apply before this design review and D022 preflight; no final paid
+  run before the populated-protocol review.
 
 ## Question and claim boundary
 
@@ -48,10 +51,16 @@ Standard vCPU in account `372206265946` and proves total <=32 under
 Use encrypted 40-GiB gp3 root volumes on all four hosts, baseline gp3 IOPS and
 throughput only, immutable full-SHA application source, pinned dependency image
 digests, and a pinned AMI. Add a load-generator security-group rule for private
-app API traffic; never expose the API publicly. Database and Kafka ingress stays
-restricted to the application security group. No NAT Gateway, EKS, load
-balancer, public managed service, or retained snapshot. Campaign state lives on
-dedicated disposable PostgreSQL/Kafka volumes, not the local development stack.
+app API traffic; never expose the API publicly. Kafka ingress stays restricted
+to the application security group. PostgreSQL ingress allows TCP/5432 from both
+the application security group and the load-generator security group; the latter
+is solely for the observer running on the generator host, which uses a dedicated
+PostgreSQL role with SELECT-only access to the minimum status data it needs and
+no write/sequence privileges. Record the rule, source SG IDs, exact role grants,
+and successful observer connection in each campaign's preflight. No public
+database ingress is allowed. No NAT Gateway, EKS, load balancer, public managed
+service, or retained snapshot. Campaign state lives on dedicated disposable
+PostgreSQL/Kafka volumes, not the local development stack.
 
 ### Cost envelope
 
@@ -118,7 +127,14 @@ BACKPRESSURE` at the pending-event limit, both with `Retry-After: 1`; a rejectio
 creates no workflow, attempt, or dispatch event. An already accepted identical
 key resolves to its original workflow even at the cap; an unaccepted key may be
 retried after capacity frees. Slot release occurs **in the same transaction as
-the terminal state transition**, exactly once. The limits/metrics are identical
+the terminal state transition**, exactly once. `SUCCEEDED`, `FAILED`, and
+`CANCELED` each release one slot in that transaction. `RECONCILIATION_REQUIRED`
+is nonterminal and **continues to hold its slot** until an operator resolution
+or other valid transition makes the workflow terminal; that terminal transition
+releases the slot in the same transaction. Tests must cover all three terminal
+paths, retention while reconciliation is required, eventual release from that
+state, rollback at the terminal-update/release boundary, and idempotent retries.
+The limits/metrics are identical
 in every final arm: capacity search; 50/80/100% points; baseline and optimized
 matched comparison; overload; and soak. The gate is never disabled for a final
 arm and is not eligible to be the one optimization. If a future optimization
@@ -140,43 +156,63 @@ Pilot gate-OFF data is calibration only and is not mixed into final results.
 
 After Claude approves this pilot design and D022 preflight passes, use the exact
 topology, images, worker capacity, workload, and observer below. The pilot has
-no separate durable results artifact: record only its summary, validity, and
-derived SLO in this protocol; temporary raw pilot rows are deleted after the
-summary is checked.
+an immutable calibration artifact in a unique campaign directory. Retain all
+raw rows, validity decisions, and derivations; never delete or overwrite a pilot
+run. Label its README and every report **CALIBRATION — NOT RESULTS** and exclude
+these observations from all capacity, optimization, overload, and soak claims.
+The protocol carries the summary and numeric SLO derived from the retained rows.
+Use one-based nearest-rank p95 (`ceil(0.95*N)` in the sorted valid sample) and
+record the sample count and selected rank so another reviewer can recompute it.
 
 1. **Unloaded latency:** with the gate ON, one workflow in flight at a time;
    collect 300 observations per family in three fresh 100-workflow blocks.
-   Record per-family p50/p95/range and all sample counts.
+   Retain one row per workflow with family, run/block ID, scheduled and
+   observed times, outcome, and validity/rejection reason. Derive per-family
+   p50/p95/range and sample counts from these rows.
 2. **Gate overhead:** at 0.25 workflows/s, use six fresh 100-workflow blocks,
    50 per family each, ordered OFF/ON/ON/OFF/OFF/ON (three blocks per mode).
-   Record API CreateWorkflow transaction duration and terminal-transition
-   transaction duration; pair adjacent ON/OFF blocks and summarize median/p95
-   deltas. No workflow from this comparison enters final data.
+   Retain every API `CreateWorkflow` and terminal-transition transaction
+   duration row with mode, family, block/pair ID, and validity. Pair adjacent
+   ON/OFF blocks and summarize median/p95 deltas. No workflow from this
+   comparison enters final data.
 3. **Generator validity:** run its private HTTP sink check for five minutes at
-   64 scheduled requests/s. Require no missed request, p99 schedule lag <=50 ms,
-   and generator CPU <=80%; record observer QPS and any schedule gaps.
+   64 scheduled requests/s. Retain per-request scheduled/actual send time,
+   acknowledgement, schedule lag, and gap/error plus timestamped CPU samples.
+   The DB observer is not active during this sink-only check (record its QPS as
+   not applicable). Require no missed request, p99 schedule lag <=50 ms, and
+   generator CPU <=80%.
 4. **Pilot knee:** run a short open-loop staircase at
    0.25/0.5/1/2/4/8/16/32/64 workflows/s, holding each rate for 60 seconds
    (at most nine minutes total). Stop at the first invalid generator condition
-   or sustained growth in outstanding work. This is only for selecting the
-   final grid's starting rate; its throughput/latencies are not results and do
-   not count toward capacity.
+   or sustained growth in outstanding work. Retain each rate interval, offered
+   and accepted counts, queue/backlog samples, validity, and stop reason. This
+   is only for selecting the final grid's starting rate; its throughput/latencies
+   are not results and do not count toward capacity.
 
 Derive numeric SLO as `ceil_to_0.5s(max(2.5s, 2 × max(unloaded family p95) +
 1.0s))`. The factor of two is explicit headroom above the measured unloaded
 baseline; the extra second covers the batch observer's maximum sampling
 interval. Record the exact two pilot p95s, arithmetic, resulting numeric SLO,
-and rationale here. Do not substitute an expected value for a measurement. If a
+and rationale here and in `pilot-calibration/slo-derivation.json`, including
+the formula/version, input-file hashes, valid sample counts/ranks, and computed
+SLO. Each unique campaign's `pilot-calibration/` contains `README.md`,
+`unloaded-latency.csv`, `gate-overhead.csv`, `generator-sink.json`,
+`generator-requests.csv`, `knee-staircase.csv`, and `slo-derivation.json`; its
+README labels it **CALIBRATION — NOT RESULTS** and prohibits using these rows as
+capacity results. Do not substitute an expected value for a measurement. If a
 family's pilot has fewer than 300 valid observations or the generator check
-fails, repeat/fix the pilot before setting the SLO. After populating the pilot
-summary and numeric SLO, commit the updated v2 and obtain Claude review of that
-exact commit before final paid runs.
+fails, retain the failed rows, use a new run ID for the repeat, and do not set
+the SLO until the pilot passes. After populating the pilot summary, raw
+calibration directory, and numeric SLO, commit them together and obtain Claude
+review of that exact target before final paid runs.
 
 ## End-to-end latency and observer model (R144)
 
-Do not poll workflow status per workflow. A dedicated observer uses a separate
-read-only database pool capped at two connections and runs **one batched status
-query per second** over the measured IDs. Record actual observer QPS, query
+Do not poll workflow status per workflow. A dedicated observer runs on the
+load-generator host (the same monotonic clock used for submission scheduling),
+uses the read-only PostgreSQL role and a separate database pool capped at two
+connections, and runs **one batched status query per second** over the measured
+IDs. Record actual observer QPS, query
 duration, failed polls, and maximum sampling gap. If it misses a one-second
 interval by more than one interval, invalidate that run. No 100-ms API GET loop
 and no observer connection from the 64-request submitter pool.
@@ -200,13 +236,18 @@ primary SLO.
 - Enable PostgreSQL `pg_stat_statements` using `shared_preload_libraries` and
   create the extension identically in every pilot/final database. Record
   settings and extension version.
-- Every measured run starts from a **fresh campaign DB and Kafka data volume**
-  restored to the same migrated baseline. Run the same eight warmups, then
-  snapshot key table row counts/bytes, database size, consumer offsets, and
-  extension counters immediately before the measured window. Preserve each
-  result through the invariant check and accepted-work reconciliation; destroy
-  that run's campaign volumes before the next block. Never raw-delete live
-  outbox/inbox rows. This makes AB comparisons start from a fixed-size state.
+- Every measured block starts from a **fresh campaign DB and Kafka data volume**
+  restored to the same migrated baseline. After every restore, record the
+  sequence and timestamps: quiesce/stop all runtime, scheduler, and worker
+  containers on both app hosts; restore the DB/Kafka volumes; start dependencies
+  and wait for health; restart all runtime/scheduler/worker containers; record
+  their new container IDs and readiness plus Kafka group assignment; run the
+  same eight warmups and drain them; then snapshot key table row counts/bytes,
+  database size, consumer offsets, and extension counters immediately before
+  the measured window. Preserve each result through the invariant check and
+  accepted-work reconciliation; destroy that run's campaign volumes before the
+  next block. Never raw-delete live outbox/inbox rows. This makes AB comparisons
+  start from a fixed-size state and fresh process state.
 - The only app AZ split, instance sizes, four worker slots, database settings,
   Kafka settings, admission-gate limits, `pg_stat_statements`, observer, and
   lease-ledger-off setting remain constant in every final arm.
@@ -311,9 +352,11 @@ stopped run.
 
 Use a new campaign ID under
 `experiments/m8/dur050-capacity-overload/<campaign-id>/`; never overwrite v1 or
-prior evidence. The only durable pilot deliverable is the updated v2 protocol
-with pilot measurements, numeric SLO, and derivation; final campaigns preserve
-the reviewed protocol, D022 preflight/prices, Terraform transcripts, image and
+prior evidence. Commit the pilot calibration directory and populated v2
+protocol together; retain all pilot files permanently and label them
+**CALIBRATION — NOT RESULTS**. Final campaigns preserve the reviewed protocol,
+D022 preflight/prices, Terraform transcripts, observer security-group rule and
+read-only grants, per-run volume-restore/container-restart sequence, image and
 source digests, per-run rows, metrics/profiles, optimization registration/diff,
 checker output, reconciliation, and teardown/billing attribution. Partial or
 missing signals are `INCOMPLETE`/`FAIL`, never `PASS` by construction.
