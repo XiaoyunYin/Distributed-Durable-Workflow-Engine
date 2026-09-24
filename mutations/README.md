@@ -29,3 +29,14 @@ DURABLE_MUTATION_DATABASE_URL="$DURABLE_DATABASE_URL" bash scripts/mutation-gate
 The mutation set is intentionally selective: it protects representative
 ownership, effect authorization, transport, fault-checker, parser, and
 redaction boundaries. It is not a proof that every line is mutation-covered.
+
+## Checked-in result provenance
+
+`results-powershell.json` and `results-bash.json` are the hosted outputs from
+GitHub Actions run
+[`35941481466`](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/35941481466),
+artifact `dur046-mutation-results-35941481466`, on source commit
+`4f98911b6e0bdf2bd196492da1d6b88d1a1e172c`. Each report contains all 18
+manifest cases: 17 behavioral detections and one configuration tripwire.
+These are hosted-run evidence snapshots, not a claim that the gates were
+rerun in the current local environment.

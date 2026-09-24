@@ -1,8 +1,8 @@
 {
   "schema": "dur-046-mutation-results.v1",
   "status": "PASS",
-  "git_commit": "788046f4b5f7509721962c8c7c49e373976f9cc2",
-  "generated_at_utc": "2026-09-21T19:13:00.472609+00:00",
+  "git_commit": "4f98911b6e0bdf2bd196492da1d6b88d1a1e172c",
+  "generated_at_utc": "2026-09-24T01:57:27.208979+00:00",
   "cases": [
     {
       "id": "api-duplicate-json",
@@ -10,7 +10,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "duplicate JSON keys were accepted",
-      "output_tail": "=== RUN   TestSubmissionFingerprintAndJSONRules\n=== RUN   TestSubmissionFingerprintAndJSONRules/definition\n=== RUN   TestSubmissionFingerprintAndJSONRules/version\n=== RUN   TestSubmissionFingerprintAndJSONRules/node\n=== RUN   TestSubmissionFingerprintAndJSONRules/input\n=== RUN   TestSubmissionFingerprintAndJSONRules/payload\n=== NAME  TestSubmissionFingerprintAndJSONRules\n    server_test.go:178: duplicate JSON keys were accepted\n--- FAIL: TestSubmissionFingerprintAndJSONRules (0.00s)\n    --- PASS: TestSubmissionFingerprintAndJSONRules/definition (0.00s)\n    --- PASS: TestSubmissionFingerprintAndJSONRules/version (0.00s)\n    --- PASS: TestSubmissionFingerprintAndJSONRules/node (0.00s)\n    --- PASS: TestSubmissionFingerprintAndJSONRules/input (0.00s)\n    --- PASS: TestSubmissionFingerprintAndJSONRules/payload (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/api\t4.941s\nFAIL\n"
+      "output_tail": "=== RUN   TestSubmissionFingerprintAndJSONRules\n=== RUN   TestSubmissionFingerprintAndJSONRules/definition\n=== RUN   TestSubmissionFingerprintAndJSONRules/version\n=== RUN   TestSubmissionFingerprintAndJSONRules/node\n=== RUN   TestSubmissionFingerprintAndJSONRules/input\n=== RUN   TestSubmissionFingerprintAndJSONRules/payload\n=== NAME  TestSubmissionFingerprintAndJSONRules\n    server_test.go:178: duplicate JSON keys were accepted\n--- FAIL: TestSubmissionFingerprintAndJSONRules (0.00s)\n    --- PASS: TestSubmissionFingerprintAndJSONRules/definition (0.00s)\n    --- PASS: TestSubmissionFingerprintAndJSONRules/version (0.00s)\n    --- PASS: TestSubmissionFingerprintAndJSONRules/node (0.00s)\n    --- PASS: TestSubmissionFingerprintAndJSONRules/input (0.00s)\n    --- PASS: TestSubmissionFingerprintAndJSONRules/payload (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/api\t0.006s\nFAIL\n"
     },
     {
       "id": "state-event-registry",
@@ -18,7 +18,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "topic =",
-      "output_tail": "=== RUN   TestEventDefinitionsUseExplicitTopics\n=== RUN   TestEventDefinitionsUseExplicitTopics/attempt.dispatch\n    m3_event_test.go:29: topic = \"durable-agent.events.v1\", want \"durable-agent.tasks.v1\"\n=== RUN   TestEventDefinitionsUseExplicitTopics/workflow.result_consumed\n=== RUN   TestEventDefinitionsUseExplicitTopics/graph.advanced\n=== RUN   TestEventDefinitionsUseExplicitTopics/timer.scheduled\n=== RUN   TestEventDefinitionsUseExplicitTopics/workflow.canceled\n=== RUN   TestEventDefinitionsUseExplicitTopics/reconciliation.required\n=== RUN   TestEventDefinitionsUseExplicitTopics/reconciliation.resolved\n=== RUN   TestEventDefinitionsUseExplicitTopics/workflow.created\n=== RUN   TestEventDefinitionsUseExplicitTopics/attempt.redispatch\n    m3_event_test.go:29: topic = \"durable-agent.events.v1\", want \"durable-agent.tasks.v1\"\n=== RUN   TestEventDefinitionsUseExplicitTopics/activity.result\n--- FAIL: TestEventDefinitionsUseExplicitTopics (0.00s)\n    --- FAIL: TestEventDefinitionsUseExplicitTopics/attempt.dispatch (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/workflow.result_consumed (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/graph.advanced (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/timer.scheduled (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/workflow.canceled (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/reconciliation.required (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/reconciliation.resolved (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/workflow.created (0.00s)\n    --- FAIL: TestEventDefinitionsUseExplicitTopics/attempt.redispatch (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/activity.result (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t4.973s\nFAIL\n"
+      "output_tail": "=== RUN   TestEventDefinitionsUseExplicitTopics\n=== RUN   TestEventDefinitionsUseExplicitTopics/workflow.created\n=== RUN   TestEventDefinitionsUseExplicitTopics/attempt.dispatch\n    m3_event_test.go:29: topic = \"durable-agent.events.v1\", want \"durable-agent.tasks.v1\"\n=== RUN   TestEventDefinitionsUseExplicitTopics/activity.result\n=== RUN   TestEventDefinitionsUseExplicitTopics/graph.advanced\n=== RUN   TestEventDefinitionsUseExplicitTopics/timer.scheduled\n=== RUN   TestEventDefinitionsUseExplicitTopics/reconciliation.resolved\n=== RUN   TestEventDefinitionsUseExplicitTopics/attempt.redispatch\n    m3_event_test.go:29: topic = \"durable-agent.events.v1\", want \"durable-agent.tasks.v1\"\n=== RUN   TestEventDefinitionsUseExplicitTopics/workflow.result_consumed\n=== RUN   TestEventDefinitionsUseExplicitTopics/workflow.canceled\n=== RUN   TestEventDefinitionsUseExplicitTopics/reconciliation.required\n--- FAIL: TestEventDefinitionsUseExplicitTopics (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/workflow.created (0.00s)\n    --- FAIL: TestEventDefinitionsUseExplicitTopics/attempt.dispatch (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/activity.result (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/graph.advanced (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/timer.scheduled (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/reconciliation.resolved (0.00s)\n    --- FAIL: TestEventDefinitionsUseExplicitTopics/attempt.redispatch (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/workflow.result_consumed (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/workflow.canceled (0.00s)\n    --- PASS: TestEventDefinitionsUseExplicitTopics/reconciliation.required (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t0.005s\nFAIL\n"
     },
     {
       "id": "state-lease-timeout-classification",
@@ -26,7 +26,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "PostgreSQL lock timeout",
-      "output_tail": "=== RUN   TestLeaseAcquisitionTimeoutClassification\n    store_unit_test.go:14: PostgreSQL lock timeout was not classified as retryable\n--- FAIL: TestLeaseAcquisitionTimeoutClassification (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t4.796s\nFAIL\n"
+      "output_tail": "=== RUN   TestLeaseAcquisitionTimeoutClassification\n    store_unit_test.go:14: PostgreSQL lock timeout was not classified as retryable\n--- FAIL: TestLeaseAcquisitionTimeoutClassification (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t0.004s\nFAIL\n"
     },
     {
       "id": "engine-lease-fence",
@@ -34,7 +34,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "borrowed lease",
-      "output_tail": "=== RUN   TestM1RunRequiresPartitionLease\n    engine_integration_test.go:212: borrowed lease: result={Workflow:{WorkflowID:dur007-f194dd77-86da-42d4-8f2f-f5573c9adf96 Namespace:dur007 SubmissionKey:key-dur007-f194dd77-86da-42d4-8f2f-f5573c9adf96 PayloadHash:sub-v1:dur007-f194dd77-86da-42d4-8f2f-f5573c9adf96 DefinitionID:dur007-lease-d299459f-0f9a-4379-9f35-8b0094f272f5 DefinitionVersion:1 PartitionID:0 State:SUCCEEDED Revision:2 CreatedAt:2026-09-21 12:09:34.609809 -0700 PDT UpdatedAt:2026-09-21 12:09:34.637959 -0700 PDT} Steps:1 Blocked:false} err=<nil>\n--- FAIL: TestM1RunRequiresPartitionLease (0.14s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/engine\t5.302s\nFAIL\n"
+      "output_tail": "=== RUN   TestM1RunRequiresPartitionLease\n    engine_integration_test.go:212: borrowed lease: result={Workflow:{WorkflowID:dur007-9933e2b2-e40e-4542-b19f-40becec5d51d Namespace:dur007 SubmissionKey:key-dur007-9933e2b2-e40e-4542-b19f-40becec5d51d PayloadHash:sub-v1:dur007-9933e2b2-e40e-4542-b19f-40becec5d51d DefinitionID:dur007-lease-6a3eb2fc-9f6c-4887-a63e-a0734c256de3 DefinitionVersion:1 PartitionID:0 State:SUCCEEDED Revision:2 CreatedAt:2026-09-24 01:50:03.005751 +0000 UTC UpdatedAt:2026-09-24 01:50:03.015075 +0000 UTC} Steps:1 Blocked:false} err=<nil>\n--- FAIL: TestM1RunRequiresPartitionLease (0.04s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/engine\t0.043s\nFAIL\n"
     },
     {
       "id": "state-wakeup-lease-lock",
@@ -42,7 +42,15 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "wakeup acknowledgment",
-      "output_tail": "low.created\", \"event_id\": \"c1e26db0-fb3c-4afb-990d-a81ab0e029c9\", \"wakeup_id\": \"e23b15b4-62c1-4f3e-bf32-d8c70d66fdf7\", \"created_at\": \"2026-09-21T19:09:52.097023+00:00\", \"claim_epoch\": null, \"claim_owner\": null, \"consumed_at\": null, \"workflow_id\": \"r091-1d100f24-6620-4e34-9525-52f0f9f83d13\", \"partition_id\": 0, \"claim_expires_at\": null}} after={\"item\": {\"kind\": \"LOST_WAKEUP\", \"detail\": {}, \"status\": \"RESOLVED\", \"item_id\": \"c3d852ef-948d-4d36-822e-4cb42b75ec86\", \"node_id\": null, \"iteration\": null, \"reference\": \"wakeup/e23b15b4-62c1-4f3e-bf32-d8c70d66fdf7\", \"created_at\": \"2026-09-21T19:09:52.111717+00:00\", \"updated_at\": \"2026-09-21T19:09:52.123481+00:00\", \"resolved_at\": \"2026-09-21T19:09:52.123481+00:00\", \"workflow_id\": \"r091-1d100f24-6620-4e34-9525-52f0f9f83d13\", \"partition_id\": 0, \"attempt_number\": null}, \"wakeup\": {\"state\": \"CONSUMED\", \"reason\": \"EVENT:workflow.created\", \"event_id\": \"c1e26db0-fb3c-4afb-990d-a81ab0e029c9\", \"wakeup_id\": \"e23b15b4-62c1-4f3e-bf32-d8c70d66fdf7\", \"created_at\": \"2026-09-21T19:09:52.097023+00:00\", \"claim_epoch\": null, \"claim_owner\": null, \"consumed_at\": \"2026-09-21T19:09:52.121803+00:00\", \"workflow_id\": \"r091-1d100f24-6620-4e34-9525-52f0f9f83d13\", \"partition_id\": 0, \"claim_expires_at\": null}}\n=== RUN   TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_with_stale_epoch\n    m2_integration_test.go:136: wakeup acknowledgment = <nil>, want ErrLeaseNotOwned\n    m2_integration_test.go:136: rejected acknowledgment changed durable wakeup/reconciliation rows: before={\"item\": {\"kind\": \"LOST_WAKEUP\", \"detail\": {}, \"status\": \"OPEN\", \"item_id\": \"c3d852ef-948d-4d36-822e-4cb42b75ec86\", \"node_id\": null, \"iteration\": null, \"reference\": \"wakeup/e23b15b4-62c1-4f3e-bf32-d8c70d66fdf7\", \"created_at\": \"2026-09-21T19:09:52.111717+00:00\", \"updated_at\": \"2026-09-21T19:09:52.111717+00:00\", \"resolved_at\": null, \"workflow_id\": \"r091-1d100f24-6620-4e34-9525-52f0f9f83d13\", \"partition_id\": 0, \"attempt_number\": null}, \"wakeup\": {\"state\": \"PENDING\", \"reason\": \"EVENT:workflow.created\", \"event_id\": \"c1e26db0-fb3c-4afb-990d-a81ab0e029c9\", \"wakeup_id\": \"e23b15b4-62c1-4f3e-bf32-d8c70d66fdf7\", \"created_at\": \"2026-09-21T19:09:52.097023+00:00\", \"claim_epoch\": null, \"claim_owner\": null, \"consumed_at\": null, \"workflow_id\": \"r091-1d100f24-6620-4e34-9525-52f0f9f83d13\", \"partition_id\": 0, \"claim_expires_at\": null}} after={\"item\": {\"kind\": \"LOST_WAKEUP\", \"detail\": {}, \"status\": \"RESOLVED\", \"item_id\": \"c3d852ef-948d-4d36-822e-4cb42b75ec86\", \"node_id\": null, \"iteration\": null, \"reference\": \"wakeup/e23b15b4-62c1-4f3e-bf32-d8c70d66fdf7\", \"created_at\": \"2026-09-21T19:09:52.111717+00:00\", \"updated_at\": \"2026-09-21T19:09:52.123481+00:00\", \"resolved_at\": \"2026-09-21T19:09:52.123481+00:00\", \"workflow_id\": \"r091-1d100f24-6620-4e34-9525-52f0f9f83d13\", \"partition_id\": 0, \"attempt_number\": null}, \"wakeup\": {\"state\": \"CONSUMED\", \"reason\": \"EVENT:workflow.created\", \"event_id\": \"c1e26db0-fb3c-4afb-990d-a81ab0e029c9\", \"wakeup_id\": \"e23b15b4-62c1-4f3e-bf32-d8c70d66fdf7\", \"created_at\": \"2026-09-21T19:09:52.097023+00:00\", \"claim_epoch\": null, \"claim_owner\": null, \"consumed_at\": \"2026-09-21T19:09:52.121803+00:00\", \"workflow_id\": \"r091-1d100f24-6620-4e34-9525-52f0f9f83d13\", \"partition_id\": 0, \"claim_expires_at\": null}}\n=== RUN   TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_acknowledges_both_obligations\n--- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease (0.13s)\n    --- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/expired_owner (0.01s)\n    --- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/superseded_owner (0.00s)\n    --- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/wrong_owner_with_current_epoch (0.00s)\n    --- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_with_stale_epoch (0.00s)\n    --- PASS: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_acknowledges_both_obligations (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t5.159s\nFAIL\n"
+      "output_tail": "low.created\", \"event_id\": \"1bf047a9-bf8c-48e4-9e49-821827bc918d\", \"wakeup_id\": \"9c8cc8af-ed1a-41c6-a207-52a6b76855bd\", \"created_at\": \"2026-09-24T01:50:33.866497+00:00\", \"claim_epoch\": null, \"claim_owner\": null, \"consumed_at\": null, \"workflow_id\": \"r091-615c06b8-18ba-4af6-b369-ff96ab496b82\", \"partition_id\": 0, \"claim_expires_at\": null}} after={\"item\": {\"kind\": \"LOST_WAKEUP\", \"detail\": {}, \"status\": \"RESOLVED\", \"item_id\": \"5a7c4b42-7ff7-44b6-89b8-eddf27ee31b0\", \"node_id\": null, \"iteration\": null, \"reference\": \"wakeup/9c8cc8af-ed1a-41c6-a207-52a6b76855bd\", \"created_at\": \"2026-09-24T01:50:33.870504+00:00\", \"updated_at\": \"2026-09-24T01:50:33.873788+00:00\", \"resolved_at\": \"2026-09-24T01:50:33.873788+00:00\", \"workflow_id\": \"r091-615c06b8-18ba-4af6-b369-ff96ab496b82\", \"partition_id\": 0, \"attempt_number\": null}, \"wakeup\": {\"state\": \"CONSUMED\", \"reason\": \"EVENT:workflow.created\", \"event_id\": \"1bf047a9-bf8c-48e4-9e49-821827bc918d\", \"wakeup_id\": \"9c8cc8af-ed1a-41c6-a207-52a6b76855bd\", \"created_at\": \"2026-09-24T01:50:33.866497+00:00\", \"claim_epoch\": null, \"claim_owner\": null, \"consumed_at\": \"2026-09-24T01:50:33.873197+00:00\", \"workflow_id\": \"r091-615c06b8-18ba-4af6-b369-ff96ab496b82\", \"partition_id\": 0, \"claim_expires_at\": null}}\n=== RUN   TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_with_stale_epoch\n    m2_integration_test.go:137: wakeup acknowledgment = <nil>, want ErrLeaseNotOwned\n    m2_integration_test.go:137: rejected acknowledgment changed durable wakeup/reconciliation rows: before={\"item\": {\"kind\": \"LOST_WAKEUP\", \"detail\": {}, \"status\": \"OPEN\", \"item_id\": \"5a7c4b42-7ff7-44b6-89b8-eddf27ee31b0\", \"node_id\": null, \"iteration\": null, \"reference\": \"wakeup/9c8cc8af-ed1a-41c6-a207-52a6b76855bd\", \"created_at\": \"2026-09-24T01:50:33.870504+00:00\", \"updated_at\": \"2026-09-24T01:50:33.870504+00:00\", \"resolved_at\": null, \"workflow_id\": \"r091-615c06b8-18ba-4af6-b369-ff96ab496b82\", \"partition_id\": 0, \"attempt_number\": null}, \"wakeup\": {\"state\": \"PENDING\", \"reason\": \"EVENT:workflow.created\", \"event_id\": \"1bf047a9-bf8c-48e4-9e49-821827bc918d\", \"wakeup_id\": \"9c8cc8af-ed1a-41c6-a207-52a6b76855bd\", \"created_at\": \"2026-09-24T01:50:33.866497+00:00\", \"claim_epoch\": null, \"claim_owner\": null, \"consumed_at\": null, \"workflow_id\": \"r091-615c06b8-18ba-4af6-b369-ff96ab496b82\", \"partition_id\": 0, \"claim_expires_at\": null}} after={\"item\": {\"kind\": \"LOST_WAKEUP\", \"detail\": {}, \"status\": \"RESOLVED\", \"item_id\": \"5a7c4b42-7ff7-44b6-89b8-eddf27ee31b0\", \"node_id\": null, \"iteration\": null, \"reference\": \"wakeup/9c8cc8af-ed1a-41c6-a207-52a6b76855bd\", \"created_at\": \"2026-09-24T01:50:33.870504+00:00\", \"updated_at\": \"2026-09-24T01:50:33.873788+00:00\", \"resolved_at\": \"2026-09-24T01:50:33.873788+00:00\", \"workflow_id\": \"r091-615c06b8-18ba-4af6-b369-ff96ab496b82\", \"partition_id\": 0, \"attempt_number\": null}, \"wakeup\": {\"state\": \"CONSUMED\", \"reason\": \"EVENT:workflow.created\", \"event_id\": \"1bf047a9-bf8c-48e4-9e49-821827bc918d\", \"wakeup_id\": \"9c8cc8af-ed1a-41c6-a207-52a6b76855bd\", \"created_at\": \"2026-09-24T01:50:33.866497+00:00\", \"claim_epoch\": null, \"claim_owner\": null, \"consumed_at\": \"2026-09-24T01:50:33.873197+00:00\", \"workflow_id\": \"r091-615c06b8-18ba-4af6-b369-ff96ab496b82\", \"partition_id\": 0, \"claim_expires_at\": null}}\n=== RUN   TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_acknowledges_both_obligations\n--- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease (0.04s)\n    --- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/expired_owner (0.00s)\n    --- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/superseded_owner (0.00s)\n    --- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/wrong_owner_with_current_epoch (0.00s)\n    --- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_with_stale_epoch (0.00s)\n    --- PASS: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_acknowledges_both_obligations (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t0.044s\nFAIL\n"
+    },
+    {
+      "id": "state-current-owner-stale-epoch",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "expected_failure": "wakeup acknowledgment = <nil>, want ErrLeaseNotOwned",
+      "output_tail": "=== RUN   TestRuntimeWakeupAcknowledgmentRequiresCurrentLease\n=== RUN   TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/expired_owner\n=== RUN   TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/superseded_owner\n=== RUN   TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/wrong_owner_with_current_epoch\n=== RUN   TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_with_stale_epoch\n    m2_integration_test.go:137: wakeup acknowledgment = <nil>, want ErrLeaseNotOwned\n    m2_integration_test.go:137: rejected acknowledgment changed durable wakeup/reconciliation rows: before={\"item\": {\"kind\": \"LOST_WAKEUP\", \"detail\": {}, \"status\": \"OPEN\", \"item_id\": \"e7f89a81-acfd-4d5d-b459-849d506826e2\", \"node_id\": null, \"iteration\": null, \"reference\": \"wakeup/eb108cba-2bfc-4a07-9c93-adf8ecdd1dd7\", \"created_at\": \"2026-09-24T01:51:04.521868+00:00\", \"updated_at\": \"2026-09-24T01:51:04.521868+00:00\", \"resolved_at\": null, \"workflow_id\": \"r091-b258e666-0dcc-4145-b8a9-3775869f9238\", \"partition_id\": 0, \"attempt_number\": null}, \"wakeup\": {\"state\": \"PENDING\", \"reason\": \"EVENT:workflow.created\", \"event_id\": \"7a7751eb-8dbd-4997-898c-0fdcebdcad34\", \"wakeup_id\": \"eb108cba-2bfc-4a07-9c93-adf8ecdd1dd7\", \"created_at\": \"2026-09-24T01:51:04.518237+00:00\", \"claim_epoch\": null, \"claim_owner\": null, \"consumed_at\": null, \"workflow_id\": \"r091-b258e666-0dcc-4145-b8a9-3775869f9238\", \"partition_id\": 0, \"claim_expires_at\": null}} after={\"item\": {\"kind\": \"LOST_WAKEUP\", \"detail\": {}, \"status\": \"RESOLVED\", \"item_id\": \"e7f89a81-acfd-4d5d-b459-849d506826e2\", \"node_id\": null, \"iteration\": null, \"reference\": \"wakeup/eb108cba-2bfc-4a07-9c93-adf8ecdd1dd7\", \"created_at\": \"2026-09-24T01:51:04.521868+00:00\", \"updated_at\": \"2026-09-24T01:51:04.52853+00:00\", \"resolved_at\": \"2026-09-24T01:51:04.52853+00:00\", \"workflow_id\": \"r091-b258e666-0dcc-4145-b8a9-3775869f9238\", \"partition_id\": 0, \"attempt_number\": null}, \"wakeup\": {\"state\": \"CONSUMED\", \"reason\": \"EVENT:workflow.created\", \"event_id\": \"7a7751eb-8dbd-4997-898c-0fdcebdcad34\", \"wakeup_id\": \"eb108cba-2bfc-4a07-9c93-adf8ecdd1dd7\", \"created_at\": \"2026-09-24T01:51:04.518237+00:00\", \"claim_epoch\": null, \"claim_owner\": null, \"consumed_at\": \"2026-09-24T01:51:04.527828+00:00\", \"workflow_id\": \"r091-b258e666-0dcc-4145-b8a9-3775869f9238\", \"partition_id\": 0, \"claim_expires_at\": null}}\n=== RUN   TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_acknowledges_both_obligations\n--- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease (0.03s)\n    --- PASS: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/expired_owner (0.00s)\n    --- PASS: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/superseded_owner (0.00s)\n    --- PASS: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/wrong_owner_with_current_epoch (0.00s)\n    --- FAIL: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_with_stale_epoch (0.00s)\n    --- PASS: TestRuntimeWakeupAcknowledgmentRequiresCurrentLease/current_owner_acknowledges_both_obligations (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t0.040s\nFAIL\n"
     },
     {
       "id": "state-approval-resource",
@@ -50,7 +58,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "effect resource mismatch",
-      "output_tail": "=== RUN   TestM4EffectLedgerAndFencing\n    m4_integration_test.go:189: effect resource mismatch = <nil>, want effect resource does not match approval\n--- FAIL: TestM4EffectLedgerAndFencing (0.14s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t5.090s\nFAIL\n"
+      "output_tail": "=== RUN   TestM4EffectLedgerAndFencing\n    m4_integration_test.go:189: effect resource mismatch = <nil>, want effect resource does not match approval\n--- FAIL: TestM4EffectLedgerAndFencing (0.05s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t0.050s\nFAIL\n"
     },
     {
       "id": "state-effect-argument-hash",
@@ -58,7 +66,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "effect argument mismatch",
-      "output_tail": "=== RUN   TestM4EffectLedgerAndFencing\n    m4_integration_test.go:195: effect argument mismatch = <nil>, want effect arguments do not match approval\n--- FAIL: TestM4EffectLedgerAndFencing (0.18s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t5.101s\nFAIL\n"
+      "output_tail": "=== RUN   TestM4EffectLedgerAndFencing\n    m4_integration_test.go:195: effect argument mismatch = <nil>, want effect arguments do not match approval\n--- FAIL: TestM4EffectLedgerAndFencing (0.04s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t0.049s\nFAIL\n"
     },
     {
       "id": "invariants-submission-boundary",
@@ -66,7 +74,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "overshot submission boundary was accepted",
-      "output_tail": "=== RUN   TestFaultCheckerRejectsSubmissionBoundaryAfterActivityWork\n    m5_test.go:158: overshot submission boundary was accepted: {Valid:true Violations:[]}\n--- FAIL: TestFaultCheckerRejectsSubmissionBoundaryAfterActivityWork (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/invariants\t4.801s\nFAIL\n"
+      "output_tail": "=== RUN   TestFaultCheckerRejectsSubmissionBoundaryAfterActivityWork\n    m5_test.go:158: overshot submission boundary was accepted: {Valid:true Violations:[]}\n--- FAIL: TestFaultCheckerRejectsSubmissionBoundaryAfterActivityWork (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/invariants\t0.005s\nFAIL\n"
     },
     {
       "id": "invariants-fault-sequence",
@@ -74,7 +82,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "sequence gap error",
-      "output_tail": "=== RUN   TestParseFaultTraceRejectsSequenceGaps\n    m5_test.go:112: sequence gap error = <nil>, want sequence validation\n--- FAIL: TestParseFaultTraceRejectsSequenceGaps (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/invariants\t4.931s\nFAIL\n"
+      "output_tail": "=== RUN   TestParseFaultTraceRejectsSequenceGaps\n    m5_test.go:112: sequence gap error = <nil>, want sequence validation\n--- FAIL: TestParseFaultTraceRejectsSequenceGaps (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/invariants\t0.004s\nFAIL\n"
     },
     {
       "id": "invariants-outbox-state",
@@ -82,7 +90,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "unpublished outbox was accepted",
-      "output_tail": "=== RUN   TestFaultCheckerRequiresOutboxBoundaryIdentityAndState\n    m5_test.go:175: unpublished outbox was accepted as broker acknowledgement: {Valid:true Violations:[]}\n--- FAIL: TestFaultCheckerRequiresOutboxBoundaryIdentityAndState (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/invariants\t4.933s\nFAIL\n"
+      "output_tail": "=== RUN   TestFaultCheckerRequiresOutboxBoundaryIdentityAndState\n    m5_test.go:175: unpublished outbox was accepted as broker acknowledgement: {Valid:true Violations:[]}\n--- FAIL: TestFaultCheckerRequiresOutboxBoundaryIdentityAndState (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/invariants\t0.005s\nFAIL\n"
     },
     {
       "id": "engine-graph-entry",
@@ -90,7 +98,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "multiple nodes and no entry was accepted",
-      "output_tail": "=== RUN   TestParseGraphRequiresEntryForMultipleNodes\n    engine_test.go:24: graph with multiple nodes and no entry was accepted\n--- FAIL: TestParseGraphRequiresEntryForMultipleNodes (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/engine\t5.161s\nFAIL\n"
+      "output_tail": "=== RUN   TestParseGraphRequiresEntryForMultipleNodes\n    engine_test.go:24: graph with multiple nodes and no entry was accepted\n--- FAIL: TestParseGraphRequiresEntryForMultipleNodes (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/engine\t0.005s\nFAIL\n"
     },
     {
       "id": "engine-scheduler-trace-link",
@@ -98,7 +106,31 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "scheduler span links",
-      "output_tail": "=== RUN   TestM8SchedulerSpanLinksDurableWorkflow\n    engine_integration_test.go:70: scheduler span links = [], want durable workflow trace 4bf92f3577b34da6a3ce929d0e0e4736\n--- FAIL: TestM8SchedulerSpanLinksDurableWorkflow (0.12s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/engine\t5.261s\nFAIL\n"
+      "output_tail": "=== RUN   TestM8SchedulerSpanLinksDurableWorkflow\n    engine_integration_test.go:70: scheduler span links = [], want durable workflow trace 4bf92f3577b34da6a3ce929d0e0e4736\n--- FAIL: TestM8SchedulerSpanLinksDurableWorkflow (0.05s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/engine\t0.052s\nFAIL\n"
+    },
+    {
+      "id": "dur049-post-boundary-fence-checker",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "expected_failure": "fence check accepted a post-boundary history row",
+      "output_tail": "=== RUN   TestFenceCheckRejectsPostBoundarySupersededEpoch\n    main_test.go:57: fence check accepted a post-boundary history row; fence=&{PreFaultRevision:4 RecoveryRevision:4 RecoveryEpoch:8 SupersededCount:1 StaleAttemptNumber:0 StaleAttemptFound:false StaleAttemptCurrent:false StaleResultRecorded:false} violations=[workflow history does not start with revision 1 creation: wf recovery fence evidence requires positive pre-fault revision, a later recovery revision, and a positive epoch]\n--- FAIL: TestFenceCheckRejectsPostBoundarySupersededEpoch (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/cmd/dur049-checker\t0.005s\nFAIL\n"
+    },
+    {
+      "id": "dur049-stale-attempt-result-checker",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "expected_failure": "fence check accepted a recorded stale attempt result",
+      "output_tail": "=== RUN   TestFenceCheckRejectsAcceptedStaleAttemptResult\n    main_test.go:69: fence check accepted a recorded stale attempt result; fence=&{PreFaultRevision:1 RecoveryRevision:2 RecoveryEpoch:8 SupersededCount:0 StaleAttemptNumber:1 StaleAttemptFound:true StaleAttemptCurrent:false StaleResultRecorded:true} violations=[stale worker result recorded on settled attempt: wf\u0000activity\u00000]\n--- FAIL: TestFenceCheckRejectsAcceptedStaleAttemptResult (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/cmd/dur049-checker\t0.006s\nFAIL\n"
+    },
+    {
+      "id": "dur049-stale-attempt-result-api-fence",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "expected_failure": "stale API result = 200",
+      "output_tail": "=== RUN   TestM2WorkerAPIConcurrencyRetriesAndStaleResult\n    m2_integration_test.go:224: stale API result = 200 {\"Disposition\":\"ACCEPTED\",\"WorkflowID\":\"dur009-stale-96bf0554-f1a9-4831-976d-9fbb3c12a1ac\",\"NodeID\":\"root\",\"Iteration\":0,\"AttemptNumber\":1,\"AttemptState\":\"SUCCEEDED\",\"Payload\":{\"late\":true}}\n--- FAIL: TestM2WorkerAPIConcurrencyRetriesAndStaleResult (0.21s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/api\t0.231s\nFAIL\n"
     },
     {
       "id": "compose-lock-timeout",
@@ -114,7 +146,7 @@
       "status": "PASS",
       "exit_code": 1,
       "expected_failure": "negative_control_fired",
-      "output_tail": "Using CPython 3.12.7 interpreter at: D:\\anaconda3\\python.exe\nCreating virtual environment at: .venv\nInstalled 14 packages in 904ms\nF                                                                        [100%]\n================================== FAILURES ===================================\n__________ test_adversarial_protocol_has_fixed_redaction_and_counts ___________\n\n    def test_adversarial_protocol_has_fixed_redaction_and_counts() -> None:\n        report = run_adversarial_scan()\n        assert report[\"executions\"] == 120\n        assert report[\"canary_leaks\"] == 0\n        assert report[\"canary_leaks_by_profile\"] == {\"defended\": 0, \"plain\": 0}\n        assert report[\"clean_clean_flip_rate\"] == 0\n        assert report[\"clean_injected_change_rate_by_profile\"] == {\"defended\": 0, \"plain\": 1}\n        assert report[\"excess_injection_associated_change_rate_difference\"] == 1\n        assert report[\"injection_changes_by_profile\"] == {\"defended\": 0, \"plain\": 20}\n>       assert report[\"negative_control_fired\"] is True\nE       assert False is True\n\ntests\\test_incident_agent.py:181: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_incident_agent.py::test_adversarial_protocol_has_fixed_redaction_and_counts\n1 failed, 15 deselected in 3.49s\n"
+      "output_tail": "Using CPython 3.12.7\nCreating virtual environment at: .venv\nInstalled 13 packages in 22ms\nF                                                                        [100%]\n=================================== FAILURES ===================================\n___________ test_adversarial_protocol_has_fixed_redaction_and_counts ___________\n\n    def test_adversarial_protocol_has_fixed_redaction_and_counts() -> None:\n        report = run_adversarial_scan()\n        assert report[\"executions\"] == 120\n        assert report[\"canary_leaks\"] == 0\n        assert report[\"canary_leaks_by_profile\"] == {\"defended\": 0, \"plain\": 0}\n        assert report[\"clean_clean_flip_rate\"] == 0\n        assert report[\"clean_injected_change_rate_by_profile\"] == {\"defended\": 0, \"plain\": 1}\n        assert report[\"excess_injection_associated_change_rate_difference\"] == 1\n        assert report[\"injection_changes_by_profile\"] == {\"defended\": 0, \"plain\": 20}\n>       assert report[\"negative_control_fired\"] is True\nE       assert False is True\n\ntests/test_incident_agent.py:181: AssertionError\n=========================== short test summary info ============================\nFAILED tests/test_incident_agent.py::test_adversarial_protocol_has_fixed_redaction_and_counts - assert False is True\n1 failed, 15 deselected in 3.60s\n"
     }
   ]
 }
