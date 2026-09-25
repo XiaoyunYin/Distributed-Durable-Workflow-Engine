@@ -18,5 +18,5 @@ function New-Dur050SsmBashCommand {
     # it remotely, and explicitly run Bash so pipefail and Bash syntax work.
     $scriptText = [string]::Join([string][char]10, $RemoteLines).TrimEnd([char[]]@([char]13, [char]10)) + [char]10
     $encoded = [Convert]::ToBase64String([System.Text.UTF8Encoding]::new($false).GetBytes($scriptText))
-    return ('umask 077; tmp=$(mktemp /tmp/dur050-{0}.XXXXXX) || exit 125; trap ''rm -f "$tmp"'' 0 HUP INT TERM; printf ''%s'' ''{1}'' | base64 -d > "$tmp" || {{ rc=$?; exit "$rc"; }}; bash "$tmp"; rc=$?; rm -f "$tmp"; trap - 0 HUP INT TERM; printf ''DUR050_SSM_TEMP_REMOVED=%s\n'' "$tmp"; exit "$rc"' -f $stageSlug, $encoded)
+    return ('umask 077; tmp=$(mktemp /tmp/dur050-{0}.XXXXXX) || exit 125; trap ''rm -f "$tmp"'' 0 HUP INT TERM; printf ''%s'' ''{1}'' | base64 -d > "$tmp" || {{ rc=$?; exit "$rc"; }}; bash "$tmp"; rc=$?; rm -f "$tmp" || exit $?; trap - 0 HUP INT TERM; printf ''DUR050_SSM_TEMP_REMOVED=%s\n'' "$tmp"; exit "$rc"' -f $stageSlug, $encoded)
 }
