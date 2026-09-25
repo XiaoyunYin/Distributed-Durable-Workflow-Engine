@@ -113,8 +113,11 @@ function Invoke-Bash([string]$Command, [hashtable]$Environment) {
 }
 
 try {
+    # Make the listing several MiB so the producer cannot finish before head
+    # closes the pipe on runners with larger pipe buffers or faster storage.
     for ($index = 0; $index -lt 12000; $index++) {
-        [System.IO.File]::WriteAllText((Join-Path $fileRoot ("item-{0:D5}" -f $index)), '', $utf8)
+        $itemName = ("item-{0:D5}-" -f $index) + ('x' * 220)
+        [System.IO.File]::WriteAllText((Join-Path $fileRoot $itemName), '', $utf8)
     }
     foreach ($name in @('postgres-data', 'kafka-data')) {
         $tarStart = [System.Diagnostics.ProcessStartInfo]::new()
@@ -177,12 +180,14 @@ try {
     Write-Host 'PASS: malformed Terraform app address is rejected before any SSM/AWS dispatch.'
 
     $largeArchive = Join-Path $archiveRoot 'postgres-data.tar'
-    $headMutation = Invoke-Bash ('set -euo pipefail; tar -tf "{0}" | head -n 3 >/dev/null; echo MUTATION_SURVIVED' -f $largeArchive) @{}
-    if ($headMutation.ExitCode -ne 141) { throw "The early-closing-head mutation was not detected; expected exit 141, got $($headMutation.ExitCode). $($headMutation.Stderr)" }
     $fullList = Join-Path $tempRoot 'full-list'
     $sedControl = Invoke-Bash ('set -euo pipefail; tar -tf "{0}" > "{1}"; sed -n ''1,3p'' "{1}" >/dev/null' -f $largeArchive, $fullList) @{}
     if ($sedControl.ExitCode -ne 0) { throw "The full-read tar listing control failed: $($sedControl.Stderr)" }
-    Write-Host 'NEGATIVE CONTROL: replacing tar -tf > list; sed -n 1,3p list with tar -tf | head -n 3 exited 141; the full-read listing control exited 0.'
+    $listingBytes = (Get-Item -LiteralPath $fullList).Length
+    if ($listingBytes -lt 2000000) { throw "Tar listing fixture is too small to reliably fill a pipe buffer ($listingBytes bytes; expected at least 2000000)." }
+    $headMutation = Invoke-Bash ('set -euo pipefail; tar -tf "{0}" | head -n 3 >/dev/null; echo MUTATION_SURVIVED' -f $largeArchive) @{}
+    if ($headMutation.ExitCode -ne 141) { throw "The early-closing-head mutation was not detected; expected exit 141, got $($headMutation.ExitCode). $($headMutation.Stderr)" }
+    Write-Host "NEGATIVE CONTROL: replacing tar -tf > list; sed -n 1,3p list with tar -tf | head -n 3 on a $listingBytes-byte listing exited 141; the full-read listing control exited 0."
 
     $hashLines = Get-Dur050BaselineHashVerificationLines -PostgresArchive '/var/tmp/test/postgres.tar' -PostgresSHA256 ('f' * 64) -KafkaArchive '/var/tmp/test/kafka.tar' -KafkaSHA256 ('e' * 64)
     $resetSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'dur050-reset-block.ps1') -Raw
