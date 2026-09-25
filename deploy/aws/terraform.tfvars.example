@@ -7,6 +7,9 @@ instance_type           = "t3.micro"
 dependency_instance_type = "t3.small"
 # DUR-050 only: enable its separately budgeted generator/observer host and use
 # the production-like role sizes from protocol-v2. Keep false for DUR-049.
+# campaign_slug = "dur050"
+# task_id = "DUR-050"
+# environment_name = "portfolio-capacity"
 # enable_dur050_load_generator = true
 # instance_type = "c7i.large"
 # dependency_instance_type = "m7i.large"

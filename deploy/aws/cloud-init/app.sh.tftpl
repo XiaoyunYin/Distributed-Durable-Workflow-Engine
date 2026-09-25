@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-exec > >(tee /var/log/durable-dur049-bootstrap.log | logger -t durable-dur049-bootstrap -s 2>/dev/console) 2>&1
+exec > >(tee /var/log/durable-${campaign_slug}-bootstrap.log | logger -t durable-${campaign_slug}-bootstrap -s 2>/dev/console) 2>&1
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
@@ -54,4 +54,4 @@ EOF
 
 cd /opt/durable-agent-execution-engine
 docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml up -d --build
-touch /var/lib/durable-dur049-bootstrap-complete
+touch /var/lib/durable-${campaign_slug}-bootstrap-complete

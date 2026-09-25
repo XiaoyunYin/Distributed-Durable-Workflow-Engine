@@ -65,6 +65,11 @@ two app hosts to `c7i.large` and the dependency host to `m7i.large` as required
 by the reviewed protocol; the complete four-host plan is still subject to the
 D022 quota and cost preflight.
 
+For a DUR-050 plan, also set `TF_VAR_campaign_slug=dur050`,
+`TF_VAR_task_id=DUR-050`, and `TF_VAR_environment_name=portfolio-capacity`.
+These values keep names, resource tags, and bootstrap logs attributed to the
+capacity campaign; the defaults preserve the original DUR-049 topology.
+
 Only when enabling this host, provide a separate ephemeral observer password
 before planning; the observer SSM parameter, load-generator SG rules, IAM
 profile, and host are all conditional on `enable_dur050_load_generator=true`.
@@ -82,6 +87,9 @@ workflow IDs are supplied for each block; the reset script fails if the IDs
 are missing, duplicated, or do not drain to terminal state.
 
 ```powershell
+$env:TF_VAR_campaign_slug = "dur050"
+$env:TF_VAR_task_id = "DUR-050"
+$env:TF_VAR_environment_name = "portfolio-capacity"
 $env:TF_VAR_enable_dur050_load_generator = "true"
 $env:TF_VAR_dur050_observer_password = "<different-24-to-64-character-secret>"
 ```

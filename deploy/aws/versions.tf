@@ -15,10 +15,10 @@ provider "aws" {
   default_tags {
     tags = {
       Project     = var.project_name
-      Task        = "DUR-049"
+      Task        = var.task_id
       ExpiresAt   = var.expires_at
       ManagedBy   = "terraform"
-      Environment = "portfolio-recovery"
+      Environment = var.environment_name
     }
   }
 }

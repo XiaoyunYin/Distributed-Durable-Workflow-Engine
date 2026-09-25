@@ -21,6 +21,39 @@ variable "project_name" {
   default     = "durable-engine"
 }
 
+variable "campaign_slug" {
+  description = "Lowercase campaign suffix used in resource names; defaults to the original DUR-049 topology name."
+  type        = string
+  default     = "dur049"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", var.campaign_slug))
+    error_message = "campaign_slug must contain lowercase letters, digits, and single hyphen separators."
+  }
+}
+
+variable "task_id" {
+  description = "Task attribution tag for resources created by this campaign."
+  type        = string
+  default     = "DUR-049"
+
+  validation {
+    condition     = can(regex("^DUR-[0-9]{3}$", var.task_id))
+    error_message = "task_id must be a DUR-### task identifier."
+  }
+}
+
+variable "environment_name" {
+  description = "Environment attribution tag; defaults to the original recovery deployment."
+  type        = string
+  default     = "portfolio-recovery"
+
+  validation {
+    condition     = can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", var.environment_name))
+    error_message = "environment_name must contain lowercase letters, digits, and single hyphen separators."
+  }
+}
+
 variable "ami_id" {
   description = "Pinned Ubuntu AMI ID for the selected region. Resolve and record it before apply."
   type        = string

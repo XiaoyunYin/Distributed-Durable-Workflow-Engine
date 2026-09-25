@@ -1,5 +1,5 @@
 locals {
-  common_name               = "${var.project_name}-dur049"
+  common_name               = "${var.project_name}-${var.campaign_slug}"
   postgres_secret_parameter = "/${local.common_name}/postgres-password"
   observer_secret_parameter = "/${local.common_name}/dur050-observer-password"
 }
@@ -45,7 +45,7 @@ resource "aws_route_table_association" "public" {
 
 resource "aws_security_group" "app" {
   name        = "${local.common_name}-app"
-  description = "Application host ingress for the bounded DUR-049 campaign"
+  description = "Application host ingress for the bounded ${var.task_id} campaign"
   vpc_id      = aws_vpc.campaign.id
 
   dynamic "ingress" {
@@ -172,7 +172,7 @@ resource "aws_security_group" "load_generator" {
 
 resource "aws_ssm_parameter" "postgres_password" {
   name        = local.postgres_secret_parameter
-  description = "Ephemeral DUR-049 PostgreSQL password; destroy with the campaign."
+  description = "Ephemeral PostgreSQL password; destroy with the campaign."
   type        = "SecureString"
   value       = var.postgres_password
   tier        = "Standard"
@@ -193,7 +193,7 @@ resource "aws_ssm_parameter" "dur050_observer_password" {
 
 resource "aws_iam_policy" "postgres_secret_read" {
   name        = "${local.common_name}-postgres-secret-read"
-  description = "Read only the DUR-049 PostgreSQL password from Parameter Store."
+  description = "Read only the campaign PostgreSQL password from Parameter Store."
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -312,6 +312,7 @@ resource "aws_instance" "dependency" {
   iam_instance_profile        = aws_iam_instance_profile.dependency_ssm.name
   user_data_replace_on_change = true
   user_data = templatefile("${path.module}/cloud-init/dependency.sh.tftpl", {
+    campaign_slug             = var.campaign_slug
     repo_url                  = var.repo_url
     repo_ref                  = var.repo_ref
     aws_region                = var.aws_region
@@ -346,6 +347,7 @@ resource "aws_instance" "app" {
   iam_instance_profile        = aws_iam_instance_profile.ssm.name
   user_data_replace_on_change = true
   user_data = templatefile("${path.module}/cloud-init/app.sh.tftpl", {
+    campaign_slug             = var.campaign_slug
     repo_url                  = var.repo_url
     repo_ref                  = var.repo_ref
     aws_region                = var.aws_region

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-exec > >(tee /var/log/durable-dur049-bootstrap.log | logger -t durable-dur049-bootstrap -s 2>/dev/console) 2>&1
+exec > >(tee /var/log/durable-${campaign_slug}-bootstrap.log | logger -t durable-${campaign_slug}-bootstrap -s 2>/dev/console) 2>&1
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
@@ -91,4 +91,4 @@ docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml 
   -U '${postgres_user}' -d '${postgres_db}' -f - < deploy/aws/dur050-observer.sql
 %{ endif ~}
 
-touch /var/lib/durable-dur049-bootstrap-complete
+touch /var/lib/durable-${campaign_slug}-bootstrap-complete
