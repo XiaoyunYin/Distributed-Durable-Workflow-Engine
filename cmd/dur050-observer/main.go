@@ -32,16 +32,17 @@ func main() {
 	mode := flag.String("mode", "", "fine (one workflow every 50ms) or batch (IDs once per second)")
 	workflowID := flag.String("workflow-id", "", "preassigned workflow ID for fine mode")
 	workflowIDsPath := flag.String("workflow-ids-file", "", "newline-delimited workflow IDs for batch mode")
+	doneFile := flag.String("done-file", "", "optional marker created after all scheduled submissions finish; missing IDs then count as not accepted")
 	outputPath := flag.String("output", "", "new CSV output path; existing files are never overwritten")
 	databaseURL := flag.String("database-url", os.Getenv("DUR050_OBSERVER_DATABASE_URL"), "read-only PostgreSQL DSN; defaults to DUR050_OBSERVER_DATABASE_URL")
 	maximumDuration := flag.Duration("timeout", 30*time.Minute, "maximum observation duration")
 	flag.Parse()
-	if err := run(*mode, *workflowID, *workflowIDsPath, *outputPath, *databaseURL, *maximumDuration); err != nil {
+	if err := run(*mode, *workflowID, *workflowIDsPath, *doneFile, *outputPath, *databaseURL, *maximumDuration); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(mode, workflowID, workflowIDsPath, outputPath, databaseURL string, maximumDuration time.Duration) error {
+func run(mode, workflowID, workflowIDsPath, doneFile, outputPath, databaseURL string, maximumDuration time.Duration) error {
 	if outputPath == "" || databaseURL == "" || maximumDuration <= 0 {
 		return errors.New("-output, a read-only database URL, and a positive -timeout are required")
 	}
@@ -53,6 +54,9 @@ func run(mode, workflowID, workflowIDsPath, outputPath, databaseURL string, maxi
 	}
 	if mode == "fine" && workflowID == "" {
 		return errors.New("-workflow-id is required in fine mode")
+	}
+	if mode == "fine" && doneFile != "" {
+		return errors.New("-done-file is valid only in batch mode")
 	}
 	var ids []string
 	if mode == "batch" {
@@ -112,7 +116,7 @@ func run(mode, workflowID, workflowIDsPath, outputPath, databaseURL string, maxi
 	case "fine":
 		return observeFine(ctx, pool, writer, workflowID)
 	case "batch":
-		return observeBatch(ctx, pool, writer, ids)
+		return observeBatch(ctx, pool, writer, ids, doneFile)
 	default:
 		return errors.New("unsupported observer mode")
 	}
@@ -153,8 +157,24 @@ func observeFine(ctx context.Context, pool *pgxpool.Pool, writer *csv.Writer, wo
 		})
 }
 
-func observeBatch(ctx context.Context, pool *pgxpool.Pool, writer *csv.Writer, ids []string) error {
-	return observe(ctx, writer, dur050.BatchPollInterval, 2*dur050.BatchPollInterval, ids,
+func observeBatch(ctx context.Context, pool *pgxpool.Pool, writer *csv.Writer, ids []string, doneFile string) error {
+	var completionDone func() (bool, error)
+	if doneFile != "" {
+		completionDone = func() (bool, error) {
+			info, err := os.Stat(doneFile)
+			if err == nil {
+				if !info.Mode().IsRegular() {
+					return false, fmt.Errorf("submission completion marker %q is not a regular file", doneFile)
+				}
+				return true, nil
+			}
+			if errors.Is(err, os.ErrNotExist) {
+				return false, nil
+			}
+			return false, fmt.Errorf("check submission completion marker: %w", err)
+		}
+	}
+	return observeUntil(ctx, writer, dur050.BatchPollInterval, 2*dur050.BatchPollInterval, ids, completionDone,
 		func(ctx context.Context, ids []string) (map[string]workflowSnapshot, error) {
 			rows, err := pool.Query(ctx, `SELECT w.workflow_id, w.state, w.created_at, w.updated_at, terminal.created_at
 				FROM engine.workflow_executions AS w
@@ -183,6 +203,11 @@ func observeBatch(ctx context.Context, pool *pgxpool.Pool, writer *csv.Writer, i
 
 func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.Duration, ids []string,
 	query func(context.Context, []string) (map[string]workflowSnapshot, error)) error {
+	return observeUntil(ctx, writer, interval, maximumGap, ids, nil, query)
+}
+
+func observeUntil(ctx context.Context, writer *csv.Writer, interval, maximumGap time.Duration, ids []string,
+	completionDone func() (bool, error), query func(context.Context, []string) (map[string]workflowSnapshot, error)) error {
 	started := time.Now()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -232,6 +257,13 @@ func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.
 				continue
 			}
 			allTerminal = true
+			submissionsDone := false
+			if completionDone != nil {
+				submissionsDone, err = completionDone()
+				if err != nil {
+					return err
+				}
+			}
 			for _, id := range ids {
 				snapshot, found := snapshots[id]
 				state := "NOT_FOUND"
@@ -260,7 +292,7 @@ func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.
 					} else {
 						allTerminal = false
 					}
-				} else {
+				} else if !submissionsDone {
 					allTerminal = false
 				}
 				valid := dur050.PollGapValid(gap, maximumGap)

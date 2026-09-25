@@ -7,7 +7,7 @@ from typing import Any
 
 import pytest
 from workers.control import Claim, ControlError
-from workers.registry import ActivityRegistry
+from workers.registry import ActivityRegistry, default_registry
 from workers.runner import ActivityRunner, ActivityTask
 
 
@@ -82,6 +82,41 @@ def test_registry_requires_versioned_unique_activity() -> None:
         registry.register("fixture", "v1", lambda value: value)
     with pytest.raises(LookupError):
         registry.resolve("fixture", "v2")
+
+
+def test_dur050_sha256_activity_is_absent_without_campaign_opt_in(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delenv("DUR050_ENABLE_SHA256_ACTIVITY", raising=False)
+    monkeypatch.delenv("DUR050_SHA256_WORK_UNITS", raising=False)
+    registry = default_registry()
+    with pytest.raises(LookupError, match="not registered"):
+        registry.resolve("dur050.sha256.seq8.0", "v1")
+
+
+def test_dur050_sha256_activity_is_versioned_deterministic_and_configured(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DUR050_ENABLE_SHA256_ACTIVITY", "1")
+    monkeypatch.setenv("DUR050_SHA256_WORK_UNITS", "17")
+    registry = default_registry()
+    sequential = registry.resolve("dur050.sha256.seq8.0", "v1")
+    branch = registry.resolve("dur050.sha256.fanout8.7", "v1")
+
+    first = sequential({"ignored": True})
+    assert first == sequential(None)
+    assert first == branch({"another": "input"})
+    assert first["work_units"] == 17
+    assert len(first["digest"]) == 64
+
+
+def test_dur050_sha256_activity_rejects_invalid_workload_configuration(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("DUR050_ENABLE_SHA256_ACTIVITY", "1")
+    monkeypatch.setenv("DUR050_SHA256_WORK_UNITS", "zero")
+    with pytest.raises(ValueError, match="positive integer"):
+        default_registry()
 
 
 def test_runner_heartbeats_and_returns_durable_result() -> None:

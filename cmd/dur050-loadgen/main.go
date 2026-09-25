@@ -134,17 +134,18 @@ func main() {
 	outputPath := flag.String("output", "", "new immutable CSV output path")
 	workflowIDsPath := flag.String("workflow-ids-output", "", "optional new newline-delimited file of accepted workflow IDs")
 	runID := flag.String("run-id", "", "optional per-run ID override from the campaign config")
+	singleFamily := flag.String("single-family", "", "pilot-only single-workflow family selector (seq-8 or fanout-8); requires -count 1")
 	requestTimeout := flag.Duration("request-timeout", 10*time.Second, "timeout for each HTTP submission attempt")
 	flag.Parse()
 	if !dur050.HasSharedMonotonicClock() {
 		log.Fatal("DUR-050 load generator requires Linux shared CLOCK_MONOTONIC")
 	}
-	if err := run(*configPath, *rate, *count, *duration, *outputPath, *workflowIDsPath, *runID, *requestTimeout); err != nil {
+	if err := run(*configPath, *rate, *count, *duration, *outputPath, *workflowIDsPath, *runID, *singleFamily, *requestTimeout); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(configPath string, rate float64, count int, duration time.Duration, outputPath, workflowIDsPath, runID string, requestTimeout time.Duration) error {
+func run(configPath string, rate float64, count int, duration time.Duration, outputPath, workflowIDsPath, runID, singleFamily string, requestTimeout time.Duration) error {
 	if !dur050.HasSharedMonotonicClock() {
 		return errors.New("DUR-050 load generator requires Linux shared CLOCK_MONOTONIC")
 	}
@@ -177,8 +178,15 @@ func run(configPath string, rate float64, count int, duration time.Duration, out
 	if duration > 0 {
 		count = int(math.Floor(duration.Seconds()*rate + 1e-9))
 	}
-	if count < 2 || count%2 != 0 {
-		return errors.New("arrival count must be an even integer of at least 2 for the balanced two-family workload")
+	if singleFamily != "" {
+		if singleFamily != "seq-8" && singleFamily != "fanout-8" {
+			return errors.New("-single-family must be seq-8 or fanout-8")
+		}
+		if duration > 0 || count != 1 {
+			return errors.New("-single-family is pilot-only and requires -count 1, not -duration")
+		}
+	} else if count < 2 || (duration == 0 && count%2 != 0) {
+		return errors.New("-count requires an even integer of at least 2 for the balanced two-family workload; -duration may produce one extra family arrival")
 	}
 	if err := ensureOutputPathsAvailable(outputPath, workflowIDsPath); err != nil {
 		return err
@@ -192,7 +200,7 @@ func run(configPath string, rate float64, count int, duration time.Duration, out
 		return fmt.Errorf("start required generator CPU sampler: %w", err)
 	}
 	measurementStart := cpuSampler.started
-	records, summary, err := runCampaign(ctx, client, endpoint, config, rate, count, requestTimeout)
+	records, summary, err := runCampaignWithFamily(ctx, client, endpoint, config, rate, count, requestTimeout, singleFamily)
 	cpuSamples, cpuSampleErr := cpuSampler.Stop()
 	applyCPUValidation(&summary, cpuSamples, time.Since(measurementStart), runtime.NumCPU(), cpuSampleErr)
 	if writeErr := writeArtifacts(outputPath, workflowIDsPath, records, summary); writeErr != nil {
@@ -262,12 +270,15 @@ func newHTTPClient() *http.Client {
 
 func runCampaign(ctx context.Context, client *http.Client, endpoint string, config campaignConfig,
 	rate float64, count int, requestTimeout time.Duration) ([]requestRecord, runSummary, error) {
-	families := make([]familyConfig, 0, count)
-	for index := 0; index < count/2; index++ {
-		families = append(families, config.Families...)
+	return runCampaignWithFamily(ctx, client, endpoint, config, rate, count, requestTimeout, "")
+}
+
+func runCampaignWithFamily(ctx context.Context, client *http.Client, endpoint string, config campaignConfig,
+	rate float64, count int, requestTimeout time.Duration, singleFamily string) ([]requestRecord, runSummary, error) {
+	families, err := buildFamilySchedule(config, count, singleFamily)
+	if err != nil {
+		return nil, runSummary{}, err
 	}
-	random := rand.New(rand.NewSource(config.Seed))
-	random.Shuffle(len(families), func(i, j int) { families[i], families[j] = families[j], families[i] })
 
 	startUTC := time.Now()
 	startMono, err := dur050.SharedMonotonicNanoseconds()
@@ -312,6 +323,37 @@ func runCampaign(ctx context.Context, client *http.Client, endpoint string, conf
 	wait.Wait()
 	summary := summarize(config, rate, records)
 	return records, summary, nil
+}
+
+func buildFamilySchedule(config campaignConfig, count int, singleFamily string) ([]familyConfig, error) {
+	families := make([]familyConfig, 0, count)
+	if singleFamily != "" {
+		for _, family := range config.Families {
+			if family.Name == singleFamily {
+				for index := 0; index < count; index++ {
+					families = append(families, family)
+				}
+				break
+			}
+		}
+		if len(families) != count {
+			return nil, fmt.Errorf("single-family selector %q is absent from campaign config", singleFamily)
+		}
+	} else {
+		if len(config.Families) != 2 || count < 2 {
+			return nil, errors.New("balanced schedule requires exactly two families and at least two arrivals")
+		}
+		for index := 0; index < count/2; index++ {
+			families = append(families, config.Families...)
+		}
+		if count%2 != 0 {
+			extraFamily := int(config.Seed & 1)
+			families = append(families, config.Families[extraFamily])
+		}
+		random := rand.New(rand.NewSource(config.Seed))
+		random.Shuffle(len(families), func(i, j int) { families[i], families[j] = families[j], families[i] })
+	}
+	return families, nil
 }
 
 func makeSubmission(config campaignConfig, family familyConfig, workflowID, submissionKey string) submissionRequest {

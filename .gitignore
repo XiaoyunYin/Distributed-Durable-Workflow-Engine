@@ -48,6 +48,7 @@ coverage.out
 # Local packaging output
 /build/
 /dist/
+/.cache/
 
 # Editors and operating systems
 .idea/

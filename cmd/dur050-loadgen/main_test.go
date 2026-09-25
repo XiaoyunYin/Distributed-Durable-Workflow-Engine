@@ -188,6 +188,67 @@ func TestGeneratorCPUValidationFailsWithoutSamples(t *testing.T) {
 	}
 }
 
+func TestPilotSingleFamilySchedulesOneSelectedWorkflow(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request submissionRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]any{"created": true,
+			"workflow": map[string]string{"workflow_id": request.WorkflowID}})
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := newHTTPClient()
+	defer client.CloseIdleConnections()
+	config := testCampaignConfig()
+	config.RunID = "single-family"
+	records, summary, err := runCampaignWithFamily(ctx, client, server.URL+"/v1/workflows", config, 1, 1, time.Second, "fanout-8")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(records) != 1 || records[0].Family != "fanout-8" || records[0].Outcome != "accepted" || summary.Accepted != 1 {
+		t.Fatalf("single-family pilot did not submit exactly the selected workflow: records=%+v summary=%+v", records, summary)
+	}
+}
+
+func TestDurationPilotCohortBalancesOddArrivalCountWithinOne(t *testing.T) {
+	config := testCampaignConfig()
+	for _, seed := range []int64{50050, 50051} {
+		config.Seed = seed
+		schedule, err := buildFamilySchedule(config, 15, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		counts := map[string]int{}
+		for _, family := range schedule {
+			counts[family.Name]++
+		}
+		if len(schedule) != 15 || counts["seq-8"]+counts["fanout-8"] != 15 ||
+			absInt(counts["seq-8"]-counts["fanout-8"]) != 1 {
+			t.Fatalf("odd duration cohort is not balanced within one: seed=%d counts=%v", seed, counts)
+		}
+		wantExtra := "seq-8"
+		if seed&1 != 0 {
+			wantExtra = "fanout-8"
+		}
+		if counts[wantExtra] != 8 {
+			t.Fatalf("seed %d extra family count = %v; want %s to receive 8", seed, counts, wantExtra)
+		}
+	}
+}
+
+func absInt(value int) int {
+	if value < 0 {
+		return -value
+	}
+	return value
+}
+
 func testCampaignConfig() campaignConfig {
 	return campaignConfig{APIURL: "http://127.0.0.1:8080", Namespace: "dur050-test", RunID: "run-test", Seed: 50050,
 		Families: []familyConfig{

@@ -94,3 +94,95 @@ func TestFineObserverAcceptsPollsWithinGapBound(t *testing.T) {
 		t.Fatalf("valid first terminal observation missing from output: %s", output.String())
 	}
 }
+
+func TestBatchObserverWaitsForDoneMarkerAndKeepsAcceptedWorkUntilTerminal(t *testing.T) {
+	var output bytes.Buffer
+	writer := csv.NewWriter(&output)
+	polls := 0
+	submissionsDone := false
+	query := func(_ context.Context, ids []string) (map[string]workflowSnapshot, error) {
+		polls++
+		if polls == 1 {
+			return map[string]workflowSnapshot{ids[0]: {ID: ids[0], State: "RUNNABLE"}}, nil
+		}
+		submissionsDone = true
+		return map[string]workflowSnapshot{ids[0]: {ID: ids[0], State: "SUCCEEDED"}}, nil
+	}
+	completionDone := func() (bool, error) { return submissionsDone, nil }
+	err := observeUntil(context.Background(), writer, time.Millisecond, 100*time.Millisecond,
+		[]string{"accepted-workflow", "rejected-workflow"}, completionDone, query)
+	if err != nil {
+		t.Fatalf("batch observer with completion marker: %v", err)
+	}
+	if polls != 2 {
+		t.Fatalf("batch observer polls=%d; want it to wait for completion and then terminal state", polls)
+	}
+	rows, err := csv.NewReader(strings.NewReader(output.String())).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawTerminal, sawNotFound, sawSummary bool
+	for _, row := range rows {
+		if len(row) < len(columns) {
+			continue
+		}
+		switch {
+		case row[0] == "first_terminal_observation" && row[2] == "accepted-workflow" && row[5] == "SUCCEEDED":
+			sawTerminal = true
+		case row[0] == "snapshot" && row[2] == "rejected-workflow" && row[5] == "NOT_FOUND":
+			sawNotFound = true
+		case row[0] == "summary" && row[14] == "true":
+			sawSummary = true
+		}
+	}
+	if !sawTerminal || !sawNotFound || !sawSummary {
+		t.Fatalf("missing accepted, absent, or valid summary row: terminal=%t not_found=%t summary=%t output=%s",
+			sawTerminal, sawNotFound, sawSummary, output.String())
+	}
+}
+
+func TestBatchObserverUsesCompletionMarkerToClassifyUnacceptedIDs(t *testing.T) {
+	var output bytes.Buffer
+	writer := csv.NewWriter(&output)
+	polls := 0
+	submissionsDone := false
+	query := func(_ context.Context, ids []string) (map[string]workflowSnapshot, error) {
+		polls++
+		if polls == 1 {
+			return map[string]workflowSnapshot{ids[0]: {ID: ids[0], State: "RUNNABLE"}}, nil
+		}
+		submissionsDone = true
+		return map[string]workflowSnapshot{ids[0]: {ID: ids[0], State: "SUCCEEDED"}}, nil
+	}
+	completionDone := func() (bool, error) { return submissionsDone, nil }
+	err := observeUntil(context.Background(), writer, time.Millisecond, 100*time.Millisecond,
+		[]string{"accepted-workflow", "rejected-workflow"}, completionDone, query)
+	if err != nil {
+		t.Fatalf("batch observer with completion marker: %v", err)
+	}
+	if polls != 2 {
+		t.Fatalf("batch observer polls=%d; want it to wait for completion and then terminal state", polls)
+	}
+	rows, err := csv.NewReader(strings.NewReader(output.String())).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawTerminal, sawNotFound, sawSummary bool
+	for _, row := range rows {
+		if len(row) < len(columns) {
+			continue
+		}
+		switch {
+		case row[0] == "first_terminal_observation" && row[2] == "accepted-workflow" && row[5] == "SUCCEEDED":
+			sawTerminal = true
+		case row[0] == "snapshot" && row[2] == "rejected-workflow" && row[5] == "NOT_FOUND":
+			sawNotFound = true
+		case row[0] == "summary" && row[14] == "true":
+			sawSummary = true
+		}
+	}
+	if !sawTerminal || !sawNotFound || !sawSummary {
+		t.Fatalf("missing accepted, absent, or valid summary row: terminal=%t not_found=%t summary=%t output=%s",
+			sawTerminal, sawNotFound, sawSummary, output.String())
+	}
+}

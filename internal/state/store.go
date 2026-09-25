@@ -35,6 +35,10 @@ func NewFromURL(ctx context.Context, databaseURL string) (*Store, error) {
 	if ledgerSetting != "" && ledgerSetting != "0" && ledgerSetting != "1" {
 		return nil, fmt.Errorf("DUR049_RECORD_LEASE_ACQUISITIONS must be 0 or 1, got %q", ledgerSetting)
 	}
+	dur050TransactionTimings, err := dur050TransactionTimingsFromEnvironment()
+	if err != nil {
+		return nil, err
+	}
 	admissionConfig, err := admissionConfigFromEnvironment()
 	if err != nil {
 		return nil, err
@@ -61,7 +65,7 @@ func NewFromURL(ctx context.Context, databaseURL string) (*Store, error) {
 		return nil, fmt.Errorf("ping PostgreSQL: %w", err)
 	}
 	return NewWithOptions(pool, StoreOptions{RecordLeaseAcquisitions: ledgerSetting == "1",
-		DUR050Admission: admissionConfig}), nil
+		DUR050Admission: admissionConfig, DUR050TransactionTimings: dur050TransactionTimings}), nil
 }
 
 func NewID() string {
@@ -150,6 +154,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 	if len(input.InitialInput) == 0 {
 		input.InitialInput = json.RawMessage(`{}`)
 	}
+	txStarted := time.Now()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return CreateWorkflowResult{}, err
@@ -177,6 +182,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 		if err := tx.Commit(ctx); err != nil {
 			return CreateWorkflowResult{}, err
 		}
+		s.recordDur050TransactionTiming("submission", workflow.Namespace, workflow.WorkflowID, "replayed", "", txStarted)
 		return CreateWorkflowResult{Workflow: workflow, Created: false}, nil
 	}
 	if !errors.Is(err, pgx.ErrNoRows) {
@@ -232,6 +238,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 			if err := tx.Commit(ctx); err != nil {
 				return CreateWorkflowResult{}, err
 			}
+			s.recordDur050TransactionTiming("submission", workflow.Namespace, workflow.WorkflowID, "replayed", "", txStarted)
 			return CreateWorkflowResult{Workflow: workflow, Created: false}, nil
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -252,6 +259,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 			if err := tx.Commit(ctx); err != nil {
 				return CreateWorkflowResult{}, err
 			}
+			s.recordDur050TransactionTiming("submission", existing.Namespace, existing.WorkflowID, "replayed", "", txStarted)
 			return CreateWorkflowResult{Workflow: existing, Created: false}, nil
 		}
 		if !errors.Is(lookupErr, pgx.ErrNoRows) {
@@ -302,6 +310,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 			if err := tx.Commit(ctx); err != nil {
 				return CreateWorkflowResult{}, err
 			}
+			s.recordDur050TransactionTiming("submission", workflow.Namespace, workflow.WorkflowID, "replayed", "", txStarted)
 			return CreateWorkflowResult{Workflow: workflow, Created: false}, nil
 		}
 		if !errors.Is(err, pgx.ErrNoRows) {
@@ -359,6 +368,7 @@ func (s *Store) CreateWorkflow(ctx context.Context, input CreateWorkflowInput) (
 	if err := tx.Commit(ctx); err != nil {
 		return CreateWorkflowResult{}, fmt.Errorf("commit workflow: %w", err)
 	}
+	s.recordDur050TransactionTiming("submission", workflow.Namespace, workflow.WorkflowID, "created", "", txStarted)
 	return CreateWorkflowResult{Workflow: workflow, Created: true}, nil
 }
 

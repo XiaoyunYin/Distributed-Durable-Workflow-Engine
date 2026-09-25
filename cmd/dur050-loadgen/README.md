@@ -36,8 +36,10 @@ The campaign config supplies the definitions installed in the target database:
 ```
 
 Run from the Linux load-generator host. Exactly one of `-count` or `-duration`
-is required; the number of arrivals must be even so each family receives half.
-The family order is deterministically shuffled by `seed`.
+is required. A fixed `-count` must be even so each family receives half. A
+fixed `-duration` may produce an odd cohort; in that case the seed selects which
+family receives the single extra arrival, and the shuffled mix differs by at
+most one. The family order is deterministically shuffled by `seed`.
 
 ```sh
 ./bin/dur050-loadgen \
@@ -45,6 +47,20 @@ The family order is deterministically shuffled by `seed`.
   -rate 0.25 \
   -count 100 \
   -output /var/tmp/dur050-pilot-submissions.csv
+```
+
+For the pilot's unloaded-latency calibration only, submit one workflow of a
+single family, wait for its fine-mode observer to see a terminal state, then
+repeat with a new run ID. This mode is not used for the balanced capacity runs:
+
+```sh
+./bin/dur050-loadgen \
+  -config /var/tmp/dur050-pilot.json \
+  -single-family seq-8 \
+  -run-id unloaded-seq8-0001 \
+  -rate 1 \
+  -count 1 \
+  -output /var/tmp/unloaded-seq8-0001.csv
 ```
 
 For an eight-workflow reset warmup, `scripts/dur050-warmup.sh` invokes this
@@ -69,17 +85,36 @@ retains both artifacts so an invalid run remains inspectable. The generator
 does not declare workflows terminal; use `dur050-observer` for completion and
 latency observations.
 
-For the protocol's five-minute generator-only calibration, start the separate
-loopback acknowledgement process in one shell:
+For a concurrent one-second batch observation, prebuild the exact scheduled ID
+file and start the observer before the load generator. Pass a unique
+`-done-file`; create that marker only after the generator exits. Until then,
+missing IDs remain pending. After the marker appears, IDs still absent are
+recorded as `NOT_FOUND` (not accepted), while every present workflow is observed
+through terminal state. Reconcile those rows against the load-generator CSV;
+the observer alone does not decide acceptance.
+
+For the protocol's five-minute generator-only calibration, run this from the
+repository root on the generator host with a unique output directory:
+
+```sh
+scripts/dur050-run-sink-check.sh \
+  /var/tmp/dur050-pilot.json \
+  /var/tmp/dur050-calibration/sink-check-001
+```
+
+The helper starts the loopback-only sink, rewrites only the copied config's
+`api_url` and run ID, and runs the five-minute, 64/s open-loop test with the
+observer off. It retains `generator-requests.csv`, its CPU-enforced summary,
+timestamped `pidstat.txt`, logs, and `generator-sink.json`. The JSON status is
+`PASS` only for exactly 19,200 accepted requests and a passing internal CPU
+series; a failed run retains a `FAIL` artifact. Observer QPS is explicitly not
+applicable to this sink-only calibration.
+
+For manual diagnosis, the exact underlying process and config relationship is:
 
 ```sh
 ./bin/dur050-sink -addr 127.0.0.1:8787
-```
-
-Use a copy of the frozen config with `api_url` set to `http://127.0.0.1:8787`,
-then run from a second shell (the observer must remain off):
-
-```sh
+# In another shell, use a config copy with api_url=http://127.0.0.1:8787:
 ./bin/dur050-loadgen \
   -config /var/tmp/dur050-sink-check.json \
   -rate 64 \

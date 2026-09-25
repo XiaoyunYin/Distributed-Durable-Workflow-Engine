@@ -6,7 +6,10 @@
   deliberately pending measurement by the pilot below.
 - Scope authority: D025; aggregate cloud authority and stop rules: D022;
   account/region selection: D023
-- Review gates: Claude reviews this pilot design; then the pilot runs only after
+- Review gates: Claude accepted the pilot design in round 86 at `c956b80`.
+  This amendment documents odd-duration pilot cohort balancing, observer
+  completion markers, calibration assemblers, and fail-closed pilot runners;
+  it must be reviewed before pilot execution. Then the pilot runs only after
   D022 preflight. Commit the pilot summary and numeric SLO in this protocol
   together with immutable raw calibration files under
   `experiments/m8/dur050-capacity-overload/<campaign-id>/pilot-calibration/`.
@@ -17,8 +20,15 @@
   run before the populated-protocol review.
 - Pre-pilot amendment: R149 changes the pending-outbox rule to an admission
   check only; R150 uses the generator host's shared Linux `CLOCK_MONOTONIC`.
-  This amendment is pending Claude review. No pilot or final paid run may use it
-  until that review is complete.
+  Claude accepted these changes in round 86 at `c956b80`. The R151 diagnosis
+  found two restored-baseline lease-fixture races after all 18 mutations passed;
+  both fixtures were corrected at `55b0ea7`. Hosted run
+  [36077936915](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/36077936915)
+  passed both jobs, including the Linux mutation gate. Round 86 left R151
+  deferred pending independent verification before the populated-protocol
+  review. R152's generator-CPU validation is implemented and covered by a
+  synthetic over-limit test. The populated calibration protocol still requires
+  independent review before any final paid run.
 
 ## Question and claim boundary
 
@@ -207,6 +217,14 @@ record the sample count and selected rank so another reviewer can recompute it.
 
 1. **Unloaded latency:** with the gate ON, one workflow in flight at a time;
    collect 300 observations per family in three fresh 100-workflow blocks.
+   `scripts/dur050-run-unloaded-block.sh` runs each single-family block, one
+   workflow at a time, after its own reset/warmup sequence. Assemble the six
+   fresh 100-workflow block directories only with
+   `python scripts/dur050-assemble-pilot-calibration.py <pilot-calibration-dir>
+   <seq-block-1> <seq-block-2> <seq-block-3> <fanout-block-1>
+   <fanout-block-2> <fanout-block-3>`; it validates unique IDs, balanced block
+   counts, all-accepted outcomes, and CPU summaries, then preserves the source
+   directories and their hashes.
    Measure on the load-generator host with its monotonic clock, using a
    single-workflow read-only PostgreSQL status query every 50 ms. This is the
    pilot's fine-resolution mode, not the final one-second batch observer.
@@ -220,26 +238,66 @@ record the sample count and selected rank so another reviewer can recompute it.
    from the SLO percentile input, and report the invalid count. Derive
    per-family p50/p95/range and valid sample counts from these rows.
 2. **Gate overhead:** at both 0.25 workflows/s and 80% of the highest passing
-   pilot staircase rate, use six fresh 100-workflow blocks per rate, 50 per
+   pilot staircase rate, use six fresh 100-workflow blocks at each rate, 50 per
    family each, ordered OFF/ON/ON/OFF/OFF/ON (three paired blocks per mode).
    Retain every API `CreateWorkflow` and terminal-transition transaction
    duration row with mode, family, block/pair ID, and validity. Pair adjacent
-   ON/OFF blocks and summarize median/p95 deltas. No workflow from this
-   comparison enters final data.
-3. **Generator validity:** start the separate `dur050-sink` process on
-   `127.0.0.1:8787` and run `dur050-loadgen` for five minutes at 64 scheduled
-   requests/s against that loopback URL. Retain per-request scheduled/actual
-   send time, acknowledgement, schedule lag, and gap/error plus timestamped
-   `pidstat` CPU samples. The DB observer is not active during this sink-only
-   check (record its QPS as not applicable). Require no missed request, p99
-   schedule lag <=50 ms, and generator CPU <=80%.
+   ON/OFF blocks and summarize median/p95 deltas. Enable
+   `DUR050_RECORD_TRANSACTION_TIMINGS=1` identically in both modes; collect the
+   opt-in `DUR050_TXN` rows from both app hosts with
+   `scripts/dur050-capture-transaction-timings.sh`, retaining each source host.
+   For every block, invoke `scripts/dur050-reset-block.ps1` with
+   `-AdmissionGateMode` matching its ON/OFF manifest row and
+   `-TransactionTimingCapture 1`. Immediately after that block completes, and
+   before the next volume restore/restart recreates its containers, capture
+   that block's `run_id` separately on both app hosts into unique files. Retain
+   all 24 host/block JSONL files and their reset-sequence artifacts; concatenate
+   the timing rows only after all blocks finish, preserving each row's
+   `log_source_host`.
+   Each duration is measured with the runtime process's monotonic clock from
+   immediately before `pgxpool.Begin` until successful `Commit` returns; it
+   includes pool wait and client/network round trips and is not a PostgreSQL
+   server execution duration or a commit timestamp. `recorded_at_utc` is the
+   post-commit log-record time, not the commit time.
+   Write a block manifest in execution order with `rate,block_id,pair_id,mode,
+   run_id,submissions_csv`; then run
+   `python scripts/dur050-summarize-gate-overhead.py <manifest.csv>
+   <combined-transaction-timings.jsonl> <new-output-dir>`. It requires all 12
+   blocks, both rates, the OFF/ON/ON/OFF/OFF/ON order per rate, complete
+   50/50-family accepted cohorts, and one committed submission and successful
+   terminal timing per workflow. It retains raw rows and computes paired
+   nearest-rank p50/p95 deltas. No workflow from this comparison enters final
+   data.
+3. **Generator validity:** run
+   `scripts/dur050-run-sink-check.sh <frozen-config.json> <new-output-dir>`.
+   It binds the separate `dur050-sink` only to `127.0.0.1:8787` and runs five
+   minutes at 64 scheduled requests/s. Retain per-request scheduled/actual send
+   time, acknowledgements and schedule lag, the CPU-enforced loadgen summary,
+   timestamped `pidstat` samples, and `generator-sink.json`. The DB observer is
+   not active during this sink-only check (observer QPS is recorded as not
+   applicable). Require exactly 19,200 accepted requests, no missed request,
+   p99 schedule lag <=50 ms, and generator CPU <=80% except for the allowed
+   <=1% of the measurement window.
 4. **Pilot knee:** run a short open-loop staircase at
    0.25/0.5/1/2/4/8/16/32/64 workflows/s, holding each rate for 60 seconds
    (at most nine minutes total). Stop at the first invalid generator condition
    or sustained growth in outstanding work. Retain each rate interval, offered
    and accepted counts, queue/backlog samples, validity, and stop reason. This
    is only for selecting the final grid's starting rate; its throughput/latencies
-   are not results and do not count toward capacity.
+   are not results and do not count toward capacity. Duration-derived odd
+   cohorts are allowed only in this pilot step: the generator assigns the one
+   extra arrival to `seq-8` for an even seed or `fanout-8` for an odd seed,
+   then applies the deterministic seeded shuffle. Preserve the per-family
+   scheduled counts in the raw request rows and summary. Start the one-second
+   batch observer before each load-generator window with the complete scheduled
+   workflow-ID set. Create its unique completion marker only after all scheduled
+   submissions have returned; before the marker, missing IDs keep the observer
+   running, and after it, missing IDs are recorded `NOT_FOUND` (not accepted).
+   The observer continues until all present workflows are terminal. Reconcile
+   its IDs against the load-generator records; only those records define
+   accepted/rejected/ambiguous outcomes. `scripts/dur050-run-window.sh` retains
+   the expected and accepted ID sets, submission rows, per-ID observer rows,
+   generator summary, CPU samples, and run metadata in a new output directory.
 
 Derive numeric SLO as `ceil_to_0.5s(max(2.5s, 2 × max(unloaded family p95) +
 1.0s))`. The unloaded p95 includes at most the measured 50 ms pilot sampling
@@ -248,10 +306,12 @@ single extra second covers the final observer's maximum sampling interval,
 which is not included in the unloaded p95. Record the exact two pilot p95s,
 arithmetic, resulting numeric SLO, and rationale here and in
 `pilot-calibration/slo-derivation.json`, including the formula/version,
-input-file hashes, unloaded observer method/resolution (`single_workflow_read_only_poll`,
-50 ms), actual query QPS and maximum gap, valid sample counts/ranks, and
+input-file hashes, unloaded observer method and 50 ms target resolution, the
+measured p50/p95/maximum inter-query interval, actual query QPS and maximum
+gap, valid sample counts/ranks, and
 computed SLO. Each unique campaign's `pilot-calibration/` contains `README.md`,
-`unloaded-latency.csv`, `unloaded-observer-polls.csv`, `gate-overhead.csv`,
+`unloaded-latency.csv`, `unloaded-observer-polls.csv`, preserved `source-blocks/`
+and `assembly.json`, `gate-overhead.csv` and its summary/raw inputs,
 `generator-sink.json`, `generator-requests.csv`, `knee-staircase.csv`, and
 `slo-derivation.json`; its README labels it **CALIBRATION — NOT RESULTS** and
 prohibits using these rows as capacity results. Do not substitute an expected

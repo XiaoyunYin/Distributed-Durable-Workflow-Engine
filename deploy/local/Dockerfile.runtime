@@ -13,7 +13,8 @@ RUN CGO_ENABLED=0 go build -tags dur049_owner_lock_isolation -trimpath -ldflags=
     && CGO_ENABLED=0 go build -tags dur034_ablation -trimpath -ldflags="-s -w" -o /out/dur043-stale-probe ./cmd/dur043-stale-probe \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-checker ./cmd/dur049-checker \
     && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-lock-holder ./cmd/dur049-lock-holder \
-    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-db-probe ./cmd/dur049-db-probe
+    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur049-db-probe ./cmd/dur049-db-probe \
+    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/dur050-fixture ./cmd/dur050-fixture
 
 FROM scratch AS dur049-campaign
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
@@ -23,6 +24,7 @@ COPY --from=dur049-campaign-build /out/dur043-stale-probe /dur043-stale-probe
 COPY --from=dur049-campaign-build /out/dur049-checker /dur049-checker
 COPY --from=dur049-campaign-build /out/dur049-lock-holder /dur049-lock-holder
 COPY --from=dur049-campaign-build /out/dur049-db-probe /dur049-db-probe
+COPY --from=dur049-campaign-build /out/dur050-fixture /dur050-fixture
 USER 65532:65532
 EXPOSE 8080
 ENTRYPOINT ["/runtime"]

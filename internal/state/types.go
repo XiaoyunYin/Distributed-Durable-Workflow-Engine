@@ -105,10 +105,11 @@ const (
 )
 
 type Store struct {
-	pool                    *pgxpool.Pool
-	telemetry               *telemetry.Metrics
-	recordLeaseAcquisitions bool
-	dur050Admission         AdmissionGateConfig
+	pool                     *pgxpool.Pool
+	telemetry                *telemetry.Metrics
+	recordLeaseAcquisitions  bool
+	dur050Admission          AdmissionGateConfig
+	dur050TransactionTimings bool
 }
 
 // StoreOptions contains campaign-specific runtime behavior and optional
@@ -116,8 +117,9 @@ type Store struct {
 // campaign deployment; the DUR-050 admission gate is separately opt-in and
 // namespace-scoped.
 type StoreOptions struct {
-	RecordLeaseAcquisitions bool
-	DUR050Admission         AdmissionGateConfig
+	RecordLeaseAcquisitions  bool
+	DUR050Admission          AdmissionGateConfig
+	DUR050TransactionTimings bool
 }
 
 // AdmissionGateConfig is opt-in and applies only to dur050-* namespaces.
@@ -614,7 +616,7 @@ func New(pool *pgxpool.Pool) *Store {
 
 func NewWithOptions(pool *pgxpool.Pool, options StoreOptions) *Store {
 	return &Store{pool: pool, recordLeaseAcquisitions: options.RecordLeaseAcquisitions,
-		dur050Admission: options.DUR050Admission}
+		dur050Admission: options.DUR050Admission, dur050TransactionTimings: options.DUR050TransactionTimings}
 }
 
 // SetTelemetry attaches the bounded process registry used for operational

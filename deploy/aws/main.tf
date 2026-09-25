@@ -215,7 +215,7 @@ resource "aws_iam_instance_profile" "ssm" {
 }
 
 resource "aws_iam_role" "dependency_ssm" {
-  name               = "${local.common_name}-dependency-ssm"
+  name = "${local.common_name}-dependency-ssm"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -237,8 +237,8 @@ resource "aws_iam_policy" "dependency_secret_read" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Effect   = "Allow"
-      Action   = ["ssm:GetParameter"]
+      Effect = "Allow"
+      Action = ["ssm:GetParameter"]
       Resource = var.enable_dur050_load_generator ? [
         aws_ssm_parameter.postgres_password.arn,
         aws_ssm_parameter.dur050_observer_password[0].arn,
@@ -258,8 +258,8 @@ resource "aws_iam_instance_profile" "dependency_ssm" {
 }
 
 resource "aws_iam_role" "load_generator_ssm" {
-  count              = var.enable_dur050_load_generator ? 1 : 0
-  name               = "${local.common_name}-load-generator-ssm"
+  count = var.enable_dur050_load_generator ? 1 : 0
+  name  = "${local.common_name}-load-generator-ssm"
   assume_role_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
@@ -319,7 +319,7 @@ resource "aws_instance" "dependency" {
     postgres_db               = var.postgres_db
     postgres_secret_parameter = local.postgres_secret_parameter
     observer_secret_parameter = local.observer_secret_parameter
-    enable_dur050_observer     = var.enable_dur050_load_generator
+    enable_dur050_observer    = var.enable_dur050_load_generator
     postgres_image            = var.postgres_image
     kafka_image               = var.kafka_image
   })

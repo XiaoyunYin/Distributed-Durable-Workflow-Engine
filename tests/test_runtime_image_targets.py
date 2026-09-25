@@ -30,6 +30,7 @@ def test_default_runtime_image_excludes_campaign_binaries() -> None:
         "dur049-checker",
         "dur049-lock-holder",
         "dur049-db-probe",
+        "dur050-fixture",
     }
     copied_campaign_binaries = set(
         re.findall(

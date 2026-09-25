@@ -5,7 +5,7 @@ exec > >(tee /var/log/durable-dur050-generator-bootstrap.log | logger -t durable
 export DEBIAN_FRONTEND=noninteractive
 
 apt-get update
-apt-get install -y ca-certificates curl git unzip sysstat
+apt-get install -y ca-certificates curl git jq python3 sysstat unzip
 if ! command -v aws >/dev/null 2>&1; then
   curl --fail --silent --show-error --location https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip -o /tmp/awscliv2.zip
   unzip -q /tmp/awscliv2.zip -d /tmp

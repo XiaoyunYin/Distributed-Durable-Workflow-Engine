@@ -574,6 +574,7 @@ func (s *Store) AdvanceGraph(ctx context.Context, input AdvanceGraphInput) (Adva
 	if input.FinalWorkflowState != StateRunnable && len(input.Next) > 0 {
 		return AdvanceGraphResult{}, errors.New("non-terminal graph advancement must remain runnable")
 	}
+	txStarted := time.Now()
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
 		return AdvanceGraphResult{}, err
@@ -746,6 +747,10 @@ func (s *Store) AdvanceGraph(ctx context.Context, input AdvanceGraphInput) (Adva
 	}
 	if err := tx.Commit(ctx); err != nil {
 		return AdvanceGraphResult{}, err
+	}
+	if isTerminalWorkflowState(workflow.State) {
+		s.recordDur050TransactionTiming("terminal_transition", workflow.Namespace, workflow.WorkflowID,
+			"committed", string(workflow.State), txStarted)
 	}
 	return AdvanceGraphResult{Workflow: workflow, Created: created}, nil
 }

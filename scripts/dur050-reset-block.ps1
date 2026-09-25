@@ -15,6 +15,8 @@ param(
     [Parameter(Mandatory)] [string]$WarmupWorkflowIDsPath,
     [Parameter(Mandatory)] [string]$ObserverBinaryPath,
     [Parameter(Mandatory)] [string]$OutputDirectory,
+    [ValidateSet("ON", "OFF")] [string]$AdmissionGateMode = "ON",
+    [ValidateSet("0", "1")] [string]$TransactionTimingCapture = "0",
     [int]$TimeoutMinutes = 20
 )
 
@@ -85,6 +87,8 @@ try {
     if ($null -eq $preflight.planned_peak_vcpu -or -not [double]::TryParse([string]$preflight.planned_peak_vcpu, [ref]$peakVcpu)) { throw "D022 preflight must record numeric planned_peak_vcpu." }
     if ($peakVcpu -le 0 -or $peakVcpu -gt 32) { throw "Planned concurrent vCPU must be in (0, 32]." }
     $script:awsRegion = [string]$preflight.region
+    $admissionMaxActive = if ($AdmissionGateMode -eq "ON") { 1000 } else { 0 }
+    $admissionMaxPendingOutbox = if ($AdmissionGateMode -eq "ON") { 50000 } else { 0 }
     if (Test-Path -LiteralPath $OutputDirectory) { throw "Refusing to overwrite existing evidence: $OutputDirectory" }
     New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
     $script:createdOutputDirectory = $true
@@ -116,7 +120,35 @@ try {
     )
     [void](Invoke-Ssm "restore-db-kafka-volumes" $DependencyInstanceID $restore)
 
-    $startApps = @('set -euo pipefail', 'cd /opt/durable-agent-execution-engine', '# The scheduler loop runs inside the runtime service; start it and every worker after dependency-volume restore.', 'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml up -d --wait --no-build runtime worker', 'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml ps -q runtime worker | xargs -r docker inspect --format ''{{.Id}} {{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}''')
+    $configureApps = @(
+        'set -euo pipefail',
+        'cd /opt/durable-agent-execution-engine',
+        'env_file=deploy/aws/.env',
+        'set_env() { key="$1"; value="$2"; count=$(grep -c "^${key}=" "$env_file" || true); if [ "$count" -gt 1 ]; then echo "duplicate $key in $env_file" >&2; return 1; fi; if [ "$count" -eq 1 ]; then sed -i "s|^${key}=.*|${key}=${value}|" "$env_file"; else printf ''%s=%s\n'' "$key" "$value" >> "$env_file"; fi; }',
+        'set_env DUR050_ADMISSION_MAX_ACTIVE ' + $admissionMaxActive,
+        'set_env DUR050_ADMISSION_MAX_PENDING_OUTBOX ' + $admissionMaxPendingOutbox,
+        'set_env DUR050_RECORD_TRANSACTION_TIMINGS ' + $TransactionTimingCapture,
+        'set_env DUR049_RECORD_LEASE_ACQUISITIONS 0',
+        'chmod 0600 "$env_file"',
+        'grep -E ''^(DUR050_ADMISSION_MAX_ACTIVE|DUR050_ADMISSION_MAX_PENDING_OUTBOX|DUR050_RECORD_TRANSACTION_TIMINGS|DUR049_RECORD_LEASE_ACQUISITIONS)='' "$env_file"'
+    )
+    foreach ($id in $AppInstanceIDs) { [void](Invoke-Ssm "configure-admission-and-capture-mode" $id $configureApps) }
+
+    $startApps = @(
+        'set -euo pipefail',
+        'cd /opt/durable-agent-execution-engine',
+        '# The scheduler loop runs inside the runtime service; start it and every worker after dependency-volume restore.',
+        'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml up -d --wait --no-build runtime worker',
+        'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml ps -q runtime worker | xargs -r docker inspect --format ''{{.Id}} {{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}''',
+        'runtime_id=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml ps -q runtime)',
+        'test -n "$runtime_id"',
+        'runtime_env=$(docker inspect --format ''{{range .Config.Env}}{{println .}}{{end}}'' "$runtime_id")',
+        'printf "%s\n" "$runtime_env" | grep -Fx ''DUR050_ADMISSION_MAX_ACTIVE=' + $admissionMaxActive + '''',
+        'printf "%s\n" "$runtime_env" | grep -Fx ''DUR050_ADMISSION_MAX_PENDING_OUTBOX=' + $admissionMaxPendingOutbox + '''',
+        'printf "%s\n" "$runtime_env" | grep -Fx ''DUR050_RECORD_TRANSACTION_TIMINGS=' + $TransactionTimingCapture + '''',
+        'printf "%s\n" "$runtime_env" | grep -Fx ''DUR049_RECORD_LEASE_ACQUISITIONS=0''',
+        'printf ''DUR050_EFFECTIVE_RUNTIME_SETTINGS\n%s\n'' "$runtime_env" | grep -E ''^(DUR050_ADMISSION_MAX_ACTIVE|DUR050_ADMISSION_MAX_PENDING_OUTBOX|DUR050_RECORD_TRANSACTION_TIMINGS|DUR049_RECORD_LEASE_ACQUISITIONS)='' '
+    )
     foreach ($id in $AppInstanceIDs) { [void](Invoke-Ssm "restart-runtime-worker" $id $startApps) }
 
     $verifyGroup = @(
@@ -146,7 +178,7 @@ try {
     [void](Invoke-Ssm "submit-eight-warmups" $GeneratorInstanceID $warmup)
 
     $observerOutput = "/opt/durable-agent-execution-engine/dur050-$CampaignID-$BlockID-warmup-observer.csv"
-    $drain = @('set -euo pipefail', 'observer_password=$(aws ssm get-parameter --name ''' + $ObserverSecretParameter + ''' --with-decryption --region us-west-1 --query Parameter.Value --output text)', 'export DUR050_OBSERVER_DATABASE_URL="postgresql://dur050_observer:${observer_password}@' + $DatabasePrivateIP + ':5432/' + $DatabaseName + '?sslmode=disable"', 'test -x "' + $ObserverBinaryPath + '"', '"' + $ObserverBinaryPath + '" -mode batch -workflow-ids-file "' + $WarmupWorkflowIDsPath + '" -output "' + $observerOutput + '" -timeout 15m', 'printf ''DUR050_OBSERVER_CSV_GZIP_BASE64:''', 'gzip -c "' + $observerOutput + '" | base64 -w0', 'printf ''\\n''')
+    $drain = @('set -euo pipefail', 'observer_password=$(aws ssm get-parameter --name ''' + $ObserverSecretParameter + ''' --with-decryption --region us-west-1 --query Parameter.Value --output text)', 'export DUR050_OBSERVER_PASSWORD="$observer_password"', 'encoded_password=$(python3 -c ''import os, urllib.parse; print(urllib.parse.quote(os.environ["DUR050_OBSERVER_PASSWORD"], safe=""))'')', 'unset observer_password DUR050_OBSERVER_PASSWORD', 'export DUR050_OBSERVER_DATABASE_URL="postgresql://dur050_observer:${encoded_password}@' + $DatabasePrivateIP + ':5432/' + $DatabaseName + '?sslmode=disable"', 'unset encoded_password', 'test -x "' + $ObserverBinaryPath + '"', '"' + $ObserverBinaryPath + '" -mode batch -workflow-ids-file "' + $WarmupWorkflowIDsPath + '" -output "' + $observerOutput + '" -timeout 15m', 'printf ''DUR050_OBSERVER_CSV_GZIP_BASE64:''', 'gzip -c "' + $observerOutput + '" | base64 -w0', 'printf ''\\n''')
     $drainOutput = Invoke-Ssm "observe-warmup-drain" $GeneratorInstanceID $drain
     $encodedCSV = [regex]::Match($drainOutput, '(?m)^DUR050_OBSERVER_CSV_GZIP_BASE64:([A-Za-z0-9+/=]+)\s*$')
     if (-not $encodedCSV.Success) { throw "Warmup batch observer did not return its raw CSV artifact." }
@@ -193,6 +225,11 @@ SELECT json_build_object(
             campaign_id = $CampaignID
             block_id = $BlockID
             status = $script:status
+            admission_gate_mode = $AdmissionGateMode
+            admission_max_active = $admissionMaxActive
+            admission_max_pending_outbox = $admissionMaxPendingOutbox
+            transaction_timing_capture = $TransactionTimingCapture
+            durable049_lease_acquisition_ledger = 0
             app_instance_ids = $AppInstanceIDs
             dependency_instance_id = $DependencyInstanceID
             generator_instance_id = $GeneratorInstanceID
