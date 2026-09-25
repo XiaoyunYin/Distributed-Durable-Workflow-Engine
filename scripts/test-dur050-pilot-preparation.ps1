@@ -186,8 +186,10 @@ try {
     $listingBytes = (Get-Item -LiteralPath $fullList).Length
     if ($listingBytes -lt 2000000) { throw "Tar listing fixture is too small to reliably fill a pipe buffer ($listingBytes bytes; expected at least 2000000)." }
     $headMutation = Invoke-Bash ('set -euo pipefail; tar -tf "{0}" | head -n 3 >/dev/null; echo MUTATION_SURVIVED' -f $largeArchive) @{}
-    if ($headMutation.ExitCode -ne 141) { throw "The early-closing-head mutation was not detected; expected exit 141, got $($headMutation.ExitCode). $($headMutation.Stderr)" }
-    Write-Host "NEGATIVE CONTROL: replacing tar -tf > list; sed -n 1,3p list with tar -tf | head -n 3 on a $listingBytes-byte listing exited 141; the full-read listing control exited 0."
+    $isSigpipe = $headMutation.ExitCode -eq 141
+    $isTarWriteError = $headMutation.ExitCode -eq 2 -and $headMutation.Stderr -match '(?i)(stdout: write error|broken pipe)'
+    if (-not ($isSigpipe -or $isTarWriteError)) { throw "The early-closing-head mutation was not detected as a broken pipe (accepted exit 141 or tar write-error exit 2), got $($headMutation.ExitCode). $($headMutation.Stderr)" }
+    Write-Host "NEGATIVE CONTROL: replacing tar -tf > list; sed -n 1,3p list with tar -tf | head -n 3 on a $listingBytes-byte listing failed (exit $($headMutation.ExitCode)); the full-read listing control exited 0."
 
     $hashLines = Get-Dur050BaselineHashVerificationLines -PostgresArchive '/var/tmp/test/postgres.tar' -PostgresSHA256 ('f' * 64) -KafkaArchive '/var/tmp/test/kafka.tar' -KafkaSHA256 ('e' * 64)
     $resetSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'dur050-reset-block.ps1') -Raw
