@@ -294,9 +294,7 @@ def test_real_observer_header_assembles_and_derives_end_to_end(tmp_path: Path) -
         assert next(csv.reader(stream)) == observer_csv_fields()
     assert len(observer_csv_fields()) == 19
     assert result["status"] == "PASS"
-    assert result["source_integrity"]["verified_merged_views_sha256"][
-        "unloaded-observer-polls.csv"
-    ]
+    assert result["source_integrity"]["verified_merged_views_sha256"]["unloaded-observer-polls.csv"]
 
 
 def test_csv_readers_reject_extra_and_missing_fields_with_file_and_line(tmp_path: Path) -> None:
@@ -324,9 +322,7 @@ def test_csv_readers_reject_extra_and_missing_fields_with_file_and_line(tmp_path
 
 def test_unloaded_runner_aggregates_observer_header_without_hardcoding(tmp_path: Path) -> None:
     helper = REPO_ROOT / "scripts" / "dur050-append-observer-rows.py"
-    runner = (REPO_ROOT / "scripts" / "dur050-run-unloaded-block.sh").read_text(
-        encoding="utf-8"
-    )
+    runner = (REPO_ROOT / "scripts" / "dur050-run-unloaded-block.sh").read_text(encoding="utf-8")
     assert "dur050-append-observer-rows.py" in runner
     assert "record_type,sequence,workflow_id,scheduled_at_utc,observed_at_utc" not in runner
 
