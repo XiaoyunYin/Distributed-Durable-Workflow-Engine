@@ -129,6 +129,29 @@ func TestDUR050AdmissionPendingOutboxCapIsConcurrentAndScoped(t *testing.T) {
 	definitionID := createDur050ControlDefinition(t, ctx, store)
 	var createdIDs []string
 	t.Cleanup(func() { cleanupDur050Workflows(t, store, createdIDs, definitionID) })
+	var lease Lease
+	var acquired bool
+	for partitionIndex := uint64(0); partitionIndex < partition.PartitionCount; partitionIndex++ {
+		candidate, ok, acquireErr := store.AcquireLease(ctx, int16(partitionIndex), NewID(), time.Minute)
+		if acquireErr != nil {
+			if errors.Is(acquireErr, ErrLeaseAcquisitionTimeout) {
+				continue
+			}
+			t.Fatalf("find free fixture lease partition %d: %v", partitionIndex, acquireErr)
+		}
+		if ok {
+			lease, acquired = candidate, true
+			break
+		}
+	}
+	if !acquired {
+		t.Fatal("could not acquire an unleased partition for the pending-outbox fixture")
+	}
+	defer func() {
+		if err := store.ReleaseLease(context.Background(), LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}); err != nil {
+			t.Errorf("release pending-outbox fixture lease: %v", err)
+		}
+	}()
 	type outcome struct {
 		input CreateWorkflowInput
 		err   error
@@ -137,7 +160,7 @@ func TestDUR050AdmissionPendingOutboxCapIsConcurrentAndScoped(t *testing.T) {
 	results := make(chan outcome, submitters)
 	var wait sync.WaitGroup
 	for index := 0; index < submitters; index++ {
-		input := dur050CreateInput(namespace, definitionID, "outbox-"+NewID())
+		input := dur050CreateInputForPartition(t, namespace, definitionID, "outbox-"+NewID(), lease.PartitionID)
 		createdIDs = append(createdIDs, input.WorkflowID)
 		wait.Add(1)
 		go func(input CreateWorkflowInput) {
@@ -170,13 +193,6 @@ func TestDUR050AdmissionPendingOutboxCapIsConcurrentAndScoped(t *testing.T) {
 	if err != nil || duplicate.Created || duplicate.Workflow.WorkflowID != acceptedInputs[0].WorkflowID {
 		t.Fatalf("idempotent retry at pending-event cap = %+v, err=%v; want original workflow", duplicate, err)
 	}
-	lease, acquired, err := store.AcquireLease(ctx, acceptedInputs[0].PartitionID, NewID(), time.Minute)
-	if err != nil || !acquired {
-		t.Fatalf("acquire lease for full-outbox transition: lease=%+v acquired=%t err=%v", lease, acquired, err)
-	}
-	defer func() {
-		_ = store.ReleaseLease(context.Background(), LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch})
-	}()
 	waiting := StateWaitingActivity
 	if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{Lease: LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch},
 		WorkflowID: acceptedInputs[0].WorkflowID, ExpectedRevision: 1, NewState: StateWaitingActivity,
