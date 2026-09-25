@@ -192,6 +192,9 @@ try {
     Write-Host "NEGATIVE CONTROL: replacing tar -tf > list; sed -n 1,3p list with tar -tf | head -n 3 on a $listingBytes-byte listing failed (exit $($headMutation.ExitCode)); the full-read listing control exited 0."
 
     $hashLines = Get-Dur050BaselineHashVerificationLines -PostgresArchive '/var/tmp/test/postgres.tar' -PostgresSHA256 ('f' * 64) -KafkaArchive '/var/tmp/test/kafka.tar' -KafkaSHA256 ('e' * 64)
+    if (@($hashLines).Count -ne 8 -or $hashLines[0] -notmatch '^postgres_archive=' -or $hashLines[7] -notmatch 'Kafka baseline archive SHA-256 mismatch') {
+        throw "Baseline hash verifier must return eight separate ordered shell lines; observed $(@($hashLines).Count)."
+    }
     $resetSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'dur050-reset-block.ps1') -Raw
     $hashVerifierPosition = $resetSource.IndexOf('Get-Dur050BaselineHashVerificationLines', [StringComparison]::Ordinal)
     $dependencyStopPosition = $resetSource.IndexOf("docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml down", [StringComparison]::Ordinal)
