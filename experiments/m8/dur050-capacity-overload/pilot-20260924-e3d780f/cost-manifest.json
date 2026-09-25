@@ -133,6 +133,36 @@
     "reset_started": false,
     "paid_block_started": false
   },
+  "pilot_fixture_configuration": {
+    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/frozen-config.json",
+    "sha256": "1425B1E45FF63FDAC75A473C7EF6EF3FEC750AA391036D43CC6BAB9941071FE3",
+    "namespace": "dur050-pilot-20260925",
+    "seed": 50050,
+    "definition_installation_status": "PASS",
+    "definition_installation_ssm_command_id": "60f8638b-0317-49e0-b3d1-4130d9b38d88",
+    "definition_installation_at_utc": "2026-09-25T18:34:22.506Z",
+    "definitions": ["dur050-seq-8-v1@1", "dur050-fanout-8-v1@1"],
+    "failed_prevalidation_attempts_no_database_writes": 2
+  },
+  "generator_setup_cycle_2": {
+    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/bootstrap-preflight-cycle-2.json",
+    "command_id": "ee0839ef-8174-4153-8376-a66a890557ee",
+    "status": "PASS",
+    "config_sha256": "1425B1E45FF63FDAC75A473C7EF6EF3FEC750AA391036D43CC6BAB9941071FE3",
+    "config_path_on_generator": "/var/tmp/dur050-cycle2/frozen-config.json",
+    "warmup_wrapper_path_on_generator": "/var/tmp/dur050-cycle2/warmup-wrapper.sh"
+  },
+  "first_paid_block_preflight": {
+    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/preflight-unloaded-seq8-01.json",
+    "task_wide_ledger_check": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/ledger-check-before-unloaded-seq8-01.json",
+    "status": "PASS",
+    "checked_at_utc": "2026-09-25T18:39:32.7848520Z/2026-09-25T18:39:37.203578Z",
+    "account_id": "372206265946",
+    "actual_spend_usd": 1.571,
+    "projected_cost_including_60_minute_block_reserve_usd": "0.660319",
+    "reset_started": false,
+    "measurement_started": false
+  },
   "destroy_input_strategy": "Use the non-secret Terraform profile recorded above, never recover values from a saved plan. Supply newly generated valid ephemeral password inputs only if Terraform requires them to evaluate a destroy plan; destroy targets come from state, not those replacement values.",
   "task_wide_ledger_migration": {
     "authoritative_ledger": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",

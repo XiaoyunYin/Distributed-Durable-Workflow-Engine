@@ -242,3 +242,14 @@ completion marker
 executable. Command IDs and per-host timestamps are retained in
 `bootstrap-preflight-cycle-2.json`. No reset or paid block had started at the
 time of this check.
+
+The fixture installer created definitions `dur050-seq-8-v1@1` and
+`dur050-fanout-8-v1@1` on app-1 and emitted the frozen load-generator config;
+the captured config hash is recorded in `cost-manifest.json`. Two initial
+SSM invocations failed before a database connection because PowerShell
+array-to-string conversion split the API URL; the successful invocation used
+a validated scalar URL, and those failed command IDs and the successful one
+are in `bootstrap-preflight-cycle-2.json`. The config was copied to the
+generator and hash-verified. A small remote wrapper exports the config path
+before invoking the committed warmup script, since the reset helper's warmup
+stage only supplies the workflow-ID path. No reset or measurement has started.

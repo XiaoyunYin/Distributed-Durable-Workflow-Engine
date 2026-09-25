@@ -12,6 +12,36 @@
       "/opt/durable-agent-execution-engine/bin/dur050-sink"
     ]
   },
+  "fixture_installation": {
+    "status": "PASS",
+    "instance_id": "i-08b8632f1c3ef80d0",
+    "ssm_command_id": "60f8638b-0317-49e0-b3d1-4130d9b38d88",
+    "requested_at_utc": "2026-09-25T18:34:22.506Z",
+    "definitions": ["dur050-seq-8-v1@1", "dur050-fanout-8-v1@1"],
+    "failed_prevalidation_attempts": [
+      {
+        "ssm_command_id": "dcf4e24d-4f49-4921-8351-0dbbb49d8eaf",
+        "result": "FAIL before database connection; PowerShell array interpolation inserted newlines in the URL argument"
+      },
+      {
+        "ssm_command_id": "eb00b4fe-db00-4522-bdcf-98331efa5f4a",
+        "result": "FAIL before database connection for the same serialization issue"
+      }
+    ],
+    "correction": "Extract the Terraform JSON output from a scalar string and validate the final URL before dispatching SSM; successful invocation returned both definition records."
+  },
+  "generator_files_prepared": {
+    "status": "PASS",
+    "instance_id": "i-0872b6791d08cb577",
+    "ssm_command_id": "ee0839ef-8174-4153-8376-a66a890557ee",
+    "requested_at_utc": "2026-09-25T18:39:01.949Z",
+    "config_path": "/var/tmp/dur050-cycle2/frozen-config.json",
+    "config_sha256": "1425B1E45FF63FDAC75A473C7EF6EF3FEC750AA391036D43CC6BAB9941071FE3",
+    "warmup_wrapper_path": "/var/tmp/dur050-cycle2/warmup-wrapper.sh",
+    "warmup_wrapper_behavior": "exports DUR050_LOADGEN_CONFIG_FILE and execs the repository's scripts/dur050-warmup.sh",
+    "config_sha256_verified_remotely": true,
+    "wrapper_bash_syntax_verified": true
+  },
   "hosts": [
     {
       "role": "app-1",

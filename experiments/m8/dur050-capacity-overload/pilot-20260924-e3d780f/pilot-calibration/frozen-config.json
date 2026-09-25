@@ -1,0 +1,24 @@
+{
+  "api_url": "http://10.49.1.197:8080/",
+  "namespace": "dur050-pilot-20260925",
+  "run_id": "pilot-calibration",
+  "seed": 50050,
+  "families": [
+    {
+      "name": "seq-8",
+      "definition_id": "dur050-seq-8-v1",
+      "definition_version": 1,
+      "initial_node_id": "dur050.sha256.seq8.0",
+      "payload": { "profile": "seq-8" },
+      "initial_input": { "input": "fixed-256-byte-dur050-seed-v1" }
+    },
+    {
+      "name": "fanout-8",
+      "definition_id": "dur050-fanout-8-v1",
+      "definition_version": 1,
+      "initial_node_id": "root",
+      "payload": { "profile": "fanout-8" },
+      "initial_input": { "input": "fixed-256-byte-dur050-seed-v1" }
+    }
+  ]
+}

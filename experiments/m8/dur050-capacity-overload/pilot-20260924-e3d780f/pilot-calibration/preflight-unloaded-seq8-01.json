@@ -1,0 +1,34 @@
+{
+  "schema": "dur050-paid-block-preflight.v1",
+  "campaign_id": "pilot-20260924-e3d780f",
+  "block_id": "unloaded-seq8-01",
+  "checked_start_utc": "2026-09-25T18:39:32.7848520Z",
+  "checked_end_utc": "2026-09-25T18:39:37.0458819Z",
+  "account_id": "372206265946",
+  "region": "us-west-1",
+  "d022_budget": {
+    "name": "durable-engine-D022-aggregate-20260923",
+    "limit_usd": 200.0,
+    "actual_spend_usd": 1.571,
+    "forecasted_spend_usd": 5.268,
+    "notifications": [
+      { "type": "ACTUAL", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 160.0, "state": "OK" },
+      { "type": "ACTUAL", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 76.47, "state": "OK" },
+      { "type": "FORECASTED", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 160.0, "state": "OK" }
+    ]
+  },
+  "cost_allocation_tags": {
+    "Task": { "status": "Active", "last_updated_at_utc": "2026-09-25T07:06:39Z" },
+    "Environment": { "status": "Active", "last_updated_at_utc": "2026-09-25T07:06:39Z" }
+  },
+  "task_wide_ledger_check": {
+    "path": "ledger-check-before-unloaded-seq8-01.json",
+    "status": "PASS",
+    "checked_at_utc": "2026-09-25T18:39:37.203578Z",
+    "reserve_minutes": 60,
+    "projected_instance_cost_usd": "0.660319",
+    "budget_cap_usd": "75.0"
+  },
+  "reset_started": false,
+  "measurement_started": false
+}
