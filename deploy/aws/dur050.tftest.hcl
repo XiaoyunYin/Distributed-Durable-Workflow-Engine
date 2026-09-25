@@ -69,9 +69,12 @@ run "accepts_complete_dur050_profile" {
   }
 
   assert {
-    condition = strcontains(aws_instance.load_generator[0].user_data, "bash scripts/dur050-build-generator-binaries.sh") && can(regex(
-      "(?s)export HOME=/root.*export GOPATH=/root/go.*export GOMODCACHE=/root/go/pkg/mod.*export GOCACHE=/root/.cache/go-build.*export GOFLAGS=-mod=readonly.*go build",
-      file("${path.module}/../../scripts/dur050-build-generator-binaries.sh")
+    condition = strcontains(aws_instance.load_generator[0].user_data, "bash scripts/dur050-build-generator-binaries.sh") && strcontains(
+      file("${path.module}/../../scripts/dur050-build-generator-binaries.sh"),
+      "go_home=/root"
+      ) && can(regex(
+        "(?s)go_home=/root.*go_path=.*module_cache=.*build_cache=.*export HOME=.*export GOPATH=.*export GOMODCACHE=.*export GOCACHE=.*export GOFLAGS=-mod=readonly.*go build",
+        file("${path.module}/../../scripts/dur050-build-generator-binaries.sh")
     ))
     error_message = "Rendered DUR-050 user data must call the build script, whose explicit HOME/cache exports precede every Go build."
   }
