@@ -89,6 +89,14 @@ and cost-accounting evidence, not capacity or pilot measurement evidence.
 
 ## First provisioning cycle (2026-09-25; no measurement block)
 
+R158 implementation migrates the four first-cycle host IDs and unchanged
+apply/destroy intervals from the campaign snapshot into the single task-wide
+ledger at
+experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json. The historical
+host array remains labelled non-authoritative. No second apply, replacement,
+paid block, or new campaign directory is allowed until Claude verifies R158,
+R159, and R160.
+
 - Live pre-apply checks ran from `2026-09-25T10:34:09.4189134Z` through
   `2026-09-25T10:34:15.4851534Z`: account `372206265946`, quota 32 vCPU,
   0 existing regional instances, actual spend `$1.476`, budget `$200`, all

@@ -1,0 +1,80 @@
+{
+  "schema": "dur050-task-cost-ledger.v1",
+  "task_id": "DUR-050",
+  "scope": "task-wide",
+  "budget_cap_usd": 75.0,
+  "price_source": {
+    "region": "us-west-1",
+    "queried_on_utc_date": "2026-09-24",
+    "description": "AWS Price List API, Linux On-Demand shared tenancy; prices are retained across every DUR-050 campaign directory"
+  },
+  "prices_usd_per_hour": {
+    "c7i.large": 0.1113,
+    "m7i.large": 0.1176
+  },
+  "interval_rules": {
+    "same_role_intervals_may_not_overlap": true,
+    "instance_ids_are_unique_across_all_roles_and_cycles": true,
+    "only_the_last_interval_per_role_may_be_open": true,
+    "intervals_for_different_roles_intentionally_overlap": "The four role instances run concurrently as one stack; overlap is only invalid within the same role.",
+    "reserve_applies_only_to_open_intervals": true,
+    "minimum_billable_seconds": 60,
+    "rounding": "ceil duration to whole seconds, with a 60-second minimum per instance interval"
+  },
+  "roles": {
+    "app-1": [
+      {
+        "cycle_id": "cycle-1-aa7de7e",
+        "instance_id": "i-03a77d4d089b70cb8",
+        "instance_type": "c7i.large",
+        "apply_started_at_utc": "2026-09-25T10:34:38.8773119Z",
+        "destroy_completed_at_utc": "2026-09-25T10:45:53Z",
+        "instance_launch_at_utc": "2026-09-25T10:35:05Z",
+        "availability_zone": "us-west-1a",
+        "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
+      }
+    ],
+    "app-2": [
+      {
+        "cycle_id": "cycle-1-aa7de7e",
+        "instance_id": "i-03fc3b13714dc4134",
+        "instance_type": "c7i.large",
+        "apply_started_at_utc": "2026-09-25T10:34:38.8773119Z",
+        "destroy_completed_at_utc": "2026-09-25T10:45:53Z",
+        "instance_launch_at_utc": "2026-09-25T10:35:05Z",
+        "availability_zone": "us-west-1c",
+        "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
+      }
+    ],
+    "dependency": [
+      {
+        "cycle_id": "cycle-1-aa7de7e",
+        "instance_id": "i-05027ac0bdf9f3816",
+        "instance_type": "m7i.large",
+        "apply_started_at_utc": "2026-09-25T10:34:38.8773119Z",
+        "destroy_completed_at_utc": "2026-09-25T10:45:53Z",
+        "instance_launch_at_utc": "2026-09-25T10:34:53Z",
+        "availability_zone": "us-west-1a",
+        "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
+      }
+    ],
+    "load-generator": [
+      {
+        "cycle_id": "cycle-1-aa7de7e",
+        "instance_id": "i-09813309975a6d24b",
+        "instance_type": "c7i.large",
+        "apply_started_at_utc": "2026-09-25T10:34:38.8773119Z",
+        "destroy_completed_at_utc": "2026-09-25T10:45:53Z",
+        "instance_launch_at_utc": "2026-09-25T10:34:51Z",
+        "availability_zone": "us-west-1a",
+        "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
+      }
+    ]
+  },
+  "history_migration": {
+    "source_campaign_manifest": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cost-manifest.json",
+    "source_cycle": "provisioning_cycle_1",
+    "migrated_at_utc": "2026-09-25T16:37:18.275910Z",
+    "note": "Cycle-1 timestamps are unchanged from the reviewed campaign record. The campaign manifest retains a labelled non-authoritative snapshot; this file is the sole accounting source for all campaigns."
+  }
+}

@@ -363,6 +363,33 @@ primary SLO.
 
 ## Database and telemetry controls (R144)
 
+### SSM remote command and Bash-script invocation map
+
+AWS-RunShellScript starts commands through /bin/sh. Every noninteractive
+DUR-050 SSM command must therefore use the shared base64/temp-file wrapper in
+scripts/dur050-ssm-wrapper.ps1; do not send joined script bodies directly and
+do not pipe a body into bash on stdin (docker compose exec -T may consume
+stdin). scripts/dur050-reset-block.ps1 routes all eight stages through this
+wrapper: stop-app, restore-db-kafka-volumes,
+configure-admission-and-capture-mode, restart-runtime-worker,
+verify-worker-group-assignment, submit-eight-warmups,
+observe-warmup-drain, and snapshot-and-kafka-assignment.
+
+Standalone Bash files are invoked with an explicit bash SCRIPT command via
+scripts/dur050-invoke-ssm-command.ps1:
+
+| Script | SSM target and stage | Remote command |
+|---|---|---|
+| scripts/dur050-warmup.sh | Generator; reset helper's submit-eight-warmups stage | bash WarmupScriptPath |
+| scripts/dur050-run-unloaded-block.sh | Generator; unloaded-block | bash /opt/durable-agent-execution-engine/scripts/dur050-run-unloaded-block.sh CONFIG BLOCK FAMILY OUTPUT |
+| scripts/dur050-run-window.sh | Generator; load-window | bash /opt/durable-agent-execution-engine/scripts/dur050-run-window.sh CONFIG RUN-ID RATE COUNT-OR-DURATION VALUE OUTPUT |
+| scripts/dur050-run-sink-check.sh | Generator; sink-check | bash /opt/durable-agent-execution-engine/scripts/dur050-run-sink-check.sh CONFIG OUTPUT |
+| scripts/dur050-capture-transaction-timings.sh | Each app host; capture-txn-HOST-BLOCK | bash /opt/durable-agent-execution-engine/scripts/dur050-capture-transaction-timings.sh OUTPUT NAMESPACE RUN-ID... |
+
+Use a separate new output path for every invocation. Interactive SSM sessions
+may run commands at a Bash prompt, but these noninteractive commands must use
+the wrapper path above.
+
 - Set `DUR049_RECORD_LEASE_ACQUISITIONS=0` in the DUR-050 AWS Compose config and
   assert the effective value is zero in every pilot/final arm. Do not write the
   append-only DUR-049 lease-acquisition ledger during this study.

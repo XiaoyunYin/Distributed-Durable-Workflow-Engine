@@ -1,0 +1,69 @@
+{
+  "accrued_instance_cost_usd": "0.084656",
+  "budget_cap_usd": "75.0",
+  "budget_notification_threshold_usd": "76.47",
+  "checked_at_utc": "2026-09-25T16:37:18.275910Z",
+  "cost_allocation_backfill_needed": false,
+  "intervals": [
+    {
+      "accrued_instance_cost_usd": "0.020869",
+      "billable_seconds_to_check": 675,
+      "cycle_id": "cycle-1-aa7de7e",
+      "destroyed": true,
+      "hourly_price_usd": "0.1113",
+      "instance_id": "i-03a77d4d089b70cb8",
+      "instance_type": "c7i.large",
+      "interval_index": 0,
+      "projected_billable_seconds_after_reserve": 675,
+      "projected_instance_cost_usd": "0.020869",
+      "role": "app-1"
+    },
+    {
+      "accrued_instance_cost_usd": "0.020869",
+      "billable_seconds_to_check": 675,
+      "cycle_id": "cycle-1-aa7de7e",
+      "destroyed": true,
+      "hourly_price_usd": "0.1113",
+      "instance_id": "i-03fc3b13714dc4134",
+      "instance_type": "c7i.large",
+      "interval_index": 0,
+      "projected_billable_seconds_after_reserve": 675,
+      "projected_instance_cost_usd": "0.020869",
+      "role": "app-2"
+    },
+    {
+      "accrued_instance_cost_usd": "0.022050",
+      "billable_seconds_to_check": 675,
+      "cycle_id": "cycle-1-aa7de7e",
+      "destroyed": true,
+      "hourly_price_usd": "0.1176",
+      "instance_id": "i-05027ac0bdf9f3816",
+      "instance_type": "m7i.large",
+      "interval_index": 0,
+      "projected_billable_seconds_after_reserve": 675,
+      "projected_instance_cost_usd": "0.022050",
+      "role": "dependency"
+    },
+    {
+      "accrued_instance_cost_usd": "0.020869",
+      "billable_seconds_to_check": 675,
+      "cycle_id": "cycle-1-aa7de7e",
+      "destroyed": true,
+      "hourly_price_usd": "0.1113",
+      "instance_id": "i-09813309975a6d24b",
+      "instance_type": "c7i.large",
+      "interval_index": 0,
+      "projected_billable_seconds_after_reserve": 675,
+      "projected_instance_cost_usd": "0.020869",
+      "role": "load-generator"
+    }
+  ],
+  "ledger_scope": "DUR-050 task-wide shared ledger",
+  "next_block_reserve_usd": "0.000000",
+  "open_interval_count": 0,
+  "projected_instance_cost_usd": "0.084656",
+  "reserve_minutes": 1,
+  "schema": "dur050-cost-ledger-check.v2",
+  "status": "PASS",
+  "task_ledger_path": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json"
+}

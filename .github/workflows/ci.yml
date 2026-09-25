@@ -28,6 +28,33 @@ jobs:
           go-version-file: go.mod
           cache: true
 
+      - name: Build DUR-050 generator binaries without inherited HOME
+        shell: bash
+        run: |
+          set -euo pipefail
+          go_bin="$(dirname "$(command -v go)")"
+          rm -f bin/dur050-observer bin/dur050-loadgen bin/dur050-sink
+          mutant="$(mktemp)"
+          mutation_log="$(mktemp)"
+          sed -E '/^export (HOME|GOPATH|GOMODCACHE|GOCACHE|GOFLAGS)=/d' scripts/dur050-build-generator-binaries.sh > "$mutant"
+          if sudo env -i PATH="$go_bin:/usr/bin:/bin" bash "$mutant" >"$mutation_log" 2>&1; then
+            echo "The generator build survived removal of its cache environment." >&2
+            cat "$mutation_log" >&2
+            exit 1
+          fi
+          grep -Eqi 'module cache not found|GOMODCACHE nor GOPATH' "$mutation_log"
+          echo "PASS: removing the explicit Go cache exports reproduces the cloud-init module-cache failure."
+          cat "$mutation_log"
+          rm -f "$mutant" "$mutation_log"
+          sudo env -i PATH="$go_bin:/usr/bin:/bin" bash scripts/dur050-build-generator-binaries.sh
+          test -x bin/dur050-observer
+          test -x bin/dur050-loadgen
+          test -x bin/dur050-sink
+
+      - name: Test DUR-050 SSM wrapper through Ubuntu dash
+        shell: pwsh
+        run: ./scripts/test-dur050-ssm-wrapper.ps1
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

@@ -1,6 +1,47 @@
 {
-  "schema": "dur050-cost-manifest.v1",
+  "schema": "dur050-cost-manifest.v2",
   "campaign_id": "pilot-20260924-e3d780f",
+  "ledger_scope": "task-wide shared DUR-050 ledger; campaign manifests cannot reset accumulated instance-hours",
+  "task_ledger_path": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
+  "terraform_profile": {
+    "aws_region": "us-west-1",
+    "availability_zones": ["us-west-1a", "us-west-1c"],
+    "project_name": "durable-engine",
+    "campaign_slug": "dur050",
+    "task_id": "DUR-050",
+    "environment_name": "portfolio-capacity",
+    "ami_id": "ami-0150109d3dd43737d",
+    "repo_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine.git",
+    "repo_ref": "aa7de7e05a6dc534f9771063a2e20729f0f10520",
+    "expires_at": "2026-10-07T00:00:00Z",
+    "admin_cidrs": [],
+    "instance_type": "c7i.large",
+    "dependency_instance_type": "m7i.large",
+    "enable_dur050_load_generator": true,
+    "load_generator_instance_type": "c7i.large",
+    "root_volume_size_gb": 40,
+    "worker_slots": 2,
+    "postgres_user": "durable",
+    "postgres_db": "durable",
+    "postgres_image": "postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af",
+    "kafka_image": "apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837"
+  },
+  "destroy_input_strategy": "Use the non-secret Terraform profile recorded above, never recover values from a saved plan. Supply newly generated valid ephemeral password inputs only if Terraform requires them to evaluate a destroy plan; destroy targets come from state, not those replacement values.",
+  "task_wide_ledger_migration": {
+    "authoritative_ledger": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
+    "source": "first_cycle_host_snapshot_not_authoritative",
+    "migration_scope": "All four first-cycle instance IDs and their apply/destroy intervals were transferred without changing timestamps; this manifest's host array is retained only as a historical snapshot.",
+    "new_manifest_reset_prevention": "The checker always loads the fixed task-wide ledger path and rejects any campaign manifest that names a different path."
+  },
+  "task_wide_ledger_validation": {
+    "path": "ledger-check-r158-migration.json",
+    "checked_at_utc": "2026-09-25T16:37:18.275910Z",
+    "status": "PASS",
+    "accrued_instance_cost_usd": 0.084656,
+    "open_intervals": 0,
+    "paid_block_check": false,
+    "note": "Post-destroy migration audit only; no paid block or provisioning action was run."
+  },
   "budget_cap_usd": 75.0,
   "currency": "USD",
   "price_source": {
@@ -106,7 +147,7 @@
     "paid_block_check": false,
     "note": "Post-destroy accounting only; no paid measurement block was attempted. All intervals are closed, so the ledger reserved no future host time."
   },
-  "hosts": [
+  "first_cycle_host_snapshot_not_authoritative": [
     {
       "role": "app-1",
       "instance_type": "c7i.large",
@@ -153,7 +194,8 @@
     }
   ],
   "host_hour_check": {
-    "command": "python scripts/dur050-cost-ledger.py <this-file> --reserve-minutes <planned-maximum-block-minutes>",
-    "rule": "Run before every paid block; refuse to start unless accrued plus reserved EC2 instance cost is strictly below $75. The command blocks until all four host IDs and apply timestamps are recorded."
+    "command": "python scripts/dur050-cost-ledger.py <this-campaign-manifest> --reserve-minutes <planned-maximum-block-minutes>",
+    "ledger_scope": "The checker always reads experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json, shared across all DUR-050 campaign directories. This manifest's first-cycle host array is retained only as a historical snapshot.",
+    "rule": "Run before every paid block; refuse to start unless all recorded cycle intervals plus reserve for open intervals are strictly below $75. The task-wide ledger requires all four roles and preserves prior cycles and replacements."
   }
 }

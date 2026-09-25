@@ -98,6 +98,14 @@ $env:TF_VAR_root_volume_size_gb = "40"
 $env:TF_VAR_dur050_observer_password = "<different-24-to-64-character-secret>"
 ```
 
+Every AWS-RunShellScript command uses the DUR-050 base64/temp-file Bash
+wrapper (scripts/dur050-ssm-wrapper.ps1), because SSM otherwise starts /bin/sh.
+The reset helper sends all its remote stages through that wrapper. For
+standalone DUR-050 .sh runners, use scripts/dur050-invoke-ssm-command.ps1 and
+make the remote command explicitly bash followed by the absolute script path
+and its arguments; do not send
+Bash-only script bodies directly to /bin/sh or pipe them through stdin.
+
 Terraform rejects a partially configured DUR-050 profile: when the generator
 is enabled, all three campaign attribution values and the reviewed instance
 sizes/root-volume size are required. The matching values are also asserted by

@@ -30,8 +30,6 @@ test "$(git -C /opt/durable-agent-execution-engine rev-parse HEAD)" = '${repo_re
 
 install -d -m 0755 /opt/durable-agent-execution-engine/bin
 cd /opt/durable-agent-execution-engine
-go build -trimpath -o bin/dur050-observer ./cmd/dur050-observer
-go build -trimpath -o bin/dur050-loadgen ./cmd/dur050-loadgen
-go build -trimpath -o bin/dur050-sink ./cmd/dur050-sink
-chmod 0755 bin/dur050-observer bin/dur050-loadgen bin/dur050-sink
+bash scripts/dur050-build-generator-binaries.sh
+test -x bin/dur050-observer && test -x bin/dur050-loadgen && test -x bin/dur050-sink
 touch /var/lib/durable-dur050-generator-bootstrap-complete

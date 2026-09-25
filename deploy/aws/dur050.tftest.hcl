@@ -67,6 +67,14 @@ run "accepts_complete_dur050_profile" {
     condition     = aws_security_group.app.name == "durable-engine-dur050-app" && aws_instance.app[0].tags["Name"] == "durable-engine-dur050-app-1" && aws_ssm_parameter.dur050_observer_password[0].name == "/durable-engine-dur050/dur050-observer-password"
     error_message = "The DUR-050 profile must use dur050 names for security groups, app instances, and the observer parameter."
   }
+
+  assert {
+    condition = strcontains(aws_instance.load_generator[0].user_data, "bash scripts/dur050-build-generator-binaries.sh") && can(regex(
+      "(?s)export HOME=/root.*export GOPATH=/root/go.*export GOMODCACHE=/root/go/pkg/mod.*export GOCACHE=/root/.cache/go-build.*export GOFLAGS=-mod=readonly.*go build",
+      file("${path.module}/../../scripts/dur050-build-generator-binaries.sh")
+    ))
+    error_message = "Rendered DUR-050 user data must call the build script, whose explicit HOME/cache exports precede every Go build."
+  }
 }
 
 run "preserves_default_dur049_profile" {

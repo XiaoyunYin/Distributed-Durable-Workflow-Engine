@@ -21,6 +21,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
+. (Join-Path $PSScriptRoot "dur050-ssm-wrapper.ps1")
 $script:events = [System.Collections.Generic.List[object]]::new()
 $script:commands = [System.Collections.Generic.List[object]]::new()
 $script:status = "FAIL"
@@ -35,7 +36,8 @@ function Invoke-AwsJson([string[]]$Arguments) {
 function Invoke-Ssm([string]$Stage, [string]$InstanceID, [string[]]$RemoteLines) {
     $started = [DateTime]::UtcNow
     $inputFile = Join-Path $OutputDirectory ("ssm-{0}-{1}.json" -f $Stage, $InstanceID)
-    $body = @{ DocumentName = "AWS-RunShellScript"; InstanceIds = @($InstanceID); Comment = "DUR-050 $CampaignID/$BlockID $Stage"; Parameters = @{ commands = @(($RemoteLines -join "`n")) } } | ConvertTo-Json -Depth 8 -Compress
+    $wrappedCommand = New-Dur050SsmBashCommand -Stage $Stage -RemoteLines $RemoteLines
+    $body = @{ DocumentName = "AWS-RunShellScript"; InstanceIds = @($InstanceID); Comment = "DUR-050 $CampaignID/$BlockID $Stage"; Parameters = @{ commands = @($wrappedCommand) } } | ConvertTo-Json -Depth 8 -Compress
     [System.IO.File]::WriteAllText($inputFile, $body, (New-Object System.Text.UTF8Encoding -ArgumentList $false))
     try {
         $sent = Invoke-AwsJson @("ssm", "send-command", "--cli-input-json", "file://$inputFile", "--output", "json")
@@ -53,7 +55,7 @@ function Invoke-Ssm([string]$Stage, [string]$InstanceID, [string[]]$RemoteLines)
         if ($null -ne $invocation) {
             [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "$stem.stdout.txt"), [string]$invocation.StandardOutputContent)
             [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "$stem.stderr.txt"), [string]$invocation.StandardErrorContent)
-            $script:commands.Add([pscustomobject]@{ stage = $Stage; instance_id = $InstanceID; command_id = $commandID; status = $invocation.Status; remote_lines = @($RemoteLines) })
+            $script:commands.Add([pscustomobject]@{ stage = $Stage; instance_id = $InstanceID; command_id = $commandID; status = $invocation.Status; remote_shell = "base64 temp-file wrapper; bash"; remote_lines = @($RemoteLines) })
         }
         if ($null -eq $invocation -or $invocation.Status -ne "Success") {
             $state = if ($null -eq $invocation) { "no response" } else { "$($invocation.Status): $($invocation.StandardErrorContent)" }

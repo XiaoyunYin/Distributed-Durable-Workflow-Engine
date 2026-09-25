@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail closed when the DUR-050 host-hour ledger plus the next block reserve reaches its cap."""
+"""Fail closed on DUR-050 task-wide instance-hours plus the next block reserve."""
 
 from __future__ import annotations
 
@@ -18,6 +18,9 @@ EXPECTED_HOSTS = {
     "dependency": "m7i.large",
     "load-generator": "c7i.large",
 }
+TASK_LEDGER_RELATIVE_PATH = "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json"
+REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+TASK_LEDGER_PATH = REPOSITORY_ROOT / TASK_LEDGER_RELATIVE_PATH
 
 
 class LedgerError(ValueError):
@@ -30,7 +33,7 @@ def parse_utc(value: Any, field: str) -> datetime:
     try:
         parsed = datetime.fromisoformat(value[:-1] + "+00:00")
     except ValueError as exc:
-        raise LedgerError(f"{field} is not a valid RFC3339 timestamp") from exc
+        raise LedgerError(f"{field} is not a valid RFC3339 UTC timestamp") from exc
     offset = parsed.utcoffset()
     if offset is None or offset.total_seconds() != 0:
         raise LedgerError(f"{field} must be UTC")
@@ -54,11 +57,11 @@ def billable_seconds(start: datetime, end: datetime) -> int:
     return max(60, math.ceil(duration))
 
 
-def evaluate(manifest: dict[str, Any], now: datetime, reserve_minutes: int) -> dict[str, Any]:
-    if manifest.get("schema") != "dur050-cost-manifest.v1":
+def _validate_controls(manifest: dict[str, Any], now: datetime) -> Decimal:
+    if manifest.get("schema") != "dur050-cost-manifest.v2":
         raise LedgerError("unsupported cost manifest schema")
-    if reserve_minutes < 1:
-        raise LedgerError("reserve_minutes must be at least one for a paid block check")
+    if manifest.get("task_ledger_path") != TASK_LEDGER_RELATIVE_PATH:
+        raise LedgerError("manifest must use the single task-wide DUR-050 ledger")
 
     cap = decimal_value(manifest.get("budget_cap_usd"), "budget_cap_usd")
     if cap <= 0:
@@ -99,10 +102,34 @@ def evaluate(manifest: dict[str, Any], now: datetime, reserve_minutes: int) -> d
         )
         if activation_times[tag_key] > now:
             raise LedgerError(f"cost-allocation tag {tag_key} activation time is in the future")
+    return cap
 
-    prices = manifest.get("prices_usd_per_hour")
+
+def evaluate(
+    manifest: dict[str, Any], task_ledger: dict[str, Any], now: datetime, reserve_minutes: int
+) -> dict[str, Any]:
+    if reserve_minutes < 1:
+        raise LedgerError("reserve_minutes must be at least one for a paid block check")
+    cap = _validate_controls(manifest, now)
+    if task_ledger.get("schema") != "dur050-task-cost-ledger.v1":
+        raise LedgerError("unsupported task-wide cost ledger schema")
+    if task_ledger.get("task_id") != "DUR-050" or task_ledger.get("scope") != "task-wide":
+        raise LedgerError("ledger must cover the complete DUR-050 task")
+    ledger_cap = decimal_value(task_ledger.get("budget_cap_usd"), "task ledger budget_cap_usd")
+    if ledger_cap != cap:
+        raise LedgerError("campaign manifest and task-wide ledger budget caps differ")
+
+    notification = manifest["budget_notification"]
+    activation_times = {
+        key: parse_utc(
+            manifest["cost_allocation_tags"][key]["activated_at_utc"], f"{key}.activated_at_utc"
+        )
+        for key in ("Task", "Environment")
+    }
+
+    prices = task_ledger.get("prices_usd_per_hour")
     if not isinstance(prices, dict):
-        raise LedgerError("prices_usd_per_hour must be an object")
+        raise LedgerError("task ledger prices_usd_per_hour must be an object")
     normalized_prices = {
         instance_type: decimal_value(prices.get(instance_type), f"price for {instance_type}")
         for instance_type in set(EXPECTED_HOSTS.values())
@@ -110,20 +137,9 @@ def evaluate(manifest: dict[str, Any], now: datetime, reserve_minutes: int) -> d
     if any(price <= 0 for price in normalized_prices.values()):
         raise LedgerError("instance prices must be positive")
 
-    hosts = manifest.get("hosts")
-    if not isinstance(hosts, list):
-        raise LedgerError("hosts must be an array")
-    by_role: dict[str, dict[str, Any]] = {}
-    for host in hosts:
-        if not isinstance(host, dict):
-            raise LedgerError("each host entry must be an object")
-        role = host.get("role")
-        if role not in EXPECTED_HOSTS or role in by_role:
-            raise LedgerError(f"unexpected or duplicate host role: {role!r}")
-        by_role[role] = host
-    if set(by_role) != set(EXPECTED_HOSTS):
-        missing = sorted(set(EXPECTED_HOSTS) - set(by_role))
-        raise LedgerError(f"host ledger is incomplete; missing roles: {', '.join(missing)}")
+    roles = task_ledger.get("roles")
+    if not isinstance(roles, dict) or set(roles) != set(EXPECTED_HOSTS):
+        raise LedgerError("task ledger must contain exactly the four DUR-050 host roles")
 
     seen_ids: set[str] = set()
     projected_rows: list[dict[str, Any]] = []
@@ -131,48 +147,66 @@ def evaluate(manifest: dict[str, Any], now: datetime, reserve_minutes: int) -> d
     projected_total = Decimal("0")
     reserve_delta = Decimal("0")
     backfill_needed = False
+    open_intervals = 0
 
     for role, expected_type in EXPECTED_HOSTS.items():
-        host = by_role[role]
-        if host.get("instance_type") != expected_type:
-            raise LedgerError(f"{role} must use the recorded profile type {expected_type}")
-        instance_id = host.get("instance_id")
-        if not isinstance(instance_id, str) or not instance_id.strip():
-            raise LedgerError(f"{role} is not provisioned: instance_id is missing")
-        if instance_id in seen_ids:
-            raise LedgerError(f"duplicate instance_id: {instance_id}")
-        seen_ids.add(instance_id)
+        intervals = roles[role]
+        if not isinstance(intervals, list) or not intervals:
+            raise LedgerError(f"{role} must have a non-empty interval list")
+        prior_start: datetime | None = None
+        prior_end: datetime | None = None
+        for index, interval in enumerate(intervals):
+            if not isinstance(interval, dict):
+                raise LedgerError(f"{role} interval {index} must be an object")
+            if interval.get("instance_type") != expected_type:
+                raise LedgerError(f"{role} interval {index} must use {expected_type}")
+            instance_id = interval.get("instance_id")
+            if not isinstance(instance_id, str) or not instance_id.strip():
+                raise LedgerError(f"{role} interval {index} is missing instance_id")
+            if instance_id in seen_ids:
+                raise LedgerError(f"duplicate instance_id: {instance_id}")
+            seen_ids.add(instance_id)
 
-        started = parse_utc(host.get("apply_started_at_utc"), f"{role}.apply_started_at_utc")
-        if any(started < activation for activation in activation_times.values()):
-            backfill_needed = True
-        destroyed_value = host.get("destroy_completed_at_utc")
-        ended = (
-            now
-            if destroyed_value is None
-            else parse_utc(destroyed_value, f"{role}.destroy_completed_at_utc")
-        )
-        if started > now or ended > now:
-            raise LedgerError(f"{role} has a timestamp in the future")
-        if ended < started:
-            raise LedgerError(f"{role} destroy timestamp precedes apply timestamp")
-
-        accrued = billable_seconds(started, ended)
-        projected = accrued
-        if destroyed_value is None:
-            projected = billable_seconds(
-                started,
-                now + timedelta(minutes=reserve_minutes),
+            started = parse_utc(
+                interval.get("apply_started_at_utc"), f"{role}[{index}].apply_started_at_utc"
             )
-        price = normalized_prices[expected_type]
-        accrued_cost = price * Decimal(accrued) / Decimal(3600)
-        projected_cost = price * Decimal(projected) / Decimal(3600)
-        accrued_total += accrued_cost
-        projected_total += projected_cost
-        reserve_delta += projected_cost - accrued_cost
-        projected_rows.append(
-            {
+            destroyed_value = interval.get("destroy_completed_at_utc")
+            ended = (
+                now
+                if destroyed_value is None
+                else parse_utc(destroyed_value, f"{role}[{index}].destroy_completed_at_utc")
+            )
+            if started > now or ended > now:
+                raise LedgerError(f"{role} interval {index} has a timestamp in the future")
+            if ended < started:
+                raise LedgerError(f"{role} interval {index} ends before it starts")
+            if prior_start is not None and started < prior_start:
+                raise LedgerError(f"{role} intervals are not ordered by apply start")
+            if prior_end is None and prior_start is not None:
+                raise LedgerError(f"{role} has an open interval before a later interval")
+            if prior_end is not None and started < prior_end:
+                raise LedgerError(f"overlapping intervals for role {role}")
+            if destroyed_value is None:
+                if index != len(intervals) - 1:
+                    raise LedgerError(f"only the last interval for role {role} may be open")
+                open_intervals += 1
+
+            if any(started < activation for activation in activation_times.values()):
+                backfill_needed = True
+            accrued = billable_seconds(started, ended)
+            projected = accrued
+            if destroyed_value is None:
+                projected = billable_seconds(started, now + timedelta(minutes=reserve_minutes))
+            price = normalized_prices[expected_type]
+            accrued_cost = price * Decimal(accrued) / Decimal(3600)
+            projected_cost = price * Decimal(projected) / Decimal(3600)
+            accrued_total += accrued_cost
+            projected_total += projected_cost
+            reserve_delta += projected_cost - accrued_cost
+            row = {
                 "role": role,
+                "interval_index": index,
+                "cycle_id": interval.get("cycle_id"),
                 "instance_id": instance_id,
                 "instance_type": expected_type,
                 "billable_seconds_to_check": accrued,
@@ -182,25 +216,32 @@ def evaluate(manifest: dict[str, Any], now: datetime, reserve_minutes: int) -> d
                 "projected_instance_cost_usd": str(projected_cost.quantize(Decimal("0.000001"))),
                 "destroyed": destroyed_value is not None,
             }
-        )
+            projected_rows.append(row)
+            prior_start, prior_end = started, None if destroyed_value is None else ended
 
     return {
-        "schema": "dur050-cost-ledger-check.v1",
+        "schema": "dur050-cost-ledger-check.v2",
+        "ledger_scope": "DUR-050 task-wide shared ledger",
+        "task_ledger_path": TASK_LEDGER_RELATIVE_PATH,
         "checked_at_utc": now.isoformat().replace("+00:00", "Z"),
         "reserve_minutes": reserve_minutes,
+        "open_interval_count": open_intervals,
         "budget_cap_usd": str(cap),
         "accrued_instance_cost_usd": str(accrued_total.quantize(Decimal("0.000001"))),
         "next_block_reserve_usd": str(reserve_delta.quantize(Decimal("0.000001"))),
         "projected_instance_cost_usd": str(projected_total.quantize(Decimal("0.000001"))),
         "cost_allocation_backfill_needed": backfill_needed,
+        "budget_notification_threshold_usd": str(notification["threshold_usd"]),
         "status": "PASS" if projected_total < cap else "FAIL",
-        "hosts": projected_rows,
+        "intervals": projected_rows,
     }
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("manifest", type=Path)
+    parser.add_argument(
+        "manifest", type=Path, help="campaign manifest; accounting always uses the task-wide ledger"
+    )
     parser.add_argument("--reserve-minutes", type=int, required=True)
     parser.add_argument("--now-utc", help="Deterministic test hook; RFC3339 UTC ending in Z")
     parser.add_argument(
@@ -209,8 +250,9 @@ def main() -> int:
     args = parser.parse_args()
     try:
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
+        ledger = json.loads(TASK_LEDGER_PATH.read_text(encoding="utf-8"))
         now = parse_utc(args.now_utc, "--now-utc") if args.now_utc else datetime.now(UTC)
-        result = evaluate(manifest, now, args.reserve_minutes)
+        result = evaluate(manifest, ledger, now, args.reserve_minutes)
         output = json.dumps(result, indent=2, sort_keys=True) + "\n"
         if args.output:
             try:
