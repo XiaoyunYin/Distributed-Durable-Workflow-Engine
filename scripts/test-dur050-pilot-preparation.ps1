@@ -141,9 +141,12 @@ try {
     if (($dryRun.stages[0].expected_definitions -join ',') -ne 'dur050-fanout-8-v1@1,dur050-seq-8-v1@1' -or $dryRun.stages[2].expected_topics.Count -ne 3) { throw 'Dry-run omitted its exact definition/topic contract.' }
     if ($dryRun.stages[1].rendered_config_sha256 -notmatch '^[0-9a-f]{64}$' -or $dryRun.stages[1].rendered_config_path -notmatch [regex]::Escape($cycleID)) { throw 'Per-cycle generator config path or hash is missing.' }
     $guardBody = $dryRun.stages[2].remote_lines -join "`n"
-    if ($guardBody -notmatch 'pg_stat_statements' -or $guardBody -notmatch 'event_inbox') { throw 'Clean-baseline guard omits required database checks.' }
+    $guardEncodedSQL = [regex]::Match($guardBody, "guard_sql=.*?printf '%s' '([A-Za-z0-9+/=]+)' \| base64 -d").Groups[1].Value
+    if (-not $guardEncodedSQL) { throw 'Clean-baseline guard omitted its base64 SQL payload.' }
+    $guardSQL = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($guardEncodedSQL))
+    if ($guardSQL -notmatch 'pg_stat_statements' -or $guardSQL -notmatch 'engine\.event_inbox' -or $guardSQL -notmatch 'engine\.activity_attempts') { throw 'Clean-baseline guard omits required database checks.' }
     $captureBody = $dryRun.stages[5].remote_lines -join "`n"
-    if ($captureBody -notmatch 'tar -tf .* > .*\.list' -or $captureBody -notmatch "sed -n ''1,3p''" -or $captureBody -match '\|\s*head') {
+    if ($captureBody -notmatch 'tar -tf .* > .*\.list' -or $captureBody -notmatch "sed -n '1,3p'" -or $captureBody -match '\|\s*head') {
         throw 'Baseline capture must fully write tar listings before previewing them; early-closing pipes are forbidden.'
     }
     if (-not (Test-Path -LiteralPath $awsLog)) { Write-Host 'PASS: dry-run produced all six wrapped SSM stages without calling AWS.' }
