@@ -6,7 +6,8 @@
   deliberately pending measurement by the pilot below.
 - Scope authority: D025; aggregate cloud authority and stop rules: D022;
   account/region selection: D023
-- Review gates: Claude accepted the pilot design in round 86 at `c956b80`.
+- Review gates: Claude approved the pilot design in round 84 at `77f039c`;
+  round 86 accepted the pre-pilot implementation at `c956b80`.
   This amendment documents odd-duration pilot cohort balancing, observer
   completion markers, calibration assemblers, and fail-closed pilot runners;
   it must be reviewed before pilot execution. Then the pilot runs only after
@@ -259,8 +260,11 @@ record the sample count and selected rank so another reviewer can recompute it.
    includes pool wait and client/network round trips and is not a PostgreSQL
    server execution duration or a commit timestamp. `recorded_at_utc` is the
    post-commit log-record time, not the commit time.
-   Write a block manifest in execution order with `rate,block_id,pair_id,mode,
-   run_id,submissions_csv`; then run
+   Write a block manifest in execution order with
+   `rate,block_id,pair_id,mode,run_id,block_started_at_utc,submissions_csv`;
+   timestamps must be UTC and strictly increasing in actual execution order.
+   The summarizer checks that order and includes each pair's observed OFF/ON
+   execution order in the report. Then run
    `python scripts/dur050-summarize-gate-overhead.py <manifest.csv>
    <combined-transaction-timings.jsonl> <new-output-dir>`. It requires all 12
    blocks, both rates, the OFF/ON/ON/OFF/OFF/ON order per rate, complete
@@ -290,13 +294,21 @@ record the sample count and selected rank so another reviewer can recompute it.
    then applies the deterministic seeded shuffle. Preserve the per-family
    scheduled counts in the raw request rows and summary. Start the one-second
    batch observer before each load-generator window with the complete scheduled
-   workflow-ID set. Create its unique completion marker only after all scheduled
-   submissions have returned; before the marker, missing IDs keep the observer
-   running, and after it, missing IDs are recorded `NOT_FOUND` (not accepted).
+   workflow-ID set. Before each batch query, read and latch the unique
+   completion marker. A query may record an absent ID as `NOT_FOUND` only if
+   that marker was observed before the query began; missing IDs in earlier
+   polls are `SUBMISSION_PENDING` and keep observation running. After the
+   observer exits, use the read-only role to directly look up each scheduled
+   ID and retain its existence and state in `submission-reconciliation.csv`.
+   The window is valid only when every accepted ID has exactly one first
+   terminal observation, no accepted ID has a `NOT_FOUND` observation, and the
+   direct lookup covers every scheduled submission ID. Invalid reconciliation
+   must produce a `FAIL` artifact and a non-zero runner exit.
    The observer continues until all present workflows are terminal. Reconcile
    its IDs against the load-generator records; only those records define
    accepted/rejected/ambiguous outcomes. `scripts/dur050-run-window.sh` retains
    the expected and accepted ID sets, submission rows, per-ID observer rows,
+   direct `submission-reconciliation.csv`, `window-reconciliation.json`,
    generator summary, CPU samples, and run metadata in a new output directory.
 
 Derive numeric SLO as `ceil_to_0.5s(max(2.5s, 2 × max(unloaded family p95) +
@@ -309,7 +321,10 @@ arithmetic, resulting numeric SLO, and rationale here and in
 input-file hashes, unloaded observer method and 50 ms target resolution, the
 measured p50/p95/maximum inter-query interval, actual query QPS and maximum
 gap, valid sample counts/ranks, and
-computed SLO. Each unique campaign's `pilot-calibration/` contains `README.md`,
+computed SLO. The SLO output verifies `assembly.json`, re-hashes all six raw
+source blocks against `source_sha256`, requires each merged CSV to be byte-for-
+byte the source-block reconstruction, and records all verified source and
+merged-view hashes. Each unique campaign's `pilot-calibration/` contains `README.md`,
 `unloaded-latency.csv`, `unloaded-observer-polls.csv`, preserved `source-blocks/`
 and `assembly.json`, `gate-overhead.csv` and its summary/raw inputs,
 `generator-sink.json`, `generator-requests.csv`, `knee-staircase.csv`, and

@@ -8,6 +8,7 @@ import hashlib
 import json
 import shutil
 from collections import defaultdict
+from datetime import UTC, datetime
 from pathlib import Path
 from statistics import median
 from typing import Any
@@ -46,7 +47,15 @@ def summarize(manifest_path: Path, timings_path: Path, output_dir: Path) -> dict
     if output_dir.exists():
         raise FileExistsError(f"refusing to overwrite gate-overhead output: {output_dir}")
     manifest_fields, manifest = read_csv(manifest_path)
-    required_manifest = {"rate", "block_id", "pair_id", "mode", "run_id", "submissions_csv"}
+    required_manifest = {
+        "rate",
+        "block_id",
+        "pair_id",
+        "mode",
+        "run_id",
+        "submissions_csv",
+        "block_started_at_utc",
+    }
     if not required_manifest.issubset(manifest_fields) or len(manifest) != 12:
         raise ValueError(
             "manifest must have 12 blocks and the required rate/pair/mode/run/files columns"
@@ -56,6 +65,7 @@ def summarize(manifest_path: Path, timings_path: Path, output_dir: Path) -> dict
     by_rate: dict[str, list[dict[str, str]]] = defaultdict(list)
     seen_blocks: set[str] = set()
     seen_runs: set[str] = set()
+    previous_block_start: datetime | None = None
     for row in manifest:
         if row["mode"] not in {"ON", "OFF"} or not row["run_id"] or not row["block_id"]:
             raise ValueError("manifest contains an invalid mode or empty identity")
@@ -63,6 +73,18 @@ def summarize(manifest_path: Path, timings_path: Path, output_dir: Path) -> dict
             raise ValueError("manifest block IDs and run IDs must be unique")
         seen_blocks.add(row["block_id"])
         seen_runs.add(row["run_id"])
+        try:
+            block_start = datetime.fromisoformat(row["block_started_at_utc"].replace("Z", "+00:00"))
+        except ValueError as error:
+            raise ValueError(f"invalid block start time for {row['block_id']}") from error
+        if block_start.tzinfo is None or block_start.utcoffset() != UTC.utcoffset(block_start):
+            raise ValueError(f"block start time must be UTC for {row['block_id']}")
+        if previous_block_start is not None and block_start <= previous_block_start:
+            raise ValueError(
+                "manifest rows are not in strictly increasing execution start-time order"
+            )
+        previous_block_start = block_start
+        row["_parsed_block_start"] = block_start
         try:
             if float(row["rate"]) <= 0:
                 raise ValueError("manifest rates must be positive")
@@ -184,6 +206,7 @@ def summarize(manifest_path: Path, timings_path: Path, output_dir: Path) -> dict
                 "family": family,
                 "mode": rows[0]["mode"],
                 "pair_id": rows[0]["pair_id"],
+                "block_started_at_utc": rows[0]["block_started_at_utc"],
                 "operation": operation,
                 "count": len(values),
                 "p50_us_nearest_rank": nearest_rank(values, 0.50),
@@ -211,6 +234,21 @@ def summarize(manifest_path: Path, timings_path: Path, output_dir: Path) -> dict
                         {
                             "rate": float(rate),
                             "pair_id": pair_id,
+                            "execution_order": [
+                                {
+                                    "mode": row["mode"],
+                                    "block_id": row["block_id"],
+                                    "block_started_at_utc": row["block_started_at_utc"],
+                                }
+                                for row in sorted(
+                                    (
+                                        candidate
+                                        for candidate in rows
+                                        if candidate["pair_id"] == pair_id
+                                    ),
+                                    key=lambda candidate: candidate["_parsed_block_start"],
+                                )
+                            ],
                             "family": family,
                             "operation": operation,
                             "off_p50_us": off["p50_us_nearest_rank"],
@@ -249,6 +287,7 @@ def summarize(manifest_path: Path, timings_path: Path, output_dir: Path) -> dict
         "mode",
         "family",
         "run_id",
+        "block_started_at_utc",
         "workflow_id",
         "operation",
         "outcome",

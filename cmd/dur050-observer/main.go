@@ -18,7 +18,8 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-var columns = []string{"record_type", "sequence", "workflow_id", "scheduled_at_utc", "observed_at_utc", "state", "created_at_db", "updated_at_db", "terminal_transition_at_db", "query_duration_ms", "poll_gap_ms", "max_poll_gap_ms", "max_preterminal_gap_ms", "observer_qps", "valid", "reason", "scheduled_at_monotonic_ns", "observed_at_monotonic_ns"}
+var columns = []string{"record_type", "sequence", "workflow_id", "scheduled_at_utc", "observed_at_utc", "state", "created_at_db", "updated_at_db", "terminal_transition_at_db", "query_duration_ms", "poll_gap_ms", "max_poll_gap_ms", "max_preterminal_gap_ms", "observer_qps", "valid", "reason", "scheduled_at_monotonic_ns", "observed_at_monotonic_ns", "completion_marker_seen"}
+var reconciliationColumns = []string{"record_type", "workflow_id", "submission_outcome", "http_status", "exists", "state", "created_at_db", "updated_at_db"}
 
 type workflowSnapshot struct {
 	ID         string
@@ -29,34 +30,41 @@ type workflowSnapshot struct {
 }
 
 func main() {
-	mode := flag.String("mode", "", "fine (one workflow every 50ms) or batch (IDs once per second)")
+	mode := flag.String("mode", "", "fine, batch, or reconcile (post-window submission lookup)")
 	workflowID := flag.String("workflow-id", "", "preassigned workflow ID for fine mode")
 	workflowIDsPath := flag.String("workflow-ids-file", "", "newline-delimited workflow IDs for batch mode")
-	doneFile := flag.String("done-file", "", "optional marker created after all scheduled submissions finish; missing IDs then count as not accepted")
+	submissionRowsPath := flag.String("submissions-file", "", "load-generator CSV to reconcile directly against PostgreSQL")
+	doneFile := flag.String("done-file", "", "optional marker created after all submissions finish; only a poll started after observing it may label absent IDs NOT_FOUND")
 	outputPath := flag.String("output", "", "new CSV output path; existing files are never overwritten")
 	databaseURL := flag.String("database-url", os.Getenv("DUR050_OBSERVER_DATABASE_URL"), "read-only PostgreSQL DSN; defaults to DUR050_OBSERVER_DATABASE_URL")
 	maximumDuration := flag.Duration("timeout", 30*time.Minute, "maximum observation duration")
 	flag.Parse()
-	if err := run(*mode, *workflowID, *workflowIDsPath, *doneFile, *outputPath, *databaseURL, *maximumDuration); err != nil {
+	if err := run(*mode, *workflowID, *workflowIDsPath, *submissionRowsPath, *doneFile, *outputPath, *databaseURL, *maximumDuration); err != nil {
 		log.Fatal(err)
 	}
 }
 
-func run(mode, workflowID, workflowIDsPath, doneFile, outputPath, databaseURL string, maximumDuration time.Duration) error {
+func run(mode, workflowID, workflowIDsPath, submissionRowsPath, doneFile, outputPath, databaseURL string, maximumDuration time.Duration) error {
 	if outputPath == "" || databaseURL == "" || maximumDuration <= 0 {
 		return errors.New("-output, a read-only database URL, and a positive -timeout are required")
 	}
-	if !dur050.HasSharedMonotonicClock() {
+	if mode != "reconcile" && !dur050.HasSharedMonotonicClock() {
 		return errors.New("DUR-050 measurement requires the shared Linux CLOCK_MONOTONIC clock")
 	}
-	if mode != "fine" && mode != "batch" {
-		return errors.New("-mode must be fine or batch")
+	if mode != "fine" && mode != "batch" && mode != "reconcile" {
+		return errors.New("-mode must be fine, batch, or reconcile")
 	}
 	if mode == "fine" && workflowID == "" {
 		return errors.New("-workflow-id is required in fine mode")
 	}
 	if mode == "fine" && doneFile != "" {
 		return errors.New("-done-file is valid only in batch mode")
+	}
+	if mode == "reconcile" && submissionRowsPath == "" {
+		return errors.New("-submissions-file is required in reconcile mode")
+	}
+	if mode != "reconcile" && submissionRowsPath != "" {
+		return errors.New("-submissions-file is valid only in reconcile mode")
 	}
 	var ids []string
 	if mode == "batch" {
@@ -79,7 +87,11 @@ func run(mode, workflowID, workflowIDsPath, doneFile, outputPath, databaseURL st
 	}
 	defer file.Close()
 	writer := csv.NewWriter(file)
-	if err := writer.Write(columns); err != nil {
+	outputColumns := columns
+	if mode == "reconcile" {
+		outputColumns = reconciliationColumns
+	}
+	if err := writer.Write(outputColumns); err != nil {
 		return err
 	}
 	writer.Flush()
@@ -117,6 +129,8 @@ func run(mode, workflowID, workflowIDsPath, doneFile, outputPath, databaseURL st
 		return observeFine(ctx, pool, writer, workflowID)
 	case "batch":
 		return observeBatch(ctx, pool, writer, ids, doneFile)
+	case "reconcile":
+		return reconcileSubmissions(ctx, pool, writer, submissionRowsPath)
 	default:
 		return errors.New("unsupported observer mode")
 	}
@@ -201,6 +215,111 @@ func observeBatch(ctx context.Context, pool *pgxpool.Pool, writer *csv.Writer, i
 		})
 }
 
+type submissionRow struct {
+	WorkflowID string
+	Outcome    string
+	HTTPStatus string
+}
+
+// reconcileSubmissions performs a separate, direct read after observation so
+// uncertain and rejected requests retain durable existence/state evidence.
+// It currently records every scheduled submission, which also lets the window
+// validator compare accepted and non-accepted cohorts without inference.
+func reconcileSubmissions(ctx context.Context, pool *pgxpool.Pool, writer *csv.Writer, path string) error {
+	submissions, err := readSubmissionRows(path)
+	if err != nil {
+		return err
+	}
+	ids := make([]string, 0, len(submissions))
+	for _, submission := range submissions {
+		ids = append(ids, submission.WorkflowID)
+	}
+	rows, err := pool.Query(ctx, `SELECT workflow_id, state, created_at, updated_at
+		FROM engine.workflow_executions WHERE workflow_id = ANY($1::text[])`, ids)
+	if err != nil {
+		return fmt.Errorf("lookup submitted workflow IDs with read-only observer: %w", err)
+	}
+	defer rows.Close()
+	found := make(map[string]workflowSnapshot, len(ids))
+	for rows.Next() {
+		var snapshot workflowSnapshot
+		if err := rows.Scan(&snapshot.ID, &snapshot.State, &snapshot.CreatedAt, &snapshot.UpdatedAt); err != nil {
+			return err
+		}
+		found[snapshot.ID] = snapshot
+	}
+	if err := rows.Err(); err != nil {
+		return err
+	}
+	for _, submission := range submissions {
+		snapshot, exists := found[submission.WorkflowID]
+		createdAt, updatedAt, state := "", "", ""
+		if exists {
+			createdAt = snapshot.CreatedAt.UTC().Format(time.RFC3339Nano)
+			updatedAt = snapshot.UpdatedAt.UTC().Format(time.RFC3339Nano)
+			state = snapshot.State
+		}
+		if err := writer.Write([]string{"submission_reconciliation", submission.WorkflowID, submission.Outcome,
+			submission.HTTPStatus, fmt.Sprint(exists), state, createdAt, updatedAt}); err != nil {
+			return err
+		}
+	}
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return err
+	}
+	fmt.Printf("DUR050_SUBMISSION_RECONCILIATION=%d\n", len(submissions))
+	return nil
+}
+
+func readSubmissionRows(path string) ([]submissionRow, error) {
+	file, err := os.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open load-generator submissions: %w", err)
+	}
+	defer file.Close()
+	reader := csv.NewReader(file)
+	reader.FieldsPerRecord = -1
+	allRows, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("read load-generator submissions: %w", err)
+	}
+	if len(allRows) == 0 {
+		return nil, errors.New("load-generator submissions CSV is empty")
+	}
+	indices := make(map[string]int, len(allRows[0]))
+	for index, name := range allRows[0] {
+		indices[name] = index
+	}
+	workflowIDIndex, hasWorkflowID := indices["workflow_id"]
+	outcomeIndex, hasOutcome := indices["outcome"]
+	httpStatusIndex, hasHTTPStatus := indices["http_status"]
+	recordTypeIndex, hasRecordType := indices["record_type"]
+	if !hasWorkflowID || !hasOutcome || !hasHTTPStatus || !hasRecordType {
+		return nil, errors.New("load-generator submissions CSV lacks workflow_id, outcome, http_status, or record_type")
+	}
+	seen := make(map[string]struct{}, len(allRows)-1)
+	result := make([]submissionRow, 0, len(allRows)-1)
+	for line, row := range allRows[1:] {
+		if len(row) != len(allRows[0]) || row[recordTypeIndex] != "submission" {
+			return nil, fmt.Errorf("invalid submission record at CSV line %d", line+2)
+		}
+		id := strings.TrimSpace(row[workflowIDIndex])
+		if id == "" {
+			return nil, fmt.Errorf("empty workflow ID at CSV line %d", line+2)
+		}
+		if _, duplicate := seen[id]; duplicate {
+			return nil, fmt.Errorf("duplicate workflow ID %q in load-generator submissions", id)
+		}
+		seen[id] = struct{}{}
+		result = append(result, submissionRow{WorkflowID: id, Outcome: row[outcomeIndex], HTTPStatus: row[httpStatusIndex]})
+	}
+	if len(result) == 0 {
+		return nil, errors.New("load-generator submissions CSV has no submission rows")
+	}
+	return result, nil
+}
+
 func observe(ctx context.Context, writer *csv.Writer, interval, maximumGap time.Duration, ids []string,
 	query func(context.Context, []string) (map[string]workflowSnapshot, error)) error {
 	return observeUntil(ctx, writer, interval, maximumGap, ids, nil, query)
@@ -219,6 +338,7 @@ func observeUntil(ctx context.Context, writer *csv.Writer, interval, maximumGap 
 	var maxGap time.Duration
 	maxGapBeforeTerminal := make(map[string]time.Duration, len(ids))
 	terminalSeen := make(map[string]bool, len(ids))
+	submissionsDone := completionDone == nil
 	allTerminal := false
 	for !allTerminal {
 		select {
@@ -226,6 +346,17 @@ func observeUntil(ctx context.Context, writer *csv.Writer, interval, maximumGap 
 			return fmt.Errorf("observer timed out after %s: %w", time.Since(started), ctx.Err())
 		case scheduled := <-ticker.C:
 			sequence++
+			// Read and latch the completion marker before starting this poll. An
+			// absent row is NOT_FOUND only when this query starts after the marker
+			// was observed. If the marker appears during the query, wait for the
+			// next poll rather than finalizing a possibly late commit.
+			if completionDone != nil && !submissionsDone {
+				var err error
+				submissionsDone, err = completionDone()
+				if err != nil {
+					return err
+				}
+			}
 			scheduledMonoNow, err := dur050.SharedMonotonicNanoseconds()
 			if err != nil {
 				return fmt.Errorf("read shared monotonic clock before observer query: %w", err)
@@ -257,16 +388,12 @@ func observeUntil(ctx context.Context, writer *csv.Writer, interval, maximumGap 
 				continue
 			}
 			allTerminal = true
-			submissionsDone := false
-			if completionDone != nil {
-				submissionsDone, err = completionDone()
-				if err != nil {
-					return err
-				}
-			}
 			for _, id := range ids {
 				snapshot, found := snapshots[id]
 				state := "NOT_FOUND"
+				if !found && !submissionsDone {
+					state = "SUBMISSION_PENDING"
+				}
 				createdAt, updatedAt, terminalAt := "", "", ""
 				if found {
 					state = snapshot.State
@@ -300,7 +427,7 @@ func observeUntil(ctx context.Context, writer *csv.Writer, interval, maximumGap 
 				if !valid {
 					reason = "observer_gap_exceeded"
 				}
-				if writeErr := writeRow(writer, append([]string{"snapshot", fmt.Sprint(sequence), id, scheduled.UTC().Format(time.RFC3339Nano), observed.UTC().Format(time.RFC3339Nano), state, createdAt, updatedAt, terminalAt, fmt.Sprintf("%.3f", float64(queryDuration.Microseconds())/1000), fmt.Sprintf("%.3f", float64(gap.Microseconds())/1000), "", "", "", fmt.Sprint(valid), reason}, fmt.Sprint(scheduledMono), fmt.Sprint(observedMono))); writeErr != nil {
+				if writeErr := writeRow(writer, append([]string{"snapshot", fmt.Sprint(sequence), id, scheduled.UTC().Format(time.RFC3339Nano), observed.UTC().Format(time.RFC3339Nano), state, createdAt, updatedAt, terminalAt, fmt.Sprintf("%.3f", float64(queryDuration.Microseconds())/1000), fmt.Sprintf("%.3f", float64(gap.Microseconds())/1000), "", "", "", fmt.Sprint(valid), reason}, fmt.Sprint(scheduledMono), fmt.Sprint(observedMono), fmt.Sprint(submissionsDone))); writeErr != nil {
 					return writeErr
 				}
 			}

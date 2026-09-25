@@ -35,38 +35,40 @@ LATENCY_FIELDS = [
 ]
 
 
-def write_calibration(root: Path, *, valid_count: int = 300) -> None:
+def write_calibration(root: Path, *, valid_count: int = 300, failed_observer: bool = False) -> None:
     root.mkdir()
     poll_rows: list[dict[str, object]] = []
     submission_rows: list[dict[str, object]] = []
+    latency_rows: list[dict[str, object]] = []
     with (root / "unloaded-latency.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(stream, fieldnames=LATENCY_FIELDS)
         writer.writeheader()
         for family, latency in (("seq-8", 1000.0), ("fanout-8", 2000.0)):
             for sample in range(1, valid_count + 1):
-                writer.writerow(
-                    {
-                        "family": family,
-                        "block_id": f"block-{(sample - 1) // 100}",
-                        "sample": sample,
-                        "run_id": f"run-{family}-{sample}",
-                        "workflow_id": f"wf-{family}-{sample}",
-                        "outcome": "accepted",
-                        "terminal_state": "SUCCEEDED",
-                        "scheduled_at_utc": "2026-09-25T00:00:00Z",
-                        "scheduled_at_monotonic_ns": sample * 3_000_000_000
-                        + 50_000_000
-                        - int(latency * 1_000_000),
-                        "first_terminal_observed_at_utc": "2026-09-25T00:00:01Z",
-                        "observed_at_monotonic_ns": sample * 3_000_000_000 + 50_000_000,
-                        "observed_latency_ms": latency,
-                        "max_preterminal_gap_ms": 50,
-                        "query_count": 20,
-                        "observer_qps": 19.5,
-                        "valid": "true",
-                        "invalid_reason": "",
-                    }
-                )
+                workflow_id = f"wf-{family}-{sample}"
+                latency_row = {
+                    "family": family,
+                    "block_id": f"block-{(sample - 1) // 100}",
+                    "sample": sample,
+                    "run_id": f"run-{family}-{sample}",
+                    "workflow_id": workflow_id,
+                    "outcome": "accepted",
+                    "terminal_state": "SUCCEEDED",
+                    "scheduled_at_utc": "2026-09-25T00:00:00Z",
+                    "scheduled_at_monotonic_ns": sample * 3_000_000_000
+                    + 50_000_000
+                    - int(latency * 1_000_000),
+                    "first_terminal_observed_at_utc": "2026-09-25T00:00:01Z",
+                    "observed_at_monotonic_ns": sample * 3_000_000_000 + 50_000_000,
+                    "observed_latency_ms": latency,
+                    "max_preterminal_gap_ms": 50,
+                    "query_count": 20,
+                    "observer_qps": 19.5,
+                    "valid": "true",
+                    "invalid_reason": "",
+                }
+                writer.writerow(latency_row)
+                latency_rows.append(latency_row)
                 poll_rows.extend(
                     [
                         {
@@ -101,7 +103,7 @@ def write_calibration(root: Path, *, valid_count: int = 300) -> None:
                         {
                             "record_type": "summary",
                             "sequence": 2,
-                            "workflow_id": "",
+                            "workflow_id": workflow_id,
                             "observed_at_monotonic_ns": sample * 3_000_000_000 + 50_000_000,
                             "observer_qps": "19.5",
                             "max_poll_gap_ms": "50",
@@ -109,6 +111,23 @@ def write_calibration(root: Path, *, valid_count: int = 300) -> None:
                         },
                     ]
                 )
+                if failed_observer and family == "seq-8" and sample == 1:
+                    poll_rows.insert(
+                        len(poll_rows) - 1,
+                        {
+                            "record_type": "poll_error",
+                            "sequence": 3,
+                            "workflow_id": workflow_id,
+                            "observed_at_monotonic_ns": sample * 3_000_000_000 + 75_000_000,
+                            "observer_qps": "",
+                            "max_poll_gap_ms": "",
+                            "reason": "synthetic query failure",
+                        },
+                    )
+                    poll_rows[-1]["reason"] = (
+                        "queries=3 terminal_workflows_seen=1 failed_queries=1 "
+                        "observer_query_failures"
+                    )
                 submission_rows.append(
                     {
                         "record_type": "submission",
@@ -139,6 +158,90 @@ def write_calibration(root: Path, *, valid_count: int = 300) -> None:
         writer.writeheader()
         writer.writerows(submission_rows)
 
+    source_root = root / "source-blocks"
+    source_root.mkdir()
+    poll_fields = [
+        "record_type",
+        "sequence",
+        "workflow_id",
+        "observed_at_monotonic_ns",
+        "observer_qps",
+        "max_poll_gap_ms",
+        "reason",
+        "state",
+        "valid",
+    ]
+    submission_fields = ["record_type", "workflow_id", "family", "outcome"]
+    blocks = []
+    for family in ("seq-8", "fanout-8"):
+        family_rows = [row for row in latency_rows if row["family"] == family]
+        for block_index in range(3):
+            block_rows = family_rows[block_index * 100 : (block_index + 1) * 100]
+            ids = {str(row["workflow_id"]) for row in block_rows}
+            block_name = f"{family}-{block_index + 1}"
+            block_dir = source_root / f"{len(blocks) + 1:02d}-{block_name}"
+            block_dir.mkdir()
+            datasets = {
+                "unloaded-latency.csv": (LATENCY_FIELDS, block_rows),
+                "unloaded-observer-polls.csv": (
+                    poll_fields,
+                    [row for row in poll_rows if row["workflow_id"] in ids],
+                ),
+                "submission-rows.csv": (
+                    submission_fields,
+                    [row for row in submission_rows if row["workflow_id"] in ids],
+                ),
+            }
+            for filename, (fields, rows) in datasets.items():
+                with (block_dir / filename).open("w", newline="", encoding="utf-8") as stream:
+                    writer = csv.DictWriter(stream, fieldnames=fields)
+                    writer.writeheader()
+                    writer.writerows(rows)
+            with (block_dir / "loadgen-summaries.jsonl").open("w", encoding="utf-8") as stream:
+                for _ in block_rows:
+                    stream.write(
+                        json.dumps(
+                            {
+                                "summary": {
+                                    "status": "PASS",
+                                    "accepted": 1,
+                                    "generator_cpu": {"status": "PASS"},
+                                }
+                            }
+                        )
+                        + "\n"
+                    )
+            blocks.append(
+                {
+                    "index": len(blocks) + 1,
+                    "source_block_name": block_name,
+                    "family": family,
+                    "latency_rows": len(block_rows),
+                    "submission_rows": len(block_rows),
+                    "source_sha256": {
+                        filename: ASSEMBLER.sha256_file(block_dir / filename)
+                        for filename in ASSEMBLER.BLOCK_FILES
+                    },
+                }
+            )
+    (root / "assembly.json").write_text(
+        json.dumps(
+            {
+                "schema": "dur050-pilot-calibration-assembly.v1",
+                "label": "CALIBRATION — NOT RESULTS",
+                "capacity_claim_use": "prohibited",
+                "block_count": 6,
+                "latency_rows": len(latency_rows),
+                "submission_rows": len(submission_rows),
+                "blocks": blocks,
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
 
 def test_slo_derivation_uses_valid_family_p95_and_frozen_formula(tmp_path: Path) -> None:
     calibration = tmp_path / "calibration"
@@ -153,11 +256,45 @@ def test_slo_derivation_uses_valid_family_p95_and_frozen_formula(tmp_path: Path)
     assert result["numeric_p99_slo_seconds"] == 5.0
     assert result["unloaded_observer_sampling"]["query_interval_p50_ms_nearest_rank"] == 50.0
     assert result["unloaded_observer_sampling"]["observer_qps_median"] == 19.5
-    assert set(result["input_sha256"]) == {
-        "unloaded-latency.csv",
-        "unloaded-observer-polls.csv",
-        "submission-rows.csv",
-    }
+    assert {"unloaded-latency.csv", "unloaded-observer-polls.csv", "submission-rows.csv"} <= set(
+        result["input_sha256"]
+    )
+    assert result["source_integrity"]["verified_source_block_count"] == 6
+    assert result["source_integrity"]["assembly_sha256"] == result["input_sha256"]["assembly.json"]
+    assert len(result["source_integrity"]["verified_source_files_sha256"]) == 24
+    assert len(result["source_integrity"]["verified_merged_views_sha256"]) == 3
+
+
+def test_slo_derivation_rejects_edited_merged_view_after_assembly(tmp_path: Path) -> None:
+    calibration = tmp_path / "calibration"
+    write_calibration(calibration)
+    path = calibration / "unloaded-latency.csv"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(",1000.0,", ",9000.0,", 1), encoding="utf-8"
+    )
+
+    try:
+        MODULE.derive(calibration)
+    except ValueError as error:
+        assert "differs from its source-block reconstruction" in str(error)
+    else:
+        raise AssertionError("SLO derivation accepted an edited merged view")
+
+
+def test_slo_derivation_rejects_edited_source_block_after_assembly(tmp_path: Path) -> None:
+    calibration = tmp_path / "calibration"
+    write_calibration(calibration)
+    path = calibration / "source-blocks" / "01-seq-8-1" / "unloaded-latency.csv"
+    path.write_text(
+        path.read_text(encoding="utf-8").replace(",1000.0,", ",9000.0,", 1), encoding="utf-8"
+    )
+
+    try:
+        MODULE.derive(calibration)
+    except ValueError as error:
+        assert "source block hash mismatch" in str(error)
+    else:
+        raise AssertionError("SLO derivation accepted an edited source block")
 
 
 def test_slo_derivation_withholds_number_below_minimum_sample_count(
@@ -179,22 +316,7 @@ def test_nearest_rank_uses_one_based_ceiling_rank() -> None:
 
 def test_slo_derivation_rejects_failed_observer_queries(tmp_path: Path) -> None:
     calibration = tmp_path / "calibration"
-    write_calibration(calibration)
-    poll_path = calibration / "unloaded-observer-polls.csv"
-    with poll_path.open("a", encoding="utf-8") as stream:
-        writer = csv.writer(stream)
-        writer.writerow(["poll_error", 3, "wf-1", 150_000_000, "", "", "synthetic failure"])
-        writer.writerow(
-            [
-                "summary",
-                3,
-                "",
-                150_000_000,
-                19.5,
-                50,
-                "queries=3 terminal_workflows_seen=1 failed_queries=1 observer_query_failures",
-            ]
-        )
+    write_calibration(calibration, failed_observer=True)
 
     try:
         MODULE.derive(calibration)
@@ -204,19 +326,30 @@ def test_slo_derivation_rejects_failed_observer_queries(tmp_path: Path) -> None:
         raise AssertionError("failed observer query was accepted as calibration")
 
 
-def test_slo_derivation_rejects_submission_or_observer_cohort_mismatch(tmp_path: Path) -> None:
+def test_slo_derivation_rejects_source_block_submission_cohort_mismatch(tmp_path: Path) -> None:
     calibration = tmp_path / "calibration"
     write_calibration(calibration)
-    submission_path = calibration / "submission-rows.csv"
+    source_dir = calibration / "source-blocks" / "01-seq-8-1"
+    submission_path = source_dir / "submission-rows.csv"
     with submission_path.open("a", encoding="utf-8") as stream:
-        stream.write("submission,unexpected-id,seq-8,accepted\n")
+        stream.write("submission,unexpected-id,seq-8,accepted\r\n")
+    assembly_path = calibration / "assembly.json"
+    assembly = json.loads(assembly_path.read_text(encoding="utf-8"))
+    assembly["blocks"][0]["submission_rows"] += 1
+    assembly["submission_rows"] += 1
+    assembly["blocks"][0]["source_sha256"]["submission-rows.csv"] = ASSEMBLER.sha256_file(
+        submission_path
+    )
+    assembly_path.write_text(
+        json.dumps(assembly, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+    )
 
     try:
         MODULE.derive(calibration)
     except ValueError as error:
-        assert "submission and latency workflow ID sets differ" in str(error)
+        assert "source block submission/latency IDs differ" in str(error)
     else:
-        raise AssertionError("SLO derivation accepted mismatched submission evidence")
+        raise AssertionError("SLO derivation accepted a source-block cohort mismatch")
 
 
 ASSEMBLER_PATH = (
@@ -390,6 +523,7 @@ def write_gate_inputs(root: Path) -> tuple[Path, Path]:
                     "pair_id": pair_id,
                     "mode": mode,
                     "run_id": run_id,
+                    "block_started_at_utc": f"2026-09-25T00:{len(manifest_rows):02d}:00Z",
                     "submissions_csv": submissions_path.name,
                 }
             )
@@ -441,6 +575,25 @@ def test_gate_overhead_summary_rejects_missing_transaction_evidence(tmp_path: Pa
     assert not output.exists()
 
 
+def test_gate_overhead_summary_rejects_manifest_out_of_execution_order(tmp_path: Path) -> None:
+    manifest, timings = write_gate_inputs(tmp_path / "inputs")
+    rows = list(csv.DictReader(manifest.open(newline="", encoding="utf-8")))
+    rows[1]["block_started_at_utc"] = rows[0]["block_started_at_utc"]
+    with manifest.open("w", newline="", encoding="utf-8") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer.writeheader()
+        writer.writerows(rows)
+    output = tmp_path / "out-of-order-summary"
+
+    try:
+        GATE_SUMMARY.summarize(manifest, timings, output)
+    except ValueError as error:
+        assert "strictly increasing execution start-time order" in str(error)
+    else:
+        raise AssertionError("gate summary accepted a manifest inconsistent with execution order")
+    assert not output.exists()
+
+
 FILTER_PATH = Path(__file__).resolve().parents[1] / "scripts" / "dur050-filter-txn-logs.py"
 FILTER_SPEC = importlib.util.spec_from_file_location("dur050_filter_txn_logs", FILTER_PATH)
 assert FILTER_SPEC is not None and FILTER_SPEC.loader is not None
@@ -462,7 +615,7 @@ def test_transaction_log_filter_selects_only_requested_run_and_is_immutable(
         "measurement_scope": "pool_begin_to_commit_return_including_pool_wait_network",
         "transaction_duration_us": 42,
     }
-    unrelated = {**row, "workflow_id": "dur050-calibration-other-000001"}
+    unrelated = {**row, "workflow_id": "dur050-calibration-run-a-extra-000001"}
     monkeypatch.setattr(
         sys,
         "stdin",

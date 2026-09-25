@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/csv"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -114,8 +116,8 @@ func TestBatchObserverWaitsForDoneMarkerAndKeepsAcceptedWorkUntilTerminal(t *tes
 	if err != nil {
 		t.Fatalf("batch observer with completion marker: %v", err)
 	}
-	if polls != 2 {
-		t.Fatalf("batch observer polls=%d; want it to wait for completion and then terminal state", polls)
+	if polls != 3 {
+		t.Fatalf("batch observer polls=%d; want one post-marker query before classifying absent IDs", polls)
 	}
 	rows, err := csv.NewReader(strings.NewReader(output.String())).ReadAll()
 	if err != nil {
@@ -160,8 +162,8 @@ func TestBatchObserverUsesCompletionMarkerToClassifyUnacceptedIDs(t *testing.T) 
 	if err != nil {
 		t.Fatalf("batch observer with completion marker: %v", err)
 	}
-	if polls != 2 {
-		t.Fatalf("batch observer polls=%d; want it to wait for completion and then terminal state", polls)
+	if polls != 3 {
+		t.Fatalf("batch observer polls=%d; want one post-marker query before classifying absent IDs", polls)
 	}
 	rows, err := csv.NewReader(strings.NewReader(output.String())).ReadAll()
 	if err != nil {
@@ -184,5 +186,126 @@ func TestBatchObserverUsesCompletionMarkerToClassifyUnacceptedIDs(t *testing.T) 
 	if !sawTerminal || !sawNotFound || !sawSummary {
 		t.Fatalf("missing accepted, absent, or valid summary row: terminal=%t not_found=%t summary=%t output=%s",
 			sawTerminal, sawNotFound, sawSummary, output.String())
+	}
+}
+
+func TestBatchObserverPollsAgainWhenMarkerAppearsDuringQuery(t *testing.T) {
+	var output bytes.Buffer
+	writer := csv.NewWriter(&output)
+	markerSeen := false
+	committed := false
+	polls := 0
+	completionDone := func() (bool, error) { return markerSeen, nil }
+	query := func(_ context.Context, ids []string) (map[string]workflowSnapshot, error) {
+		polls++
+		if polls == 1 {
+			// Model the database snapshot being taken before the accepted insert
+			// commits, then the commit and marker creation during this query.
+			snapshotBeforeCommit := map[string]workflowSnapshot{}
+			committed = true
+			markerSeen = true
+			return snapshotBeforeCommit, nil
+		}
+		if !committed {
+			t.Fatal("second poll ran before the simulated submission committed")
+		}
+		terminalAt := time.Now()
+		return map[string]workflowSnapshot{
+			ids[0]: {ID: ids[0], State: "SUCCEEDED", CreatedAt: terminalAt, UpdatedAt: terminalAt, TerminalAt: &terminalAt},
+		}, nil
+	}
+	err := observeUntil(context.Background(), writer, time.Millisecond, 100*time.Millisecond,
+		[]string{"late-accepted-workflow"}, completionDone, query)
+	if err != nil {
+		t.Fatalf("observer returned error after marker/query race: %v", err)
+	}
+	if polls != 2 {
+		t.Fatalf("poll count=%d, want a post-marker query after the stale snapshot", polls)
+	}
+	rows, err := csv.NewReader(strings.NewReader(output.String())).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var pendingBeforeMarker, notFound, terminalAfterMarker bool
+	for _, row := range rows {
+		if len(row) < len(columns) {
+			continue
+		}
+		if row[0] == "snapshot" && row[2] == "late-accepted-workflow" {
+			if row[1] == "1" && row[5] == "SUBMISSION_PENDING" {
+				pendingBeforeMarker = true
+			}
+			if row[5] == "NOT_FOUND" {
+				notFound = true
+			}
+		}
+		if row[0] == "first_terminal_observation" && row[2] == "late-accepted-workflow" && row[1] == "2" && row[5] == "SUCCEEDED" {
+			terminalAfterMarker = true
+		}
+	}
+	if !pendingBeforeMarker || notFound || !terminalAfterMarker {
+		t.Fatalf("marker/query race was misclassified: pending=%t not_found=%t terminal=%t rows=%s",
+			pendingBeforeMarker, notFound, terminalAfterMarker, output.String())
+	}
+}
+
+func TestBatchObserverLatchesCompletionMarkerOnceSeen(t *testing.T) {
+	var output bytes.Buffer
+	writer := csv.NewWriter(&output)
+	markerReads := 0
+	polls := 0
+	completionDone := func() (bool, error) {
+		markerReads++
+		return markerReads == 2, nil
+	}
+	query := func(_ context.Context, ids []string) (map[string]workflowSnapshot, error) {
+		polls++
+		if polls < 3 {
+			return map[string]workflowSnapshot{ids[0]: {ID: ids[0], State: "RUNNABLE"}}, nil
+		}
+		terminalAt := time.Now()
+		return map[string]workflowSnapshot{
+			ids[0]: {ID: ids[0], State: "SUCCEEDED", TerminalAt: &terminalAt},
+		}, nil
+	}
+	err := observeUntil(context.Background(), writer, time.Millisecond, 100*time.Millisecond,
+		[]string{"accepted-workflow", "absent-workflow"}, completionDone, query)
+	if err != nil {
+		t.Fatalf("observer returned error after latching the marker: %v", err)
+	}
+	if polls != 3 || markerReads != 2 {
+		t.Fatalf("polls=%d marker reads=%d, want 3 polls and no marker reads after latching", polls, markerReads)
+	}
+	rows, err := csv.NewReader(strings.NewReader(output.String())).ReadAll()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var sawAbsentAfterLatch bool
+	for _, row := range rows {
+		if len(row) >= len(columns) && row[0] == "snapshot" && row[2] == "absent-workflow" &&
+			row[1] == "3" && row[5] == "NOT_FOUND" && row[18] == "true" {
+			sawAbsentAfterLatch = true
+		}
+	}
+	if !sawAbsentAfterLatch {
+		t.Fatalf("absent ID was not classified after the latched marker: %s", output.String())
+	}
+}
+
+func TestReadSubmissionRowsRetainsAcceptedAndUncertainIDs(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "submissions.csv")
+	contents := "record_type,workflow_id,outcome,http_status\n" +
+		"submission,accepted-id,accepted,201\n" +
+		"submission,uncertain-id,ambiguous,\n" +
+		"submission,rejected-id,rejected,503\n"
+	if err := os.WriteFile(path, []byte(contents), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	rows, err := readSubmissionRows(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(rows) != 3 || rows[0].WorkflowID != "accepted-id" || rows[1].Outcome != "ambiguous" || rows[2].HTTPStatus != "503" {
+		t.Fatalf("submission reconciliation rows = %#v", rows)
 	}
 }

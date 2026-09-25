@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import csv
 import hashlib
+import io
 import json
 import math
 from pathlib import Path
@@ -13,6 +14,13 @@ from typing import Any
 
 MINIMUM_VALID_SAMPLES_PER_FAMILY = 300
 FORMULA_VERSION = "dur050-pilot-slo.v1"
+SOURCE_BLOCK_FILES = (
+    "unloaded-latency.csv",
+    "unloaded-observer-polls.csv",
+    "submission-rows.csv",
+    "loadgen-summaries.jsonl",
+)
+MERGED_VIEW_FILES = SOURCE_BLOCK_FILES[:3]
 
 
 def nearest_rank(values: list[float], percentile: float) -> float:
@@ -31,6 +39,116 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def read_csv_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
+    with path.open(newline="", encoding="utf-8") as stream:
+        reader = csv.DictReader(stream)
+        if reader.fieldnames is None:
+            raise ValueError(f"CSV has no header: {path}")
+        return list(reader.fieldnames), list(reader)
+
+
+def verify_source_blocks(calibration_dir: Path) -> dict[str, Any]:
+    assembly_path = calibration_dir / "assembly.json"
+    if not assembly_path.is_file():
+        raise FileNotFoundError("required pilot input is missing: assembly.json")
+    assembly = json.loads(assembly_path.read_text(encoding="utf-8"))
+    if assembly.get("schema") != "dur050-pilot-calibration-assembly.v1":
+        raise ValueError("unsupported or missing pilot calibration assembly schema")
+    blocks = assembly.get("blocks")
+    if not isinstance(blocks, list) or len(blocks) != 6 or assembly.get("block_count") != 6:
+        raise ValueError("assembly must describe exactly six source blocks")
+
+    family_counts: dict[str, int] = {}
+    seen_directories: set[str] = set()
+    merged_rows: dict[str, tuple[list[str], list[dict[str, str]]]] = {}
+    verified_source_hashes: dict[str, str] = {}
+    total_latency_rows = 0
+    total_submission_rows = 0
+    for expected_index, block in enumerate(blocks, start=1):
+        if not isinstance(block, dict) or block.get("index") != expected_index:
+            raise ValueError("assembly source block indexes must be ordered from 1 through 6")
+        source_name = block.get("source_block_name", "")
+        if (
+            not source_name
+            or Path(source_name).name != source_name
+            or source_name in seen_directories
+        ):
+            raise ValueError("assembly contains an unsafe or repeated source block name")
+        seen_directories.add(source_name)
+        family = block.get("family", "")
+        if family not in {"seq-8", "fanout-8"}:
+            raise ValueError(f"assembly contains an unsupported family: {family!r}")
+        family_counts[family] = family_counts.get(family, 0) + 1
+        source_dir = calibration_dir / "source-blocks" / f"{expected_index:02d}-{source_name}"
+        recorded_hashes = block.get("source_sha256")
+        if not isinstance(recorded_hashes, dict) or set(recorded_hashes) != set(SOURCE_BLOCK_FILES):
+            raise ValueError(f"assembly has an incomplete source hash map for {source_name}")
+
+        block_rows: dict[str, tuple[list[str], list[dict[str, str]]]] = {}
+        for filename in SOURCE_BLOCK_FILES:
+            path = source_dir / filename
+            actual_hash = sha256_file(path)
+            if actual_hash != recorded_hashes[filename]:
+                raise ValueError(f"source block hash mismatch for {source_dir.name}/{filename}")
+            verified_source_hashes[f"source-blocks/{source_dir.name}/{filename}"] = actual_hash
+            if filename in MERGED_VIEW_FILES:
+                fields, rows = read_csv_rows(path)
+                block_rows[filename] = (fields, rows)
+
+        latency_rows = block_rows["unloaded-latency.csv"][1]
+        submission_rows = block_rows["submission-rows.csv"][1]
+        if len(latency_rows) != block.get("latency_rows") or len(submission_rows) != block.get(
+            "submission_rows"
+        ):
+            raise ValueError(f"assembly row counts do not match source block {source_name}")
+        total_latency_rows += len(latency_rows)
+        total_submission_rows += len(submission_rows)
+        if {row.get("family", "") for row in latency_rows} != {family}:
+            raise ValueError(f"source block family does not match assembly for {source_name}")
+        latency_ids = {row.get("workflow_id", "") for row in latency_rows}
+        submission_ids = {row.get("workflow_id", "") for row in submission_rows}
+        if not latency_ids or latency_ids != submission_ids:
+            raise ValueError(f"source block submission/latency IDs differ for {source_name}")
+
+        for filename, (fields, rows) in block_rows.items():
+            if filename not in merged_rows:
+                merged_rows[filename] = (fields, [])
+            current_fields, all_rows = merged_rows[filename]
+            if current_fields != fields:
+                raise ValueError(f"source block CSV headers differ for {filename}")
+            all_rows.extend(rows)
+
+    if family_counts != {"seq-8": 3, "fanout-8": 3}:
+        raise ValueError(f"assembly needs three source blocks per family, found {family_counts}")
+    if (
+        assembly.get("latency_rows") != total_latency_rows
+        or assembly.get("submission_rows") != total_submission_rows
+    ):
+        raise ValueError("assembly totals do not match the verified source block rows")
+
+    merged_hashes: dict[str, str] = {}
+    for filename in MERGED_VIEW_FILES:
+        fields, rows = merged_rows[filename]
+        rebuilt = io.StringIO(newline="")
+        writer = csv.DictWriter(rebuilt, fieldnames=fields)
+        writer.writeheader()
+        writer.writerows(rows)
+        rebuilt_bytes = rebuilt.getvalue().encode("utf-8")
+        merged_path = calibration_dir / filename
+        if merged_path.read_bytes() != rebuilt_bytes:
+            raise ValueError(
+                f"merged calibration view {filename} differs from its source-block reconstruction"
+            )
+        merged_hashes[filename] = sha256_file(merged_path)
+
+    return {
+        "assembly_sha256": sha256_file(assembly_path),
+        "verified_source_block_count": len(blocks),
+        "verified_source_files_sha256": verified_source_hashes,
+        "verified_merged_views_sha256": merged_hashes,
+    }
 
 
 def observer_sampling_metrics(
@@ -152,6 +270,8 @@ def derive(calibration_dir: Path) -> dict[str, Any]:
     missing = [str(path.name) for path in input_paths if not path.is_file()]
     if missing:
         raise FileNotFoundError(f"required pilot inputs are missing: {', '.join(missing)}")
+
+    source_integrity = verify_source_blocks(calibration_dir)
 
     with latency_path.open(newline="", encoding="utf-8") as stream:
         rows = list(csv.DictReader(stream))
@@ -323,7 +443,12 @@ def derive(calibration_dir: Path) -> dict[str, Any]:
         "unloaded_observer_sampling": observer_metrics,
         "validity_max_preterminal_gap_ms": 100,
         "percentile_method": "one-based nearest rank ceil(p*N)",
-        "input_sha256": {path.name: sha256_file(path) for path in input_paths},
+        "input_sha256": {
+            **{path.name: sha256_file(path) for path in input_paths},
+            "assembly.json": source_integrity["assembly_sha256"],
+            **source_integrity["verified_source_files_sha256"],
+        },
+        "source_integrity": source_integrity,
         "families": family_stats,
         "slo_formula": "ceil_to_0.5s(max(2.5s, 2 * max(family_p95_seconds) + 1.0s))",
         "formula_inputs": formula_inputs,

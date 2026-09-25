@@ -25,7 +25,10 @@ def main() -> int:
     if any(re.fullmatch(r"[A-Za-z0-9-]{1,48}", run_id) is None for run_id in run_ids):
         print("run IDs must be 1-48 ASCII letters, digits, or hyphens", file=sys.stderr)
         return 2
-    prefixes = [(f"{namespace}-{run_id}-", run_id) for run_id in run_ids]
+    run_patterns = [
+        (re.compile(rf"^{re.escape(namespace)}-{re.escape(run_id)}-\d{{6}}$"), run_id)
+        for run_id in run_ids
+    ]
     count = 0
     try:
         with output_path.open("x", encoding="utf-8") as output:
@@ -50,7 +53,7 @@ def main() -> int:
                     print("DUR050_TXN workflow_id must be a string", file=sys.stderr)
                     return 1
                 matching_run = next(
-                    (run_id for prefix, run_id in prefixes if workflow_id.startswith(prefix)),
+                    (run_id for pattern, run_id in run_patterns if pattern.fullmatch(workflow_id)),
                     None,
                 )
                 if matching_run is None:

@@ -87,11 +87,14 @@ latency observations.
 
 For a concurrent one-second batch observation, prebuild the exact scheduled ID
 file and start the observer before the load generator. Pass a unique
-`-done-file`; create that marker only after the generator exits. Until then,
-missing IDs remain pending. After the marker appears, IDs still absent are
-recorded as `NOT_FOUND` (not accepted), while every present workflow is observed
-through terminal state. Reconcile those rows against the load-generator CSV;
-the observer alone does not decide acceptance.
+`-done-file`; create that marker only after the generator exits. The observer
+checks and latches the marker before each query. Until a query starts after the
+marker was observed, missing IDs remain `SUBMISSION_PENDING`; only a later
+query may record them as `NOT_FOUND`. Present workflows are observed through
+terminal state. `dur050-run-window.sh` then uses observer mode `reconcile` to
+look up every scheduled ID directly with the read-only role and runs a
+fail-closed reconciliation: every accepted ID must have exactly one first
+terminal observation, and no accepted ID may be `NOT_FOUND`.
 
 For the protocol's five-minute generator-only calibration, run this from the
 repository root on the generator host with a unique output directory:

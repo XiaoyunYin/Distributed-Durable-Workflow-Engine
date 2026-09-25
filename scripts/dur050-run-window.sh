@@ -50,6 +50,8 @@ expected_ids="$output_dir/scheduled-workflow-ids.txt"
 accepted_ids="$output_dir/accepted-workflow-ids.txt"
 observer_csv="$output_dir/observer.csv"
 load_csv="$output_dir/submissions.csv"
+submission_reconciliation_csv="$output_dir/submission-reconciliation.csv"
+window_validation_json="$output_dir/window-reconciliation.json"
 done_file="$output_dir/submissions.done"
 
 for ((sequence = 1; sequence <= count; sequence++)); do
@@ -139,10 +141,38 @@ if [[ -n "$pidstat_pid" ]]; then
   pidstat_pid=
 fi
 
-printf 'loadgen_exit=%d\nobserver_exit=%d\n' "$loadgen_status" "$observer_status" >> "$output_dir/run-metadata.txt"
-if (( loadgen_status != 0 || observer_status != 0 )); then
+reconciliation_status=1
+if [[ -s "$load_csv" ]]; then
+  set +e
+  "$(dirname "$0")/../bin/dur050-observer" \
+    -mode reconcile \
+    -submissions-file "$load_csv" \
+    -output "$submission_reconciliation_csv" \
+    -timeout 5m > "$output_dir/submission-reconciliation.log" 2>&1
+  reconciliation_status=$?
+  set -e
+else
+  echo "load-generator submission CSV is missing; cannot reconcile uncertain outcomes" \
+    > "$output_dir/submission-reconciliation.log"
+fi
+
+validation_status=1
+set +e
+python3 "$(dirname "$0")/dur050-reconcile-window.py" \
+  "$load_csv" "$accepted_ids" "$observer_csv" \
+  "$submission_reconciliation_csv" "$window_validation_json" \
+  > "$output_dir/window-validation.log" 2>&1
+validation_status=$?
+set -e
+
+printf 'loadgen_exit=%d\nobserver_exit=%d\nsubmission_reconciliation_exit=%d\nwindow_validation_exit=%d\n' \
+  "$loadgen_status" "$observer_status" "$reconciliation_status" "$validation_status" \
+  >> "$output_dir/run-metadata.txt"
+if (( loadgen_status != 0 || observer_status != 0 || reconciliation_status != 0 || validation_status != 0 )); then
   cat "$output_dir/loadgen.log" >&2 || true
   cat "$output_dir/observer.log" >&2 || true
+  cat "$output_dir/submission-reconciliation.log" >&2 || true
+  cat "$output_dir/window-validation.log" >&2 || true
   exit 1
 fi
 
