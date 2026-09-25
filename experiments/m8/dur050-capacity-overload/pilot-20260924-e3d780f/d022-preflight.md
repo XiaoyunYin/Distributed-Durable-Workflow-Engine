@@ -1,7 +1,7 @@
 # DUR-050 D022 preflight (no apply)
 
 **Observed:** 2026-09-24, `admin-learning`, `us-west-1`
-**Source commit:** `e3d780fd4ff51c6671f384a1b7028d301652b748`
+**Source commit:** `aa7de7e05a6dc534f9771063a2e20729f0f10520`
 **Status:** read-only technical preflight passed; account-control prerequisites
 pending approval; no resources created; not measurement evidence.
 
@@ -50,6 +50,15 @@ pending approval; no resources created; not measurement evidence.
   vCPU**, below the 32-vCPU quota. The plan contains 31 creates, zero changes,
   and zero destroys. All 23 taggable resources carry `Task=DUR-050`,
   `Environment=portfolio-capacity`, and `ExpiresAt=2026-10-07T00:00:00Z`.
+- Fresh no-apply plan was generated from source commit `aa7de7e` with Terraform
+  **1.16.4** at `deploy/aws/.terraform/dur050-preflight-aa7de7e.tfplan`.
+  SHA-256: `C22D814002CE14D5D6B1A6DDA42355E96291B0DCDB5969F8E435BEBEED4FAD6D`.
+  The plan JSON was inspected without printing secret values: **31 creates, 0
+  updates, 0 deletes; 4 instances (3 `c7i.large`, 1 `m7i.large`); 23/23
+  taggable creates have the expected three tags; 8 planned vCPU**. This saved
+  plan is local and ignored. It is not authorization to apply and must be
+  regenerated if inputs, state, or source change. Apply, if later authorized,
+  must use Terraform 1.16.4.
 - The plan contains no NAT gateway, load balancer, or EKS resources. Inbound
   rules include only app API port 8080 from the load-generator security group,
   PostgreSQL 5432 from app and load-generator security groups, and Kafka 9092
