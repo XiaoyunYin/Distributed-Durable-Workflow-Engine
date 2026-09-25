@@ -36,7 +36,7 @@ func TestM2SchedulerContinuesAfterContendedPartition(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
-	blockedID, blockedPartition, freeID, freePartition := r096WorkflowPair(t)
+	blockedID, blockedPartition, freeID, freePartition := r096WorkflowPair(t, ctx, store)
 	for _, item := range []struct {
 		id        string
 		partition int16
@@ -120,9 +120,31 @@ func TestM2SchedulerContinuesAfterContendedPartition(t *testing.T) {
 	}
 }
 
-func r096WorkflowPair(t *testing.T) (blockedID string, blockedPartition int16, freeID string, freePartition int16) {
+func r096WorkflowPair(t *testing.T, ctx context.Context, store *state.Store) (blockedID string, blockedPartition int16, freeID string, freePartition int16) {
 	t.Helper()
-	for i := 0; i < 2000; i++ {
+	rows, err := store.Pool().Query(ctx, `SELECT partition_id FROM engine.partition_leases
+		WHERE owner_id IS NULL OR lease_expires_at <= clock_timestamp()`)
+	if err != nil {
+		t.Fatalf("find unleased fixture partitions: %v", err)
+	}
+	available := map[int16]struct{}{}
+	for rows.Next() {
+		var partitionID int16
+		if err := rows.Scan(&partitionID); err != nil {
+			rows.Close()
+			t.Fatalf("scan unleased fixture partition: %v", err)
+		}
+		available[partitionID] = struct{}{}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		t.Fatalf("read unleased fixture partitions: %v", err)
+	}
+	rows.Close()
+	if len(available) < 2 {
+		t.Fatalf("need two unleased partitions for the R096 fixture; found %d", len(available))
+	}
+	for i := 0; i < 10000; i++ {
 		blockedID = fmt.Sprintf("r096-blocked-%04d-%s", i, state.NewID())
 		freeID = fmt.Sprintf("r096-free-%04d-%s", i, state.NewID())
 		blockedMapped, err := partition.ID(blockedID)
@@ -133,7 +155,9 @@ func r096WorkflowPair(t *testing.T) (blockedID string, blockedPartition int16, f
 		if err != nil {
 			t.Fatal(err)
 		}
-		if blockedMapped != freeMapped {
+		_, blockedAvailable := available[int16(blockedMapped)]
+		_, freeAvailable := available[int16(freeMapped)]
+		if blockedMapped != freeMapped && blockedAvailable && freeAvailable {
 			return blockedID, int16(blockedMapped), freeID, int16(freeMapped)
 		}
 	}

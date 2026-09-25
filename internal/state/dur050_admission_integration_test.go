@@ -20,6 +20,29 @@ func TestDUR050AdmissionConcurrentCapsIdempotencyAndNamespaceIsolation(t *testin
 	definitionID := createDur050ControlDefinition(t, ctx, store)
 	var createdIDs []string
 	t.Cleanup(func() { cleanupDur050Workflows(t, store, createdIDs, definitionID) })
+	var lease Lease
+	var acquired bool
+	for partitionIndex := uint64(0); partitionIndex < partition.PartitionCount; partitionIndex++ {
+		candidate, ok, acquireErr := store.AcquireLease(ctx, int16(partitionIndex), NewID(), time.Minute)
+		if acquireErr != nil {
+			if errors.Is(acquireErr, ErrLeaseAcquisitionTimeout) {
+				continue
+			}
+			t.Fatalf("find free fixture lease partition %d: %v", partitionIndex, acquireErr)
+		}
+		if ok {
+			lease, acquired = candidate, true
+			break
+		}
+	}
+	if !acquired {
+		t.Fatal("could not acquire an unleased partition for the admission-cap fixture")
+	}
+	defer func() {
+		if err := store.ReleaseLease(context.Background(), LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}); err != nil {
+			t.Errorf("release admission-cap fixture lease: %v", err)
+		}
+	}()
 
 	type outcome struct {
 		input   CreateWorkflowInput
@@ -31,7 +54,7 @@ func TestDUR050AdmissionConcurrentCapsIdempotencyAndNamespaceIsolation(t *testin
 	var wait sync.WaitGroup
 	var limitedInput CreateWorkflowInput
 	for index := 0; index < submitters; index++ {
-		input := dur050CreateInput(namespace, definitionID, "parallel-"+NewID())
+		input := dur050CreateInputForPartition(t, namespace, definitionID, "parallel-"+NewID(), lease.PartitionID)
 		createdIDs = append(createdIDs, input.WorkflowID)
 		wait.Add(1)
 		go func(input CreateWorkflowInput) {
@@ -73,14 +96,9 @@ func TestDUR050AdmissionConcurrentCapsIdempotencyAndNamespaceIsolation(t *testin
 	if err != nil {
 		t.Fatal(err)
 	}
-	ownerID := NewID()
-	lease, acquired, err := store.AcquireLease(ctx, acceptedWorkflow.PartitionID, ownerID, time.Minute)
-	if err != nil || !acquired {
-		t.Fatalf("acquire lease to free active slot: lease=%+v acquired=%t err=%v", lease, acquired, err)
+	if acceptedWorkflow.PartitionID != lease.PartitionID {
+		t.Fatalf("accepted workflow partition=%d, fixture lease partition=%d", acceptedWorkflow.PartitionID, lease.PartitionID)
 	}
-	defer func() {
-		_ = store.ReleaseLease(context.Background(), LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch})
-	}()
 	if _, err := store.AdvanceGraph(ctx, AdvanceGraphInput{Lease: LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch},
 		WorkflowID: acceptedWorkflow.WorkflowID, FromNodeID: "root", ExpectedRevision: acceptedWorkflow.Revision,
 		FinalWorkflowState: StateSucceeded, FinalNodeState: StateSucceeded, ActorID: "dur050-test"}); err != nil {

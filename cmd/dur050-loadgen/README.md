@@ -88,8 +88,14 @@ then run from a second shell (the observer must remain off):
   -output /var/tmp/dur050-sink-requests.csv
 ```
 
-Run the load generator under `pidstat -I -h -r -u -p <loadgen-pid> 1` and
-retain its timestamped samples beside the request artifacts.
+The generator samples its own process CPU once per second and embeds every
+interval in the summary JSON. CPU is normalized per logical core to match
+`pidstat -I`; a run fails closed if CPU exceeds 80% for more than 1% of the
+measurement window, if samples are missing, or if a sampling gap exceeds two
+seconds. Run the independent host-side check under
+`pidstat -I -h -r -u -p <loadgen-pid> 1` as well and retain its timestamped
+samples beside the request artifacts. The internal series is the validity gate;
+`pidstat` is a cross-check and records memory/host context.
 
 The sink refuses non-loopback binds and acknowledges request IDs without a
 database, broker, or workflow mutation. Preserve the request CSV, summary JSON,

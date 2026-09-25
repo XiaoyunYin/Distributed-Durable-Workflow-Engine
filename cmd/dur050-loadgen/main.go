@@ -18,6 +18,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strings"
 	"sync"
@@ -104,24 +105,25 @@ type requestRecord struct {
 }
 
 type runSummary struct {
-	Schema                string  `json:"schema"`
-	Status                string  `json:"status"`
-	ClockModel            string  `json:"clock_model"`
-	Namespace             string  `json:"namespace"`
-	RunID                 string  `json:"run_id"`
-	Seed                  int64   `json:"seed"`
-	OfferedRatePerSecond  float64 `json:"offered_rate_per_second"`
-	Scheduled             int     `json:"scheduled"`
-	Submitted             int     `json:"submitted"`
-	Accepted              int     `json:"accepted"`
-	Rejected              int     `json:"rejected"`
-	Ambiguous             int     `json:"ambiguous"`
-	GeneratorCapacityMiss int     `json:"generator_capacity_missed"`
-	P99ScheduleDelayMS    float64 `json:"p99_schedule_to_submit_ms"`
-	MaxScheduleDelayMS    float64 `json:"max_schedule_to_submit_ms"`
-	MaxInFlight           int     `json:"max_in_flight"`
-	RetryLimit            int     `json:"retry_limit"`
-	InvalidReason         string  `json:"invalid_reason,omitempty"`
+	Schema                string               `json:"schema"`
+	Status                string               `json:"status"`
+	ClockModel            string               `json:"clock_model"`
+	Namespace             string               `json:"namespace"`
+	RunID                 string               `json:"run_id"`
+	Seed                  int64                `json:"seed"`
+	OfferedRatePerSecond  float64              `json:"offered_rate_per_second"`
+	Scheduled             int                  `json:"scheduled"`
+	Submitted             int                  `json:"submitted"`
+	Accepted              int                  `json:"accepted"`
+	Rejected              int                  `json:"rejected"`
+	Ambiguous             int                  `json:"ambiguous"`
+	GeneratorCapacityMiss int                  `json:"generator_capacity_missed"`
+	P99ScheduleDelayMS    float64              `json:"p99_schedule_to_submit_ms"`
+	MaxScheduleDelayMS    float64              `json:"max_schedule_to_submit_ms"`
+	MaxInFlight           int                  `json:"max_in_flight"`
+	RetryLimit            int                  `json:"retry_limit"`
+	GeneratorCPU          cpuValidationSummary `json:"generator_cpu"`
+	InvalidReason         string               `json:"invalid_reason,omitempty"`
 }
 
 func main() {
@@ -185,7 +187,14 @@ func run(configPath string, rate float64, count int, duration time.Duration, out
 	client := newHTTPClient()
 	defer client.CloseIdleConnections()
 	endpoint := strings.TrimRight(config.APIURL, "/") + "/v1/workflows"
+	cpuSampler, err := startProcessCPUSampler(generatorCPUSamplingInterval)
+	if err != nil {
+		return fmt.Errorf("start required generator CPU sampler: %w", err)
+	}
+	measurementStart := cpuSampler.started
 	records, summary, err := runCampaign(ctx, client, endpoint, config, rate, count, requestTimeout)
+	cpuSamples, cpuSampleErr := cpuSampler.Stop()
+	applyCPUValidation(&summary, cpuSamples, time.Since(measurementStart), runtime.NumCPU(), cpuSampleErr)
 	if writeErr := writeArtifacts(outputPath, workflowIDsPath, records, summary); writeErr != nil {
 		if err != nil {
 			return errors.Join(err, writeErr)
@@ -430,7 +439,7 @@ func finishRecord(record requestRecord) requestRecord {
 
 func summarize(config campaignConfig, rate float64, records []requestRecord) runSummary {
 	values := make([]float64, 0, len(records))
-	result := runSummary{Schema: "dur050-loadgen.v1", Status: "PASS", ClockModel: "Linux CLOCK_MONOTONIC shared by generator and observer on one host/boot",
+	result := runSummary{Schema: "dur050-loadgen.v1", Status: "PENDING_CPU_VALIDATION", ClockModel: "Linux CLOCK_MONOTONIC shared by generator and observer on one host/boot",
 		Namespace: config.Namespace, RunID: config.RunID, Seed: config.Seed, OfferedRatePerSecond: rate,
 		Scheduled: len(records), MaxInFlight: requestConcurrency, RetryLimit: maxRequestAttempts}
 	for _, record := range records {

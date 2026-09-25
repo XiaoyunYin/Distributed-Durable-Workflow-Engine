@@ -7,6 +7,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -131,6 +132,59 @@ func TestConfigRequiresBothBalancedWorkloadFamilies(t *testing.T) {
 	config.Families = config.Families[:1]
 	if err := validateConfig(config); err == nil {
 		t.Fatal("one-family configuration unexpectedly passed")
+	}
+}
+
+func TestGeneratorCPUOver80PercentForMoreThanOnePercentFails(t *testing.T) {
+	samples := make([]cpuIntervalSample, 100)
+	for index := range samples {
+		cpuPercent := 20.0
+		if index < 2 {
+			cpuPercent = 81
+		}
+		samples[index] = cpuIntervalSample{StartElapsedSeconds: float64(index), EndElapsedSeconds: float64(index + 1), CPUPercent: cpuPercent}
+	}
+	summary := runSummary{Status: "PENDING_CPU_VALIDATION"}
+	applyCPUValidation(&summary, samples, 100*time.Second, 2, nil)
+	if summary.Status != "FAIL" || summary.GeneratorCPU.Status != "FAIL" {
+		t.Fatalf("over-limit CPU series passed: %+v", summary)
+	}
+	if summary.GeneratorCPU.OverThresholdRatio != 0.02 {
+		t.Fatalf("over-threshold ratio=%f, want 0.02", summary.GeneratorCPU.OverThresholdRatio)
+	}
+	if !strings.Contains(summary.InvalidReason, "exceeded 80% for more than 1%") {
+		t.Fatalf("failure does not name the protocol CPU rule: %q", summary.InvalidReason)
+	}
+	encoded, err := json.Marshal(summary)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(encoded), `"cpu_percent_normalized_per_core"`) || !strings.Contains(string(encoded), `"samples"`) {
+		t.Fatalf("CPU interval series is missing from the JSON summary: %s", encoded)
+	}
+}
+
+func TestGeneratorCPUAtExactlyOnePercentDoesNotFail(t *testing.T) {
+	samples := make([]cpuIntervalSample, 100)
+	for index := range samples {
+		cpuPercent := 80.0
+		if index == 0 {
+			cpuPercent = 80.01
+		}
+		samples[index] = cpuIntervalSample{StartElapsedSeconds: float64(index), EndElapsedSeconds: float64(index + 1), CPUPercent: cpuPercent}
+	}
+	summary := runSummary{Status: "PENDING_CPU_VALIDATION"}
+	applyCPUValidation(&summary, samples, 100*time.Second, 2, nil)
+	if summary.Status != "PASS" || summary.GeneratorCPU.OverThresholdRatio != 0.01 {
+		t.Fatalf("CPU exactly at allowed overage should pass: %+v", summary)
+	}
+}
+
+func TestGeneratorCPUValidationFailsWithoutSamples(t *testing.T) {
+	summary := runSummary{Status: "PENDING_CPU_VALIDATION"}
+	applyCPUValidation(&summary, nil, time.Minute, 2, nil)
+	if summary.Status != "FAIL" || !strings.Contains(summary.InvalidReason, "no valid measurement window or samples") {
+		t.Fatalf("missing CPU evidence did not fail closed: %+v", summary)
 	}
 }
 
