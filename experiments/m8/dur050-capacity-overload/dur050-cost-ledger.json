@@ -32,6 +32,14 @@
         "instance_launch_at_utc": "2026-09-25T10:35:05Z",
         "availability_zone": "us-west-1a",
         "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
+      },
+      {
+        "cycle_id": "cycle-2-4c625b3",
+        "instance_id": "i-08b8632f1c3ef80d0",
+        "instance_type": "c7i.large",
+        "apply_started_at_utc": "2026-09-25T18:23:07.2055684Z",
+        "destroy_completed_at_utc": null,
+        "availability_zone": "us-west-1a"
       }
     ],
     "app-2": [
@@ -44,6 +52,14 @@
         "instance_launch_at_utc": "2026-09-25T10:35:05Z",
         "availability_zone": "us-west-1c",
         "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
+      },
+      {
+        "cycle_id": "cycle-2-4c625b3",
+        "instance_id": "i-0eda5443fea88fe0a",
+        "instance_type": "c7i.large",
+        "apply_started_at_utc": "2026-09-25T18:23:07.2055684Z",
+        "destroy_completed_at_utc": null,
+        "availability_zone": "us-west-1c"
       }
     ],
     "dependency": [
@@ -56,6 +72,14 @@
         "instance_launch_at_utc": "2026-09-25T10:34:53Z",
         "availability_zone": "us-west-1a",
         "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
+      },
+      {
+        "cycle_id": "cycle-2-4c625b3",
+        "instance_id": "i-07b53b0242fa9851f",
+        "instance_type": "m7i.large",
+        "apply_started_at_utc": "2026-09-25T18:23:07.2055684Z",
+        "destroy_completed_at_utc": null,
+        "availability_zone": "us-west-1a"
       }
     ],
     "load-generator": [
@@ -68,6 +92,14 @@
         "instance_launch_at_utc": "2026-09-25T10:34:51Z",
         "availability_zone": "us-west-1a",
         "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
+      },
+      {
+        "cycle_id": "cycle-2-4c625b3",
+        "instance_id": "i-0872b6791d08cb577",
+        "instance_type": "c7i.large",
+        "apply_started_at_utc": "2026-09-25T18:23:07.2055684Z",
+        "destroy_completed_at_utc": null,
+        "availability_zone": "us-west-1a"
       }
     ]
   },

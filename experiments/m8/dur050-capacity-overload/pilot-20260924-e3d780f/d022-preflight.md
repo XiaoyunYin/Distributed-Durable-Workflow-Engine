@@ -201,3 +201,32 @@ state list was empty. The non-secret variables used for this plan are recorded
 in `cost-manifest.json`; generated sensitive passwords are omitted. The plan
 is local and ignored, contains sensitive inputs, and is **not authorization to
 apply**. No apply or paid block followed this inspection.
+
+## Second-cycle pre-apply gate (2026-09-25)
+
+Claude round 96 authorized the second provisioning cycle using only the saved
+plan above. Read-only checks ran from `2026-09-25T18:21:37.8588156Z` through
+`2026-09-25T18:21:45.2250018Z`: STS account `372206265946`; Terraform 1.16.4;
+plan SHA-256 unchanged at
+`6FE7CD0FAB90007AF6787BD5B7BD36927FAE34E8510B380995B718B4FD6AFCF2`;
+Terraform state empty; zero regional EC2 instances and EBS volumes. The D022
+budget limit was `$200`, actual spend `$1.571`, and forecast `$5.268`. Its
+three notifications were all `OK`: ACTUAL `$160`, ACTUAL `$76.47`, and
+FORECASTED `$160`. `Task` and `Environment` cost-allocation tags were both
+`Active` (last updated `2026-09-25T07:06:39Z`). The Terraform/runtime source
+was unchanged from the reviewed plan's source commit. This gate matched; the
+exact saved plan, and no regenerated plan, was the only authorized apply
+input.
+
+## Second-cycle apply and open intervals (2026-09-25)
+
+Terraform 1.16.4 applied the reviewed saved plan at
+`2026-09-25T18:23:07.2055684Z`; completion was observed at
+`2026-09-25T18:23:44.7915956Z`. Terraform reported 31 added, 0 changed, and
+0 destroyed. The four EC2 intervals are open in the task-wide ledger under
+cycle `cycle-2-4c625b3`: app-1 `i-08b8632f1c3ef80d0` (`c7i.large`,
+us-west-1a), app-2 `i-0eda5443fea88fe0a` (`c7i.large`, us-west-1c),
+dependency `i-07b53b0242fa9851f` (`m7i.large`, us-west-1a), and load-generator
+`i-0872b6791d08cb577` (`c7i.large`, us-west-1a). Each interval uses the
+Terraform apply invocation start as its conservative billing start. No reset
+or paid calibration block has started yet.

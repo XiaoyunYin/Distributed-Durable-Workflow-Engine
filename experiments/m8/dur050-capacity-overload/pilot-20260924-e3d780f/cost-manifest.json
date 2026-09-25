@@ -76,6 +76,53 @@
     "sensitive_inputs": "Fresh ephemeral passwords were provided through process environment variables and are intentionally not recorded. The local ignored saved plan contains sensitive values; do not publish or apply it.",
     "apply_performed": false
   },
+  "cycle_2_pre_apply_gate": {
+    "status": "PASS",
+    "checked_at_utc_start": "2026-09-25T18:21:37.8588156Z",
+    "checked_at_utc_end": "2026-09-25T18:21:45.2250018Z",
+    "account_id": "372206265946",
+    "region": "us-west-1",
+    "terraform_version": "1.16.4",
+    "plan_sha256": "6FE7CD0FAB90007AF6787BD5B7BD36927FAE34E8510B380995B718B4FD6AFCF2",
+    "terraform_state_resource_count": 0,
+    "regional_instance_count": 0,
+    "regional_volume_count": 0,
+    "budget": {
+      "name": "durable-engine-D022-aggregate-20260923",
+      "limit_usd": 200.0,
+      "actual_spend_usd": 1.571,
+      "forecasted_spend_usd": 5.268,
+      "notifications": [
+        {"type": "ACTUAL", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 160.0, "state": "OK"},
+        {"type": "ACTUAL", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 76.47, "state": "OK"},
+        {"type": "FORECASTED", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 160.0, "state": "OK"}
+      ]
+    },
+    "cost_allocation_tags": {
+      "Task": {"status": "Active", "last_updated_at_utc": "2026-09-25T07:06:39Z"},
+      "Environment": {"status": "Active", "last_updated_at_utc": "2026-09-25T07:06:39Z"}
+    },
+    "plan_actions_unchanged": true,
+    "apply_authority": "Claude round 96 authorizes only this exact saved plan with Terraform 1.16.4; no other plan or apply is authorized by this record."
+  },
+  "provisioning_cycle_2": {
+    "cycle_id": "cycle-2-4c625b3",
+    "reviewed_saved_plan": "deploy/aws/.terraform/dur050-preflight-4c625b3.tfplan",
+    "plan_sha256": "6FE7CD0FAB90007AF6787BD5B7BD36927FAE34E8510B380995B718B4FD6AFCF2",
+    "terraform_version": "1.16.4",
+    "source_commit": "4c625b3536da9f0334aa86bed01127914382fb34",
+    "apply_started_at_utc": "2026-09-25T18:23:07.2055684Z",
+    "apply_completed_observed_at_utc": "2026-09-25T18:23:44.7915956Z",
+    "result": { "added": 31, "changed": 0, "destroyed": 0 },
+    "interval_ledger": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
+    "hosts": [
+      { "role": "app-1", "instance_id": "i-08b8632f1c3ef80d0", "instance_type": "c7i.large", "availability_zone": "us-west-1a" },
+      { "role": "app-2", "instance_id": "i-0eda5443fea88fe0a", "instance_type": "c7i.large", "availability_zone": "us-west-1c" },
+      { "role": "dependency", "instance_id": "i-07b53b0242fa9851f", "instance_type": "m7i.large", "availability_zone": "us-west-1a" },
+      { "role": "load-generator", "instance_id": "i-0872b6791d08cb577", "instance_type": "c7i.large", "availability_zone": "us-west-1a" }
+    ],
+    "note": "Intervals are open until the common Terraform destroy completion is recorded."
+  },
   "destroy_input_strategy": "Use the non-secret Terraform profile recorded above, never recover values from a saved plan. Supply newly generated valid ephemeral password inputs only if Terraform requires them to evaluate a destroy plan; destroy targets come from state, not those replacement values.",
   "task_wide_ledger_migration": {
     "authoritative_ledger": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
