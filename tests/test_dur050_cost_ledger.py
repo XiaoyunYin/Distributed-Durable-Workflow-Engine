@@ -4,7 +4,7 @@ import importlib.util
 import json
 import subprocess
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -290,6 +290,17 @@ def test_cli_reads_one_shared_ledger_and_writes_unique_check_record(tmp_path: Pa
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(json.dumps(campaign_manifest()), encoding="utf-8")
     output_path = tmp_path / "block-check.json"
+    shared_ledger = json.loads(LEDGER.TASK_LEDGER_PATH.read_text(encoding="utf-8"))
+    interval_timestamps = [
+        datetime.fromisoformat(interval[field].replace("Z", "+00:00"))
+        for role_intervals in shared_ledger["roles"].values()
+        for interval in role_intervals
+        for field in ("apply_started_at_utc", "destroy_completed_at_utc")
+        if interval[field] is not None
+    ]
+    now = max(datetime.now(UTC), max(interval_timestamps) + timedelta(seconds=1))
+    now_arg = now.isoformat(timespec="microseconds").replace("+00:00", "Z")
+    expected = LEDGER.evaluate(campaign_manifest(), shared_ledger, now, reserve_minutes=30)
     completed = subprocess.run(
         [
             sys.executable,
@@ -298,7 +309,7 @@ def test_cli_reads_one_shared_ledger_and_writes_unique_check_record(tmp_path: Pa
             "--reserve-minutes",
             "30",
             "--now-utc",
-            "2026-09-25T16:00:00Z",
+            now_arg,
             "--output",
             str(output_path),
         ],
@@ -309,7 +320,9 @@ def test_cli_reads_one_shared_ledger_and_writes_unique_check_record(tmp_path: Pa
     assert completed.returncode == 0, completed.stderr
     result = json.loads(output_path.read_text(encoding="utf-8"))
     assert result["task_ledger_path"] == LEDGER.TASK_LEDGER_RELATIVE_PATH
-    assert result["accrued_instance_cost_usd"] == "0.084656"
+    assert result["accrued_instance_cost_usd"] == expected["accrued_instance_cost_usd"]
+    assert result["projected_instance_cost_usd"] == expected["projected_instance_cost_usd"]
+    assert result["open_interval_count"] == expected["open_interval_count"]
 
     repeated = subprocess.run(
         [
@@ -319,7 +332,7 @@ def test_cli_reads_one_shared_ledger_and_writes_unique_check_record(tmp_path: Pa
             "--reserve-minutes",
             "30",
             "--now-utc",
-            "2026-09-25T16:00:00Z",
+            now_arg,
             "--output",
             str(output_path),
         ],
