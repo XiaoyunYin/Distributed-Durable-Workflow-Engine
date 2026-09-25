@@ -25,7 +25,17 @@ def read_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
         reader = csv.DictReader(stream)
         if reader.fieldnames is None:
             raise ValueError(f"CSV has no header: {path}")
-        return list(reader.fieldnames), list(reader)
+        rows: list[dict[str, str]] = []
+        for row in reader:
+            if None in row:
+                raise ValueError(f"{path}:{reader.line_num}: CSV row width mismatch: extra fields")
+            missing = [name for name, value in row.items() if value is None]
+            if missing:
+                raise ValueError(
+                    f"{path}:{reader.line_num}: CSV row width mismatch: missing fields {missing}"
+                )
+            rows.append(row)
+        return list(reader.fieldnames), rows
 
 
 def sha256_file(path: Path) -> str:

@@ -30,7 +30,6 @@ database_name=${DUR050_DATABASE_NAME:?DUR050_DATABASE_NAME is required}
 mkdir -m 0700 -- "$output_dir"
 mkdir -m 0700 -- "$output_dir/runs"
 printf 'family,block_id,sample,run_id,workflow_id,outcome,terminal_state,scheduled_at_utc,scheduled_at_monotonic_ns,first_terminal_observed_at_utc,observed_at_monotonic_ns,observed_latency_ms,max_preterminal_gap_ms,query_count,observer_qps,valid,invalid_reason\n' > "$output_dir/unloaded-latency.csv"
-printf 'record_type,sequence,workflow_id,scheduled_at_utc,observed_at_utc,state,created_at_db,updated_at_db,terminal_transition_at_db,query_duration_ms,poll_gap_ms,max_poll_gap_ms,max_preterminal_gap_ms,observer_qps,valid,reason,scheduled_at_monotonic_ns,observed_at_monotonic_ns\n' > "$output_dir/unloaded-observer-polls.csv"
 : > "$output_dir/loadgen-summaries.jsonl"
 
 observer_password=$(aws ssm get-parameter \
@@ -126,7 +125,8 @@ with open(output_path, "a", newline="", encoding="utf-8") as stream:
     writer.writerow([family, block_id, sample, run_id, submission["workflow_id"], submission["outcome"], terminal["state"], submission["scheduled_at_utc"], submission["scheduled_at_monotonic_ns"], terminal["observed_at_utc"], terminal["observed_at_monotonic_ns"], f"{latency_ms:.6f}", terminal["max_preterminal_gap_ms"], query_match.group(1), summary["observer_qps"], str(valid).lower(), reason])
 PY
   jq -c --arg run_id "$run_id" --arg family "$family" '{run_id:$run_id,family:$family,summary:.}' "$run_dir/submission.csv.summary.json" >> "$output_dir/loadgen-summaries.jsonl"
-  tail -n +2 "$run_dir/observer.csv" >> "$output_dir/unloaded-observer-polls.csv"
+  python3 "$(dirname "$0")/dur050-append-observer-rows.py" \
+    "$run_dir/observer.csv" "$output_dir/unloaded-observer-polls.csv"
   if (( sample == 1 )); then
     cp "$run_dir/submission.csv" "$output_dir/submission-rows.csv"
     printf 'sample,run_id\n%d,%s\n' "$sample" "$run_id" > "$output_dir/submission-run-map.csv"

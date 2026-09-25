@@ -31,6 +31,7 @@ type workflowSnapshot struct {
 
 func main() {
 	mode := flag.String("mode", "", "fine, batch, or reconcile (post-window submission lookup)")
+	printCSVHeader := flag.Bool("print-csv-header", false, "write the canonical observer CSV header and exit")
 	workflowID := flag.String("workflow-id", "", "preassigned workflow ID for fine mode")
 	workflowIDsPath := flag.String("workflow-ids-file", "", "newline-delimited workflow IDs for batch mode")
 	submissionRowsPath := flag.String("submissions-file", "", "load-generator CSV to reconcile directly against PostgreSQL")
@@ -39,6 +40,17 @@ func main() {
 	databaseURL := flag.String("database-url", os.Getenv("DUR050_OBSERVER_DATABASE_URL"), "read-only PostgreSQL DSN; defaults to DUR050_OBSERVER_DATABASE_URL")
 	maximumDuration := flag.Duration("timeout", 30*time.Minute, "maximum observation duration")
 	flag.Parse()
+	if *printCSVHeader {
+		writer := csv.NewWriter(os.Stdout)
+		if err := writer.Write(columns); err != nil {
+			log.Fatal(err)
+		}
+		writer.Flush()
+		if err := writer.Error(); err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
 	if err := run(*mode, *workflowID, *workflowIDsPath, *submissionRowsPath, *doneFile, *outputPath, *databaseURL, *maximumDuration); err != nil {
 		log.Fatal(err)
 	}

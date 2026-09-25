@@ -1,17 +1,35 @@
 from __future__ import annotations
 
 import csv
+import functools
 import importlib.util
 import io
 import json
+import subprocess
 import sys
 from pathlib import Path
 
-SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts" / "dur050-derive-slo.py"
+REPO_ROOT = Path(__file__).resolve().parents[1]
+SCRIPT_PATH = REPO_ROOT / "scripts" / "dur050-derive-slo.py"
 SPEC = importlib.util.spec_from_file_location("dur050_derive_slo", SCRIPT_PATH)
 assert SPEC is not None and SPEC.loader is not None
 MODULE = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(MODULE)
+
+
+@functools.lru_cache(maxsize=1)
+def observer_csv_fields() -> list[str]:
+    result = subprocess.run(
+        ["go", "run", "./cmd/dur050-observer", "-print-csv-header"],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    records = list(csv.reader(io.StringIO(result.stdout)))
+    if len(records) != 1 or not records[0]:
+        raise AssertionError(f"observer emitted an invalid CSV header: {result.stdout!r}")
+    return records[0]
 
 
 LATENCY_FIELDS = [
@@ -137,17 +155,7 @@ def write_calibration(root: Path, *, valid_count: int = 300, failed_observer: bo
                     }
                 )
     with (root / "unloaded-observer-polls.csv").open("w", newline="", encoding="utf-8") as stream:
-        fields = [
-            "record_type",
-            "sequence",
-            "workflow_id",
-            "observed_at_monotonic_ns",
-            "observer_qps",
-            "max_poll_gap_ms",
-            "reason",
-            "state",
-            "valid",
-        ]
+        fields = observer_csv_fields()
         writer = csv.DictWriter(stream, fieldnames=fields)
         writer.writeheader()
         writer.writerows(poll_rows)
@@ -160,17 +168,7 @@ def write_calibration(root: Path, *, valid_count: int = 300, failed_observer: bo
 
     source_root = root / "source-blocks"
     source_root.mkdir()
-    poll_fields = [
-        "record_type",
-        "sequence",
-        "workflow_id",
-        "observed_at_monotonic_ns",
-        "observer_qps",
-        "max_poll_gap_ms",
-        "reason",
-        "state",
-        "valid",
-    ]
+    poll_fields = observer_csv_fields()
     submission_fields = ["record_type", "workflow_id", "family", "outcome"]
     blocks = []
     for family in ("seq-8", "fanout-8"):
@@ -263,6 +261,106 @@ def test_slo_derivation_uses_valid_family_p95_and_frozen_formula(tmp_path: Path)
     assert result["source_integrity"]["assembly_sha256"] == result["input_sha256"]["assembly.json"]
     assert len(result["source_integrity"]["verified_source_files_sha256"]) == 24
     assert len(result["source_integrity"]["verified_merged_views_sha256"]) == 3
+
+
+def test_real_observer_header_assembles_and_derives_end_to_end(tmp_path: Path) -> None:
+    source_fixture = tmp_path / "real-observer-schema"
+    write_calibration(source_fixture)
+    source_blocks = sorted((source_fixture / "source-blocks").iterdir())
+    output = tmp_path / "assembled-real-observer-schema"
+
+    subprocess.run(
+        [
+            sys.executable,
+            str(ASSEMBLER_PATH),
+            str(output),
+            *(str(block) for block in source_blocks),
+        ],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        [sys.executable, str(SCRIPT_PATH), str(output)],
+        cwd=REPO_ROOT,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    result = json.loads((output / "slo-derivation.json").read_text(encoding="utf-8"))
+
+    with (output / "unloaded-observer-polls.csv").open(newline="", encoding="utf-8") as stream:
+        assert next(csv.reader(stream)) == observer_csv_fields()
+    assert len(observer_csv_fields()) == 19
+    assert result["status"] == "PASS"
+    assert result["source_integrity"]["verified_merged_views_sha256"][
+        "unloaded-observer-polls.csv"
+    ]
+
+
+def test_csv_readers_reject_extra_and_missing_fields_with_file_and_line(tmp_path: Path) -> None:
+    path = tmp_path / "malformed.csv"
+    fields = [f"column-{index}" for index in range(18)]
+    header = ",".join(fields)
+    extra_row = ",".join([*(f"value-{index}" for index in range(18)), "extra"])
+    missing_row = ",".join(f"value-{index}" for index in range(17))
+    for text, width_error in (
+        (f"{header}\n{extra_row}\n", "extra fields"),
+        (f"{header}\n{missing_row}\n", "missing fields"),
+    ):
+        path.write_text(text, encoding="utf-8")
+        for reader in (ASSEMBLER.read_rows, MODULE.read_csv_rows):
+            try:
+                reader(path)
+            except ValueError as error:
+                assert str(path) in str(error)
+                assert ":2:" in str(error)
+                assert "width mismatch" in str(error)
+                assert width_error in str(error)
+            else:
+                raise AssertionError(f"{reader.__module__} accepted malformed CSV: {text!r}")
+
+
+def test_unloaded_runner_aggregates_observer_header_without_hardcoding(tmp_path: Path) -> None:
+    helper = REPO_ROOT / "scripts" / "dur050-append-observer-rows.py"
+    runner = (REPO_ROOT / "scripts" / "dur050-run-unloaded-block.sh").read_text(
+        encoding="utf-8"
+    )
+    assert "dur050-append-observer-rows.py" in runner
+    assert "record_type,sequence,workflow_id,scheduled_at_utc,observed_at_utc" not in runner
+
+    fields = observer_csv_fields()
+    source = tmp_path / "observer-1.csv"
+    destination = tmp_path / "unloaded-observer-polls.csv"
+
+    def write_observer(path: Path, header: list[str], workflow_id: str) -> None:
+        with path.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=header)
+            writer.writeheader()
+            writer.writerow({"record_type": "snapshot", "workflow_id": workflow_id})
+
+    write_observer(source, fields, "wf-1")
+    subprocess.run([sys.executable, str(helper), str(source), str(destination)], check=True)
+    write_observer(source, fields, "wf-2")
+    subprocess.run([sys.executable, str(helper), str(source), str(destination)], check=True)
+    with destination.open(newline="", encoding="utf-8") as stream:
+        rows = list(csv.DictReader(stream))
+    assert rows[0]["workflow_id"] == "wf-1"
+    assert rows[1]["workflow_id"] == "wf-2"
+    assert len(rows[1]) == len(fields)
+
+    mismatched = tmp_path / "observer-mismatched.csv"
+    write_observer(mismatched, fields[:-1], "wf-mismatch")
+    before = destination.read_bytes()
+    result = subprocess.run(
+        [sys.executable, str(helper), str(mismatched), str(destination)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode != 0
+    assert "header differs byte-for-byte" in result.stderr
+    assert destination.read_bytes() == before
 
 
 def test_slo_derivation_rejects_edited_merged_view_after_assembly(tmp_path: Path) -> None:

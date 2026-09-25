@@ -46,7 +46,17 @@ def read_csv_rows(path: Path) -> tuple[list[str], list[dict[str, str]]]:
         reader = csv.DictReader(stream)
         if reader.fieldnames is None:
             raise ValueError(f"CSV has no header: {path}")
-        return list(reader.fieldnames), list(reader)
+        rows: list[dict[str, str]] = []
+        for row in reader:
+            if None in row:
+                raise ValueError(f"{path}:{reader.line_num}: CSV row width mismatch: extra fields")
+            missing = [name for name, value in row.items() if value is None]
+            if missing:
+                raise ValueError(
+                    f"{path}:{reader.line_num}: CSV row width mismatch: missing fields {missing}"
+                )
+            rows.append(row)
+        return list(reader.fieldnames), rows
 
 
 def verify_source_blocks(calibration_dir: Path) -> dict[str, Any]:
@@ -163,47 +173,47 @@ def observer_sampling_metrics(
     reported_failed_queries = 0
     summary_failure_counts: list[int] = []
     query_rows = 0
-    with path.open(newline="", encoding="utf-8") as stream:
-        for row in csv.DictReader(stream):
-            if row.get("record_type") == "poll_error":
-                poll_error_rows += 1
-            elif row.get("record_type") == "snapshot":
-                workflow_id = row.get("workflow_id", "")
-                if not workflow_id:
-                    raise ValueError("observer snapshot is missing its workflow ID")
-                try:
-                    sequence = int(row["sequence"])
-                    observed_ns = int(row["observed_at_monotonic_ns"])
-                except (KeyError, TypeError, ValueError) as error:
-                    raise ValueError(
-                        "observer snapshot lacks monotonic sequence/timestamp"
-                    ) from error
-                observations.setdefault(workflow_id, []).append((sequence, observed_ns))
-                query_rows += 1
-            elif row.get("record_type") == "first_terminal_observation":
-                workflow_id = row.get("workflow_id", "")
-                if not workflow_id or workflow_id in terminal_observations:
-                    raise ValueError("observer terminal row has a missing or duplicate workflow ID")
-                try:
-                    terminal_observations[workflow_id] = {
-                        "sequence": int(row["sequence"]),
-                        "observed_at_monotonic_ns": int(row["observed_at_monotonic_ns"]),
-                        "state": row["state"],
-                        "valid": row["valid"].lower() == "true",
-                    }
-                except (KeyError, TypeError, ValueError) as error:
-                    raise ValueError(
-                        "observer terminal row lacks state/timestamp/validity"
-                    ) from error
-            elif row.get("record_type") == "summary":
-                try:
-                    qps_values.append(float(row["observer_qps"]))
-                    reported_gaps_ms.append(float(row["max_poll_gap_ms"]))
-                    summary_failure_counts.append(
-                        int(row["reason"].split("failed_queries=", 1)[1].split()[0])
-                    )
-                except (KeyError, IndexError, ValueError) as error:
-                    raise ValueError("observer summary lacks QPS, gap, or failure count") from error
+    _, rows = read_csv_rows(path)
+    for row in rows:
+        if row.get("record_type") == "poll_error":
+            poll_error_rows += 1
+        elif row.get("record_type") == "snapshot":
+            workflow_id = row.get("workflow_id", "")
+            if not workflow_id:
+                raise ValueError("observer snapshot is missing its workflow ID")
+            try:
+                sequence = int(row["sequence"])
+                observed_ns = int(row["observed_at_monotonic_ns"])
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError(
+                    "observer snapshot lacks monotonic sequence/timestamp"
+                ) from error
+            observations.setdefault(workflow_id, []).append((sequence, observed_ns))
+            query_rows += 1
+        elif row.get("record_type") == "first_terminal_observation":
+            workflow_id = row.get("workflow_id", "")
+            if not workflow_id or workflow_id in terminal_observations:
+                raise ValueError("observer terminal row has a missing or duplicate workflow ID")
+            try:
+                terminal_observations[workflow_id] = {
+                    "sequence": int(row["sequence"]),
+                    "observed_at_monotonic_ns": int(row["observed_at_monotonic_ns"]),
+                    "state": row["state"],
+                    "valid": row["valid"].lower() == "true",
+                }
+            except (KeyError, TypeError, ValueError) as error:
+                raise ValueError(
+                    "observer terminal row lacks state/timestamp/validity"
+                ) from error
+        elif row.get("record_type") == "summary":
+            try:
+                qps_values.append(float(row["observer_qps"]))
+                reported_gaps_ms.append(float(row["max_poll_gap_ms"]))
+                summary_failure_counts.append(
+                    int(row["reason"].split("failed_queries=", 1)[1].split()[0])
+                )
+            except (KeyError, IndexError, ValueError) as error:
+                raise ValueError("observer summary lacks QPS, gap, or failure count") from error
 
     for workflow_id, samples in observations.items():
         ordered = sorted(samples)
@@ -273,8 +283,7 @@ def derive(calibration_dir: Path) -> dict[str, Any]:
 
     source_integrity = verify_source_blocks(calibration_dir)
 
-    with latency_path.open(newline="", encoding="utf-8") as stream:
-        rows = list(csv.DictReader(stream))
+    _, rows = read_csv_rows(latency_path)
     observer_metrics, observer_workflows, terminal_observations = observer_sampling_metrics(
         polls_path
     )
@@ -380,8 +389,7 @@ def derive(calibration_dir: Path) -> dict[str, Any]:
             "maximum_preterminal_gap_ms": max(gaps) if gaps else None,
         }
 
-    with submissions_path.open(newline="", encoding="utf-8") as stream:
-        submission_rows = list(csv.DictReader(stream))
+    _, submission_rows = read_csv_rows(submissions_path)
     submission_by_id: dict[str, dict[str, str]] = {}
     for row in submission_rows:
         workflow_id = row.get("workflow_id", "")
