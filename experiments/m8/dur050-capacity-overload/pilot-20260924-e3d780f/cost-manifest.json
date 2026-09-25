@@ -127,7 +127,7 @@
     "destroy_timestamp_source": "Common Terraform destroy-complete observation after Terraform reported all 31 resources destroyed; AWS inventory and empty Terraform state verified separately."
   },
   "bootstrap_preflight_cycle_2": {
-    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/bootstrap-preflight-cycle-2.json",
+    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/bootstrap-preflight.json",
     "status": "PASS",
     "checked_at_utc": "2026-09-25T18:26:51Z/2026-09-25T18:27:02Z",
     "cloud_init_done_on_all_four_hosts": true,
@@ -137,8 +137,12 @@
     "paid_block_started": false
   },
   "pilot_fixture_configuration": {
-    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/frozen-config.json",
+    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/bootstrap-preflight.json",
+    "config_content_sha256": "1425B1E45FF63FDAC75A473C7EF6EF3FEC750AA391036D43CC6BAB9941071FE3",
     "sha256": "1425B1E45FF63FDAC75A473C7EF6EF3FEC750AA391036D43CC6BAB9941071FE3",
+    "source_commit": "4c625b3536da9f0334aa86bed01127914382fb34",
+    "cycle_independent_template_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/frozen-config.json",
+    "cycle_independent_template_sha256_after_r161": "f0a20e4275da38445f0c943f6a0a4dcee762f925c0dfe0880fbf32f43c252305",
     "namespace": "dur050-pilot-20260925",
     "seed": 50050,
     "definition_installation_status": "PASS",
@@ -148,7 +152,7 @@
     "failed_prevalidation_attempts_no_database_writes": 2
   },
   "generator_setup_cycle_2": {
-    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/bootstrap-preflight-cycle-2.json",
+    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/bootstrap-preflight.json",
     "command_id": "ee0839ef-8174-4153-8376-a66a890557ee",
     "status": "PASS",
     "config_sha256": "1425B1E45FF63FDAC75A473C7EF6EF3FEC750AA391036D43CC6BAB9941071FE3",
@@ -156,8 +160,8 @@
     "warmup_wrapper_path_on_generator": "/var/tmp/dur050-cycle2/warmup-wrapper.sh"
   },
   "first_paid_block_preflight": {
-    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/preflight-unloaded-seq8-01.json",
-    "task_wide_ledger_check": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/ledger-check-before-unloaded-seq8-01.json",
+    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/preflight-unloaded-seq8-01.json",
+    "task_wide_ledger_check": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/ledger-check-before-unloaded-seq8-01.json",
     "status": "PASS",
     "checked_at_utc": "2026-09-25T18:39:32.7848520Z/2026-09-25T18:39:37.203578Z",
     "account_id": "372206265946",
@@ -174,7 +178,7 @@
     "new_manifest_reset_prevention": "The checker always loads the fixed task-wide ledger path and rejects any campaign manifest that names a different path."
   },
   "task_wide_ledger_validation": {
-    "path": "ledger-check-r158-migration.json",
+    "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/ledger-check-r158-migration.json",
     "checked_at_utc": "2026-09-25T16:37:18.275910Z",
     "status": "PASS",
     "accrued_instance_cost_usd": 0.084656,
@@ -281,7 +285,7 @@
     },
     "cycle_2": {
       "status": "STOPPED_AND_DESTROYED_ON_FIRST_BASELINE_PREPARATION_TOOLING_ERROR",
-      "failure_artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/first-reset-failure-cycle-2.json",
+      "failure_artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/first-reset-failure.json",
       "failed_stage": "capture-initial-db-kafka-baseline",
       "ssm_command_id": "896ba049-a8a8-4099-a8c9-95c40c807f0f",
       "ssm_response_code": 141,
@@ -292,7 +296,7 @@
     }
   },
   "cycle_2_post_destroy_ledger_audit": {
-    "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/ledger-check-post-destroy-cycle-2.json",
+    "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/ledger-check-post-destroy-cycle-2.json",
     "checked_at_utc": "2026-09-25T18:49:28.349645Z",
     "status": "PASS",
     "accrued_and_projected_ec2_instance_cost_usd": "0.248827",
@@ -302,7 +306,7 @@
     "note": "Post-destroy audit only; no pilot measurements were run."
   },
   "cycle_2_post_destroy_inventory": {
-    "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/post-destroy-inventory-cycle-2.json",
+    "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/post-destroy-inventory.json",
     "status": "PASS",
     "checked_at_utc": "2026-09-25T18:51:06.4411459Z/2026-09-25T18:51:18.5543195Z",
     "terraform_state_resource_count": 0,
@@ -313,7 +317,7 @@
     "dur050_ssm_parameters": 0
   },
   "post_destroy_ledger_audit": {
-    "path": "ledger-check-post-destroy-audit.json",
+    "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/ledger-check-post-destroy-audit.json",
     "checked_at_utc": "2026-09-25T10:48:48.248175Z",
     "status": "PASS",
     "accrued_ec2_instance_cost_usd": 0.084656,

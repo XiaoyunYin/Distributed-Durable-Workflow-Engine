@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import os
 import sys
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
@@ -106,7 +107,13 @@ def _validate_controls(manifest: dict[str, Any], now: datetime) -> Decimal:
 
 
 def evaluate(
-    manifest: dict[str, Any], task_ledger: dict[str, Any], now: datetime, reserve_minutes: int
+    manifest: dict[str, Any],
+    task_ledger: dict[str, Any],
+    now: datetime,
+    reserve_minutes: int,
+    *,
+    ledger_path: Path = TASK_LEDGER_PATH,
+    ledger_path_override_used: bool = False,
 ) -> dict[str, Any]:
     if reserve_minutes < 1:
         raise LedgerError("reserve_minutes must be at least one for a paid block check")
@@ -223,6 +230,12 @@ def evaluate(
         "schema": "dur050-cost-ledger-check.v2",
         "ledger_scope": "DUR-050 task-wide shared ledger",
         "task_ledger_path": TASK_LEDGER_RELATIVE_PATH,
+        "ledger_path_used": (
+            TASK_LEDGER_RELATIVE_PATH
+            if ledger_path.resolve() == TASK_LEDGER_PATH.resolve()
+            else str(ledger_path.resolve())
+        ),
+        "ledger_path_override_used": ledger_path_override_used,
         "checked_at_utc": now.isoformat().replace("+00:00", "Z"),
         "reserve_minutes": reserve_minutes,
         "open_interval_count": open_intervals,
@@ -247,12 +260,29 @@ def main() -> int:
     parser.add_argument(
         "--output", type=Path, help="Write a unique JSON check record; refuses overwrite"
     )
+    parser.add_argument(
+        "--ledger-path",
+        type=Path,
+        help="test-only ledger input; requires DUR050_ENABLE_TEST_LEDGER_OVERRIDE=1",
+    )
     args = parser.parse_args()
     try:
         manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
-        ledger = json.loads(TASK_LEDGER_PATH.read_text(encoding="utf-8"))
+        if args.ledger_path and os.environ.get("DUR050_ENABLE_TEST_LEDGER_OVERRIDE") != "1":
+            raise LedgerError(
+                "--ledger-path is test-only; set DUR050_ENABLE_TEST_LEDGER_OVERRIDE=1"
+            )
+        ledger_path = args.ledger_path or TASK_LEDGER_PATH
+        ledger = json.loads(ledger_path.read_text(encoding="utf-8"))
         now = parse_utc(args.now_utc, "--now-utc") if args.now_utc else datetime.now(UTC)
-        result = evaluate(manifest, ledger, now, args.reserve_minutes)
+        result = evaluate(
+            manifest,
+            ledger,
+            now,
+            args.reserve_minutes,
+            ledger_path=ledger_path,
+            ledger_path_override_used=args.ledger_path is not None,
+        )
         output = json.dumps(result, indent=2, sort_keys=True) + "\n"
         if args.output:
             try:

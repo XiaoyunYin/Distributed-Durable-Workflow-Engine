@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory)] [string]$D022PreflightPath,
     [Parameter(Mandatory)] [string]$CampaignID,
+    [Parameter(Mandatory)] [string]$CycleID,
     [Parameter(Mandatory)] [string]$BlockID,
     [Parameter(Mandatory)] [string]$DependencyInstanceID,
     [Parameter(Mandatory)] [string[]]$AppInstanceIDs,
@@ -9,8 +10,7 @@ param(
     [Parameter(Mandatory)] [string]$DatabasePrivateIP,
     [Parameter(Mandatory)] [string]$DatabaseName,
     [Parameter(Mandatory)] [string]$ObserverSecretParameter,
-    [Parameter(Mandatory)] [string]$PostgresBaselineArchive,
-    [Parameter(Mandatory)] [string]$KafkaBaselineArchive,
+    [Parameter(Mandatory)] [string]$BaselineManifestPath,
     [Parameter(Mandatory)] [string]$WarmupScriptPath,
     [Parameter(Mandatory)] [string]$WarmupWorkflowIDsPath,
     [Parameter(Mandatory)] [string]$ObserverBinaryPath,
@@ -22,6 +22,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 . (Join-Path $PSScriptRoot "dur050-ssm-wrapper.ps1")
+. (Join-Path $PSScriptRoot "dur050-baseline-manifest.ps1")
 $script:events = [System.Collections.Generic.List[object]]::new()
 $script:commands = [System.Collections.Generic.List[object]]::new()
 $script:status = "FAIL"
@@ -74,8 +75,42 @@ try {
     $allInstanceIDs = @($AppInstanceIDs) + @($DependencyInstanceID, $GeneratorInstanceID)
     if (($allInstanceIDs | Select-Object -Unique).Count -ne $allInstanceIDs.Count) { throw "App, dependency, and generator instance IDs must be distinct." }
     if ($CampaignID -notmatch '^[A-Za-z0-9-]+$' -or $BlockID -notmatch '^[A-Za-z0-9-]+$') { throw "CampaignID and BlockID must be simple identifiers." }
-    foreach ($path in @($PostgresBaselineArchive, $KafkaBaselineArchive, $WarmupScriptPath, $WarmupWorkflowIDsPath, $ObserverBinaryPath)) {
+    foreach ($path in @($WarmupScriptPath, $WarmupWorkflowIDsPath, $ObserverBinaryPath)) {
         if ($path -notmatch '^/[A-Za-z0-9._/-]+$') { throw "Unsafe remote path: $path" }
+    }
+    if (-not (Test-Path -LiteralPath $BaselineManifestPath -PathType Leaf)) { throw "Baseline manifest is required: $BaselineManifestPath" }
+    $baselineManifest = Get-Content -LiteralPath $BaselineManifestPath -Raw | ConvertFrom-Json
+    if ($baselineManifest.schema -ne 'dur050-baseline-manifest.v1' -or $baselineManifest.status -ne 'PASS' -or $baselineManifest.cycle_id -ne $CycleID) {
+        throw 'Baseline manifest must be a PASS dur050-baseline-manifest.v1 for this provisioning cycle.'
+    }
+    $guard = $baselineManifest.clean_baseline_guard
+    if ([int]$guard.schema_version -ne 18 -or -not [bool]$guard.pg_stat_statements_preloaded -or -not [bool]$guard.pg_stat_statements_installed -or [int]$guard.workflows -ne 0 -or [int]$guard.attempts -ne 0 -or [int]$guard.outbox -ne 0 -or [int]$guard.inbox -ne 0 -or @($guard.definition_ids).Count -ne 2) {
+        throw 'Baseline manifest clean-state guard is incomplete or does not show the reviewed empty schema-18 baseline.'
+    }
+    $requiredTopics = @('__consumer_offsets', 'durable-agent.events.v1', 'durable-agent.tasks.v1')
+    if ((@($baselineManifest.expected_kafka_topics | Sort-Object) -join ',') -ne (@($requiredTopics | Sort-Object) -join ',')) {
+        throw 'Baseline manifest Kafka topics do not match the expected task and event topics.'
+    }
+    $quiescedApps = @($baselineManifest.app_quiesce | Where-Object { $_.status -eq 'PASS' -and $_.ssm_command_id })
+    if ($quiescedApps.Count -ne 2 -or -not [bool]$baselineManifest.capture.dependencies_restarted_and_healthy) {
+        throw 'Baseline manifest does not confirm both app stacks quiesced and dependencies healthy after restart.'
+    }
+    $PostgresBaselineArchive = [string]$baselineManifest.capture.postgres.remote_path
+    $KafkaBaselineArchive = [string]$baselineManifest.capture.kafka.remote_path
+    $PostgresBaselineSHA256 = [string]$baselineManifest.capture.postgres.sha256
+    $KafkaBaselineSHA256 = [string]$baselineManifest.capture.kafka.sha256
+    $GeneratorConfigPath = [string]$baselineManifest.generator_config.remote_path
+    $GeneratorConfigSHA256 = [string]$baselineManifest.generator_config.sha256
+    if ($GeneratorConfigPath -notmatch '^/[A-Za-z0-9._/-]+$') { throw 'Baseline manifest is missing a safe per-cycle generator config path.' }
+    if ($GeneratorConfigSHA256 -notmatch '^[0-9a-f]{64}$') { throw 'Baseline manifest contains an invalid generator config SHA-256.' }
+    foreach ($path in @($PostgresBaselineArchive, $KafkaBaselineArchive)) {
+        if ($path -notmatch '^/[A-Za-z0-9._/-]+$') { throw "Unsafe archive path in baseline manifest: $path" }
+    }
+    foreach ($hash in @($PostgresBaselineSHA256, $KafkaBaselineSHA256)) {
+        if ($hash -notmatch '^[0-9a-f]{64}$') { throw 'Baseline manifest contains an invalid archive SHA-256.' }
+    }
+    if ([long]$baselineManifest.capture.postgres.size_bytes -le 0 -or [long]$baselineManifest.capture.kafka.size_bytes -le 0) {
+        throw 'Baseline manifest archive sizes must be positive.'
     }
     if ($DatabasePrivateIP -notmatch '^[0-9.]+$' -or $DatabaseName -notmatch '^[A-Za-z0-9_]+$' -or $ObserverSecretParameter -notmatch '^/[A-Za-z0-9/_-]+$') { throw "Database or observer parameter input is malformed." }
     if (-not (Test-Path -LiteralPath $D022PreflightPath -PathType Leaf)) { throw "D022 preflight file is required." }
@@ -102,7 +137,8 @@ try {
 
     $restore = @(
         'set -euo pipefail',
-        'cd /opt/durable-agent-execution-engine',
+        'cd /opt/durable-agent-execution-engine'
+    ) + @(Get-Dur050BaselineHashVerificationLines -PostgresArchive $PostgresBaselineArchive -PostgresSHA256 $PostgresBaselineSHA256 -KafkaArchive $KafkaBaselineArchive -KafkaSHA256 $KafkaBaselineSHA256) + @(
         'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml down',
         'for volume in durable-aws-dependencies_postgres-data durable-aws-dependencies_kafka-data; do if docker volume inspect "$volume" >/dev/null 2>&1; then docker volume rm "$volume"; fi; docker volume create "$volume" >/dev/null; done',
         'postgres_image=$(sed -n ''s/^POSTGRES_IMAGE=//p'' deploy/aws/.env)',
@@ -110,7 +146,6 @@ try {
         'postgres_db=$(sed -n ''s/^POSTGRES_DB=//p'' deploy/aws/.env)',
         'test -n "$postgres_image"',
         'test -n "$postgres_user" && test -n "$postgres_db"',
-        'test -s "' + $PostgresBaselineArchive + '" && test -s "' + $KafkaBaselineArchive + '"',
         'docker run --rm --user 0:0 -v durable-aws-dependencies_postgres-data:/restore -v "' + $PostgresBaselineArchive + ':/baseline.tar:ro" --entrypoint bash "$postgres_image" -ec ''tar -xpf /baseline.tar -C /restore''',
         'docker run --rm --user 0:0 -v durable-aws-dependencies_kafka-data:/restore -v "' + $KafkaBaselineArchive + ':/baseline.tar:ro" --entrypoint bash "$postgres_image" -ec ''tar -xpf /baseline.tar -C /restore''',
         'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml up -d postgres kafka',
@@ -171,6 +206,9 @@ try {
 
     $warmup = @(
         'set -euo pipefail',
+        'export DUR050_LOADGEN_CONFIG_FILE="' + $GeneratorConfigPath + '"',
+        'generator_config_sha256=$(sha256sum -- "$DUR050_LOADGEN_CONFIG_FILE" | awk ''{print $1}'')',
+        'test "$generator_config_sha256" = "' + $GeneratorConfigSHA256 + '"',
         'export DUR050_WARMUP_WORKFLOW_IDS_FILE="' + $WarmupWorkflowIDsPath + '"',
         'test -f "' + $WarmupScriptPath + '"',
         'bash "' + $WarmupScriptPath + '"',
@@ -225,7 +263,12 @@ SELECT json_build_object(
         $artifact = [pscustomobject]@{
             schema = "dur050-reset-sequence.v1"
             campaign_id = $CampaignID
+            cycle_id = $CycleID
             block_id = $BlockID
+            baseline_manifest_path = $BaselineManifestPath
+            baseline_archive_sha256 = [ordered]@{ postgres = $PostgresBaselineSHA256; kafka = $KafkaBaselineSHA256 }
+            generator_config_path = $GeneratorConfigPath
+            generator_config_sha256 = $GeneratorConfigSHA256
             status = $script:status
             admission_gate_mode = $AdmissionGateMode
             admission_max_active = $admissionMaxActive

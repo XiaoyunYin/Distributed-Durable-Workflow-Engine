@@ -31,6 +31,37 @@
   synthetic over-limit test. The populated calibration protocol still requires
   independent review before any final paid run.
 
+## Cycle preparation and immutable baseline
+
+After a reviewed apply and before the first reset, run
+`scripts/dur050-prepare-pilot.ps1` with the current cycle's parsed Terraform
+outputs, the matching D022 preflight, and a fresh `-CycleID`. Its no-AWS
+`-DryRun` mode emits every stage's exact `New-Dur050SsmBashCommand` wrapper;
+retain that JSON in the cycle directory as `preparation-dry-run.json` before
+dispatch. The actual run records a JSON result for each SSM stage and writes
+the rendered generator config, its SHA-256, `preparation.json`, and
+`baseline-manifest.json` under `cycles/<cycle-id>/`.
+
+The committed `pilot-calibration/frozen-config.json` is cycle-independent: it
+holds the frozen families, seed, and namespace pattern. The preparation tool
+derives the API URL from the current cycle's Terraform app-host output and
+renders a per-cycle config; never reuse a config from an earlier cycle. Before
+archiving, the tool verifies schema 18, `pg_stat_statements`, exactly the two
+pilot definitions, zero workflow/attempt/outbox/inbox rows, and the expected
+Kafka topics. It then quiesces both app stacks, confirms they are stopped,
+stops PostgreSQL and Kafka, archives their volumes, records sizes and SHA-256
+hashes, fully writes each `tar -tf` listing before taking a short preview, and
+restarts and health-checks the dependencies. Reset must receive that cycle's
+`baseline-manifest.json`; it verifies both archive hashes on the dependency
+host before extracting either archive and fails closed on mismatch. The reset
+helper also takes the rendered generator-config path and SHA-256 from that
+manifest, verifies it before warmup, and exports it to the warmup script.
+
+The preparation-tool dry run is not evidence that an AWS stage ran. The next
+cycle preflight must retain the exact dry-run output built from that cycle's
+current Terraform outputs; no preparation stage or measurement may run until
+the required Claude review and D022 preflight are complete.
+
 ## Question and claim boundary
 
 Measure the maximum offered workflow arrival rate at which the fixed AWS
@@ -247,8 +278,9 @@ record the sample count and selected rank so another reviewer can recompute it.
    `DUR050_RECORD_TRANSACTION_TIMINGS=1` identically in both modes; collect the
    opt-in `DUR050_TXN` rows from both app hosts with
    `scripts/dur050-capture-transaction-timings.sh`, retaining each source host.
-   For every block, invoke `scripts/dur050-reset-block.ps1` with
-   `-AdmissionGateMode` matching its ON/OFF manifest row and
+   For every block, invoke `scripts/dur050-reset-block.ps1` with that cycle's
+   `-CycleID` and `-BaselineManifestPath <cycle-dir>/baseline-manifest.json`,
+   plus `-AdmissionGateMode` matching its ON/OFF manifest row and
    `-TransactionTimingCapture 1`. Immediately after that block completes, and
    before the next volume restore/restart recreates its containers, capture
    that block's `run_id` separately on both app hosts into unique files. Retain
@@ -363,7 +395,29 @@ primary SLO.
 
 ## Database and telemetry controls (R144)
 
-### SSM remote command and Bash-script invocation map
+- Set `DUR049_RECORD_LEASE_ACQUISITIONS=0` in the DUR-050 AWS Compose config and
+  assert the effective value is zero in every pilot/final arm. Do not write the
+  append-only DUR-049 lease-acquisition ledger during this study.
+- Enable PostgreSQL `pg_stat_statements` using `shared_preload_libraries` and
+  create the extension identically in every pilot/final database. Record
+  settings and extension version.
+- Every measured block starts from a **fresh campaign DB and Kafka data volume**
+  restored to the same migrated baseline. After every restore, record the
+  sequence and timestamps: quiesce/stop all runtime, scheduler, and worker
+  containers on both app hosts; restore the DB/Kafka volumes; start dependencies
+  and wait for health; restart all runtime/scheduler/worker containers; record
+  their new container IDs and readiness plus Kafka group assignment; run the
+  same eight warmups and drain them; then snapshot key table row counts/bytes,
+  database size, consumer offsets, and extension counters immediately before
+  the measured window. Preserve each result through the invariant check and
+  accepted-work reconciliation; destroy that run's campaign volumes before the
+  next block. Never raw-delete live outbox/inbox rows. This makes AB comparisons
+  start from a fixed-size state and fresh process state.
+- The only app AZ split, instance sizes, four worker slots, database settings,
+  Kafka settings, admission-gate limits, `pg_stat_statements`, observer, and
+  lease-ledger-off setting remain constant in every final arm.
+
+## SSM remote command and Bash-script invocation map
 
 AWS-RunShellScript starts commands through /bin/sh. Every noninteractive
 DUR-050 SSM command must therefore use the shared base64/temp-file wrapper in
@@ -389,28 +443,6 @@ scripts/dur050-invoke-ssm-command.ps1:
 Use a separate new output path for every invocation. Interactive SSM sessions
 may run commands at a Bash prompt, but these noninteractive commands must use
 the wrapper path above.
-
-- Set `DUR049_RECORD_LEASE_ACQUISITIONS=0` in the DUR-050 AWS Compose config and
-  assert the effective value is zero in every pilot/final arm. Do not write the
-  append-only DUR-049 lease-acquisition ledger during this study.
-- Enable PostgreSQL `pg_stat_statements` using `shared_preload_libraries` and
-  create the extension identically in every pilot/final database. Record
-  settings and extension version.
-- Every measured block starts from a **fresh campaign DB and Kafka data volume**
-  restored to the same migrated baseline. After every restore, record the
-  sequence and timestamps: quiesce/stop all runtime, scheduler, and worker
-  containers on both app hosts; restore the DB/Kafka volumes; start dependencies
-  and wait for health; restart all runtime/scheduler/worker containers; record
-  their new container IDs and readiness plus Kafka group assignment; run the
-  same eight warmups and drain them; then snapshot key table row counts/bytes,
-  database size, consumer offsets, and extension counters immediately before
-  the measured window. Preserve each result through the invariant check and
-  accepted-work reconciliation; destroy that run's campaign volumes before the
-  next block. Never raw-delete live outbox/inbox rows. This makes AB comparisons
-  start from a fixed-size state and fresh process state.
-- The only app AZ split, instance sizes, four worker slots, database settings,
-  Kafka settings, admission-gate limits, `pg_stat_statements`, observer, and
-  lease-ledger-off setting remain constant in every final arm.
 
 ## Capacity search and rate points (R145)
 

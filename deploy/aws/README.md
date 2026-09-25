@@ -78,8 +78,16 @@ generator-only network paths. The DUR-050 app overlay enables the fixed
 `dur050-*` admission caps and sets `DUR049_RECORD_LEASE_ACQUISITIONS=0`; the
 base app compose retains the DUR-049 default. PostgreSQL preloads
 `pg_stat_statements` via `shared_preload_libraries`, then migration 000018
-installs the extension. After each volume restore, use the reviewed
-`scripts/dur050-reset-block.ps1` procedure to restart the application hosts,
+installs the extension. After a reviewed apply, run
+`scripts/dur050-prepare-pilot.ps1` with that cycle's parsed Terraform outputs
+and D022 preflight. It installs the two definitions, stages the API config from
+the current app-host address, verifies the clean baseline, captures and hashes
+the stopped dependency volumes, then restarts and health-checks PostgreSQL and
+Kafka. Preserve its per-stage JSON plus `baseline-manifest.json`; do not hand-
+type SSM setup commands. After each volume restore, use the reviewed
+`scripts/dur050-reset-block.ps1` procedure with the same `-CycleID` and
+`-BaselineManifestPath` to verify both archive hashes before restore and restart
+the application hosts,
 verify the Kafka worker group has active consumer assignment, submit and drain
 warmups, and retain the per-block reset and database snapshot artifacts before
 measured work begins. The protocol-matched warmup submitter and its eight fresh

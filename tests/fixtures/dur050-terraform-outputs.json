@@ -1,0 +1,6 @@
+{
+  "dependency_instance_id": {"sensitive": false, "type": "string", "value": "i-0123456789abcdef0"},
+  "app_instance_ids": {"sensitive": false, "type": ["tuple", ["string", "string"]], "value": ["i-11111111111111111", "i-22222222222222222"]},
+  "app_private_ips": {"sensitive": false, "type": ["tuple", ["string", "string"]], "value": ["10.49.1.11", "10.49.2.12"]},
+  "load_generator_instance_ids": {"sensitive": false, "type": ["tuple", ["string"]], "value": ["i-33333333333333333"]}
+}

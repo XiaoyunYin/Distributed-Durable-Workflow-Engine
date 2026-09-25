@@ -60,6 +60,10 @@ jobs:
         shell: pwsh
         run: ./scripts/test-dur050-ssm-wrapper.ps1
 
+      - name: Test DUR-050 pilot preparation and baseline restore guards
+        shell: pwsh
+        run: ./scripts/test-dur050-pilot-preparation.ps1
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:

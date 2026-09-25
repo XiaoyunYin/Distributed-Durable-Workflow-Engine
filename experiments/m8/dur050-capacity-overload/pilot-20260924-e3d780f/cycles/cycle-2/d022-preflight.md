@@ -240,7 +240,7 @@ completion marker
 `/var/lib/durable-dur050-generator-bootstrap-complete` was present and each of
 `bin/dur050-observer`, `bin/dur050-loadgen`, and `bin/dur050-sink` was
 executable. Command IDs and per-host timestamps are retained in
-`bootstrap-preflight-cycle-2.json`. No reset or paid block had started at the
+`bootstrap-preflight.json`. No reset or paid block had started at the
 time of this check.
 
 The fixture installer created definitions `dur050-seq-8-v1@1` and
@@ -249,7 +249,7 @@ the captured config hash is recorded in `cost-manifest.json`. Two initial
 SSM invocations failed before a database connection because PowerShell
 array-to-string conversion split the API URL; the successful invocation used
 a validated scalar URL, and those failed command IDs and the successful one
-are in `bootstrap-preflight-cycle-2.json`. The config was copied to the
+are in `bootstrap-preflight.json`. The config was copied to the
 generator and hash-verified. A small remote wrapper exports the config path
 before invoking the committed warmup script, since the reset helper's warmup
 stage only supplies the workflow-ID path. No reset or measurement has started.
@@ -265,7 +265,7 @@ at its final `tar -tf archive | head -n 3` diagnostic: with `pipefail`, `tar`
 received SIGPIPE after `head` exited. This is recorded as the first reset-path
 tooling failure, so the pilot stopped without invoking the reset helper, a
 warmup, or an unloaded block. The exact SSM response, archive hashes, and
-teardown are in `pilot-calibration/first-reset-failure-cycle-2.json`. Terraform
+teardown are in `first-reset-failure.json`. Terraform
 1.16.4 destroyed all 31 resources from `2026-09-25T18:43:45.3537486Z` to
 `2026-09-25T18:44:55.5339832Z`; the four task-wide intervals close at the
 common completion time. No measurement result was produced.

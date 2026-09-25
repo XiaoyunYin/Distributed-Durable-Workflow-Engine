@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import importlib.util
 import json
+import os
 import subprocess
 import sys
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 
@@ -289,18 +290,21 @@ def test_cap_alert_and_tag_controls_fail_closed() -> None:
 def test_cli_reads_one_shared_ledger_and_writes_unique_check_record(tmp_path: Path) -> None:
     manifest_path = tmp_path / "manifest.json"
     manifest_path.write_text(json.dumps(campaign_manifest()), encoding="utf-8")
+    ledger_path = tmp_path / "task-ledger.json"
+    ledger = task_ledger()
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
     output_path = tmp_path / "block-check.json"
-    shared_ledger = json.loads(LEDGER.TASK_LEDGER_PATH.read_text(encoding="utf-8"))
-    interval_timestamps = [
-        datetime.fromisoformat(interval[field].replace("Z", "+00:00"))
-        for role_intervals in shared_ledger["roles"].values()
-        for interval in role_intervals
-        for field in ("apply_started_at_utc", "destroy_completed_at_utc")
-        if interval[field] is not None
-    ]
-    now = max(datetime.now(UTC), max(interval_timestamps) + timedelta(seconds=1))
-    now_arg = now.isoformat(timespec="microseconds").replace("+00:00", "Z")
-    expected = LEDGER.evaluate(campaign_manifest(), shared_ledger, now, reserve_minutes=30)
+    now_arg = "2026-09-25T13:00:00Z"
+    expected = LEDGER.evaluate(
+        campaign_manifest(),
+        ledger,
+        datetime.fromisoformat("2026-09-25T13:00:00+00:00"),
+        30,
+        ledger_path=ledger_path,
+        ledger_path_override_used=True,
+    )
+    env = os.environ.copy()
+    env["DUR050_ENABLE_TEST_LEDGER_OVERRIDE"] = "1"
     completed = subprocess.run(
         [
             sys.executable,
@@ -310,16 +314,21 @@ def test_cli_reads_one_shared_ledger_and_writes_unique_check_record(tmp_path: Pa
             "30",
             "--now-utc",
             now_arg,
+            "--ledger-path",
+            str(ledger_path),
             "--output",
             str(output_path),
         ],
         check=False,
         capture_output=True,
         text=True,
+        env=env,
     )
     assert completed.returncode == 0, completed.stderr
     result = json.loads(output_path.read_text(encoding="utf-8"))
     assert result["task_ledger_path"] == LEDGER.TASK_LEDGER_RELATIVE_PATH
+    assert result["ledger_path_used"] == str(ledger_path.resolve())
+    assert result["ledger_path_override_used"] is True
     assert result["accrued_instance_cost_usd"] == expected["accrued_instance_cost_usd"]
     assert result["projected_instance_cost_usd"] == expected["projected_instance_cost_usd"]
     assert result["open_interval_count"] == expected["open_interval_count"]
@@ -333,12 +342,105 @@ def test_cli_reads_one_shared_ledger_and_writes_unique_check_record(tmp_path: Pa
             "30",
             "--now-utc",
             now_arg,
+            "--ledger-path",
+            str(ledger_path),
             "--output",
             str(output_path),
         ],
         check=False,
         capture_output=True,
         text=True,
+        env=env,
     )
     assert repeated.returncode == 2
     assert "refusing to overwrite" in repeated.stderr
+
+
+def test_cli_rejects_test_ledger_override_without_explicit_test_environment(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(campaign_manifest()), encoding="utf-8")
+    ledger_path = tmp_path / "ledger.json"
+    ledger_path.write_text(json.dumps(task_ledger()), encoding="utf-8")
+    env = os.environ.copy()
+    env.pop("DUR050_ENABLE_TEST_LEDGER_OVERRIDE", None)
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(MODULE_PATH),
+            str(manifest_path),
+            "--reserve-minutes",
+            "30",
+            "--ledger-path",
+            str(ledger_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert completed.returncode == 2
+    assert "test-only" in completed.stderr
+
+
+def test_cli_returns_fail_when_fixture_projection_reaches_cap(tmp_path: Path) -> None:
+    manifest_path = tmp_path / "manifest.json"
+    manifest_path.write_text(json.dumps(campaign_manifest()), encoding="utf-8")
+    ledger = task_ledger()
+    for _role, role_intervals in ledger["roles"].items():
+        role_intervals[0]["apply_started_at_utc"] = "2026-09-10T00:00:00Z"
+        role_intervals[0]["destroy_completed_at_utc"] = None
+    ledger_path = tmp_path / "over-cap-ledger.json"
+    ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
+    output_path = tmp_path / "over-cap-check.json"
+    env = os.environ.copy()
+    env["DUR050_ENABLE_TEST_LEDGER_OVERRIDE"] = "1"
+    completed = subprocess.run(
+        [
+            sys.executable,
+            str(MODULE_PATH),
+            str(manifest_path),
+            "--reserve-minutes",
+            "30",
+            "--now-utc",
+            "2026-09-25T13:00:00Z",
+            "--ledger-path",
+            str(ledger_path),
+            "--output",
+            str(output_path),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert completed.returncode == 1
+    result = json.loads(output_path.read_text(encoding="utf-8"))
+    assert result["status"] == "FAIL"
+    assert Decimal(result["projected_instance_cost_usd"]) >= Decimal("75")
+    assert result["ledger_path_override_used"] is True
+
+
+def test_committed_ledger_evidence_parses_and_matches_active_cycles() -> None:
+    ledger = json.loads(LEDGER.TASK_LEDGER_PATH.read_text(encoding="utf-8"))
+    assert ledger["schema"] == "dur050-task-cost-ledger.v1"
+    open_cycles = {
+        interval["cycle_id"]
+        for intervals in ledger["roles"].values()
+        for interval in intervals
+        if interval["destroy_completed_at_utc"] is None
+    }
+
+    campaign_root = LEDGER.TASK_LEDGER_PATH.parent
+    active_cycles: set[str] = set()
+    for manifest_path in campaign_root.rglob("cost-manifest.json"):
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for key, cycle in manifest.items():
+            if not key.startswith("provisioning_cycle_") or not isinstance(cycle, dict):
+                continue
+            if cycle.get("apply_started_at_utc") and not cycle.get(
+                "destroy_completed_observed_at_utc"
+            ):
+                active_cycles.add(cycle.get("cycle_id") or key)
+
+    normalized_open = {value for value in open_cycles if value}
+    assert normalized_open == active_cycles
