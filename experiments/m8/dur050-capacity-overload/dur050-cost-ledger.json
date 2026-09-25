@@ -38,8 +38,9 @@
         "instance_id": "i-08b8632f1c3ef80d0",
         "instance_type": "c7i.large",
         "apply_started_at_utc": "2026-09-25T18:23:07.2055684Z",
-        "destroy_completed_at_utc": null,
-        "availability_zone": "us-west-1a"
+        "destroy_completed_at_utc": "2026-09-25T18:44:55.5339832Z",
+        "availability_zone": "us-west-1a",
+        "destroy_timestamp_source": "Common Terraform destroy-complete observation; 31 resources destroyed"
       }
     ],
     "app-2": [
@@ -58,8 +59,9 @@
         "instance_id": "i-0eda5443fea88fe0a",
         "instance_type": "c7i.large",
         "apply_started_at_utc": "2026-09-25T18:23:07.2055684Z",
-        "destroy_completed_at_utc": null,
-        "availability_zone": "us-west-1c"
+        "destroy_completed_at_utc": "2026-09-25T18:44:55.5339832Z",
+        "availability_zone": "us-west-1c",
+        "destroy_timestamp_source": "Common Terraform destroy-complete observation; 31 resources destroyed"
       }
     ],
     "dependency": [
@@ -78,8 +80,9 @@
         "instance_id": "i-07b53b0242fa9851f",
         "instance_type": "m7i.large",
         "apply_started_at_utc": "2026-09-25T18:23:07.2055684Z",
-        "destroy_completed_at_utc": null,
-        "availability_zone": "us-west-1a"
+        "destroy_completed_at_utc": "2026-09-25T18:44:55.5339832Z",
+        "availability_zone": "us-west-1a",
+        "destroy_timestamp_source": "Common Terraform destroy-complete observation; 31 resources destroyed"
       }
     ],
     "load-generator": [
@@ -98,8 +101,9 @@
         "instance_id": "i-0872b6791d08cb577",
         "instance_type": "c7i.large",
         "apply_started_at_utc": "2026-09-25T18:23:07.2055684Z",
-        "destroy_completed_at_utc": null,
-        "availability_zone": "us-west-1a"
+        "destroy_completed_at_utc": "2026-09-25T18:44:55.5339832Z",
+        "availability_zone": "us-west-1a",
+        "destroy_timestamp_source": "Common Terraform destroy-complete observation; 31 resources destroyed"
       }
     ]
   },

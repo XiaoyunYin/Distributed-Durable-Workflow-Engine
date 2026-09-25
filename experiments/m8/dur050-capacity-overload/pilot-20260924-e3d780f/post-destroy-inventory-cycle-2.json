@@ -1,0 +1,44 @@
+{
+  "schema": "dur050-post-destroy-inventory.v1",
+  "cycle_id": "cycle-2-4c625b3",
+  "account_id": "372206265946",
+  "region": "us-west-1",
+  "inventory_checked_start_utc": "2026-09-25T18:51:06.4411459Z",
+  "inventory_checked_end_utc": "2026-09-25T18:51:18.5543195Z",
+  "terraform_state_resource_count": 0,
+  "ec2_instances": [
+    { "instance_id": "i-0eda5443fea88fe0a", "state": "terminated", "instance_type": "c7i.large" },
+    { "instance_id": "i-0872b6791d08cb577", "state": "terminated", "instance_type": "c7i.large" },
+    { "instance_id": "i-08b8632f1c3ef80d0", "state": "terminated", "instance_type": "c7i.large" },
+    { "instance_id": "i-07b53b0242fa9851f", "state": "terminated", "instance_type": "m7i.large" }
+  ],
+  "remaining_task_tagged_resources": {
+    "ebs_volumes": [],
+    "elastic_ips": [],
+    "snapshots": [],
+    "vpcs": [],
+    "subnets": [],
+    "security_groups": [],
+    "network_interfaces": [],
+    "internet_gateways": [],
+    "nat_gateways": []
+  },
+  "remaining_named_access_resources": {
+    "dur050_iam_roles": [],
+    "dur050_ssm_parameters": []
+  },
+  "budget_check": {
+    "checked_start_utc": "2026-09-25T18:49:25.0859953Z",
+    "checked_end_utc": "2026-09-25T18:49:28.1703033Z",
+    "budget_name": "durable-engine-D022-aggregate-20260923",
+    "actual_spend_usd": 1.571,
+    "forecasted_spend_usd": 5.268,
+    "limit_usd": 200.0,
+    "notifications": [
+      { "type": "ACTUAL", "threshold_usd": 160.0, "state": "OK" },
+      { "type": "ACTUAL", "threshold_usd": 76.47, "state": "OK" },
+      { "type": "FORECASTED", "threshold_usd": 160.0, "state": "OK" }
+    ]
+  },
+  "accounting_note": "EC2 instances are terminated and task-tagged billable infrastructure queried above is absent. AWS aggregate actual-spend data may lag; the reported $1.571 is not a final invoice."
+}

@@ -1,0 +1,61 @@
+{
+  "schema": "dur050-first-reset-failure.v1",
+  "campaign_id": "pilot-20260924-e3d780f",
+  "cycle_id": "cycle-2-4c625b3",
+  "status": "STOPPED_AND_DESTROYED",
+  "stage": "capture-initial-db-kafka-baseline",
+  "classification": "tooling",
+  "ssm": {
+    "command_id": "896ba049-a8a8-4099-a8c9-95c40c807f0f",
+    "instance_id": "i-07b53b0242fa9851f",
+    "requested_at_utc": "2026-09-25T18:41:56.022Z",
+    "started_at_utc": "2026-09-25T18:41:56.212Z",
+    "ended_at_utc": "2026-09-25T18:41:57.212Z",
+    "response_code": 141,
+    "status": "Failed",
+    "stderr_tail": "failed to run commands: exit status 141"
+  },
+  "cause": "With set -euo pipefail active, the diagnostic tar -tf <archive> | head -n 3 pipeline caused tar to receive SIGPIPE (141) when head exited after three lines. The wrapper correctly propagated the nonzero status.",
+  "completed_before_failure": {
+    "database_ready": true,
+    "postgres_volume_archive_created": {
+      "path_on_ephemeral_host": "/var/tmp/dur050-cycle2-baseline/postgres-data.tar",
+      "size_bytes": 68352000,
+      "sha256": "552dd88ea10fb8737782dc4e27fbe90b2037a8892993d2515f5d62d356aae952"
+    },
+    "kafka_volume_archive_created": {
+      "path_on_ephemeral_host": "/var/tmp/dur050-cycle2-baseline/kafka-data.tar",
+      "size_bytes": 286720,
+      "sha256": "55ec69a7285748933ecc58305a60b038ab91ae6fbb6a6499d9eb60ceb21db2fa"
+    },
+    "clean_baseline_guard": {
+      "ssm_command_id": "0cb1f54b-3bdf-4cc2-be0d-9ca380e226fb",
+      "schema_version": 18,
+      "pg_stat_statements_installed": true,
+      "dur050_definitions": 2,
+      "workflows": 0,
+      "attempts": 0,
+      "outbox": 0,
+      "inbox": 0,
+      "kafka_topics": ["__consumer_offsets", "durable-agent.events.v1", "durable-agent.tasks.v1"]
+    }
+  },
+  "quiesce_commands": [
+    { "role": "app-1", "instance_id": "i-08b8632f1c3ef80d0", "command_id": "d88089a2-c5a4-4378-9ac1-52b2bfcb22a7", "requested_at_utc": "2026-09-25T18:41:30.605Z", "status": "Success" },
+    { "role": "app-2", "instance_id": "i-0eda5443fea88fe0a", "command_id": "640ea426-47c0-47d5-9ed3-763c79db7dc9", "requested_at_utc": "2026-09-25T18:41:34.383Z", "status": "Success" }
+  ],
+  "reset_helper_invoked": false,
+  "warmups_started": false,
+  "unloaded_block_started": false,
+  "pilot_calibration_rows_created": false,
+  "archives_retained": false,
+  "archives_retention_note": "The archives existed only on the disposable dependency host and were removed when Terraform destroyed the stack; only their sizes and hashes are retained here.",
+  "teardown": {
+    "terraform_version": "1.16.4",
+    "account_id": "372206265946",
+    "destroy_started_at_utc": "2026-09-25T18:43:45.3537486Z",
+    "destroy_completed_at_utc": "2026-09-25T18:44:55.5339832Z",
+    "destroyed_resources": 31,
+    "terraform_exit_code": 0
+  }
+}

@@ -121,7 +121,10 @@
       { "role": "dependency", "instance_id": "i-07b53b0242fa9851f", "instance_type": "m7i.large", "availability_zone": "us-west-1a" },
       { "role": "load-generator", "instance_id": "i-0872b6791d08cb577", "instance_type": "c7i.large", "availability_zone": "us-west-1a" }
     ],
-    "note": "Intervals are open until the common Terraform destroy completion is recorded."
+    "destroy_started_at_utc": "2026-09-25T18:43:45.3537486Z",
+    "destroy_completed_observed_at_utc": "2026-09-25T18:44:55.5339832Z",
+    "destroy_result": { "destroyed": 31, "terraform_exit_code": 0 },
+    "destroy_timestamp_source": "Common Terraform destroy-complete observation after Terraform reported all 31 resources destroyed; AWS inventory and empty Terraform state verified separately."
   },
   "bootstrap_preflight_cycle_2": {
     "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/bootstrap-preflight-cycle-2.json",
@@ -270,9 +273,44 @@
     "destroy_time_source": "Conservative common completion observation after Terraform reported all 31 resources destroyed; AWS inventory and empty Terraform state were then verified. Per-instance TerminateInstances API event times are recorded separately below."
   },
   "pilot_execution": {
-    "status": "NOT_STARTED",
+    "status": "STOPPED_BEFORE_MEASUREMENT",
     "paid_measurement_blocks_started": 0,
-    "reason": "Pre-block bootstrap inspection found load-generator cloud-init status error at go build because neither GOMODCACHE nor GOPATH was set. A read-only SSM probe showed AWS-RunShellScript /bin/sh rejects set -euo pipefail, which the reset helper sends at the start of its remote command; the helper was not invoked. No calibration block or pilot raw-data artifact was created; the first cycle was destroyed."
+    "cycle_1": {
+      "status": "NOT_STARTED",
+      "reason": "Bootstrap/tooling blockers were identified before any reset or calibration; cycle 1 was destroyed."
+    },
+    "cycle_2": {
+      "status": "STOPPED_AND_DESTROYED_ON_FIRST_BASELINE_PREPARATION_TOOLING_ERROR",
+      "failure_artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/first-reset-failure-cycle-2.json",
+      "failed_stage": "capture-initial-db-kafka-baseline",
+      "ssm_command_id": "896ba049-a8a8-4099-a8c9-95c40c807f0f",
+      "ssm_response_code": 141,
+      "reset_helper_invoked": false,
+      "warmups_started": false,
+      "measurement_started": false,
+      "destroy_completed_at_utc": "2026-09-25T18:44:55.5339832Z"
+    }
+  },
+  "cycle_2_post_destroy_ledger_audit": {
+    "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/ledger-check-post-destroy-cycle-2.json",
+    "checked_at_utc": "2026-09-25T18:49:28.349645Z",
+    "status": "PASS",
+    "accrued_and_projected_ec2_instance_cost_usd": "0.248827",
+    "open_intervals": 0,
+    "next_block_reserve_usd": "0.000000",
+    "paid_measurement_blocks_started": 0,
+    "note": "Post-destroy audit only; no pilot measurements were run."
+  },
+  "cycle_2_post_destroy_inventory": {
+    "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/post-destroy-inventory-cycle-2.json",
+    "status": "PASS",
+    "checked_at_utc": "2026-09-25T18:51:06.4411459Z/2026-09-25T18:51:18.5543195Z",
+    "terraform_state_resource_count": 0,
+    "active_instances": 0,
+    "ebs_volumes": 0,
+    "other_task_tagged_network_or_storage_resources": 0,
+    "dur050_iam_roles": 0,
+    "dur050_ssm_parameters": 0
   },
   "post_destroy_ledger_audit": {
     "path": "ledger-check-post-destroy-audit.json",

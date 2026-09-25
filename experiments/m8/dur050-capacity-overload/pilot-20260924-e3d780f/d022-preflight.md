@@ -218,18 +218,18 @@ was unchanged from the reviewed plan's source commit. This gate matched; the
 exact saved plan, and no regenerated plan, was the only authorized apply
 input.
 
-## Second-cycle apply and open intervals (2026-09-25)
+## Second-cycle apply and interval ledger (2026-09-25)
 
 Terraform 1.16.4 applied the reviewed saved plan at
 `2026-09-25T18:23:07.2055684Z`; completion was observed at
 `2026-09-25T18:23:44.7915956Z`. Terraform reported 31 added, 0 changed, and
-0 destroyed. The four EC2 intervals are open in the task-wide ledger under
-cycle `cycle-2-4c625b3`: app-1 `i-08b8632f1c3ef80d0` (`c7i.large`,
+0 destroyed. Four EC2 intervals were immediately opened in the task-wide ledger
+under cycle `cycle-2-4c625b3`: app-1 `i-08b8632f1c3ef80d0` (`c7i.large`,
 us-west-1a), app-2 `i-0eda5443fea88fe0a` (`c7i.large`, us-west-1c),
 dependency `i-07b53b0242fa9851f` (`m7i.large`, us-west-1a), and load-generator
 `i-0872b6791d08cb577` (`c7i.large`, us-west-1a). Each interval uses the
-Terraform apply invocation start as its conservative billing start. No reset
-or paid calibration block has started yet.
+Terraform apply invocation start as its conservative billing start. They were
+closed at the common destroy-complete observation below.
 
 ## Cycle-2 bootstrap gate (2026-09-25)
 
@@ -253,3 +253,28 @@ are in `bootstrap-preflight-cycle-2.json`. The config was copied to the
 generator and hash-verified. A small remote wrapper exports the config path
 before invoking the committed warmup script, since the reset helper's warmup
 stage only supplies the workflow-ID path. No reset or measurement has started.
+
+## Cycle-2 first reset-stage failure and teardown (2026-09-25)
+
+The initial baseline content guard found migration 18, `pg_stat_statements`
+installed, two DUR-050 definitions, and zero workflows, attempts, outbox, or
+inbox rows. Both app stacks were then quiesced successfully. The dependency
+SSM stage stopped the database and Kafka containers and created the baseline
+archives (PostgreSQL 68,352,000 bytes; Kafka 286,720 bytes), but exited `141`
+at its final `tar -tf archive | head -n 3` diagnostic: with `pipefail`, `tar`
+received SIGPIPE after `head` exited. This is recorded as the first reset-path
+tooling failure, so the pilot stopped without invoking the reset helper, a
+warmup, or an unloaded block. The exact SSM response, archive hashes, and
+teardown are in `pilot-calibration/first-reset-failure-cycle-2.json`. Terraform
+1.16.4 destroyed all 31 resources from `2026-09-25T18:43:45.3537486Z` to
+`2026-09-25T18:44:55.5339832Z`; the four task-wide intervals close at the
+common completion time. No measurement result was produced.
+
+Post-destroy checks at `2026-09-25T18:49:25Z` found Terraform state empty,
+budget actual `$1.571` (billing data may lag), forecast `$5.268`, and all three
+D022 notifications still `OK`. The task-wide ledger audit passed with zero
+open intervals and `$0.248827` cumulative EC2 instance cost across both
+cycles. Inventory from `18:51:06Z` to `18:51:18Z` found all four instances
+terminated, no task-tagged volumes, addresses, snapshots, VPC, subnets,
+security groups, ENIs, internet/NAT gateways, no named DUR-050 IAM roles or
+SSM parameters, and zero Terraform state resources.
