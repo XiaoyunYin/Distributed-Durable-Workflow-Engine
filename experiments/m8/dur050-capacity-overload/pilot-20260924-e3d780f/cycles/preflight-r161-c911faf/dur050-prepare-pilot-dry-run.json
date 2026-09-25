@@ -1,0 +1,386 @@
+{
+    "schema":  "dur050-pilot-preparation-dry-run.v1",
+    "classification":  "DRY RUN ONLY - AWS calls and SSM dispatch are not performed",
+    "cycle_id":  "preflight-r161-c911faf",
+    "terraform_outputs_sha256":  "e5ecee5c6279184aa23e050f017269c6862aa18db24e9b7f8a0ca80db45af87f",
+    "frozen_config_sha256":  "f0a20e4275da38445f0c943f6a0a4dcee762f925c0dfe0880fbf32f43c252305",
+    "rendered_config_sha256":  "3b5891d4dd7834e8086f9e0b23d08d2319c26476541d496a6e1f1ef2a0799a45",
+    "stages":  [
+                   {
+                       "stage":  "fixture-install",
+                       "instance_id":  "i-11111111111111111",
+                       "remote_lines":  [
+                                            "set -euo pipefail",
+                                            "cd \"${DUR050_REMOTE_REPO_ROOT:-/opt/durable-agent-execution-engine}\"",
+                                            "fixture_config=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml exec -T runtime /dur050-fixture -api-url \u0027http://10.49.1.11:8080/\u0027 -namespace \u0027dur050-pilot-preflight-r161-c911faf\u0027 -run-id \u0027pilot-calibration\u0027 -seed 50050)",
+                                            "printf \u0027DUR050_FIXTURE_CONFIG_B64=%s\\n\u0027 \"$(printf \u0027%s\u0027 \"$fixture_config\" | base64 -w0)\""
+                                        ],
+                       "wrapped_command":  "umask 077; tmp=$(mktemp /tmp/dur050-fixture-install.XXXXXX) || exit 125; trap \u0027rm -f \"$tmp\"\u0027 0 HUP INT TERM; printf \u0027%s\u0027 \u0027c2V0IC1ldW8gcGlwZWZhaWwKY2QgIiR7RFVSMDUwX1JFTU9URV9SRVBPX1JPT1Q6LS9vcHQvZHVyYWJsZS1hZ2VudC1leGVjdXRpb24tZW5naW5lfSIKZml4dHVyZV9jb25maWc9JChkb2NrZXIgY29tcG9zZSAtLWVudi1maWxlIGRlcGxveS9hd3MvLmVudiAtZiBkZXBsb3kvYXdzL2FwcC1jb21wb3NlLnlhbWwgLWYgZGVwbG95L2F3cy9kdXIwNTAtYXBwLWNvbXBvc2UueWFtbCBleGVjIC1UIHJ1bnRpbWUgL2R1cjA1MC1maXh0dXJlIC1hcGktdXJsICdodHRwOi8vMTAuNDkuMS4xMTo4MDgwLycgLW5hbWVzcGFjZSAnZHVyMDUwLXBpbG90LXByZWZsaWdodC1yMTYxLWM5MTFmYWYnIC1ydW4taWQgJ3BpbG90LWNhbGlicmF0aW9uJyAtc2VlZCA1MDA1MCkKcHJpbnRmICdEVVIwNTBfRklYVFVSRV9DT05GSUdfQjY0PSVzXG4nICIkKHByaW50ZiAnJXMnICIkZml4dHVyZV9jb25maWciIHwgYmFzZTY0IC13MCkiCg==\u0027 | base64 -d \u003e \"$tmp\" || { rc=$?; exit \"$rc\"; }; bash \"$tmp\"; rc=$?; rm -f \"$tmp\" || exit $?; trap - 0 HUP INT TERM; printf \u0027DUR050_SSM_TEMP_REMOVED=%s\\n\u0027 \"$tmp\"; exit \"$rc\"",
+                       "expected_definitions":  [
+                                                    "dur050-fanout-8-v1@1",
+                                                    "dur050-seq-8-v1@1"
+                                                ],
+                       "expected_topics":  [
+                                               "__consumer_offsets",
+                                               "durable-agent.events.v1",
+                                               "durable-agent.tasks.v1"
+                                           ],
+                       "rendered_config":  {
+                                               "api_url":  "http://10.49.1.11:8080/",
+                                               "namespace":  "dur050-pilot-preflight-r161-c911faf",
+                                               "run_id":  "pilot-calibration",
+                                               "seed":  50050,
+                                               "families":  [
+                                                                {
+                                                                    "name":  "seq-8",
+                                                                    "definition_id":  "dur050-seq-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "dur050.sha256.seq8.0",
+                                                                    "payload":  {
+                                                                                    "profile":  "seq-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                },
+                                                                {
+                                                                    "name":  "fanout-8",
+                                                                    "definition_id":  "dur050-fanout-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "root",
+                                                                    "payload":  {
+                                                                                    "profile":  "fanout-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                }
+                                                            ]
+                                           },
+                       "rendered_config_path":  "/var/tmp/dur050-preflight-r161-c911faf/frozen-config.json",
+                       "rendered_config_sha256":  "3b5891d4dd7834e8086f9e0b23d08d2319c26476541d496a6e1f1ef2a0799a45"
+                   },
+                   {
+                       "stage":  "generator-stage",
+                       "instance_id":  "i-33333333333333333",
+                       "remote_lines":  [
+                                            "set -euo pipefail",
+                                            "install -d -m 0700 \u0027/var/tmp/dur050-preflight-r161-c911faf\u0027",
+                                            "printf \u0027%s\u0027 \u0027ew0KICAgICJhcGlfdXJsIjogICJodHRwOi8vMTAuNDkuMS4xMTo4MDgwLyIsDQogICAgIm5hbWVzcGFjZSI6ICAiZHVyMDUwLXBpbG90LXByZWZsaWdodC1yMTYxLWM5MTFmYWYiLA0KICAgICJydW5faWQiOiAgInBpbG90LWNhbGlicmF0aW9uIiwNCiAgICAic2VlZCI6ICA1MDA1MCwNCiAgICAiZmFtaWxpZXMiOiAgWw0KICAgICAgICAgICAgICAgICAgICAgew0KICAgICAgICAgICAgICAgICAgICAgICAgICJuYW1lIjogICJzZXEtOCIsDQogICAgICAgICAgICAgICAgICAgICAgICAgImRlZmluaXRpb25faWQiOiAgImR1cjA1MC1zZXEtOC12MSIsDQogICAgICAgICAgICAgICAgICAgICAgICAgImRlZmluaXRpb25fdmVyc2lvbiI6ICAxLA0KICAgICAgICAgICAgICAgICAgICAgICAgICJpbml0aWFsX25vZGVfaWQiOiAgImR1cjA1MC5zaGEyNTYuc2VxOC4wIiwNCiAgICAgICAgICAgICAgICAgICAgICAgICAicGF5bG9hZCI6ICB7DQogICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICJwcm9maWxlIjogICJzZXEtOCINCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB9LA0KICAgICAgICAgICAgICAgICAgICAgICAgICJpbml0aWFsX2lucHV0IjogIHsNCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgImlucHV0IjogICJmaXhlZC0yNTYtYnl0ZS1kdXIwNTAtc2VlZC12MSINCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICB9DQogICAgICAgICAgICAgICAgICAgICB9LA0KICAgICAgICAgICAgICAgICAgICAgew0KICAgICAgICAgICAgICAgICAgICAgICAgICJuYW1lIjogICJmYW5vdXQtOCIsDQogICAgICAgICAgICAgICAgICAgICAgICAgImRlZmluaXRpb25faWQiOiAgImR1cjA1MC1mYW5vdXQtOC12MSIsDQogICAgICAgICAgICAgICAgICAgICAgICAgImRlZmluaXRpb25fdmVyc2lvbiI6ICAxLA0KICAgICAgICAgICAgICAgICAgICAgICAgICJpbml0aWFsX25vZGVfaWQiOiAgInJvb3QiLA0KICAgICAgICAgICAgICAgICAgICAgICAgICJwYXlsb2FkIjogIHsNCiAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgInByb2ZpbGUiOiAgImZhbm91dC04Ig0KICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIH0sDQogICAgICAgICAgICAgICAgICAgICAgICAgImluaXRpYWxfaW5wdXQiOiAgew0KICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAiaW5wdXQiOiAgImZpeGVkLTI1Ni1ieXRlLWR1cjA1MC1zZWVkLXYxIg0KICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIH0NCiAgICAgICAgICAgICAgICAgICAgIH0NCiAgICAgICAgICAgICAgICAgXQ0KfQo=\u0027 | base64 -d \u003e \u0027/var/tmp/dur050-preflight-r161-c911faf/frozen-config.json\u0027",
+                                            "chmod 0600 \u0027/var/tmp/dur050-preflight-r161-c911faf/frozen-config.json\u0027",
+                                            "actual_sha256=$(sha256sum -- \u0027/var/tmp/dur050-preflight-r161-c911faf/frozen-config.json\u0027 | awk \u0027{print $1}\u0027)",
+                                            "test \"$actual_sha256\" = \u00273b5891d4dd7834e8086f9e0b23d08d2319c26476541d496a6e1f1ef2a0799a45\u0027",
+                                            "printf \u0027DUR050_CONFIG_PATH=%s\\n\u0027 \u0027/var/tmp/dur050-preflight-r161-c911faf/frozen-config.json\u0027",
+                                            "printf \u0027DUR050_CONFIG_SHA256=%s\\n\u0027 \"$actual_sha256\""
+                                        ],
+                       "wrapped_command":  "umask 077; tmp=$(mktemp /tmp/dur050-generator-stage.XXXXXX) || exit 125; trap \u0027rm -f \"$tmp\"\u0027 0 HUP INT TERM; printf \u0027%s\u0027 \u0027c2V0IC1ldW8gcGlwZWZhaWwKaW5zdGFsbCAtZCAtbSAwNzAwICcvdmFyL3RtcC9kdXIwNTAtcHJlZmxpZ2h0LXIxNjEtYzkxMWZhZicKcHJpbnRmICclcycgJ2V3MEtJQ0FnSUNKaGNHbGZkWEpzSWpvZ0lDSm9kSFJ3T2k4dk1UQXVORGt1TVM0eE1UbzRNRGd3THlJc0RRb2dJQ0FnSW01aGJXVnpjR0ZqWlNJNklDQWlaSFZ5TURVd0xYQnBiRzkwTFhCeVpXWnNhV2RvZEMxeU1UWXhMV001TVRGbVlXWWlMQTBLSUNBZ0lDSnlkVzVmYVdRaU9pQWdJbkJwYkc5MExXTmhiR2xpY21GMGFXOXVJaXdOQ2lBZ0lDQWljMlZsWkNJNklDQTFNREExTUN3TkNpQWdJQ0FpWm1GdGFXeHBaWE1pT2lBZ1d3MEtJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnZXcwS0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNKdVlXMWxJam9nSUNKelpYRXRPQ0lzRFFvZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSW1SbFptbHVhWFJwYjI1ZmFXUWlPaUFnSW1SMWNqQTFNQzF6WlhFdE9DMTJNU0lzRFFvZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSW1SbFptbHVhWFJwYjI1ZmRtVnljMmx2YmlJNklDQXhMQTBLSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0pwYm1sMGFXRnNYMjV2WkdWZmFXUWlPaUFnSW1SMWNqQTFNQzV6YUdFeU5UWXVjMlZ4T0M0d0lpd05DaUFnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWljR0Y1Ykc5aFpDSTZJQ0I3RFFvZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0p3Y205bWFXeGxJam9nSUNKelpYRXRPQ0lOQ2lBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNCOUxBMEtJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDSnBibWwwYVdGc1gybHVjSFYwSWpvZ0lIc05DaUFnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSW1sdWNIVjBJam9nSUNKbWFYaGxaQzB5TlRZdFlubDBaUzFrZFhJd05UQXRjMlZsWkMxMk1TSU5DaUFnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQjlEUW9nSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNCOUxBMEtJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnZXcwS0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNKdVlXMWxJam9nSUNKbVlXNXZkWFF0T0NJc0RRb2dJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0ltUmxabWx1YVhScGIyNWZhV1FpT2lBZ0ltUjFjakExTUMxbVlXNXZkWFF0T0MxMk1TSXNEUW9nSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJbVJsWm1sdWFYUnBiMjVmZG1WeWMybHZiaUk2SUNBeExBMEtJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDSnBibWwwYVdGc1gyNXZaR1ZmYVdRaU9pQWdJbkp2YjNRaUxBMEtJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDSndZWGxzYjJGa0lqb2dJSHNOQ2lBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJbkJ5YjJacGJHVWlPaUFnSW1aaGJtOTFkQzA0SWcwS0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lIMHNEUW9nSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJbWx1YVhScFlXeGZhVzV3ZFhRaU9pQWdldzBLSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBaWFXNXdkWFFpT2lBZ0ltWnBlR1ZrTFRJMU5pMWllWFJsTFdSMWNqQTFNQzF6WldWa0xYWXhJZzBLSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdJSDBOQ2lBZ0lDQWdJQ0FnSUNBZ0lDQWdJQ0FnSUNBZ0lIME5DaUFnSUNBZ0lDQWdJQ0FnSUNBZ0lDQWdYUTBLZlFvPScgfCBiYXNlNjQgLWQgPiAnL3Zhci90bXAvZHVyMDUwLXByZWZsaWdodC1yMTYxLWM5MTFmYWYvZnJvemVuLWNvbmZpZy5qc29uJwpjaG1vZCAwNjAwICcvdmFyL3RtcC9kdXIwNTAtcHJlZmxpZ2h0LXIxNjEtYzkxMWZhZi9mcm96ZW4tY29uZmlnLmpzb24nCmFjdHVhbF9zaGEyNTY9JChzaGEyNTZzdW0gLS0gJy92YXIvdG1wL2R1cjA1MC1wcmVmbGlnaHQtcjE2MS1jOTExZmFmL2Zyb3plbi1jb25maWcuanNvbicgfCBhd2sgJ3twcmludCAkMX0nKQp0ZXN0ICIkYWN0dWFsX3NoYTI1NiIgPSAnM2I1ODkxZDRkZDc4MzRlODA4NmY5ZTBiMjNkMDhkMjMxOWMyNjQ3NjU0MWQ0OTZhNmUxZjFlZjJhMDc5OWE0NScKcHJpbnRmICdEVVIwNTBfQ09ORklHX1BBVEg9JXNcbicgJy92YXIvdG1wL2R1cjA1MC1wcmVmbGlnaHQtcjE2MS1jOTExZmFmL2Zyb3plbi1jb25maWcuanNvbicKcHJpbnRmICdEVVIwNTBfQ09ORklHX1NIQTI1Nj0lc1xuJyAiJGFjdHVhbF9zaGEyNTYiCg==\u0027 | base64 -d \u003e \"$tmp\" || { rc=$?; exit \"$rc\"; }; bash \"$tmp\"; rc=$?; rm -f \"$tmp\" || exit $?; trap - 0 HUP INT TERM; printf \u0027DUR050_SSM_TEMP_REMOVED=%s\\n\u0027 \"$tmp\"; exit \"$rc\"",
+                       "expected_definitions":  [
+                                                    "dur050-fanout-8-v1@1",
+                                                    "dur050-seq-8-v1@1"
+                                                ],
+                       "expected_topics":  [
+                                               "__consumer_offsets",
+                                               "durable-agent.events.v1",
+                                               "durable-agent.tasks.v1"
+                                           ],
+                       "rendered_config":  {
+                                               "api_url":  "http://10.49.1.11:8080/",
+                                               "namespace":  "dur050-pilot-preflight-r161-c911faf",
+                                               "run_id":  "pilot-calibration",
+                                               "seed":  50050,
+                                               "families":  [
+                                                                {
+                                                                    "name":  "seq-8",
+                                                                    "definition_id":  "dur050-seq-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "dur050.sha256.seq8.0",
+                                                                    "payload":  {
+                                                                                    "profile":  "seq-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                },
+                                                                {
+                                                                    "name":  "fanout-8",
+                                                                    "definition_id":  "dur050-fanout-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "root",
+                                                                    "payload":  {
+                                                                                    "profile":  "fanout-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                }
+                                                            ]
+                                           },
+                       "rendered_config_path":  "/var/tmp/dur050-preflight-r161-c911faf/frozen-config.json",
+                       "rendered_config_sha256":  "3b5891d4dd7834e8086f9e0b23d08d2319c26476541d496a6e1f1ef2a0799a45"
+                   },
+                   {
+                       "stage":  "clean-baseline-guard",
+                       "instance_id":  "i-0123456789abcdef0",
+                       "remote_lines":  [
+                                            "set -euo pipefail",
+                                            "cd \"${DUR050_REMOTE_REPO_ROOT:-/opt/durable-agent-execution-engine}\"",
+                                            "postgres_user=$(sed -n \u0027s/^POSTGRES_USER=//p\u0027 deploy/aws/.env)",
+                                            "postgres_db=$(sed -n \u0027s/^POSTGRES_DB=//p\u0027 deploy/aws/.env)",
+                                            "test -n \"$postgres_user\" \u0026\u0026 test -n \"$postgres_db\"",
+                                            "guard_sql=$(printf \u0027%s\u0027 \u0027U0VMRUNUIGpzb25fYnVpbGRfb2JqZWN0KCAgICdzY2hlbWFfdmVyc2lvbicsIChTRUxFQ1QgQ09BTEVTQ0UobWF4KHZlcnNpb24pLCAwKSBGUk9NIGVuZ2luZS5zY2hlbWFfbWlncmF0aW9ucyksICAgJ3BnX3N0YXRfc3RhdGVtZW50c19wcmVsb2FkZWQnLCBjdXJyZW50X3NldHRpbmcoJ3NoYXJlZF9wcmVsb2FkX2xpYnJhcmllcycpIExJS0UgJyVwZ19zdGF0X3N0YXRlbWVudHMlJywgICAncGdfc3RhdF9zdGF0ZW1lbnRzX2luc3RhbGxlZCcsIEVYSVNUUyAoU0VMRUNUIDEgRlJPTSBwZ19leHRlbnNpb24gV0hFUkUgZXh0bmFtZSA9ICdwZ19zdGF0X3N0YXRlbWVudHMnKSwgICAnZGVmaW5pdGlvbl9pZHMnLCBDT0FMRVNDRSgoU0VMRUNUIGpzb25fYWdnKGRlZmluaXRpb25faWQgfHwgJ0AnIHx8IHZlcnNpb246OnRleHQgT1JERVIgQlkgZGVmaW5pdGlvbl9pZCkgRlJPTSBlbmdpbmUud29ya2Zsb3dfZGVmaW5pdGlvbnMgV0hFUkUgZGVmaW5pdGlvbl9pZCBMSUtFICdkdXIwNTAtJScpLCAnW10nOjpqc29uKSwgICAnd29ya2Zsb3dzJywgKFNFTEVDVCBjb3VudCgqKSBGUk9NIGVuZ2luZS53b3JrZmxvd19leGVjdXRpb25zKSwgICAnYXR0ZW1wdHMnLCAoU0VMRUNUIGNvdW50KCopIEZST00gZW5naW5lLmFjdGl2aXR5X2F0dGVtcHRzKSwgICAnb3V0Ym94JywgKFNFTEVDVCBjb3VudCgqKSBGUk9NIGVuZ2luZS5vdXRib3gpLCAgICdpbmJveCcsIChTRUxFQ1QgY291bnQoKikgRlJPTSBlbmdpbmUuZXZlbnRfaW5ib3gpICk6OnRleHQ7\u0027 | base64 -d)",
+                                            "guard_json=$(docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T postgres psql -v ON_ERROR_STOP=1 -U \"$postgres_user\" -d \"$postgres_db\" -Atc \"$guard_sql\")",
+                                            "printf \u0027%s\u0027 \"$guard_json\" | python3 -c \u0027import base64,json,sys; d=json.load(sys.stdin); expected=json.loads(base64.b64decode(\u0027\"\u0027\"\u0027WyJkdXIwNTAtZmFub3V0LTgtdjFAMSIsImR1cjA1MC1zZXEtOC12MUAxIl0=\u0027\"\u0027\"\u0027)); assert d[\u0027\"\u0027\"\u0027schema_version\u0027\"\u0027\"\u0027]==18, \u0027\"\u0027\"\u0027schema must be 18\u0027\"\u0027\"\u0027; assert d[\u0027\"\u0027\"\u0027pg_stat_statements_preloaded\u0027\"\u0027\"\u0027] and d[\u0027\"\u0027\"\u0027pg_stat_statements_installed\u0027\"\u0027\"\u0027], \u0027\"\u0027\"\u0027pg_stat_statements missing\u0027\"\u0027\"\u0027; assert sorted(d[\u0027\"\u0027\"\u0027definition_ids\u0027\"\u0027\"\u0027])==sorted(expected), \u0027\"\u0027\"\u0027definition set differs\u0027\"\u0027\"\u0027; assert all(d[k]==0 for k in (\u0027\"\u0027\"\u0027workflows\u0027\"\u0027\"\u0027,\u0027\"\u0027\"\u0027attempts\u0027\"\u0027\"\u0027,\u0027\"\u0027\"\u0027outbox\u0027\"\u0027\"\u0027,\u0027\"\u0027\"\u0027inbox\u0027\"\u0027\"\u0027)), \u0027\"\u0027\"\u0027baseline contains durable work\u0027\"\u0027\"\u0027; print(\u0027\"\u0027\"\u0027DUR050_GUARD_JSON_B64=\u0027\"\u0027\"\u0027+base64.b64encode(json.dumps(d,sort_keys=True,separators=(\u0027\"\u0027\"\u0027,\u0027\"\u0027\"\u0027,\u0027\"\u0027\"\u0027:\u0027\"\u0027\"\u0027)).encode()).decode())\u0027",
+                                            "topics=$(docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --list)",
+                                            "printf \u0027%s\\n\u0027 \"$topics\" | sed \u0027/^$/d\u0027 | sort \u003e /tmp/dur050-actual-topics.txt",
+                                            "printf \u0027%s\\n\u0027 __consumer_offsets durable-agent.events.v1 durable-agent.tasks.v1 | sort \u003e /tmp/dur050-expected-topics.txt",
+                                            "diff -u /tmp/dur050-expected-topics.txt /tmp/dur050-actual-topics.txt",
+                                            "topics_b64=$(printf \u0027%s\\n\u0027 \"$topics\" | sed \u0027/^$/d\u0027 | sort | base64 -w0)",
+                                            "printf \u0027DUR050_TOPICS_B64=%s\\n\u0027 \"$topics_b64\""
+                                        ],
+                       "wrapped_command":  "umask 077; tmp=$(mktemp /tmp/dur050-clean-baseline-guard.XXXXXX) || exit 125; trap \u0027rm -f \"$tmp\"\u0027 0 HUP INT TERM; printf \u0027%s\u0027 \u0027c2V0IC1ldW8gcGlwZWZhaWwKY2QgIiR7RFVSMDUwX1JFTU9URV9SRVBPX1JPT1Q6LS9vcHQvZHVyYWJsZS1hZ2VudC1leGVjdXRpb24tZW5naW5lfSIKcG9zdGdyZXNfdXNlcj0kKHNlZCAtbiAncy9eUE9TVEdSRVNfVVNFUj0vL3AnIGRlcGxveS9hd3MvLmVudikKcG9zdGdyZXNfZGI9JChzZWQgLW4gJ3MvXlBPU1RHUkVTX0RCPS8vcCcgZGVwbG95L2F3cy8uZW52KQp0ZXN0IC1uICIkcG9zdGdyZXNfdXNlciIgJiYgdGVzdCAtbiAiJHBvc3RncmVzX2RiIgpndWFyZF9zcWw9JChwcmludGYgJyVzJyAnVTBWTVJVTlVJR3B6YjI1ZlluVnBiR1JmYjJKcVpXTjBLQ0FnSUNkelkyaGxiV0ZmZG1WeWMybHZiaWNzSUNoVFJVeEZRMVFnUTA5QlRFVlRRMFVvYldGNEtIWmxjbk5wYjI0cExDQXdLU0JHVWs5TklHVnVaMmx1WlM1elkyaGxiV0ZmYldsbmNtRjBhVzl1Y3lrc0lDQWdKM0JuWDNOMFlYUmZjM1JoZEdWdFpXNTBjMTl3Y21Wc2IyRmtaV1FuTENCamRYSnlaVzUwWDNObGRIUnBibWNvSjNOb1lYSmxaRjl3Y21Wc2IyRmtYMnhwWW5KaGNtbGxjeWNwSUV4SlMwVWdKeVZ3WjE5emRHRjBYM04wWVhSbGJXVnVkSE1sSnl3Z0lDQW5jR2RmYzNSaGRGOXpkR0YwWlcxbGJuUnpYMmx1YzNSaGJHeGxaQ2NzSUVWWVNWTlVVeUFvVTBWTVJVTlVJREVnUmxKUFRTQndaMTlsZUhSbGJuTnBiMjRnVjBoRlVrVWdaWGgwYm1GdFpTQTlJQ2R3WjE5emRHRjBYM04wWVhSbGJXVnVkSE1uS1N3Z0lDQW5aR1ZtYVc1cGRHbHZibDlwWkhNbkxDQkRUMEZNUlZORFJTZ29VMFZNUlVOVUlHcHpiMjVmWVdkbktHUmxabWx1YVhScGIyNWZhV1FnZkh3Z0owQW5JSHg4SUhabGNuTnBiMjQ2T25SbGVIUWdUMUpFUlZJZ1Fsa2daR1ZtYVc1cGRHbHZibDlwWkNrZ1JsSlBUU0JsYm1kcGJtVXVkMjl5YTJac2IzZGZaR1ZtYVc1cGRHbHZibk1nVjBoRlVrVWdaR1ZtYVc1cGRHbHZibDlwWkNCTVNVdEZJQ2RrZFhJd05UQXRKU2NwTENBblcxMG5PanBxYzI5dUtTd2dJQ0FuZDI5eWEyWnNiM2R6Snl3Z0tGTkZURVZEVkNCamIzVnVkQ2dxS1NCR1VrOU5JR1Z1WjJsdVpTNTNiM0pyWm14dmQxOWxlR1ZqZFhScGIyNXpLU3dnSUNBbllYUjBaVzF3ZEhNbkxDQW9VMFZNUlVOVUlHTnZkVzUwS0NvcElFWlNUMDBnWlc1bmFXNWxMbUZqZEdsMmFYUjVYMkYwZEdWdGNIUnpLU3dnSUNBbmIzVjBZbTk0Snl3Z0tGTkZURVZEVkNCamIzVnVkQ2dxS1NCR1VrOU5JR1Z1WjJsdVpTNXZkWFJpYjNncExDQWdJQ2RwYm1KdmVDY3NJQ2hUUlV4RlExUWdZMjkxYm5Rb0tpa2dSbEpQVFNCbGJtZHBibVV1WlhabGJuUmZhVzVpYjNncElDazZPblJsZUhRNycgfCBiYXNlNjQgLWQpCmd1YXJkX2pzb249JChkb2NrZXIgY29tcG9zZSAtLWVudi1maWxlIGRlcGxveS9hd3MvLmVudiAtZiBkZXBsb3kvYXdzL2RlcGVuZGVuY3ktY29tcG9zZS55YW1sIGV4ZWMgLVQgcG9zdGdyZXMgcHNxbCAtdiBPTl9FUlJPUl9TVE9QPTEgLVUgIiRwb3N0Z3Jlc191c2VyIiAtZCAiJHBvc3RncmVzX2RiIiAtQXRjICIkZ3VhcmRfc3FsIikKcHJpbnRmICclcycgIiRndWFyZF9qc29uIiB8IHB5dGhvbjMgLWMgJ2ltcG9ydCBiYXNlNjQsanNvbixzeXM7IGQ9anNvbi5sb2FkKHN5cy5zdGRpbik7IGV4cGVjdGVkPWpzb24ubG9hZHMoYmFzZTY0LmI2NGRlY29kZSgnIiciJ1d5SmtkWEl3TlRBdFptRnViM1YwTFRndGRqRkFNU0lzSW1SMWNqQTFNQzF6WlhFdE9DMTJNVUF4SWwwPSciJyInKSk7IGFzc2VydCBkWyciJyInc2NoZW1hX3ZlcnNpb24nIiciJ109PTE4LCAnIiciJ3NjaGVtYSBtdXN0IGJlIDE4JyInIic7IGFzc2VydCBkWyciJyIncGdfc3RhdF9zdGF0ZW1lbnRzX3ByZWxvYWRlZCciJyInXSBhbmQgZFsnIiciJ3BnX3N0YXRfc3RhdGVtZW50c19pbnN0YWxsZWQnIiciJ10sICciJyIncGdfc3RhdF9zdGF0ZW1lbnRzIG1pc3NpbmcnIiciJzsgYXNzZXJ0IHNvcnRlZChkWyciJyInZGVmaW5pdGlvbl9pZHMnIiciJ10pPT1zb3J0ZWQoZXhwZWN0ZWQpLCAnIiciJ2RlZmluaXRpb24gc2V0IGRpZmZlcnMnIiciJzsgYXNzZXJ0IGFsbChkW2tdPT0wIGZvciBrIGluICgnIiciJ3dvcmtmbG93cyciJyInLCciJyInYXR0ZW1wdHMnIiciJywnIiciJ291dGJveCciJyInLCciJyInaW5ib3gnIiciJykpLCAnIiciJ2Jhc2VsaW5lIGNvbnRhaW5zIGR1cmFibGUgd29yayciJyInOyBwcmludCgnIiciJ0RVUjA1MF9HVUFSRF9KU09OX0I2ND0nIiciJytiYXNlNjQuYjY0ZW5jb2RlKGpzb24uZHVtcHMoZCxzb3J0X2tleXM9VHJ1ZSxzZXBhcmF0b3JzPSgnIiciJywnIiciJywnIiciJzonIiciJykpLmVuY29kZSgpKS5kZWNvZGUoKSknCnRvcGljcz0kKGRvY2tlciBjb21wb3NlIC0tZW52LWZpbGUgZGVwbG95L2F3cy8uZW52IC1mIGRlcGxveS9hd3MvZGVwZW5kZW5jeS1jb21wb3NlLnlhbWwgZXhlYyAtVCBrYWZrYSAvb3B0L2thZmthL2Jpbi9rYWZrYS10b3BpY3Muc2ggLS1ib290c3RyYXAtc2VydmVyIGthZmthOjE5MDkyIC0tbGlzdCkKcHJpbnRmICclc1xuJyAiJHRvcGljcyIgfCBzZWQgJy9eJC9kJyB8IHNvcnQgPiAvdG1wL2R1cjA1MC1hY3R1YWwtdG9waWNzLnR4dApwcmludGYgJyVzXG4nIF9fY29uc3VtZXJfb2Zmc2V0cyBkdXJhYmxlLWFnZW50LmV2ZW50cy52MSBkdXJhYmxlLWFnZW50LnRhc2tzLnYxIHwgc29ydCA+IC90bXAvZHVyMDUwLWV4cGVjdGVkLXRvcGljcy50eHQKZGlmZiAtdSAvdG1wL2R1cjA1MC1leHBlY3RlZC10b3BpY3MudHh0IC90bXAvZHVyMDUwLWFjdHVhbC10b3BpY3MudHh0CnRvcGljc19iNjQ9JChwcmludGYgJyVzXG4nICIkdG9waWNzIiB8IHNlZCAnL14kL2QnIHwgc29ydCB8IGJhc2U2NCAtdzApCnByaW50ZiAnRFVSMDUwX1RPUElDU19CNjQ9JXNcbicgIiR0b3BpY3NfYjY0Igo=\u0027 | base64 -d \u003e \"$tmp\" || { rc=$?; exit \"$rc\"; }; bash \"$tmp\"; rc=$?; rm -f \"$tmp\" || exit $?; trap - 0 HUP INT TERM; printf \u0027DUR050_SSM_TEMP_REMOVED=%s\\n\u0027 \"$tmp\"; exit \"$rc\"",
+                       "expected_definitions":  [
+                                                    "dur050-fanout-8-v1@1",
+                                                    "dur050-seq-8-v1@1"
+                                                ],
+                       "expected_topics":  [
+                                               "__consumer_offsets",
+                                               "durable-agent.events.v1",
+                                               "durable-agent.tasks.v1"
+                                           ],
+                       "rendered_config":  {
+                                               "api_url":  "http://10.49.1.11:8080/",
+                                               "namespace":  "dur050-pilot-preflight-r161-c911faf",
+                                               "run_id":  "pilot-calibration",
+                                               "seed":  50050,
+                                               "families":  [
+                                                                {
+                                                                    "name":  "seq-8",
+                                                                    "definition_id":  "dur050-seq-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "dur050.sha256.seq8.0",
+                                                                    "payload":  {
+                                                                                    "profile":  "seq-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                },
+                                                                {
+                                                                    "name":  "fanout-8",
+                                                                    "definition_id":  "dur050-fanout-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "root",
+                                                                    "payload":  {
+                                                                                    "profile":  "fanout-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                }
+                                                            ]
+                                           },
+                       "rendered_config_path":  "/var/tmp/dur050-preflight-r161-c911faf/frozen-config.json",
+                       "rendered_config_sha256":  "3b5891d4dd7834e8086f9e0b23d08d2319c26476541d496a6e1f1ef2a0799a45"
+                   },
+                   {
+                       "stage":  "quiesce-app-1",
+                       "instance_id":  "i-11111111111111111",
+                       "remote_lines":  [
+                                            "set -euo pipefail",
+                                            "cd \"${DUR050_REMOTE_REPO_ROOT:-/opt/durable-agent-execution-engine}\"",
+                                            "docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml down",
+                                            "remaining=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml ps -q runtime worker)",
+                                            "test -z \"$remaining\"",
+                                            "printf \u0027DUR050_APP_STACK_QUIESCED=1\\n\u0027"
+                                        ],
+                       "wrapped_command":  "umask 077; tmp=$(mktemp /tmp/dur050-quiesce-app-1.XXXXXX) || exit 125; trap \u0027rm -f \"$tmp\"\u0027 0 HUP INT TERM; printf \u0027%s\u0027 \u0027c2V0IC1ldW8gcGlwZWZhaWwKY2QgIiR7RFVSMDUwX1JFTU9URV9SRVBPX1JPT1Q6LS9vcHQvZHVyYWJsZS1hZ2VudC1leGVjdXRpb24tZW5naW5lfSIKZG9ja2VyIGNvbXBvc2UgLS1lbnYtZmlsZSBkZXBsb3kvYXdzLy5lbnYgLWYgZGVwbG95L2F3cy9hcHAtY29tcG9zZS55YW1sIC1mIGRlcGxveS9hd3MvZHVyMDUwLWFwcC1jb21wb3NlLnlhbWwgZG93bgpyZW1haW5pbmc9JChkb2NrZXIgY29tcG9zZSAtLWVudi1maWxlIGRlcGxveS9hd3MvLmVudiAtZiBkZXBsb3kvYXdzL2FwcC1jb21wb3NlLnlhbWwgLWYgZGVwbG95L2F3cy9kdXIwNTAtYXBwLWNvbXBvc2UueWFtbCBwcyAtcSBydW50aW1lIHdvcmtlcikKdGVzdCAteiAiJHJlbWFpbmluZyIKcHJpbnRmICdEVVIwNTBfQVBQX1NUQUNLX1FVSUVTQ0VEPTFcbicK\u0027 | base64 -d \u003e \"$tmp\" || { rc=$?; exit \"$rc\"; }; bash \"$tmp\"; rc=$?; rm -f \"$tmp\" || exit $?; trap - 0 HUP INT TERM; printf \u0027DUR050_SSM_TEMP_REMOVED=%s\\n\u0027 \"$tmp\"; exit \"$rc\"",
+                       "expected_definitions":  [
+                                                    "dur050-fanout-8-v1@1",
+                                                    "dur050-seq-8-v1@1"
+                                                ],
+                       "expected_topics":  [
+                                               "__consumer_offsets",
+                                               "durable-agent.events.v1",
+                                               "durable-agent.tasks.v1"
+                                           ],
+                       "rendered_config":  {
+                                               "api_url":  "http://10.49.1.11:8080/",
+                                               "namespace":  "dur050-pilot-preflight-r161-c911faf",
+                                               "run_id":  "pilot-calibration",
+                                               "seed":  50050,
+                                               "families":  [
+                                                                {
+                                                                    "name":  "seq-8",
+                                                                    "definition_id":  "dur050-seq-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "dur050.sha256.seq8.0",
+                                                                    "payload":  {
+                                                                                    "profile":  "seq-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                },
+                                                                {
+                                                                    "name":  "fanout-8",
+                                                                    "definition_id":  "dur050-fanout-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "root",
+                                                                    "payload":  {
+                                                                                    "profile":  "fanout-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                }
+                                                            ]
+                                           },
+                       "rendered_config_path":  "/var/tmp/dur050-preflight-r161-c911faf/frozen-config.json",
+                       "rendered_config_sha256":  "3b5891d4dd7834e8086f9e0b23d08d2319c26476541d496a6e1f1ef2a0799a45"
+                   },
+                   {
+                       "stage":  "quiesce-app-2",
+                       "instance_id":  "i-22222222222222222",
+                       "remote_lines":  [
+                                            "set -euo pipefail",
+                                            "cd \"${DUR050_REMOTE_REPO_ROOT:-/opt/durable-agent-execution-engine}\"",
+                                            "docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml down",
+                                            "remaining=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml ps -q runtime worker)",
+                                            "test -z \"$remaining\"",
+                                            "printf \u0027DUR050_APP_STACK_QUIESCED=1\\n\u0027"
+                                        ],
+                       "wrapped_command":  "umask 077; tmp=$(mktemp /tmp/dur050-quiesce-app-2.XXXXXX) || exit 125; trap \u0027rm -f \"$tmp\"\u0027 0 HUP INT TERM; printf \u0027%s\u0027 \u0027c2V0IC1ldW8gcGlwZWZhaWwKY2QgIiR7RFVSMDUwX1JFTU9URV9SRVBPX1JPT1Q6LS9vcHQvZHVyYWJsZS1hZ2VudC1leGVjdXRpb24tZW5naW5lfSIKZG9ja2VyIGNvbXBvc2UgLS1lbnYtZmlsZSBkZXBsb3kvYXdzLy5lbnYgLWYgZGVwbG95L2F3cy9hcHAtY29tcG9zZS55YW1sIC1mIGRlcGxveS9hd3MvZHVyMDUwLWFwcC1jb21wb3NlLnlhbWwgZG93bgpyZW1haW5pbmc9JChkb2NrZXIgY29tcG9zZSAtLWVudi1maWxlIGRlcGxveS9hd3MvLmVudiAtZiBkZXBsb3kvYXdzL2FwcC1jb21wb3NlLnlhbWwgLWYgZGVwbG95L2F3cy9kdXIwNTAtYXBwLWNvbXBvc2UueWFtbCBwcyAtcSBydW50aW1lIHdvcmtlcikKdGVzdCAteiAiJHJlbWFpbmluZyIKcHJpbnRmICdEVVIwNTBfQVBQX1NUQUNLX1FVSUVTQ0VEPTFcbicK\u0027 | base64 -d \u003e \"$tmp\" || { rc=$?; exit \"$rc\"; }; bash \"$tmp\"; rc=$?; rm -f \"$tmp\" || exit $?; trap - 0 HUP INT TERM; printf \u0027DUR050_SSM_TEMP_REMOVED=%s\\n\u0027 \"$tmp\"; exit \"$rc\"",
+                       "expected_definitions":  [
+                                                    "dur050-fanout-8-v1@1",
+                                                    "dur050-seq-8-v1@1"
+                                                ],
+                       "expected_topics":  [
+                                               "__consumer_offsets",
+                                               "durable-agent.events.v1",
+                                               "durable-agent.tasks.v1"
+                                           ],
+                       "rendered_config":  {
+                                               "api_url":  "http://10.49.1.11:8080/",
+                                               "namespace":  "dur050-pilot-preflight-r161-c911faf",
+                                               "run_id":  "pilot-calibration",
+                                               "seed":  50050,
+                                               "families":  [
+                                                                {
+                                                                    "name":  "seq-8",
+                                                                    "definition_id":  "dur050-seq-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "dur050.sha256.seq8.0",
+                                                                    "payload":  {
+                                                                                    "profile":  "seq-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                },
+                                                                {
+                                                                    "name":  "fanout-8",
+                                                                    "definition_id":  "dur050-fanout-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "root",
+                                                                    "payload":  {
+                                                                                    "profile":  "fanout-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                }
+                                                            ]
+                                           },
+                       "rendered_config_path":  "/var/tmp/dur050-preflight-r161-c911faf/frozen-config.json",
+                       "rendered_config_sha256":  "3b5891d4dd7834e8086f9e0b23d08d2319c26476541d496a6e1f1ef2a0799a45"
+                   },
+                   {
+                       "stage":  "capture-baseline",
+                       "instance_id":  "i-0123456789abcdef0",
+                       "remote_lines":  [
+                                            "set -euo pipefail",
+                                            "cd \"${DUR050_REMOTE_REPO_ROOT:-/opt/durable-agent-execution-engine}\"",
+                                            "archive_dir=\u0027/var/tmp/dur050-preflight-r161-c911faf-baseline\u0027",
+                                            "mkdir -p \"$archive_dir\" \u0026\u0026 chmod 0700 \"$archive_dir\"",
+                                            "baseline_started_at=$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+                                            "postgres_image=$(sed -n \u0027s/^POSTGRES_IMAGE=//p\u0027 deploy/aws/.env)",
+                                            "test -n \"$postgres_image\"",
+                                            "docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml stop postgres kafka",
+                                            "running=$(docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml ps --services --filter status=running)",
+                                            "if printf \u0027%s\\n\u0027 \"$running\" | grep -Exq \u0027(postgres|kafka)\u0027; then echo \u0027dependency still running during volume capture\u0027 \u003e\u00262; exit 1; fi",
+                                            "docker run --rm --user 0:0 -v durable-aws-dependencies_postgres-data:/data:ro -v \"$archive_dir:/backup\" --entrypoint bash \"$postgres_image\" -ec \u0027tar -cpf /backup/postgres-data.tar -C /data .\u0027",
+                                            "docker run --rm --user 0:0 -v durable-aws-dependencies_kafka-data:/data:ro -v \"$archive_dir:/backup\" --entrypoint bash \"$postgres_image\" -ec \u0027tar -cpf /backup/kafka-data.tar -C /data .\u0027",
+                                            "postgres_archive=\"$archive_dir/postgres-data.tar\"",
+                                            "kafka_archive=\"$archive_dir/kafka-data.tar\"",
+                                            "test -s \"$postgres_archive\" \u0026\u0026 test -s \"$kafka_archive\"",
+                                            "tar -tf \"$postgres_archive\" \u003e \"$archive_dir/postgres-data.list\"",
+                                            "sed -n \u00271,3p\u0027 \"$archive_dir/postgres-data.list\" \u003e \"$archive_dir/postgres-data.preview\"",
+                                            "tar -tf \"$kafka_archive\" \u003e \"$archive_dir/kafka-data.list\"",
+                                            "sed -n \u00271,3p\u0027 \"$archive_dir/kafka-data.list\" \u003e \"$archive_dir/kafka-data.preview\"",
+                                            "postgres_sha=$(sha256sum -- \"$postgres_archive\" | awk \u0027{print $1}\u0027)",
+                                            "kafka_sha=$(sha256sum -- \"$kafka_archive\" | awk \u0027{print $1}\u0027)",
+                                            "postgres_size=$(stat -c %s \"$postgres_archive\")",
+                                            "kafka_size=$(stat -c %s \"$kafka_archive\")",
+                                            "docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml up -d postgres kafka",
+                                            "postgres_user=$(sed -n \u0027s/^POSTGRES_USER=//p\u0027 deploy/aws/.env)",
+                                            "postgres_db=$(sed -n \u0027s/^POSTGRES_DB=//p\u0027 deploy/aws/.env)",
+                                            "postgres_ready=0",
+                                            "for attempt in $(seq 1 60); do if docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T postgres pg_isready -U \"$postgres_user\" -d \"$postgres_db\" \u003e/dev/null 2\u003e\u00261; then postgres_ready=1; break; fi; sleep 2; done",
+                                            "test \"$postgres_ready\" -eq 1",
+                                            "kafka_ready=0",
+                                            "for attempt in $(seq 1 60); do topics=$(docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:19092 --list 2\u003e/dev/null || true); if printf \u0027%s\\n\u0027 \"$topics\" | grep -Fxq durable-agent.tasks.v1 \u0026\u0026 printf \u0027%s\\n\u0027 \"$topics\" | grep -Fxq durable-agent.events.v1; then kafka_ready=1; break; fi; sleep 2; done",
+                                            "test \"$kafka_ready\" -eq 1",
+                                            "printf \u0027DUR050_BASELINE_STARTED_AT=%s\\n\u0027 \"$baseline_started_at\"",
+                                            "printf \u0027DUR050_POSTGRES_ARCHIVE_PATH=%s\\nDUR050_POSTGRES_ARCHIVE_SHA256=%s\\nDUR050_POSTGRES_ARCHIVE_SIZE=%s\\n\u0027 \"$postgres_archive\" \"$postgres_sha\" \"$postgres_size\"",
+                                            "printf \u0027DUR050_KAFKA_ARCHIVE_PATH=%s\\nDUR050_KAFKA_ARCHIVE_SHA256=%s\\nDUR050_KAFKA_ARCHIVE_SIZE=%s\\n\u0027 \"$kafka_archive\" \"$kafka_sha\" \"$kafka_size\"",
+                                            "printf \u0027DUR050_POSTGRES_PREVIEW_B64=%s\\n\u0027 \"$(base64 -w0 \"$archive_dir/postgres-data.preview\")\"",
+                                            "printf \u0027DUR050_KAFKA_PREVIEW_B64=%s\\n\u0027 \"$(base64 -w0 \"$archive_dir/kafka-data.preview\")\"",
+                                            "printf \u0027DUR050_BASELINE_DEPENDENCIES_RESTARTED=1\\n\u0027"
+                                        ],
+                       "wrapped_command":  "umask 077; tmp=$(mktemp /tmp/dur050-capture-baseline.XXXXXX) || exit 125; trap \u0027rm -f \"$tmp\"\u0027 0 HUP INT TERM; printf \u0027%s\u0027 \u0027c2V0IC1ldW8gcGlwZWZhaWwKY2QgIiR7RFVSMDUwX1JFTU9URV9SRVBPX1JPT1Q6LS9vcHQvZHVyYWJsZS1hZ2VudC1leGVjdXRpb24tZW5naW5lfSIKYXJjaGl2ZV9kaXI9Jy92YXIvdG1wL2R1cjA1MC1wcmVmbGlnaHQtcjE2MS1jOTExZmFmLWJhc2VsaW5lJwpta2RpciAtcCAiJGFyY2hpdmVfZGlyIiAmJiBjaG1vZCAwNzAwICIkYXJjaGl2ZV9kaXIiCmJhc2VsaW5lX3N0YXJ0ZWRfYXQ9JChkYXRlIC11ICslWS0lbS0lZFQlSDolTTolU1opCnBvc3RncmVzX2ltYWdlPSQoc2VkIC1uICdzL15QT1NUR1JFU19JTUFHRT0vL3AnIGRlcGxveS9hd3MvLmVudikKdGVzdCAtbiAiJHBvc3RncmVzX2ltYWdlIgpkb2NrZXIgY29tcG9zZSAtLWVudi1maWxlIGRlcGxveS9hd3MvLmVudiAtZiBkZXBsb3kvYXdzL2RlcGVuZGVuY3ktY29tcG9zZS55YW1sIHN0b3AgcG9zdGdyZXMga2Fma2EKcnVubmluZz0kKGRvY2tlciBjb21wb3NlIC0tZW52LWZpbGUgZGVwbG95L2F3cy8uZW52IC1mIGRlcGxveS9hd3MvZGVwZW5kZW5jeS1jb21wb3NlLnlhbWwgcHMgLS1zZXJ2aWNlcyAtLWZpbHRlciBzdGF0dXM9cnVubmluZykKaWYgcHJpbnRmICclc1xuJyAiJHJ1bm5pbmciIHwgZ3JlcCAtRXhxICcocG9zdGdyZXN8a2Fma2EpJzsgdGhlbiBlY2hvICdkZXBlbmRlbmN5IHN0aWxsIHJ1bm5pbmcgZHVyaW5nIHZvbHVtZSBjYXB0dXJlJyA+JjI7IGV4aXQgMTsgZmkKZG9ja2VyIHJ1biAtLXJtIC0tdXNlciAwOjAgLXYgZHVyYWJsZS1hd3MtZGVwZW5kZW5jaWVzX3Bvc3RncmVzLWRhdGE6L2RhdGE6cm8gLXYgIiRhcmNoaXZlX2RpcjovYmFja3VwIiAtLWVudHJ5cG9pbnQgYmFzaCAiJHBvc3RncmVzX2ltYWdlIiAtZWMgJ3RhciAtY3BmIC9iYWNrdXAvcG9zdGdyZXMtZGF0YS50YXIgLUMgL2RhdGEgLicKZG9ja2VyIHJ1biAtLXJtIC0tdXNlciAwOjAgLXYgZHVyYWJsZS1hd3MtZGVwZW5kZW5jaWVzX2thZmthLWRhdGE6L2RhdGE6cm8gLXYgIiRhcmNoaXZlX2RpcjovYmFja3VwIiAtLWVudHJ5cG9pbnQgYmFzaCAiJHBvc3RncmVzX2ltYWdlIiAtZWMgJ3RhciAtY3BmIC9iYWNrdXAva2Fma2EtZGF0YS50YXIgLUMgL2RhdGEgLicKcG9zdGdyZXNfYXJjaGl2ZT0iJGFyY2hpdmVfZGlyL3Bvc3RncmVzLWRhdGEudGFyIgprYWZrYV9hcmNoaXZlPSIkYXJjaGl2ZV9kaXIva2Fma2EtZGF0YS50YXIiCnRlc3QgLXMgIiRwb3N0Z3Jlc19hcmNoaXZlIiAmJiB0ZXN0IC1zICIka2Fma2FfYXJjaGl2ZSIKdGFyIC10ZiAiJHBvc3RncmVzX2FyY2hpdmUiID4gIiRhcmNoaXZlX2Rpci9wb3N0Z3Jlcy1kYXRhLmxpc3QiCnNlZCAtbiAnMSwzcCcgIiRhcmNoaXZlX2Rpci9wb3N0Z3Jlcy1kYXRhLmxpc3QiID4gIiRhcmNoaXZlX2Rpci9wb3N0Z3Jlcy1kYXRhLnByZXZpZXciCnRhciAtdGYgIiRrYWZrYV9hcmNoaXZlIiA+ICIkYXJjaGl2ZV9kaXIva2Fma2EtZGF0YS5saXN0IgpzZWQgLW4gJzEsM3AnICIkYXJjaGl2ZV9kaXIva2Fma2EtZGF0YS5saXN0IiA+ICIkYXJjaGl2ZV9kaXIva2Fma2EtZGF0YS5wcmV2aWV3Igpwb3N0Z3Jlc19zaGE9JChzaGEyNTZzdW0gLS0gIiRwb3N0Z3Jlc19hcmNoaXZlIiB8IGF3ayAne3ByaW50ICQxfScpCmthZmthX3NoYT0kKHNoYTI1NnN1bSAtLSAiJGthZmthX2FyY2hpdmUiIHwgYXdrICd7cHJpbnQgJDF9JykKcG9zdGdyZXNfc2l6ZT0kKHN0YXQgLWMgJXMgIiRwb3N0Z3Jlc19hcmNoaXZlIikKa2Fma2Ffc2l6ZT0kKHN0YXQgLWMgJXMgIiRrYWZrYV9hcmNoaXZlIikKZG9ja2VyIGNvbXBvc2UgLS1lbnYtZmlsZSBkZXBsb3kvYXdzLy5lbnYgLWYgZGVwbG95L2F3cy9kZXBlbmRlbmN5LWNvbXBvc2UueWFtbCB1cCAtZCBwb3N0Z3JlcyBrYWZrYQpwb3N0Z3Jlc191c2VyPSQoc2VkIC1uICdzL15QT1NUR1JFU19VU0VSPS8vcCcgZGVwbG95L2F3cy8uZW52KQpwb3N0Z3Jlc19kYj0kKHNlZCAtbiAncy9eUE9TVEdSRVNfREI9Ly9wJyBkZXBsb3kvYXdzLy5lbnYpCnBvc3RncmVzX3JlYWR5PTAKZm9yIGF0dGVtcHQgaW4gJChzZXEgMSA2MCk7IGRvIGlmIGRvY2tlciBjb21wb3NlIC0tZW52LWZpbGUgZGVwbG95L2F3cy8uZW52IC1mIGRlcGxveS9hd3MvZGVwZW5kZW5jeS1jb21wb3NlLnlhbWwgZXhlYyAtVCBwb3N0Z3JlcyBwZ19pc3JlYWR5IC1VICIkcG9zdGdyZXNfdXNlciIgLWQgIiRwb3N0Z3Jlc19kYiIgPi9kZXYvbnVsbCAyPiYxOyB0aGVuIHBvc3RncmVzX3JlYWR5PTE7IGJyZWFrOyBmaTsgc2xlZXAgMjsgZG9uZQp0ZXN0ICIkcG9zdGdyZXNfcmVhZHkiIC1lcSAxCmthZmthX3JlYWR5PTAKZm9yIGF0dGVtcHQgaW4gJChzZXEgMSA2MCk7IGRvIHRvcGljcz0kKGRvY2tlciBjb21wb3NlIC0tZW52LWZpbGUgZGVwbG95L2F3cy8uZW52IC1mIGRlcGxveS9hd3MvZGVwZW5kZW5jeS1jb21wb3NlLnlhbWwgZXhlYyAtVCBrYWZrYSAvb3B0L2thZmthL2Jpbi9rYWZrYS10b3BpY3Muc2ggLS1ib290c3RyYXAtc2VydmVyIGthZmthOjE5MDkyIC0tbGlzdCAyPi9kZXYvbnVsbCB8fCB0cnVlKTsgaWYgcHJpbnRmICclc1xuJyAiJHRvcGljcyIgfCBncmVwIC1GeHEgZHVyYWJsZS1hZ2VudC50YXNrcy52MSAmJiBwcmludGYgJyVzXG4nICIkdG9waWNzIiB8IGdyZXAgLUZ4cSBkdXJhYmxlLWFnZW50LmV2ZW50cy52MTsgdGhlbiBrYWZrYV9yZWFkeT0xOyBicmVhazsgZmk7IHNsZWVwIDI7IGRvbmUKdGVzdCAiJGthZmthX3JlYWR5IiAtZXEgMQpwcmludGYgJ0RVUjA1MF9CQVNFTElORV9TVEFSVEVEX0FUPSVzXG4nICIkYmFzZWxpbmVfc3RhcnRlZF9hdCIKcHJpbnRmICdEVVIwNTBfUE9TVEdSRVNfQVJDSElWRV9QQVRIPSVzXG5EVVIwNTBfUE9TVEdSRVNfQVJDSElWRV9TSEEyNTY9JXNcbkRVUjA1MF9QT1NUR1JFU19BUkNISVZFX1NJWkU9JXNcbicgIiRwb3N0Z3Jlc19hcmNoaXZlIiAiJHBvc3RncmVzX3NoYSIgIiRwb3N0Z3Jlc19zaXplIgpwcmludGYgJ0RVUjA1MF9LQUZLQV9BUkNISVZFX1BBVEg9JXNcbkRVUjA1MF9LQUZLQV9BUkNISVZFX1NIQTI1Nj0lc1xuRFVSMDUwX0tBRktBX0FSQ0hJVkVfU0laRT0lc1xuJyAiJGthZmthX2FyY2hpdmUiICIka2Fma2Ffc2hhIiAiJGthZmthX3NpemUiCnByaW50ZiAnRFVSMDUwX1BPU1RHUkVTX1BSRVZJRVdfQjY0PSVzXG4nICIkKGJhc2U2NCAtdzAgIiRhcmNoaXZlX2Rpci9wb3N0Z3Jlcy1kYXRhLnByZXZpZXciKSIKcHJpbnRmICdEVVIwNTBfS0FGS0FfUFJFVklFV19CNjQ9JXNcbicgIiQoYmFzZTY0IC13MCAiJGFyY2hpdmVfZGlyL2thZmthLWRhdGEucHJldmlldyIpIgpwcmludGYgJ0RVUjA1MF9CQVNFTElORV9ERVBFTkRFTkNJRVNfUkVTVEFSVEVEPTFcbicK\u0027 | base64 -d \u003e \"$tmp\" || { rc=$?; exit \"$rc\"; }; bash \"$tmp\"; rc=$?; rm -f \"$tmp\" || exit $?; trap - 0 HUP INT TERM; printf \u0027DUR050_SSM_TEMP_REMOVED=%s\\n\u0027 \"$tmp\"; exit \"$rc\"",
+                       "expected_definitions":  [
+                                                    "dur050-fanout-8-v1@1",
+                                                    "dur050-seq-8-v1@1"
+                                                ],
+                       "expected_topics":  [
+                                               "__consumer_offsets",
+                                               "durable-agent.events.v1",
+                                               "durable-agent.tasks.v1"
+                                           ],
+                       "rendered_config":  {
+                                               "api_url":  "http://10.49.1.11:8080/",
+                                               "namespace":  "dur050-pilot-preflight-r161-c911faf",
+                                               "run_id":  "pilot-calibration",
+                                               "seed":  50050,
+                                               "families":  [
+                                                                {
+                                                                    "name":  "seq-8",
+                                                                    "definition_id":  "dur050-seq-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "dur050.sha256.seq8.0",
+                                                                    "payload":  {
+                                                                                    "profile":  "seq-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                },
+                                                                {
+                                                                    "name":  "fanout-8",
+                                                                    "definition_id":  "dur050-fanout-8-v1",
+                                                                    "definition_version":  1,
+                                                                    "initial_node_id":  "root",
+                                                                    "payload":  {
+                                                                                    "profile":  "fanout-8"
+                                                                                },
+                                                                    "initial_input":  {
+                                                                                          "input":  "fixed-256-byte-dur050-seed-v1"
+                                                                                      }
+                                                                }
+                                                            ]
+                                           },
+                       "rendered_config_path":  "/var/tmp/dur050-preflight-r161-c911faf/frozen-config.json",
+                       "rendered_config_sha256":  "3b5891d4dd7834e8086f9e0b23d08d2319c26476541d496a6e1f1ef2a0799a45"
+                   }
+               ]
+}
