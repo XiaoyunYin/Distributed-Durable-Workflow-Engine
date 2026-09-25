@@ -219,3 +219,7 @@ try {
     $remoteBaselineDir = "/var/tmp/dur050-$cycleID-baseline"
     if ($cycleID -and (Test-Path -LiteralPath $remoteBaselineDir)) { Remove-Item -LiteralPath $remoteBaselineDir -Recurse -Force }
 }
+
+# The malformed-input control deliberately runs a child PowerShell process that exits 1.
+# Do not let that expected native exit code become this test script's final exit status.
+exit 0
