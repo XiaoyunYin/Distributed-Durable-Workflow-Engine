@@ -22,21 +22,61 @@
   "budget_notification": {
     "budget_name": "durable-engine-D022-aggregate-20260923",
     "type": "ACTUAL",
+    "comparison_operator": "GREATER_THAN",
     "threshold_type": "ABSOLUTE_VALUE",
-    "threshold_usd": null,
+    "threshold_usd": 76.47,
+    "actual_spend_baseline_usd": 1.476,
+    "actual_spend_read_started_at_utc": "2026-09-25T07:07:38.3317029Z",
+    "actual_spend_read_completed_at_utc": "2026-09-25T07:07:39.5617735Z",
     "aggregate_actual_at_setup_usd": 1.476,
-    "recipient_verified": false,
-    "state": "PENDING_USER_APPROVAL"
+    "threshold_formula": "floor((aggregate actual spend + 75 USD) * 100) / 100",
+    "notification_created_at_utc": "2026-09-25T07:07:44.0381321Z",
+    "recipient_verified": true,
+    "same_subscriber_as_existing_160_usd_alerts": true,
+    "subscriber_email_omitted_from_record": true,
+    "state": "OK",
+    "notifications_verified": [
+      {
+        "type": "ACTUAL",
+        "threshold_type": "ABSOLUTE_VALUE",
+        "threshold_usd": 160.0,
+        "state": "OK",
+        "preserved": true
+      },
+      {
+        "type": "ACTUAL",
+        "threshold_type": "ABSOLUTE_VALUE",
+        "threshold_usd": 76.47,
+        "state": "OK",
+        "preserved": false
+      },
+      {
+        "type": "FORECASTED",
+        "threshold_type": "ABSOLUTE_VALUE",
+        "threshold_usd": 160.0,
+        "state": "OK",
+        "preserved": true
+      }
+    ]
   },
   "cost_allocation_tags": {
     "Task": {
-      "status": "INACTIVE_PENDING_USER_APPROVAL",
-      "activated_at_utc": null
+      "type": "UserDefined",
+      "status": "Active",
+      "activated_at_utc": "2026-09-25T07:06:39Z",
+      "verified_active_at_utc": "2026-09-25T07:06:55.2956541Z"
     },
     "Environment": {
-      "status": "INACTIVE_PENDING_USER_APPROVAL",
-      "activated_at_utc": null
+      "type": "UserDefined",
+      "status": "Active",
+      "activated_at_utc": "2026-09-25T07:06:39Z",
+      "verified_active_at_utc": "2026-09-25T07:06:55.2956541Z"
     }
+  },
+  "billing_backfill": {
+    "required_if_campaign_spend_begins_before_cost_allocation_activation_takes_effect": true,
+    "campaign_spend_started_before_activation": false,
+    "action": "If any campaign spend starts before activation is effective in billing reports, request billing backfill and record the result before final cost attribution."
   },
   "hosts": [
     {

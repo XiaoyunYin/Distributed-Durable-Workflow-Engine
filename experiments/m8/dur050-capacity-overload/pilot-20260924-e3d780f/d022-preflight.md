@@ -1,31 +1,48 @@
 # DUR-050 D022 preflight (no apply)
 
-**Observed:** 2026-09-24, `admin-learning`, `us-west-1`
+**Observed:** initial technical preflight 2026-09-24; R156 controls refreshed
+2026-09-25, `admin-learning`, `us-west-1`
 **Source commit:** `aa7de7e05a6dc534f9771063a2e20729f0f10520`
-**Status:** read-only technical preflight passed; account-control prerequisites
-pending approval; no resources created; not measurement evidence.
+**Status:** no-apply technical preflight and approved R156 account controls
+verified; no resources created; no measurement run; not measurement evidence.
 
 ## Authorization and budget
 
 - Budget: `durable-engine-D022-aggregate-20260923`, custom period
   2026-09-23 00:00 UTC through 2026-10-07 00:00 UTC.
-- Aggregate maximum: **$200**. Actual and forecast notification thresholds:
-  **$160**, absolute value, both in `OK` state at preflight. The existing
-  actual alert is aggregate-only; it does not enforce DUR-050's $75 cap.
-  The Task and Environment cost-allocation tags were `Inactive` in Claude's
-  round-90 read-only check. No account change has been made: the additional
-  ACTUAL alert and tag activation are pending explicit user approval. The
-  subscriber was confirmed as the user-supplied email; the address is omitted.
-- At check time: actual **$1.476**, forecast **$5.257**. Forecast headroom to
-  the $160 stop alert: **$154.743**. DUR-050's own maximum remains **$75**;
-  using the full task cap would leave $79.743 of aggregate forecast headroom
-  to the $160 alert.
-- Once approved, set the aggregate ACTUAL absolute notification to the
-  aggregate actual spend re-read immediately before apply plus **$75** (about
-  **$76.48** at this preflight snapshot), and record its state. Activate
-  `Task` and `Environment` cost-allocation tags before apply; record the UTC
-  activation time and whether billing backfill is needed. Do not apply while
-  either control is pending or the task-specific tag remains inactive.
+- Aggregate maximum: **$200**, unchanged. The original round-90 snapshot was
+  actual **$1.476** and forecast **$5.257**; the existing $160 ACTUAL and
+  FORECASTED alerts were `OK`.
+- R156 was explicitly authorized and applied on 2026-09-25. Immediately before
+  creating the new alert, aggregate actual spend was re-read as **$1.476**
+  between `2026-09-25T07:07:38.3317029Z` and
+  `2026-09-25T07:07:39.5617735Z`. The requested formula is
+  `floor((actual spend + $75) * 100) / 100`; the resulting ACTUAL,
+  `ABSOLUTE_VALUE`, `GREATER_THAN` threshold is **$76.47**. AWS read-back at
+  `2026-09-25T07:07:44.0381321Z` showed its notification state `OK`, with the
+  same single subscriber as both existing alerts. The address is omitted.
+- `aws budgets describe-notifications-for-budget` read-back (all states `OK`):
+
+  | Type | Threshold type | Threshold | State |
+  |---|---|---:|---|
+  | ACTUAL | ABSOLUTE_VALUE | $160.00 | OK |
+  | ACTUAL | ABSOLUTE_VALUE | $76.47 | OK |
+  | FORECASTED | ABSOLUTE_VALUE | $160.00 | OK |
+
+- `aws ce update-cost-allocation-tags-status --region us-east-1` returned no
+  errors. `aws ce list-cost-allocation-tags --tag-keys Task Environment`
+  reported both user-defined tags `Active`, with `LastUpdatedDate` of
+  `2026-09-25T07:06:39Z`; active status was observed at
+  `2026-09-25T07:06:55.2956541Z`. If any campaign spend begins before tag
+  activation takes effect in billing reports, billing backfill is needed. No
+  campaign spend has started, so no backfill is currently indicated.
+- The $76.47 alert is an aggregate-spend stop signal, not an instantaneous
+  hard cap. The per-host instance-hour ledger remains the pre-block control;
+  do not start any paid block unless accrued plus reserved EC2 cost is
+  strictly below $75. The aggregate alert covers other AWS charges as a
+  backstop. Destroy active resources within 24 hours and remove retained
+  volumes/snapshots/logs within seven days. Finish within the authorized
+  budget period.
 - Budget cost types include tax, subscriptions, upfront, recurring, other
   subscription, and support; discounts, credits, and refunds are excluded.
 - No free-tier or credit assumption is used. Before every paid block, run the
@@ -93,10 +110,9 @@ AWS billing attribution may differ. The per-host instance-hour ledger is at
 `cost-manifest.json`; its checker requires all four instance IDs and apply
 timestamps and reserves the planned block duration before returning `PASS`.
 The ledger measures EC2 instance cost only; the aggregate ACTUAL alert covers
-other account charges. Neither the added alert nor cost-tag activation has
-been performed pending user approval. No final paid measurement run is
-authorized by this preflight record; the populated pilot calibration must
-still be reviewed before any final campaign runs.
+other account charges. Both R156 controls are configured and verified. No
+Terraform apply or paid measurement run has occurred. The populated pilot
+calibration must still be reviewed by Claude before any final campaign runs.
 
 Price references: [EC2 On-Demand](https://aws.amazon.com/ec2/pricing/on-demand/),
 [EBS](https://aws.amazon.com/ebs/pricing/),
