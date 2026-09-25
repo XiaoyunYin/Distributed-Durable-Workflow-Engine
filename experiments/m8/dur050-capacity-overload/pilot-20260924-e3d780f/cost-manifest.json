@@ -1,0 +1,75 @@
+{
+  "schema": "dur050-cost-manifest.v1",
+  "campaign_id": "pilot-20260924-e3d780f",
+  "budget_cap_usd": 75.0,
+  "currency": "USD",
+  "price_source": {
+    "region": "us-west-1",
+    "queried_on_utc_date": "2026-09-24",
+    "description": "AWS Price List API, Linux On-Demand shared tenancy, us-west-1; re-query and record the response and exact query time before provisioning"
+  },
+  "prices_usd_per_hour": {
+    "c7i.large": 0.1113,
+    "m7i.large": 0.1176
+  },
+  "billing_method": {
+    "start": "per-host Terraform apply start timestamp",
+    "end": "per-host Terraform destroy completion timestamp; running hosts accrue through check time",
+    "minimum_billable_seconds": 60,
+    "rounding": "ceil duration to whole seconds, with a 60-second minimum per host",
+    "scope_note": "This ledger covers EC2 instance-hours only. The aggregate AWS actual-spend alert is the account-level cap signal for storage, addresses, transfer, tax, and other billable services."
+  },
+  "budget_notification": {
+    "budget_name": "durable-engine-D022-aggregate-20260923",
+    "type": "ACTUAL",
+    "threshold_type": "ABSOLUTE_VALUE",
+    "threshold_usd": null,
+    "aggregate_actual_at_setup_usd": 1.476,
+    "recipient_verified": false,
+    "state": "PENDING_USER_APPROVAL"
+  },
+  "cost_allocation_tags": {
+    "Task": {
+      "status": "INACTIVE_PENDING_USER_APPROVAL",
+      "activated_at_utc": null
+    },
+    "Environment": {
+      "status": "INACTIVE_PENDING_USER_APPROVAL",
+      "activated_at_utc": null
+    }
+  },
+  "hosts": [
+    {
+      "role": "app-1",
+      "instance_type": "c7i.large",
+      "instance_id": null,
+      "apply_started_at_utc": null,
+      "destroy_completed_at_utc": null
+    },
+    {
+      "role": "app-2",
+      "instance_type": "c7i.large",
+      "instance_id": null,
+      "apply_started_at_utc": null,
+      "destroy_completed_at_utc": null
+    },
+    {
+      "role": "dependency",
+      "instance_type": "m7i.large",
+      "instance_id": null,
+      "apply_started_at_utc": null,
+      "destroy_completed_at_utc": null
+    },
+    {
+      "role": "load-generator",
+      "instance_type": "c7i.large",
+      "instance_id": null,
+      "apply_started_at_utc": null,
+      "destroy_completed_at_utc": null
+    }
+  ],
+  "host_hour_check": {
+    "command": "python scripts/dur050-cost-ledger.py <this-file> --reserve-minutes <planned-maximum-block-minutes>",
+    "rule": "Run before every paid block; refuse to start unless accrued plus reserved EC2 instance cost is strictly below $75. The command blocks until all four host IDs and apply timestamps are recorded."
+  }
+}

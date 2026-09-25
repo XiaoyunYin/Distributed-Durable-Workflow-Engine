@@ -91,20 +91,46 @@ $env:TF_VAR_campaign_slug = "dur050"
 $env:TF_VAR_task_id = "DUR-050"
 $env:TF_VAR_environment_name = "portfolio-capacity"
 $env:TF_VAR_enable_dur050_load_generator = "true"
+$env:TF_VAR_instance_type = "c7i.large"
+$env:TF_VAR_dependency_instance_type = "m7i.large"
+$env:TF_VAR_load_generator_instance_type = "c7i.large"
+$env:TF_VAR_root_volume_size_gb = "40"
 $env:TF_VAR_dur050_observer_password = "<different-24-to-64-character-secret>"
 ```
 
-The three burstable instances use `cpu_credits = "standard"` so campaign
-timings are not silently changed by unlimited-credit billing. The current
-account must allow EC2 quota `L-1216C47A` at or above 6 vCPUs; a 1-vCPU limit
-cannot launch even one `t3.micro`.
+Terraform rejects a partially configured DUR-050 profile: when the generator
+is enabled, all three campaign attribution values and the reviewed instance
+sizes/root-volume size are required. The matching values are also asserted by
+`terraform test` in `dur050.tftest.hcl`.
+
+The three default DUR-049 recovery instances are burstable T3 hosts and use
+`cpu_credits = "standard"`, so timings are not silently changed by unlimited-
+credit billing. DUR-050 uses three `c7i.large` hosts and one `m7i.large`
+dependency host, for 8 vCPUs. Its preflight must show that the account's
+concurrent use plus these 8 vCPUs stays within EC2 quota `L-1216C47A` (32 in
+the reviewed account). A 1-vCPU quota cannot launch even one `t3.micro`.
 
 Before applying, save the plan output, resource IDs, pinned AMI, repository
-commit, image digests, expected duration and cost estimate in the local ignored
-campaign directory. Stop if projected spend reaches $160 or the remaining D022
-cap cannot be determined. The absolute cap is $200; destroy active resources
-within 24 hours of each run and remove retained volumes/snapshots/logs within
-seven days.
+commit, image digests, expected duration and cost estimate in the campaign
+directory. Do not apply until the DUR-050 ACTUAL budget notification is set to
+the apply-time aggregate actual spend plus $75, `Task` and `Environment`
+cost-allocation tags are active, and the no-apply plan has been freshly
+reviewed. Before each paid block, fill the per-host apply/destroy timestamps in
+`cost-manifest.json` and run:
+
+```sh
+python scripts/dur050-cost-ledger.py <campaign>/cost-manifest.json \
+  --reserve-minutes <planned-maximum-block-minutes> \
+  --output <campaign>/ledger-check-<block-id>.json
+```
+
+Proceed only when the command exits 0 and records `PASS`; the projected EC2
+instance-hours including the block reserve must remain strictly below $75.
+This ledger is paired with the aggregate ACTUAL alert because it does not
+measure storage, IP addresses, transfer, tax, or other billable services. The
+aggregate D022 maximum is $200, with the existing $160 stop alert as a
+backstop. Destroy active resources within 24 hours of each run and remove
+retained volumes/snapshots/logs within seven days.
 
 ## Apply and teardown
 

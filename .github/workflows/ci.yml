@@ -15,7 +15,7 @@ concurrency:
 
 jobs:
   checks:
-    name: Go, Python, and offline evidence
+    name: Go, Python, Terraform, and offline evidence
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -39,6 +39,21 @@ jobs:
           version: '0.9.5'
           enable-cache: true
           cache-dependency-glob: uv.lock
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.16.4
+          terraform_wrapper: false
+
+      - name: Validate AWS Terraform profile
+        shell: bash
+        run: |
+          set -euo pipefail
+          terraform -chdir=deploy/aws fmt -check -recursive
+          terraform -chdir=deploy/aws init -backend=false
+          terraform -chdir=deploy/aws validate
+          terraform -chdir=deploy/aws test -no-color
 
       - name: Validate Compose configuration
         shell: pwsh

@@ -30,6 +30,11 @@ variable "campaign_slug" {
     condition     = can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", var.campaign_slug))
     error_message = "campaign_slug must contain lowercase letters, digits, and single hyphen separators."
   }
+
+  validation {
+    condition     = var.enable_dur050_load_generator == (var.campaign_slug == "dur050")
+    error_message = "campaign_slug must be dur050 exactly when the DUR-050 load-generator profile is enabled."
+  }
 }
 
 variable "task_id" {
@@ -41,6 +46,11 @@ variable "task_id" {
     condition     = can(regex("^DUR-[0-9]{3}$", var.task_id))
     error_message = "task_id must be a DUR-### task identifier."
   }
+
+  validation {
+    condition     = var.enable_dur050_load_generator == (var.task_id == "DUR-050")
+    error_message = "task_id must be DUR-050 exactly when the DUR-050 load-generator profile is enabled."
+  }
 }
 
 variable "environment_name" {
@@ -51,6 +61,11 @@ variable "environment_name" {
   validation {
     condition     = can(regex("^[a-z0-9]+(-[a-z0-9]+)*$", var.environment_name))
     error_message = "environment_name must contain lowercase letters, digits, and single hyphen separators."
+  }
+
+  validation {
+    condition     = var.enable_dur050_load_generator == (var.environment_name == "portfolio-capacity")
+    error_message = "environment_name must be portfolio-capacity exactly when the DUR-050 load-generator profile is enabled."
   }
 }
 
@@ -117,6 +132,16 @@ variable "enable_dur050_load_generator" {
   description = "Create the separate DUR-050 load-generator/observer host. Keep disabled for DUR-049 recovery campaigns."
   type        = bool
   default     = false
+
+  validation {
+    condition = !var.enable_dur050_load_generator || (
+      var.instance_type == "c7i.large" &&
+      var.dependency_instance_type == "m7i.large" &&
+      var.load_generator_instance_type == "c7i.large" &&
+      var.root_volume_size_gb == 40
+    )
+    error_message = "The DUR-050 profile requires c7i.large app and load-generator hosts, an m7i.large dependency host, and 40-GiB root volumes."
+  }
 }
 
 variable "load_generator_instance_type" {
