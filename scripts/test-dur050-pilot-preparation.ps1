@@ -170,7 +170,7 @@ try {
 
     $invalidOutputPath = Join-Path $tempRoot 'invalid-terraform-outputs.json'
     $invalidOutputs = Get-Content -LiteralPath (Join-Path $repoRoot 'tests/fixtures/dur050-terraform-outputs.json') -Raw | ConvertFrom-Json
-    $invalidOutputs.app_private_ips[0] = 'not-an-ip'
+    $invalidOutputs.app_private_ips.value[0] = 'not-an-ip'
     [System.IO.File]::WriteAllText($invalidOutputPath, ($invalidOutputs | ConvertTo-Json -Depth 8), $utf8)
     $invalidRun = & (Join-Path $PSHOME 'pwsh') -NoProfile -File (Join-Path $PSScriptRoot 'dur050-prepare-pilot.ps1') -TerraformOutputsPath $invalidOutputPath -CycleID $cycleID -DryRun 2>&1 | Out-String
     if ($LASTEXITCODE -eq 0 -or $invalidRun -notmatch 'not IPv4') { throw 'Preparation dry-run accepted a malformed Terraform app IP/API URL.' }
