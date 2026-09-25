@@ -13,7 +13,7 @@
     "m7i.large": 0.1176
   },
   "billing_method": {
-    "start": "per-host Terraform apply start timestamp",
+    "start": "per-host Terraform apply start timestamp; the first cycle uses the common apply invocation start captured immediately before applying the reviewed saved plan, which conservatively precedes each instance launch",
     "end": "per-host Terraform destroy completion timestamp; running hosts accrue through check time",
     "minimum_billable_seconds": 60,
     "rounding": "ceil duration to whole seconds, with a 60-second minimum per host",
@@ -78,34 +78,78 @@
     "campaign_spend_started_before_activation": false,
     "action": "If any campaign spend starts before activation is effective in billing reports, request billing backfill and record the result before final cost attribution."
   },
+  "provisioning_cycle_1": {
+    "reviewed_saved_plan": "deploy/aws/.terraform/dur050-preflight-aa7de7e.tfplan",
+    "plan_sha256": "C22D814002CE14D5D6B1A6DDA42355E96291B0DCDB5969F8E435BEBEED4FAD6D",
+    "terraform_version": "1.16.4",
+    "source_commit": "aa7de7e05a6dc534f9771063a2e20729f0f10520",
+    "apply_started_at_utc": "2026-09-25T10:34:38.8773119Z",
+    "apply_completed_observed_at_utc": "2026-09-25T10:35:28Z",
+    "result": { "added": 31, "changed": 0, "destroyed": 0 },
+    "destroy_started_at_utc": "2026-09-25T10:44:12.4253236Z",
+    "destroy_completed_observed_at_utc": "2026-09-25T10:45:53Z",
+    "destroy_result": { "destroyed": 31, "terraform_exit_code": 0 },
+    "destroy_time_source": "Conservative common completion observation after Terraform reported all 31 resources destroyed; AWS inventory and empty Terraform state were then verified. Per-instance TerminateInstances API event times are recorded separately below."
+  },
+  "pilot_execution": {
+    "status": "NOT_STARTED",
+    "paid_measurement_blocks_started": 0,
+    "reason": "Pre-block bootstrap inspection found load-generator cloud-init status error at go build because neither GOMODCACHE nor GOPATH was set. A read-only SSM probe showed AWS-RunShellScript /bin/sh rejects set -euo pipefail, which the reset helper sends at the start of its remote command; the helper was not invoked. No calibration block or pilot raw-data artifact was created; the first cycle was destroyed."
+  },
+  "post_destroy_ledger_audit": {
+    "path": "ledger-check-post-destroy-audit.json",
+    "checked_at_utc": "2026-09-25T10:48:48.248175Z",
+    "status": "PASS",
+    "accrued_ec2_instance_cost_usd": 0.084656,
+    "projected_ec2_instance_cost_usd": 0.084656,
+    "reserve_minutes_argument": 1,
+    "paid_block_check": false,
+    "note": "Post-destroy accounting only; no paid measurement block was attempted. All intervals are closed, so the ledger reserved no future host time."
+  },
   "hosts": [
     {
       "role": "app-1",
       "instance_type": "c7i.large",
-      "instance_id": null,
-      "apply_started_at_utc": null,
-      "destroy_completed_at_utc": null
+      "instance_id": "i-03a77d4d089b70cb8",
+      "apply_started_at_utc": "2026-09-25T10:34:38.8773119Z",
+      "instance_launch_at_utc": "2026-09-25T10:35:05Z",
+      "availability_zone": "us-west-1a",
+      "destroy_completed_at_utc": "2026-09-25T10:45:53Z",
+      "terminate_requested_at_utc": "2026-09-25T10:44:19Z",
+      "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
     },
     {
       "role": "app-2",
       "instance_type": "c7i.large",
-      "instance_id": null,
-      "apply_started_at_utc": null,
-      "destroy_completed_at_utc": null
+      "instance_id": "i-03fc3b13714dc4134",
+      "apply_started_at_utc": "2026-09-25T10:34:38.8773119Z",
+      "instance_launch_at_utc": "2026-09-25T10:35:05Z",
+      "availability_zone": "us-west-1c",
+      "destroy_completed_at_utc": "2026-09-25T10:45:53Z",
+      "terminate_requested_at_utc": "2026-09-25T10:44:19Z",
+      "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
     },
     {
       "role": "dependency",
       "instance_type": "m7i.large",
-      "instance_id": null,
-      "apply_started_at_utc": null,
-      "destroy_completed_at_utc": null
+      "instance_id": "i-05027ac0bdf9f3816",
+      "apply_started_at_utc": "2026-09-25T10:34:38.8773119Z",
+      "instance_launch_at_utc": "2026-09-25T10:34:53Z",
+      "availability_zone": "us-west-1a",
+      "destroy_completed_at_utc": "2026-09-25T10:45:53Z",
+      "terminate_requested_at_utc": "2026-09-25T10:44:48Z",
+      "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
     },
     {
       "role": "load-generator",
       "instance_type": "c7i.large",
-      "instance_id": null,
-      "apply_started_at_utc": null,
-      "destroy_completed_at_utc": null
+      "instance_id": "i-09813309975a6d24b",
+      "apply_started_at_utc": "2026-09-25T10:34:38.8773119Z",
+      "instance_launch_at_utc": "2026-09-25T10:34:51Z",
+      "availability_zone": "us-west-1a",
+      "destroy_completed_at_utc": "2026-09-25T10:45:53Z",
+      "terminate_requested_at_utc": "2026-09-25T10:44:19Z",
+      "destroy_timestamp_source": "Conservative common Terraform destroy-complete observation"
     }
   ],
   "host_hour_check": {

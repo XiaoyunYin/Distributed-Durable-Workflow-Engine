@@ -1,10 +1,12 @@
-# DUR-050 D022 preflight (no apply)
+# DUR-050 D022 preflight and first provisioning cycle
 
 **Observed:** initial technical preflight 2026-09-24; R156 controls refreshed
 2026-09-25, `admin-learning`, `us-west-1`
 **Source commit:** `aa7de7e05a6dc534f9771063a2e20729f0f10520`
-**Status:** no-apply technical preflight and approved R156 account controls
-verified; no resources created; no measurement run; not measurement evidence.
+**Status:** D022 preflight and approved R156 account controls verified. The
+reviewed first provisioning cycle was applied and then fully destroyed after a
+pre-block bootstrap failure. No paid measurement block ran; this is operational
+and cost-accounting evidence, not capacity or pilot measurement evidence.
 
 ## Authorization and budget
 
@@ -80,9 +82,60 @@ verified; no resources created; no measurement run; not measurement evidence.
   rules include only app API port 8080 from the load-generator security group,
   PostgreSQL 5432 from app and load-generator security groups, and Kafka 9092
   from the app security group. No public CIDR is allowed for PostgreSQL.
-- No `terraform apply` was run. The saved plan is local, ignored, and contains
-  ephemeral generated credentials; it must never be committed or reused after
-  state, variables, or source change.
+- At preflight, no `terraform apply` had run. The authorized first apply later
+  used this exact saved plan; see the cycle record below. The plan was local,
+  ignored, and contained ephemeral generated credentials. It was not reused
+  after apply or destroy.
+
+## First provisioning cycle (2026-09-25; no measurement block)
+
+- Live pre-apply checks ran from `2026-09-25T10:34:09.4189134Z` through
+  `2026-09-25T10:34:15.4851534Z`: account `372206265946`, quota 32 vCPU,
+  0 existing regional instances, actual spend `$1.476`, budget `$200`, all
+  three notifications `OK`, both tags `Active`, and reviewed plan SHA-256
+  unchanged. Terraform 1.16.4 applied the saved plan starting at
+  `2026-09-25T10:34:38.8773119Z`; Terraform reported **31 added, 0 changed,
+  0 destroyed**. Completion was observed by `10:35:28Z`.
+- Host inventory from EC2:
+
+  | Role | Instance | Type | AZ | EC2 launch time (UTC) |
+  |---|---|---|---|---|
+  | app-1 | `i-03a77d4d089b70cb8` | `c7i.large` | `us-west-1a` | `2026-09-25T10:35:05Z` |
+  | app-2 | `i-03fc3b13714dc4134` | `c7i.large` | `us-west-1c` | `2026-09-25T10:35:05Z` |
+  | dependency | `i-05027ac0bdf9f3816` | `m7i.large` | `us-west-1a` | `2026-09-25T10:34:53Z` |
+  | load-generator | `i-09813309975a6d24b` | `c7i.large` | `us-west-1a` | `2026-09-25T10:34:51Z` |
+
+- Bootstrap observations via SSM at the plan's exact checkout
+  `aa7de7e05a6dc534f9771063a2e20729f0f10520`: both app hosts reported
+  cloud-init done and healthy runtime/worker containers; the dependency host
+  reported healthy PostgreSQL and Kafka. The load-generator reported
+  `cloud-init status: error`, no bootstrap-complete marker, and
+  `go: module cache not found: neither GOMODCACHE nor GOPATH is set` during
+  `go build`; its required pilot binaries were therefore unavailable.
+- A separate read-only SSM probe confirmed `AWS-RunShellScript` runs under
+  `/bin/sh` and rejects Bash-only `set -euo pipefail` with
+  `set: Illegal option -o pipefail`. The reset helper sends that same setting
+  at the start of its remote command, so it would fail before restoring the
+  volumes. The reset helper itself was not invoked. No reset sequence or
+  unloaded calibration block was started.
+  No pilot-calibration raw-data directory was created or edited.
+- Teardown started at `2026-09-25T10:44:12.4253236Z`. Terraform reported
+  **31 destroyed**, exit 0. The conservative common destroy-complete timestamp
+  recorded for all host intervals is `2026-09-25T10:45:53Z`; individual
+  `TerminateInstances` API event times are in `cost-manifest.json`. Afterward,
+  Terraform state was empty and AWS returned no campaign-tagged volumes,
+  addresses, snapshots, VPCs, security groups, IAM roles, or SSM parameters;
+  all four instances were `terminated`.
+- `cost-manifest.json` records the first-cycle IDs and timestamps. No paid
+  block ran, so there is no pre-block ledger check artifact. Any future
+  provisioning cycle is barred until R158's task-wide interval ledger and
+  tests are independently verified by Claude; no replacement or second apply
+  is authorized by this record.
+- The post-destroy ledger audit is retained at
+  `ledger-check-post-destroy-audit.json`: `PASS`, **$0.084656** accrued and
+  projected EC2 instance cost, with zero additional reserve because all host
+  intervals were closed. This is an accounting audit, not a paid-block check;
+  non-EC2 charges and billing-data lag remain outside this ledger.
 
 ## Refreshed cost estimate
 
@@ -110,9 +163,11 @@ AWS billing attribution may differ. The per-host instance-hour ledger is at
 `cost-manifest.json`; its checker requires all four instance IDs and apply
 timestamps and reserves the planned block duration before returning `PASS`.
 The ledger measures EC2 instance cost only; the aggregate ACTUAL alert covers
-other account charges. Both R156 controls are configured and verified. No
-Terraform apply or paid measurement run has occurred. The populated pilot
-calibration must still be reviewed by Claude before any final campaign runs.
+other account charges. Both R156 controls are configured and verified. One
+first-cycle apply/destroy occurred, with the post-destroy ledger audit at
+`$0.084656` EC2 cost; no paid measurement block ran because bootstrap tooling
+was not ready. The populated pilot calibration must still be reviewed by
+Claude before any final campaign runs.
 
 Price references: [EC2 On-Demand](https://aws.amazon.com/ec2/pricing/on-demand/),
 [EBS](https://aws.amazon.com/ebs/pricing/),

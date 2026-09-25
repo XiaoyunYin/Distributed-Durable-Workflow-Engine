@@ -1,0 +1,57 @@
+{
+  "accrued_instance_cost_usd": "0.084656",
+  "budget_cap_usd": "75.0",
+  "checked_at_utc": "2026-09-25T10:48:48.248175Z",
+  "cost_allocation_backfill_needed": false,
+  "hosts": [
+    {
+      "accrued_instance_cost_usd": "0.020869",
+      "billable_seconds_to_check": 675,
+      "destroyed": true,
+      "hourly_price_usd": "0.1113",
+      "instance_id": "i-03a77d4d089b70cb8",
+      "instance_type": "c7i.large",
+      "projected_billable_seconds_after_reserve": 675,
+      "projected_instance_cost_usd": "0.020869",
+      "role": "app-1"
+    },
+    {
+      "accrued_instance_cost_usd": "0.020869",
+      "billable_seconds_to_check": 675,
+      "destroyed": true,
+      "hourly_price_usd": "0.1113",
+      "instance_id": "i-03fc3b13714dc4134",
+      "instance_type": "c7i.large",
+      "projected_billable_seconds_after_reserve": 675,
+      "projected_instance_cost_usd": "0.020869",
+      "role": "app-2"
+    },
+    {
+      "accrued_instance_cost_usd": "0.022050",
+      "billable_seconds_to_check": 675,
+      "destroyed": true,
+      "hourly_price_usd": "0.1176",
+      "instance_id": "i-05027ac0bdf9f3816",
+      "instance_type": "m7i.large",
+      "projected_billable_seconds_after_reserve": 675,
+      "projected_instance_cost_usd": "0.022050",
+      "role": "dependency"
+    },
+    {
+      "accrued_instance_cost_usd": "0.020869",
+      "billable_seconds_to_check": 675,
+      "destroyed": true,
+      "hourly_price_usd": "0.1113",
+      "instance_id": "i-09813309975a6d24b",
+      "instance_type": "c7i.large",
+      "projected_billable_seconds_after_reserve": 675,
+      "projected_instance_cost_usd": "0.020869",
+      "role": "load-generator"
+    }
+  ],
+  "next_block_reserve_usd": "0.000000",
+  "projected_instance_cost_usd": "0.084656",
+  "reserve_minutes": 1,
+  "schema": "dur050-cost-ledger-check.v1",
+  "status": "PASS"
+}
