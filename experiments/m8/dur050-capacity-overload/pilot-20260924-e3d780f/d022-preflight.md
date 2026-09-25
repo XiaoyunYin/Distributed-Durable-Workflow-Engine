@@ -230,3 +230,15 @@ dependency `i-07b53b0242fa9851f` (`m7i.large`, us-west-1a), and load-generator
 `i-0872b6791d08cb577` (`c7i.large`, us-west-1a). Each interval uses the
 Terraform apply invocation start as its conservative billing start. No reset
 or paid calibration block has started yet.
+
+## Cycle-2 bootstrap gate (2026-09-25)
+
+Before reset, read-only SSM commands returned `Success` on all four hosts;
+`cloud-init status --long` reported `status: done`, `extended_status: done`,
+and empty `errors` and `recoverable_errors`. On the load-generator host, the
+completion marker
+`/var/lib/durable-dur050-generator-bootstrap-complete` was present and each of
+`bin/dur050-observer`, `bin/dur050-loadgen`, and `bin/dur050-sink` was
+executable. Command IDs and per-host timestamps are retained in
+`bootstrap-preflight-cycle-2.json`. No reset or paid block had started at the
+time of this check.

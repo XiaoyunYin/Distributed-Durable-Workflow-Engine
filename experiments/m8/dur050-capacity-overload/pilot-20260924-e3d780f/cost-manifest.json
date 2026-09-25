@@ -123,6 +123,16 @@
     ],
     "note": "Intervals are open until the common Terraform destroy completion is recorded."
   },
+  "bootstrap_preflight_cycle_2": {
+    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/bootstrap-preflight-cycle-2.json",
+    "status": "PASS",
+    "checked_at_utc": "2026-09-25T18:26:51Z/2026-09-25T18:27:02Z",
+    "cloud_init_done_on_all_four_hosts": true,
+    "generator_completion_marker_present": true,
+    "all_three_generator_binaries_executable": true,
+    "reset_started": false,
+    "paid_block_started": false
+  },
   "destroy_input_strategy": "Use the non-secret Terraform profile recorded above, never recover values from a saved plan. Supply newly generated valid ephemeral password inputs only if Terraform requires them to evaluate a destroy plan; destroy targets come from state, not those replacement values.",
   "task_wide_ledger_migration": {
     "authoritative_ledger": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",

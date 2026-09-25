@@ -1,0 +1,65 @@
+{
+  "schema": "dur050-bootstrap-preflight.v1",
+  "cycle_id": "cycle-2-4c625b3",
+  "status": "PASS",
+  "checked_by_read_only_ssm": true,
+  "checks": {
+    "cloud_init": "status: done; extended_status: done; errors: []; recoverable_errors: {} on all four hosts",
+    "generator_completion_marker": "/var/lib/durable-dur050-generator-bootstrap-complete",
+    "generator_binaries": [
+      "/opt/durable-agent-execution-engine/bin/dur050-observer",
+      "/opt/durable-agent-execution-engine/bin/dur050-loadgen",
+      "/opt/durable-agent-execution-engine/bin/dur050-sink"
+    ]
+  },
+  "hosts": [
+    {
+      "role": "app-1",
+      "instance_id": "i-08b8632f1c3ef80d0",
+      "ssm_command_id": "bb5e6762-612a-4176-b578-0f50c7e7dec8",
+      "ssm_requested_at_utc": "2026-09-25T18:26:51.080Z",
+      "ssm_status": "Success",
+      "cloud_init_status": "done",
+      "cloud_init_errors": [],
+      "recoverable_errors": []
+    },
+    {
+      "role": "app-2",
+      "instance_id": "i-0eda5443fea88fe0a",
+      "ssm_command_id": "93a6656d-fbf7-463e-a025-99687e1953ae",
+      "ssm_requested_at_utc": "2026-09-25T18:26:54.952Z",
+      "ssm_status": "Success",
+      "cloud_init_status": "done",
+      "cloud_init_errors": [],
+      "recoverable_errors": []
+    },
+    {
+      "role": "dependency",
+      "instance_id": "i-07b53b0242fa9851f",
+      "ssm_command_id": "d328f932-d868-49a2-87eb-e66f5440b668",
+      "ssm_requested_at_utc": "2026-09-25T18:26:58.775Z",
+      "ssm_status": "Success",
+      "cloud_init_status": "done",
+      "cloud_init_errors": [],
+      "recoverable_errors": []
+    },
+    {
+      "role": "load-generator",
+      "instance_id": "i-0872b6791d08cb577",
+      "ssm_command_id": "8d7a65f8-3175-4cdf-beb5-15bdcb9b0a51",
+      "ssm_requested_at_utc": "2026-09-25T18:27:02.592Z",
+      "ssm_status": "Success",
+      "cloud_init_status": "done",
+      "cloud_init_errors": [],
+      "recoverable_errors": [],
+      "completion_marker_present": true,
+      "executables": {
+        "dur050-observer": true,
+        "dur050-loadgen": true,
+        "dur050-sink": true
+      }
+    }
+  ],
+  "reset_started": false,
+  "paid_block_started": false
+}
