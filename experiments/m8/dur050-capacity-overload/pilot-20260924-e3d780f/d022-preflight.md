@@ -180,3 +180,24 @@ Claude before any final campaign runs.
 Price references: [EC2 On-Demand](https://aws.amazon.com/ec2/pricing/on-demand/),
 [EBS](https://aws.amazon.com/ebs/pricing/),
 [VPC public IPv4 and data transfer pricing](https://aws.amazon.com/vpc/pricing/).
+
+## Post-fix no-apply plan inspection (2026-09-25)
+
+After the R158/R159/R160 implementation was pushed and hosted CI run
+[`36164501714`](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/36164501714)
+completed green, Terraform **1.16.4** generated a new saved plan from source commit
+`4c625b3536da9f0334aa86bed01127914382fb34`. The local ignored plan is
+`deploy/aws/.terraform/dur050-preflight-4c625b3.tfplan`, created at
+`2026-09-25T17:33:41.5101373Z`, SHA-256
+`6FE7CD0FAB90007AF6787BD5B7BD36927FAE34E8510B380995B718B4FD6AFCF2`.
+The plan's inspection found **31 creates, 0 updates, 0 deletes, 0
+replacements**; four instances (three `c7i.large`, one `m7i.large`), **8
+planned vCPU** against the 32-vCPU quota; and all 23 resources with effective
+tags carry `Task=DUR-050`, `Environment=portfolio-capacity`, and
+`ExpiresAt=2026-10-07T00:00:00Z`. It contains no EKS, NAT gateway, or load
+balancer resources. Before planning, read-only inventory found no
+`Task=DUR-050` instances or volumes in `us-west-1`, and the local Terraform
+state list was empty. The non-secret variables used for this plan are recorded
+in `cost-manifest.json`; generated sensitive passwords are omitted. The plan
+is local and ignored, contains sensitive inputs, and is **not authorization to
+apply**. No apply or paid block followed this inspection.

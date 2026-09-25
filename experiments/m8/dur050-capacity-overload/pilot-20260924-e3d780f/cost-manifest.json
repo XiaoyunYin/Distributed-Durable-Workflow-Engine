@@ -26,6 +26,56 @@
     "postgres_image": "postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af",
     "kafka_image": "apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837"
   },
+  "latest_no_apply_review_plan": {
+    "status": "NO_APPLY_PLAN_ONLY; NOT AUTHORIZATION TO APPLY",
+    "generated_at_utc": "2026-09-25T17:33:41.5101373Z",
+    "terraform_version": "1.16.4",
+    "source_commit": "4c625b3536da9f0334aa86bed01127914382fb34",
+    "hosted_ci": {
+      "run_id": "36164501714",
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/36164501714",
+      "conclusion": "success",
+      "head_sha": "4c625b3536da9f0334aa86bed01127914382fb34"
+    },
+    "saved_plan_path": "deploy/aws/.terraform/dur050-preflight-4c625b3.tfplan",
+    "saved_plan_sha256": "6FE7CD0FAB90007AF6787BD5B7BD36927FAE34E8510B380995B718B4FD6AFCF2",
+    "profile": {
+      "aws_region": "us-west-1",
+      "availability_zones": ["us-west-1a", "us-west-1c"],
+      "project_name": "durable-engine",
+      "campaign_slug": "dur050",
+      "task_id": "DUR-050",
+      "environment_name": "portfolio-capacity",
+      "ami_id": "ami-0150109d3dd43737d",
+      "repo_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine.git",
+      "repo_ref": "4c625b3536da9f0334aa86bed01127914382fb34",
+      "expires_at": "2026-10-07T00:00:00Z",
+      "admin_cidrs": [],
+      "instance_type": "c7i.large",
+      "dependency_instance_type": "m7i.large",
+      "enable_dur050_load_generator": true,
+      "load_generator_instance_type": "c7i.large",
+      "root_volume_size_gb": 40,
+      "worker_slots": 2,
+      "postgres_user": "durable",
+      "postgres_db": "durable",
+      "postgres_image": "postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af",
+      "kafka_image": "apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837"
+    },
+    "inspection": {
+      "resource_changes": 31,
+      "creates": 31,
+      "updates": 0,
+      "deletes": 0,
+      "replacements": 0,
+      "instances": {"total": 4, "c7i.large": 3, "m7i.large": 1, "peak_vcpu": 8},
+      "taggable_resources_with_effective_tags": 23,
+      "taggable_resources_with_expected_task_environment_expiry_tags": 23,
+      "prohibited_eks_nat_gateway_or_load_balancer_resources": 0
+    },
+    "sensitive_inputs": "Fresh ephemeral passwords were provided through process environment variables and are intentionally not recorded. The local ignored saved plan contains sensitive values; do not publish or apply it.",
+    "apply_performed": false
+  },
   "destroy_input_strategy": "Use the non-secret Terraform profile recorded above, never recover values from a saved plan. Supply newly generated valid ephemeral password inputs only if Terraform requires them to evaluate a destroy plan; destroy targets come from state, not those replacement values.",
   "task_wide_ledger_migration": {
     "authoritative_ledger": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
