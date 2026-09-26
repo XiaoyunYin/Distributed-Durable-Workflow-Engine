@@ -510,5 +510,34 @@
     "command": "python scripts/dur050-cost-ledger.py <this-campaign-manifest> --reserve-minutes <planned-maximum-block-minutes>",
     "ledger_scope": "The checker always reads experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json, shared across all DUR-050 campaign directories. This manifest's first-cycle host array is retained only as a historical snapshot.",
     "rule": "Run before every paid block; refuse to start unless all recorded cycle intervals plus reserve for open intervals are strictly below $75. The task-wide ledger requires all four roles and preserves prior cycles and replacements."
+  },
+  "preapply_round_104_2330417_plan_inspection": {
+    "status": "MATCHED_OFFLINE; NOT APPLY AUTHORITY",
+    "source_commit": "2330417f7521b487291cb793ead9d97eda637062",
+    "terraform_version": "1.16.4",
+    "saved_plan_path": "deploy/aws/.terraform/dur050-preapply-round104-2330417-live.tfplan",
+    "saved_plan_sha256": "6377EF256AA08EDEC209F7C669C1F489586EBBB65CA081805D5E608578C22B29",
+    "inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round104-2330417/plan-inspection.json",
+    "inspection_sha256": "3A2BC8782FC3491BAB8E787EEBAF2FBAE28F25EE31C5D7365FD5FF1292951855",
+    "offline_reference_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r173-2330417/plan-inspection.json",
+    "offline_reference_sha256": "8667CC6298FA607FB07F6CD2122696809B742E06157B9B43CE7A95C3CFE33580",
+    "comparison": {
+      "resource_addresses_types_and_actions_match": true,
+      "resource_changes": 31,
+      "creates": 31,
+      "updates": 0,
+      "deletes": 0,
+      "replacements": 0,
+      "instances": {"total": 4, "c7i.large": 3, "m7i.large": 1, "peak_vcpu": 8},
+      "taggable_resources": 23,
+      "expected_task_environment_expiry_tags": 23,
+      "prohibited_eks_nat_gateway_or_load_balancer_resources": 0,
+      "terraform_prior_state_resources": 0
+    },
+    "inspection_method": "Terraform 1.16.4 show -json of the existing saved plan; no plan was regenerated.",
+    "apply_performed": false,
+    "aws_api_calls_during_inspection": 0,
+    "ssm_calls_during_inspection": 0,
+    "apply_authority": "NONE; Claude go/no-go required"
   }
 }

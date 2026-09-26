@@ -15,6 +15,26 @@ establish database-host durability, Kafka HA, or multi-region availability.
 
 ## Preflight
 
+For the DUR-050 third provisioning cycle, the order is:
+**live saved plan → account-only pre-apply gate → Claude go/no-go → apply →
+post-apply cycle preflight → preparation**. Do not apply based only on a
+successful pre-apply gate; its record explicitly grants no apply authority.
+
+Generate the live read-only plan with the reviewed Terraform 1.16.4 profile,
+inspect that exact saved plan with
+scripts/dur050-inspect-saved-plan.ps1, and then run
+scripts/dur050-preapply-gate.ps1 with the saved plan path/hash, inspection,
+campaign manifest, unique ledger-check/output paths, and the full cycle
+reserve. The account-only gate checks the empty local Terraform state, AWS
+identity, regional inventory/quota, D022 budget/notifications, cost-allocation
+tags, and ledger; it does not require Terraform outputs and does not call SSM.
+Wait for Claude's explicit go/no-go before applying the exact reviewed plan.
+
+After an authorized apply, use the parsed outputs with the separate
+scripts/dur050-cycle-preflight.ps1. That post-apply gate confirms bootstrap
+on the four hosts through SSM. Run scripts/dur050-prepare-pilot.ps1 only
+after that cycle preflight passes.
+
 Use the non-root portfolio identity and a full 40-character immutable source
 SHA. A short SHA, tag, or branch cannot be fetched as the pinned campaign
 input and is rejected by Terraform validation:

@@ -85,6 +85,11 @@ reaping, campaign-only timeout overrides, failed-attempt history, cleanup, and
 the limits of these measurements are documented in the campaign records and
 [failure case study](experiments/portfolio/recruiter/failure-case-study.md).
 
+The pending DUR-050 provisioning workflow keeps account checks separate from
+host bootstrap: live plan → account-only pre-apply D022 gate → Claude go/no-go
+→ apply → post-apply cycle preflight → preparation. A gate PASS is not apply
+authority; the pre-apply record explicitly requires the independent review.
+
 ### Scoped recovery case study
 
 The committed local portfolio run exercised two failure modes: an owner process

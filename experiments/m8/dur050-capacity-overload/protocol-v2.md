@@ -579,6 +579,34 @@ stopped run.
 
 ## Evidence, preflight, and handoff
 
+Provisioning follows two deliberately separate D022 gates. First generate and
+inspect the live saved Terraform plan. Run
+scripts/dur050-preapply-gate.ps1 against that exact plan, its SHA-256, the
+committed terraform show -json inspection, this campaign manifest, and a
+ledger check with the full cycle reserve. This is an account-only,
+read-only gate: it checks the account, plan and empty state, regional quota
+and DUR-050 inventory, budget/notifications, cost-allocation tags, and cost
+ledger; it makes no SSM call. Its PASS record must say
+apply_authority: "NONE; Claude go/no-go required".
+
+The required order is:
+
+1. Generate and inspect the live saved plan; do not apply it.
+2. Run the account-only dur050-preapply-gate.ps1 and retain its unique result
+   and ledger-check record.
+3. Stop for Claude's go/no-go review of the exact plan, inspection, and gate
+   record. PASS by itself is never apply authorization.
+4. Only after that review, apply the exact reviewed saved plan.
+5. After apply, run scripts/dur050-cycle-preflight.ps1 with the current
+   Terraform outputs. This separate post-apply gate performs the four-host
+   bootstrap check through SSM.
+6. Only after the post-apply gate passes, run
+   scripts/dur050-prepare-pilot.ps1; preparation and paid blocks remain
+   separately gated by their recorded cycle checks.
+
+The cycle-preflight schema is not interchangeable with the pre-apply schema;
+preparation and reset reject dur050-pre-apply-gate.v1.
+
 Use a new campaign ID under
 `experiments/m8/dur050-capacity-overload/<campaign-id>/`; never overwrite v1 or
 prior evidence. Commit the pilot calibration directory and populated v2

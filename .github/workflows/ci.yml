@@ -76,6 +76,10 @@ jobs:
         shell: pwsh
         run: ./scripts/test-dur050-cycle-preflight.ps1
 
+      - name: Test DUR-050 account-only pre-apply gate
+        shell: pwsh
+        run: ./scripts/test-dur050-preapply-gate.ps1
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
