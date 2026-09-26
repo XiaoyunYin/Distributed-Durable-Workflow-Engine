@@ -1,0 +1,39 @@
+{
+    "schema":  "dur050-recorded-plan-inspection.v1",
+    "source_commit":  "8c43bf1579498657abbcc56a761d270fa3b22c5e",
+    "hosted_ci":  {
+                      "run_id":  "36208184699",
+                      "url":  "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/36208184699",
+                      "status":  "completed",
+                      "conclusion":  "success",
+                      "head_sha":  "8c43bf1579498657abbcc56a761d270fa3b22c5e"
+                  },
+    "terraform_version":  "1.16.4",
+    "plan_path":  "deploy/aws/.terraform/dur050-preflight-r163-r164-8c43bf1.tfplan",
+    "plan_sha256":  "f27a14996d13b172c54ef94d80fe603ad81349de03f2e41337804d0de39e81a3",
+    "planned_peak_vcpu":  8,
+    "instances":  {
+                      "c7i.large":  3,
+                      "m7i.large":  1
+                  },
+    "resource_changes":  {
+                             "creates":  31,
+                             "updates":  0,
+                             "deletes":  0,
+                             "replacements":  0,
+                             "no_ops":  0
+                         },
+    "resource_change_count":  31,
+    "taggable_resources_with_effective_tags":  23,
+    "taggable_resources_with_expected_task_environment_expiry_tags":  23,
+    "effective_tag_source":  "Terraform plan tags_all",
+    "prohibited_eks_nat_gateway_or_load_balancer_resources":  0,
+    "terraform_state_resource_count":  0,
+    "terraform_state_count_basis":  "terraform state list returned no managed resources",
+    "regional_dur050_instance_count":  0,
+    "regional_dur050_volume_count":  0,
+    "aws_account_id":  "372206265946",
+    "aws_region":  "us-west-1",
+    "apply_performed":  false,
+    "sensitive_variables":  "fresh ephemeral plan-only values omitted"
+}

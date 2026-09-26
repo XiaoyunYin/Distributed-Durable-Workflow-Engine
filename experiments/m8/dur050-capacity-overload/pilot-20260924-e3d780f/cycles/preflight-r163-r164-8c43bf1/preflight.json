@@ -1,0 +1,65 @@
+{
+  "schema": "dur050-no-apply-preflight.v1",
+  "status": "NO_APPLY_REVIEW_ONLY",
+  "recorded_at_utc": "2026-09-26T02:00:09Z",
+  "source_commit": "8c43bf1579498657abbcc56a761d270fa3b22c5e",
+  "account_id": "372206265946",
+  "region": "us-west-1",
+  "hosted_ci": {
+    "run_id": "36208184699",
+    "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/36208184699",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "8c43bf1579498657abbcc56a761d270fa3b22c5e"
+  },
+  "terraform_plan": {
+    "version": "1.16.4",
+    "path": "deploy/aws/.terraform/dur050-preflight-r163-r164-8c43bf1.tfplan",
+    "sha256": "f27a14996d13b172c54ef94d80fe603ad81349de03f2e41337804d0de39e81a3",
+    "inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r163-r164-8c43bf1/plan-inspection.json",
+    "inspection_sha256": "4e73bc5f4aa0cc57b5983f32fa53cb14173c75c391b63efea987dc5d20aecf15",
+    "planned_peak_vcpu": 8,
+    "resource_changes": {
+      "create": 31,
+      "update": 0,
+      "delete": 0,
+      "replace": 0
+    },
+    "apply_performed": false,
+    "plan_contains_ephemeral_sensitive_values": true,
+    "saved_plan_is_not_approved_for_apply": true
+  },
+  "read_only_snapshot": {
+    "terraform_managed_resources": 0,
+    "regional_dur050_instances": 0,
+    "regional_dur050_volumes": 0,
+    "vcpus_per_instance_type": {
+      "c7i.large": 2,
+      "m7i.large": 2
+    }
+  },
+  "dry_runs": [
+    {
+      "tool": "scripts/dur050-cycle-preflight.ps1 -DryRun",
+      "classification": "DRY RUN ONLY; AWS calls and SSM dispatch were not performed",
+      "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r163-r164-8c43bf1/cycle-preflight-dry-run.json",
+      "sha256": "c4ed44f317dbb3ccf44739e9b211c2d82d4797b1c1a93a9fa1a1d939e391835b",
+      "local_ledger_check": {
+        "status": "PASS",
+        "reserve_minutes": 15,
+        "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r163-r164-8c43bf1/cycle-preflight-ledger-check.json",
+        "sha256": "ef37cc814d01fac6cef7118087aaa105e009c77c05d2737c5af64bfc69cf921d"
+      }
+    },
+    {
+      "tool": "scripts/dur050-prepare-pilot.ps1 -DryRun",
+      "classification": "DRY RUN ONLY; AWS calls and SSM dispatch were not performed",
+      "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r163-r164-8c43bf1/prepare-pilot-dry-run.json",
+      "sha256": "ec6d92ac4d0dfe4d854980ef688a45735a3e2dcd86cd38949affa7008c4f42d9"
+    }
+  ],
+  "d022_live_preflight_executed": false,
+  "ssm_commands_executed": false,
+  "provisioning_occurred": false,
+  "sensitive_variable_values_recorded": false
+}
