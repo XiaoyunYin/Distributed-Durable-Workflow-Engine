@@ -84,7 +84,8 @@ function Get-Dur050RootVolumeObservation($Hosts) {
     $instanceIds = @($Hosts | ForEach-Object { $_.instance_id })
     $instances = Invoke-Dur050AwsJson (@('ec2','describe-instances','--instance-ids') + $instanceIds + @('--output','json'))
     $instanceRows = @($instances.Reservations | ForEach-Object { $_.Instances } | ForEach-Object { $_ })
-    $volumes = Invoke-Dur050AwsJson (@('ec2','describe-volumes','--filters','Name=attachment.instance-id,Values=' + ($instanceIds -join ','),'--output','json'))
+    $attachmentFilter = 'Name=attachment.instance-id,Values={0}' -f ($instanceIds -join ',')
+    $volumes = Invoke-Dur050AwsJson (@('ec2','describe-volumes','--filters',$attachmentFilter,'--output','json'))
     $rootRows = @()
     foreach ($hostSpec in $Hosts) {
         $instance = @($instanceRows | Where-Object { [string]$_.InstanceId -eq $hostSpec.instance_id })
