@@ -120,12 +120,18 @@ $env:TF_VAR_dur050_observer_password = "<different-24-to-64-character-secret>"
 ```
 
 Every AWS-RunShellScript command uses the DUR-050 base64/temp-file Bash
-wrapper (scripts/dur050-ssm-wrapper.ps1), because SSM otherwise starts /bin/sh.
-The reset helper sends all its remote stages through that wrapper. For
-standalone DUR-050 .sh runners, use scripts/dur050-invoke-ssm-command.ps1 and
-make the remote command explicitly bash followed by the absolute script path
-and its arguments; do not send
-Bash-only script bodies directly to /bin/sh or pipe them through stdin.
+wrapper (`scripts/dur050-ssm-wrapper.ps1`), because SSM otherwise starts
+`/bin/sh`. The reset helper sends its remote stages through that wrapper.
+Dispatch unloaded, load-window and sink-check runners with
+`scripts/dur050-run-generator-block.ps1`; its `-StagePlanOnly` mode validates
+the prepared config and prints the exact command without AWS access. Retrieve
+the resulting block directory with
+`scripts/dur050-retrieve-generator-block.ps1`, which transfers bounded SSM
+chunks and verifies size and SHA-256 before extraction. Both tools record SSM
+command IDs. Do not hand-write runner `-RemoteLines` or rely on SSM's capped
+`StandardOutputContent` for block artifacts. The retrieval record names the
+remote archive under `/var/tmp`; it remains available for retry until host
+teardown.
 
 Terraform rejects a partially configured DUR-050 profile: when the generator
 is enabled, all three campaign attribution values and the reviewed instance

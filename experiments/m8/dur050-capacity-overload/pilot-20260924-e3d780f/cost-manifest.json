@@ -13,7 +13,7 @@
     "ami_id": "ami-0150109d3dd43737d",
     "repo_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine.git",
     "repo_ref": "020f5df479eac28a931ab0f27c98d56e0c80ea50",
-    "expires_at": "2026-10-07T00:00:00Z",
+    "expires_at": "2026-10-05T00:00:00Z",
     "admin_cidrs": [],
     "instance_type": "c7i.large",
     "dependency_instance_type": "m7i.large",

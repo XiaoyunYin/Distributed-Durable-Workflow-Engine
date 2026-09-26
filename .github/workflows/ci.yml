@@ -92,6 +92,10 @@ jobs:
         shell: bash
         run: env -u HOME python3 scripts/test-dur050-run-unloaded-block.py
 
+      - name: Exercise DUR-050 generator dispatch and chunked artifact retrieval
+        shell: bash
+        run: python3 scripts/test-dur050-generator-transfer.py
+
       - name: Run 1,000 single-request CPU-window trials on two CPUs
         shell: bash
         run: python3 scripts/test-dur050-loadgen-cpu-loop.py
