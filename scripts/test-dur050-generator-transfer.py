@@ -987,7 +987,7 @@ def main() -> int:
             (
                 "marker",
                 (
-                    '            if ($matches.Count -ne 1) { throw "Chunk $($index + 1) is '
+                    '            if ($chunkMatches.Count -ne 1) { throw "Chunk $($index + 1) is '
                     'missing its unique transfer marker or has inconsistent metadata." }'
                 ),
                 "            # mutation: marker guard removed",
