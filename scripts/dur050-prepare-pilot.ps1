@@ -73,6 +73,16 @@ function Get-StageDefinitions($Frozen, $Outputs) {
     $namespace = $Frozen.namespace_pattern.Replace('{cycle_id}', $CycleID)
     if ($namespace -notmatch '^dur050-[A-Za-z0-9-]{1,41}$') { throw "Rendered namespace is invalid: $namespace" }
     $apiURL = "http://$($appIPs[0]):8080/"
+    if ($env:DUR050_TEST_API_URL) {
+        if ($env:DUR050_ENABLE_TEST_HOOKS -ne '1') { throw 'DUR050_TEST_API_URL requires DUR050_ENABLE_TEST_HOOKS=1.' }
+        $testApi = $null
+        if ($env:DUR050_TEST_API_URL -notmatch '^http://127\.0\.0\.1:[1-9][0-9]{0,4}/?$' -or
+            -not [Uri]::TryCreate($env:DUR050_TEST_API_URL, [UriKind]::Absolute, [ref]$testApi) -or
+            $testApi.Scheme -ne 'http' -or $testApi.Host -ne '127.0.0.1' -or $testApi.Port -gt 65535) {
+            throw 'DUR050_TEST_API_URL must be an absolute loopback HTTP URL with an explicit port.'
+        }
+        $apiURL = $testApi.AbsoluteUri
+    }
     $parsedURL = $null
     if (-not [Uri]::TryCreate($apiURL, [UriKind]::Absolute, [ref]$parsedURL) -or $parsedURL.Scheme -notin @('http', 'https') -or [string]::IsNullOrWhiteSpace($parsedURL.Host)) {
         throw "Terraform-derived API URL is invalid: $apiURL"
@@ -289,7 +299,7 @@ try {
         terraform_outputs_sha256 = (Get-FileHash -LiteralPath $TerraformOutputsPath -Algorithm SHA256).Hash.ToLowerInvariant()
         frozen_config_sha256 = (Get-FileHash -LiteralPath $FrozenConfigPath -Algorithm SHA256).Hash.ToLowerInvariant()
         rendered_config_sha256 = $stages[0].rendered_config_sha256
-        stages = @($stages | ForEach-Object { [ordered]@{ stage = $_.id; instance_id = $_.instance_id; remote_lines = $_.remote_lines; wrapped_command = $_.wrapped_command; expected_definitions = $_.expected_definitions; expected_topics = $_.expected_topics; rendered_config = $_.rendered_config; rendered_config_path = $_.rendered_config_path; rendered_config_sha256 = $_.rendered_config_sha256 } })
+        stages = @($stages | ForEach-Object { [ordered]@{ stage = $_.id; instance_id = $_.instance_id; remote_lines = $_.remote_lines; wrapped_command = $_.wrapped_command; expected_definitions = $_.expected_definitions; expected_topics = $_.expected_topics; rendered_config = $_.rendered_config; rendered_config_json = $_.rendered_config_json; rendered_config_path = $_.rendered_config_path; rendered_config_sha256 = $_.rendered_config_sha256 } })
     }
     if ($DryRun) {
         if ($DryRunOutputPath) { Write-JsonFile $DryRunOutputPath $dryRunRecord }

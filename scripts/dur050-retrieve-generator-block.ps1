@@ -97,9 +97,9 @@ try {
             $stdout = [string]$result.standard_output_content
             if ($stdout.Length -gt 23900) { throw "SSM chunk response exceeds the safe 23,900-character envelope at chunk $($index + 1)." }
             $pattern = '(?m)^DUR050_CHUNK_V1 index=' + ($index + 1) + ' offset=' + $offset + ' length=' + $length + ' data=([A-Za-z0-9+/=]+)\s*$'
-            $matches = [regex]::Matches($stdout, $pattern)
-            if ($matches.Count -ne 1) { throw "Chunk $($index + 1) is missing its unique transfer marker or has inconsistent metadata." }
-            try { $bytes = [Convert]::FromBase64String($matches[0].Groups[1].Value) } catch { throw "Chunk $($index + 1) is not valid base64: $($_.Exception.Message)" }
+            $chunkMatches = [regex]::Matches($stdout, $pattern)
+            if ($chunkMatches.Count -ne 1) { throw "Chunk $($index + 1) is missing its unique transfer marker or has inconsistent metadata." }
+            try { $bytes = [Convert]::FromBase64String($chunkMatches[0].Groups[1].Value) } catch { throw "Chunk $($index + 1) is not valid base64: $($_.Exception.Message)" }
             if ($bytes.Length -ne $length) { throw "Chunk $($index + 1) is truncated: received $($bytes.Length), expected $length bytes." }
             $stream.Write($bytes, 0, $bytes.Length)
         }

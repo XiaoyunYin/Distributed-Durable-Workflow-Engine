@@ -123,8 +123,13 @@ Every AWS-RunShellScript command uses the DUR-050 base64/temp-file Bash
 wrapper (`scripts/dur050-ssm-wrapper.ps1`), because SSM otherwise starts
 `/bin/sh`. The reset helper sends its remote stages through that wrapper.
 Dispatch unloaded, load-window and sink-check runners with
-`scripts/dur050-run-generator-block.ps1`; its `-StagePlanOnly` mode validates
-the prepared config and prints the exact command without AWS access. Retrieve
+`scripts/dur050-run-generator-block.ps1`. Pass the current cycle's parsed
+`terraform-outputs.json` and the `preparation-dry-run.json` emitted by
+`dur050-prepare-pilot.ps1 -DryRun`, plus the matching `-CycleID`; the dispatcher
+rejects a cycle mismatch and requires the recorded generator config path
+`/var/tmp/dur050-<CycleID>/frozen-config.json`. Do not hand-write either input.
+Its `-StagePlanOnly` mode validates the prepared config and prints the exact
+command without AWS access. Retrieve
 the resulting block directory with
 `scripts/dur050-retrieve-generator-block.ps1`, which transfers bounded SSM
 chunks and verifies size and SHA-256 before extraction. Both tools record SSM

@@ -2,6 +2,7 @@
 param(
     [Parameter(Mandatory)] [string]$TerraformOutputsPath,
     [Parameter(Mandatory)] [string]$PreparationDryRunPath,
+    [Parameter(Mandatory)] [ValidatePattern('^[A-Za-z0-9-]{1,32}$')] [string]$CycleID,
     [Parameter(Mandatory)] [ValidateSet('unloaded', 'window', 'sink-check')] [string]$Mode,
     [Parameter(Mandatory)] [string]$DatabaseName,
     [Parameter(Mandatory)] [string]$OutputDirectory,
@@ -72,23 +73,32 @@ $bytes = $parsedIP.GetAddressBytes()
 $privateAddress = ($bytes[0] -eq 10) -or ($bytes[0] -eq 172 -and $bytes[1] -ge 16 -and $bytes[1] -le 31) -or ($bytes[0] -eq 192 -and $bytes[1] -eq 168)
 if (-not $privateAddress) { throw 'Terraform dependency_private_ip must be RFC1918 private IPv4.' }
 $secretParameter = [string](Get-OutputValue $outputs 'dur050_observer_secret_parameter_name')
-if ($secretParameter -notmatch '^/dur050/[A-Za-z0-9_./-]{1,180}$' -or $secretParameter -match '(^|/)\.\.?(/|$)') {
-    throw 'Terraform observer secret parameter must be a normalized /dur050/* SSM parameter name.'
+if ($secretParameter -notmatch '^/[A-Za-z0-9_.-]+/dur050-observer-password$' -or $secretParameter -match '(^|/)\.\.?(/|$)') {
+    throw 'Terraform observer secret parameter must be a normalized /<campaign>/dur050-observer-password SSM parameter name.'
 }
 
 $prepared = Get-Content -LiteralPath $PreparationDryRunPath -Raw | ConvertFrom-Json
 if ($prepared.schema -ne 'dur050-pilot-preparation-dry-run.v1' -or @($prepared.stages).Count -lt 1) {
     throw 'Preparation record must be a DUR-050 pilot preparation dry-run with recorded stages.'
 }
+if ([string]$prepared.cycle_id -cne $CycleID) { throw 'Preparation cycle_id does not match CycleID.' }
+$outputsHash = (Get-FileHash -LiteralPath $TerraformOutputsPath -Algorithm SHA256).Hash.ToLowerInvariant()
+if ([string]$prepared.terraform_outputs_sha256 -cne $outputsHash) {
+    throw 'Preparation record was not generated from this Terraform outputs file.'
+}
 $generatorStage = @($prepared.stages | Where-Object { $_.stage -eq 'generator-stage' })
 if ($generatorStage.Count -ne 1) { throw 'Preparation record must contain exactly one generator-stage record.' }
+if ([string]$generatorStage[0].instance_id -cne $instanceID) {
+    throw 'Prepared generator-stage instance_id does not match Terraform outputs.'
+}
 $configPath = [string]$generatorStage[0].rendered_config_path
 $configHash = [string]$generatorStage[0].rendered_config_sha256
 if ($configHash -notmatch '^[0-9a-f]{64}$') { throw 'Preparation record lacks a valid rendered-config SHA-256.' }
-$repoRoot = Get-RemoteRepositoryRoot
-if ($configPath -notmatch ('^' + [regex]::Escape($repoRoot) + '/[A-Za-z0-9._/-]+$') -or $configPath -match '(^|/)\.\.?(/|$)') {
-    throw 'Recorded rendered_config_path must be a normalized file below the deployed repository root.'
+$expectedConfigPath = "/var/tmp/dur050-$CycleID/frozen-config.json"
+if ($configPath -cne $expectedConfigPath) {
+    throw 'Recorded rendered_config_path must be exactly the preparation staging path for CycleID.'
 }
+$repoRoot = Get-RemoteRepositoryRoot
 
 $script = switch ($Mode) {
     'unloaded' { "$repoRoot/scripts/dur050-run-unloaded-block.sh" }
@@ -128,6 +138,7 @@ $stage = "generator-$Mode-" + ([IO.Path]::GetFileName($OutputDirectory) -replace
 $wrapped = New-Dur050SsmBashCommand -Stage $stage -RemoteLines $remoteLines
 $stagePlan = [ordered]@{
     schema = 'dur050-generator-dispatch-plan.v1'
+    cycle_id = $CycleID
     stage = $stage
     mode = $Mode
     instance_id = $instanceID

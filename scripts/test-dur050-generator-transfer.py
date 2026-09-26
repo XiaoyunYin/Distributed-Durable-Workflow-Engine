@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import http.server
 import json
@@ -57,6 +58,14 @@ if [ssm_operation] == ["get-parameter"]:
 if ssm_operation == "send-command":
     input_arg = args[args.index("--cli-input-json") + 1]
     request = json.loads(Path(input_arg.removeprefix("file://")).read_text())
+    expected_timeout = os.environ.get("DUR050_EXPECTED_EXECUTION_TIMEOUT")
+    actual_timeout = request.get("Parameters", {}).get("executionTimeout")
+    if expected_timeout and actual_timeout != [expected_timeout]:
+        print(
+            "SSM executionTimeout mismatch: " + repr(actual_timeout),
+            file=sys.stderr,
+        )
+        raise SystemExit(3)
     command = request["Parameters"]["commands"][0]
     command_id = "cmd-" + uuid.uuid4().hex
     env = os.environ.copy()
@@ -231,17 +240,24 @@ def assert_config_hash_failure(result, output_dir: Path, record_path: Path, labe
         raise AssertionError(f"{label} failure record lacks FAIL status/SSM command ID: {record}")
 
 
-def validate_dispatch_plan(plan: dict, remote: Path, config: Path, output: str) -> None:
+def validate_dispatch_plan(
+    plan: dict, remote: Path, config: Path, output: str, cycle_id: str, observer_parameter: str
+) -> None:
     runner = remote / "scripts/dur050-run-unloaded-block.sh"
+    block_id = f"{cycle_id}-01"
     expected_lines = [
         "set -euo pipefail",
-        "export DUR050_OBSERVER_SECRET_PARAMETER='/dur050/observer/password'",
+        f"export DUR050_OBSERVER_SECRET_PARAMETER='{observer_parameter}'",
         "export DUR050_DATABASE_PRIVATE_IP='10.49.0.10'",
         "export DUR050_DATABASE_NAME='durable'",
         f"test \"$(sha256sum -- '{config}' | cut -d ' ' -f1)\" = '{sha(config)}'",
-        f"bash '{runner}' '{config}' 'r172-ci' 'seq-8' '{output}'",
+        f"bash '{runner}' '{config}' '{block_id}' 'seq-8' '{output}'",
     ]
-    if plan["remote_lines"] != expected_lines or plan["instance_id"] != "i-33333333333333333":
+    if (
+        plan["remote_lines"] != expected_lines
+        or plan["instance_id"] != "i-33333333333333333"
+        or plan.get("cycle_id") != cycle_id
+    ):
         raise AssertionError(f"dispatch plan does not match expected exports/runner argv: {plan}")
 
 
@@ -287,39 +303,9 @@ def main() -> int:
         observer_path.chmod(0o755)
 
         submissions = tmp / "submissions.txt"
-        config = remote / "generator-config.json"
         api = WorkflowAPI(("127.0.0.1", 0), submissions)
         server_thread = threading.Thread(target=api.serve_forever, daemon=True)
         server_thread.start()
-        config.write_text(
-            json.dumps(
-                {
-                    "api_url": f"http://127.0.0.1:{api.server_port}",
-                    "namespace": "dur050-transfer-ci",
-                    "run_id": "dispatch-ci",
-                    "seed": 99117,
-                    "families": [
-                        {
-                            "name": "seq-8",
-                            "definition_id": "seq-v1",
-                            "definition_version": 1,
-                            "initial_node_id": "activity-0",
-                            "payload": {"profile": "seq-8"},
-                            "initial_input": {},
-                        },
-                        {
-                            "name": "fanout-8",
-                            "definition_id": "fanout-v1",
-                            "definition_version": 1,
-                            "initial_node_id": "root",
-                            "payload": {"profile": "fanout-8"},
-                            "initial_input": {},
-                        },
-                    ],
-                }
-            ),
-            encoding="utf-8",
-        )
 
         env = os.environ.copy()
         env.pop("HOME", None)
@@ -327,12 +313,14 @@ def main() -> int:
             {
                 "DUR050_ENABLE_TEST_HOOKS": "1",
                 "DUR050_REMOTE_REPO_ROOT": str(remote),
+                "DUR050_TEST_API_URL": f"http://127.0.0.1:{api.server_port}/",
                 "DUR050_TEST_OBSERVER_COLUMNS": subprocess.check_output(
                     [str(BIN_DIR / "dur050-observer"), "-print-csv-header"], text=True
                 ).strip(),
                 "DUR050_TEST_SUBMISSIONS": str(submissions),
                 "DUR050_FAKE_SSM_STATE": str(tmp / "ssm-state"),
                 "DUR050_STUB_TRANSFER_SCENARIO": "",
+                "DUR050_EXPECTED_EXECUTION_TIMEOUT": "5400",
                 "PATH": str(tmp / "bin") + os.pathsep + os.environ.get("PATH", ""),
             }
         )
@@ -342,51 +330,81 @@ def main() -> int:
         aws_stub.write_text(AWS_STUB, encoding="utf-8")
         aws_stub.chmod(0o755)
 
-        outputs = tmp / "terraform-outputs.json"
-        outputs.write_text(
-            json.dumps(
-                {
-                    "load_generator_instance_ids": {"value": ["i-33333333333333333"]},
-                    "dependency_private_ip": {"value": "10.49.0.10"},
-                    "dur050_observer_secret_parameter_name": {"value": "/dur050/observer/password"},
-                }
-            ),
-            encoding="utf-8",
-        )
+        outputs = ROOT / "tests/fixtures/dur050-terraform-outputs.json"
+        terraform_fixture = json.loads(outputs.read_text(encoding="utf-8"))
+        observer_parameter = terraform_fixture["dur050_observer_secret_parameter_name"]["value"]
+        if observer_parameter != "/durable-engine-dur050/dur050-observer-password":
+            raise RuntimeError(
+                "Terraform outputs fixture no longer carries the "
+                "provider-defined observer parameter."
+            )
+        terraform_test = (ROOT / "deploy/aws/dur050.tftest.hcl").read_text(encoding="utf-8")
+        if (
+            f'aws_ssm_parameter.dur050_observer_password[0].name == "{observer_parameter}"'
+            not in terraform_test
+        ):
+            raise RuntimeError(
+                "Terraform output fixture parameter is not tied to the Terraform test assertion."
+            )
+
         preparation = tmp / "preparation-dry-run.json"
-        preparation.write_text(
-            json.dumps(
-                {
-                    "schema": "dur050-pilot-preparation-dry-run.v1",
-                    "stages": [
-                        {
-                            "stage": "generator-stage",
-                            "rendered_config_path": str(config),
-                            "rendered_config_sha256": sha(config),
-                        }
-                    ],
-                }
-            ),
-            encoding="utf-8",
+        cycle_id = "ci-" + uuid.uuid4().hex[:16]
+        prepare_result = invoke_ps(
+            ROOT / "scripts/dur050-prepare-pilot.ps1",
+            [
+                "-TerraformOutputsPath",
+                str(outputs),
+                "-CycleID",
+                cycle_id,
+                "-TestOutputRoot",
+                str(tmp / "prepare-output"),
+                "-DryRun",
+                "-DryRunOutputPath",
+                str(preparation),
+            ],
+            env,
         )
+        require_ok(prepare_result, "producer-generated preparation dry run")
+        prepared = json.loads(preparation.read_text(encoding="utf-8"))
+        if prepared.get("cycle_id") != cycle_id:
+            raise RuntimeError("preparation producer omitted or changed the requested cycle_id")
+        generator_stage = next(
+            stage for stage in prepared["stages"] if stage["stage"] == "generator-stage"
+        )
+        config = Path(generator_stage["rendered_config_path"])
+        expected_config = Path(f"/var/tmp/dur050-{cycle_id}/frozen-config.json")
+        if config != expected_config or config.parent.exists():
+            raise RuntimeError(
+                f"producer config path is not the expected fresh staging path: {config}"
+            )
+        atexit.register(shutil.rmtree, config.parent, ignore_errors=True)
+        config.parent.mkdir(parents=True, exist_ok=False)
+        config.write_bytes(generator_stage["rendered_config_json"].encode("utf-8"))
+        if sha(config) != generator_stage["rendered_config_sha256"]:
+            raise RuntimeError(
+                "producer-rendered config bytes do not match the producer's recorded hash"
+            )
+
         dispatch_script = ROOT / "scripts/dur050-run-generator-block.ps1"
         dispatch_args = [
             "-TerraformOutputsPath",
             str(outputs),
             "-PreparationDryRunPath",
             str(preparation),
+            "-CycleID",
+            cycle_id,
             "-Mode",
             "unloaded",
             "-DatabaseName",
             "durable",
             "-BlockID",
-            "r172-ci",
+            f"{cycle_id}-01",
             "-Family",
             "seq-8",
             "-OutputDirectory",
             f"/var/tmp/dur050-dispatch-{uuid.uuid4().hex}",
             "-TimeoutMinutes",
-            "2",
+            "90",
         ]
 
         plan = load_json_output(
@@ -394,11 +412,77 @@ def main() -> int:
             "dispatch StagePlanOnly",
         )
         validate_dispatch_plan(
-            plan, remote, config, dispatch_args[dispatch_args.index("-OutputDirectory") + 1]
+            plan,
+            remote,
+            config,
+            dispatch_args[dispatch_args.index("-OutputDirectory") + 1],
+            cycle_id,
+            observer_parameter,
         )
         print(
             "PASS: StagePlanOnly emits the exact exports, config hash guard, "
             "and unloaded runner argv."
+        )
+
+        dispatch_source = dispatch_script.read_text(encoding="utf-8")
+        old_parameter_pattern = "^/[A-Za-z0-9_.-]+/dur050-observer-password$"
+        if old_parameter_pattern not in dispatch_source:
+            raise RuntimeError("observer-name regression mutation no longer matches the dispatcher")
+        parameter_mutant_dir = tmp / "mutant-old-observer-shape"
+        parameter_mutant_dir.mkdir()
+        parameter_mutant = parameter_mutant_dir / "dur050-run-generator-block.ps1"
+        parameter_mutant.write_text(
+            dispatch_source.replace(old_parameter_pattern, "^/dur050/[A-Za-z0-9_./-]{1,180}$", 1),
+            encoding="utf-8",
+        )
+        shutil.copy2(
+            ROOT / "scripts/dur050-ssm-wrapper.ps1",
+            parameter_mutant_dir / "dur050-ssm-wrapper.ps1",
+        )
+        old_parameter_result = invoke_ps(parameter_mutant, dispatch_args + ["-StagePlanOnly"], env)
+        if old_parameter_result.returncode == 0:
+            raise RuntimeError(
+                "the prior /dur050-only guard unexpectedly accepts real Terraform outputs"
+            )
+        print(
+            "NEGATIVE CONTROL: reverting to the old observer-parameter shape "
+            "rejects the real Terraform output."
+        )
+
+        old_path_block = (
+            '$expectedConfigPath = "/var/tmp/dur050-$CycleID/frozen-config.json"\n'
+            "if ($configPath -cne $expectedConfigPath) {\n"
+            "    throw 'Recorded rendered_config_path must be exactly the "
+            "preparation staging path for CycleID.'\n"
+            "}\n$repoRoot = Get-RemoteRepositoryRoot"
+        )
+        old_path_guard = (
+            "$repoRoot = Get-RemoteRepositoryRoot\n"
+            "if ($configPath -notmatch ('^' + [regex]::Escape($repoRoot) + '/[A-Za-z0-9._/-]+$') "
+            "-or $configPath -match '(^|/)\\.\\.?(/|$)') {\n"
+            "    throw 'Recorded rendered_config_path must be a normalized file "
+            "below the deployed repository root.'\n"
+            "}"
+        )
+        if old_path_block not in dispatch_source:
+            raise RuntimeError("config-path regression mutation no longer matches the dispatcher")
+        path_mutant_dir = tmp / "mutant-old-config-path"
+        path_mutant_dir.mkdir()
+        path_mutant = path_mutant_dir / "dur050-run-generator-block.ps1"
+        path_mutant.write_text(
+            dispatch_source.replace(old_path_block, old_path_guard, 1), encoding="utf-8"
+        )
+        shutil.copy2(
+            ROOT / "scripts/dur050-ssm-wrapper.ps1", path_mutant_dir / "dur050-ssm-wrapper.ps1"
+        )
+        old_path_result = invoke_ps(path_mutant, dispatch_args + ["-StagePlanOnly"], env)
+        if old_path_result.returncode == 0:
+            raise RuntimeError(
+                "the prior repository-root guard unexpectedly accepts the real prepared config path"
+            )
+        print(
+            "NEGATIVE CONTROL: reverting to the old repository-root rule "
+            "rejects the producer staging path."
         )
 
         # The dispatch regression assertion must detect a removed environment export.
@@ -424,7 +508,12 @@ def main() -> int:
         )
         try:
             validate_dispatch_plan(
-                mutated, remote, config, dispatch_args[dispatch_args.index("-OutputDirectory") + 1]
+                mutated,
+                remote,
+                config,
+                dispatch_args[dispatch_args.index("-OutputDirectory") + 1],
+                cycle_id,
+                observer_parameter,
             )
         except AssertionError:
             print("NEGATIVE CONTROL: dispatch assertion rejects a removed database-name export.")
@@ -458,6 +547,8 @@ def main() -> int:
                 str(outputs),
                 "-PreparationDryRunPath",
                 str(preparation),
+                "-CycleID",
+                cycle_id,
                 *mode_args,
                 "-DatabaseName",
                 "durable",
@@ -477,6 +568,38 @@ def main() -> int:
             if mode_plan["remote_lines"][-1] != expected_runner:
                 raise RuntimeError(f"{mode_args[1]} dispatch argv is incorrect: {mode_plan}")
         print("PASS: window and sink-check StagePlanOnly use their expected runner argv.")
+
+        wrong_cycle_args = dispatch_args.copy()
+        wrong_cycle_args[wrong_cycle_args.index("-CycleID") + 1] = "different-cycle"
+        wrong_cycle = invoke_ps(dispatch_script, wrong_cycle_args + ["-StagePlanOnly"], env)
+        if (
+            wrong_cycle.returncode == 0
+            or "Preparation cycle_id does not match CycleID" not in wrong_cycle.stdout
+        ):
+            raise RuntimeError(
+                f"dispatch did not reject a preparation cycle mismatch:\n{wrong_cycle.stdout}"
+            )
+        print("PASS: a cycle-ID mismatch is rejected before dispatch.")
+
+        wrong_path_record = json.loads(json.dumps(prepared))
+        wrong_path_stage = next(
+            stage for stage in wrong_path_record["stages"] if stage["stage"] == "generator-stage"
+        )
+        wrong_path_stage["rendered_config_path"] = f"/opt/dur050/{cycle_id}/frozen-config.json"
+        wrong_path_file = tmp / "preparation-wrong-config-path.json"
+        wrong_path_file.write_text(json.dumps(wrong_path_record), encoding="utf-8")
+        wrong_path_args = dispatch_args.copy()
+        wrong_path_args[wrong_path_args.index("-PreparationDryRunPath") + 1] = str(wrong_path_file)
+        wrong_path_result = invoke_ps(dispatch_script, wrong_path_args + ["-StagePlanOnly"], env)
+        if (
+            wrong_path_result.returncode == 0
+            or "must be exactly the preparation staging path" not in wrong_path_result.stdout
+        ):
+            raise RuntimeError(
+                "dispatch did not reject a generator config path outside the cycle staging path:\n"
+                + wrong_path_result.stdout
+            )
+        print("PASS: a non-producer generator config path is rejected before dispatch.")
 
         bad_outputs = json.loads(outputs.read_text(encoding="utf-8"))
         invalid_cases = (
@@ -524,7 +647,7 @@ def main() -> int:
             (
                 "observer-parameter",
                 "Terraform observer secret parameter must be a normalized "
-                "/dur050/* SSM parameter name.",
+                "/<campaign>/dur050-observer-password SSM parameter name.",
                 "dur050_observer_secret_parameter_name",
                 "not-a-parameter",
                 None,
@@ -565,6 +688,22 @@ def main() -> int:
                 changed_path = tmp / f"mutated-{label}-outputs.json"
                 changed_path.write_text(json.dumps(changed_outputs), encoding="utf-8")
                 mutant_args[mutant_args.index("-TerraformOutputsPath") + 1] = str(changed_path)
+                changed_preparation = json.loads(preparation.read_text(encoding="utf-8"))
+                changed_preparation["terraform_outputs_sha256"] = sha(changed_path)
+                if label == "generator-instance-id":
+                    changed_stage = next(
+                        stage
+                        for stage in changed_preparation["stages"]
+                        if stage["stage"] == "generator-stage"
+                    )
+                    changed_stage["instance_id"] = bad_value[0]
+                changed_preparation_path = tmp / f"mutated-{label}-preparation.json"
+                changed_preparation_path.write_text(
+                    json.dumps(changed_preparation), encoding="utf-8"
+                )
+                mutant_args[mutant_args.index("-PreparationDryRunPath") + 1] = str(
+                    changed_preparation_path
+                )
             if argument_override:
                 mutant_args[mutant_args.index(argument_override[0]) + 1] = argument_override[1]
             mutant = invoke_ps(mutant_script, mutant_args + ["-StagePlanOnly"], env)
@@ -592,9 +731,13 @@ def main() -> int:
         remote_block = Path(output_dir)
         assert_complete_unloaded_block(remote_block, submissions)
         print("PASS: SSM-stub dispatch ran 100 samples: 101 CSV lines and 100 PASS summaries.")
+        print("PASS: SSM request sets executionTimeout to 5,400 seconds for a 90-minute dispatch.")
 
         bad_preparation = json.loads(preparation.read_text(encoding="utf-8"))
-        bad_preparation["stages"][0]["rendered_config_sha256"] = "0" * 64
+        prepared_generator_stage = next(
+            stage for stage in bad_preparation["stages"] if stage["stage"] == "generator-stage"
+        )
+        prepared_generator_stage["rendered_config_sha256"] = "0" * 64
         bad_preparation_path = tmp / "preparation-bad-hash.json"
         bad_preparation_path.write_text(json.dumps(bad_preparation), encoding="utf-8")
         mismatch_output = f"/var/tmp/dur050-config-mismatch-{uuid.uuid4().hex}"
@@ -707,6 +850,7 @@ def main() -> int:
             label: str, scenario: str = "", script: Path = retrieval_script
         ) -> tuple[subprocess.CompletedProcess[str], Path, Path]:
             env["DUR050_STUB_TRANSFER_SCENARIO"] = scenario
+            env["DUR050_EXPECTED_EXECUTION_TIMEOUT"] = "600"
             destination = tmp / f"retrieved-{label}"
             record_path = tmp / f"retrieval-{label}.json"
             result = invoke_ps(

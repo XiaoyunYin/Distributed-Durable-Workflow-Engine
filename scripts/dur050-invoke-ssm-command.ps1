@@ -24,7 +24,10 @@ try {
         DocumentName = "AWS-RunShellScript"
         InstanceIds = @($InstanceID)
         Comment = "DUR-050 $Stage"
-        Parameters = @{ commands = @($command) }
+        Parameters = @{
+            commands = @($command)
+            executionTimeout = @([string]($TimeoutMinutes * 60))
+        }
     } | ConvertTo-Json -Depth 8 -Compress
     [System.IO.File]::WriteAllText($inputFile, $body, [System.Text.UTF8Encoding]::new($false))
 
