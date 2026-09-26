@@ -144,7 +144,7 @@ try {
         $type = if ($role -eq 'dependency') { 'm7i.large' } else { 'c7i.large' }
         $sourceLedger.roles.$role = @([ordered]@{
             cycle_id = 'ci-preapply'
-            instance_id = 'i-' + [guid]::NewGuid().ToString('N').Substring(0, 17)
+            instance_id = 'i-{0}' -f [guid]::NewGuid().ToString('N').Substring(0, 17)
             instance_type = $type
             apply_started_at_utc = $cheapStart
             destroy_completed_at_utc = $null
