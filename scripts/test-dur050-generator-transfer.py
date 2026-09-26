@@ -582,6 +582,112 @@ def main() -> int:
             )
         print("PASS: a cycle-ID mismatch is rejected before dispatch.")
 
+        def assert_dispatch_rejected(result, expected_message: str, label: str) -> None:
+            if result.returncode == 0 or expected_message not in result.stdout:
+                raise AssertionError(
+                    f"{label} did not fail at its expected guard "
+                    f"({expected_message!r}):\n{result.stdout}"
+                )
+
+        outputs_hash_mismatch_path = tmp / "terraform-outputs-hash-mismatch.json"
+        outputs_hash_mismatch_path.write_bytes(outputs.read_bytes() + b"\n")
+        if sha(outputs_hash_mismatch_path) == prepared["terraform_outputs_sha256"]:
+            raise RuntimeError("outputs-hash mismatch fixture did not change the file hash")
+        outputs_hash_mismatch_args = dispatch_args.copy()
+        outputs_hash_mismatch_args[
+            outputs_hash_mismatch_args.index("-TerraformOutputsPath") + 1
+        ] = str(outputs_hash_mismatch_path)
+        outputs_hash_mismatch = invoke_ps(
+            dispatch_script, outputs_hash_mismatch_args + ["-StagePlanOnly"], env
+        )
+        outputs_hash_message = (
+            "Preparation record was not generated from this Terraform outputs file."
+        )
+        assert_dispatch_rejected(
+            outputs_hash_mismatch, outputs_hash_message, "outputs-hash mismatch"
+        )
+        print("PASS: a one-byte Terraform outputs change is rejected against the producer record.")
+
+        instance_mismatch_record = json.loads(json.dumps(prepared))
+        instance_mismatch_stage = next(
+            stage
+            for stage in instance_mismatch_record["stages"]
+            if stage["stage"] == "generator-stage"
+        )
+        instance_mismatch_stage["instance_id"] = "i-44444444444444444"
+        if instance_mismatch_record["terraform_outputs_sha256"] != sha(outputs):
+            raise RuntimeError("instance-mismatch fixture must retain the matching outputs hash")
+        instance_mismatch_path = tmp / "preparation-instance-mismatch.json"
+        instance_mismatch_path.write_text(json.dumps(instance_mismatch_record), encoding="utf-8")
+        instance_mismatch_args = dispatch_args.copy()
+        instance_mismatch_args[instance_mismatch_args.index("-PreparationDryRunPath") + 1] = str(
+            instance_mismatch_path
+        )
+        instance_mismatch = invoke_ps(
+            dispatch_script, instance_mismatch_args + ["-StagePlanOnly"], env
+        )
+        instance_mismatch_message = (
+            "Prepared generator-stage instance_id does not match Terraform outputs."
+        )
+        assert_dispatch_rejected(
+            instance_mismatch, instance_mismatch_message, "generator instance mismatch"
+        )
+        print("PASS: a producer record with a different generator instance is rejected.")
+
+        outputs_hash_guard = (
+            "if ([string]$prepared.terraform_outputs_sha256 -cne $outputsHash) {\n"
+            "    throw 'Preparation record was not generated from this Terraform outputs file.'\n"
+            "}\n"
+        )
+        instance_id_guard = (
+            "if ([string]$generatorStage[0].instance_id -cne $instanceID) {\n"
+            "    throw 'Prepared generator-stage instance_id does not match Terraform outputs.'\n"
+            "}\n"
+        )
+        for label, guard, negative_args, expected_message in (
+            (
+                "Terraform outputs hash",
+                outputs_hash_guard,
+                outputs_hash_mismatch_args,
+                outputs_hash_message,
+            ),
+            (
+                "generator-stage instance ID",
+                instance_id_guard,
+                instance_mismatch_args,
+                instance_mismatch_message,
+            ),
+        ):
+            if guard not in dispatch_source:
+                raise RuntimeError(f"{label} guard-removal mutation no longer matches dispatcher")
+            mutant_dir = tmp / f"mutant-{label.replace(' ', '-').lower()}"
+            mutant_dir.mkdir()
+            mutant_script = mutant_dir / "dur050-run-generator-block.ps1"
+            mutant_script.write_text(
+                dispatch_source.replace(guard, f"# mutation: remove {label} guard\n", 1),
+                encoding="utf-8",
+            )
+            shutil.copy2(
+                ROOT / "scripts/dur050-ssm-wrapper.ps1",
+                mutant_dir / "dur050-ssm-wrapper.ps1",
+            )
+            mutant_result = invoke_ps(mutant_script, negative_args + ["-StagePlanOnly"], env)
+            if mutant_result.returncode != 0:
+                raise RuntimeError(
+                    f"removing the {label} guard failed for an unrelated reason:\n"
+                    f"{mutant_result.stdout}"
+                )
+            try:
+                assert_dispatch_rejected(mutant_result, expected_message, f"mutated {label}")
+            except AssertionError:
+                print(
+                    f"NEGATIVE CONTROL: removing the {label} guard makes its rejection "
+                    "assertion fail."
+                )
+            else:
+                raise RuntimeError(f"the rejection assertion survived removal of the {label} guard")
+            shutil.rmtree(mutant_dir, ignore_errors=True)
+
         wrong_path_record = json.loads(json.dumps(prepared))
         wrong_path_stage = next(
             stage for stage in wrong_path_record["stages"] if stage["stage"] == "generator-stage"
