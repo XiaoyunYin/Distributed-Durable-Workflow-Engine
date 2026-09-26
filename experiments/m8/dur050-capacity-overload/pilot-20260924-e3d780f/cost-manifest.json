@@ -12,7 +12,7 @@
     "environment_name": "portfolio-capacity",
     "ami_id": "ami-0150109d3dd43737d",
     "repo_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine.git",
-    "repo_ref": "020f5df479eac28a931ab0f27c98d56e0c80ea50",
+    "repo_ref": "afe22ccf93d53d2047d0b3ee0fa202bf4767cada",
     "expires_at": "2026-10-05T00:00:00Z",
     "admin_cidrs": [],
     "instance_type": "c7i.large",
@@ -28,18 +28,18 @@
   },
   "latest_no_apply_review_plan": {
     "status": "NO_APPLY_PLAN_ONLY; NOT AUTHORIZATION TO APPLY",
-    "generated_at_utc": "2026-09-26T06:35:10Z",
-    "recorded_at_utc": "2026-09-26T06:36:36Z",
+    "generated_at_utc": "2026-09-26T08:51:52Z",
+    "recorded_at_utc": "2026-09-26T08:55:45Z",
     "terraform_version": "1.16.4",
-    "source_commit": "020f5df479eac28a931ab0f27c98d56e0c80ea50",
+    "source_commit": "afe22ccf93d53d2047d0b3ee0fa202bf4767cada",
     "hosted_ci": {
       "status": "completed/success",
-      "run_id": "36222328438",
-      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/36222328438",
-      "head_sha": "020f5df479eac28a931ab0f27c98d56e0c80ea50"
+      "run_id": "36229864549",
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/36229864549",
+      "head_sha": "afe22ccf93d53d2047d0b3ee0fa202bf4767cada"
     },
-    "saved_plan_path": "deploy/aws/.terraform/dur050-preflight-r168-020f5df-offline.tfplan",
-    "saved_plan_sha256": "6A36B8D9C1FA87FE9539F024C903AA4234FC8177A40E0588B80F97A69960132B",
+    "saved_plan_path": "deploy/aws/.terraform/dur050-preflight-r172-afe22cc-offline.tfplan",
+    "saved_plan_sha256": "C178D34A693DAAE05B46D7DAEB12F5493C8A7236292A86994B85562662C49078",
     "profile": {
       "aws_region": "us-west-1",
       "availability_zones": ["us-west-1a", "us-west-1c"],
@@ -49,7 +49,7 @@
       "environment_name": "portfolio-capacity",
       "ami_id": "ami-0150109d3dd43737d",
       "repo_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine.git",
-      "repo_ref": "020f5df479eac28a931ab0f27c98d56e0c80ea50",
+      "repo_ref": "afe22ccf93d53d2047d0b3ee0fa202bf4767cada",
       "expires_at": "2026-10-05T00:00:00Z",
       "admin_cidrs": [],
       "instance_type": "c7i.large",
@@ -77,11 +77,11 @@
       "regional_dur050_instance_count": 0,
       "regional_dur050_volume_count": 0
     },
-    "plan_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r168-020f5df/plan-inspection.json",
-    "plan_inspection_sha256": "242839F5045E92AC664C7EC9B1DD256568D1110BA845454BC6B790BF8BEEBA6F",
+    "plan_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r172-afe22cc/plan-inspection.json",
+    "plan_inspection_sha256": "9AFD6CDA3D0D8EC7665FEB372B6C30515B2E4142FA9A8B10E35C3A3BD8C6FC7F",
     "inspection_network_safety": {
-      "terraform_plan_network": "Docker internal network with no external egress",
-      "aws_provider_identity": "local mock answered the GetCallerIdentity-shaped request with the previously recorded target account ID",
+      "terraform_plan_network": "Docker network mode none (no external network interface or egress)",
+      "aws_provider_identity": "one GetCallerIdentity-shaped request answered by the local mock; mock logged exactly one request",
       "external_aws_api_calls": 0,
       "aws_cli_calls": 0,
       "ssm_calls": 0
