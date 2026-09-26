@@ -1,0 +1,39 @@
+{
+  "schema": "dur050-recorded-plan-inspection.v1",
+  "recorded_at_utc": "2026-09-26T03:23:25Z",
+  "source_commit": "d3764dd4789c18c1951be6be11addad62ec8f186",
+  "hosted_ci": {
+    "status": "pending for this target"
+  },
+  "terraform_version": "1.16.4",
+  "plan_path": "deploy/aws/.terraform/dur050-preflight-round99-d3764dd.tfplan",
+  "plan_sha256": "FF67733D551FD6352249244E707073F9248326109FCFBF2DE0F4EB331A3BFE92",
+  "planned_peak_vcpu": 8,
+  "instance_vcpu_basis": {
+    "c7i.large": { "count": 3, "vcpus_each": 2 },
+    "m7i.large": { "count": 1, "vcpus_each": 2 }
+  },
+  "resource_changes": {
+    "creates": 31,
+    "updates": 0,
+    "deletes": 0,
+    "replacements": 0
+  },
+  "resource_change_count": 31,
+  "instances": {
+    "total": 4,
+    "c7i.large": 3,
+    "m7i.large": 1
+  },
+  "taggable_resources_with_effective_tags": 23,
+  "taggable_resources_with_expected_task_environment_expiry_tags": 23,
+  "effective_tag_source": "Terraform plan tags_all",
+  "prohibited_eks_nat_gateway_or_load_balancer_resources": 0,
+  "terraform_state_resource_count": 0,
+  "terraform_state_count_basis": "terraform state list returned no managed resources",
+  "aws_region": "us-west-1",
+  "apply_performed": false,
+  "live_d022_preflight": "NOT RUN",
+  "ssm_dispatched": false,
+  "sensitive_variables": "fresh ephemeral plan-only values omitted"
+}

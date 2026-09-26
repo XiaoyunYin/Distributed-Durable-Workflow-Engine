@@ -1,0 +1,94 @@
+{
+    "schema":  "dur050-cycle-preflight-dry-run.v1",
+    "classification":  "DRY RUN ONLY - AWS calls and SSM dispatch are not performed; this is not a PASS D022 preflight.",
+    "cycle_id":  "round99-d3764dd",
+    "planned_peak_vcpu":  8,
+    "ledger_check_path":  "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\preflight-round99-d3764dd\\cycle-preflight-ledger-check.json",
+    "ledger_check":  {
+                         "status":  "PASS",
+                         "path":  "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\preflight-round99-d3764dd\\cycle-preflight-ledger-check.json",
+                         "reserve_minutes":  15,
+                         "ledger_path":  "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
+                         "ledger_path_override_used":  false,
+                         "projected_instance_cost_usd":  "0.248827",
+                         "budget_cap_usd":  "75.0",
+                         "check_schema":  "dur050-cost-ledger-check.v2"
+                     },
+    "terraform_outputs_sha256":  "e5ecee5c6279184aa23e050f017269c6862aa18db24e9b7f8a0ca80db45af87f",
+    "plan_inspection_sha256":  "418c7662dfca99f1008783b30299850a28c9519e1a2859c4f922dd9518723282",
+    "planned_aws_checks":  [
+                               "STS account",
+                               "EC2 On-Demand Standard vCPU quota and current usage",
+                               "D022 budget cap and three notifications",
+                               "Task/Environment cost-allocation tags"
+                           ],
+    "bootstrap_commands":  [
+                               {
+                                   "role":  "app-1",
+                                   "instance_id":  "i-11111111111111111",
+                                   "remote_lines":  [
+                                                        "set -euo pipefail",
+                                                        "root=\"${DUR050_BOOTSTRAP_ROOT:-/}\"",
+                                                        "cloud_init=$(cloud-init status --long 2\u003e\u00261)",
+                                                        "printf \u0027DUR050_CLOUD_INIT_STATUS_BEGIN\\n%s\\nDUR050_CLOUD_INIT_STATUS_END\\n\u0027 \"$cloud_init\"",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Fxq \u0027status: done\u0027",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Fxq \u0027errors: []\u0027",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Eq \u0027^recoverable_errors: (\\[\\]|\\{\\})$\u0027",
+                                                        "test -e \"$root/var/lib/durable-dur050-bootstrap-complete\"",
+                                                        "printf \u0027DUR050_BOOTSTRAP_PASS role=app-1\\n\u0027"
+                                                    ],
+                                   "wrapped_command":  "umask 077; tmp=$(mktemp /tmp/dur050-cycle-preflight-bootstrap-app-1.XXXXXX) || exit 125; trap \u0027rm -f \"$tmp\"\u0027 0 HUP INT TERM; printf \u0027%s\u0027 \u0027c2V0IC1ldW8gcGlwZWZhaWwKcm9vdD0iJHtEVVIwNTBfQk9PVFNUUkFQX1JPT1Q6LS99IgpjbG91ZF9pbml0PSQoY2xvdWQtaW5pdCBzdGF0dXMgLS1sb25nIDI+JjEpCnByaW50ZiAnRFVSMDUwX0NMT1VEX0lOSVRfU1RBVFVTX0JFR0lOXG4lc1xuRFVSMDUwX0NMT1VEX0lOSVRfU1RBVFVTX0VORFxuJyAiJGNsb3VkX2luaXQiCnByaW50ZiAnJXNcbicgIiRjbG91ZF9pbml0IiB8IGdyZXAgLUZ4cSAnc3RhdHVzOiBkb25lJwpwcmludGYgJyVzXG4nICIkY2xvdWRfaW5pdCIgfCBncmVwIC1GeHEgJ2Vycm9yczogW10nCnByaW50ZiAnJXNcbicgIiRjbG91ZF9pbml0IiB8IGdyZXAgLUVxICdecmVjb3ZlcmFibGVfZXJyb3JzOiAoXFtcXXxce1x9KSQnCnRlc3QgLWUgIiRyb290L3Zhci9saWIvZHVyYWJsZS1kdXIwNTAtYm9vdHN0cmFwLWNvbXBsZXRlIgpwcmludGYgJ0RVUjA1MF9CT09UU1RSQVBfUEFTUyByb2xlPWFwcC0xXG4nCg==\u0027 | base64 -d \u003e \"$tmp\" || { rc=$?; exit \"$rc\"; }; bash \"$tmp\"; rc=$?; rm -f \"$tmp\" || exit $?; trap - 0 HUP INT TERM; printf \u0027DUR050_SSM_TEMP_REMOVED=%s\\n\u0027 \"$tmp\"; exit \"$rc\""
+                               },
+                               {
+                                   "role":  "app-2",
+                                   "instance_id":  "i-22222222222222222",
+                                   "remote_lines":  [
+                                                        "set -euo pipefail",
+                                                        "root=\"${DUR050_BOOTSTRAP_ROOT:-/}\"",
+                                                        "cloud_init=$(cloud-init status --long 2\u003e\u00261)",
+                                                        "printf \u0027DUR050_CLOUD_INIT_STATUS_BEGIN\\n%s\\nDUR050_CLOUD_INIT_STATUS_END\\n\u0027 \"$cloud_init\"",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Fxq \u0027status: done\u0027",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Fxq \u0027errors: []\u0027",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Eq \u0027^recoverable_errors: (\\[\\]|\\{\\})$\u0027",
+                                                        "test -e \"$root/var/lib/durable-dur050-bootstrap-complete\"",
+                                                        "printf \u0027DUR050_BOOTSTRAP_PASS role=app-2\\n\u0027"
+                                                    ],
+                                   "wrapped_command":  "umask 077; tmp=$(mktemp /tmp/dur050-cycle-preflight-bootstrap-app-2.XXXXXX) || exit 125; trap \u0027rm -f \"$tmp\"\u0027 0 HUP INT TERM; printf \u0027%s\u0027 \u0027c2V0IC1ldW8gcGlwZWZhaWwKcm9vdD0iJHtEVVIwNTBfQk9PVFNUUkFQX1JPT1Q6LS99IgpjbG91ZF9pbml0PSQoY2xvdWQtaW5pdCBzdGF0dXMgLS1sb25nIDI+JjEpCnByaW50ZiAnRFVSMDUwX0NMT1VEX0lOSVRfU1RBVFVTX0JFR0lOXG4lc1xuRFVSMDUwX0NMT1VEX0lOSVRfU1RBVFVTX0VORFxuJyAiJGNsb3VkX2luaXQiCnByaW50ZiAnJXNcbicgIiRjbG91ZF9pbml0IiB8IGdyZXAgLUZ4cSAnc3RhdHVzOiBkb25lJwpwcmludGYgJyVzXG4nICIkY2xvdWRfaW5pdCIgfCBncmVwIC1GeHEgJ2Vycm9yczogW10nCnByaW50ZiAnJXNcbicgIiRjbG91ZF9pbml0IiB8IGdyZXAgLUVxICdecmVjb3ZlcmFibGVfZXJyb3JzOiAoXFtcXXxce1x9KSQnCnRlc3QgLWUgIiRyb290L3Zhci9saWIvZHVyYWJsZS1kdXIwNTAtYm9vdHN0cmFwLWNvbXBsZXRlIgpwcmludGYgJ0RVUjA1MF9CT09UU1RSQVBfUEFTUyByb2xlPWFwcC0yXG4nCg==\u0027 | base64 -d \u003e \"$tmp\" || { rc=$?; exit \"$rc\"; }; bash \"$tmp\"; rc=$?; rm -f \"$tmp\" || exit $?; trap - 0 HUP INT TERM; printf \u0027DUR050_SSM_TEMP_REMOVED=%s\\n\u0027 \"$tmp\"; exit \"$rc\""
+                               },
+                               {
+                                   "role":  "dependency",
+                                   "instance_id":  "i-0123456789abcdef0",
+                                   "remote_lines":  [
+                                                        "set -euo pipefail",
+                                                        "root=\"${DUR050_BOOTSTRAP_ROOT:-/}\"",
+                                                        "cloud_init=$(cloud-init status --long 2\u003e\u00261)",
+                                                        "printf \u0027DUR050_CLOUD_INIT_STATUS_BEGIN\\n%s\\nDUR050_CLOUD_INIT_STATUS_END\\n\u0027 \"$cloud_init\"",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Fxq \u0027status: done\u0027",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Fxq \u0027errors: []\u0027",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Eq \u0027^recoverable_errors: (\\[\\]|\\{\\})$\u0027",
+                                                        "test -e \"$root/var/lib/durable-dur050-bootstrap-complete\"",
+                                                        "printf \u0027DUR050_BOOTSTRAP_PASS role=dependency\\n\u0027"
+                                                    ],
+                                   "wrapped_command":  "umask 077; tmp=$(mktemp /tmp/dur050-cycle-preflight-bootstrap-dependency.XXXXXX) || exit 125; trap \u0027rm -f \"$tmp\"\u0027 0 HUP INT TERM; printf \u0027%s\u0027 \u0027c2V0IC1ldW8gcGlwZWZhaWwKcm9vdD0iJHtEVVIwNTBfQk9PVFNUUkFQX1JPT1Q6LS99IgpjbG91ZF9pbml0PSQoY2xvdWQtaW5pdCBzdGF0dXMgLS1sb25nIDI+JjEpCnByaW50ZiAnRFVSMDUwX0NMT1VEX0lOSVRfU1RBVFVTX0JFR0lOXG4lc1xuRFVSMDUwX0NMT1VEX0lOSVRfU1RBVFVTX0VORFxuJyAiJGNsb3VkX2luaXQiCnByaW50ZiAnJXNcbicgIiRjbG91ZF9pbml0IiB8IGdyZXAgLUZ4cSAnc3RhdHVzOiBkb25lJwpwcmludGYgJyVzXG4nICIkY2xvdWRfaW5pdCIgfCBncmVwIC1GeHEgJ2Vycm9yczogW10nCnByaW50ZiAnJXNcbicgIiRjbG91ZF9pbml0IiB8IGdyZXAgLUVxICdecmVjb3ZlcmFibGVfZXJyb3JzOiAoXFtcXXxce1x9KSQnCnRlc3QgLWUgIiRyb290L3Zhci9saWIvZHVyYWJsZS1kdXIwNTAtYm9vdHN0cmFwLWNvbXBsZXRlIgpwcmludGYgJ0RVUjA1MF9CT09UU1RSQVBfUEFTUyByb2xlPWRlcGVuZGVuY3lcbicK\u0027 | base64 -d \u003e \"$tmp\" || { rc=$?; exit \"$rc\"; }; bash \"$tmp\"; rc=$?; rm -f \"$tmp\" || exit $?; trap - 0 HUP INT TERM; printf \u0027DUR050_SSM_TEMP_REMOVED=%s\\n\u0027 \"$tmp\"; exit \"$rc\""
+                               },
+                               {
+                                   "role":  "load-generator",
+                                   "instance_id":  "i-33333333333333333",
+                                   "remote_lines":  [
+                                                        "set -euo pipefail",
+                                                        "root=\"${DUR050_BOOTSTRAP_ROOT:-/}\"",
+                                                        "cloud_init=$(cloud-init status --long 2\u003e\u00261)",
+                                                        "printf \u0027DUR050_CLOUD_INIT_STATUS_BEGIN\\n%s\\nDUR050_CLOUD_INIT_STATUS_END\\n\u0027 \"$cloud_init\"",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Fxq \u0027status: done\u0027",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Fxq \u0027errors: []\u0027",
+                                                        "printf \u0027%s\\n\u0027 \"$cloud_init\" | grep -Eq \u0027^recoverable_errors: (\\[\\]|\\{\\})$\u0027",
+                                                        "test -e \"$root/var/lib/durable-dur050-generator-bootstrap-complete\"",
+                                                        "test -x \"$root/opt/durable-agent-execution-engine/bin/dur050-observer\"",
+                                                        "test -x \"$root/opt/durable-agent-execution-engine/bin/dur050-loadgen\"",
+                                                        "test -x \"$root/opt/durable-agent-execution-engine/bin/dur050-sink\"",
+                                                        "printf \u0027DUR050_BOOTSTRAP_PASS role=load-generator\\n\u0027"
+                                                    ],
+                                   "wrapped_command":  "umask 077; tmp=$(mktemp /tmp/dur050-cycle-preflight-bootstrap-load-generator.XXXXXX) || exit 125; trap \u0027rm -f \"$tmp\"\u0027 0 HUP INT TERM; printf \u0027%s\u0027 \u0027c2V0IC1ldW8gcGlwZWZhaWwKcm9vdD0iJHtEVVIwNTBfQk9PVFNUUkFQX1JPT1Q6LS99IgpjbG91ZF9pbml0PSQoY2xvdWQtaW5pdCBzdGF0dXMgLS1sb25nIDI+JjEpCnByaW50ZiAnRFVSMDUwX0NMT1VEX0lOSVRfU1RBVFVTX0JFR0lOXG4lc1xuRFVSMDUwX0NMT1VEX0lOSVRfU1RBVFVTX0VORFxuJyAiJGNsb3VkX2luaXQiCnByaW50ZiAnJXNcbicgIiRjbG91ZF9pbml0IiB8IGdyZXAgLUZ4cSAnc3RhdHVzOiBkb25lJwpwcmludGYgJyVzXG4nICIkY2xvdWRfaW5pdCIgfCBncmVwIC1GeHEgJ2Vycm9yczogW10nCnByaW50ZiAnJXNcbicgIiRjbG91ZF9pbml0IiB8IGdyZXAgLUVxICdecmVjb3ZlcmFibGVfZXJyb3JzOiAoXFtcXXxce1x9KSQnCnRlc3QgLWUgIiRyb290L3Zhci9saWIvZHVyYWJsZS1kdXIwNTAtZ2VuZXJhdG9yLWJvb3RzdHJhcC1jb21wbGV0ZSIKdGVzdCAteCAiJHJvb3Qvb3B0L2R1cmFibGUtYWdlbnQtZXhlY3V0aW9uLWVuZ2luZS9iaW4vZHVyMDUwLW9ic2VydmVyIgp0ZXN0IC14ICIkcm9vdC9vcHQvZHVyYWJsZS1hZ2VudC1leGVjdXRpb24tZW5naW5lL2Jpbi9kdXIwNTAtbG9hZGdlbiIKdGVzdCAteCAiJHJvb3Qvb3B0L2R1cmFibGUtYWdlbnQtZXhlY3V0aW9uLWVuZ2luZS9iaW4vZHVyMDUwLXNpbmsiCnByaW50ZiAnRFVSMDUwX0JPT1RTVFJBUF9QQVNTIHJvbGU9bG9hZC1nZW5lcmF0b3JcbicK\u0027 | base64 -d \u003e \"$tmp\" || { rc=$?; exit \"$rc\"; }; bash \"$tmp\"; rc=$?; rm -f \"$tmp\" || exit $?; trap - 0 HUP INT TERM; printf \u0027DUR050_SSM_TEMP_REMOVED=%s\\n\u0027 \"$tmp\"; exit \"$rc\""
+                               }
+                           ]
+}
