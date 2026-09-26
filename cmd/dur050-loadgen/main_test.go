@@ -188,6 +188,40 @@ func TestGeneratorCPUValidationFailsWithoutSamples(t *testing.T) {
 	}
 }
 
+func TestGeneratorSubMillisecondSingleRequestCPUWindowPasses(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request submissionRequest
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_ = json.NewEncoder(w).Encode(map[string]any{"created": true,
+			"workflow": map[string]string{"workflow_id": request.WorkflowID}})
+	}))
+	defer server.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	client := newHTTPClient()
+	defer client.CloseIdleConnections()
+	config := testCampaignConfig()
+	records, summary, err := runCampaignWithFamily(ctx, client, server.URL+"/v1/workflows", config, 1, 1, time.Second, "seq-8")
+	if err != nil || len(records) != 1 || records[0].Outcome != "accepted" || summary.Accepted != 1 {
+		t.Fatalf("single-request test setup did not complete one accepted request: records=%+v summary=%+v err=%v", records, summary, err)
+	}
+
+	samples := []cpuIntervalSample{{StartElapsedSeconds: 0, EndElapsedSeconds: 0.0004, CPUPercent: 25}}
+	window := cpuSamplesWindow(samples)
+	if window <= 0 || window >= time.Millisecond {
+		t.Fatalf("single-request CPU window = %s, want a positive sub-millisecond window", window)
+	}
+	applyCPUValidation(&summary, samples, window, 2, nil)
+	if summary.Status != "PASS" || summary.GeneratorCPU.Status != "PASS" {
+		t.Fatalf("single-request run with complete sub-millisecond CPU coverage failed: %+v", summary)
+	}
+}
+
 func TestPilotSingleFamilySchedulesOneSelectedWorkflow(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var request submissionRequest

@@ -84,8 +84,10 @@ function Get-Dur050BootstrapLines($HostSpec) {
     $lines = [System.Collections.Generic.List[string]]::new()
     $lines.Add('set -euo pipefail')
     $lines.Add('root="${DUR050_BOOTSTRAP_ROOT:-/}"')
-    $lines.Add('cloud_init=$(cloud-init status --long 2>&1)')
+    $lines.Add('cloud_init_rc=0')
+    $lines.Add('cloud_init=$(cloud-init status --long 2>&1) || cloud_init_rc=$?')
     $lines.Add('printf ''DUR050_CLOUD_INIT_STATUS_BEGIN\n%s\nDUR050_CLOUD_INIT_STATUS_END\n'' "$cloud_init"')
+    $lines.Add('test "$cloud_init_rc" -eq 0')
     $lines.Add('printf ''%s\n'' "$cloud_init" | grep -Fxq ''status: done''')
     $lines.Add('printf ''%s\n'' "$cloud_init" | grep -Fxq ''errors: []''')
     $lines.Add('printf ''%s\n'' "$cloud_init" | grep -Eq ''^recoverable_errors: (\[\]|\{\})$''')
@@ -142,7 +144,11 @@ function Invoke-Dur050LedgerCheck {
     $parsed = $null
     try { $parsed = $output | ConvertFrom-Json -ErrorAction Stop } catch { }
     if ($exit -ne 0 -or $parsed.status -ne 'PASS') { throw "Task-wide cost-ledger check failed (exit $exit): $output" }
-    return [ordered]@{ status = 'PASS'; path = [System.IO.Path]::GetFullPath($LedgerCheckPath); reserve_minutes = $ReserveMinutes; ledger_path = $parsed.ledger_path_used; ledger_path_override_used = [bool]$parsed.ledger_path_override_used; projected_instance_cost_usd = $parsed.projected_instance_cost_usd; budget_cap_usd = $parsed.budget_cap_usd; check_schema = $parsed.schema }
+    $ledgerCheckedAt = $parsed.checked_at_utc
+    if ($ledgerCheckedAt -is [DateTime]) { $ledgerCheckedAt = $ledgerCheckedAt.ToUniversalTime().ToString('o') }
+    if ($ledgerCheckedAt -is [DateTimeOffset]) { $ledgerCheckedAt = $ledgerCheckedAt.ToUniversalTime().ToString('o') }
+    if ([string]$ledgerCheckedAt -notmatch '(?:Z|[+-][0-9]{2}:[0-9]{2})$') { throw 'Task-wide ledger check omitted checked_at_utc with an explicit UTC offset.' }
+    return [ordered]@{ status = 'PASS'; path = [System.IO.Path]::GetFullPath($LedgerCheckPath); checked_at_utc = [string]$ledgerCheckedAt; reserve_minutes = $ReserveMinutes; ledger_path = $parsed.ledger_path_used; ledger_path_override_used = [bool]$parsed.ledger_path_override_used; projected_instance_cost_usd = $parsed.projected_instance_cost_usd; budget_cap_usd = $parsed.budget_cap_usd; check_schema = $parsed.schema }
 }
 
 function Test-Dur050Budget($Budget, $Notifications) {

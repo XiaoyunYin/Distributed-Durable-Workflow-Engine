@@ -84,7 +84,7 @@ try {
   $plan=Join-Path $repoRoot 'tests/fixtures/dur050-plan-inspection.json'
   $pass=Invoke-Tool 'pass' 'pass' $plan; if($pass.ExitCode -ne 0){throw "PASS fixture failed: $($pass.Text)"}
   $record=Get-Content $pass.Out -Raw | ConvertFrom-Json
-  if($record.schema -ne 'dur050-d022-preflight.v1' -or $record.status -ne 'PASS' -or $record.account_id -ne '372206265946' -or $record.region -ne 'us-west-1' -or $record.planned_peak_vcpu -ne 8 -or $record.bootstrap.Count -ne 4){throw 'PASS record omitted required D022 fields or one of four bootstrap results.'}
+  if($record.schema -ne 'dur050-d022-preflight.v1' -or $record.status -ne 'PASS' -or $record.account_id -ne '372206265946' -or $record.region -ne 'us-west-1' -or $record.planned_peak_vcpu -ne 8 -or $record.bootstrap.Count -ne 4 -or -not $record.ledger_check.checked_at_utc){throw 'PASS record omitted required D022 fields, ledger timestamp, or one of four bootstrap results.'}
   if($record.checks.budget.notifications.Count -ne 3 -or @($record.checks.budget.notifications|Where-Object {$_.state -ne 'OK' -or $_.comparison_operator -ne 'GREATER_THAN'}).Count -ne 0 -or $record.checks.budget.notifications[0].PSObject.Properties['subscriber_count']){throw 'Budget PASS record did not preserve observed notification states/operators without invented subscriber counts.'}
   if((Get-Content $pass.Ledger -Raw | ConvertFrom-Json).reserve_minutes -ne 15){throw 'PASS record omitted its explicit ledger reserve check.'}
   Write-Host 'PASS: D022 preflight stub checks account, quota, budget notifications, tags, ledger reserve and four bootstrap hosts.'
@@ -95,7 +95,7 @@ try {
     if($zoneRecord.status -ne 'PASS'){throw "Timezone preflight under $zone left no valid PASS record."}
     Write-Host "PASS: cycle-preflight PASS fixture self-validates under TZ=$zone."
   }
-  $callLog=Join-Path $state 'calls.log';$callsBefore=(Get-Content $callLog).Count;$dry=Invoke-Tool 'pass' 'dry-run' $plan -DryRun;if($dry.ExitCode -ne 0){throw "Cycle-preflight dry-run failed: $($dry.Text)"};$dryRecord=Get-Content $dry.Out -Raw|ConvertFrom-Json;$callsAfter=(Get-Content $callLog).Count;if($dryRecord.classification -notmatch 'DRY RUN ONLY' -or $callsAfter -ne $callsBefore){throw 'Cycle-preflight dry-run called AWS or did not label itself review-only.'};Write-Host 'PASS: cycle-preflight dry run emits wrapped bootstrap commands without AWS or SSM calls.'
+  $callLog=Join-Path $state 'calls.log';$callsBefore=(Get-Content $callLog).Count;$dry=Invoke-Tool 'pass' 'dry-run' $plan -DryRun;if($dry.ExitCode -ne 0){throw "Cycle-preflight dry-run failed: $($dry.Text)"};$dryRecord=Get-Content $dry.Out -Raw|ConvertFrom-Json;$callsAfter=(Get-Content $callLog).Count;if($dryRecord.classification -notmatch 'DRY RUN ONLY' -or $callsAfter -ne $callsBefore){throw 'Cycle-preflight dry-run called AWS or did not label itself review-only.'};foreach($bootstrap in $dryRecord.bootstrap_commands){$remote=$bootstrap.remote_lines -join "`n";$statusPrint=$remote.IndexOf('DUR050_CLOUD_INIT_STATUS_BEGIN');$statusGate=$remote.IndexOf('test "$cloud_init_rc" -eq 0');if($remote -notmatch 'cloud_init=\$\(cloud-init status --long 2>&1\) \|\| cloud_init_rc=\$\?' -or $statusPrint -lt 0 -or $statusGate -lt $statusPrint){throw "cloud-init status is not printed before its failure gate for $($bootstrap.role)."}};Write-Host 'PASS: dry-run emits status-preserving cloud-init checks before their failure gate, without AWS or SSM calls.'
   foreach($case in @(
     @{s='account';n='account';m='account'},
     @{s='quota';n='quota';m='quota'},
@@ -128,7 +128,7 @@ try {
   $missing=Join-Path $temp 'missing-plan.json'; Write-Json $missing ([ordered]@{schema='fixture'})
   $result=Invoke-Tool 'pass' 'missing-peak' $missing; if($result.ExitCode -eq 0 -or $result.Text -notmatch 'planned_peak_vcpu'){throw 'Missing planned_peak_vcpu was accepted.'}; Write-Host 'PASS: missing planned_peak_vcpu is rejected.'
   . (Join-Path $PSScriptRoot 'dur050-d022-validator.ps1')
-  $validPath=Join-Path $temp 'validator.json'; $valid=[ordered]@{schema='dur050-d022-preflight.v1';status='PASS';account_id='372206265946';region='us-west-1';planned_peak_vcpu=8;cycle_id='ci-cycle-r163r164';checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o');ledger_check_path='ledger.json';reserve_minutes=60}
+  $validPath=Join-Path $temp 'validator.json'; $valid=[ordered]@{schema='dur050-d022-preflight.v1';status='PASS';account_id='372206265946';region='us-west-1';planned_peak_vcpu=8;cycle_id='ci-cycle-r163r164';checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o');ledger_check_path='ledger.json';reserve_minutes=60;ledger_check=[ordered]@{checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o')}}
   foreach($case in @(@{name='cycle mismatch';edit='cycle';pattern='cycle_id'},@{name='stale preflight';edit='stale';pattern='stale'},@{name='string vCPU';edit='string';pattern='numeric planned_peak_vcpu'})){
     $copy=$valid|ConvertTo-Json -Depth 5|ConvertFrom-Json; if($case.edit -eq 'cycle'){$copy.cycle_id='wrong'}elseif($case.edit -eq 'stale'){$copy.checked_at_utc=[DateTimeOffset]::UtcNow.AddHours(-5).ToString('o')}else{$copy.planned_peak_vcpu='8'}; Write-Json $validPath $copy; $caught=$false; try{[void](Read-Dur050D022Preflight -Path $validPath -CycleID 'ci-cycle-r163r164')}catch{if($_.Exception.Message -match $case.pattern){$caught=$true}else{throw}}; if(-not $caught){throw "Validator accepted $($case.name)."}; Write-Host "PASS: shared validator rejects $($case.name)."
   }
@@ -140,11 +140,22 @@ try {
   $reserveRejected=$false;try{[void](Read-Dur050D022Preflight -Path $validPath -CycleID 'ci-cycle-r163r164' -Now $reserveNow -BlockDurationMinutes 30)}catch{if($_.Exception.Message -match 'exceeds its ledger reserve'){$reserveRejected=$true}else{throw}}
   if(-not$reserveRejected){throw 'Preflight older than its reserve after adding the block duration was accepted.'}
   Write-Host 'PASS: block freshness beyond the recorded ledger reserve is rejected.'
-  $valid.checked_at_utc='timestamp-without-offset';Write-Json $validPath $valid
+  $valid.checked_at_utc=$reserveNow.AddMinutes(-1).ToString('o');$valid.ledger_check.checked_at_utc=$reserveNow.AddMinutes(-40).ToString('o');Write-Json $validPath $valid
+  $ledgerReserveRejected=$false;try{[void](Read-Dur050D022Preflight -Path $validPath -CycleID 'ci-cycle-r163r164' -Now $reserveNow -BlockDurationMinutes 30)}catch{if($_.Exception.Message -match 'exceeds its ledger reserve'){$ledgerReserveRejected=$true}else{throw}}
+  if(-not$ledgerReserveRejected){throw 'A fresh top-level timestamp hid a ledger timestamp beyond the block reserve.'}
+  Write-Host 'PASS: the ledger-check timestamp participates in reserve-age validation.'
+  $valid.checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o');$missingLedgerStamp=$valid|ConvertTo-Json -Depth 5|ConvertFrom-Json;$missingLedgerStamp.ledger_check.PSObject.Properties.Remove('checked_at_utc');Write-Json $validPath $missingLedgerStamp
+  $ledgerTimestampMissing=$false;try{[void](Read-Dur050D022Preflight -Path $validPath -CycleID 'ci-cycle-r163r164')}catch{if($_.Exception.Message -match 'ledger_check.checked_at_utc is required'){$ledgerTimestampMissing=$true}else{throw}}
+  if(-not$ledgerTimestampMissing){throw 'Preflight without a ledger-check timestamp was accepted.'}
+  Write-Host 'PASS: a missing ledger-check timestamp is rejected.'
+  $valid.checked_at_utc='2026-09-26T04:00:00';$valid.ledger_check.checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o');Write-Json $validPath $valid
+  $offsetlessRecord=Get-Content $validPath -Raw|ConvertFrom-Json
+  if($offsetlessRecord.checked_at_utc -isnot [DateTime] -or $offsetlessRecord.checked_at_utc.Kind -ne [DateTimeKind]::Unspecified){throw 'PowerShell did not parse the offset-less control as DateTime Kind=Unspecified.'}
   $offsetRejected=$false;try{[void](Read-Dur050D022Preflight -Path $validPath -CycleID 'ci-cycle-r163r164')}catch{if($_.Exception.Message -match 'explicit UTC offset or Z'){$offsetRejected=$true}else{throw}}
-  if(-not$offsetRejected){throw 'Timestamp without a UTC offset was accepted.'}
-  Write-Host 'PASS: string timestamps without an explicit offset are rejected.'
+  if(-not$offsetRejected){throw 'Offset-less DateTime Kind=Unspecified was accepted.'}
+  Write-Host 'PASS: offset-less DateTime Kind=Unspecified is rejected.'
   $valid.checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o')
+  $valid.ledger_check.checked_at_utc=$valid.checked_at_utc
   foreach($badReserve in @('missing','zero')){
     $copy=$valid|ConvertTo-Json -Depth 5|ConvertFrom-Json
     if($badReserve -eq 'missing'){$copy.PSObject.Properties.Remove('reserve_minutes')}else{$copy.reserve_minutes=0}

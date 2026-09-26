@@ -199,10 +199,9 @@ func run(configPath string, rate float64, count int, duration time.Duration, out
 	if err != nil {
 		return fmt.Errorf("start required generator CPU sampler: %w", err)
 	}
-	measurementStart := cpuSampler.started
 	records, summary, err := runCampaignWithFamily(ctx, client, endpoint, config, rate, count, requestTimeout, singleFamily)
 	cpuSamples, cpuSampleErr := cpuSampler.Stop()
-	applyCPUValidation(&summary, cpuSamples, time.Since(measurementStart), runtime.NumCPU(), cpuSampleErr)
+	applyCPUValidation(&summary, cpuSamples, cpuSamplesWindow(cpuSamples), runtime.NumCPU(), cpuSampleErr)
 	if writeErr := writeArtifacts(outputPath, workflowIDsPath, records, summary); writeErr != nil {
 		if err != nil {
 			return errors.Join(err, writeErr)

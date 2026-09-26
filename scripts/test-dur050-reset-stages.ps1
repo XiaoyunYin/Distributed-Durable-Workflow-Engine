@@ -36,7 +36,7 @@ function Get-Body([string]$Wrapper){$match=[regex]::Match($Wrapper,"printf '%s' 
 function Assert-ChildPass($Result,[string]$Label){if($Result.ExitCode -ne 0){$stateDetails='';if(Test-Path $state){$stateDetails=(Get-ChildItem $state -File|ForEach-Object {"$($_.Name): $((Get-Content $_.FullName -Raw).Trim())"}) -join "`n"};throw "$Label failed ($($Result.ExitCode)): $($Result.Stderr) $($Result.Stdout) SSM stub state: $stateDetails"}}
 try{
   $d022=Join-Path $temp 'd022.json'; Write-Output ''|Out-Null
-  [IO.File]::WriteAllText($d022,(@{schema='dur050-d022-preflight.v1';status='PASS';account_id='372206265946';region='us-west-1';planned_peak_vcpu=8;cycle_id=$cycle;checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o');ledger_check_path='ledger.json';reserve_minutes=60}|ConvertTo-Json -Depth 5),$utf8)
+  $stamp=[DateTimeOffset]::UtcNow.ToString('o');[IO.File]::WriteAllText($d022,(@{schema='dur050-d022-preflight.v1';status='PASS';account_id='372206265946';region='us-west-1';planned_peak_vcpu=8;cycle_id=$cycle;checked_at_utc=$stamp;ledger_check_path='ledger.json';reserve_minutes=60;ledger_check=@{checked_at_utc=$stamp}}|ConvertTo-Json -Depth 5),$utf8)
   $campaign=Join-Path $temp 'campaign'; $prepareArgs=@('-TerraformOutputsPath',(Join-Path $repoRoot 'tests/fixtures/dur050-terraform-outputs.json'),'-CycleID',$cycle,'-D022PreflightPath',$d022,'-TestOutputRoot',$campaign)
   $prepareEnv=@{}+$processEnv; $prepareEnv['DUR050_ENABLE_TEST_HOOKS']='1'
   $prepared=Invoke-Child (Join-Path $PSScriptRoot 'dur050-prepare-pilot.ps1') $prepareArgs $prepareEnv; Assert-ChildPass $prepared 'end-to-end prepare-pilot'

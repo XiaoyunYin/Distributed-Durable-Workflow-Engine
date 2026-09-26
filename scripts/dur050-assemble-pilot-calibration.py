@@ -6,6 +6,7 @@ import argparse
 import csv
 import hashlib
 import json
+import math
 import shutil
 from collections import Counter
 from pathlib import Path
@@ -44,6 +45,32 @@ def sha256_file(path: Path) -> str:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def valid_generator_cpu_summary(cpu: dict[str, Any]) -> bool:
+    if cpu.get("status") != "PASS":
+        return False
+    try:
+        window = float(cpu["window_seconds"])
+        samples = cpu["samples"]
+        intervals = [
+            (float(sample["start_elapsed_seconds"]), float(sample["end_elapsed_seconds"]))
+            for sample in samples
+        ]
+    except (KeyError, TypeError, ValueError):
+        return False
+    if not math.isfinite(window) or window <= 0 or not intervals:
+        return False
+    if any(
+        not math.isfinite(start) or not math.isfinite(end) or end <= start
+        for start, end in intervals
+    ):
+        return False
+    covered = sum(end - start for start, end in intervals)
+    final_capture = intervals[-1][1]
+    return (
+        math.isclose(window, final_capture, rel_tol=0.0, abs_tol=5e-9) and covered >= window * 0.99
+    )
 
 
 def assemble(output: Path, block_paths: list[Path]) -> dict[str, Any]:
@@ -108,10 +135,13 @@ def assemble(output: Path, block_paths: list[Path]) -> dict[str, Any]:
         if any(
             item.get("summary", {}).get("status") != "PASS"
             or item.get("summary", {}).get("accepted") != 1
-            or item.get("summary", {}).get("generator_cpu", {}).get("status") != "PASS"
+            or not valid_generator_cpu_summary(item.get("summary", {}).get("generator_cpu", {}))
             for item in summaries
         ):
-            raise ValueError(f"block {block_path.name} contains an invalid loadgen/CPU summary")
+            raise ValueError(
+                f"block {block_path.name} contains an invalid loadgen summary "
+                "or CPU window/coverage"
+            )
 
         for name, fields in (
             ("unloaded-latency.csv", latency_fields),

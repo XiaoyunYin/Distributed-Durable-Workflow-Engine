@@ -1,3 +1,7 @@
+<#
+.PARAMETER BlockDurationMinutes
+Maximum paid-block duration, measured from reset start through end of drain.
+#>
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$D022PreflightPath,

@@ -203,7 +203,17 @@ def write_calibration(root: Path, *, valid_count: int = 300, failed_observer: bo
                                 "summary": {
                                     "status": "PASS",
                                     "accepted": 1,
-                                    "generator_cpu": {"status": "PASS"},
+                                    "generator_cpu": {
+                                        "status": "PASS",
+                                        "window_seconds": 0.0004,
+                                        "samples": [
+                                            {
+                                                "start_elapsed_seconds": 0.0,
+                                                "end_elapsed_seconds": 0.0004,
+                                                "cpu_percent_normalized_per_core": 25.0,
+                                            }
+                                        ],
+                                    },
                                 }
                             }
                         )
@@ -483,7 +493,17 @@ def write_source_block(root: Path, family: str, block_number: int) -> None:
             "summary": {
                 "status": "PASS",
                 "accepted": 1,
-                "generator_cpu": {"status": "PASS"},
+                "generator_cpu": {
+                    "status": "PASS",
+                    "window_seconds": 0.0004,
+                    "samples": [
+                        {
+                            "start_elapsed_seconds": 0.0,
+                            "end_elapsed_seconds": 0.0004,
+                            "cpu_percent_normalized_per_core": 25.0,
+                        }
+                    ],
+                },
             }
         }
         for _ in range(100)

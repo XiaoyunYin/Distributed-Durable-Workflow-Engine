@@ -1,3 +1,23 @@
+function ConvertTo-Dur050TimestampUtc([object]$Value, [string]$FieldName) {
+    if ($null -eq $Value) { throw "D022 preflight $FieldName is required." }
+    if ($Value -is [DateTimeOffset]) { return $Value.ToUniversalTime() }
+    if ($Value -is [DateTime]) {
+        if ($Value.Kind -eq [DateTimeKind]::Unspecified) {
+            throw "D022 preflight $FieldName must include an explicit UTC offset or Z."
+        }
+        return [DateTimeOffset]$Value.ToUniversalTime()
+    }
+    $text = [string]$Value
+    if ($text -notmatch '(?:Z|[+-][0-9]{2}:[0-9]{2})$') {
+        throw "D022 preflight $FieldName must include an explicit UTC offset or Z."
+    }
+    $parsed = [DateTime]::MinValue
+    if (-not [DateTime]::TryParse($text, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind, [ref]$parsed)) {
+        throw "D022 preflight $FieldName must be a valid timestamp."
+    }
+    return [DateTimeOffset]$parsed
+}
+
 function Read-Dur050D022Preflight {
     [CmdletBinding()]
     param(
@@ -27,22 +47,20 @@ function Read-Dur050D022Preflight {
     }
     if ($peak -le 0 -or $peak -gt 32) { throw 'planned_peak_vcpu must be in (0, 32].' }
 
-    $checkedValue = $record.checked_at_utc
-    if ($checkedValue -is [DateTime]) {
-        $checked = [DateTimeOffset]$checkedValue.ToUniversalTime()
-    } else {
-        $checkedText = [string]$checkedValue
-        if ($checkedText -notmatch '(?:Z|[+-][0-9]{2}:[0-9]{2})$') {
-            throw 'D022 preflight checked_at_utc must include an explicit UTC offset or Z.'
-        }
-        $roundTripDate = [DateTime]::MinValue
-        if (-not [DateTime]::TryParse($checkedText, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind, [ref]$roundTripDate)) {
-            throw 'D022 preflight checked_at_utc must be a valid timestamp.'
-        }
-        $checked = [DateTimeOffset]$roundTripDate
+    $ledgerStamp = $null
+    if ($null -ne $record.ledger_check -and $null -ne $record.ledger_check.PSObject.Properties['checked_at_utc']) {
+        $ledgerStamp = $record.ledger_check.checked_at_utc
     }
+    if ($null -eq $ledgerStamp) { throw 'D022 preflight ledger_check.checked_at_utc is required.' }
+    $topChecked = ConvertTo-Dur050TimestampUtc $record.checked_at_utc 'checked_at_utc'
+    $ledgerChecked = ConvertTo-Dur050TimestampUtc $ledgerStamp 'ledger_check.checked_at_utc'
+    foreach ($stamp in @($topChecked, $ledgerChecked)) {
+        if (($Now.ToUniversalTime() - $stamp.ToUniversalTime()).TotalMinutes -lt -5) {
+            throw 'D022 preflight timestamp is more than five minutes in the future.'
+        }
+    }
+    $checked = if ($ledgerChecked -lt $topChecked) { $ledgerChecked } else { $topChecked }
     $age = ($Now.ToUniversalTime() - $checked.ToUniversalTime()).TotalMinutes
-    if ($age -lt -5) { throw 'D022 preflight timestamp is more than five minutes in the future.' }
     if ($age -gt $MaxAgeMinutes) { throw "D022 preflight is stale ($([math]::Round($age, 1)) minutes; maximum $MaxAgeMinutes)." }
     $reserveValue = $record.reserve_minutes
     $reserve = 0

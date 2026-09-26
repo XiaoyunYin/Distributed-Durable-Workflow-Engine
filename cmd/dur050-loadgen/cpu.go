@@ -120,6 +120,16 @@ func (sampler *processCPUSampler) Stop() ([]cpuIntervalSample, error) {
 	return append([]cpuIntervalSample(nil), sampler.samples...), sampler.err
 }
 
+// cpuSamplesWindow ends at the final CPU capture. Using time.Since after Stop
+// would include the shutdown/validation gap after the last sample and make a
+// short run appear less than 99% covered despite having no sampling gap.
+func cpuSamplesWindow(samples []cpuIntervalSample) time.Duration {
+	if len(samples) == 0 || samples[len(samples)-1].EndElapsedSeconds <= 0 {
+		return 0
+	}
+	return time.Duration(samples[len(samples)-1].EndElapsedSeconds * float64(time.Second))
+}
+
 func applyCPUValidation(summary *runSummary, samples []cpuIntervalSample, window time.Duration, cores int, sampleErr error) {
 	baseStatus := summary.Status
 	validation := cpuValidationSummary{
