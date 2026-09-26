@@ -1,0 +1,53 @@
+{
+  "schema": "dur050-recorded-plan-inspection.v1",
+  "recorded_at_utc": "2026-09-26T06:36:36Z",
+  "plan_generated_at_utc": "2026-09-26T06:35:10Z",
+  "source_commit": "020f5df479eac28a931ab0f27c98d56e0c80ea50",
+  "hosted_ci": {
+    "run_id": "36222328438",
+    "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/36222328438",
+    "status": "completed",
+    "conclusion": "success",
+    "head_sha": "020f5df479eac28a931ab0f27c98d56e0c80ea50"
+  },
+  "terraform_version": "1.16.4",
+  "plan_path": "deploy/aws/.terraform/dur050-preflight-r168-020f5df-offline.tfplan",
+  "plan_sha256": "6A36B8D9C1FA87FE9539F024C903AA4234FC8177A40E0588B80F97A69960132B",
+  "planned_peak_vcpu": 8,
+  "instance_vcpu_basis": {
+    "c7i.large": { "count": 3, "vcpus_each": 2 },
+    "m7i.large": { "count": 1, "vcpus_each": 2 }
+  },
+  "resource_changes": {
+    "creates": 31,
+    "updates": 0,
+    "deletes": 0,
+    "replacements": 0
+  },
+  "resource_change_count": 31,
+  "instances": {
+    "total": 4,
+    "c7i.large": 3,
+    "m7i.large": 1
+  },
+  "taggable_resources_with_effective_tags": 23,
+  "taggable_resources_with_expected_task_environment_expiry_tags": 23,
+  "effective_tag_source": "Terraform plan tags_all",
+  "prohibited_eks_nat_gateway_or_load_balancer_resources": 0,
+  "terraform_state_resource_count": 0,
+  "terraform_state_count_basis": "Terraform 1.16.4 state list returned no managed resources; local state only, no cloud inventory query",
+  "aws_region": "us-west-1",
+  "repo_ref": "020f5df479eac28a931ab0f27c98d56e0c80ea50",
+  "network_safety": {
+    "terraform_plan_network": "Docker internal network with no external egress",
+    "aws_provider_identity": "one GetCallerIdentity-shaped request answered by a local mock returning the previously recorded target account ID",
+    "external_aws_api_calls": 0,
+    "aws_cli_calls": 0,
+    "ssm_calls": 0
+  },
+  "apply_performed": false,
+  "live_d022_preflight": "NOT RUN",
+  "ssm_dispatched": false,
+  "sensitive_variables": "fresh ephemeral plan-only values omitted; saved plan is local and ignored",
+  "apply_authority": "NONE; offline mock-STS review plan only, not authorized or suitable for apply"
+}

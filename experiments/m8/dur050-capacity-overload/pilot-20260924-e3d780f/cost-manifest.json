@@ -12,7 +12,7 @@
     "environment_name": "portfolio-capacity",
     "ami_id": "ami-0150109d3dd43737d",
     "repo_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine.git",
-    "repo_ref": "c911fafaec895a2b78f80c64ca0fcaab924bfd8d",
+    "repo_ref": "020f5df479eac28a931ab0f27c98d56e0c80ea50",
     "expires_at": "2026-10-07T00:00:00Z",
     "admin_cidrs": [],
     "instance_type": "c7i.large",
@@ -28,18 +28,18 @@
   },
   "latest_no_apply_review_plan": {
     "status": "NO_APPLY_PLAN_ONLY; NOT AUTHORIZATION TO APPLY",
-    "generated_at_utc": "2026-09-26T04:23:08.0212469Z",
-    "recorded_at_utc": "2026-09-26T04:26:27Z",
+    "generated_at_utc": "2026-09-26T06:35:10Z",
+    "recorded_at_utc": "2026-09-26T06:36:36Z",
     "terraform_version": "1.16.4",
-    "source_commit": "af8c946567b2196e166da911208dc399b1cce8c5",
+    "source_commit": "020f5df479eac28a931ab0f27c98d56e0c80ea50",
     "hosted_ci": {
       "status": "completed/success",
-      "run_id": "36216089228",
-      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/36216089228",
-      "head_sha": "af8c946567b2196e166da911208dc399b1cce8c5"
+      "run_id": "36222328438",
+      "url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/36222328438",
+      "head_sha": "020f5df479eac28a931ab0f27c98d56e0c80ea50"
     },
-    "saved_plan_path": "deploy/aws/.terraform/dur050-preflight-round99-af8c946.tfplan",
-    "saved_plan_sha256": "5D5B2BA7885D9F689CDF6C7C88BDFFF018C9F67ECA1B26ACF093EEA716BEDD3E",
+    "saved_plan_path": "deploy/aws/.terraform/dur050-preflight-r168-020f5df-offline.tfplan",
+    "saved_plan_sha256": "6A36B8D9C1FA87FE9539F024C903AA4234FC8177A40E0588B80F97A69960132B",
     "profile": {
       "aws_region": "us-west-1",
       "availability_zones": ["us-west-1a", "us-west-1c"],
@@ -49,7 +49,7 @@
       "environment_name": "portfolio-capacity",
       "ami_id": "ami-0150109d3dd43737d",
       "repo_url": "https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine.git",
-      "repo_ref": "af8c946567b2196e166da911208dc399b1cce8c5",
+      "repo_ref": "020f5df479eac28a931ab0f27c98d56e0c80ea50",
       "expires_at": "2026-10-05T00:00:00Z",
       "admin_cidrs": [],
       "instance_type": "c7i.large",
@@ -77,8 +77,15 @@
       "regional_dur050_instance_count": 0,
       "regional_dur050_volume_count": 0
     },
-    "plan_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-round99-af8c946/plan-inspection.json",
-    "plan_inspection_sha256": "85DE72803CEB87EAF4074DB0FAA36B2B62E824F1F5C33B1B7D3E7EFA3D3E686D",
+    "plan_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r168-020f5df/plan-inspection.json",
+    "plan_inspection_sha256": "242839F5045E92AC664C7EC9B1DD256568D1110BA845454BC6B790BF8BEEBA6F",
+    "inspection_network_safety": {
+      "terraform_plan_network": "Docker internal network with no external egress",
+      "aws_provider_identity": "local mock answered the GetCallerIdentity-shaped request with the previously recorded target account ID",
+      "external_aws_api_calls": 0,
+      "aws_cli_calls": 0,
+      "ssm_calls": 0
+    },
     "d022_read_only_snapshot": {
       "status_for_this_plan": "NOT RUN; values below are the prior cycle-2 snapshot, not a current gate",
       "account_id": "372206265946",
@@ -124,6 +131,16 @@
     "live_d022_preflight_performed": false,
     "ssm_dispatched": false,
     "apply_authority": "NONE; this record is a no-apply review plan and does not authorize apply."
+  },
+  "r168_cpu_window_validation": {
+    "artifact": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-2/validation-r168/loadgen-cpu-loop-r168.json",
+    "classification": "VALIDATION ONLY - NOT CAPACITY RESULTS",
+    "status": "PASS",
+    "runs": 1000,
+    "failed_runs": 0,
+    "cpu_affinity": [0, 1],
+    "source_commit": "020f5df479eac28a931ab0f27c98d56e0c80ea50",
+    "host_platform": "Linux WSL2; local fake API; no AWS/SSM/PostgreSQL/Kafka"
   },
   "cycle_2_pre_apply_gate": {
     "status": "PASS",
