@@ -967,7 +967,7 @@ function Read-OwnerLockCampaignMarkers([string]$InstanceId, [string]$WorkflowID)
         'cd /opt/durable-agent-execution-engine',
         'cid=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml ps -q runtime)',
         'test -n "$cid"',
-        'docker logs "$cid" 2>&1 | grep -F "workflow_id=' + $WorkflowID + '" | grep -E "DUR049_OWNER_LOCK_(HELD|STALE_WRITE) " || true'
+        ('docker logs "$cid" 2>&1 | grep -F "workflow_id={0}" | grep -E "DUR049_OWNER_LOCK_(HELD|STALE_WRITE) " || true' -f $WorkflowID)
     )
     return @($output -split "\r?\n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) })
 }

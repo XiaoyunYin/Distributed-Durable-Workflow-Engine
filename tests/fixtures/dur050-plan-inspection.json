@@ -1,0 +1,16 @@
+{
+  "schema": "dur050-recorded-plan-inspection.v1",
+  "source_commit": "test-fixture-only",
+  "terraform_version": "1.16.4",
+  "planned_peak_vcpu": 8,
+  "instances": {
+    "c7i.large": 3,
+    "m7i.large": 1
+  },
+  "resource_changes": {
+    "creates": 31,
+    "updates": 0,
+    "deletes": 0,
+    "replacements": 0
+  }
+}

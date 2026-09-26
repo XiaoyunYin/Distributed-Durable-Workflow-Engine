@@ -17,12 +17,24 @@ param(
     [Parameter(Mandatory)] [string]$OutputDirectory,
     [ValidateSet("ON", "OFF")] [string]$AdmissionGateMode = "ON",
     [ValidateSet("0", "1")] [string]$TransactionTimingCapture = "0",
+    [switch]$StagePlanOnly,
     [int]$TimeoutMinutes = 20
 )
 
 $ErrorActionPreference = "Stop"
+if ($AppInstanceIDs.Count -eq 1 -and $AppInstanceIDs[0].Contains(',')) {
+    # `pwsh -File` accepts one native argv token per value; support a stable
+    # comma-separated form for automation while preserving normal PowerShell arrays.
+    $AppInstanceIDs = @($AppInstanceIDs[0].Split(',') | ForEach-Object { $_.Trim() })
+}
 . (Join-Path $PSScriptRoot "dur050-ssm-wrapper.ps1")
 . (Join-Path $PSScriptRoot "dur050-baseline-manifest.ps1")
+. (Join-Path $PSScriptRoot "dur050-d022-validator.ps1")
+
+function ConvertTo-BashSingleQuoted([string]$Value) {
+    $quote = [string][char]39 + [string][char]34 + [string][char]39 + [string][char]34 + [string][char]39
+    return [string][char]39 + $Value.Replace([string][char]39, $quote) + [string][char]39
+}
 $script:events = [System.Collections.Generic.List[object]]::new()
 $script:commands = [System.Collections.Generic.List[object]]::new()
 $script:status = "FAIL"
@@ -34,7 +46,7 @@ function Invoke-AwsJson([string[]]$Arguments) {
     return ($raw | ConvertFrom-Json)
 }
 
-function Invoke-Ssm([string]$Stage, [string]$InstanceID, [string[]]$RemoteLines) {
+function Invoke-Ssm([string]$Stage, [string]$InstanceID, [string]$InstanceRole, [string[]]$RemoteLines) {
     $started = [DateTime]::UtcNow
     $inputFile = Join-Path $OutputDirectory ("ssm-{0}-{1}.json" -f $Stage, $InstanceID)
     $wrappedCommand = New-Dur050SsmBashCommand -Stage $Stage -RemoteLines $RemoteLines
@@ -56,7 +68,7 @@ function Invoke-Ssm([string]$Stage, [string]$InstanceID, [string[]]$RemoteLines)
         if ($null -ne $invocation) {
             [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "$stem.stdout.txt"), [string]$invocation.StandardOutputContent)
             [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "$stem.stderr.txt"), [string]$invocation.StandardErrorContent)
-            $script:commands.Add([pscustomobject]@{ stage = $Stage; instance_id = $InstanceID; command_id = $commandID; status = $invocation.Status; remote_shell = "base64 temp-file wrapper; bash"; remote_lines = @($RemoteLines) })
+            $script:commands.Add([pscustomobject]@{ stage = $Stage; instance_role = $InstanceRole; instance_id = $InstanceID; command_id = $commandID; status = $invocation.Status; remote_shell = "base64 temp-file wrapper; bash"; remote_lines = @($RemoteLines) })
         }
         if ($null -eq $invocation -or $invocation.Status -ne "Success") {
             $state = if ($null -eq $invocation) { "no response" } else { "$($invocation.Status): $($invocation.StandardErrorContent)" }
@@ -113,31 +125,58 @@ try {
         throw 'Baseline manifest archive sizes must be positive.'
     }
     if ($DatabasePrivateIP -notmatch '^[0-9.]+$' -or $DatabaseName -notmatch '^[A-Za-z0-9_]+$' -or $ObserverSecretParameter -notmatch '^/[A-Za-z0-9/_-]+$') { throw "Database or observer parameter input is malformed." }
-    if (-not (Test-Path -LiteralPath $D022PreflightPath -PathType Leaf)) { throw "D022 preflight file is required." }
-    $preflight = Get-Content -LiteralPath $D022PreflightPath -Raw | ConvertFrom-Json
-    if ($preflight.status -ne "PASS") { throw "D022 preflight must have status PASS." }
-    if ([string]$preflight.region -ne "us-west-1") { throw "D022 preflight region must be us-west-1." }
-    $expectedAccount = [string]$preflight.account_id
-    if (-not $expectedAccount) { $expectedAccount = [string]$preflight.account }
-    if ($expectedAccount -ne "372206265946") { throw "D022 preflight account does not match the authorized account." }
-    $peakVcpu = 0.0
-    if ($null -eq $preflight.planned_peak_vcpu -or -not [double]::TryParse([string]$preflight.planned_peak_vcpu, [ref]$peakVcpu)) { throw "D022 preflight must record numeric planned_peak_vcpu." }
-    if ($peakVcpu -le 0 -or $peakVcpu -gt 32) { throw "Planned concurrent vCPU must be in (0, 32]." }
+    $preflight = Read-Dur050D022Preflight -Path $D022PreflightPath -CycleID $CycleID
     $script:awsRegion = [string]$preflight.region
     $admissionMaxActive = if ($AdmissionGateMode -eq "ON") { 1000 } else { 0 }
     $admissionMaxPendingOutbox = if ($AdmissionGateMode -eq "ON") { 50000 } else { 0 }
     if (Test-Path -LiteralPath $OutputDirectory) { throw "Refusing to overwrite existing evidence: $OutputDirectory" }
     New-Item -ItemType Directory -Path $OutputDirectory | Out-Null
     $script:createdOutputDirectory = $true
-    $identity = Invoke-AwsJson @("sts", "get-caller-identity", "--output", "json")
-    if ([string]$identity.Account -ne $expectedAccount) { throw "Active AWS account does not match D022 preflight." }
+    if (-not $StagePlanOnly) {
+        $identity = Invoke-AwsJson @("sts", "get-caller-identity", "--output", "json")
+        if ([string]$identity.Account -ne '372206265946') { throw "Active AWS account does not match D022 preflight." }
+    }
 
-    $stopApps = @('set -euo pipefail', 'cd /opt/durable-agent-execution-engine', 'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml down')
-    foreach ($id in $AppInstanceIDs) { [void](Invoke-Ssm "stop-app" $id $stopApps) }
+    function Get-Dur050ResetStageLines {
+        [CmdletBinding()]
+        param(
+            [Parameter(Mandatory)] [pscustomobject]$BaselineManifest,
+            [Parameter(Mandatory)] [string]$CampaignID,
+            [Parameter(Mandatory)] [string]$CycleID,
+            [Parameter(Mandatory)] [string]$BlockID,
+            [Parameter(Mandatory)] [string[]]$AppInstanceIDs,
+            [Parameter(Mandatory)] [string]$DependencyInstanceID,
+            [Parameter(Mandatory)] [string]$GeneratorInstanceID,
+            [Parameter(Mandatory)] [string]$DatabasePrivateIP,
+            [Parameter(Mandatory)] [string]$DatabaseName,
+            [Parameter(Mandatory)] [string]$ObserverSecretParameter,
+            [Parameter(Mandatory)] [string]$WarmupScriptPath,
+            [Parameter(Mandatory)] [string]$WarmupWorkflowIDsPath,
+            [Parameter(Mandatory)] [string]$ObserverBinaryPath,
+            [Parameter(Mandatory)] [ValidateSet('ON', 'OFF')] [string]$AdmissionGateMode,
+            [Parameter(Mandatory)] [ValidateSet('0', '1')] [string]$TransactionTimingCapture,
+            [Parameter(Mandatory)] [string]$RemoteRepoRoot
+        )
+        $stages = [System.Collections.Generic.List[object]]::new()
+        $PostgresBaselineArchive = [string]$BaselineManifest.capture.postgres.remote_path
+        $KafkaBaselineArchive = [string]$BaselineManifest.capture.kafka.remote_path
+        $PostgresBaselineSHA256 = [string]$BaselineManifest.capture.postgres.sha256
+        $KafkaBaselineSHA256 = [string]$BaselineManifest.capture.kafka.sha256
+        $GeneratorConfigPath = [string]$BaselineManifest.generator_config.remote_path
+        $GeneratorConfigSHA256 = [string]$BaselineManifest.generator_config.sha256
+        $admissionMaxActive = if ($AdmissionGateMode -eq 'ON') { 1000 } else { 0 }
+        $admissionMaxPendingOutbox = if ($AdmissionGateMode -eq 'ON') { 50000 } else { 0 }
+        if ($AppInstanceIDs.Count -ne 2) { throw 'Reset stage generation requires exactly two app instance IDs.' }
+        $remoteRepoRoot = $RemoteRepoRoot
+        if ($remoteRepoRoot -notmatch '^/[A-Za-z0-9._/-]+$') { throw 'DUR050_REMOTE_REPO_ROOT must be a safe absolute path.' }
+        $remoteRepoLine = 'cd "' + $remoteRepoRoot + '"'
+
+    $stopApps = @('set -euo pipefail', $remoteRepoLine, 'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml down')
+    foreach ($id in $AppInstanceIDs) { [void]$stages.Add([pscustomobject]@{ stage = 'stop-app'; instance_role = 'app'; instance_id = $id; remote_lines = $stopApps }) }
 
     $restore = @(
         'set -euo pipefail',
-        'cd /opt/durable-agent-execution-engine'
+        $remoteRepoLine
     ) + @(Get-Dur050BaselineHashVerificationLines -PostgresArchive $PostgresBaselineArchive -PostgresSHA256 $PostgresBaselineSHA256 -KafkaArchive $KafkaBaselineArchive -KafkaSHA256 $KafkaBaselineSHA256) + @(
         'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml down',
         'for volume in durable-aws-dependencies_postgres-data durable-aws-dependencies_kafka-data; do if docker volume inspect "$volume" >/dev/null 2>&1; then docker volume rm "$volume"; fi; docker volume create "$volume" >/dev/null; done',
@@ -146,8 +185,8 @@ try {
         'postgres_db=$(sed -n ''s/^POSTGRES_DB=//p'' deploy/aws/.env)',
         'test -n "$postgres_image"',
         'test -n "$postgres_user" && test -n "$postgres_db"',
-        'docker run --rm --user 0:0 -v durable-aws-dependencies_postgres-data:/restore -v "' + $PostgresBaselineArchive + ':/baseline.tar:ro" --entrypoint bash "$postgres_image" -ec ''tar -xpf /baseline.tar -C /restore''',
-        'docker run --rm --user 0:0 -v durable-aws-dependencies_kafka-data:/restore -v "' + $KafkaBaselineArchive + ':/baseline.tar:ro" --entrypoint bash "$postgres_image" -ec ''tar -xpf /baseline.tar -C /restore''',
+        ('docker run --rm --user 0:0 -v durable-aws-dependencies_postgres-data:/restore -v "' + $PostgresBaselineArchive + ':/baseline.tar:ro" --entrypoint bash "$postgres_image" -ec ''tar -xpf /baseline.tar -C /restore'''),
+        ('docker run --rm --user 0:0 -v durable-aws-dependencies_kafka-data:/restore -v "' + $KafkaBaselineArchive + ':/baseline.tar:ro" --entrypoint bash "$postgres_image" -ec ''tar -xpf /baseline.tar -C /restore'''),
         'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml up -d postgres kafka',
         'for attempt in $(seq 1 60); do if docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T postgres pg_isready -U "$postgres_user" -d "$postgres_db" >/dev/null 2>&1; then break; fi; if [ "$attempt" -eq 60 ]; then exit 1; fi; sleep 2; done',
         'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml up -d kafka-init',
@@ -155,42 +194,42 @@ try {
         'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T postgres psql -v ON_ERROR_STOP=1 -U "$postgres_user" -d "$postgres_db" -Atc "SELECT max(version) FROM engine.schema_migrations" | grep -qx ''18''',
         'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T postgres psql -v ON_ERROR_STOP=1 -U "$postgres_user" -d "$postgres_db" -Atc "SELECT current_setting(''shared_preload_libraries'') LIKE ''%pg_stat_statements%'' AND EXISTS (SELECT 1 FROM pg_extension WHERE extname=''pg_stat_statements'')" | grep -qx ''t'''
     )
-    [void](Invoke-Ssm "restore-db-kafka-volumes" $DependencyInstanceID $restore)
+    [void]$stages.Add([pscustomobject]@{ stage = 'restore-db-kafka-volumes'; instance_role = 'dependency'; instance_id = $DependencyInstanceID; remote_lines = $restore })
 
     $configureApps = @(
         'set -euo pipefail',
-        'cd /opt/durable-agent-execution-engine',
+        $remoteRepoLine,
         'env_file=deploy/aws/.env',
         'set_env() { key="$1"; value="$2"; count=$(grep -c "^${key}=" "$env_file" || true); if [ "$count" -gt 1 ]; then echo "duplicate $key in $env_file" >&2; return 1; fi; if [ "$count" -eq 1 ]; then sed -i "s|^${key}=.*|${key}=${value}|" "$env_file"; else printf ''%s=%s\n'' "$key" "$value" >> "$env_file"; fi; }',
-        'set_env DUR050_ADMISSION_MAX_ACTIVE ' + $admissionMaxActive,
-        'set_env DUR050_ADMISSION_MAX_PENDING_OUTBOX ' + $admissionMaxPendingOutbox,
-        'set_env DUR050_RECORD_TRANSACTION_TIMINGS ' + $TransactionTimingCapture,
+        ('set_env DUR050_ADMISSION_MAX_ACTIVE ' + $admissionMaxActive),
+        ('set_env DUR050_ADMISSION_MAX_PENDING_OUTBOX ' + $admissionMaxPendingOutbox),
+        ('set_env DUR050_RECORD_TRANSACTION_TIMINGS ' + $TransactionTimingCapture),
         'set_env DUR049_RECORD_LEASE_ACQUISITIONS 0',
         'chmod 0600 "$env_file"',
         'grep -E ''^(DUR050_ADMISSION_MAX_ACTIVE|DUR050_ADMISSION_MAX_PENDING_OUTBOX|DUR050_RECORD_TRANSACTION_TIMINGS|DUR049_RECORD_LEASE_ACQUISITIONS)='' "$env_file"'
     )
-    foreach ($id in $AppInstanceIDs) { [void](Invoke-Ssm "configure-admission-and-capture-mode" $id $configureApps) }
+    foreach ($id in $AppInstanceIDs) { [void]$stages.Add([pscustomobject]@{ stage = 'configure-admission-and-capture-mode'; instance_role = 'app'; instance_id = $id; remote_lines = $configureApps }) }
 
     $startApps = @(
         'set -euo pipefail',
-        'cd /opt/durable-agent-execution-engine',
+        $remoteRepoLine,
         '# The scheduler loop runs inside the runtime service; start it and every worker after dependency-volume restore.',
         'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml up -d --wait --no-build runtime worker',
         'docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml ps -q runtime worker | xargs -r docker inspect --format ''{{.Id}} {{.Name}} {{.State.Status}} {{if .State.Health}}{{.State.Health.Status}}{{end}}''',
         'runtime_id=$(docker compose --env-file deploy/aws/.env -f deploy/aws/app-compose.yaml -f deploy/aws/dur050-app-compose.yaml ps -q runtime)',
         'test -n "$runtime_id"',
         'runtime_env=$(docker inspect --format ''{{range .Config.Env}}{{println .}}{{end}}'' "$runtime_id")',
-        'printf "%s\n" "$runtime_env" | grep -Fx ''DUR050_ADMISSION_MAX_ACTIVE=' + $admissionMaxActive + '''',
-        'printf "%s\n" "$runtime_env" | grep -Fx ''DUR050_ADMISSION_MAX_PENDING_OUTBOX=' + $admissionMaxPendingOutbox + '''',
-        'printf "%s\n" "$runtime_env" | grep -Fx ''DUR050_RECORD_TRANSACTION_TIMINGS=' + $TransactionTimingCapture + '''',
+        ('printf "%s\n" "$runtime_env" | grep -Fx ''DUR050_ADMISSION_MAX_ACTIVE={0}''' -f $admissionMaxActive),
+        ('printf "%s\n" "$runtime_env" | grep -Fx ''DUR050_ADMISSION_MAX_PENDING_OUTBOX={0}''' -f $admissionMaxPendingOutbox),
+        ('printf "%s\n" "$runtime_env" | grep -Fx ''DUR050_RECORD_TRANSACTION_TIMINGS={0}''' -f $TransactionTimingCapture),
         'printf "%s\n" "$runtime_env" | grep -Fx ''DUR049_RECORD_LEASE_ACQUISITIONS=0''',
         'printf ''DUR050_EFFECTIVE_RUNTIME_SETTINGS\n%s\n'' "$runtime_env" | grep -E ''^(DUR050_ADMISSION_MAX_ACTIVE|DUR050_ADMISSION_MAX_PENDING_OUTBOX|DUR050_RECORD_TRANSACTION_TIMINGS|DUR049_RECORD_LEASE_ACQUISITIONS)='' '
     )
-    foreach ($id in $AppInstanceIDs) { [void](Invoke-Ssm "restart-runtime-worker" $id $startApps) }
+    foreach ($id in $AppInstanceIDs) { [void]$stages.Add([pscustomobject]@{ stage = 'restart-runtime-worker'; instance_role = 'app'; instance_id = $id; remote_lines = $startApps }) }
 
     $verifyGroup = @(
         'set -euo pipefail',
-        'cd /opt/durable-agent-execution-engine',
+        $remoteRepoLine,
         'for group in runtime-workers-v1 runtime-schedulers-v1; do',
         '  group_output=""',
         '  found_group=0',
@@ -202,38 +241,37 @@ try {
         '  if [ "$found_group" -ne 1 ]; then printf "%s\n" "$group_output" >&2; echo "Kafka consumer group $group did not show an assigned member after runtime/worker restart." >&2; exit 1; fi',
         'done'
     )
-    [void](Invoke-Ssm "verify-worker-group-assignment" $DependencyInstanceID $verifyGroup)
+    [void]$stages.Add([pscustomobject]@{ stage = 'verify-worker-group-assignment'; instance_role = 'dependency'; instance_id = $DependencyInstanceID; remote_lines = $verifyGroup })
 
     $warmup = @(
         'set -euo pipefail',
-        'export DUR050_LOADGEN_CONFIG_FILE="' + $GeneratorConfigPath + '"',
+        ('export DUR050_LOADGEN_CONFIG_FILE="{0}"' -f $GeneratorConfigPath),
         'generator_config_sha256=$(sha256sum -- "$DUR050_LOADGEN_CONFIG_FILE" | awk ''{print $1}'')',
-        'test "$generator_config_sha256" = "' + $GeneratorConfigSHA256 + '"',
-        'export DUR050_WARMUP_WORKFLOW_IDS_FILE="' + $WarmupWorkflowIDsPath + '"',
-        'test -f "' + $WarmupScriptPath + '"',
-        'bash "' + $WarmupScriptPath + '"',
-        'test -s "' + $WarmupWorkflowIDsPath + '"',
-        'warmup_count=$(awk ''NF {print $1}'' "' + $WarmupWorkflowIDsPath + '" | wc -l); warmup_unique=$(awk ''NF {print $1}'' "' + $WarmupWorkflowIDsPath + '" | sort -u | wc -l); test "$warmup_count" -eq 8 && test "$warmup_unique" -eq 8'
+        ('test "$generator_config_sha256" = "{0}"' -f $GeneratorConfigSHA256),
+        ('export DUR050_WARMUP_WORKFLOW_IDS_FILE="{0}"' -f $WarmupWorkflowIDsPath),
+        ('test -f "{0}"' -f $WarmupScriptPath),
+        ('bash "{0}"' -f $WarmupScriptPath),
+        ('test -s "{0}"' -f $WarmupWorkflowIDsPath),
+        ('warmup_count=$(awk ''NF {{print $1}}'' "{0}" | wc -l); warmup_unique=$(awk ''NF {{print $1}}'' "{0}" | sort -u | wc -l); test "$warmup_count" -eq 8 && test "$warmup_unique" -eq 8' -f $WarmupWorkflowIDsPath, $WarmupWorkflowIDsPath)
     )
-    [void](Invoke-Ssm "submit-eight-warmups" $GeneratorInstanceID $warmup)
+    [void]$stages.Add([pscustomobject]@{ stage = 'submit-eight-warmups'; instance_role = 'generator'; instance_id = $GeneratorInstanceID; remote_lines = $warmup })
 
-    $observerOutput = "/opt/durable-agent-execution-engine/dur050-$CampaignID-$BlockID-warmup-observer.csv"
-    $drain = @('set -euo pipefail', 'observer_password=$(aws ssm get-parameter --name ''' + $ObserverSecretParameter + ''' --with-decryption --region us-west-1 --query Parameter.Value --output text)', 'export DUR050_OBSERVER_PASSWORD="$observer_password"', 'encoded_password=$(python3 -c ''import os, urllib.parse; print(urllib.parse.quote(os.environ["DUR050_OBSERVER_PASSWORD"], safe=""))'')', 'unset observer_password DUR050_OBSERVER_PASSWORD', 'export DUR050_OBSERVER_DATABASE_URL="postgresql://dur050_observer:${encoded_password}@' + $DatabasePrivateIP + ':5432/' + $DatabaseName + '?sslmode=disable"', 'unset encoded_password', 'test -x "' + $ObserverBinaryPath + '"', '"' + $ObserverBinaryPath + '" -mode batch -workflow-ids-file "' + $WarmupWorkflowIDsPath + '" -output "' + $observerOutput + '" -timeout 15m', 'printf ''DUR050_OBSERVER_CSV_GZIP_BASE64:''', 'gzip -c "' + $observerOutput + '" | base64 -w0', 'printf ''\\n''')
-    $drainOutput = Invoke-Ssm "observe-warmup-drain" $GeneratorInstanceID $drain
-    $encodedCSV = [regex]::Match($drainOutput, '(?m)^DUR050_OBSERVER_CSV_GZIP_BASE64:([A-Za-z0-9+/=]+)\s*$')
-    if (-not $encodedCSV.Success) { throw "Warmup batch observer did not return its raw CSV artifact." }
-    $compressedCSV = [Convert]::FromBase64String($encodedCSV.Groups[1].Value)
-    $inputStream = [System.IO.MemoryStream]::new($compressedCSV)
-    $gzipStream = [System.IO.Compression.GZipStream]::new($inputStream, [System.IO.Compression.CompressionMode]::Decompress)
-    $outputStream = [System.IO.MemoryStream]::new()
-    try {
-        $gzipStream.CopyTo($outputStream)
-        [System.IO.File]::WriteAllBytes((Join-Path $OutputDirectory "warmup-observer.csv"), $outputStream.ToArray())
-    } finally {
-        $outputStream.Dispose()
-        $gzipStream.Dispose()
-        $inputStream.Dispose()
-    }
+    $observerOutput = "$remoteRepoRoot/dur050-$CampaignID-$BlockID-warmup-observer.csv"
+    $drainPasswordLine = 'observer_password=$(aws ssm get-parameter --name ' + (ConvertTo-BashSingleQuoted $ObserverSecretParameter) + ' --with-decryption --region us-west-1 --query Parameter.Value --output text)'
+    $drainDsnLine = 'export DUR050_OBSERVER_DATABASE_URL="postgresql://dur050_observer:${encoded_password}@' + $DatabasePrivateIP + ':5432/' + $DatabaseName + '?sslmode=disable"'
+    $drainBinaryLine = 'test -x "' + $ObserverBinaryPath + '"'
+    $drainCommandLine = '"' + $ObserverBinaryPath + '" -mode batch -workflow-ids-file "' + $WarmupWorkflowIDsPath + '" -output "' + $observerOutput + '" -timeout 15m'
+    $drainGzipLine = 'gzip -c "' + $observerOutput + '" | base64 -w0'
+    $drain = @(
+        'set -euo pipefail', $drainPasswordLine,
+        'export DUR050_OBSERVER_PASSWORD="$observer_password"',
+        'encoded_password=$(python3 -c ''import os, urllib.parse; print(urllib.parse.quote(os.environ["DUR050_OBSERVER_PASSWORD"], safe=""))'')',
+        'unset observer_password DUR050_OBSERVER_PASSWORD', $drainDsnLine,
+        'unset encoded_password', $drainBinaryLine, $drainCommandLine,
+        'printf ''DUR050_OBSERVER_CSV_GZIP_BASE64:''', $drainGzipLine,
+        'printf ''\n'''
+    )
+    [void]$stages.Add([pscustomobject]@{ stage = 'observe-warmup-drain'; instance_role = 'generator'; instance_id = $GeneratorInstanceID; remote_lines = $drain })
 
     $snapshotSql = @'
 SELECT json_build_object(
@@ -252,14 +290,44 @@ SELECT json_build_object(
 );
 '@ -replace "`r?`n", ' '
     $snapshotSql = $snapshotSql.Trim()
-    $snapshot = @('set -euo pipefail', 'cd /opt/durable-agent-execution-engine', 'postgres_user=$(sed -n ''s/^POSTGRES_USER=//p'' deploy/aws/.env)', 'postgres_db=$(sed -n ''s/^POSTGRES_DB=//p'' deploy/aws/.env)', 'test -n "$postgres_user" && test -n "$postgres_db"', 'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T postgres psql -v ON_ERROR_STOP=1 -U "$postgres_user" -d "$postgres_db" -Atc "' + $snapshotSql + '"', 'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:19092 --describe --group runtime-workers-v1')
-    [void](Invoke-Ssm "snapshot-and-kafka-assignment" $DependencyInstanceID $snapshot)
+    $snapshotCommand = 'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T postgres psql -v ON_ERROR_STOP=1 -U "$postgres_user" -d "$postgres_db" -Atc "' + $snapshotSql + '"'
+    $snapshot = @('set -euo pipefail', $remoteRepoLine, 'postgres_user=$(sed -n ''s/^POSTGRES_USER=//p'' deploy/aws/.env)', 'postgres_db=$(sed -n ''s/^POSTGRES_DB=//p'' deploy/aws/.env)', 'test -n "$postgres_user" && test -n "$postgres_db"', $snapshotCommand, 'docker compose --env-file deploy/aws/.env -f deploy/aws/dependency-compose.yaml exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server kafka:19092 --describe --group runtime-workers-v1')
+    [void]$stages.Add([pscustomobject]@{ stage = 'snapshot-and-kafka-assignment'; instance_role = 'dependency'; instance_id = $DependencyInstanceID; remote_lines = $snapshot })
+        return $stages.ToArray()
+    }
+
+    $remoteRepoRoot = if ([string]::IsNullOrWhiteSpace($env:DUR050_REMOTE_REPO_ROOT)) { '/opt/durable-agent-execution-engine' } else { $env:DUR050_REMOTE_REPO_ROOT }
+    $stagePlan = @(Get-Dur050ResetStageLines -BaselineManifest $baselineManifest -CampaignID $CampaignID -CycleID $CycleID -BlockID $BlockID -AppInstanceIDs $AppInstanceIDs -DependencyInstanceID $DependencyInstanceID -GeneratorInstanceID $GeneratorInstanceID -DatabasePrivateIP $DatabasePrivateIP -DatabaseName $DatabaseName -ObserverSecretParameter $ObserverSecretParameter -WarmupScriptPath $WarmupScriptPath -WarmupWorkflowIDsPath $WarmupWorkflowIDsPath -ObserverBinaryPath $ObserverBinaryPath -AdmissionGateMode $AdmissionGateMode -TransactionTimingCapture $TransactionTimingCapture -RemoteRepoRoot $remoteRepoRoot)
+    if (@($stagePlan.stage | Select-Object -Unique).Count -ne 8) { throw 'Reset stage plan must contain the eight reviewed stage kinds.' }
+    if ($StagePlanOnly) {
+        @($stagePlan | ForEach-Object { [ordered]@{ stage = $_.stage; instance_role = $_.instance_role; instance_id = $_.instance_id; remote_lines = $_.remote_lines; wrapped_command = (New-Dur050SsmBashCommand -Stage $_.stage -RemoteLines $_.remote_lines) } }) | ConvertTo-Json -Depth 12
+        exit 0
+    }
+    foreach ($stage in $stagePlan) {
+        $stageOutput = Invoke-Ssm $stage.stage $stage.instance_id $stage.instance_role $stage.remote_lines
+        if ($stage.stage -eq 'observe-warmup-drain') {
+            $encodedCSV = [regex]::Match($stageOutput, '(?m)^DUR050_OBSERVER_CSV_GZIP_BASE64:([A-Za-z0-9+/=]+)\s*$')
+            if (-not $encodedCSV.Success) { throw 'Warmup batch observer did not return its raw CSV artifact.' }
+            $compressedCSV = [Convert]::FromBase64String($encodedCSV.Groups[1].Value)
+            $inputStream = [System.IO.MemoryStream]::new($compressedCSV)
+            $gzipStream = [System.IO.Compression.GZipStream]::new($inputStream, [System.IO.Compression.CompressionMode]::Decompress)
+            $outputStream = [System.IO.MemoryStream]::new()
+            try {
+                $gzipStream.CopyTo($outputStream)
+                [System.IO.File]::WriteAllBytes((Join-Path $OutputDirectory 'warmup-observer.csv'), $outputStream.ToArray())
+            } finally {
+                $outputStream.Dispose()
+                $gzipStream.Dispose()
+                $inputStream.Dispose()
+            }
+        }
+    }
     $script:status = "PASS"
 } catch {
     $script:events.Add([pscustomobject]@{ stage = "reset-block"; status = "FAIL"; error = $_.Exception.Message; at_utc = [DateTime]::UtcNow.ToString("o") })
     throw
 } finally {
-    if ($script:createdOutputDirectory -and (Test-Path -LiteralPath $OutputDirectory)) {
+    if (-not $StagePlanOnly -and $script:createdOutputDirectory -and (Test-Path -LiteralPath $OutputDirectory)) {
         $artifact = [pscustomobject]@{
             schema = "dur050-reset-sequence.v1"
             campaign_id = $CampaignID

@@ -4,6 +4,7 @@ param(
     [Parameter(Mandatory)] [ValidatePattern('^[A-Za-z0-9-]{1,32}$')] [string]$CycleID,
     [string]$D022PreflightPath,
     [string]$FrozenConfigPath,
+    [string]$TestOutputRoot,
     [switch]$DryRun,
     [string]$DryRunOutputPath,
     [int]$TimeoutMinutes = 20
@@ -11,8 +12,10 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'dur050-ssm-wrapper.ps1')
+. (Join-Path $PSScriptRoot 'dur050-d022-validator.ps1')
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$campaignRoot = Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f'
+if ($TestOutputRoot -and $env:DUR050_ENABLE_TEST_HOOKS -ne '1') { throw 'TestOutputRoot is test-only and requires DUR050_ENABLE_TEST_HOOKS=1.' }
+$campaignRoot = if ($TestOutputRoot) { [System.IO.Path]::GetFullPath($TestOutputRoot) } else { Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f' }
 $cycleDirectory = Join-Path $campaignRoot ("cycles/{0}" -f $CycleID)
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 if ([string]::IsNullOrWhiteSpace($FrozenConfigPath)) {
@@ -295,10 +298,7 @@ try {
     }
 
     if (-not $D022PreflightPath -or -not (Test-Path -LiteralPath $D022PreflightPath -PathType Leaf)) { throw 'A committed D022 preflight with status PASS is required before SSM preparation.' }
-    $preflight = Get-Content -LiteralPath $D022PreflightPath -Raw | ConvertFrom-Json
-    if ($preflight.status -ne 'PASS' -or $preflight.region -ne 'us-west-1' -or [string]$preflight.account_id -ne '372206265946' -or [double]$preflight.planned_peak_vcpu -gt 32) {
-        throw 'D022 preflight must pass for account 372206265946, us-west-1, and no more than 32 peak vCPU.'
-    }
+    $preflight = Read-Dur050D022Preflight -Path $D022PreflightPath -CycleID $CycleID
     if (Test-Path -LiteralPath (Join-Path $cycleDirectory 'preparation.json')) { throw "Preparation evidence already exists for $CycleID." }
     New-Item -ItemType Directory -Force -Path $cycleDirectory | Out-Null
     Write-JsonFile (Join-Path $cycleDirectory 'preparation-dry-run.json') $dryRunRecord

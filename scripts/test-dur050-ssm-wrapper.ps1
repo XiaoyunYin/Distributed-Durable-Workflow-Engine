@@ -44,8 +44,9 @@ try {
         $ssmInvokerSource -notmatch 'New-Dur050SsmBashCommand') {
         throw "A DUR-050 SSM path bypasses the shared Bash wrapper."
     }
-    $resetStages = [regex]::Matches($resetSource, 'Invoke-Ssm\s+"[A-Za-z0-9-]+"').Count
-    if ($resetStages -ne 8) { throw "Expected 8 reset stages routed through Invoke-Ssm; found $resetStages." }
+    if ($resetSource -notmatch 'function\s+Get-Dur050ResetStageLines' -or $resetSource -notmatch 'Invoke-Ssm\s+\$stage\.stage\s+\$stage\.instance_id') {
+        throw 'Reset stage bodies must be constructed by Get-Dur050ResetStageLines and dispatched by the generic Invoke-Ssm loop.'
+    }
 
     $body = @(
         'set -euo pipefail',
@@ -80,6 +81,13 @@ try {
         $rejectedDirectScript = $_.Exception.Message -match "must be invoked as bash"
     }
     if (-not $rejectedDirectScript) { throw "The SSM wrapper accepted a .sh command not explicitly invoked through bash." }
+
+    foreach ($fragment in @('"', "'", ':"broken', ":'broken")) {
+        $rejectedFragment = $false
+        try { [void](New-Dur050SsmBashCommand -Stage 'split-fragment' -RemoteLines @('set -euo pipefail', $fragment)) }
+        catch { $rejectedFragment = $_.Exception.Message -match 'split quote/colon fragment' }
+        if (-not $rejectedFragment) { throw "SSM wrapper accepted split quote/colon fragment '$fragment'." }
+    }
 
     $failure = Invoke-PosixWrapper (New-Dur050SsmBashCommand -Stage "exit-code" -RemoteLines @("set -euo pipefail", "exit 23"))
     if ($failure.ExitCode -ne 23) { throw "SSM wrapper changed remote exit code 23 to $($failure.ExitCode)." }

@@ -9,6 +9,9 @@ function New-Dur050SsmBashCommand {
     $stageSlug = $Stage -replace '[^A-Za-z0-9_-]', '-'
     if ([string]::IsNullOrWhiteSpace($stageSlug)) { throw "SSM stage name is invalid." }
     foreach ($line in $RemoteLines) {
+        if ($line -match '^\s*(?:["'']\s*$|:["''])') {
+            throw "SSM stage '$Stage' contains a split quote/colon fragment: $line"
+        }
         if ($line -match '^\s*(?:/|\.?/|scripts/)[^\s;|&]*\.sh(?:\s|$)' -and $line -notmatch '^\s*bash\s+') {
             throw "SSM shell scripts must be invoked as bash <script>: $line"
         }

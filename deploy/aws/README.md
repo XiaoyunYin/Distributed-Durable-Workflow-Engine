@@ -94,6 +94,16 @@ measured work begins. The protocol-matched warmup submitter and its eight fresh
 workflow IDs are supplied for each block; the reset script fails if the IDs
 are missing, duplicated, or do not drain to terminal state.
 
+Before preparation and again before every paid block, generate the current
+cycle's read-only gate record with `scripts/dur050-cycle-preflight.ps1`. Supply
+the parsed Terraform outputs, recorded plan inspection, task-wide cost-ledger
+manifest, a unique output path, and explicit reserve minutes. The tool rechecks
+account/quota/budget/tags, ledger reserve, and all four hosts' cloud-init and
+bootstrap artifacts; it writes PASS only if every check succeeds. Preparation
+and reset share the same schema, cycle-ID, vCPU, and freshness validator. Its
+`-DryRun` mode prints planned checks and wrapped bootstrap commands only; it is
+not a passing D022 preflight and makes no AWS or SSM calls.
+
 ```powershell
 $env:TF_VAR_campaign_slug = "dur050"
 $env:TF_VAR_task_id = "DUR-050"
