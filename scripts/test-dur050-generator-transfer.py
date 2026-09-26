@@ -8,6 +8,7 @@ import hashlib
 import http.server
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -591,13 +592,15 @@ def main() -> int:
         wrong_path_args = dispatch_args.copy()
         wrong_path_args[wrong_path_args.index("-PreparationDryRunPath") + 1] = str(wrong_path_file)
         wrong_path_result = invoke_ps(dispatch_script, wrong_path_args + ["-StagePlanOnly"], env)
-        if (
-            wrong_path_result.returncode == 0
-            or "must be exactly the preparation staging path" not in wrong_path_result.stdout
+        wrong_path_output = wrong_path_result.stdout
+        if wrong_path_result.returncode == 0 or not re.search(
+            r"must be exactly the preparation staging\s+path",
+            wrong_path_output,
+            re.IGNORECASE,
         ):
             raise RuntimeError(
                 "dispatch did not reject a generator config path outside the cycle staging path:\n"
-                + wrong_path_result.stdout
+                + wrong_path_output
             )
         print("PASS: a non-producer generator config path is rejected before dispatch.")
 
