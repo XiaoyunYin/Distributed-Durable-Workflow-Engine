@@ -60,7 +60,7 @@ case "$args" in
     exit 90 ;;
 esac
 '@
-[IO.File]::WriteAllText((Join-Path $bin 'aws'), $awsStub + [Environment]::NewLine, $utf8)
+[IO.File]::WriteAllText((Join-Path $bin 'aws'), $awsStub.Replace("`r", '') + [Environment]::NewLine, $utf8)
 & chmod 0755 (Join-Path $bin 'aws')
 if ($LASTEXITCODE -ne 0) { throw 'Could not mark AWS stub executable.' }
 
