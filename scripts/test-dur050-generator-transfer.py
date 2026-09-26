@@ -593,9 +593,11 @@ def main() -> int:
         wrong_path_args[wrong_path_args.index("-PreparationDryRunPath") + 1] = str(wrong_path_file)
         wrong_path_result = invoke_ps(dispatch_script, wrong_path_args + ["-StagePlanOnly"], env)
         wrong_path_output = wrong_path_result.stdout
+        plain_wrong_path_output = re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", wrong_path_output)
+        plain_wrong_path_output = " ".join(plain_wrong_path_output.split())
         if wrong_path_result.returncode == 0 or not re.search(
-            r"must be exactly the preparation staging\s+path",
-            wrong_path_output,
+            r"Recorded rendered_config_path must be exactly the preparation staging path",
+            plain_wrong_path_output,
             re.IGNORECASE,
         ):
             raise RuntimeError(
