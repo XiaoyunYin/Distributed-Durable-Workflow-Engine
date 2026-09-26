@@ -18,6 +18,10 @@ $restore = @(
         throw "Historical unparenthesized array concatenation survived the AST lint: $rejected"
     }
     Write-Host 'PASS: AST lint negative control rejects the unparenthesized R163-style array element.'
+    # The linter is expected to return nonzero for a rejected mutant; clear
+    # that child-process code so an optional shallow-history lookup cannot
+    # become this test script's exit status.
+    $global:LASTEXITCODE = 0
 
     $gitCommand = Get-Command git -ErrorAction SilentlyContinue
     if ($gitCommand) {
@@ -31,11 +35,16 @@ $restore = @(
                 throw "R163's 49663c8 reset helper survived the AST lint: $historicalRejected"
             }
             Write-Host 'PASS: AST lint rejects the actual 49663c8 reset helper.'
+            $global:LASTEXITCODE = 0
         } else {
             Write-Host 'NOTE: 49663c8 is not present in this checkout; the equivalent R163 syntax fixture was rejected.'
+            # actions/checkout's default shallow clone has no 49663c8 object.
+            # That optional historical check is skipped, not a test failure.
+            $global:LASTEXITCODE = 0
         }
     } else {
         Write-Host 'NOTE: git is not installed in this test image; the equivalent R163 syntax fixture was rejected.'
+        $global:LASTEXITCODE = 0
     }
 } finally {
     if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Recurse -Force }
