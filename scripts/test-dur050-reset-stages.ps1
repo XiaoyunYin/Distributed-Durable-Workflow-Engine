@@ -18,7 +18,7 @@ exec /bin/bash "$@"
 $envFile=Join-Path $remote 'deploy/aws/.env'; [IO.File]::WriteAllText($envFile,"POSTGRES_USER=durable`nPOSTGRES_DB=durable`nPOSTGRES_IMAGE=postgres:test`n",$utf8)
 $argvLog=Join-Path $temp 'argv.jsonl'; $dockerLog=Join-Path $temp 'docker.jsonl'; $observerLog=Join-Path $temp 'observer-dsn.txt'
 foreach($name in @('postgres-data','kafka-data')){ $source=Join-Path $archiveRoot ($name+'.source'); [IO.File]::WriteAllText($source,"fixture-$name",$utf8); $p=Start-Process -FilePath /bin/tar -ArgumentList @('-cf',(Join-Path $archiveRoot ($name+'.tar')),'-C',$archiveRoot,($name+'.source')) -Wait -PassThru -NoNewWindow; if($p.ExitCode){throw "Could not create $name archive fixture."} }
-$cycle='cycle-ci-'+[guid]::NewGuid().ToString('N').Substring(0,8); $api='http://10.49.1.11:8080/'; $namespace="dur050-pilot-$cycle"
+$cycle='cycle-ci-'+[guid]::NewGuid().ToString('N').Substring(0,8); $api='http://127.0.0.1:8080/'; $namespace="dur050-pilot-$cycle"
 $warmup=Join-Path $temp 'remote-scripts/dur050-warmup.sh'; [IO.File]::WriteAllText($warmup,"#!/usr/bin/env bash`nset -euo pipefail`n: > `"`$DUR050_WARMUP_WORKFLOW_IDS_FILE`"`nfor n in `$(seq 1 8); do printf 'wf-%02d\n' `"`$n`" >> `"`$DUR050_WARMUP_WORKFLOW_IDS_FILE`"; done`n",$utf8); & chmod 0755 $warmup
 $observer=Join-Path $temp 'remote-scripts/dur050-observer'; $observerScript=@'
 #!/usr/bin/env bash
