@@ -102,13 +102,59 @@ def task_ledger(*, cycles: int = 1) -> dict:
     }
 
 
-def evaluate(data: dict, *, now: str = "2026-09-25T13:00:00Z", reserve: int = 60) -> dict:
+def evaluate(
+    data: dict,
+    *,
+    now: str = "2026-09-25T13:00:00Z",
+    reserve: int = 60,
+    planned: list[str] | None = None,
+) -> dict:
     return LEDGER.evaluate(
         campaign_manifest(),
         data,
         datetime.fromisoformat(now.replace("Z", "+00:00")),
         reserve,
+        planned_instance_types=planned,
     )
+
+
+def test_preapply_projects_four_planned_hosts_on_closed_real_shape_ledger() -> None:
+    result = evaluate(
+        task_ledger(),
+        now="2026-09-25T13:00:00Z",
+        reserve=480,
+        planned=["c7i.large", "c7i.large", "c7i.large", "m7i.large"],
+    )
+    expected = Decimal(result["accrued_instance_cost_usd"]) + Decimal("0.4515") * Decimal(
+        480
+    ) / Decimal(60)
+    assert result["status"] == "PASS"
+    assert result["open_interval_count"] == 0
+    assert Decimal(result["planned_host_projection_usd"]) == Decimal("3.612000")
+    assert Decimal(result["projected_instance_cost_usd"]) == expected.quantize(Decimal("0.000001"))
+    assert len(result["planned_host_projection"]) == 4
+
+
+def test_preapply_planned_host_reserve_over_cap_fails() -> None:
+    result = evaluate(
+        task_ledger(),
+        now="2026-09-25T13:00:00Z",
+        reserve=10080,
+        planned=["c7i.large", "c7i.large", "c7i.large", "m7i.large"],
+    )
+    assert result["status"] == "FAIL"
+    assert Decimal(result["planned_host_projection_usd"]) == Decimal("75.852000")
+    assert "not below the DUR-050 cap" in result["cap_message"]
+
+
+def test_preapply_projection_rejects_any_open_interval() -> None:
+    data = task_ledger()
+    data["roles"]["app-1"][0]["destroy_completed_at_utc"] = None
+    with pytest.raises(LEDGER.LedgerError, match="open_interval_count == 0"):
+        evaluate(
+            data,
+            planned=["c7i.large", "c7i.large", "c7i.large", "m7i.large"],
+        )
 
 
 def test_task_ledger_counts_historical_cycle_and_reserves_only_open_intervals() -> None:

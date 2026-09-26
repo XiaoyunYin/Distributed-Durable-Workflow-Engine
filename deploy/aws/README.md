@@ -17,7 +17,8 @@ establish database-host durability, Kafka HA, or multi-region availability.
 
 For the DUR-050 third provisioning cycle, the order is:
 **live saved plan → account-only pre-apply gate → Claude go/no-go → apply →
-post-apply cycle preflight → preparation**. Do not apply based only on a
+ledger-record -Open → post-apply cycle preflight → preparation → destroy →
+ledger-record -Close**. Do not apply based only on a
 successful pre-apply gate; its record explicitly grants no apply authority.
 
 Generate the live read-only plan with the reviewed Terraform 1.16.4 profile,
@@ -30,10 +31,18 @@ identity, regional inventory/quota, D022 budget/notifications, cost-allocation
 tags, and ledger; it does not require Terraform outputs and does not call SSM.
 Wait for Claude's explicit go/no-go before applying the exact reviewed plan.
 
-After an authorized apply, use the parsed outputs with the separate
-scripts/dur050-cycle-preflight.ps1. That post-apply gate confirms bootstrap
-on the four hosts through SSM. Run scripts/dur050-prepare-pilot.ps1 only
-after that cycle preflight passes.
+Immediately before apply, capture the apply-start UTC timestamp. After apply,
+use the current parsed outputs and that timestamp with
+scripts/dur050-ledger-record.ps1 -Open. The helper uses read-only
+DescribeInstances data to check all four IDs/types and that the start is no
+later than each EC2 LaunchTime. It appends intervals to the task-wide ledger
+and refuses duplicate/open cycles. Then run scripts/dur050-cycle-preflight.ps1.
+It requires the four open ledger intervals to match the parsed Terraform
+outputs and cycle ID before checking cost; it also records whether each
+attached root volume has Task=DUR-050. Run scripts/dur050-prepare-pilot.ps1
+only after that cycle preflight passes. After Terraform destroy completes, run
+scripts/dur050-ledger-record.ps1 -Close with the cycle ID and observed
+destroy-completion UTC timestamp.
 
 Use the non-root portfolio identity and a full 40-character immutable source
 SHA. A short SHA, tag, or branch cannot be fetched as the pinned campaign
@@ -175,8 +184,11 @@ commit, image digests, expected duration and cost estimate in the campaign
 directory. Do not apply until the DUR-050 ACTUAL budget notification is set to
 the apply-time aggregate actual spend plus $75, `Task` and `Environment`
 cost-allocation tags are active, and the no-apply plan has been freshly
-reviewed. Before each paid block, fill the per-host apply/destroy timestamps in
-`cost-manifest.json` and run:
+reviewed. The pre-apply gate projects the closed task-wide ledger plus the four
+planned host types for the full cycle reserve; it requires zero open intervals
+and a projection strictly below the $75 task cap. After apply, ledger-record
+opens the four instance intervals; after destroy it closes them. Before each
+paid block, run the cost-ledger CLI against the task-wide ledger:
 
 ```sh
 python scripts/dur050-cost-ledger.py <campaign>/cost-manifest.json \

@@ -114,6 +114,7 @@ def evaluate(
     *,
     ledger_path: Path = TASK_LEDGER_PATH,
     ledger_path_override_used: bool = False,
+    planned_instance_types: list[str] | None = None,
 ) -> dict[str, Any]:
     if reserve_minutes < 1:
         raise LedgerError("reserve_minutes must be at least one for a paid block check")
@@ -226,6 +227,44 @@ def evaluate(
             projected_rows.append(row)
             prior_start, prior_end = started, None if destroyed_value is None else ended
 
+    planned_host_projection = Decimal("0")
+    planned_host_rows: list[dict[str, Any]] = []
+    if planned_instance_types is not None:
+        if open_intervals != 0:
+            raise LedgerError("pre-apply planned-host projection requires open_interval_count == 0")
+        if sorted(planned_instance_types) != sorted(EXPECTED_HOSTS.values()):
+            raise LedgerError("planned instance types must match the four reviewed DUR-050 hosts")
+        for index, instance_type in enumerate(planned_instance_types):
+            price = normalized_prices.get(instance_type)
+            if price is None:
+                raise LedgerError(f"no recorded price for planned instance type {instance_type}")
+            projected_cost = price * Decimal(reserve_minutes) / Decimal(60)
+            planned_host_projection += projected_cost
+            planned_host_rows.append(
+                {
+                    "planned_index": index,
+                    "instance_type": instance_type,
+                    "projected_apply_started_at_utc": now.isoformat().replace("+00:00", "Z"),
+                    "projected_destroy_completed_at_utc": (now + timedelta(minutes=reserve_minutes))
+                    .isoformat()
+                    .replace("+00:00", "Z"),
+                    "hourly_price_usd": str(price),
+                    "reserve_minutes": reserve_minutes,
+                    "projected_reserve_usd": str(projected_cost.quantize(Decimal("0.000001"))),
+                }
+            )
+        projected_total += planned_host_projection
+        reserve_delta += planned_host_projection
+
+    status = "PASS" if projected_total < cap else "FAIL"
+    cap_message = (
+        None
+        if status == "PASS"
+        else (
+            f"projected task cost ${projected_total.quantize(Decimal('0.000001'))} is not below "
+            f"the DUR-050 cap ${cap}"
+        )
+    )
     return {
         "schema": "dur050-cost-ledger-check.v2",
         "ledger_scope": "DUR-050 task-wide shared ledger",
@@ -243,9 +282,12 @@ def evaluate(
         "accrued_instance_cost_usd": str(accrued_total.quantize(Decimal("0.000001"))),
         "next_block_reserve_usd": str(reserve_delta.quantize(Decimal("0.000001"))),
         "projected_instance_cost_usd": str(projected_total.quantize(Decimal("0.000001"))),
+        "planned_host_projection_usd": str(planned_host_projection.quantize(Decimal("0.000001"))),
+        "planned_host_projection": planned_host_rows,
         "cost_allocation_backfill_needed": backfill_needed,
         "budget_notification_threshold_usd": str(notification["threshold_usd"]),
-        "status": "PASS" if projected_total < cap else "FAIL",
+        "status": status,
+        "cap_message": cap_message,
         "intervals": projected_rows,
     }
 
@@ -256,6 +298,13 @@ def main() -> int:
         "manifest", type=Path, help="campaign manifest; accounting always uses the task-wide ledger"
     )
     parser.add_argument("--reserve-minutes", type=int, required=True)
+    parser.add_argument(
+        "--planned-instance-types",
+        help=(
+            "comma-separated planned host types; adds a pre-apply reserve projection "
+            "and requires no open intervals"
+        ),
+    )
     parser.add_argument("--now-utc", help="Deterministic test hook; RFC3339 UTC ending in Z")
     parser.add_argument(
         "--output", type=Path, help="Write a unique JSON check record; refuses overwrite"
@@ -282,6 +331,11 @@ def main() -> int:
             args.reserve_minutes,
             ledger_path=ledger_path,
             ledger_path_override_used=args.ledger_path is not None,
+            planned_instance_types=(
+                [part.strip() for part in args.planned_instance_types.split(",")]
+                if args.planned_instance_types is not None
+                else None
+            ),
         )
         output = json.dumps(result, indent=2, sort_keys=True) + "\n"
         if args.output:

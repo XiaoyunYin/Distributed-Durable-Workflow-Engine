@@ -26,12 +26,11 @@ case "$args" in
     if [ "$DUR050_SCENARIO" = quota ]; then quota=16; fi
     printf '{"Quota":{"QuotaArn":"arn:aws:servicequotas:us-west-1:372206265946:ec2/L-1216C47A","QuotaCode":"L-1216C47A","ServiceCode":"ec2","ServiceName":"Amazon Elastic Compute Cloud","Value":%s,"Unit":"None","Adjustable":true,"GlobalQuota":false}}\n' "$quota" ;;
   *" ec2 describe-instances "*)
-    if printf '%s' "$args" | grep -Fq 'Name=tag:Task,Values=DUR-050'; then
-      if [ "$DUR050_SCENARIO" = instance ]; then
-        printf '{"Reservations":[{"Instances":[{"InstanceId":"i-11111111111111111","InstanceType":"c7i.large","State":{"Name":"running"},"Tags":[{"Key":"Task","Value":"DUR-050"}]}]}]}\n'
-      else
-        printf '{"Reservations":[]}\n'
-      fi
+    if printf '%s' "$args" | grep -Fq 'stopping,stopped,shutting-down'; then
+      if [ "$DUR050_SCENARIO" = instance ] || [ "$DUR050_SCENARIO" = stopped-instance ]; then
+      state=running; if [ "$DUR050_SCENARIO" = stopped-instance ]; then state=stopped; fi
+      printf '{"Reservations":[{"Instances":[{"InstanceId":"i-11111111111111111","InstanceType":"c7i.large","State":{"Name":"%s"},"Tags":[{"Key":"Task","Value":"DUR-050"}]}]}]}\n' "$state"
+      else printf '{"Reservations":[]}\n'; fi
     elif [ "$DUR050_SCENARIO" = quota ]; then
       printf '{"Reservations":[{"Instances":[{"InstanceId":"i-22222222222222222","InstanceType":"m7i.4xlarge","InstanceLifecycle":null,"State":{"Name":"running"}}]}]}\n'
     else
@@ -41,7 +40,11 @@ case "$args" in
     printf '{"InstanceTypes":[{"InstanceType":"m7i.4xlarge","VCpuInfo":{"DefaultVCpus":16}}]}\n' ;;
   *" ec2 describe-volumes "*)
     if [ "$DUR050_SCENARIO" = volume ]; then
-      printf '{"Volumes":[{"VolumeId":"vol-0123456789abcdef0","State":"available","Size":40,"Tags":[{"Key":"Task","Value":"DUR-050"}]}]}\n'
+      printf '{"Volumes":[{"VolumeId":"vol-0123456789abcdef0","State":"in-use","Size":40,"Tags":[{"Key":"Task","Value":"DUR-050"}]}]}\n'
+    elif [ "$DUR050_SCENARIO" = project-volume ]; then
+      printf '{"Volumes":[{"VolumeId":"vol-0123456789abcdef2","State":"in-use","Size":40,"Tags":[{"Key":"Project","Value":"durable-engine"}]}]}\n'
+    elif [ "$DUR050_SCENARIO" = available-volume ]; then
+      printf '{"Volumes":[{"VolumeId":"vol-0123456789abcdef1","State":"available","Size":40,"Tags":[]}]}\n'
     else
       printf '{"Volumes":[]}\n'
     fi ;;
@@ -68,7 +71,8 @@ function Write-TestJson([string]$Path, $Value) {
     [IO.File]::WriteAllText($Path, (($Value | ConvertTo-Json -Depth 30) + [Environment]::NewLine), $utf8)
 }
 
-function Invoke-Gate([string]$Scenario, [string]$Name, [string]$ScriptPath, [string]$ExpectedHash, [switch]$DryRun) {
+function Invoke-Gate([string]$Scenario, [string]$Name, [string]$ScriptPath, [string]$ExpectedHash, [string]$InspectionOverridePath, [int]$ReserveMinutes = 480, [string]$LedgerOverride, [switch]$DryRun) {
+    $isMutant = -not [string]::IsNullOrWhiteSpace($ScriptPath)
     if (-not $ScriptPath) { $ScriptPath = Join-Path $PSScriptRoot 'dur050-preapply-gate.ps1' }
     $outputPath = Join-Path $temp "$Name-gate.json"
     $ledgerOutput = Join-Path $temp "$Name-ledger.json"
@@ -76,16 +80,17 @@ function Invoke-Gate([string]$Scenario, [string]$Name, [string]$ScriptPath, [str
         '-NoProfile', '-File', $ScriptPath,
         '-SavedPlanPath', $planPath,
         '-ExpectedPlanSha256', $ExpectedHash,
-        '-PlanInspectionPath', $inspectionPath,
+        '-PlanInspectionPath', $(if ($InspectionOverridePath) { $InspectionOverridePath } else { $inspectionPath }),
         '-CampaignManifestPath', $manifestPath,
         '-LedgerCheckPath', $ledgerOutput,
-        '-ReserveMinutes', '15',
+        '-ReserveMinutes', [string]$ReserveMinutes,
         '-OutputPath', $outputPath,
         '-TerraformStatePath', $statePath,
-        '-LedgerPath', $ledgerPath,
         '-RepositoryRoot', $repoRoot,
         '-PythonExe', 'python3'
     )
+    if (-not $LedgerOverride -and $isMutant) { $LedgerOverride = Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json' }
+    if ($LedgerOverride) { $arguments += @('-LedgerPath', $LedgerOverride) }
     if ($DryRun) { $arguments += '-DryRun' }
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = Join-Path $PSHOME 'pwsh'
@@ -119,6 +124,14 @@ function Assert-ControlFailed($Result, [string]$Name, [string]$MessagePattern) {
     }
 }
 
+function Assert-PlannedProjection($Record) {
+    if ($Record.ledger_check.open_interval_count -ne 0 -or [decimal]$Record.ledger_check.planned_host_projection_usd -ne [decimal]3.612) {
+        throw 'Pre-apply ledger omitted the four-host planned reserve projection.'
+    }
+    $projectedDelta = [decimal]$Record.ledger_check.projected_instance_cost_usd - [decimal]$Record.ledger_check.accrued_instance_cost_usd
+    if ([math]::Abs($projectedDelta - [decimal]3.612) -gt [decimal]0.000001) { throw "Planned-host projection delta $projectedDelta did not equal 0.4515*480/60 ($([decimal]3.612))." }
+}
+
 try {
     $campaignDir = Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f'
     $manifest = Get-Content (Join-Path $campaignDir 'cost-manifest.json') -Raw | ConvertFrom-Json
@@ -139,18 +152,6 @@ try {
 
     $sourceLedger = Get-Content (Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json') -Raw | ConvertFrom-Json
     $ledgerPath = Join-Path $temp 'task-wide-ledger.json'
-    $cheapStart = [DateTimeOffset]::UtcNow.AddMinutes(-2).ToString('yyyy-MM-ddTHH:mm:ssZ')
-    foreach ($role in @('app-1', 'app-2', 'dependency', 'load-generator')) {
-        $type = if ($role -eq 'dependency') { 'm7i.large' } else { 'c7i.large' }
-        $sourceLedger.roles.$role = @([ordered]@{
-            cycle_id = 'ci-preapply'
-            instance_id = 'i-{0}' -f [guid]::NewGuid().ToString('N').Substring(0, 17)
-            instance_type = $type
-            apply_started_at_utc = $cheapStart
-            destroy_completed_at_utc = $null
-        })
-    }
-    Write-TestJson $ledgerPath $sourceLedger
     $awsLog = Join-Path $state 'aws-calls.log'
     $ssmLog = Join-Path $state 'ssm-calls.log'
 
@@ -159,17 +160,21 @@ try {
     $record = Get-Content -LiteralPath $positive.OutputPath -Raw | ConvertFrom-Json
     if ($record.schema -ne 'dur050-pre-apply-gate.v1' -or $record.status -ne 'PASS' -or $record.account_id -ne '372206265946' -or
         $record.region -ne 'us-west-1' -or $record.planned_peak_vcpu -ne 8 -or $record.terraform_state_resource_count -ne 0 -or
-        $record.checks.dur050_inventory.instance_count -ne 0 -or $record.checks.dur050_inventory.volume_count -ne 0 -or
+        $record.checks.dur050_inventory.tagged_dur050_instance_count -ne 0 -or $record.checks.dur050_inventory.region_wide_non_terminated_instance_count -ne 0 -or $record.checks.dur050_inventory.region_wide_volume_count -ne 0 -or
         $record.checks.budget.notifications.Count -ne 3 -or @($record.checks.budget.notifications | Where-Object { $_.state -ne 'OK' -or $_.comparison_operator -ne 'GREATER_THAN' }).Count -ne 0 -or
         $record.checks.cost_allocation_tags.Task.status -ne 'Active' -or $record.checks.cost_allocation_tags.Environment.status -ne 'Active' -or
-        $record.ledger_check.reserve_minutes -ne 15 -or $record.apply_authority -ne 'NONE; Claude go/no-go required') {
+        $record.ledger_check.reserve_minutes -ne 480 -or $record.ledger_check.open_interval_count -ne 0 -or
+        [decimal]$record.ledger_check.planned_host_projection_usd -ne [decimal]3.612 -or
+        -not $record.checks.planned_host_projection.below_cap -or $record.apply_authority -ne 'NONE; Claude go/no-go required') {
         throw 'Pre-apply PASS record omitted a required observed value or authority boundary.'
     }
+    if ($record.ledger_check.ledger_path_override_used -or $record.ledger_check.ledger_path -ne 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json') { throw 'Positive pre-apply case did not use the real task-wide ledger default path.' }
+    Assert-PlannedProjection $record
     Write-Host 'PASS: account-only gate records reviewed plan, empty state/inventory, quota, budget, tags, full ledger reserve, and no apply authority.'
 
     $dryAwsCallsBefore = if (Test-Path $awsLog) { (Get-Content $awsLog).Count } else { 0 }
     $dry = Invoke-Gate -Scenario pass -Name dry-run -ExpectedHash $planHash -DryRun
-    if ($dry.ExitCode -ne 0 -or $dry.Text -notmatch 'dur050-pre-apply-gate-dry-run.v1' -or $dry.Text -notmatch 'DUR-050 pending/running instances and tagged volumes') {
+    if ($dry.ExitCode -ne 0 -or $dry.Text -notmatch 'dur050-pre-apply-gate-dry-run.v1' -or $dry.Text -notmatch 'all non-terminated instance states') {
         throw "Pre-apply DryRun failed to list planned reads: $($dry.Text)"
     }
     $dryAwsCallsAfter = if (Test-Path $awsLog) { (Get-Content $awsLog).Count } else { 0 }
@@ -184,8 +189,11 @@ try {
     Write-Host 'PASS: shared preparation/reset validator rejects dur050-pre-apply-gate.v1.'
 
     foreach ($case in @(
-        @{ scenario = 'instance'; name = 'tagged-instance'; message = 'Found 1 pending/running instance' },
+        @{ scenario = 'instance'; name = 'tagged-instance'; message = 'Found 1 non-terminated instance' },
+        @{ scenario = 'stopped-instance'; name = 'stopped-tagged-instance'; message = 'Found 1 non-terminated instance' },
         @{ scenario = 'volume'; name = 'tagged-volume'; message = 'Found 1 volume.*Task=DUR-050' },
+        @{ scenario = 'project-volume'; name = 'project-tagged-volume'; message = 'Found 1 volume.*Project=durable-engine' },
+        @{ scenario = 'available-volume'; name = 'untagged-available-volume'; message = 'available unattached EBS volume' },
         @{ scenario = 'alarm'; name = 'alarm-notification'; message = 'state is ALARM' },
         @{ scenario = 'quota'; name = 'other-account-usage-over-quota'; message = 'Current standard On-Demand use 16 plus planned 8 exceeds quota 16' },
         @{ scenario = 'tags'; name = 'inactive-cost-tag'; message = "Cost-allocation tag 'Task' is not Active" }
@@ -208,17 +216,14 @@ try {
     Write-TestJson $statePath ([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 0; resources = @() })
 
     $ledgerCopy = $sourceLedger | ConvertTo-Json -Depth 30 | ConvertFrom-Json
-    foreach ($role in @('app-1', 'app-2', 'dependency', 'load-generator')) {
-        foreach ($interval in $ledgerCopy.roles.$role) {
-            $interval.apply_started_at_utc = '2020-01-01T00:00:00Z'
-            $interval.destroy_completed_at_utc = $null
-        }
-    }
+    $ledgerCopy.roles.'app-1'[-1].destroy_completed_at_utc = $null
     Write-TestJson $ledgerPath $ledgerCopy
-    $ledgerFailure = Invoke-Gate -Scenario pass -Name ledger-fail -ExpectedHash $planHash
-    Assert-ControlFailed $ledgerFailure 'ledger-fail' 'cost-ledger check failed'
-    Write-Host 'PASS: ledger FAIL blocks the account gate.'
-    Write-TestJson $ledgerPath $sourceLedger
+    $ledgerFailure = Invoke-Gate -Scenario pass -Name ledger-open -ExpectedHash $planHash -LedgerOverride $ledgerPath
+    Assert-ControlFailed $ledgerFailure 'ledger-open' 'open_interval_count == 0'
+    Write-Host 'PASS: open task-ledger intervals block pre-apply.'
+    $longReserve = Invoke-Gate -Scenario pass -Name ledger-10080 -ExpectedHash $planHash -ReserveMinutes 10080
+    Assert-ControlFailed $longReserve 'ledger-10080' 'not below the DUR-050 cap'
+    Write-Host 'PASS: 10080-minute planned-host reserve exceeds the task cap.'
 
     $gateSource = Get-Content (Join-Path $PSScriptRoot 'dur050-preapply-gate.ps1') -Raw
     $mutantDir = Join-Path $temp 'mutant/scripts'
@@ -227,14 +232,26 @@ try {
     Copy-Item (Join-Path $PSScriptRoot 'dur050-cost-ledger.py') (Join-Path $mutantDir 'dur050-cost-ledger.py')
     Copy-Item (Join-Path $PSScriptRoot 'dur050-d022-validator.ps1') (Join-Path $mutantDir 'dur050-d022-validator.ps1')
     $hashGuard = 'if ($planHash -ne $ExpectedPlanSha256.ToUpperInvariant()) { throw "Saved plan SHA-256 does not match expected value (actual $planHash)." }'
-    $instanceGuard = 'if ($instanceRows.Count -ne 0) { throw "Found $($instanceRows.Count) pending/running instance(s) tagged Task=DUR-050." }'
+    $instanceGuard = 'if ($instanceRows.Count -ne 0) { throw "Found $($instanceRows.Count) non-terminated instance(s) tagged Task=DUR-050." }'
+    $accountGuard = 'if ([string]$identity.Account -ne ''372206265946'') { throw "AWS account $($identity.Account) does not match required account 372206265946." }'
+    $inspectionGuard = 'if ([string]$reviewedInspection.inspection_sha256 -ne $inspectionHash) {'
+    $projectionGuard = '$ledgerCheck = Invoke-Dur050LedgerCheck -PlannedInstanceTypes $plannedTypes'
     $hashMutant = $gateSource.Replace($hashGuard, '# mutation: expected-hash guard removed')
     $instanceMutant = $gateSource.Replace($instanceGuard, '# mutation: zero-instance guard removed')
-    if ($hashMutant -eq $gateSource -or $instanceMutant -eq $gateSource) { throw 'Could not apply both focused guard-removal mutations.' }
+    $accountMutant = $gateSource.Replace($accountGuard, '# mutation: early account guard removed').Replace("if (`$record.account_id -ne '372206265946' -or `$record.region -ne 'us-west-1' -or `$record.apply_authority -ne 'NONE; Claude go/no-go required') {", "if (`$record.region -ne 'us-west-1' -or `$record.apply_authority -ne 'NONE; Claude go/no-go required') {")
+    $inspectionMutant = $gateSource.Replace($inspectionGuard, 'if ($false) {')
+    $projectionMutant = $gateSource.Replace($projectionGuard, '$ledgerCheck = Invoke-Dur050LedgerCheck')
+    if ($hashMutant -eq $gateSource -or $instanceMutant -eq $gateSource -or $accountMutant -eq $gateSource -or $inspectionMutant -eq $gateSource -or $projectionMutant -eq $gateSource) { throw 'Could not apply all focused guard-removal mutations.' }
     $hashMutantPath = Join-Path $mutantDir 'dur050-preapply-hash-mutant.ps1'
     $instanceMutantPath = Join-Path $mutantDir 'dur050-preapply-instance-mutant.ps1'
+    $accountMutantPath = Join-Path $mutantDir 'dur050-preapply-account-mutant.ps1'
+    $inspectionMutantPath = Join-Path $mutantDir 'dur050-preapply-inspection-mutant.ps1'
+    $projectionMutantPath = Join-Path $mutantDir 'dur050-preapply-projection-mutant.ps1'
     [IO.File]::WriteAllText($hashMutantPath, $hashMutant, $utf8)
     [IO.File]::WriteAllText($instanceMutantPath, $instanceMutant, $utf8)
+    [IO.File]::WriteAllText($accountMutantPath, $accountMutant, $utf8)
+    [IO.File]::WriteAllText($inspectionMutantPath, $inspectionMutant, $utf8)
+    [IO.File]::WriteAllText($projectionMutantPath, $projectionMutant, $utf8)
     $expectedHashTest = Invoke-Gate -Scenario pass -Name mutant-hash-guard -ScriptPath $hashMutantPath -ExpectedHash $badHash
     if ($expectedHashTest.ExitCode -ne 0 -or (Get-Content $expectedHashTest.OutputPath -Raw | ConvertFrom-Json).status -ne 'PASS') {
         throw "Removing the plan-hash guard did not make the mismatch control pass: $($expectedHashTest.Text)"
@@ -248,9 +265,35 @@ try {
     if ($instanceMutantResult.ExitCode -ne 0 -or (Get-Content $instanceMutantResult.OutputPath -Raw | ConvertFrom-Json).status -ne 'PASS') {
         throw "Removing the zero-instance guard did not make the tagged-instance case pass: $($instanceMutantResult.Text)"
     }
-    try { Assert-ControlFailed $instanceMutantResult 'tagged-instance mutation' 'Found 1 pending/running instance' ; throw 'The tagged-instance negative assertion unexpectedly survived its guard-removal mutation.' }
+    try { Assert-ControlFailed $instanceMutantResult 'tagged-instance mutation' 'Found 1 non-terminated instance' ; throw 'The tagged-instance negative assertion unexpectedly survived its guard-removal mutation.' }
     catch { if ($_.Exception.Message -notmatch "Negative control 'tagged-instance mutation' was accepted") { throw } }
     Write-Host 'PASS: removing the zero-instance guard makes the negative assertion fail.'
+
+    $accountFailure = Invoke-Gate -Scenario account -Name wrong-account -ExpectedHash $planHash
+    Assert-ControlFailed $accountFailure 'wrong-account' 'does not match required account'
+    $accountMutantResult = Invoke-Gate -Scenario account -Name mutant-account-guard -ScriptPath $accountMutantPath -ExpectedHash $planHash
+    if ($accountMutantResult.ExitCode -ne 0 -or (Get-Content $accountMutantResult.OutputPath -Raw | ConvertFrom-Json).status -ne 'PASS') { throw "Removing account guards did not make account negative pass: $($accountMutantResult.Text)" }
+    try { Assert-ControlFailed $accountMutantResult 'account mutation' 'account' ; throw 'The account negative assertion unexpectedly survived its guard-removal mutation.' }
+    catch { if ($_.Exception.Message -notmatch "Negative control 'account mutation' was accepted") { throw } }
+    Write-Host 'PASS: account mismatch is rejected, and removing its guards makes the negative assertion fail.'
+
+    $inspectionCopyPath = Join-Path $temp 'inspection-mutated.json'
+    [IO.File]::WriteAllText($inspectionCopyPath, ([IO.File]::ReadAllText($inspectionPath) + " `n"), $utf8)
+    $inspectionFailure = Invoke-Gate -Scenario pass -Name inspection-hash-mismatch -ExpectedHash $planHash -InspectionOverridePath $inspectionCopyPath
+    Assert-ControlFailed $inspectionFailure 'inspection-hash-mismatch' 'Plan inspection SHA-256 does not match'
+    $inspectionMutantResult = Invoke-Gate -Scenario pass -Name mutant-inspection-hash -ScriptPath $inspectionMutantPath -ExpectedHash $planHash -InspectionOverridePath $inspectionCopyPath
+    if ($inspectionMutantResult.ExitCode -ne 0 -or (Get-Content $inspectionMutantResult.OutputPath -Raw | ConvertFrom-Json).status -ne 'PASS') { throw "Removing inspection hash guard did not make its negative pass: $($inspectionMutantResult.Text)" }
+    try { Assert-ControlFailed $inspectionMutantResult 'inspection hash mutation' 'inspection SHA-256' ; throw 'The inspection-hash negative assertion unexpectedly survived its guard-removal mutation.' }
+    catch { if ($_.Exception.Message -notmatch "Negative control 'inspection hash mutation' was accepted") { throw } }
+    Write-Host 'PASS: inspection-byte mismatch is rejected, and removing its hash guard makes the negative assertion fail.'
+
+    $projectionMutantResult = Invoke-Gate -Scenario pass -Name mutant-planned-projection -ScriptPath $projectionMutantPath -ExpectedHash $planHash
+    if ($projectionMutantResult.ExitCode -ne 0) { throw "Projection mutant did not reach the positive assertion: $($projectionMutantResult.Text)" }
+    $mutantRecord = Get-Content $projectionMutantResult.OutputPath -Raw | ConvertFrom-Json
+    $projectionAssertionFailed = $false
+    try { Assert-PlannedProjection $mutantRecord } catch { if ($_.Exception.Message -match 'omitted the four-host planned reserve') { $projectionAssertionFailed = $true } else { throw } }
+    if (-not $projectionAssertionFailed) { throw 'Positive planned-projection assertion survived removal of the projection guard.' }
+    Write-Host 'PASS: removing planned-host projection makes the positive projection assertion fail.'
 
     if (Test-Path $ssmLog) { throw "A forbidden SSM call was attempted: $(Get-Content $ssmLog -Raw)" }
     Write-Host 'PASS: AWS stub observed zero SSM calls across all positive, negative, and mutation cases.'

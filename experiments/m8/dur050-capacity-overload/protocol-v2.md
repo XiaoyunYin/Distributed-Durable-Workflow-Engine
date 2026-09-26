@@ -597,12 +597,20 @@ The required order is:
 3. Stop for Claude's go/no-go review of the exact plan, inspection, and gate
    record. PASS by itself is never apply authorization.
 4. Only after that review, apply the exact reviewed saved plan.
-5. After apply, run scripts/dur050-cycle-preflight.ps1 with the current
-   Terraform outputs. This separate post-apply gate performs the four-host
-   bootstrap check through SSM.
-6. Only after the post-apply gate passes, run
+5. Immediately after apply, run scripts/dur050-ledger-record.ps1 -Open with
+   the current Terraform outputs, cycle ID, and the apply-start UTC timestamp
+   captured immediately before apply. The helper checks all four EC2 IDs,
+   types, and LaunchTimes and appends intervals to the task-wide ledger.
+6. Run scripts/dur050-cycle-preflight.ps1 with those outputs. Before its
+   ledger cost check, it requires exactly those four open role/ID/type rows in
+   the same cycle. It also records whether each root EBS volume has the Task
+   tag. This separate post-apply gate performs the four-host bootstrap check
+   through SSM.
+7. Only after the post-apply gate passes, run
    scripts/dur050-prepare-pilot.ps1; preparation and paid blocks remain
    separately gated by their recorded cycle checks.
+8. After destroy completes, run scripts/dur050-ledger-record.ps1 -Close with
+   that cycle ID and the observed destroy-completion UTC timestamp.
 
 The cycle-preflight schema is not interchangeable with the pre-apply schema;
 preparation and reset reject dur050-pre-apply-gate.v1.

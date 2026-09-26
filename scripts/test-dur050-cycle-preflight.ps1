@@ -16,7 +16,23 @@ case "$args" in
   *'service-quotas get-service-quota'*)
     if [ "${DUR050_SCENARIO:-pass}" = quota ]; then quota=4; else quota=32; fi
     printf '{"Quota":{"QuotaCode":"L-1216C47A","ServiceCode":"ec2","Value":%s}}\n' "$quota" ;;
+  *'ec2 describe-instances --instance-ids'*)
+    python3 - <<'PY'
+import json
+from datetime import datetime, timezone, timedelta
+ids = [
+    ("i-11111111111111111", "c7i.large"),
+    ("i-22222222222222222", "c7i.large"),
+    ("i-0123456789abcdef0", "m7i.large"),
+    ("i-33333333333333333", "c7i.large"),
+]
+launch = (datetime.now(timezone.utc) - timedelta(seconds=30)).isoformat().replace("+00:00", "Z")
+print(json.dumps({"Reservations":[{"Instances":[{"InstanceId":i,"InstanceType":t,"LaunchTime":launch,"RootDeviceName":"/dev/xvda","State":{"Name":"running"}} for i,t in ids]}]}))
+PY
+    ;;
   *'ec2 describe-instances'*) printf '{"Reservations":[]}\n' ;;
+  *'ec2 describe-volumes'*)
+    printf '{"Volumes":[{"VolumeId":"vol-00000000000000001","State":"in-use","Tags":[{"Key":"Task","Value":"DUR-050"}],"Attachments":[{"InstanceId":"i-11111111111111111","Device":"/dev/xvda"}]},{"VolumeId":"vol-00000000000000002","State":"in-use","Tags":[{"Key":"Task","Value":"DUR-050"}],"Attachments":[{"InstanceId":"i-22222222222222222","Device":"/dev/xvda"}]},{"VolumeId":"vol-00000000000000003","State":"in-use","Tags":[{"Key":"Task","Value":"DUR-050"}],"Attachments":[{"InstanceId":"i-0123456789abcdef0","Device":"/dev/xvda"}]},{"VolumeId":"vol-00000000000000004","State":"in-use","Tags":[{"Key":"Task","Value":"DUR-050"}],"Attachments":[{"InstanceId":"i-33333333333333333","Device":"/dev/xvda"}]}]}\n' ;;
   *'budgets describe-budget'*) printf '{"Budget":{"BudgetLimit":{"Amount":"200","Unit":"USD"},"CalculatedSpend":{"ActualSpend":{"Amount":"1"},"ForecastedSpend":{"Amount":"5"}}}}\n' ;;
   *'budgets describe-notifications-for-budget'*)
     python3 - "${DUR050_SCENARIO:-pass}" <<'PY'
@@ -57,23 +73,43 @@ esac
 '@
 [IO.File]::WriteAllText((Join-Path $bin 'aws'),$aws.Replace("`r",'')+"`n",$utf8); & chmod 0755 (Join-Path $bin 'aws'); if($LASTEXITCODE){throw 'chmod aws stub failed'}
 function Write-Json([string]$Path,$Value){[IO.File]::WriteAllText($Path,(($Value|ConvertTo-Json -Depth 30)+"`n"),$utf8)}
-function Invoke-Tool([string]$Scenario,[string]$Name,[string]$PlanPath,[switch]$DryRun,[string]$Timezone){
+function Invoke-Tool([string]$Scenario,[string]$Name,[string]$PlanPath,[switch]$DryRun,[string]$Timezone,[string]$ScriptPath){
   $out=Join-Path $temp "$Name-preflight.json"; $ledgerOut=Join-Path $temp "$Name-ledger-check.json"
+  if(-not $ScriptPath){$ScriptPath=Join-Path $PSScriptRoot 'dur050-cycle-preflight.ps1'}
   $start=[Diagnostics.ProcessStartInfo]::new(); $start.FileName=Join-Path $PSHOME 'pwsh'; $start.UseShellExecute=$false; $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
-  $arguments=@('-NoProfile','-File',(Join-Path $PSScriptRoot 'dur050-cycle-preflight.ps1'),'-TerraformOutputsPath',(Join-Path $repoRoot 'tests/fixtures/dur050-terraform-outputs.json'),'-PlanInspectionPath',$PlanPath,'-CycleID','ci-r163r164','-CampaignManifestPath',$manifestPath,'-LedgerCheckPath',$ledgerOut,'-OutputPath',$out,'-ReserveMinutes','15','-LedgerPath',$ledgerPath,'-PythonExe','python3')
+  $arguments=@('-NoProfile','-File',$ScriptPath,'-TerraformOutputsPath',(Join-Path $repoRoot 'tests/fixtures/dur050-terraform-outputs.json'),'-PlanInspectionPath',$PlanPath,'-CycleID','ci-r163r164','-CampaignManifestPath',$manifestPath,'-LedgerCheckPath',$ledgerOut,'-OutputPath',$out,'-ReserveMinutes','15','-LedgerPath',$ledgerPath,'-PythonExe','python3')
   if($DryRun){$arguments+=@('-DryRun','-DryRunOutputPath',$out)}
   foreach($arg in $arguments){$start.ArgumentList.Add($arg)}
-  $start.Environment['PATH']="$bin`:/usr/bin:/bin"; $start.Environment['DUR050_SCENARIO']=$Scenario; $start.Environment['DUR050_AWS_STATE']=$state; $start.Environment['DUR050_ENABLE_TEST_LEDGER_OVERRIDE']='1'; $start.Environment['DUR050_BOOTSTRAP_ROOT']=$fakeRoot
+  $start.Environment['PATH']="$bin`:/usr/bin:/bin"; $start.Environment['DUR050_SCENARIO']=$Scenario; $start.Environment['DUR050_AWS_STATE']=$state; $start.Environment['DUR050_ENABLE_TEST_LEDGER_OVERRIDE']='1'; $start.Environment['DUR050_ENABLE_TEST_HOOKS']='1'; $start.Environment['DUR050_BOOTSTRAP_ROOT']=$fakeRoot
   if($Timezone){$start.Environment['TZ']=$Timezone}
   $proc=[Diagnostics.Process]::new(); $proc.StartInfo=$start; [void]$proc.Start(); $stdout=$proc.StandardOutput.ReadToEnd(); $stderr=$proc.StandardError.ReadToEnd(); $proc.WaitForExit()
   return [pscustomobject]@{ExitCode=$proc.ExitCode;Out=$out;Ledger=$ledgerOut;Text=($stderr+"`n"+$stdout)}
 }
+function Assert-CycleFailure($Result,[string]$Name,[string]$Pattern){
+  if($Result.ExitCode -eq 0 -or $Result.Text -notmatch $Pattern){throw "Expected $Name to fail the ledger/output cross-check: $($Result.Text)"}
+  if(-not(Test-Path $Result.Out) -or (Get-Content $Result.Out -Raw|ConvertFrom-Json).status -ne 'FAIL'){throw "$Name did not write a FAIL record."}
+}
+function Invoke-LedgerRecord([string]$Mode,[string]$Name,[string]$ApplyStart,[string]$DestroyAt,[string]$RequestedCycleID='ci-r163r164'){
+  $arguments=@('-NoProfile','-File',(Join-Path $PSScriptRoot 'dur050-ledger-record.ps1'),"-$Mode",'-CycleID',$RequestedCycleID,'-LedgerPath',$ledgerPath)
+  if($Mode -eq 'Open'){$arguments+=@('-TerraformOutputsPath',(Join-Path $repoRoot 'tests/fixtures/dur050-terraform-outputs.json'),'-ApplyStartedAtUtc',$ApplyStart)}else{$arguments+=@('-DestroyCompletedAtUtc',$DestroyAt)}
+  $start=[Diagnostics.ProcessStartInfo]::new();$start.FileName=Join-Path $PSHOME 'pwsh';$start.UseShellExecute=$false;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
+  foreach($arg in $arguments){$start.ArgumentList.Add($arg)}
+  $start.Environment['PATH']="$bin`:/usr/bin:/bin";$start.Environment['DUR050_AWS_STATE']=$state;$start.Environment['DUR050_ENABLE_TEST_LEDGER_OVERRIDE']='1'
+  $proc=[Diagnostics.Process]::new();$proc.StartInfo=$start;[void]$proc.Start();$stdout=$proc.StandardOutput.ReadToEnd();$stderr=$proc.StandardError.ReadToEnd();$proc.WaitForExit()
+  return [pscustomobject]@{ExitCode=$proc.ExitCode;Text=($stderr+"`n"+$stdout)}
+}
 try {
-  # Temporary low-cost ledger: four open intervals, isolated from campaign accounting.
   $sourceLedger=Get-Content (Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json') -Raw | ConvertFrom-Json
-  $startTime=[DateTimeOffset]::UtcNow.AddMinutes(-5).ToString('yyyy-MM-ddTHH:mm:ssZ')
-  foreach($role in @('app-1','app-2','dependency','load-generator')){$type=if($role -eq 'dependency'){'m7i.large'}else{'c7i.large'};$sourceLedger.roles.$role=@([ordered]@{cycle_id='ci-cycle-r163r164';instance_id=('i-'+[guid]::NewGuid().ToString('N').Substring(0,17));instance_type=$type;apply_started_at_utc=$startTime;destroy_completed_at_utc=$null})}
-  $ledgerPath=Join-Path $temp 'ledger.json'; Write-Json $ledgerPath $sourceLedger
+  $ledgerPath=Join-Path $temp 'ledger.json'; Copy-Item (Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json') $ledgerPath
+  $startTime=[DateTimeOffset]::UtcNow.AddMinutes(-2).ToString('o')
+  $openRecord=Invoke-LedgerRecord 'Open' 'open-ledger' $startTime $null
+  if($openRecord.ExitCode -ne 0){throw "ledger-record -Open failed: $($openRecord.Text)"}
+  $openedLedger=Get-Content $ledgerPath -Raw|ConvertFrom-Json
+  if(@($openedLedger.roles.PSObject.Properties|ForEach-Object{$_.Value}|ForEach-Object{$_}|Where-Object{$_.cycle_id -eq 'ci-r163r164' -and $null -eq $_.destroy_completed_at_utc}).Count -ne 4){throw 'ledger-record -Open did not append four open intervals.'}
+  $openedHash=(Get-FileHash $ledgerPath -Algorithm SHA256).Hash
+  $duplicateOpen=Invoke-LedgerRecord 'Open' 'duplicate-open' $startTime $null
+  if($duplicateOpen.ExitCode -eq 0 -or (Get-FileHash $ledgerPath -Algorithm SHA256).Hash -ne $openedHash){throw 'ledger-record -Open did not refuse an existing open cycle without changing the file.'}
+  Write-Host 'PASS: duplicate ledger open is refused and leaves the task-wide file byte-identical.'
   $manifest=Get-Content (Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cost-manifest.json') -Raw | ConvertFrom-Json
   $manifestPath=Join-Path $temp 'manifest.json'; Write-Json $manifestPath $manifest
   $fakeRoot=Join-Path $temp 'rootfs'; New-Item -ItemType Directory -Force -Path (Join-Path $fakeRoot 'var/lib'),(Join-Path $fakeRoot 'opt/durable-agent-execution-engine/bin')|Out-Null
@@ -84,7 +120,8 @@ try {
   $plan=Join-Path $repoRoot 'tests/fixtures/dur050-plan-inspection.json'
   $pass=Invoke-Tool 'pass' 'pass' $plan; if($pass.ExitCode -ne 0){throw "PASS fixture failed: $($pass.Text)"}
   $record=Get-Content $pass.Out -Raw | ConvertFrom-Json
-  if($record.schema -ne 'dur050-d022-preflight.v1' -or $record.status -ne 'PASS' -or $record.account_id -ne '372206265946' -or $record.region -ne 'us-west-1' -or $record.planned_peak_vcpu -ne 8 -or $record.bootstrap.Count -ne 4 -or -not $record.ledger_check.checked_at_utc){throw 'PASS record omitted required D022 fields, ledger timestamp, or one of four bootstrap results.'}
+  if($record.schema -ne 'dur050-d022-preflight.v1' -or $record.status -ne 'PASS' -or $record.account_id -ne '372206265946' -or $record.region -ne 'us-west-1' -or $record.planned_peak_vcpu -ne 8 -or $record.bootstrap.Count -ne 4 -or -not $record.ledger_check.checked_at_utc -or $record.checks.ledger_instance_crosscheck.open_interval_count -ne 4){throw "PASS record omitted required fields: schema=$($record.schema) status=$($record.status) account=$($record.account_id) region=$($record.region) peak=$($record.planned_peak_vcpu) bootstrap=$($record.bootstrap.Count) ledger=$($record.ledger_check.checked_at_utc) crosscheck=$($record.checks.ledger_instance_crosscheck|ConvertTo-Json -Compress)."}
+  if($record.checks.root_volume_tags.root_volumes.Count -ne 4 -or -not $record.checks.root_volume_tags.all_root_volumes_tagged_task_dur050){throw 'PASS record did not report all four root-volume Task tags.'}
   if($record.checks.budget.notifications.Count -ne 3 -or @($record.checks.budget.notifications|Where-Object {$_.state -ne 'OK' -or $_.comparison_operator -ne 'GREATER_THAN'}).Count -ne 0 -or $record.checks.budget.notifications[0].PSObject.Properties['subscriber_count']){throw 'Budget PASS record did not preserve observed notification states/operators without invented subscriber counts.'}
   if((Get-Content $pass.Ledger -Raw | ConvertFrom-Json).reserve_minutes -ne 15){throw 'PASS record omitted its explicit ledger reserve check.'}
   Write-Host 'PASS: D022 preflight stub checks account, quota, budget notifications, tags, ledger reserve and four bootstrap hosts.'
@@ -95,6 +132,42 @@ try {
     if($zoneRecord.status -ne 'PASS'){throw "Timezone preflight under $zone left no valid PASS record."}
     Write-Host "PASS: cycle-preflight PASS fixture self-validates under TZ=$zone."
   }
+  $validOpenLedger=Get-Content $ledgerPath -Raw|ConvertFrom-Json
+  $ledgerVariants=@(
+    @{name='no-open-intervals';value=$sourceLedger;pattern='exactly one open interval for app-1'},
+    @{name='wrong-instance-id';value=($validOpenLedger|ConvertTo-Json -Depth 30|ConvertFrom-Json);pattern='does not match Terraform instance'},
+    @{name='wrong-instance-type';value=($validOpenLedger|ConvertTo-Json -Depth 30|ConvertFrom-Json);pattern='expected c7i.large'},
+    @{name='only-three-open-intervals';value=($validOpenLedger|ConvertTo-Json -Depth 30|ConvertFrom-Json);pattern='exactly one open interval for app-2'}
+  )
+  $ledgerVariants[1].value.roles.'app-1'[-1].instance_id='i-44444444444444444'
+  $ledgerVariants[2].value.roles.'app-1'[-1].instance_type='m7i.large'
+  $ledgerVariants[3].value.roles.'app-2'=@($ledgerVariants[3].value.roles.'app-2'|Select-Object -First ($ledgerVariants[3].value.roles.'app-2'.Count-1))
+  foreach($variant in $ledgerVariants){Write-Json $ledgerPath $variant.value;$failed=Invoke-Tool 'pass' $variant.name $plan;if($variant.name -eq 'no-open-intervals'){$expected='exactly one open interval for app-1'}else{$expected=$variant.pattern};Assert-CycleFailure $failed $variant.name $expected;Write-Host "PASS: ledger/output mismatch '$($variant.name)' is recorded FAIL."}
+  $validOpenLedger|ConvertTo-Json -Depth 30|Set-Content -LiteralPath $ledgerPath -Encoding utf8
+  $mutantDir=Join-Path $temp 'mutant/scripts';New-Item -ItemType Directory -Force -Path $mutantDir|Out-Null
+  foreach($file in @('dur050-cycle-preflight.ps1','dur050-ssm-wrapper.ps1','dur050-d022-validator.ps1','dur050-d022-shared.ps1','dur050-cost-ledger.py')){Copy-Item (Join-Path $PSScriptRoot $file) (Join-Path $mutantDir $file)}
+  $cycleSource=Get-Content (Join-Path $PSScriptRoot 'dur050-cycle-preflight.ps1') -Raw
+  $crossCheckCall='$script:awsSnapshot.ledger_instance_crosscheck = Assert-Dur050LedgerMatchesOutputs -Outputs $outputs -ExpectedCycleID $CycleID'
+  $crossCheckMutant=$cycleSource.Replace($crossCheckCall,"`$script:awsSnapshot.ledger_instance_crosscheck = [ordered]@{ state = 'OK'; open_interval_count = 4 }")
+  if($crossCheckMutant -eq $cycleSource){throw 'Could not apply ledger cross-check guard-removal mutant.'}
+  $mutantPath=Join-Path $mutantDir 'dur050-cycle-preflight.ps1';[IO.File]::WriteAllText($mutantPath,$crossCheckMutant,$utf8)
+  $badIdLedger=$validOpenLedger|ConvertTo-Json -Depth 30|ConvertFrom-Json;$badIdLedger.roles.'app-1'[-1].instance_id='i-44444444444444444';Write-Json $ledgerPath $badIdLedger
+  $mutantResult=Invoke-Tool 'pass' 'mutant-ledger-crosscheck' $plan -ScriptPath $mutantPath
+  if($mutantResult.ExitCode -ne 0 -or (Get-Content $mutantResult.Out -Raw|ConvertFrom-Json).status -ne 'PASS'){throw "Removing the ledger/output cross-check did not make the mismatched ledger pass: $($mutantResult.Text)"}
+  try{Assert-CycleFailure $mutantResult 'ledger cross-check mutation' 'does not match Terraform';throw 'The ledger/output cross-check negative unexpectedly survived guard removal.'}catch{if($_.Exception.Message -notmatch 'Expected ledger cross-check mutation to fail'){throw}}
+  Write-Host 'PASS: removing the ledger/output guard makes its negative assertion fail.'
+  Write-Json (Join-Path $temp 'ledger.json') $validOpenLedger
+  $ledgerPath=Join-Path $temp 'ledger-close-test.json';Copy-Item (Join-Path $temp 'ledger.json') $ledgerPath
+  $beforeBadClose=(Get-FileHash $ledgerPath -Algorithm SHA256).Hash
+  $badClose=Invoke-LedgerRecord 'Close' 'bad-close' $null ([DateTimeOffset]::UtcNow.AddMinutes(1).ToString('o')) 'other-cycle'
+  if($badClose.ExitCode -eq 0 -or (Get-FileHash $ledgerPath -Algorithm SHA256).Hash -ne $beforeBadClose){throw 'Invalid ledger close changed the ledger file.'}
+  Write-Host 'PASS: invalid ledger close leaves the file byte-identical.'
+  $close=Invoke-LedgerRecord 'Close' 'close-ledger' $null ([DateTimeOffset]::UtcNow.AddMinutes(1).ToString('o'))
+  if($close.ExitCode -ne 0){throw "ledger-record -Close failed: $($close.Text)"}
+  $closed=Get-Content $ledgerPath -Raw|ConvertFrom-Json
+  if(@($closed.roles.PSObject.Properties|ForEach-Object{$_.Value}|ForEach-Object{$_}|Where-Object{$_.cycle_id -eq 'ci-r163r164' -and $null -eq $_.destroy_completed_at_utc}).Count -ne 0){throw 'ledger-record -Close left a cycle interval open.'}
+  Write-Host 'PASS: ledger-record -Close closes exactly the helper-created cycle intervals.'
+  $ledgerPath=Join-Path $temp 'ledger.json'
   $callLog=Join-Path $state 'calls.log';$callsBefore=(Get-Content $callLog).Count;$dry=Invoke-Tool 'pass' 'dry-run' $plan -DryRun;if($dry.ExitCode -ne 0){throw "Cycle-preflight dry-run failed: $($dry.Text)"};$dryRecord=Get-Content $dry.Out -Raw|ConvertFrom-Json;$callsAfter=(Get-Content $callLog).Count;if($dryRecord.classification -notmatch 'DRY RUN ONLY' -or $callsAfter -ne $callsBefore){throw 'Cycle-preflight dry-run called AWS or did not label itself review-only.'};foreach($bootstrap in $dryRecord.bootstrap_commands){$remote=$bootstrap.remote_lines -join "`n";$statusPrint=$remote.IndexOf('DUR050_CLOUD_INIT_STATUS_BEGIN');$statusGate=$remote.IndexOf('test "$cloud_init_rc" -eq 0');if($remote -notmatch 'cloud_init=\$\(cloud-init status --long 2>&1\) \|\| cloud_init_rc=\$\?' -or $statusPrint -lt 0 -or $statusGate -lt $statusPrint){throw "cloud-init status is not printed before its failure gate for $($bootstrap.role)."}};Write-Host 'PASS: dry-run emits status-preserving cloud-init checks before their failure gate, without AWS or SSM calls.'
   foreach($case in @(
     @{s='account';n='account';m='account'},
@@ -118,8 +191,9 @@ try {
     }
     Write-Host "PASS: $($case.n) preflight control fails closed."
   }
-  $expensive=$sourceLedger|ConvertTo-Json -Depth 30|ConvertFrom-Json
-  foreach($role in @('app-1','app-2','dependency','load-generator')){foreach($interval in $expensive.roles.$role){$interval.apply_started_at_utc='2026-01-01T00:00:00Z';$interval.destroy_completed_at_utc=$null}}
+  $expensive=$validOpenLedger|ConvertTo-Json -Depth 30|ConvertFrom-Json
+  $expensive.prices_usd_per_hour.'c7i.large'=100
+  $expensive.prices_usd_per_hour.'m7i.large'=100
   Write-Json $ledgerPath $expensive
   $result=Invoke-Tool 'pass' 'ledger-cap' $plan
   if($result.ExitCode -eq 0 -or $result.Text -notmatch 'cost-ledger'){throw 'Projected spend above the DUR-050 cap was accepted.'}

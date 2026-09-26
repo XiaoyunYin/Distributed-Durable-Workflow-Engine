@@ -49,11 +49,56 @@ function Get-Dur050HostSet($Outputs) {
         throw 'Terraform outputs must contain four distinct canonical EC2 instance IDs.'
     }
     return @(
-        [pscustomobject]@{ role = 'app-1'; instance_id = [string]$appIds[0]; generator = $false },
-        [pscustomobject]@{ role = 'app-2'; instance_id = [string]$appIds[1]; generator = $false },
-        [pscustomobject]@{ role = 'dependency'; instance_id = $dependencyId; generator = $false },
-        [pscustomobject]@{ role = 'load-generator'; instance_id = [string]$generatorIds[0]; generator = $true }
+        [pscustomobject]@{ role = 'app-1'; instance_id = [string]$appIds[0]; instance_type = 'c7i.large'; generator = $false },
+        [pscustomobject]@{ role = 'app-2'; instance_id = [string]$appIds[1]; instance_type = 'c7i.large'; generator = $false },
+        [pscustomobject]@{ role = 'dependency'; instance_id = $dependencyId; instance_type = 'm7i.large'; generator = $false },
+        [pscustomobject]@{ role = 'load-generator'; instance_id = [string]$generatorIds[0]; instance_type = 'c7i.large'; generator = $true }
     )
+}
+
+function Assert-Dur050LedgerMatchesOutputs($Outputs, [string]$ExpectedCycleID) {
+    $ledgerFile = if ($LedgerPath) { $LedgerPath } else { Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json' }
+    if (-not (Test-Path -LiteralPath $ledgerFile -PathType Leaf)) { throw "Task-wide ledger is missing: $ledgerFile" }
+    $ledger = Get-Content -LiteralPath $ledgerFile -Raw | ConvertFrom-Json -ErrorAction Stop
+    if ([string]$ledger.schema -ne 'dur050-task-cost-ledger.v1' -or [string]$ledger.task_id -ne 'DUR-050') { throw 'Task-wide ledger has an unsupported schema or task ID.' }
+    $expected = @(Get-Dur050HostSet $Outputs)
+    $observed = @()
+    foreach ($hostSpec in $expected) {
+        $rows = @($ledger.roles.($hostSpec.role) | Where-Object { $null -eq $_.destroy_completed_at_utc })
+        if ($rows.Count -ne 1) { throw "Ledger must contain exactly one open interval for $($hostSpec.role); found $($rows.Count)." }
+        $row = $rows[0]
+        if ([string]$row.instance_id -ne $hostSpec.instance_id) { throw "Open ledger interval for $($hostSpec.role) does not match Terraform instance $($hostSpec.instance_id)." }
+        if ([string]$row.instance_type -ne $hostSpec.instance_type) { throw "Open ledger interval for $($hostSpec.role) has type $($row.instance_type), expected $($hostSpec.instance_type)." }
+        if ([string]$row.cycle_id -ne $ExpectedCycleID) { throw "Open ledger interval for $($hostSpec.role) has a different cycle_id." }
+        $observed += [ordered]@{ role = $hostSpec.role; instance_id = $hostSpec.instance_id; instance_type = $hostSpec.instance_type; cycle_id = [string]$row.cycle_id }
+    }
+    $otherOpen = @()
+    foreach ($role in @('app-1','app-2','dependency','load-generator')) {
+        $otherOpen += @($ledger.roles.$role | Where-Object { $null -eq $_.destroy_completed_at_utc -and [string]$_.cycle_id -ne $ExpectedCycleID })
+    }
+    if ($otherOpen.Count -ne 0) { throw 'Task-wide ledger contains open intervals from another cycle.' }
+    return [ordered]@{ state = 'OK'; path = [System.IO.Path]::GetFullPath($ledgerFile); expected_cycle_id = $ExpectedCycleID; open_interval_count = $observed.Count; hosts = $observed }
+}
+
+function Get-Dur050RootVolumeObservation($Hosts) {
+    $instanceIds = @($Hosts | ForEach-Object { $_.instance_id })
+    $instances = Invoke-Dur050AwsJson (@('ec2','describe-instances','--instance-ids') + $instanceIds + @('--output','json'))
+    $instanceRows = @($instances.Reservations | ForEach-Object { $_.Instances } | ForEach-Object { $_ })
+    $volumes = Invoke-Dur050AwsJson (@('ec2','describe-volumes','--filters','Name=attachment.instance-id,Values=' + ($instanceIds -join ','),'--output','json'))
+    $rootRows = @()
+    foreach ($hostSpec in $Hosts) {
+        $instance = @($instanceRows | Where-Object { [string]$_.InstanceId -eq $hostSpec.instance_id })
+        if ($instance.Count -ne 1) { throw "Cannot identify exactly one applied EC2 instance for root-volume audit: $($hostSpec.instance_id)." }
+        $rootDevice = [string]$instance[0].RootDeviceName
+        if (-not $rootDevice) { throw "EC2 did not report RootDeviceName for $($hostSpec.instance_id)." }
+        $matchingVolumes = @($volumes.Volumes | Where-Object {
+            @($_.Attachments | Where-Object { [string]$_.InstanceId -eq $hostSpec.instance_id -and [string]$_.Device -eq $rootDevice }).Count -gt 0
+        })
+        if ($matchingVolumes.Count -ne 1) { throw "Cannot identify exactly one root EBS volume for $($hostSpec.instance_id) at $rootDevice." }
+        $taskTag = @($matchingVolumes[0].Tags | Where-Object Key -eq 'Task' | Select-Object -First 1)
+        $rootRows += [ordered]@{ role = $hostSpec.role; instance_id = $hostSpec.instance_id; root_device = $rootDevice; volume_id = [string]$matchingVolumes[0].VolumeId; task_tag_present = ($taskTag.Count -gt 0); task_tag_value = if ($taskTag.Count -gt 0) { [string]$taskTag[0].Value } else { $null } }
+    }
+    return [ordered]@{ root_volumes = $rootRows; all_root_volumes_tagged_task_dur050 = (@($rootRows | Where-Object { -not $_.task_tag_present -or $_.task_tag_value -ne 'DUR-050' }).Count -eq 0) }
 }
 
 function Get-Dur050PeakVcpu($Plan) {
@@ -109,8 +154,9 @@ function Invoke-Dur050SsmBootstrap($HostSpec) {
         if (-not $commandId) { throw "SSM did not return a command ID for $($HostSpec.role)." }
         $deadline = [DateTimeOffset]::UtcNow.AddMinutes($SsmTimeoutMinutes)
         $result = $null
+        $pollMilliseconds = if ($env:DUR050_ENABLE_TEST_HOOKS -eq '1') { 20 } else { 2000 }
         do {
-            Start-Sleep -Seconds 2
+            Start-Sleep -Milliseconds $pollMilliseconds
             try { $result = Invoke-Dur050AwsJson @('ssm', 'get-command-invocation', '--command-id', $commandId, '--instance-id', $HostSpec.instance_id, '--output', 'json') }
             catch { if ([DateTimeOffset]::UtcNow -ge $deadline) { throw }; continue }
             if ($result.Status -in @('Success', 'Failed', 'Cancelled', 'TimedOut', 'Undeliverable', 'Terminated')) { break }
@@ -143,6 +189,7 @@ try {
     $planInspection = Get-Content -LiteralPath $PlanInspectionPath -Raw | ConvertFrom-Json -ErrorAction Stop
     $plannedVcpu = Get-Dur050PeakVcpu $planInspection
     $script:plannedVcpu = $plannedVcpu
+    $script:awsSnapshot.ledger_instance_crosscheck = Assert-Dur050LedgerMatchesOutputs -Outputs $outputs -ExpectedCycleID $CycleID
     $ledgerCheck = Invoke-Dur050LedgerCheck
 
     $bootstrapCommands = @($hosts | ForEach-Object {
@@ -163,6 +210,7 @@ try {
         checks = [ordered]@{}
         bootstrap = @()
     }
+    $baseRecord.checks.ledger_instance_crosscheck = $script:awsSnapshot.ledger_instance_crosscheck
 
     if ($DryRun) {
         $dry = [ordered]@{
@@ -209,6 +257,9 @@ try {
     $tags = Invoke-Dur050AwsJson -Arguments @('ce', 'list-cost-allocation-tags', '--tag-keys', 'Task', 'Environment', '--output', 'json') -Region 'us-east-1'
     $baseRecord.checks.cost_allocation_tags = Test-Dur050CostAllocationTags $tags
     $script:awsSnapshot.cost_allocation_tags = $baseRecord.checks.cost_allocation_tags
+
+    $baseRecord.checks.root_volume_tags = Get-Dur050RootVolumeObservation -Hosts $hosts
+    $script:awsSnapshot.root_volume_tags = $baseRecord.checks.root_volume_tags
 
     foreach ($hostSpec in $hosts) { [void](Invoke-Dur050SsmBootstrap $hostSpec) }
     $baseRecord.bootstrap = @($script:remoteCalls)

@@ -123,14 +123,33 @@ function Assert-Dur050PlanInspection($Inspection, [string]$ActualPlanHash, $Mani
 
 function Test-Dur050NoTaggedResources($Instances, $Volumes) {
     $reservationInstances = @($Instances.Reservations | ForEach-Object { $_.Instances } | ForEach-Object { $_ })
-    $active = @($reservationInstances | Where-Object { $_.State.Name -in @('pending', 'running') })
-    $taggedVolumes = @($Volumes.Volumes)
-    $instanceRows = @($active | ForEach-Object { [ordered]@{ instance_id = [string]$_.InstanceId; state = [string]$_.State.Name; instance_type = [string]$_.InstanceType } })
-    $volumeRows = @($taggedVolumes | ForEach-Object { [ordered]@{ volume_id = [string]$_.VolumeId; state = [string]$_.State; size_gib = [int]$_.Size } })
-    $snapshot = [ordered]@{ task_tag = 'DUR-050'; instance_filter_states = @('pending', 'running'); instance_count = $instanceRows.Count; instances = $instanceRows; volume_count = $volumeRows.Count; volumes = $volumeRows; state = 'OK' }
+    $states = @('pending', 'running', 'stopping', 'stopped', 'shutting-down')
+    $nonTerminated = @($reservationInstances | Where-Object { $_.State.Name -in $states })
+    $taskInstances = @($nonTerminated | Where-Object { @($_.Tags | Where-Object { $_.Key -eq 'Task' -and $_.Value -eq 'DUR-050' }).Count -gt 0 })
+    $allVolumes = @($Volumes.Volumes)
+    $forbiddenVolumes = @($allVolumes | Where-Object {
+        $tags = @($_.Tags)
+        (@($tags | Where-Object { $_.Key -eq 'Task' -and $_.Value -eq 'DUR-050' }).Count -gt 0) -or
+        (@($tags | Where-Object { $_.Key -eq 'Project' -and $_.Value -eq 'durable-engine' }).Count -gt 0) -or
+        ([string]$_.State -eq 'available')
+    })
+    $instanceRows = @($taskInstances | ForEach-Object { [ordered]@{ instance_id = [string]$_.InstanceId; state = [string]$_.State.Name; instance_type = [string]$_.InstanceType } })
+    $volumeRows = @($forbiddenVolumes | ForEach-Object { [ordered]@{ volume_id = [string]$_.VolumeId; state = [string]$_.State; size_gib = [int]$_.Size; tags = @($_.Tags) } })
+    $snapshot = [ordered]@{
+        task_tag = 'DUR-050'; instance_filter_states = $states
+        region_wide_non_terminated_instance_count = $nonTerminated.Count
+        region_wide_volume_count = $allVolumes.Count
+        tagged_dur050_instance_count = $instanceRows.Count; instances = $instanceRows
+        forbidden_volume_count = $volumeRows.Count; volumes = $volumeRows; state = 'OK'
+    }
     $script:observed.dur050_inventory = $snapshot
-    if ($instanceRows.Count -ne 0) { throw "Found $($instanceRows.Count) pending/running instance(s) tagged Task=DUR-050." }
-    if ($volumeRows.Count -ne 0) { throw "Found $($volumeRows.Count) volume(s) tagged Task=DUR-050." }
+    if ($instanceRows.Count -ne 0) { throw "Found $($instanceRows.Count) non-terminated instance(s) tagged Task=DUR-050." }
+    $taskVolumes = @($volumeRows | Where-Object { @($_.tags | Where-Object { $_.Key -eq 'Task' -and $_.Value -eq 'DUR-050' }).Count -gt 0 })
+    if ($taskVolumes.Count -ne 0) { throw "Found $($taskVolumes.Count) volume(s) tagged Task=DUR-050." }
+    $projectVolumes = @($volumeRows | Where-Object { @($_.tags | Where-Object { $_.Key -eq 'Project' -and $_.Value -eq 'durable-engine' }).Count -gt 0 })
+    if ($projectVolumes.Count -ne 0) { throw "Found $($projectVolumes.Count) volume(s) tagged Project=durable-engine." }
+    $availableVolumes = @($volumeRows | Where-Object state -eq 'available')
+    if ($availableVolumes.Count -ne 0) { throw "Found $($availableVolumes.Count) available unattached EBS volume(s) in $script:region." }
     return $snapshot
 }
 
@@ -213,9 +232,9 @@ function Invoke-Dur050PreApplyGate {
             throw
         }
 
-        $taggedInstances = Invoke-Dur050AwsJson @('ec2', 'describe-instances', '--filters', 'Name=tag:Task,Values=DUR-050', 'Name=instance-state-name,Values=pending,running', '--output', 'json')
-        $taggedVolumes = Invoke-Dur050AwsJson @('ec2', 'describe-volumes', '--filters', 'Name=tag:Task,Values=DUR-050', '--output', 'json')
-        $script:observed.dur050_inventory = Test-Dur050NoTaggedResources -Instances $taggedInstances -Volumes $taggedVolumes
+        $regionalInstances = Invoke-Dur050AwsJson @('ec2', 'describe-instances', '--filters', 'Name=instance-state-name,Values=pending,running,stopping,stopped,shutting-down', '--output', 'json')
+        $regionalVolumes = Invoke-Dur050AwsJson @('ec2', 'describe-volumes', '--output', 'json')
+        $script:observed.dur050_inventory = Test-Dur050NoTaggedResources -Instances $regionalInstances -Volumes $regionalVolumes
 
         $budget = Invoke-Dur050AwsJson @('budgets', 'describe-budget', '--account-id', '372206265946', '--budget-name', 'durable-engine-D022-aggregate-20260923', '--output', 'json')
         $notifications = Invoke-Dur050AwsJson @('budgets', 'describe-notifications-for-budget', '--account-id', '372206265946', '--budget-name', 'durable-engine-D022-aggregate-20260923', '--output', 'json')
@@ -236,8 +255,19 @@ function Invoke-Dur050PreApplyGate {
         $script:observed.cost_allocation_tags_response = $tags
         $script:observed.cost_allocation_tags = Test-Dur050CostAllocationTags $tags
 
-        $ledgerCheck = Invoke-Dur050LedgerCheck
+        $plannedTypes = @()
+        for ($i = 0; $i -lt [int]$script:observed.plan_inspection.c7i_large; $i++) { $plannedTypes += 'c7i.large' }
+        for ($i = 0; $i -lt [int]$script:observed.plan_inspection.m7i_large; $i++) { $plannedTypes += 'm7i.large' }
+        $ledgerCheck = Invoke-Dur050LedgerCheck -PlannedInstanceTypes $plannedTypes
+        if ($ledgerCheck.open_interval_count -ne 0) { throw 'Pre-apply ledger requires open_interval_count == 0.' }
         $script:observed.ledger_check = $ledgerCheck
+        $script:observed.planned_host_projection = [ordered]@{
+            instance_types = $plannedTypes
+            reserve_minutes = $ReserveMinutes
+            projected_usd = $ledgerCheck.planned_host_projection_usd
+            total_projected_usd = $ledgerCheck.projected_instance_cost_usd
+            below_cap = ([decimal]$ledgerCheck.projected_instance_cost_usd -lt [decimal]$ledgerCheck.budget_cap_usd)
+        }
         $record = [ordered]@{
             schema = 'dur050-pre-apply-gate.v1'
             status = 'PASS'
@@ -315,10 +345,10 @@ if ($DryRun) {
             [ordered]@{ source = 'local'; item = 'plan inspection JSON and SHA-256' },
             [ordered]@{ source = 'local'; item = 'DUR-050 campaign manifest and repo_ref' },
             [ordered]@{ source = 'local'; item = "Terraform state JSON at $([System.IO.Path]::GetFullPath($TerraformStatePath))" },
-            [ordered]@{ source = 'AWS us-west-1'; item = 'STS identity, EC2 quota, current regional standard on-demand instance use, DUR-050 pending/running instances and tagged volumes' },
+            [ordered]@{ source = 'AWS us-west-1'; item = 'STS identity, EC2 quota, current regional standard on-demand instance use, all non-terminated instance states, region-wide volume count, DUR-050/Project volumes, and unattached available volumes' },
             [ordered]@{ source = 'AWS us-west-1'; item = 'D022 USD 200 budget and exactly three notifications' },
             [ordered]@{ source = 'AWS us-east-1'; item = 'Task and Environment cost-allocation tag activation status' },
-            [ordered]@{ source = 'local'; item = "task-wide ledger and campaign manifest, with $ReserveMinutes minute reserve" }
+            [ordered]@{ source = 'local'; item = "closed task-wide ledger and campaign manifest, with $ReserveMinutes minute reserve plus projected 3 c7i.large and 1 m7i.large host cost" }
         )
         forbidden = @('SSM', 'Terraform plan/apply', 'AWS mutations')
         apply_authority = 'NONE; Claude go/no-go required'

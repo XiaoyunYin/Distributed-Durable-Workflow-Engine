@@ -87,8 +87,9 @@ the limits of these measurements are documented in the campaign records and
 
 The pending DUR-050 provisioning workflow keeps account checks separate from
 host bootstrap: live plan → account-only pre-apply D022 gate → Claude go/no-go
-→ apply → post-apply cycle preflight → preparation. A gate PASS is not apply
-authority; the pre-apply record explicitly requires the independent review.
+→ apply → ledger-record `-Open` → post-apply cycle preflight → preparation →
+destroy → ledger-record `-Close`. A gate PASS is not apply authority; the
+pre-apply record explicitly requires the independent review.
 
 ### Scoped recovery case study
 

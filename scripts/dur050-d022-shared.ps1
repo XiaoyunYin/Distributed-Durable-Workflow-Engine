@@ -11,19 +11,24 @@ function Invoke-Dur050AwsJson {
 }
 
 function Invoke-Dur050LedgerCheck {
+    param([string[]]$PlannedInstanceTypes)
     $ledgerScript = Join-Path $PSScriptRoot 'dur050-cost-ledger.py'
     $args = @($ledgerScript, $CampaignManifestPath, '--reserve-minutes', [string]$ReserveMinutes, '--output', $LedgerCheckPath)
     if ($LedgerPath) { $args += @('--ledger-path', $LedgerPath) }
+    if ($PlannedInstanceTypes) { $args += @('--planned-instance-types', ($PlannedInstanceTypes -join ',')) }
     $output = & $PythonExe @args 2>&1 | Out-String
     $exit = $LASTEXITCODE
     $parsed = $null
     try { $parsed = $output | ConvertFrom-Json -ErrorAction Stop } catch { }
-    if ($exit -ne 0 -or $parsed.status -ne 'PASS') { throw "Task-wide cost-ledger check failed (exit $exit): $output" }
+    if ($exit -ne 0 -or $parsed.status -ne 'PASS') {
+        if ($parsed.status -eq 'FAIL' -and $parsed.cap_message) { throw "Task-wide cost-ledger check failed: $($parsed.cap_message)." }
+        throw "Task-wide cost-ledger check failed (exit $exit): $output"
+    }
     $ledgerCheckedAt = $parsed.checked_at_utc
     if ($ledgerCheckedAt -is [DateTime]) { $ledgerCheckedAt = $ledgerCheckedAt.ToUniversalTime().ToString('o') }
     if ($ledgerCheckedAt -is [DateTimeOffset]) { $ledgerCheckedAt = $ledgerCheckedAt.ToUniversalTime().ToString('o') }
     if ([string]$ledgerCheckedAt -notmatch '(?:Z|[+-][0-9]{2}:[0-9]{2})$') { throw 'Task-wide ledger check omitted checked_at_utc with an explicit UTC offset.' }
-    return [ordered]@{ status = 'PASS'; path = [System.IO.Path]::GetFullPath($LedgerCheckPath); checked_at_utc = [string]$ledgerCheckedAt; reserve_minutes = $ReserveMinutes; ledger_path = $parsed.ledger_path_used; ledger_path_override_used = [bool]$parsed.ledger_path_override_used; projected_instance_cost_usd = $parsed.projected_instance_cost_usd; budget_cap_usd = $parsed.budget_cap_usd; check_schema = $parsed.schema }
+    return [ordered]@{ status = 'PASS'; path = [System.IO.Path]::GetFullPath($LedgerCheckPath); checked_at_utc = [string]$ledgerCheckedAt; reserve_minutes = $ReserveMinutes; ledger_path = $parsed.ledger_path_used; ledger_path_override_used = [bool]$parsed.ledger_path_override_used; open_interval_count = [int]$parsed.open_interval_count; accrued_instance_cost_usd = $parsed.accrued_instance_cost_usd; next_block_reserve_usd = $parsed.next_block_reserve_usd; projected_instance_cost_usd = $parsed.projected_instance_cost_usd; planned_host_projection_usd = $parsed.planned_host_projection_usd; planned_host_projection = @($parsed.planned_host_projection); budget_cap_usd = $parsed.budget_cap_usd; check_schema = $parsed.schema }
 }
 
 function Test-Dur050Budget($Budget, $Notifications) {
