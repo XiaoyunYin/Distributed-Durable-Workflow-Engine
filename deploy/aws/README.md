@@ -92,7 +92,10 @@ verify the Kafka worker group has active consumer assignment, submit and drain
 warmups, and retain the per-block reset and database snapshot artifacts before
 measured work begins. The protocol-matched warmup submitter and its eight fresh
 workflow IDs are supplied for each block; the reset script fails if the IDs
-are missing, duplicated, or do not drain to terminal state.
+are missing, duplicated, or do not drain to terminal state. Pass the planned
+maximum block duration as `-BlockDurationMinutes`; reset rejects a preflight
+whose age plus that duration exceeds its recorded positive ledger reserve (and
+still enforces the 240-minute outer freshness cap).
 
 Before preparation and again before every paid block, generate the current
 cycle's read-only gate record with `scripts/dur050-cycle-preflight.ps1`. Supply

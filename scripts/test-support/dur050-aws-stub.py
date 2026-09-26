@@ -35,9 +35,9 @@ elif args[:2] == ["budgets", "describe-budget"]:
     emit({"Budget": {"BudgetLimit": {"Amount": "200", "Unit": "USD"}, "CalculatedSpend": {"ActualSpend": {"Amount": "1"}, "ForecastedSpend": {"Amount": "5"}}}})
 elif args[:2] == ["budgets", "describe-notifications-for-budget"]:
     rows = [
-        {"NotificationType": "ACTUAL", "ThresholdType": "ABSOLUTE_VALUE", "Threshold": 160, "Subscribers": [{"Address": "redacted"}]},
-        {"NotificationType": "ACTUAL", "ThresholdType": "ABSOLUTE_VALUE", "Threshold": 76.47, "Subscribers": [{"Address": "redacted"}]},
-        {"NotificationType": "FORECASTED", "ThresholdType": "ABSOLUTE_VALUE", "Threshold": 160, "Subscribers": [{"Address": "redacted"}]},
+        {"NotificationType": "ACTUAL", "ComparisonOperator": "GREATER_THAN", "Threshold": 160, "ThresholdType": "ABSOLUTE_VALUE", "NotificationState": "OK"},
+        {"NotificationType": "ACTUAL", "ComparisonOperator": "GREATER_THAN", "Threshold": 76.47, "ThresholdType": "ABSOLUTE_VALUE", "NotificationState": "OK"},
+        {"NotificationType": "FORECASTED", "ComparisonOperator": "GREATER_THAN", "Threshold": 160, "ThresholdType": "ABSOLUTE_VALUE", "NotificationState": "OK"},
     ]
     emit({"Notifications": rows[:2] if scenario == "budget" else rows})
 elif args[:2] == ["ce", "list-cost-allocation-tags"]:

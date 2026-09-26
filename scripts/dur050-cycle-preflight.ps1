@@ -155,12 +155,26 @@ function Test-Dur050Budget($Budget, $Notifications) {
         'ACTUAL|ABSOLUTE_VALUE|76.47',
         'FORECASTED|ABSOLUTE_VALUE|160'
     )
-    $observed = @($Notifications.Notifications | ForEach-Object { '{0}|{1}|{2}' -f $_.NotificationType, $_.ThresholdType, ([decimal]$_.Threshold).ToString('0.##', [Globalization.CultureInfo]::InvariantCulture) } | Sort-Object)
+    $items = @($Notifications.Notifications)
+    $observed = @($items | ForEach-Object { '{0}|{1}|{2}' -f $_.NotificationType, $_.ThresholdType, ([decimal]$_.Threshold).ToString('0.##', [Globalization.CultureInfo]::InvariantCulture) } | Sort-Object)
     if ($observed.Count -ne 3 -or (($observed -join ',') -ne (@($expected | Sort-Object) -join ','))) { throw 'D022 notification set does not exactly match the three approved ACTUAL/FORECASTED thresholds.' }
     $rows = foreach ($item in $Notifications.Notifications) {
-        $subscriberCount = @($item.Subscribers).Count
-        if ($subscriberCount -lt 1) { throw "Budget notification $($item.NotificationType) $($item.Threshold) has no subscriber." }
-        [ordered]@{ type = $item.NotificationType; threshold_type = $item.ThresholdType; threshold_usd = [decimal]$item.Threshold; subscriber_count = $subscriberCount; state = 'OK' }
+        if ($null -eq $item.PSObject.Properties['NotificationState'] -or [string]::IsNullOrWhiteSpace([string]$item.NotificationState)) {
+            throw "Budget notification $($item.NotificationType) $($item.Threshold) is missing NotificationState."
+        }
+        if ([string]$item.NotificationState -ne 'OK') {
+            throw "Budget notification $($item.NotificationType) $($item.Threshold) state is $($item.NotificationState), expected OK."
+        }
+        if ([string]$item.ComparisonOperator -ne 'GREATER_THAN') {
+            throw "Budget notification $($item.NotificationType) $($item.Threshold) ComparisonOperator is '$($item.ComparisonOperator)', expected GREATER_THAN."
+        }
+        [ordered]@{
+            type = [string]$item.NotificationType
+            comparison_operator = [string]$item.ComparisonOperator
+            threshold_type = [string]$item.ThresholdType
+            threshold_usd = [decimal]$item.Threshold
+            state = [string]$item.NotificationState
+        }
     }
     return [ordered]@{ name = 'durable-engine-D022-aggregate-20260923'; limit_usd = $budgetLimit; actual_spend_usd = [decimal]$Budget.Budget.CalculatedSpend.ActualSpend.Amount; forecasted_spend_usd = [decimal]$Budget.Budget.CalculatedSpend.ForecastedSpend.Amount; notifications = @($rows) }
 }
@@ -255,6 +269,15 @@ try {
 
     $budget = Invoke-Dur050AwsJson @('budgets', 'describe-budget', '--account-id', '372206265946', '--budget-name', 'durable-engine-D022-aggregate-20260923', '--output', 'json')
     $notifications = Invoke-Dur050AwsJson @('budgets', 'describe-notifications-for-budget', '--account-id', '372206265946', '--budget-name', 'durable-engine-D022-aggregate-20260923', '--output', 'json')
+    $script:awsSnapshot.budget_notification_observations = @($notifications.Notifications | ForEach-Object {
+        [ordered]@{
+            notification_type = [string]$_.NotificationType
+            comparison_operator = [string]$_.ComparisonOperator
+            threshold_type = [string]$_.ThresholdType
+            threshold_usd = if ($null -eq $_.Threshold) { $null } else { [decimal]$_.Threshold }
+            state = if ($null -eq $_.PSObject.Properties['NotificationState']) { $null } else { [string]$_.NotificationState }
+        }
+    })
     $baseRecord.checks.budget = Test-Dur050Budget $budget $notifications
     $script:awsSnapshot.budget = $baseRecord.checks.budget
 
@@ -275,14 +298,23 @@ try {
     $baseRecord.bootstrap = @($script:remoteCalls)
     $baseRecord.checked_at_utc = [DateTimeOffset]::UtcNow.ToString('o')
     $baseRecord.status = 'PASS'
-    Write-Dur050Json $OutputPath $baseRecord
+    $outputParent = Split-Path -Parent $OutputPath
+    if ($outputParent) { New-Item -ItemType Directory -Force -Path $outputParent | Out-Null }
+    $script:passTempPath = "$OutputPath.$([guid]::NewGuid().ToString('N')).tmp"
+    Write-Dur050Json $script:passTempPath $baseRecord
+    [void](Read-Dur050D022Preflight -Path $script:passTempPath -CycleID $CycleID)
+    [System.IO.File]::Move($script:passTempPath, $OutputPath)
+    $script:passTempPath = $null
     $script:cycleRecordWritten = $true
-    [void](Read-Dur050D022Preflight -Path $OutputPath -CycleID $CycleID)
     $baseRecord | ConvertTo-Json -Depth 24
     Write-Host 'DUR-050 D022 cycle preflight PASS.'
     exit 0
 } catch {
     $errorMessage = $_.Exception.Message
+    if ($script:passTempPath -and (Test-Path -LiteralPath $script:passTempPath)) {
+        Remove-Item -LiteralPath $script:passTempPath -Force -ErrorAction SilentlyContinue
+        $script:passTempPath = $null
+    }
     $failure = [ordered]@{
         schema = 'dur050-d022-preflight.v1'
         status = 'FAIL'

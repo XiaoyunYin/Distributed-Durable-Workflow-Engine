@@ -68,6 +68,10 @@ jobs:
         shell: pwsh
         run: ./scripts/test-dur050-reset-stages.ps1
 
+      - name: Lint PowerShell array concatenation precedence
+        shell: pwsh
+        run: ./scripts/test-dur050-powershell-ast-lint.ps1
+
       - name: Test DUR-050 D022 cycle preflight controls
         shell: pwsh
         run: ./scripts/test-dur050-cycle-preflight.ps1

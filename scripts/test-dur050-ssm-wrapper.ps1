@@ -39,12 +39,13 @@ try {
     }
     $resetSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot "dur050-reset-block.ps1") -Raw
     $ssmInvokerSource = Get-Content -LiteralPath (Join-Path $PSScriptRoot "dur050-invoke-ssm-command.ps1") -Raw
-    if ($resetSource -notmatch '\$wrappedCommand\s*=\s*New-Dur050SsmBashCommand' -or
+    if ($resetSource -notmatch '\$wrappedCommand\s*=\s*\[string\]\$StagePlanEntry\.wrapped_command' -or
         $resetSource -notmatch 'commands\s*=\s*@\(\$wrappedCommand\)' -or
-        $ssmInvokerSource -notmatch 'New-Dur050SsmBashCommand') {
+        $ssmInvokerSource -notmatch 'New-Dur050SsmBashCommand' -or
+        $resetSource -notmatch '\$stagePlan\s*=\s*@\(\$stagePlan\s*\|\s*ForEach-Object') {
         throw "A DUR-050 SSM path bypasses the shared Bash wrapper."
     }
-    if ($resetSource -notmatch 'function\s+Get-Dur050ResetStageLines' -or $resetSource -notmatch 'Invoke-Ssm\s+\$stage\.stage\s+\$stage\.instance_id') {
+    if ($resetSource -notmatch 'function\s+Get-Dur050ResetStageLines' -or $resetSource -notmatch 'Invoke-Ssm\s+\$stage\b') {
         throw 'Reset stage bodies must be constructed by Get-Dur050ResetStageLines and dispatched by the generic Invoke-Ssm loop.'
     }
 

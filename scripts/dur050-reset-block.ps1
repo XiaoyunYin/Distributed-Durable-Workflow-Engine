@@ -15,6 +15,7 @@ param(
     [Parameter(Mandatory)] [string]$WarmupWorkflowIDsPath,
     [Parameter(Mandatory)] [string]$ObserverBinaryPath,
     [Parameter(Mandatory)] [string]$OutputDirectory,
+    [Parameter(Mandatory)] [ValidateRange(1, 1440)] [int]$BlockDurationMinutes,
     [ValidateSet("ON", "OFF")] [string]$AdmissionGateMode = "ON",
     [ValidateSet("0", "1")] [string]$TransactionTimingCapture = "0",
     [switch]$StagePlanOnly,
@@ -46,10 +47,15 @@ function Invoke-AwsJson([string[]]$Arguments) {
     return ($raw | ConvertFrom-Json)
 }
 
-function Invoke-Ssm([string]$Stage, [string]$InstanceID, [string]$InstanceRole, [string[]]$RemoteLines) {
+function Invoke-Ssm([pscustomobject]$StagePlanEntry) {
+    $Stage = [string]$StagePlanEntry.stage
+    $InstanceID = [string]$StagePlanEntry.instance_id
+    $InstanceRole = [string]$StagePlanEntry.instance_role
+    $RemoteLines = [string[]]$StagePlanEntry.remote_lines
     $started = [DateTime]::UtcNow
     $inputFile = Join-Path $OutputDirectory ("ssm-{0}-{1}.json" -f $Stage, $InstanceID)
-    $wrappedCommand = New-Dur050SsmBashCommand -Stage $Stage -RemoteLines $RemoteLines
+    $wrappedCommand = [string]$StagePlanEntry.wrapped_command
+    if ([string]::IsNullOrWhiteSpace($wrappedCommand)) { throw "Reset stage $Stage was not prevalidated and wrapped before dispatch." }
     $body = @{ DocumentName = "AWS-RunShellScript"; InstanceIds = @($InstanceID); Comment = "DUR-050 $CampaignID/$BlockID $Stage"; Parameters = @{ commands = @($wrappedCommand) } } | ConvertTo-Json -Depth 8 -Compress
     [System.IO.File]::WriteAllText($inputFile, $body, (New-Object System.Text.UTF8Encoding -ArgumentList $false))
     try {
@@ -125,7 +131,7 @@ try {
         throw 'Baseline manifest archive sizes must be positive.'
     }
     if ($DatabasePrivateIP -notmatch '^[0-9.]+$' -or $DatabaseName -notmatch '^[A-Za-z0-9_]+$' -or $ObserverSecretParameter -notmatch '^/[A-Za-z0-9/_-]+$') { throw "Database or observer parameter input is malformed." }
-    $preflight = Read-Dur050D022Preflight -Path $D022PreflightPath -CycleID $CycleID
+    $preflight = Read-Dur050D022Preflight -Path $D022PreflightPath -CycleID $CycleID -MaxAgeMinutes 240 -BlockDurationMinutes $BlockDurationMinutes
     $script:awsRegion = [string]$preflight.region
     $admissionMaxActive = if ($AdmissionGateMode -eq "ON") { 1000 } else { 0 }
     $admissionMaxPendingOutbox = if ($AdmissionGateMode -eq "ON") { 50000 } else { 0 }
@@ -299,12 +305,22 @@ SELECT json_build_object(
     $remoteRepoRoot = if ([string]::IsNullOrWhiteSpace($env:DUR050_REMOTE_REPO_ROOT)) { '/opt/durable-agent-execution-engine' } else { $env:DUR050_REMOTE_REPO_ROOT }
     $stagePlan = @(Get-Dur050ResetStageLines -BaselineManifest $baselineManifest -CampaignID $CampaignID -CycleID $CycleID -BlockID $BlockID -AppInstanceIDs $AppInstanceIDs -DependencyInstanceID $DependencyInstanceID -GeneratorInstanceID $GeneratorInstanceID -DatabasePrivateIP $DatabasePrivateIP -DatabaseName $DatabaseName -ObserverSecretParameter $ObserverSecretParameter -WarmupScriptPath $WarmupScriptPath -WarmupWorkflowIDsPath $WarmupWorkflowIDsPath -ObserverBinaryPath $ObserverBinaryPath -AdmissionGateMode $AdmissionGateMode -TransactionTimingCapture $TransactionTimingCapture -RemoteRepoRoot $remoteRepoRoot)
     if (@($stagePlan.stage | Select-Object -Unique).Count -ne 8) { throw 'Reset stage plan must contain the eight reviewed stage kinds.' }
+    $stagePlan = @($stagePlan | ForEach-Object {
+        $wrapped = New-Dur050SsmBashCommand -Stage $_.stage -RemoteLines ([string[]]$_.remote_lines)
+        [pscustomobject]@{
+            stage = $_.stage
+            instance_role = $_.instance_role
+            instance_id = $_.instance_id
+            remote_lines = [string[]]$_.remote_lines
+            wrapped_command = $wrapped
+        }
+    })
     if ($StagePlanOnly) {
-        @($stagePlan | ForEach-Object { [ordered]@{ stage = $_.stage; instance_role = $_.instance_role; instance_id = $_.instance_id; remote_lines = $_.remote_lines; wrapped_command = (New-Dur050SsmBashCommand -Stage $_.stage -RemoteLines $_.remote_lines) } }) | ConvertTo-Json -Depth 12
+        @($stagePlan | ForEach-Object { [ordered]@{ stage = $_.stage; instance_role = $_.instance_role; instance_id = $_.instance_id; remote_lines = $_.remote_lines; wrapped_command = $_.wrapped_command } }) | ConvertTo-Json -Depth 12
         exit 0
     }
     foreach ($stage in $stagePlan) {
-        $stageOutput = Invoke-Ssm $stage.stage $stage.instance_id $stage.instance_role $stage.remote_lines
+        $stageOutput = Invoke-Ssm $stage
         if ($stage.stage -eq 'observe-warmup-drain') {
             $encodedCSV = [regex]::Match($stageOutput, '(?m)^DUR050_OBSERVER_CSV_GZIP_BASE64:([A-Za-z0-9+/=]+)\s*$')
             if (-not $encodedCSV.Success) { throw 'Warmup batch observer did not return its raw CSV artifact.' }

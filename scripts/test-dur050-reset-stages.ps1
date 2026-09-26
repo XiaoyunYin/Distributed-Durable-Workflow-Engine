@@ -36,7 +36,7 @@ function Get-Body([string]$Wrapper){$match=[regex]::Match($Wrapper,"printf '%s' 
 function Assert-ChildPass($Result,[string]$Label){if($Result.ExitCode -ne 0){$stateDetails='';if(Test-Path $state){$stateDetails=(Get-ChildItem $state -File|ForEach-Object {"$($_.Name): $((Get-Content $_.FullName -Raw).Trim())"}) -join "`n"};throw "$Label failed ($($Result.ExitCode)): $($Result.Stderr) $($Result.Stdout) SSM stub state: $stateDetails"}}
 try{
   $d022=Join-Path $temp 'd022.json'; Write-Output ''|Out-Null
-  [IO.File]::WriteAllText($d022,(@{schema='dur050-d022-preflight.v1';status='PASS';account_id='372206265946';region='us-west-1';planned_peak_vcpu=8;cycle_id=$cycle;checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o');ledger_check_path='ledger.json'}|ConvertTo-Json -Depth 5),$utf8)
+  [IO.File]::WriteAllText($d022,(@{schema='dur050-d022-preflight.v1';status='PASS';account_id='372206265946';region='us-west-1';planned_peak_vcpu=8;cycle_id=$cycle;checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o');ledger_check_path='ledger.json';reserve_minutes=60}|ConvertTo-Json -Depth 5),$utf8)
   $campaign=Join-Path $temp 'campaign'; $prepareArgs=@('-TerraformOutputsPath',(Join-Path $repoRoot 'tests/fixtures/dur050-terraform-outputs.json'),'-CycleID',$cycle,'-D022PreflightPath',$d022,'-TestOutputRoot',$campaign)
   $prepareEnv=@{}+$processEnv; $prepareEnv['DUR050_ENABLE_TEST_HOOKS']='1'
   $prepared=Invoke-Child (Join-Path $PSScriptRoot 'dur050-prepare-pilot.ps1') $prepareArgs $prepareEnv; Assert-ChildPass $prepared 'end-to-end prepare-pilot'
@@ -44,7 +44,7 @@ try{
   $hashes=@{};foreach($name in @('postgres-data','kafka-data')){$source=Join-Path $archiveRoot ($name+'.tar');$hash=(Get-FileHash $source -Algorithm SHA256).Hash.ToLowerInvariant();$hashes[$name]=$hash}
   $planBase=Join-Path $temp 'plan-base';$warmupIDs=Join-Path $temp 'remote-scripts/warmup-ids.txt';$output=$null
   $resetScript=Join-Path $PSScriptRoot 'dur050-reset-block.ps1'
-  $resetArgs=@('-D022PreflightPath',$d022,'-CampaignID','pilot-ci','-CycleID',$cycle,'-BlockID','reset-ci','-DependencyInstanceID','i-0123456789abcdef0','-AppInstanceIDs','i-11111111111111111,i-22222222222222222','-GeneratorInstanceID','i-33333333333333333','-DatabasePrivateIP','10.49.1.11','-DatabaseName','durable','-ObserverSecretParameter','/dur050/observer/password','-BaselineManifestPath',$baseline,'-WarmupScriptPath',$warmup,'-WarmupWorkflowIDsPath',$warmupIDs,'-ObserverBinaryPath',$observer,'-OutputDirectory',$planBase,'-StagePlanOnly')
+  $resetArgs=@('-D022PreflightPath',$d022,'-CampaignID','pilot-ci','-CycleID',$cycle,'-BlockID','reset-ci','-DependencyInstanceID','i-0123456789abcdef0','-AppInstanceIDs','i-11111111111111111,i-22222222222222222','-GeneratorInstanceID','i-33333333333333333','-DatabasePrivateIP','10.49.1.11','-DatabaseName','durable','-ObserverSecretParameter','/dur050/observer/password','-BaselineManifestPath',$baseline,'-WarmupScriptPath',$warmup,'-WarmupWorkflowIDsPath',$warmupIDs,'-ObserverBinaryPath',$observer,'-OutputDirectory',$planBase,'-BlockDurationMinutes','30','-StagePlanOnly')
   $stageEnv=@{}+$processEnv
   $planResult=Invoke-Child $resetScript $resetArgs $stageEnv;Assert-ChildPass $planResult 'reset StagePlanOnly';$stages=@($planResult.Stdout|ConvertFrom-Json)
   if($stages.Count -ne 11 -or @($stages.stage|Select-Object -Unique).Count -ne 8){throw "Expected 11 dispatches and eight stage kinds; found $($stages.Count)/$(@($stages.stage|Select-Object -Unique).Count)."}
@@ -87,5 +87,31 @@ try{
   $mutant=Invoke-Child $mutantPath $mutantArgs $stageEnv;$mutationDetected=$mutant.ExitCode -ne 0
   if(-not $mutationDetected){$mutantRows=@($mutant.Stdout|ConvertFrom-Json);$mutantRestore=$mutantRows|Where-Object stage -eq 'restore-db-kafka-volumes'|Select-Object -First 1;$expectedMounts=@($mutantRestore.remote_lines|Where-Object {$_ -match '-v ".*(postgres|kafka)-data\.tar:/baseline\.tar:ro"'}).Count -eq 2;$mutationDetected=-not $expectedMounts}
   if(-not $mutationDetected){throw 'Removing the restore-mount parentheses survived stage generation and argv-shape checks.'}
-  Write-Host 'NEGATIVE CONTROL: removing the restore-mount parentheses causes the stage generator/wrapper guard to fail.'
+  if($mutant.ExitCode -ne 0 -and (($mutant.Stderr + $mutant.Stdout) -match 'split quote/colon fragment')){
+    Write-Host 'NEGATIVE CONTROL: SSM wrapper fragment guard rejected the malformed restore line.'
+  } elseif ($mutant.ExitCode -eq 0) {
+    Write-Host 'NEGATIVE CONTROL: restore-mount argv-shape assertion rejected the split mount.'
+  } else {
+    $mutantRows=@($mutant.Stdout|ConvertFrom-Json);$mutantRestore=$mutantRows|Where-Object stage -eq 'restore-db-kafka-volumes'|Select-Object -First 1
+    $expectedMounts=@($mutantRestore.remote_lines|Where-Object {$_ -match '-v ".*(postgres|kafka)-data\.tar:/baseline\.tar:ro"'}).Count -eq 2
+    if($expectedMounts){throw "Restore mutation failed for an unrelated reason: $($mutant.Stderr) $($mutant.Stdout)"}
+    Write-Host 'NEGATIVE CONTROL: restore-mount argv-shape assertion rejected the split mount.'
+  }
+
+  # Malform only the final planned stage. Every stage is wrapped before the first SSM dispatch.
+  $lastMutantDir=Join-Path $temp 'last-stage-mutant';New-Item -ItemType Directory -Path $lastMutantDir|Out-Null
+  foreach($name in @('dur050-reset-block.ps1','dur050-ssm-wrapper.ps1','dur050-baseline-manifest.ps1','dur050-d022-validator.ps1')){Copy-Item (Join-Path $PSScriptRoot $name) (Join-Path $lastMutantDir $name)}
+  $lastMutantPath=Join-Path $lastMutantDir 'dur050-reset-block.ps1';$lastSource=Get-Content $lastMutantPath -Raw
+  $lastNeedle="    [void]`$stages.Add([pscustomobject]@{ stage = 'snapshot-and-kafka-assignment'"
+  $lastReplacement='$snapshot += @([string][char]34)' + "`n" + $lastNeedle
+  if(-not $lastSource.Contains($lastNeedle)){throw 'Could not inject malformed quote into the final snapshot stage.'}
+  [IO.File]::WriteAllText($lastMutantPath,$lastSource.Replace($lastNeedle,$lastReplacement),$utf8)
+  $lastArgs=@($fullArgs);$lastOutIndex=[Array]::IndexOf($lastArgs,'-OutputDirectory');$lastArgs[$lastOutIndex+1]=Join-Path $temp 'last-stage-malformed-output'
+  $beforeCalls=@(Get-Content $argvLog)
+  $lastStageResult=Invoke-Child $lastMutantPath $lastArgs $processEnv
+  $lastFailureText=($lastStageResult.Stderr+$lastStageResult.Stdout) -replace '\s+',' '
+  if($lastStageResult.ExitCode -eq 0 -or $lastFailureText -notmatch 'split quote/colon'){throw "Malformed final stage was not rejected by the wrapper guard: $($lastStageResult.Stderr) $($lastStageResult.Stdout)"}
+  $afterCalls=@(Get-Content $argvLog);$newCalls=@($afterCalls|Select-Object -Skip $beforeCalls.Count)
+  if(@($newCalls|Where-Object {$_ -match 'ssm send-command'}).Count -ne 0){throw "Malformed final stage was discovered after an SSM dispatch: $($newCalls -join '; ')"}
+  Write-Host 'PASS: malformed final stage is rejected before any stubbed SSM send-command.'
 } finally {Remove-Item Env:DUR050_ARGV_LOG,Env:DUR050_DOCKER_LOG,Env:DUR050_AWS_STATE,Env:DUR050_REMOTE_REPO_ROOT,Env:DUR050_TEST_ARCHIVE_ROOT,Env:DUR050_TEST_API_URL,Env:DUR050_TEST_NAMESPACE,Env:DUR050_TEST_OBSERVER_LOG,Env:DUR050_AWS_SCENARIO,Env:DUR050_ENABLE_TEST_HOOKS -ErrorAction SilentlyContinue;if(Test-Path $temp){Remove-Item $temp -Recurse -Force};foreach($path in @("/var/tmp/dur050-$cycle","/var/tmp/dur050-$cycle-baseline")){if(Test-Path $path){Remove-Item $path -Recurse -Force}}}

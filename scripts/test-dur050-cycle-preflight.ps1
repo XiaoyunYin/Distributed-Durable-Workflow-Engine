@@ -19,11 +19,26 @@ case "$args" in
   *'ec2 describe-instances'*) printf '{"Reservations":[]}\n' ;;
   *'budgets describe-budget'*) printf '{"Budget":{"BudgetLimit":{"Amount":"200","Unit":"USD"},"CalculatedSpend":{"ActualSpend":{"Amount":"1"},"ForecastedSpend":{"Amount":"5"}}}}\n' ;;
   *'budgets describe-notifications-for-budget'*)
-    if [ "${DUR050_SCENARIO:-pass}" = budget ]; then
-      printf '{"Notifications":[{"NotificationType":"ACTUAL","ThresholdType":"ABSOLUTE_VALUE","Threshold":160,"Subscribers":[{"Address":"hidden"}]}]}\n'
-    else
-      printf '{"Notifications":[{"NotificationType":"ACTUAL","ThresholdType":"ABSOLUTE_VALUE","Threshold":160,"Subscribers":[{"Address":"hidden"}]},{"NotificationType":"ACTUAL","ThresholdType":"ABSOLUTE_VALUE","Threshold":76.47,"Subscribers":[{"Address":"hidden"}]},{"NotificationType":"FORECASTED","ThresholdType":"ABSOLUTE_VALUE","Threshold":160,"Subscribers":[{"Address":"hidden"}]}]}\n'
-    fi ;;
+    python3 - "${DUR050_SCENARIO:-pass}" <<'PY'
+import json, sys
+scenario = sys.argv[1]
+rows = [
+    {"NotificationType": "ACTUAL", "ComparisonOperator": "GREATER_THAN", "Threshold": 160, "ThresholdType": "ABSOLUTE_VALUE", "NotificationState": "OK"},
+    {"NotificationType": "ACTUAL", "ComparisonOperator": "GREATER_THAN", "Threshold": 76.47, "ThresholdType": "ABSOLUTE_VALUE", "NotificationState": "OK"},
+    {"NotificationType": "FORECASTED", "ComparisonOperator": "GREATER_THAN", "Threshold": 160, "ThresholdType": "ABSOLUTE_VALUE", "NotificationState": "OK"},
+]
+if scenario == "budget":
+    rows = rows[:1]
+elif scenario.startswith("budget-alarm-"):
+    index = {"budget-alarm-actual-160": 0, "budget-alarm-actual-76": 1, "budget-alarm-forecasted-160": 2}[scenario]
+    rows[index]["NotificationState"] = "ALARM"
+elif scenario == "budget-missing-state":
+    del rows[1]["NotificationState"]
+elif scenario == "budget-less-than":
+    rows[2]["ComparisonOperator"] = "LESS_THAN"
+print(json.dumps({"Notifications": rows}, separators=(",", ":")))
+PY
+    ;;
   *'ce list-cost-allocation-tags'*)
     if [ "${DUR050_SCENARIO:-pass}" = tags ]; then task=Inactive; else task=Active; fi
     printf '{"CostAllocationTags":[{"TagKey":"Task","Status":"%s","LastUpdatedDate":"2026-09-25T07:06:39Z"},{"TagKey":"Environment","Status":"Active","LastUpdatedDate":"2026-09-25T07:06:39Z"}]}\n' "$task" ;;
@@ -42,13 +57,14 @@ esac
 '@
 [IO.File]::WriteAllText((Join-Path $bin 'aws'),$aws.Replace("`r",'')+"`n",$utf8); & chmod 0755 (Join-Path $bin 'aws'); if($LASTEXITCODE){throw 'chmod aws stub failed'}
 function Write-Json([string]$Path,$Value){[IO.File]::WriteAllText($Path,(($Value|ConvertTo-Json -Depth 30)+"`n"),$utf8)}
-function Invoke-Tool([string]$Scenario,[string]$Name,[string]$PlanPath,[switch]$DryRun){
+function Invoke-Tool([string]$Scenario,[string]$Name,[string]$PlanPath,[switch]$DryRun,[string]$Timezone){
   $out=Join-Path $temp "$Name-preflight.json"; $ledgerOut=Join-Path $temp "$Name-ledger-check.json"
   $start=[Diagnostics.ProcessStartInfo]::new(); $start.FileName=Join-Path $PSHOME 'pwsh'; $start.UseShellExecute=$false; $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
   $arguments=@('-NoProfile','-File',(Join-Path $PSScriptRoot 'dur050-cycle-preflight.ps1'),'-TerraformOutputsPath',(Join-Path $repoRoot 'tests/fixtures/dur050-terraform-outputs.json'),'-PlanInspectionPath',$PlanPath,'-CycleID','ci-r163r164','-CampaignManifestPath',$manifestPath,'-LedgerCheckPath',$ledgerOut,'-OutputPath',$out,'-ReserveMinutes','15','-LedgerPath',$ledgerPath,'-PythonExe','python3')
   if($DryRun){$arguments+=@('-DryRun','-DryRunOutputPath',$out)}
   foreach($arg in $arguments){$start.ArgumentList.Add($arg)}
   $start.Environment['PATH']="$bin`:/usr/bin:/bin"; $start.Environment['DUR050_SCENARIO']=$Scenario; $start.Environment['DUR050_AWS_STATE']=$state; $start.Environment['DUR050_ENABLE_TEST_LEDGER_OVERRIDE']='1'; $start.Environment['DUR050_BOOTSTRAP_ROOT']=$fakeRoot
+  if($Timezone){$start.Environment['TZ']=$Timezone}
   $proc=[Diagnostics.Process]::new(); $proc.StartInfo=$start; [void]$proc.Start(); $stdout=$proc.StandardOutput.ReadToEnd(); $stderr=$proc.StandardError.ReadToEnd(); $proc.WaitForExit()
   return [pscustomobject]@{ExitCode=$proc.ExitCode;Out=$out;Ledger=$ledgerOut;Text=($stderr+"`n"+$stdout)}
 }
@@ -69,11 +85,38 @@ try {
   $pass=Invoke-Tool 'pass' 'pass' $plan; if($pass.ExitCode -ne 0){throw "PASS fixture failed: $($pass.Text)"}
   $record=Get-Content $pass.Out -Raw | ConvertFrom-Json
   if($record.schema -ne 'dur050-d022-preflight.v1' -or $record.status -ne 'PASS' -or $record.account_id -ne '372206265946' -or $record.region -ne 'us-west-1' -or $record.planned_peak_vcpu -ne 8 -or $record.bootstrap.Count -ne 4){throw 'PASS record omitted required D022 fields or one of four bootstrap results.'}
+  if($record.checks.budget.notifications.Count -ne 3 -or @($record.checks.budget.notifications|Where-Object {$_.state -ne 'OK' -or $_.comparison_operator -ne 'GREATER_THAN'}).Count -ne 0 -or $record.checks.budget.notifications[0].PSObject.Properties['subscriber_count']){throw 'Budget PASS record did not preserve observed notification states/operators without invented subscriber counts.'}
   if((Get-Content $pass.Ledger -Raw | ConvertFrom-Json).reserve_minutes -ne 15){throw 'PASS record omitted its explicit ledger reserve check.'}
   Write-Host 'PASS: D022 preflight stub checks account, quota, budget notifications, tags, ledger reserve and four bootstrap hosts.'
+  foreach($zone in @('America/Los_Angeles','Asia/Shanghai')){
+    $zoneName=$zone.Replace('/','-');$zonePass=Invoke-Tool 'pass' "timezone-$zoneName" $plan -Timezone $zone
+    if($zonePass.ExitCode -ne 0){throw "PASS preflight failed under TZ=${zone}: $($zonePass.Text)"}
+    $zoneRecord=Get-Content $zonePass.Out -Raw|ConvertFrom-Json
+    if($zoneRecord.status -ne 'PASS'){throw "Timezone preflight under $zone left no valid PASS record."}
+    Write-Host "PASS: cycle-preflight PASS fixture self-validates under TZ=$zone."
+  }
   $callLog=Join-Path $state 'calls.log';$callsBefore=(Get-Content $callLog).Count;$dry=Invoke-Tool 'pass' 'dry-run' $plan -DryRun;if($dry.ExitCode -ne 0){throw "Cycle-preflight dry-run failed: $($dry.Text)"};$dryRecord=Get-Content $dry.Out -Raw|ConvertFrom-Json;$callsAfter=(Get-Content $callLog).Count;if($dryRecord.classification -notmatch 'DRY RUN ONLY' -or $callsAfter -ne $callsBefore){throw 'Cycle-preflight dry-run called AWS or did not label itself review-only.'};Write-Host 'PASS: cycle-preflight dry run emits wrapped bootstrap commands without AWS or SSM calls.'
-  foreach($case in @(@{s='account';n='account';m='account'},@{s='quota';n='quota';m='quota'},@{s='budget';n='budget';m='notification'},@{s='tags';n='tags';m='cost-allocation tag'},@{s='bootstrap';n='bootstrap';m='Bootstrap gate failed'})){
-    $result=Invoke-Tool $case.s $case.n $plan; if($result.ExitCode -eq 0 -or $result.Text -notmatch $case.m){throw "Expected $($case.n) control to fail: $($result.Text)"}; if((Get-Content $result.Out -Raw | ConvertFrom-Json).status -ne 'FAIL'){throw "$($case.n) did not record FAIL."}; Write-Host "PASS: $($case.n) preflight control fails closed."
+  foreach($case in @(
+    @{s='account';n='account';m='account'},
+    @{s='quota';n='quota';m='quota'},
+    @{s='budget';n='budget';m='notification'},
+    @{s='budget-alarm-actual-160';n='alarm-actual-160';m='state is ALARM'},
+    @{s='budget-alarm-actual-76';n='alarm-actual-76';m='state is ALARM'},
+    @{s='budget-alarm-forecasted-160';n='alarm-forecasted-160';m='state is ALARM'},
+    @{s='budget-missing-state';n='missing-notification-state';m='missing NotificationState'},
+    @{s='budget-less-than';n='less-than-operator';m='ComparisonOperator'},
+    @{s='tags';n='tags';m='cost-allocation tag'},
+    @{s='bootstrap';n='bootstrap';m='Bootstrap gate failed'}
+  )){
+    $result=Invoke-Tool $case.s $case.n $plan; if($result.ExitCode -eq 0 -or $result.Text -notmatch $case.m){throw "Expected $($case.n) control to fail: $($result.Text)"}; $failureRecord=Get-Content $result.Out -Raw | ConvertFrom-Json; if($failureRecord.status -ne 'FAIL'){throw "$($case.n) did not record FAIL."}
+    if($case.s -like 'budget-*'){
+      $observed=@($failureRecord.checks.budget_notification_observations)
+      if($observed.Count -ne 3){throw "$($case.n) FAIL record omitted observed notification values."}
+      if($case.s -like 'budget-alarm-*' -and @($observed|Where-Object state -eq 'ALARM').Count -ne 1){throw "$($case.n) FAIL record did not preserve the observed ALARM state."}
+      if($case.s -eq 'budget-missing-state' -and $null -ne $observed[1].state){throw 'Missing NotificationState was not recorded as missing.'}
+      if($case.s -eq 'budget-less-than' -and $observed[2].comparison_operator -ne 'LESS_THAN'){throw 'Observed LESS_THAN operator was not preserved.'}
+    }
+    Write-Host "PASS: $($case.n) preflight control fails closed."
   }
   $expensive=$sourceLedger|ConvertTo-Json -Depth 30|ConvertFrom-Json
   foreach($role in @('app-1','app-2','dependency','load-generator')){foreach($interval in $expensive.roles.$role){$interval.apply_started_at_utc='2026-01-01T00:00:00Z';$interval.destroy_completed_at_utc=$null}}
@@ -85,10 +128,31 @@ try {
   $missing=Join-Path $temp 'missing-plan.json'; Write-Json $missing ([ordered]@{schema='fixture'})
   $result=Invoke-Tool 'pass' 'missing-peak' $missing; if($result.ExitCode -eq 0 -or $result.Text -notmatch 'planned_peak_vcpu'){throw 'Missing planned_peak_vcpu was accepted.'}; Write-Host 'PASS: missing planned_peak_vcpu is rejected.'
   . (Join-Path $PSScriptRoot 'dur050-d022-validator.ps1')
-  $validPath=Join-Path $temp 'validator.json'; $valid=[ordered]@{schema='dur050-d022-preflight.v1';status='PASS';account_id='372206265946';region='us-west-1';planned_peak_vcpu=8;cycle_id='ci-cycle-r163r164';checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o');ledger_check_path='ledger.json'}
+  $validPath=Join-Path $temp 'validator.json'; $valid=[ordered]@{schema='dur050-d022-preflight.v1';status='PASS';account_id='372206265946';region='us-west-1';planned_peak_vcpu=8;cycle_id='ci-cycle-r163r164';checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o');ledger_check_path='ledger.json';reserve_minutes=60}
   foreach($case in @(@{name='cycle mismatch';edit='cycle';pattern='cycle_id'},@{name='stale preflight';edit='stale';pattern='stale'},@{name='string vCPU';edit='string';pattern='numeric planned_peak_vcpu'})){
     $copy=$valid|ConvertTo-Json -Depth 5|ConvertFrom-Json; if($case.edit -eq 'cycle'){$copy.cycle_id='wrong'}elseif($case.edit -eq 'stale'){$copy.checked_at_utc=[DateTimeOffset]::UtcNow.AddHours(-5).ToString('o')}else{$copy.planned_peak_vcpu='8'}; Write-Json $validPath $copy; $caught=$false; try{[void](Read-Dur050D022Preflight -Path $validPath -CycleID 'ci-cycle-r163r164')}catch{if($_.Exception.Message -match $case.pattern){$caught=$true}else{throw}}; if(-not $caught){throw "Validator accepted $($case.name)."}; Write-Host "PASS: shared validator rejects $($case.name)."
   }
+  $reserveNow=[DateTimeOffset]::UtcNow
+  $valid.checked_at_utc=$reserveNow.AddMinutes(-10).ToString('o');Write-Json $validPath $valid
+  [void](Read-Dur050D022Preflight -Path $validPath -CycleID 'ci-cycle-r163r164' -Now $reserveNow -BlockDurationMinutes 30)
+  Write-Host 'PASS: block freshness inside the recorded ledger reserve is accepted.'
+  $valid.checked_at_utc=$reserveNow.AddMinutes(-40).ToString('o');Write-Json $validPath $valid
+  $reserveRejected=$false;try{[void](Read-Dur050D022Preflight -Path $validPath -CycleID 'ci-cycle-r163r164' -Now $reserveNow -BlockDurationMinutes 30)}catch{if($_.Exception.Message -match 'exceeds its ledger reserve'){$reserveRejected=$true}else{throw}}
+  if(-not$reserveRejected){throw 'Preflight older than its reserve after adding the block duration was accepted.'}
+  Write-Host 'PASS: block freshness beyond the recorded ledger reserve is rejected.'
+  $valid.checked_at_utc='timestamp-without-offset';Write-Json $validPath $valid
+  $offsetRejected=$false;try{[void](Read-Dur050D022Preflight -Path $validPath -CycleID 'ci-cycle-r163r164')}catch{if($_.Exception.Message -match 'explicit UTC offset or Z'){$offsetRejected=$true}else{throw}}
+  if(-not$offsetRejected){throw 'Timestamp without a UTC offset was accepted.'}
+  Write-Host 'PASS: string timestamps without an explicit offset are rejected.'
+  $valid.checked_at_utc=[DateTimeOffset]::UtcNow.ToString('o')
+  foreach($badReserve in @('missing','zero')){
+    $copy=$valid|ConvertTo-Json -Depth 5|ConvertFrom-Json
+    if($badReserve -eq 'missing'){$copy.PSObject.Properties.Remove('reserve_minutes')}else{$copy.reserve_minutes=0}
+    Write-Json $validPath $copy;$reserveFieldRejected=$false
+    try{[void](Read-Dur050D022Preflight -Path $validPath -CycleID 'ci-cycle-r163r164')}catch{if($_.Exception.Message -match 'reserve_minutes must be present and positive'){$reserveFieldRejected=$true}else{throw}}
+    if(-not$reserveFieldRejected){throw "Validator accepted $badReserve reserve_minutes."}
+  }
+  Write-Host 'PASS: a missing or non-positive ledger reserve is rejected.'
 } finally {
   Remove-Item Env:DUR050_SCENARIO,Env:DUR050_AWS_STATE,Env:DUR050_ENABLE_TEST_LEDGER_OVERRIDE,Env:DUR050_BOOTSTRAP_ROOT -ErrorAction SilentlyContinue
   if(Test-Path $temp){Remove-Item $temp -Recurse -Force}
