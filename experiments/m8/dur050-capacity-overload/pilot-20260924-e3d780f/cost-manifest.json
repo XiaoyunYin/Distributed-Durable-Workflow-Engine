@@ -539,5 +539,63 @@
     "aws_api_calls_during_inspection": 0,
     "ssm_calls_during_inspection": 0,
     "apply_authority": "NONE; Claude go/no-go required"
+  },
+  "preapply_round_107_d022_live_gate": {
+    "schema": "dur050-pre-apply-gate.v1",
+    "status": "PASS",
+    "checked_at_utc": "2026-09-26T23:07:26.8053650+00:00",
+    "gate_record_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round104-2330417/d022-live-preapply-gate-round107-20260926T230717Z.json",
+    "gate_record_sha256": "4BE7DCC6E5CA2829D89BEA36C0A35616FC85F4601CFAEFD4A5724C47BCB013CA",
+    "ledger_check_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round104-2330417/d022-live-ledger-check-round107-20260926T230717Z.json",
+    "ledger_check_sha256": "15BF8C52D539F42E7919BA762D21BE967C516CC96A84316A29756C53A3011516",
+    "manifest_sha256_at_gate": "F590F69AFC254CB0FCFB9DBD5FAAC37CE15E3CD65FB20DECD464CF6C3516B9D4",
+    "account_id": "372206265946",
+    "region": "us-west-1",
+    "aws_profile_name": "admin-learning",
+    "saved_plan_sha256": "6377EF256AA08EDEC209F7C669C1F489586EBBB65CA081805D5E608578C22B29",
+    "plan_inspection_sha256": "3A2BC8782FC3491BAB8E787EEBAF2FBAE28F25EE31C5D7365FD5FF1292951855",
+    "terraform_state_resource_count": 0,
+    "planned_peak_vcpu": 8,
+    "quota": {
+      "quota_code": "L-1216C47A",
+      "quota_vcpu": 32,
+      "current_on_demand_standard_vcpu": 0,
+      "projected_vcpu": 8,
+      "state": "OK"
+    },
+    "regional_inventory": {
+      "non_terminated_instance_count": 0,
+      "volume_count": 0,
+      "tagged_dur050_instance_count": 0,
+      "forbidden_volume_count": 0,
+      "state": "OK"
+    },
+    "budget": {
+      "name": "durable-engine-D022-aggregate-20260923",
+      "limit_usd": 200,
+      "actual_spend_usd": 1.911,
+      "forecasted_spend_usd": 4.372,
+      "notifications": [
+        { "type": "ACTUAL", "comparison_operator": "GREATER_THAN", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 160, "state": "OK" },
+        { "type": "ACTUAL", "comparison_operator": "GREATER_THAN", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 76.47, "state": "OK" },
+        { "type": "FORECASTED", "comparison_operator": "GREATER_THAN", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 160, "state": "OK" }
+      ]
+    },
+    "cost_allocation_tags": {
+      "Task": { "status": "Active", "last_updated_at_observed": "09/25/2026 07:06:39" },
+      "Environment": { "status": "Active", "last_updated_at_observed": "09/25/2026 07:06:39" }
+    },
+    "ledger_projection": {
+      "open_interval_count": 0,
+      "accrued_instance_cost_usd": "0.248827",
+      "reserve_minutes": 1440,
+      "planned_host_projection_usd": "10.836000",
+      "total_projected_instance_cost_usd": "11.084827",
+      "budget_cap_usd": "75.0",
+      "status": "PASS"
+    },
+    "apply_authority": "NONE; Claude go/no-go required",
+    "apply_performed": false,
+    "ssm_dispatched": false
   }
 }
