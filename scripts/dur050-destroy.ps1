@@ -29,12 +29,6 @@ function New-Dur050ThrowawaySecret([int]$Length) {
     return $builder.ToString()
 }
 
-function Get-Dur050CycleRecord($Manifest, [string]$RequestedCycleID) {
-    $matches = @($Manifest.PSObject.Properties | Where-Object { [string]$_.Value.cycle_id -eq $RequestedCycleID })
-    if ($matches.Count -ne 1) { throw "Campaign manifest must contain exactly one cycle named $RequestedCycleID." }
-    return $matches[0].Value
-}
-
 $requiredProfileKeys = @(
     'aws_region','availability_zones','project_name','campaign_slug','task_id','environment_name',
     'ami_id','repo_url','repo_ref','expires_at','admin_cidrs','instance_type','dependency_instance_type',
@@ -51,7 +45,7 @@ $destroyOutput = ''
 $destroyedCount = $null
 $postState = $null
 $failure = $null
-$cycleRecord = $null
+$approvedPlan = $null
 
 try {
     if ([string]$PSVersionTable.PSEdition -ne 'Core') { throw 'DUR-050 operator tools require PowerShell Core (pwsh 7 or newer).' }
@@ -63,17 +57,18 @@ try {
     foreach ($key in $requiredProfileKeys) {
         if ($null -eq $profile.PSObject.Properties[$key]) { throw "Campaign terraform_profile is missing required variable '$key'." }
     }
-    $cycleRecord = Get-Dur050CycleRecord $manifest $CycleID
-    $pinnedPath = [string]$cycleRecord.approved_saved_plan.terraform_executable_path
-    $pinnedHash = [string]$cycleRecord.approved_saved_plan.terraform_executable_sha256
-    if (-not $pinnedPath -or $pinnedHash -notmatch '^[A-Fa-f0-9]{64}$') { throw 'Cycle manifest does not pin a Terraform executable path and SHA-256.' }
+    $approvedPlan = $manifest.approved_saved_plan
+    if ($null -eq $approvedPlan -or [string]$approvedPlan.review_state -notmatch '^APPLIED_') { throw 'Top-level approved_saved_plan review_state must match APPLIED_ before destroy.' }
+    $pinnedPath = [string]$approvedPlan.terraform_executable_path
+    $pinnedHash = [string]$approvedPlan.terraform_executable_sha256
+    if (-not $pinnedPath -or $pinnedHash -notmatch '^[A-Fa-f0-9]{64}$') { throw 'Top-level approved_saved_plan does not pin a Terraform executable path and SHA-256.' }
     if (-not $TerraformExe) { $TerraformExe = $pinnedPath }
     if ($env:DUR050_ENABLE_TEST_HOOKS -ne '1' -and [System.IO.Path]::GetFullPath($TerraformExe) -ine [System.IO.Path]::GetFullPath($pinnedPath)) {
-        throw 'Terraform executable path differs from the cycle manifest pin.'
+        throw 'Terraform executable path differs from the top-level approved_saved_plan pin.'
     }
     $terraformInfo = Resolve-Dur050TerraformExecutable -TerraformExe $TerraformExe
-    if ([string]$terraformInfo.sha256 -cne $pinnedHash) { throw 'Terraform executable SHA-256 differs from the cycle manifest pin.' }
-    if ([string]$terraformInfo.terraform_version -ne [string]$cycleRecord.approved_saved_plan.terraform_version) { throw 'Terraform version differs from the cycle manifest pin.' }
+    if ([string]$terraformInfo.sha256 -cne $pinnedHash) { throw 'Terraform executable SHA-256 differs from the top-level approved_saved_plan pin.' }
+    if ([string]$terraformInfo.terraform_version -ne [string]$approvedPlan.terraform_version) { throw 'Terraform version differs from the top-level approved_saved_plan pin.' }
 
     $variables = [ordered]@{}
     foreach ($property in $profile.PSObject.Properties) { $variables[$property.Name] = $property.Value }

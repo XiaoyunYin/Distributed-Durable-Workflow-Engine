@@ -11,13 +11,13 @@ function Write-Utf8NoBom([string]$Path, [string]$Text) {
 }
 function Invoke-Lint([string]$Path, [string]$Linter = $lint) {
     $output = & $pwsh -NoProfile -File $Linter -Path $Path 2>&1
-    return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Text = ($output | Out-String) }
+    return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Text = ($output | Out-String -Width 4096) }
 }
 function Assert-LintRejects([string]$Name, [string]$Source, [string]$Linter = $lint) {
     $path = Join-Path $temp ($Name + '.ps1')
     Write-Utf8NoBom $path $Source
     $result = Invoke-Lint $path $Linter
-    if ($result.ExitCode -eq 0 -or $result.Text -notmatch 'ambiguous.*array operand/element') {
+    if ($result.ExitCode -eq 0 -or $result.Text -notmatch '(?s)ambiguous.*array operand/element') {
         throw "$Name survived the PowerShell AST lint: $($result.Text)"
     }
     return $path

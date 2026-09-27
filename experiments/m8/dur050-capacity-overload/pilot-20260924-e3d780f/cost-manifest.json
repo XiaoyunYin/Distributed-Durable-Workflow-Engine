@@ -778,12 +778,13 @@
     },
     "ledger_backfill_r187": {
       "status": "PASS; four closed intervals backfilled from committed evidence; no AWS calls",
-      "recorded_at_utc": "2026-09-27T06:24:23.4919560+00:00",
+      "recorded_at_utc": "2026-09-27T07:30:12.804448Z",
       "interval_source": "backfill: apply start -> destroy completion (R187)",
+      "evidence_path_portability_note": "R189: cycle-3b evidence paths were converted from absolute local paths to repository-relative paths; source evidence hashes are unchanged.",
       "task_ledger_path": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
-      "task_ledger_sha256": "059EE45D574B0C1597E6025C2720C3DAF248544F83FE0878EEA84A32AF7C1524",
-      "ledger_check_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/ledger-check-r187-backfill.json",
-      "ledger_check_sha256": "A857ECB61AE6CC22FF9069BF58F949A2AC283DC87890F8AA51830B8E68488614",
+      "task_ledger_sha256": "90A0C226FA014B1E3F0097B6DABEDC706B55AAA97B14043FFCF0AAEBF2A47877",
+      "ledger_check_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/ledger-check-r189-relative-paths.json",
+      "ledger_check_sha256": "05993200D7834B9F100C4ACB683F3446BB081D1560853F9A213C856A1379D60F",
       "source_evidence": {
         "terraform_outputs_sha256": "1E437E33FDE7ABF1E32220FEB6F6BC7910E271AF57FD5910C1A5BD2C36373286",
         "apply_record_sha256": "33C154C6E27589AF01F44D2D383C952C21CB36CE2EFDA66FBAABD1CD4D85FC9F",

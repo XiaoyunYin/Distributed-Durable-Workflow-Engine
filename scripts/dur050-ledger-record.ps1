@@ -34,6 +34,17 @@ function Read-Dur050LedgerUtc([object]$Value, [string]$Field) {
     return $parsed.ToUniversalTime()
 }
 
+function Get-Dur050RepoRelativePath([string]$Path) {
+    $fullPath = [IO.Path]::GetFullPath($Path)
+    $rootPrefix = $repoRoot.TrimEnd([IO.Path]::DirectorySeparatorChar, [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    if (-not $fullPath.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Backfill evidence must be under the repository root: $Path"
+    }
+    $relativePath = [IO.Path]::GetRelativePath($repoRoot, $fullPath).Replace('\', '/')
+    if ([IO.Path]::IsPathRooted($relativePath)) { throw "Evidence path could not be made repository-relative: $Path" }
+    return $relativePath
+}
+
 function Get-Dur050TerraformHosts($Outputs) {
     foreach ($name in @('app_instance_ids','dependency_instance_id','load_generator_instance_ids')) {
         if ($null -eq $Outputs.$name -or $null -eq $Outputs.$name.value) { throw "Terraform output '$name' is missing." }
@@ -121,11 +132,11 @@ if ($Backfill) {
         if ($allIds -contains $hostSpec.id) { throw "Refusing reused EC2 instance ID $($hostSpec.id)." }
     }
     $evidence = [ordered]@{
-        apply_record_path = [IO.Path]::GetFullPath($ApplyRecordPath)
+        apply_record_path = Get-Dur050RepoRelativePath $ApplyRecordPath
         apply_record_sha256 = (Get-FileHash -LiteralPath $ApplyRecordPath -Algorithm SHA256).Hash.ToUpperInvariant()
-        destroy_record_path = [IO.Path]::GetFullPath($DestroyRecordPath)
+        destroy_record_path = Get-Dur050RepoRelativePath $DestroyRecordPath
         destroy_record_sha256 = (Get-FileHash -LiteralPath $DestroyRecordPath -Algorithm SHA256).Hash.ToUpperInvariant()
-        terraform_outputs_path = [IO.Path]::GetFullPath($TerraformOutputsPath)
+        terraform_outputs_path = Get-Dur050RepoRelativePath $TerraformOutputsPath
         terraform_outputs_sha256 = (Get-FileHash -LiteralPath $TerraformOutputsPath -Algorithm SHA256).Hash.ToUpperInvariant()
     }
     foreach ($hostSpec in $hosts) {

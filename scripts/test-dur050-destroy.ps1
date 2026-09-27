@@ -12,24 +12,28 @@ New-Item -ItemType Directory -Path $temp | Out-Null
 $utf8 = [Text.UTF8Encoding]::new($false)
 $manifestSource = Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cost-manifest.json'
 $baseManifest = Get-Content -LiteralPath $manifestSource -Raw | ConvertFrom-Json
-$baseCycle = @($baseManifest.PSObject.Properties | Where-Object { [string]$_.Value.cycle_id -eq 'cycle-3b-2330417' })[0].Value
+$freshCycleID = 'cycle-4-2330417'
+$reviewMutantPath = $null
+$hashMutantPath = $null
+if (@($baseManifest.PSObject.Properties | Where-Object { [string]$_.Value.cycle_id -eq $freshCycleID }).Count -ne 0) {
+    throw 'Destroy test CycleID must be fresh and absent from the committed manifest.'
+}
 
 function Write-Json([string]$Path, $Value) { [IO.File]::WriteAllText($Path, (($Value | ConvertTo-Json -Depth 40) + "`n"), $utf8) }
-function New-Manifest([string]$Path, [string]$TerraformPath, [string]$Hash, [string]$Cycle = 'cycle-r188-test', [switch]$OmitAmi) {
+function New-Manifest([string]$Path, [string]$TerraformPath, [string]$Hash, [string]$ReviewState = 'APPLIED_2026-09-27T04:46:54.1291096Z', [switch]$OmitAmi) {
     $manifest = Get-Content -LiteralPath $manifestSource -Raw | ConvertFrom-Json
     $profile = $manifest.terraform_profile
     if ($OmitAmi) { $profile.PSObject.Properties.Remove('ami_id') }
-    $cycleKey = 'provisioning_cycle_3b_2330417'
-    $manifest.$cycleKey.cycle_id = $Cycle
-    $manifest.$cycleKey.approved_saved_plan.terraform_executable_path = $TerraformPath
-    $manifest.$cycleKey.approved_saved_plan.terraform_executable_sha256 = $Hash
-    $manifest.$cycleKey.approved_saved_plan.terraform_version = '1.16.4'
+    $manifest.approved_saved_plan.terraform_executable_path = $TerraformPath
+    $manifest.approved_saved_plan.terraform_executable_sha256 = $Hash
+    $manifest.approved_saved_plan.terraform_version = '1.16.4'
+    $manifest.approved_saved_plan.review_state = $ReviewState
     Write-Json $Path $manifest
 }
-function Invoke-Destroy([string]$Name, [string]$Manifest, [string]$TerraformPath, [string]$TfDir, [string]$StatePath, [string]$Scenario = '') {
+function Invoke-Destroy([string]$Name, [string]$Manifest, [string]$TerraformPath, [string]$TfDir, [string]$StatePath, [string]$Cycle = $freshCycleID, [string]$Script = (Join-Path $PSScriptRoot 'dur050-destroy.ps1')) {
     $record = Join-Path $temp "$Name-record.json"
     $log = Join-Path $temp "$Name-argv.log"
-    $args = @('-NoProfile','-File',(Join-Path $PSScriptRoot 'dur050-destroy.ps1'),'-CycleID','cycle-r188-test','-CampaignManifestPath',$Manifest,'-OutputPath',$record,'-TerraformExe',$TerraformPath,'-TerraformDirectory',$TfDir,'-TerraformStatePath',$StatePath)
+    $args = @('-NoProfile','-File',$Script,'-CycleID',$Cycle,'-CampaignManifestPath',$Manifest,'-OutputPath',$record,'-TerraformExe',$TerraformPath,'-TerraformDirectory',$TfDir,'-TerraformStatePath',$StatePath)
     $start = [Diagnostics.ProcessStartInfo]::new()
     $start.FileName = $pwsh; $start.UseShellExecute = $false; $start.RedirectStandardOutput = $true; $start.RedirectStandardError = $true
     foreach ($arg in $args) { $start.ArgumentList.Add($arg) }
@@ -90,6 +94,37 @@ $state.resources = @()
     }
     Write-Host 'PASS: a Terraform executable that does not match the manifest pin is rejected before destroy.'
 
+    $notAppliedManifest = Join-Path $temp 'not-applied-manifest.json'
+    New-Manifest $notAppliedManifest $stubPath $stubHash 'PENDING_CLAUDE_GO'
+    $notApplied = Invoke-Destroy 'not-applied' $notAppliedManifest $stubPath $stubTfDir $stubState
+    if ($notApplied.ExitCode -eq 0 -or (Test-Path $notApplied.LogPath) -or
+        (Get-Content $notApplied.OutputPath -Raw | ConvertFrom-Json).status -ne 'FAIL' -or
+        $notApplied.Text -notmatch 'review_state must match APPLIED_') {
+        throw 'A non-APPLIED top-level review state did not fail before Terraform.'
+    }
+    Write-Host 'PASS: destroy refuses a non-APPLIED top-level plan before invoking Terraform.'
+
+    $destroySource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'dur050-destroy.ps1') -Raw
+    $reviewMutant = [regex]::Replace($destroySource, "if \(\`$null -eq \`$approvedPlan -or \[string\]\`$approvedPlan\.review_state -notmatch '\^APPLIED_'\) \{ throw 'Top-level approved_saved_plan review_state must match APPLIED_ before destroy\.' \}", '# removed R188 applied-review-state guard', 1)
+    if ($reviewMutant -eq $destroySource) { throw 'Could not construct the review-state guard-removal mutant.' }
+    $reviewMutantPath = Join-Path $PSScriptRoot ('.dur050-destroy-review-state-mutant-' + [guid]::NewGuid().ToString('N') + '.ps1')
+    [IO.File]::WriteAllText($reviewMutantPath, $reviewMutant, $utf8)
+    $reviewMutantRun = Invoke-Destroy 'review-state-mutant' $notAppliedManifest $stubPath $stubTfDir $stubState $freshCycleID $reviewMutantPath
+    if ($reviewMutantRun.ExitCode -ne 0 -or -not (Test-Path $reviewMutantRun.LogPath)) {
+        throw "The review-state negative did not detect removal of its guard: $($reviewMutantRun.Text)"
+    }
+    Write-Host 'PASS: the non-APPLIED test detects its guard-removal mutant.'
+
+    $hashMutant = [regex]::Replace($destroySource, "if \(\[string\]\`$terraformInfo\.sha256 -cne \`$pinnedHash\) \{ throw 'Terraform executable SHA-256 differs from the top-level approved_saved_plan pin\.' \}", '# removed R188 executable-hash guard', 1)
+    if ($hashMutant -eq $destroySource) { throw 'Could not construct the executable-hash guard-removal mutant.' }
+    $hashMutantPath = Join-Path $PSScriptRoot ('.dur050-destroy-hash-mutant-' + [guid]::NewGuid().ToString('N') + '.ps1')
+    [IO.File]::WriteAllText($hashMutantPath, $hashMutant, $utf8)
+    $hashMutantRun = Invoke-Destroy 'hash-mutant' $wrongPinManifest $stubPath $stubTfDir $stubState $freshCycleID $hashMutantPath
+    if ($hashMutantRun.ExitCode -ne 0 -or -not (Test-Path $hashMutantRun.LogPath)) {
+        throw "The hash-mismatch negative did not detect removal of its guard: $($hashMutantRun.Text)"
+    }
+    Write-Host 'PASS: the hash-mismatch test detects its guard-removal mutant.'
+
     $missingManifest = Join-Path $temp 'missing-profile-manifest.json'
     New-Manifest $missingManifest $stubPath $stubHash -OmitAmi
     $missing = Invoke-Destroy 'missing-profile' $missingManifest $stubPath $stubTfDir $stubState
@@ -125,12 +160,31 @@ $state.resources = @()
         if ($LASTEXITCODE -ne 0) { throw "Provider-less typed var-file apply failed: $nativeApplyOutput" }
     } finally { Pop-Location }
     $nativeManifest = Join-Path $temp 'native-manifest.json'
-    New-Manifest $nativeManifest $nativeInfo.path $nativeInfo.sha256
-    $nativeResult = Invoke-Destroy 'native-providerless' $nativeManifest $nativeInfo.path $nativeDir (Join-Path $nativeDir 'terraform.tfstate')
+    $nativeTerraformPath = $nativeInfo.path
+    $committedPinPath = [string]$baseManifest.approved_saved_plan.terraform_executable_path
+    if (Test-Path -LiteralPath $committedPinPath -PathType Leaf) {
+        $committedPin = Resolve-Dur050TerraformExecutable -TerraformExe $committedPinPath
+        if ([string]$committedPin.sha256 -ceq [string]$baseManifest.approved_saved_plan.terraform_executable_sha256) {
+            $nativeManifest = $manifestSource
+            $nativeTerraformPath = $committedPin.path
+        }
+    }
+    if ($nativeManifest -ne $manifestSource) { New-Manifest $nativeManifest $nativeTerraformPath $nativeInfo.sha256 }
+    $nativeResult = Invoke-Destroy 'native-providerless' $nativeManifest $nativeTerraformPath $nativeDir (Join-Path $nativeDir 'terraform.tfstate') $freshCycleID
     if ($nativeResult.ExitCode -ne 0) { throw "Provider-less native destroy failed: $($nativeResult.Text)" }
     $nativeRecord = Get-Content $nativeResult.OutputPath -Raw | ConvertFrom-Json
     if ($nativeRecord.status -ne 'PASS' -or $nativeRecord.destroyed_count -ne 1 -or $nativeRecord.post_destroy_state.resource_count -ne 0) {
         throw 'Provider-less native Terraform destroy did not accept the generated typed tfvars JSON end-to-end.'
     }
     Write-Host 'PASS: Terraform 1.16.4 provider-less native config accepted the wrapper-generated typed JSON -var-file and destroyed its fixture resource.'
-} finally { Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue }
+    if ($nativeManifest -eq $manifestSource) {
+        Write-Host "PASS: the native destroy used the committed manifest and fresh, unrecorded cycle ID $freshCycleID."
+    } else {
+        Write-Host "PASS: the native destroy used a test copy preserving committed manifest structure and fresh cycle ID $freshCycleID."
+    }
+} finally {
+    foreach ($mutantFile in @($reviewMutantPath,$hashMutantPath) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }) {
+        Remove-Item -LiteralPath $mutantFile -Force -ErrorAction SilentlyContinue
+    }
+    Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
+}

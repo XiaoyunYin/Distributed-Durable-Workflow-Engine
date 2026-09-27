@@ -268,6 +268,10 @@ retained volumes/snapshots/logs within seven days.
 
 ## Apply and teardown
 
+The bare commands in this subsection are **DUR-049 only**. For DUR-050, use
+`scripts/dur050-destroy.ps1`; it reads the applied Terraform executable pin
+from the top-level `approved_saved_plan` and writes a cycle-specific record.
+
 ```powershell
 terraform -chdir=deploy/aws apply dur049.tfplan
 terraform -chdir=deploy/aws output -json
