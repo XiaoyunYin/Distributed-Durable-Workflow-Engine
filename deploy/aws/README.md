@@ -70,13 +70,17 @@ identity, regional inventory/quota, D022 budget/notifications, cost-allocation
 tags, and ledger; it does not require Terraform outputs and does not call SSM.
 Its record also captures the absolute PowerShell executable path, version, and
 edition, and the gate fails unless the edition is Core.
-Wait for Claude's explicit go/no-go before applying the exact reviewed plan.
+Wait for Claude's explicit go/no-go and the user's apply authorization. The
+committed `dur050-apply.ps1` is the **only DUR-050 apply path**; do not run
+`terraform apply` manually. It revalidates the plan, executable, state, account,
+source diff, and cycle ID, then atomically marks the attempt and writes the
+apply record and Terraform outputs:
 
-Immediately before invoking apply, capture the apply-start UTC timestamp and
-set the manifest's top-level `approved_saved_plan.review_state` to
-`APPLIED_<apply-start-utc>`; this records an attempted apply so teardown remains
-available after a partial failure. Apply the exact reviewed plan. After apply,
-use the current parsed outputs and that timestamp with
+```powershell
+& $pwshExe -NoProfile -File .\scripts\dur050-apply.ps1 -CycleID <new-cycle-id> -CampaignManifestPath <manifest.json>
+```
+
+The apply record supplies the start timestamp and outputs path for
 `& $pwshExe -NoProfile -File .\scripts\dur050-ledger-record.ps1 -Open ...`. The helper uses read-only
 DescribeInstances data to check all four IDs/types and that the start is no
 later than each EC2 LaunchTime. It appends intervals to the task-wide ledger

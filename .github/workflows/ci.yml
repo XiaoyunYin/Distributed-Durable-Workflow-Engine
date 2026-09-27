@@ -118,6 +118,10 @@ jobs:
           terraform_version: 1.16.4
           terraform_wrapper: false
 
+      - name: Test DUR-050 pinned apply tool and precheck mutations
+        shell: pwsh
+        run: ./scripts/test-dur050-apply.ps1
+
       - name: Enforce PowerShell 7 on every DUR-050 operator script
         shell: pwsh
         run: ./scripts/test-dur050-powershell7-requirements.ps1

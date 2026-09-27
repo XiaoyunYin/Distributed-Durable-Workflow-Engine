@@ -612,11 +612,16 @@ The required order is:
    and ledger-check record.
 3. Stop for Claude's go/no-go review of the exact plan, inspection, and gate
    record. PASS by itself is never apply authorization.
-4. Only after that review, apply the exact reviewed saved plan.
-5. Immediately after apply, run `& $pwshExe -NoProfile -File
-   .\scripts\dur050-ledger-record.ps1 -Open` with
-   the current Terraform outputs, cycle ID, and the apply-start UTC timestamp
-   captured immediately before apply. The helper checks all four EC2 IDs,
+4. Only after Claude's GO and the user's apply authorization, run
+   `& $pwshExe -NoProfile -File .\scripts\dur050-apply.ps1` with a new cycle ID
+   and the campaign manifest. This is the only DUR-050 apply path: it checks
+   the pinned plan/executable/state/account/source, marks the attempt
+   `APPLIED_<start-utc>` atomically, applies the exact saved plan with
+   `-input=false`, and writes `apply-record.json` plus `terraform-outputs.json`
+   on success. Never invoke `terraform apply` manually for DUR-050.
+5. Immediately after a passing apply tool, run `& $pwshExe -NoProfile -File
+   .\scripts\dur050-ledger-record.ps1 -Open` with the outputs path and start
+   timestamp from `apply-record.json`. The helper checks all four EC2 IDs,
    types, and LaunchTimes and appends intervals to the task-wide ledger.
 6. Run `& $pwshExe -NoProfile -File .\scripts\dur050-cycle-preflight.ps1`
    with those outputs. Before its
