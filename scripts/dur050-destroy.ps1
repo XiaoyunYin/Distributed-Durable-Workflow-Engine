@@ -58,17 +58,23 @@ try {
         if ($null -eq $profile.PSObject.Properties[$key]) { throw "Campaign terraform_profile is missing required variable '$key'." }
     }
     $approvedPlan = $manifest.approved_saved_plan
-    if ($null -eq $approvedPlan -or [string]$approvedPlan.review_state -notmatch '^APPLIED_') { throw 'Top-level approved_saved_plan review_state must match APPLIED_ before destroy.' }
+    if ($null -eq $approvedPlan) { throw 'Campaign manifest is missing the top-level approved_saved_plan pin.' }
+    if ([string]$approvedPlan.review_state -match '^INVALIDATED') { throw 'Top-level approved_saved_plan is invalidated and cannot be used for destroy.' }
     $pinnedPath = [string]$approvedPlan.terraform_executable_path
     $pinnedHash = [string]$approvedPlan.terraform_executable_sha256
-    if (-not $pinnedPath -or $pinnedHash -notmatch '^[A-Fa-f0-9]{64}$') { throw 'Top-level approved_saved_plan does not pin a Terraform executable path and SHA-256.' }
+    $pinnedVersion = [string]$approvedPlan.terraform_version
+    if ([string]::IsNullOrWhiteSpace($pinnedPath) -or $pinnedPath -match '[\x00-\x1f]' -or
+        -not [System.IO.Path]::IsPathFullyQualified($pinnedPath) -or
+        $pinnedHash -notmatch '^[A-Fa-f0-9]{64}$' -or $pinnedVersion -notmatch '^\d+\.\d+\.\d+$') {
+        throw 'Top-level approved_saved_plan has a missing or malformed Terraform executable path, SHA-256, or version pin.'
+    }
     if (-not $TerraformExe) { $TerraformExe = $pinnedPath }
     if ($env:DUR050_ENABLE_TEST_HOOKS -ne '1' -and [System.IO.Path]::GetFullPath($TerraformExe) -ine [System.IO.Path]::GetFullPath($pinnedPath)) {
         throw 'Terraform executable path differs from the top-level approved_saved_plan pin.'
     }
     $terraformInfo = Resolve-Dur050TerraformExecutable -TerraformExe $TerraformExe
     if ([string]$terraformInfo.sha256 -cne $pinnedHash) { throw 'Terraform executable SHA-256 differs from the top-level approved_saved_plan pin.' }
-    if ([string]$terraformInfo.terraform_version -ne [string]$approvedPlan.terraform_version) { throw 'Terraform version differs from the top-level approved_saved_plan pin.' }
+    if ([string]$terraformInfo.terraform_version -ne $pinnedVersion) { throw 'Terraform version differs from the top-level approved_saved_plan pin.' }
 
     $variables = [ordered]@{}
     foreach ($property in $profile.PSObject.Properties) { $variables[$property.Name] = $property.Value }

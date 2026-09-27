@@ -72,7 +72,10 @@ Its record also captures the absolute PowerShell executable path, version, and
 edition, and the gate fails unless the edition is Core.
 Wait for Claude's explicit go/no-go before applying the exact reviewed plan.
 
-Immediately before apply, capture the apply-start UTC timestamp. After apply,
+Immediately before invoking apply, capture the apply-start UTC timestamp and
+set the manifest's top-level `approved_saved_plan.review_state` to
+`APPLIED_<apply-start-utc>`; this records an attempted apply so teardown remains
+available after a partial failure. Apply the exact reviewed plan. After apply,
 use the current parsed outputs and that timestamp with
 `& $pwshExe -NoProfile -File .\scripts\dur050-ledger-record.ps1 -Open ...`. The helper uses read-only
 DescribeInstances data to check all four IDs/types and that the start is no

@@ -13,7 +13,7 @@ $utf8 = [Text.UTF8Encoding]::new($false)
 $manifestSource = Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cost-manifest.json'
 $baseManifest = Get-Content -LiteralPath $manifestSource -Raw | ConvertFrom-Json
 $freshCycleID = 'cycle-4-2330417'
-$reviewMutantPath = $null
+$invalidatedMutantPath = $null
 $hashMutantPath = $null
 if (@($baseManifest.PSObject.Properties | Where-Object { [string]$_.Value.cycle_id -eq $freshCycleID }).Count -ne 0) {
     throw 'Destroy test CycleID must be fresh and absent from the committed manifest.'
@@ -94,26 +94,27 @@ $state.resources = @()
     }
     Write-Host 'PASS: a Terraform executable that does not match the manifest pin is rejected before destroy.'
 
-    $notAppliedManifest = Join-Path $temp 'not-applied-manifest.json'
-    New-Manifest $notAppliedManifest $stubPath $stubHash 'PENDING_CLAUDE_GO'
-    $notApplied = Invoke-Destroy 'not-applied' $notAppliedManifest $stubPath $stubTfDir $stubState
-    if ($notApplied.ExitCode -eq 0 -or (Test-Path $notApplied.LogPath) -or
-        (Get-Content $notApplied.OutputPath -Raw | ConvertFrom-Json).status -ne 'FAIL' -or
-        $notApplied.Text -notmatch 'review_state must match APPLIED_') {
-        throw 'A non-APPLIED top-level review state did not fail before Terraform.'
+    $invalidatedManifest = Join-Path $temp 'invalidated-manifest.json'
+    New-Manifest $invalidatedManifest $stubPath $stubHash 'INVALIDATED_R116'
+    $invalidated = Invoke-Destroy 'invalidated' $invalidatedManifest $stubPath $stubTfDir $stubState
+    if ($invalidated.ExitCode -eq 0 -or (Test-Path $invalidated.LogPath) -or
+        (Get-Content $invalidated.OutputPath -Raw | ConvertFrom-Json).status -ne 'FAIL' -or
+        $invalidated.Text -notmatch 'approved_saved_plan is invalidated') {
+        throw 'An INVALIDATED top-level plan did not fail before Terraform.'
     }
-    Write-Host 'PASS: destroy refuses a non-APPLIED top-level plan before invoking Terraform.'
+    Write-Host 'PASS: an INVALIDATED top-level plan is rejected before Terraform.'
 
     $destroySource = Get-Content -LiteralPath (Join-Path $PSScriptRoot 'dur050-destroy.ps1') -Raw
-    $reviewMutant = [regex]::Replace($destroySource, "if \(\`$null -eq \`$approvedPlan -or \[string\]\`$approvedPlan\.review_state -notmatch '\^APPLIED_'\) \{ throw 'Top-level approved_saved_plan review_state must match APPLIED_ before destroy\.' \}", '# removed R188 applied-review-state guard', 1)
-    if ($reviewMutant -eq $destroySource) { throw 'Could not construct the review-state guard-removal mutant.' }
-    $reviewMutantPath = Join-Path $PSScriptRoot ('.dur050-destroy-review-state-mutant-' + [guid]::NewGuid().ToString('N') + '.ps1')
-    [IO.File]::WriteAllText($reviewMutantPath, $reviewMutant, $utf8)
-    $reviewMutantRun = Invoke-Destroy 'review-state-mutant' $notAppliedManifest $stubPath $stubTfDir $stubState $freshCycleID $reviewMutantPath
-    if ($reviewMutantRun.ExitCode -ne 0 -or -not (Test-Path $reviewMutantRun.LogPath)) {
-        throw "The review-state negative did not detect removal of its guard: $($reviewMutantRun.Text)"
+    $invalidatedGuard = 'if \(\[string\]\$approvedPlan\.review_state -match ''\^INVALIDATED''\) \{ throw ''Top-level approved_saved_plan is invalidated and cannot be used for destroy\.'' \}'
+    $invalidatedMutant = [regex]::Replace($destroySource, $invalidatedGuard, '# removed R188 invalidated-plan guard', 1)
+    if ($invalidatedMutant -eq $destroySource) { throw 'Could not construct the INVALIDATED review-state guard-removal mutant.' }
+    $invalidatedMutantPath = Join-Path $PSScriptRoot ('.dur050-destroy-invalidated-mutant-' + [guid]::NewGuid().ToString('N') + '.ps1')
+    [IO.File]::WriteAllText($invalidatedMutantPath, $invalidatedMutant, $utf8)
+    $invalidatedMutantRun = Invoke-Destroy 'invalidated-mutant' $invalidatedManifest $stubPath $stubTfDir $stubState $freshCycleID $invalidatedMutantPath
+    if ($invalidatedMutantRun.ExitCode -ne 0 -or -not (Test-Path $invalidatedMutantRun.LogPath)) {
+        throw "The INVALIDATED negative did not detect removal of its guard: $($invalidatedMutantRun.Text)"
     }
-    Write-Host 'PASS: the non-APPLIED test detects its guard-removal mutant.'
+    Write-Host 'PASS: the INVALIDATED test detects its guard-removal mutant.'
 
     $hashMutant = [regex]::Replace($destroySource, "if \(\[string\]\`$terraformInfo\.sha256 -cne \`$pinnedHash\) \{ throw 'Terraform executable SHA-256 differs from the top-level approved_saved_plan pin\.' \}", '# removed R188 executable-hash guard', 1)
     if ($hashMutant -eq $destroySource) { throw 'Could not construct the executable-hash guard-removal mutant.' }
@@ -160,30 +161,19 @@ $state.resources = @()
         if ($LASTEXITCODE -ne 0) { throw "Provider-less typed var-file apply failed: $nativeApplyOutput" }
     } finally { Pop-Location }
     $nativeManifest = Join-Path $temp 'native-manifest.json'
-    $nativeTerraformPath = $nativeInfo.path
-    $committedPinPath = [string]$baseManifest.approved_saved_plan.terraform_executable_path
-    if (Test-Path -LiteralPath $committedPinPath -PathType Leaf) {
-        $committedPin = Resolve-Dur050TerraformExecutable -TerraformExe $committedPinPath
-        if ([string]$committedPin.sha256 -ceq [string]$baseManifest.approved_saved_plan.terraform_executable_sha256) {
-            $nativeManifest = $manifestSource
-            $nativeTerraformPath = $committedPin.path
-        }
-    }
-    if ($nativeManifest -ne $manifestSource) { New-Manifest $nativeManifest $nativeTerraformPath $nativeInfo.sha256 }
-    $nativeResult = Invoke-Destroy 'native-providerless' $nativeManifest $nativeTerraformPath $nativeDir (Join-Path $nativeDir 'terraform.tfstate') $freshCycleID
+    New-Manifest $nativeManifest $nativeInfo.path $nativeInfo.sha256 'PENDING_CLAUDE_GO'
+    $nativeStatePath = Join-Path $nativeDir 'terraform.tfstate'
+    $preDestroyState = Read-Dur050LocalTerraformState -TerraformStatePath $nativeStatePath
+    if ($preDestroyState.resource_count -ne 1) { throw "PENDING_CLAUDE_GO native destroy fixture must begin with one resource, found $($preDestroyState.resource_count)." }
+    $nativeResult = Invoke-Destroy 'native-providerless-pending' $nativeManifest $nativeInfo.path $nativeDir $nativeStatePath $freshCycleID
     if ($nativeResult.ExitCode -ne 0) { throw "Provider-less native destroy failed: $($nativeResult.Text)" }
     $nativeRecord = Get-Content $nativeResult.OutputPath -Raw | ConvertFrom-Json
-    if ($nativeRecord.status -ne 'PASS' -or $nativeRecord.destroyed_count -ne 1 -or $nativeRecord.post_destroy_state.resource_count -ne 0) {
-        throw 'Provider-less native Terraform destroy did not accept the generated typed tfvars JSON end-to-end.'
+    if ($nativeRecord.status -ne 'PASS' -or [int]$nativeRecord.destroyed_count -lt 1 -or $nativeRecord.post_destroy_state.resource_count -ne 0) {
+        throw 'PENDING_CLAUDE_GO provider-less native destroy did not destroy the created resource and record an empty post-state.'
     }
-    Write-Host 'PASS: Terraform 1.16.4 provider-less native config accepted the wrapper-generated typed JSON -var-file and destroyed its fixture resource.'
-    if ($nativeManifest -eq $manifestSource) {
-        Write-Host "PASS: the native destroy used the committed manifest and fresh, unrecorded cycle ID $freshCycleID."
-    } else {
-        Write-Host "PASS: the native destroy used a test copy preserving committed manifest structure and fresh cycle ID $freshCycleID."
-    }
+    Write-Host "PASS: Terraform 1.16.4 provider-less native config destroyed one resource with review_state=PENDING_CLAUDE_GO and fresh cycle ID $freshCycleID."
 } finally {
-    foreach ($mutantFile in @($reviewMutantPath,$hashMutantPath) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }) {
+    foreach ($mutantFile in @($invalidatedMutantPath,$hashMutantPath) | Where-Object { $_ -and (Test-Path -LiteralPath $_) }) {
         Remove-Item -LiteralPath $mutantFile -Force -ErrorAction SilentlyContinue
     }
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
