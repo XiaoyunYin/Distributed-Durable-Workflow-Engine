@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 <#
 .PARAMETER BlockDurationMinutes
 Maximum paid-block duration, measured from reset start through end of drain.

@@ -229,6 +229,8 @@ try {
     if ($positive.ExitCode -ne 0) { throw "Pre-apply PASS case failed: $($positive.Text)" }
     $record = Get-Content -LiteralPath $positive.OutputPath -Raw | ConvertFrom-Json
     if ($record.schema -ne 'dur050-pre-apply-gate.v1' -or $record.status -ne 'PASS' -or $record.account_id -ne '372206265946' -or
+        $record.checks.powershell.edition -ne 'Core' -or $record.checks.powershell.version -ne $PSVersionTable.PSVersion.ToString() -or
+        -not [System.IO.Path]::IsPathRooted([string]$record.checks.powershell.path) -or
         $record.region -ne 'us-west-1' -or $record.planned_peak_vcpu -ne 8 -or $record.terraform_state_resource_count -ne 0 -or
         $record.checks.dur050_inventory.tagged_dur050_instance_count -ne 0 -or $record.checks.dur050_inventory.region_wide_non_terminated_instance_count -ne 0 -or $record.checks.dur050_inventory.region_wide_volume_count -ne 0 -or
         $record.checks.budget.notifications.Count -ne 3 -or @($record.checks.budget.notifications | Where-Object { $_.state -ne 'OK' -or $_.comparison_operator -ne 'GREATER_THAN' }).Count -ne 0 -or

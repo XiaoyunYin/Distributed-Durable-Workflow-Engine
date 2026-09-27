@@ -33,8 +33,16 @@
 
 ## Cycle preparation and immutable baseline
 
+Before invoking any operator script, set the absolute path to the verified
+PowerShell 7 Core executable. Every `.ps1` invocation in this protocol uses
+`& $pwshExe -NoProfile -File ...`; Windows PowerShell 5.1 is unsupported:
+
+```powershell
+$pwshExe = 'C:\Program Files\PowerShell\7\pwsh.exe' # substitute the verified absolute path if installed elsewhere
+```
+
 After a reviewed apply and before the first reset, run
-`scripts/dur050-prepare-pilot.ps1` with the current cycle's parsed Terraform
+`& $pwshExe -NoProfile -File .\scripts\dur050-prepare-pilot.ps1` with the current cycle's parsed Terraform
 outputs, the matching D022 preflight, and a fresh `-CycleID`. Its no-AWS
 `-DryRun` mode emits every stage's exact `New-Dur050SsmBashCommand` wrapper;
 retain that JSON in the cycle directory as `preparation-dry-run.json` before
@@ -281,7 +289,8 @@ record the sample count and selected rank so another reviewer can recompute it.
    `DUR050_RECORD_TRANSACTION_TIMINGS=1` identically in both modes; collect the
    opt-in `DUR050_TXN` rows from both app hosts with
    `scripts/dur050-capture-transaction-timings.sh`, retaining each source host.
-   For every block, invoke `scripts/dur050-reset-block.ps1` with that cycle's
+   For every block, invoke `& $pwshExe -NoProfile -File
+   .\scripts\dur050-reset-block.ps1` with that cycle's
    `-CycleID` and `-BaselineManifestPath <cycle-dir>/baseline-manifest.json`,
    plus `-AdmissionGateMode` matching its ON/OFF manifest row and
    `-TransactionTimingCapture 1`. Immediately after that block completes, and
@@ -433,9 +442,9 @@ verify-worker-group-assignment, submit-eight-warmups,
 observe-warmup-drain, and snapshot-and-kafka-assignment.
 
 Standalone generator runners are dispatched only through
-`scripts/dur050-run-generator-block.ps1`. Pass the parsed Terraform outputs
+`& $pwshExe -NoProfile -File .\scripts\dur050-run-generator-block.ps1`. Pass the parsed Terraform outputs
 JSON and the exact cycle's `preparation-dry-run.json` emitted by
-`scripts/dur050-prepare-pilot.ps1 -DryRun`; do not hand-author either input.
+`& $pwshExe -NoProfile -File .\scripts\dur050-prepare-pilot.ps1 -DryRun`; do not hand-author either input.
 The dispatcher requires `-CycleID` to equal the record's `cycle_id` and checks
 the generator-stage config path is exactly
 `/var/tmp/dur050-<CycleID>/frozen-config.json`. It validates
@@ -449,7 +458,7 @@ Dispatch template (replace the placeholders with this cycle's recorded
 Terraform outputs, preparation dry-run, and fresh output/record paths):
 
 ```powershell
-pwsh -File scripts/dur050-run-generator-block.ps1 `
+& 'C:\Program Files\PowerShell\7\pwsh.exe' -NoProfile -File .\scripts\dur050-run-generator-block.ps1 `
   -TerraformOutputsPath <cycle>/terraform-outputs.json `
   -PreparationDryRunPath <cycle>/preparation-dry-run.json `
   -CycleID <cycle-id> `
@@ -467,7 +476,7 @@ pwsh -File scripts/dur050-run-generator-block.ps1 `
 | `scripts/dur050-capture-transaction-timings.sh` | Pending: implement and review the app-host dispatcher/retrieval path before protocol step 2 |
 
 Each invocation uses a fresh remote output path. Retrieve generator output
-with `scripts/dur050-retrieve-generator-block.ps1`: it creates a remote tar.gz,
+with `& $pwshExe -NoProfile -File .\scripts\dur050-retrieve-generator-block.ps1`: it creates a remote tar.gz,
 records its size and SHA-256, fetches sequential base64 chunks sized below
 the SSM 24,000-character stdout limit, verifies the complete local byte count
 and digest, then safely extracts atomically. The retrieval record contains the
@@ -581,7 +590,7 @@ stopped run.
 
 Provisioning follows two deliberately separate D022 gates. First generate and
 inspect the live saved Terraform plan. Run
-scripts/dur050-preapply-gate.ps1 against that exact plan, its SHA-256, the
+`& $pwshExe -NoProfile -File .\scripts\dur050-preapply-gate.ps1` against that exact plan, its SHA-256, the
 committed terraform show -json inspection, this campaign manifest, and a
 ledger check with the full cycle reserve. This is an account-only,
 read-only gate: it checks the account, plan and empty state, regional quota
@@ -599,26 +608,35 @@ The required order is:
    and serial and requires an exact match with local state. Record plan pins in
    the manifest's `approved_saved_plan` entry; the gate reads plan/inspection
    hashes and paths from that entry, not from fixed script constants.
-2. Run the account-only dur050-preapply-gate.ps1 and retain its unique result
+2. Run `& $pwshExe -NoProfile -File .\scripts\dur050-preapply-gate.ps1` and retain its unique result
    and ledger-check record.
 3. Stop for Claude's go/no-go review of the exact plan, inspection, and gate
    record. PASS by itself is never apply authorization.
 4. Only after that review, apply the exact reviewed saved plan.
-5. Immediately after apply, run scripts/dur050-ledger-record.ps1 -Open with
+5. Immediately after apply, run `& $pwshExe -NoProfile -File
+   .\scripts\dur050-ledger-record.ps1 -Open` with
    the current Terraform outputs, cycle ID, and the apply-start UTC timestamp
    captured immediately before apply. The helper checks all four EC2 IDs,
    types, and LaunchTimes and appends intervals to the task-wide ledger.
-6. Run scripts/dur050-cycle-preflight.ps1 with those outputs. Before its
+6. Run `& $pwshExe -NoProfile -File .\scripts\dur050-cycle-preflight.ps1`
+   with those outputs. Before its
    ledger cost check, it requires exactly those four open role/ID/type rows in
    the same cycle. It also records whether each root EBS volume has the Task
    tag. This separate post-apply gate performs the four-host bootstrap check
    through SSM.
-7. Only after the post-apply gate passes, run
-   scripts/dur050-prepare-pilot.ps1; preparation and paid blocks remain
+7. Only after the post-apply gate passes, run `& $pwshExe -NoProfile -File
+   .\scripts\dur050-prepare-pilot.ps1`; preparation and paid blocks remain
    separately gated by their recorded cycle checks.
-8. After destroy completes, run scripts/dur050-ledger-record.ps1 -Close with
+8. Run `& $pwshExe -NoProfile -File .\scripts\dur050-destroy.ps1` with the cycle ID, manifest, and a unique output
+   path through the pinned Terraform executable. It writes typed Terraform
+   variables to a temporary file outside the repository, destroys the
+   stack, records the destroyed count and post-destroy state serial/resource
+   count, and deletes the temporary file in `finally`.
+9. After destroy completes, run `& $pwshExe -NoProfile -File
+   .\scripts\dur050-ledger-record.ps1 -Close` with
    that cycle ID and the observed destroy-completion UTC timestamp.
-9. Run scripts/dur050-post-destroy-inventory.ps1 with the same cycle ID,
+10. Run `& $pwshExe -NoProfile -File
+   .\scripts\dur050-post-destroy-inventory.ps1` with the same cycle ID,
    manifest, pinned Terraform executable, and a unique output path. Retain its
    raw read-only AWS responses and PASS/FAIL record. It verifies empty
    Terraform state, zero region-wide non-terminated instances and volumes,
@@ -628,6 +646,22 @@ The required order is:
 
 The cycle-preflight schema is not interchangeable with the pre-apply schema;
 preparation and reset reject dur050-pre-apply-gate.v1.
+
+All DUR-050 PowerShell operator tools require PowerShell 7 Core and must be
+invoked with an absolute `pwsh.exe` path and `-NoProfile -File`; never use
+Windows PowerShell 5.1. For example:
+
+```powershell
+$pwshExe = 'C:\Program Files\PowerShell\7\pwsh.exe' # substitute the verified absolute path if installed elsewhere
+& $pwshExe -NoProfile -File .\scripts\dur050-cycle-preflight.ps1 ...
+```
+
+Teardown order is `dur050-destroy.ps1` → `dur050-ledger-record.ps1 -Close` →
+`dur050-post-destroy-inventory.ps1`. The destroy wrapper reads the pinned
+Terraform executable and variable profile from the manifest, writes a
+temporary typed tfvars JSON outside the repository, and removes it in
+`finally`. Invoke each operator tool with `& $pwshExe -NoProfile -File
+.\scripts\<tool>.ps1`.
 
 Use a new campaign ID under
 `experiments/m8/dur050-capacity-overload/<campaign-id>/`; never overwrite v1 or

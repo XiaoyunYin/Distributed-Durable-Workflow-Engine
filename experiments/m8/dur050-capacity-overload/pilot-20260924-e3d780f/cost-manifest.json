@@ -771,10 +771,28 @@
     "approved_saved_plan": {
       "path": "deploy/aws/.terraform/dur050-preapply-round112-20260927T034431Z.tfplan",
       "sha256": "F517A64A6A6C552EEC4064E13C6FA271599331AD09F277A9E5A434CDA1DC94FC",
-      "source_commit": "57c95d9",
+      "source_commit": "2330417f7521b487291cb793ead9d97eda637062",
       "terraform_executable_path": "C:/Users/yxyfz/AppData/Local/Programs/Terraform/1.16.4/terraform.exe",
       "terraform_executable_sha256": "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
       "terraform_version": "1.16.4"
+    },
+    "ledger_backfill_r187": {
+      "status": "PASS; four closed intervals backfilled from committed evidence; no AWS calls",
+      "recorded_at_utc": "2026-09-27T06:24:23.4919560+00:00",
+      "interval_source": "backfill: apply start -> destroy completion (R187)",
+      "task_ledger_path": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
+      "task_ledger_sha256": "059EE45D574B0C1597E6025C2720C3DAF248544F83FE0878EEA84A32AF7C1524",
+      "ledger_check_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/ledger-check-r187-backfill.json",
+      "ledger_check_sha256": "A857ECB61AE6CC22FF9069BF58F949A2AC283DC87890F8AA51830B8E68488614",
+      "source_evidence": {
+        "terraform_outputs_sha256": "1E437E33FDE7ABF1E32220FEB6F6BC7910E271AF57FD5910C1A5BD2C36373286",
+        "apply_record_sha256": "33C154C6E27589AF01F44D2D383C952C21CB36CE2EFDA66FBAABD1CD4D85FC9F",
+        "destroy_record_sha256": "8CFB5F4D65B49E18E71995059B581E5BCA240A4A6C6C5142B39D51013F46AFC4"
+      },
+      "accrued_cost_before_usd": 0.248827,
+      "accrued_cost_after_usd": 0.315548,
+      "accrued_cost_delta_usd": 0.066721,
+      "open_intervals_after_backfill": 0
     },
     "apply": {
       "record_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/apply-record.json",

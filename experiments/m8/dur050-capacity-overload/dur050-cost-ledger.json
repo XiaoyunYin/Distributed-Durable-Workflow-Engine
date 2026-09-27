@@ -41,6 +41,22 @@
         "destroy_completed_at_utc": "2026-09-25T18:44:55.5339832Z",
         "availability_zone": "us-west-1a",
         "destroy_timestamp_source": "Common Terraform destroy-complete observation; 31 resources destroyed"
+      },
+      {
+        "cycle_id": "cycle-3b-2330417",
+        "instance_id": "i-055db1d3eeabee348",
+        "instance_type": "c7i.large",
+        "apply_started_at_utc": "2026-09-27T04:46:54.1291096Z",
+        "destroy_completed_at_utc": "2026-09-27T04:55:45.4572760Z",
+        "interval_source": "backfill: apply start -> destroy completion (R187)",
+        "evidence": {
+          "apply_record_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\apply-record.json",
+          "apply_record_sha256": "33C154C6E27589AF01F44D2D383C952C21CB36CE2EFDA66FBAABD1CD4D85FC9F",
+          "destroy_record_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\destroy-record-final-attempt.json",
+          "destroy_record_sha256": "8CFB5F4D65B49E18E71995059B581E5BCA240A4A6C6C5142B39D51013F46AFC4",
+          "terraform_outputs_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\terraform-outputs.json",
+          "terraform_outputs_sha256": "1E437E33FDE7ABF1E32220FEB6F6BC7910E271AF57FD5910C1A5BD2C36373286"
+        }
       }
     ],
     "app-2": [
@@ -62,6 +78,22 @@
         "destroy_completed_at_utc": "2026-09-25T18:44:55.5339832Z",
         "availability_zone": "us-west-1c",
         "destroy_timestamp_source": "Common Terraform destroy-complete observation; 31 resources destroyed"
+      },
+      {
+        "cycle_id": "cycle-3b-2330417",
+        "instance_id": "i-04cc1d41f74cc2a7f",
+        "instance_type": "c7i.large",
+        "apply_started_at_utc": "2026-09-27T04:46:54.1291096Z",
+        "destroy_completed_at_utc": "2026-09-27T04:55:45.4572760Z",
+        "interval_source": "backfill: apply start -> destroy completion (R187)",
+        "evidence": {
+          "apply_record_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\apply-record.json",
+          "apply_record_sha256": "33C154C6E27589AF01F44D2D383C952C21CB36CE2EFDA66FBAABD1CD4D85FC9F",
+          "destroy_record_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\destroy-record-final-attempt.json",
+          "destroy_record_sha256": "8CFB5F4D65B49E18E71995059B581E5BCA240A4A6C6C5142B39D51013F46AFC4",
+          "terraform_outputs_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\terraform-outputs.json",
+          "terraform_outputs_sha256": "1E437E33FDE7ABF1E32220FEB6F6BC7910E271AF57FD5910C1A5BD2C36373286"
+        }
       }
     ],
     "dependency": [
@@ -83,6 +115,22 @@
         "destroy_completed_at_utc": "2026-09-25T18:44:55.5339832Z",
         "availability_zone": "us-west-1a",
         "destroy_timestamp_source": "Common Terraform destroy-complete observation; 31 resources destroyed"
+      },
+      {
+        "cycle_id": "cycle-3b-2330417",
+        "instance_id": "i-082ab1ace586a96c1",
+        "instance_type": "m7i.large",
+        "apply_started_at_utc": "2026-09-27T04:46:54.1291096Z",
+        "destroy_completed_at_utc": "2026-09-27T04:55:45.4572760Z",
+        "interval_source": "backfill: apply start -> destroy completion (R187)",
+        "evidence": {
+          "apply_record_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\apply-record.json",
+          "apply_record_sha256": "33C154C6E27589AF01F44D2D383C952C21CB36CE2EFDA66FBAABD1CD4D85FC9F",
+          "destroy_record_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\destroy-record-final-attempt.json",
+          "destroy_record_sha256": "8CFB5F4D65B49E18E71995059B581E5BCA240A4A6C6C5142B39D51013F46AFC4",
+          "terraform_outputs_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\terraform-outputs.json",
+          "terraform_outputs_sha256": "1E437E33FDE7ABF1E32220FEB6F6BC7910E271AF57FD5910C1A5BD2C36373286"
+        }
       }
     ],
     "load-generator": [
@@ -104,13 +152,29 @@
         "destroy_completed_at_utc": "2026-09-25T18:44:55.5339832Z",
         "availability_zone": "us-west-1a",
         "destroy_timestamp_source": "Common Terraform destroy-complete observation; 31 resources destroyed"
+      },
+      {
+        "cycle_id": "cycle-3b-2330417",
+        "instance_id": "i-0d3f97f4822a3d9c8",
+        "instance_type": "c7i.large",
+        "apply_started_at_utc": "2026-09-27T04:46:54.1291096Z",
+        "destroy_completed_at_utc": "2026-09-27T04:55:45.4572760Z",
+        "interval_source": "backfill: apply start -> destroy completion (R187)",
+        "evidence": {
+          "apply_record_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\apply-record.json",
+          "apply_record_sha256": "33C154C6E27589AF01F44D2D383C952C21CB36CE2EFDA66FBAABD1CD4D85FC9F",
+          "destroy_record_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\destroy-record-final-attempt.json",
+          "destroy_record_sha256": "8CFB5F4D65B49E18E71995059B581E5BCA240A4A6C6C5142B39D51013F46AFC4",
+          "terraform_outputs_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\cycle-3b-2330417\\terraform-outputs.json",
+          "terraform_outputs_sha256": "1E437E33FDE7ABF1E32220FEB6F6BC7910E271AF57FD5910C1A5BD2C36373286"
+        }
       }
     ]
   },
   "history_migration": {
     "source_campaign_manifest": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cost-manifest.json",
     "source_cycle": "provisioning_cycle_1",
-    "migrated_at_utc": "2026-09-25T16:37:18.275910Z",
+    "migrated_at_utc": "2026-09-25T16:37:18.27591Z",
     "note": "Cycle-1 timestamps are unchanged from the reviewed campaign record. The campaign manifest retains a labelled non-authoritative snapshot; this file is the sole accounting source for all campaigns."
   }
 }

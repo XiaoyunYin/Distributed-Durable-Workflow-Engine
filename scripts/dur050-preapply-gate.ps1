@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$SavedPlanPath,
@@ -27,6 +28,11 @@ $script:LedgerCheckPath = $LedgerCheckPath
 $script:LedgerPath = $LedgerPath
 $script:PythonExe = $PythonExe
 $script:observed = [ordered]@{}
+$script:observed.powershell = [ordered]@{
+    path = [System.IO.Path]::GetFullPath([Environment]::ProcessPath)
+    version = $PSVersionTable.PSVersion.ToString()
+    edition = [string]$PSVersionTable.PSEdition
+}
 $script:recordWritten = $false
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 if (-not $TerraformStatePath) { $TerraformStatePath = Join-Path $repoRoot 'deploy/aws/terraform.tfstate' }
@@ -149,6 +155,7 @@ function Invoke-Dur050PreApplyGate {
     $inspection = $null
     $planHash = $null
     try {
+        if ([string]$PSVersionTable.PSEdition -ne 'Core') { throw 'DUR-050 operator tools require PowerShell Core (pwsh 7 or newer).' }
         foreach ($path in @($SavedPlanPath, $PlanInspectionPath, $CampaignManifestPath)) {
             if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Required pre-apply input is missing: $path" }
         }

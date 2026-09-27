@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 function ConvertTo-Dur050TimestampUtc([object]$Value, [string]$FieldName) {
     if ($null -eq $Value) { throw "D022 preflight $FieldName is required." }
     if ($Value -is [DateTimeOffset]) { return $Value.ToUniversalTime() }

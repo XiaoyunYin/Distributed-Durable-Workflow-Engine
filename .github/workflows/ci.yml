@@ -118,6 +118,18 @@ jobs:
           terraform_version: 1.16.4
           terraform_wrapper: false
 
+      - name: Enforce PowerShell 7 on every DUR-050 operator script
+        shell: pwsh
+        run: ./scripts/test-dur050-powershell7-requirements.ps1
+
+      - name: Test DUR-050 task-wide ledger backfill and guard mutations
+        shell: pwsh
+        run: ./scripts/test-dur050-ledger-record.ps1
+
+      - name: Test safe DUR-050 Terraform destroy wrapper
+        shell: pwsh
+        run: ./scripts/test-dur050-destroy.ps1
+
       - name: Test DUR-050 plan-state provenance with native Terraform plan
         shell: bash
         run: |

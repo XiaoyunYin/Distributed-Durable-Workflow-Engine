@@ -15,11 +15,25 @@ establish database-host durability, Kafka HA, or multi-region availability.
 
 ## Preflight
 
+Every DUR-050 PowerShell operator tool requires PowerShell 7 Core. Use the
+absolute path to the verified `pwsh.exe` with `-NoProfile -File`; do not run
+these scripts under Windows PowerShell 5.1. For example, set the path for the
+operator host and invoke tools as follows:
+
+```powershell
+$pwshExe = 'C:\Program Files\PowerShell\7\pwsh.exe' # substitute the verified absolute path if installed elsewhere
+if (-not [IO.Path]::IsPathRooted($pwshExe)) { throw 'pwsh.exe path must be absolute.' }
+& $pwshExe -NoProfile -File .\scripts\dur050-ledger-record.ps1 -Backfill -CycleID <cycle-id> -TerraformOutputsPath <outputs.json> -ApplyRecordPath <apply-record.json> -DestroyRecordPath <destroy-record.json>
+```
+
 For the DUR-050 third provisioning cycle, the order is:
 **live saved plan → account-only pre-apply gate → Claude go/no-go → apply →
 ledger-record -Open → post-apply cycle preflight → preparation → destroy →
 ledger-record -Close → post-destroy inventory**. Do not apply based only on a
 successful pre-apply gate; its record explicitly grants no apply authority.
+The teardown word in that summary means the committed
+`dur050-destroy.ps1` wrapper, followed by ledger close and inventory—not a
+hand-written `terraform destroy` command.
 
 Generate the live read-only plan from this checkout's `deploy/aws` directory
 against its local `terraform.tfstate`. Use the same checksum-verified Terraform
@@ -43,31 +57,46 @@ try {
 Put the candidate's full source commit, saved-plan SHA-256, inspection path,
 baseline inspection path, and expected prior-state lineage/serial in the
 manifest's single `approved_saved_plan` entry. Inspect the exact candidate
-with `scripts/dur050-inspect-saved-plan.ps1` using that same executable and
+with `& $pwshExe -NoProfile -File .\scripts\dur050-inspect-saved-plan.ps1` using that same executable and
 state file; it reads the ZIP's `tfstate` entry and fails if lineage/serial
 differs from the local state. Then record the produced inspection SHA-256 in
-the same manifest entry. Run `scripts/dur050-preapply-gate.ps1` with the saved
+the same manifest entry. Run `& $pwshExe -NoProfile -File
+.\scripts\dur050-preapply-gate.ps1` with the saved
 plan, inspection, manifest, unique ledger-check/output paths, and full-cycle
 reserve; the gate takes expected hashes and paths only from
 `approved_saved_plan` and repeats the state comparison at gate time. The
 account-only gate checks the empty local Terraform state, AWS
 identity, regional inventory/quota, D022 budget/notifications, cost-allocation
 tags, and ledger; it does not require Terraform outputs and does not call SSM.
+Its record also captures the absolute PowerShell executable path, version, and
+edition, and the gate fails unless the edition is Core.
 Wait for Claude's explicit go/no-go before applying the exact reviewed plan.
 
 Immediately before apply, capture the apply-start UTC timestamp. After apply,
 use the current parsed outputs and that timestamp with
-scripts/dur050-ledger-record.ps1 -Open. The helper uses read-only
+`& $pwshExe -NoProfile -File .\scripts\dur050-ledger-record.ps1 -Open ...`. The helper uses read-only
 DescribeInstances data to check all four IDs/types and that the start is no
 later than each EC2 LaunchTime. It appends intervals to the task-wide ledger
-and refuses duplicate/open cycles. Then run scripts/dur050-cycle-preflight.ps1.
+and refuses duplicate/open cycles. Then invoke
+`& $pwshExe -NoProfile -File .\scripts\dur050-cycle-preflight.ps1 ...`.
 It requires the four open ledger intervals to match the parsed Terraform
 outputs and cycle ID before checking cost; it also records whether each
-attached root volume has Task=DUR-050. Run scripts/dur050-prepare-pilot.ps1
-only after that cycle preflight passes. After Terraform destroy completes, run
-scripts/dur050-ledger-record.ps1 -Close with the cycle ID and observed
-destroy-completion UTC timestamp. Then run the read-only
-`scripts/dur050-post-destroy-inventory.ps1` with that cycle ID, the campaign
+attached root volume has Task=DUR-050. Run preparation only after that cycle
+preflight passes. Teardown order is `dur050-destroy.ps1` →
+`dur050-ledger-record.ps1 -Close` → `dur050-post-destroy-inventory.ps1`. Invoke
+the destroy wrapper as:
+
+```powershell
+& $pwshExe -NoProfile -File .\scripts\dur050-destroy.ps1 -CycleID <cycle-id> -CampaignManifestPath <manifest.json> -OutputPath <destroy-record.json>
+```
+
+It builds a typed temporary `.tfvars.json` from the manifest profile outside
+the repository, uses env-provided or valid throwaway secret values, and
+removes the temporary file in `finally`. Then invoke
+`& $pwshExe -NoProfile -File .\scripts\dur050-ledger-record.ps1 -Close ...`
+with the cycle ID and observed destroy-completion UTC timestamp. Finally run
+the read-only post-destroy inventory with `& $pwshExe -NoProfile -File
+.\scripts\dur050-post-destroy-inventory.ps1` and that cycle ID, the campaign
 manifest, a unique output path, and the same pinned Terraform executable. It
 requires an empty Terraform state, no regional instances or volumes, no
 Task-tagged campaign network/storage/load-balancer resources, no prefixed
@@ -139,13 +168,14 @@ generator-only network paths. The DUR-050 app overlay enables the fixed
 base app compose retains the DUR-049 default. PostgreSQL preloads
 `pg_stat_statements` via `shared_preload_libraries`, then migration 000018
 installs the extension. After a reviewed apply, run
-`scripts/dur050-prepare-pilot.ps1` with that cycle's parsed Terraform outputs
+`dur050-prepare-pilot.ps1` with `& $pwshExe -NoProfile -File
+.\scripts\dur050-prepare-pilot.ps1` and that cycle's parsed Terraform outputs
 and D022 preflight. It installs the two definitions, stages the API config from
 the current app-host address, verifies the clean baseline, captures and hashes
 the stopped dependency volumes, then restarts and health-checks PostgreSQL and
 Kafka. Preserve its per-stage JSON plus `baseline-manifest.json`; do not hand-
-type SSM setup commands. After each volume restore, use the reviewed
-`scripts/dur050-reset-block.ps1` procedure with the same `-CycleID` and
+type SSM setup commands. After each volume restore, run the reviewed
+`& $pwshExe -NoProfile -File .\scripts\dur050-reset-block.ps1` procedure with the same `-CycleID` and
 `-BaselineManifestPath` to verify both archive hashes before restore and restart
 the application hosts,
 verify the Kafka worker group has active consumer assignment, submit and drain
@@ -158,7 +188,8 @@ whose age plus that duration exceeds its recorded positive ledger reserve (and
 still enforces the 240-minute outer freshness cap).
 
 Before preparation and again before every paid block, generate the current
-cycle's read-only gate record with `scripts/dur050-cycle-preflight.ps1`. Supply
+cycle's read-only gate record with `& $pwshExe -NoProfile -File
+.\scripts\dur050-cycle-preflight.ps1`. Supply
 the parsed Terraform outputs, recorded plan inspection, task-wide cost-ledger
 manifest, a unique output path, and explicit reserve minutes. The tool rechecks
 account/quota/budget/tags, ledger reserve, and all four hosts' cloud-init and
@@ -183,7 +214,7 @@ Every AWS-RunShellScript command uses the DUR-050 base64/temp-file Bash
 wrapper (`scripts/dur050-ssm-wrapper.ps1`), because SSM otherwise starts
 `/bin/sh`. The reset helper sends its remote stages through that wrapper.
 Dispatch unloaded, load-window and sink-check runners with
-`scripts/dur050-run-generator-block.ps1`. Pass the current cycle's parsed
+`& $pwshExe -NoProfile -File .\scripts\dur050-run-generator-block.ps1`. Pass the current cycle's parsed
 `terraform-outputs.json` and the `preparation-dry-run.json` emitted by
 `dur050-prepare-pilot.ps1 -DryRun`, plus the matching `-CycleID`; the dispatcher
 rejects a cycle mismatch and requires the recorded generator config path
@@ -191,7 +222,7 @@ rejects a cycle mismatch and requires the recorded generator config path
 Its `-StagePlanOnly` mode validates the prepared config and prints the exact
 command without AWS access. Retrieve
 the resulting block directory with
-`scripts/dur050-retrieve-generator-block.ps1`, which transfers bounded SSM
+`& $pwshExe -NoProfile -File .\scripts\dur050-retrieve-generator-block.ps1`, which transfers bounded SSM
 chunks and verifies size and SHA-256 before extraction. Both tools record SSM
 command IDs. Do not hand-write runner `-RemoteLines` or rely on SSM's capped
 `StandardOutputContent` for block artifacts. The retrieval record names the
@@ -276,7 +307,7 @@ other-partition progress arm uses its own separate fixture. Then run the
 SSM-backed harness from the repository root:
 
 ```powershell
-pwsh -File scripts/dur043-multihost.ps1 -Scenario all `
+& $pwshExe -NoProfile -File .\scripts\dur043-multihost.ps1 -Scenario all `
   -NetworkWorkflowId <fresh-network-id> `
   -HostWorkflowId <fresh-host-stop-id> `
   -LockWorkflowId <fresh-live-holder-id> `

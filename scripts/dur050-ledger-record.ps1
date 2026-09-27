@@ -1,11 +1,15 @@
+#Requires -Version 7.0
 [CmdletBinding(DefaultParameterSetName='Open')]
 param(
     [Parameter(Mandatory, ParameterSetName='Open')][switch]$Open,
     [Parameter(Mandatory, ParameterSetName='Close')][switch]$Close,
+    [Parameter(Mandatory, ParameterSetName='Backfill')][switch]$Backfill,
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9-]{1,32}$')][string]$CycleID,
-    [Parameter(Mandatory, ParameterSetName='Open')][string]$TerraformOutputsPath,
+    [Parameter(Mandatory, ParameterSetName='Open')][Parameter(Mandatory, ParameterSetName='Backfill')][string]$TerraformOutputsPath,
     [Parameter(Mandatory, ParameterSetName='Open')][string]$ApplyStartedAtUtc,
     [Parameter(ParameterSetName='Close')][string]$DestroyCompletedAtUtc = ([DateTimeOffset]::UtcNow.ToString('o')),
+    [Parameter(Mandatory, ParameterSetName='Backfill')][string]$ApplyRecordPath,
+    [Parameter(Mandatory, ParameterSetName='Backfill')][string]$DestroyRecordPath,
     [string]$LedgerPath,
     [string]$PythonExe = 'python'
 )
@@ -90,9 +94,52 @@ function Assert-Dur050LedgerCandidate([string]$Path) {
 $originalBytes = [IO.File]::ReadAllBytes($LedgerPath)
 $ledger = [Text.Encoding]::UTF8.GetString($originalBytes) | ConvertFrom-Json -ErrorAction Stop
 if ($ledger.schema -ne 'dur050-task-cost-ledger.v1' -or $ledger.task_id -ne 'DUR-050') { throw 'Task ledger schema or task ID is invalid.' }
-$timestamp = if ($Open) { Read-Dur050LedgerUtc $ApplyStartedAtUtc 'ApplyStartedAtUtc' } else { Read-Dur050LedgerUtc $DestroyCompletedAtUtc 'DestroyCompletedAtUtc' }
+$timestamp = if ($Open) { Read-Dur050LedgerUtc $ApplyStartedAtUtc 'ApplyStartedAtUtc' } elseif ($Close) { Read-Dur050LedgerUtc $DestroyCompletedAtUtc 'DestroyCompletedAtUtc' } else { $null }
 
-if ($Open) {
+if ($Backfill) {
+    foreach ($path in @($TerraformOutputsPath, $ApplyRecordPath, $DestroyRecordPath)) {
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Backfill evidence file is missing: $path" }
+    }
+    $outputs = Get-Content -LiteralPath $TerraformOutputsPath -Raw | ConvertFrom-Json -ErrorAction Stop
+    $applyRecord = Get-Content -LiteralPath $ApplyRecordPath -Raw | ConvertFrom-Json -ErrorAction Stop
+    $destroyRecord = Get-Content -LiteralPath $DestroyRecordPath -Raw | ConvertFrom-Json -ErrorAction Stop
+    if ([string]$applyRecord.schema -ne 'dur050-apply-record.v1' -or [string]$applyRecord.status -ne 'PASS' -or [string]$applyRecord.cycle_id -ne $CycleID) {
+        throw 'Apply record schema, status, or cycle ID does not match the requested backfill.'
+    }
+    if ([string]$destroyRecord.schema -ne 'dur050-destroy-record.v1' -or [string]$destroyRecord.status -ne 'PASS' -or [string]$destroyRecord.cycle_id -ne $CycleID) {
+        throw 'Destroy record schema, status, or cycle ID does not match the requested backfill.'
+    }
+    $start = Read-Dur050LedgerUtc $applyRecord.apply_started_at_utc 'apply_record.apply_started_at_utc'
+    $end = Read-Dur050LedgerUtc $destroyRecord.destroy_completed_at_utc 'destroy_record.destroy_completed_at_utc'
+    if ($start -ge $end) { throw 'Backfill apply start must precede destroy completion.' }
+    $hosts = @(Get-Dur050TerraformHosts $outputs)
+    foreach ($role in @('app-1','app-2','dependency','load-generator')) {
+        if (@($ledger.roles.$role | Where-Object { [string]$_.cycle_id -eq $CycleID }).Count -ne 0) { throw "Refusing to overwrite existing ledger cycle $CycleID for $role." }
+    }
+    $allIds = @($ledger.roles.PSObject.Properties | ForEach-Object { $_.Value } | ForEach-Object { $_ } | ForEach-Object { [string]$_.instance_id })
+    foreach ($hostSpec in $hosts) {
+        if ($allIds -contains $hostSpec.id) { throw "Refusing reused EC2 instance ID $($hostSpec.id)." }
+    }
+    $evidence = [ordered]@{
+        apply_record_path = [IO.Path]::GetFullPath($ApplyRecordPath)
+        apply_record_sha256 = (Get-FileHash -LiteralPath $ApplyRecordPath -Algorithm SHA256).Hash.ToUpperInvariant()
+        destroy_record_path = [IO.Path]::GetFullPath($DestroyRecordPath)
+        destroy_record_sha256 = (Get-FileHash -LiteralPath $DestroyRecordPath -Algorithm SHA256).Hash.ToUpperInvariant()
+        terraform_outputs_path = [IO.Path]::GetFullPath($TerraformOutputsPath)
+        terraform_outputs_sha256 = (Get-FileHash -LiteralPath $TerraformOutputsPath -Algorithm SHA256).Hash.ToUpperInvariant()
+    }
+    foreach ($hostSpec in $hosts) {
+        $ledger.roles.($hostSpec.role) = @($ledger.roles.($hostSpec.role)) + @([ordered]@{
+            cycle_id = $CycleID
+            instance_id = $hostSpec.id
+            instance_type = $hostSpec.type
+            apply_started_at_utc = $start.ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ', [Globalization.CultureInfo]::InvariantCulture)
+            destroy_completed_at_utc = $end.ToString('yyyy-MM-ddTHH:mm:ss.fffffffZ', [Globalization.CultureInfo]::InvariantCulture)
+            interval_source = 'backfill: apply start -> destroy completion (R187)'
+            evidence = $evidence
+        })
+    }
+} elseif ($Open) {
     if (-not (Test-Path -LiteralPath $TerraformOutputsPath -PathType Leaf)) { throw "Terraform outputs file is missing: $TerraformOutputsPath" }
     $outputs = Get-Content -LiteralPath $TerraformOutputsPath -Raw | ConvertFrom-Json -ErrorAction Stop
     $hosts = @(Get-Dur050TerraformHosts $outputs)
@@ -148,7 +195,8 @@ try {
     if ((Get-Item -LiteralPath $tempLedger).Length -eq 0) { throw 'Serialized candidate ledger is empty.' }
     Assert-Dur050LedgerCandidate $tempLedger
     [IO.File]::Move($tempLedger, $LedgerPath, $true)
-    Write-Output ([ordered]@{ schema='dur050-ledger-record.v1'; status='PASS'; operation=if($Open){'OPEN'}else{'CLOSE'}; cycle_id=$CycleID; ledger_path=[IO.Path]::GetFullPath($LedgerPath); host_count=4; recorded_at_utc=[DateTimeOffset]::UtcNow.ToString('o') } | ConvertTo-Json -Depth 8)
+    $operation = if ($Open) { 'OPEN' } elseif ($Close) { 'CLOSE' } else { 'BACKFILL' }
+    Write-Output ([ordered]@{ schema='dur050-ledger-record.v1'; status='PASS'; operation=$operation; cycle_id=$CycleID; ledger_path=[IO.Path]::GetFullPath($LedgerPath); host_count=4; evidence=$evidence; recorded_at_utc=[DateTimeOffset]::UtcNow.ToString('o') } | ConvertTo-Json -Depth 12)
 } finally {
     Remove-Item -LiteralPath $tempLedger -Force -ErrorAction SilentlyContinue
 }

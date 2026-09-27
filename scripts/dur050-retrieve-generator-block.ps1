@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [ValidatePattern('^i-[0-9a-f]{8,17}$')] [string]$InstanceID,

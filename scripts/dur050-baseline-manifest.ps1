@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 function Get-Dur050BaselineHashVerificationLines {
     [CmdletBinding()]
     param(

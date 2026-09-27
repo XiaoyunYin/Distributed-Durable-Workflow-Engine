@@ -1,3 +1,4 @@
+#Requires -Version 7.0
 # Shared D022 checks used by both the account-only pre-apply gate and the
 # post-apply cycle/bootstrap gate. Keep the budget, quota, and ledger contracts
 # in one place so neither gate can drift from the other.
