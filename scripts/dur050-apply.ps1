@@ -208,7 +208,7 @@ try {
         plan_prior_state = [ordered]@{ lineage = [string]$planPriorState.lineage; serial = [long]$planPriorState.serial; terraform_version = [string]$planPriorState.terraform_version }
         local_state_before = [ordered]@{ lineage = [string]$localState.lineage; serial = [long]$localState.serial; resource_count = [int]$localState.resource_count; sha256 = $localStateSha }
         terraform_executable = [ordered]@{ path = [string]$terraformExeResolved; sha256 = $terraformExeHash; version = [string]$terraformVersionInfo.terraform_version }
-        command = @('-chdir=' + $terraformDirectoryFull, 'apply', '-input=false', $savedPlanPath)
+        command = @(('-chdir=' + $terraformDirectoryFull), 'apply', '-input=false', $savedPlanPath)
         exit_code = $null
         counts = [ordered]@{ added = $null; changed = $null; destroyed = $null }
         output = ''
@@ -272,7 +272,7 @@ if ($markerApplied) {
             plan_prior_state = [ordered]@{ lineage = [string]$planPriorState.lineage; serial = [long]$planPriorState.serial; terraform_version = [string]$planPriorState.terraform_version }
             local_state_before = [ordered]@{ lineage = [string]$localState.lineage; serial = [long]$localState.serial; resource_count = [int]$localState.resource_count; sha256 = $localStateSha }
             terraform_executable = [ordered]@{ path = $terraformExe; sha256 = $terraformExeHash; version = [string]$pin.terraform_version }
-            command = @('-chdir=' + $terraformDirectoryFull, 'apply', '-input=false', $savedPlanPath)
+            command = @(('-chdir=' + $terraformDirectoryFull), 'apply', '-input=false', $savedPlanPath)
             exit_code = $null; counts = [ordered]@{ added = $null; changed = $null; destroyed = $null }; output = ''
             post_apply_state = $null; terraform_outputs_path = $outputsPath; terraform_outputs_sha256 = $null; error = $failure
         }
