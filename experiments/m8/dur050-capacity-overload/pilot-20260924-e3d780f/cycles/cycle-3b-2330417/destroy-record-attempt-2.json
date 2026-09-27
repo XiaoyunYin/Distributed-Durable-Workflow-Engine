@@ -1,0 +1,11 @@
+{
+    "schema":  "dur050-destroy-record.v1",
+    "status":  "FAIL",
+    "cycle_id":  "cycle-3b-2330417",
+    "destroy_started_at_utc":  "2026-09-27T04:53:40.9329734Z",
+    "destroy_completed_at_utc":  "2026-09-27T04:53:42.9023568Z",
+    "terraform_executable":  "C:\\Users\\yxyfz\\AppData\\Local\\Programs\\Terraform\\1.16.4\\terraform.exe",
+    "terraform_executable_sha256":  "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
+    "terraform_version":  "1.16.4",
+    "exit_code":  1
+}

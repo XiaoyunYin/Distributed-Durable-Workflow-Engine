@@ -1,0 +1,161 @@
+{
+    "schema":  "dur050-post-destroy-inventory.v4",
+    "status":  "PASS",
+    "cycle_id":  "cycle-3b-2330417",
+    "started_at_utc":  "2026-09-27T04:56:52.3805826+00:00",
+    "checked_at_utc":  "2026-09-27T04:57:08.6439230+00:00",
+    "account_id":  "372206265946",
+    "region":  "us-west-1",
+    "raw_aws_responses":  {
+                              "sts.get-caller-identity":  "{\r\n    \"UserId\": \"AIDAVNKJY4ZNCA7Z4Q5GL\",\r\n    \"Account\": \"372206265946\",\r\n    \"Arn\": \"arn:aws:iam::372206265946:user/admin-learning\"\r\n}",
+                              "ec2.describe-instances":  "{\r\n    \"Reservations\": []\r\n}",
+                              "ec2.describe-volumes":  "{\r\n    \"Volumes\": []\r\n}",
+                              "ec2.describe-vpcs":  "{\r\n    \"Vpcs\": []\r\n}",
+                              "ec2.describe-subnets":  "{\r\n    \"Subnets\": []\r\n}",
+                              "ec2.describe-security-groups":  "{\r\n    \"SecurityGroups\": []\r\n}",
+                              "ec2.describe-network-interfaces":  "{\r\n    \"NetworkInterfaces\": []\r\n}",
+                              "ec2.describe-addresses":  "{\r\n    \"Addresses\": []\r\n}",
+                              "ec2.describe-snapshots":  "{\r\n    \"Snapshots\": []\r\n}",
+                              "ec2.describe-nat-gateways":  "{\r\n    \"NatGateways\": []\r\n}",
+                              "elbv2.describe-load-balancers":  "{\r\n    \"LoadBalancers\": []\r\n}",
+                              "elbv2.describe-tags":  "{\"TagDescriptions\":[]}",
+                              "elb.describe-load-balancers":  "{\r\n    \"LoadBalancerDescriptions\": []\r\n}",
+                              "elb.describe-tags":  "{\"TagDescriptions\":[]}",
+                              "iam.list-roles":  "{\r\n    \"Roles\": [\r\n        {\r\n            \"Path\": \"/aws-service-role/eks.amazonaws.com/\",\r\n            \"RoleName\": \"AWSServiceRoleForAmazonEKS\",\r\n            \"RoleId\": \"AROAVNKJY4ZNNSEOW5PNR\",\r\n            \"Arn\": \"arn:aws:iam::372206265946:role/aws-service-role/eks.amazonaws.com/AWSServiceRoleForAmazonEKS\",\r\n            \"CreateDate\": \"2026-08-10T05:00:55+00:00\",\r\n            \"AssumeRolePolicyDocument\": {\r\n                \"Version\": \"2012-10-17\",\r\n                \"Statement\": [\r\n                    {\r\n                        \"Effect\": \"Allow\",\r\n                        \"Principal\": {\r\n                            \"Service\": \"eks.amazonaws.com\"\r\n                        },\r\n                        \"Action\": \"sts:AssumeRole\"\r\n                    }\r\n                ]\r\n            },\r\n            \"Description\": \"Allows Amazon EKS to call AWS services on your behalf.\",\r\n            \"MaxSessionDuration\": 3600\r\n        },\r\n        {\r\n            \"Path\": \"/aws-service-role/eks-nodegroup.amazonaws.com/\",\r\n            \"RoleName\": \"AWSServiceRoleForAmazonEKSNodegroup\",\r\n            \"RoleId\": \"AROAVNKJY4ZNELLT5JKSO\",\r\n            \"Arn\": \"arn:aws:iam::372206265946:role/aws-service-role/eks-nodegroup.amazonaws.com/AWSServiceRoleForAmazonEKSNodegroup\",\r\n            \"CreateDate\": \"2026-08-10T05:08:27+00:00\",\r\n            \"AssumeRolePolicyDocument\": {\r\n                \"Version\": \"2012-10-17\",\r\n                \"Statement\": [\r\n                    {\r\n                        \"Effect\": \"Allow\",\r\n                        \"Principal\": {\r\n                            \"Service\": \"eks-nodegroup.amazonaws.com\"\r\n                        },\r\n                        \"Action\": \"sts:AssumeRole\"\r\n                    }\r\n                ]\r\n            },\r\n            \"Description\": \"This policy allows Amazon EKS to create and manage Nodegroups\",\r\n            \"MaxSessionDuration\": 3600\r\n        },\r\n        {\r\n            \"Path\": \"/aws-service-role/autoscaling.amazonaws.com/\",\r\n            \"RoleName\": \"AWSServiceRoleForAutoScaling\",\r\n            \"RoleId\": \"AROAVNKJY4ZNMZYVIHHX2\",\r\n            \"Arn\": \"arn:aws:iam::372206265946:role/aws-service-role/autoscaling.amazonaws.com/AWSServiceRoleForAutoScaling\",\r\n            \"CreateDate\": \"2026-08-10T05:08:42+00:00\",\r\n            \"AssumeRolePolicyDocument\": {\r\n                \"Version\": \"2012-10-17\",\r\n                \"Statement\": [\r\n                    {\r\n                        \"Effect\": \"Allow\",\r\n                        \"Principal\": {\r\n                            \"Service\": \"autoscaling.amazonaws.com\"\r\n                        },\r\n                        \"Action\": \"sts:AssumeRole\"\r\n                    }\r\n                ]\r\n            },\r\n            \"Description\": \"Default Service-Linked Role enables access to AWS Services and Resources used or managed by Auto Scaling\",\r\n            \"MaxSessionDuration\": 3600\r\n        },\r\n        {\r\n            \"Path\": \"/aws-service-role/mrk.kms.amazonaws.com/\",\r\n            \"RoleName\": \"AWSServiceRoleForKeyManagementServiceMultiRegionKeys\",\r\n            \"RoleId\": \"AROAVNKJY4ZNMM6DZWCO4\",\r\n            \"Arn\": \"arn:aws:iam::372206265946:role/aws-service-role/mrk.kms.amazonaws.com/AWSServiceRoleForKeyManagementServiceMultiRegionKeys\",\r\n            \"CreateDate\": \"2026-09-17T01:38:39+00:00\",\r\n            \"AssumeRolePolicyDocument\": {\r\n                \"Version\": \"2012-10-17\",\r\n                \"Statement\": [\r\n                    {\r\n                        \"Effect\": \"Allow\",\r\n                        \"Principal\": {\r\n                            \"Service\": \"mrk.kms.amazonaws.com\"\r\n                        },\r\n                        \"Action\": \"sts:AssumeRole\"\r\n                    }\r\n                ]\r\n            },\r\n            \"Description\": \"Enables access to AWS services and resources required for AWS KMS Multi-Region Keys\",\r\n            \"MaxSessionDuration\": 3600\r\n        },\r\n        {\r\n            \"Path\": \"/aws-service-role/organizations.amazonaws.com/\",\r\n            \"RoleName\": \"AWSServiceRoleForOrganizations\",\r\n            \"RoleId\": \"AROAVNKJY4ZNMVRVYCJ4B\",\r\n            \"Arn\": \"arn:aws:iam::372206265946:role/aws-service-role/organizations.amazonaws.com/AWSServiceRoleForOrganizations\",\r\n            \"CreateDate\": \"2026-09-17T01:38:45+00:00\",\r\n            \"AssumeRolePolicyDocument\": {\r\n                \"Version\": \"2012-10-17\",\r\n                \"Statement\": [\r\n                    {\r\n                        \"Effect\": \"Allow\",\r\n                        \"Principal\": {\r\n                            \"Service\": \"organizations.amazonaws.com\"\r\n                        },\r\n                        \"Action\": \"sts:AssumeRole\"\r\n                    }\r\n                ]\r\n            },\r\n            \"Description\": \"Service-linked role used by AWS Organizations to enable integration of other AWS services with Organizations.\",\r\n            \"MaxSessionDuration\": 3600\r\n        },\r\n        {\r\n            \"Path\": \"/aws-service-role/resource-explorer-2.amazonaws.com/\",\r\n            \"RoleName\": \"AWSServiceRoleForResourceExplorer\",\r\n            \"RoleId\": \"AROAVNKJY4ZNCT7BNUWUP\",\r\n            \"Arn\": \"arn:aws:iam::372206265946:role/aws-service-role/resource-explorer-2.amazonaws.com/AWSServiceRoleForResourceExplorer\",\r\n            \"CreateDate\": \"2026-08-07T22:51:54+00:00\",\r\n            \"AssumeRolePolicyDocument\": {\r\n                \"Version\": \"2012-10-17\",\r\n                \"Statement\": [\r\n                    {\r\n                        \"Effect\": \"Allow\",\r\n                        \"Principal\": {\r\n                            \"Service\": \"resource-explorer-2.amazonaws.com\"\r\n                        },\r\n                        \"Action\": \"sts:AssumeRole\"\r\n                    }\r\n                ]\r\n            },\r\n            \"MaxSessionDuration\": 3600\r\n        },\r\n        {\r\n            \"Path\": \"/aws-service-role/servicequotas.amazonaws.com/\",\r\n            \"RoleName\": \"AWSServiceRoleForServiceQuotas\",\r\n            \"RoleId\": \"AROAVNKJY4ZNKYVRXUMH3\",\r\n            \"Arn\": \"arn:aws:iam::372206265946:role/aws-service-role/servicequotas.amazonaws.com/AWSServiceRoleForServiceQuotas\",\r\n            \"CreateDate\": \"2026-08-08T02:18:15+00:00\",\r\n            \"AssumeRolePolicyDocument\": {\r\n                \"Version\": \"2012-10-17\",\r\n                \"Statement\": [\r\n                    {\r\n                        \"Effect\": \"Allow\",\r\n                        \"Principal\": {\r\n                            \"Service\": \"servicequotas.amazonaws.com\"\r\n                        },\r\n                        \"Action\": \"sts:AssumeRole\"\r\n                    }\r\n                ]\r\n            },\r\n            \"Description\": \"A service-linked role is required for Service Quotas to access your service limits.\",\r\n            \"MaxSessionDuration\": 3600\r\n        },\r\n        {\r\n            \"Path\": \"/aws-service-role/sso.amazonaws.com/\",\r\n            \"RoleName\": \"AWSServiceRoleForSSO\",\r\n            \"RoleId\": \"AROAVNKJY4ZNBRB6DKLQ4\",\r\n            \"Arn\": \"arn:aws:iam::372206265946:role/aws-service-role/sso.amazonaws.com/AWSServiceRoleForSSO\",\r\n            \"CreateDate\": \"2026-09-17T01:38:47+00:00\",\r\n            \"AssumeRolePolicyDocument\": {\r\n                \"Version\": \"2012-10-17\",\r\n                \"Statement\": [\r\n                    {\r\n                        \"Effect\": \"Allow\",\r\n                        \"Principal\": {\r\n                            \"Service\": \"sso.amazonaws.com\"\r\n                        },\r\n                        \"Action\": \"sts:AssumeRole\"\r\n                    }\r\n                ]\r\n            },\r\n            \"Description\": \"Service-linked role used by AWS SSO to manage AWS resources, including IAM roles, policies and SAML IdP on your behalf.\",\r\n            \"MaxSessionDuration\": 3600\r\n        },\r\n        {\r\n            \"Path\": \"/aws-service-role/support.amazonaws.com/\",\r\n            \"RoleName\": \"AWSServiceRoleForSupport\",\r\n            \"RoleId\": \"AROAVNKJY4ZNA23N37PAU\",\r\n            \"Arn\": \"arn:aws:iam::372206265946:role/aws-service-role/support.amazonaws.com/AWSServiceRoleForSupport\",\r\n            \"CreateDate\": \"2026-05-30T03:33:13+00:00\",\r\n            \"AssumeRolePolicyDocument\": {\r\n                \"Version\": \"2012-10-17\",\r\n                \"Statement\": [\r\n                    {\r\n                        \"Effect\": \"Allow\",\r\n                        \"Principal\": {\r\n                            \"Service\": \"support.amazonaws.com\"\r\n                        },\r\n                        \"Action\": \"sts:AssumeRole\"\r\n                    }\r\n                ]\r\n            },\r\n            \"Description\": \"Enables resource access for AWS to provide billing, administrative and support services\",\r\n            \"MaxSessionDuration\": 3600\r\n        },\r\n        {\r\n            \"Path\": \"/aws-service-role/trustedadvisor.amazonaws.com/\",\r\n            \"RoleName\": \"AWSServiceRoleForTrustedAdvisor\",\r\n            \"RoleId\": \"AROAVNKJY4ZNMGTLOYOIN\",\r\n            \"Arn\": \"arn:aws:iam::372206265946:role/aws-service-role/trustedadvisor.amazonaws.com/AWSServiceRoleForTrustedAdvisor\",\r\n            \"CreateDate\": \"2026-05-30T03:33:13+00:00\",\r\n            \"AssumeRolePolicyDocument\": {\r\n                \"Version\": \"2012-10-17\",\r\n                \"Statement\": [\r\n                    {\r\n                        \"Effect\": \"Allow\",\r\n                        \"Principal\": {\r\n                            \"Service\": \"trustedadvisor.amazonaws.com\"\r\n                        },\r\n                        \"Action\": \"sts:AssumeRole\"\r\n                    }\r\n                ]\r\n            },\r\n            \"Description\": \"Access for the AWS Trusted Advisor Service to help reduce cost, increase performance, and improve security of your AWS environment.\",\r\n            \"MaxSessionDuration\": 3600\r\n        }\r\n    ]\r\n}",
+                              "iam.list-instance-profiles":  "{\r\n    \"InstanceProfiles\": []\r\n}",
+                              "ssm.get-parameters":  "{\r\n    \"Parameters\": [],\r\n    \"InvalidParameters\": [\r\n        \"/durable-engine-dur050/dur050-observer-password\",\r\n        \"/durable-engine-dur050/postgres-password\"\r\n    ]\r\n}"
+                          },
+    "checks":  {
+                   "aws_identity":  {
+                                        "user_id":  "AIDAVNKJY4ZNCA7Z4Q5GL",
+                                        "account_id":  "372206265946",
+                                        "arn":  "arn:aws:iam::372206265946:user/admin-learning"
+                                    },
+                   "terraform_state_list":  {
+                                                "exit_code":  0,
+                                                "raw_output":  "",
+                                                "resource_count":  0,
+                                                "empty":  true
+                                            },
+                   "region_instances":  {
+                                            "non_terminated_count":  0,
+                                            "instances":  [
+
+                                                          ]
+                                        },
+                   "region_volumes":  {
+                                          "volume_count":  0,
+                                          "volumes":  [
+
+                                                      ]
+                                      },
+                   "task_vpcs":  {
+                                     "count":  0,
+                                     "resources":  [
+
+                                                   ]
+                                 },
+                   "task_subnets":  {
+                                        "count":  0,
+                                        "resources":  [
+
+                                                      ]
+                                    },
+                   "task_security_groups":  {
+                                                "count":  0,
+                                                "resources":  [
+
+                                                              ]
+                                            },
+                   "task_network_interfaces":  {
+                                                   "count":  0,
+                                                   "resources":  [
+
+                                                                 ]
+                                               },
+                   "task_eips":  {
+                                     "count":  0,
+                                     "resources":  [
+
+                                                   ]
+                                 },
+                   "task_snapshots":  {
+                                          "count":  0,
+                                          "resources":  [
+
+                                                        ]
+                                      },
+                   "task_nat_gateways":  {
+                                             "count":  0,
+                                             "resources":  [
+
+                                                           ]
+                                         },
+                   "task_elbv2_load_balancers":  {
+                                                     "count":  0,
+                                                     "resources":  [
+
+                                                                   ]
+                                                 },
+                   "task_classic_load_balancers":  {
+                                                       "count":  0,
+                                                       "resources":  [
+
+                                                                     ]
+                                                   },
+                   "iam_roles":  {
+                                     "prefix":  "durable-engine-dur050",
+                                     "count":  0,
+                                     "names":  [
+
+                                               ]
+                                 },
+                   "iam_instance_profiles":  {
+                                                 "prefix":  "durable-engine-dur050",
+                                                 "count":  0,
+                                                 "names":  [
+
+                                                           ]
+                                             },
+                   "ssm_parameters":  {
+                                          "expected_names":  [
+                                                                 "/durable-engine-dur050/dur050-observer-password",
+                                                                 "/durable-engine-dur050/postgres-password"
+                                                             ],
+                                          "returned_names":  [
+
+                                                             ],
+                                          "invalid_parameters":  [
+                                                                     "/durable-engine-dur050/dur050-observer-password",
+                                                                     "/durable-engine-dur050/postgres-password"
+                                                                 ],
+                                          "missing_expected_names":  [
+
+                                                                     ],
+                                          "absent":  true
+                                      },
+                   "ledger_open_intervals":  {
+                                                 "cycle_id":  "cycle-3b-2330417",
+                                                 "open_interval_count":  0,
+                                                 "intervals":  [
+
+                                                               ],
+                                                 "ledger_sha256":  "3F7E8C4677EFEC382BAE136D69385320261EF2EF6504FD38D1C5198FC5FC4B10"
+                                             }
+               },
+    "violations":  [
+
+                   ],
+    "error":  null,
+    "campaign_id":  "pilot-20260924-e3d780f",
+    "campaign_manifest_path":  "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cost-manifest.json",
+    "campaign_manifest_sha256":  "B42EA5FE5E3F52823FDDEFC8B02A2D0CA2AAC9EC5611959F523976460AAF38AC",
+    "terraform_state_path":  "D:\\portfolio-projects\\durable-agent-execution-engine\\deploy\\aws\\terraform.tfstate",
+    "ledger_path":  "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\dur050-cost-ledger.json",
+    "arn":  "arn:aws:iam::372206265946:user/admin-learning",
+    "terraform_executable":  {
+                                 "path":  "C:\\Users\\yxyfz\\AppData\\Local\\Programs\\Terraform\\1.16.4\\terraform.exe",
+                                 "sha256":  "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
+                                 "terraform_version":  "1.16.4"
+                             }
+}

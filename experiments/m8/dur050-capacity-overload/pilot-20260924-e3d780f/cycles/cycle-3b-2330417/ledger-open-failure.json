@@ -1,0 +1,23 @@
+{
+  "schema": "dur050-ledger-open-attempt.v1",
+  "status": "FAIL",
+  "cycle_id": "cycle-3b-2330417",
+  "recorded_at_utc": "2026-09-27T05:01:46Z",
+  "apply_started_at_utc": "2026-09-27T04:46:54.1291096Z",
+  "saved_plan_sha256": "F517A64A6A6C552EEC4064E13C6FA271599331AD09F277A9E5A434CDA1DC94FC",
+  "tool": "scripts/dur050-ledger-record.ps1 -Open",
+  "failure_stage": "atomic ledger file replacement",
+  "error": "Cannot find an overload for \"Move\" and the argument count: \"3\".",
+  "ledger_path": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
+  "ledger_sha256_before": "3F7E8C4677EFEC382BAE136D69385320261EF2EF6504FD38D1C5198FC5FC4B10",
+  "ledger_sha256_after": "3F7E8C4677EFEC382BAE136D69385320261EF2EF6504FD38D1C5198FC5FC4B10",
+  "ledger_unchanged": true,
+  "cycle_open_intervals_written": 0,
+  "cycle_preflight": "NOT_RUN",
+  "preparation": "NOT_RUN",
+  "ssm_dispatch": "NOT_RUN",
+  "pilot_blocks_started": 0,
+  "pilot_blocks_expected": 6,
+  "raw_measurement_artifacts_created": false,
+  "cost_accounting": "No cycle-specific ledger charge was recorded. This is not evidence of zero AWS cost; see the cycle closeout estimate and limitations."
+}

@@ -520,7 +520,7 @@
     "baseline_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r173-2330417/plan-inspection.json",
     "expected_plan_prior_state_lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
     "expected_plan_prior_state_serial": 167,
-    "review_state": "PENDING_CLAUDE_GO",
+    "review_state": "APPLIED_2026-09-27T04:46:54.1291096Z",
     "terraform_executable_path": "C:/Users/yxyfz/AppData/Local/Programs/Terraform/1.16.4/terraform.exe",
     "terraform_executable_sha256": "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
     "terraform_version": "1.16.4",
@@ -762,6 +762,116 @@
           "note": "Preserved initial count attempt; empty JSON arrays were counted as one null element by the wrapper."
         }
       ]
+    }
+  },
+  "provisioning_cycle_3b_2330417": {
+    "cycle_id": "cycle-3b-2330417",
+    "status": "STOPPED_BEFORE_PILOT; DESTROYED_AND_INVENTORIED",
+    "authorization": "User explicitly authorized this cycle's reviewed apply; authorization did not waive the protocol stop-on-tool-failure rule.",
+    "approved_saved_plan": {
+      "path": "deploy/aws/.terraform/dur050-preapply-round112-20260927T034431Z.tfplan",
+      "sha256": "F517A64A6A6C552EEC4064E13C6FA271599331AD09F277A9E5A434CDA1DC94FC",
+      "source_commit": "57c95d9",
+      "terraform_executable_path": "C:/Users/yxyfz/AppData/Local/Programs/Terraform/1.16.4/terraform.exe",
+      "terraform_executable_sha256": "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
+      "terraform_version": "1.16.4"
+    },
+    "apply": {
+      "record_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/apply-record.json",
+      "record_sha256": "33C154C6E27589AF01F44D2D383C952C21CB36CE2EFDA66FBAABD1CD4D85FC9F",
+      "status": "PASS",
+      "started_at_utc": "2026-09-27T04:46:54.1291096Z",
+      "terraform_exit_code": 0,
+      "added": 31,
+      "changed": 0,
+      "destroyed": 0,
+      "terraform_outputs_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/terraform-outputs.json",
+      "terraform_outputs_sha256": "1E437E33FDE7ABF1E32220FEB6F6BC7910E271AF57FD5910C1A5BD2C36373286",
+      "hosts": [
+        {"role": "app-1", "instance_id": "i-055db1d3eeabee348", "instance_type": "c7i.large"},
+        {"role": "app-2", "instance_id": "i-04cc1d41f74cc2a7f", "instance_type": "c7i.large"},
+        {"role": "dependency", "instance_id": "i-082ab1ace586a96c1", "instance_type": "m7i.large"},
+        {"role": "load-generator", "instance_id": "i-0d3f97f4822a3d9c8", "instance_type": "c7i.large"}
+      ]
+    },
+    "pilot": {
+      "status": "NOT_STARTED; stopped when ledger-record -Open failed",
+      "ledger_open_attempt_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/ledger-open-failure.json",
+      "ledger_open_attempt_sha256": "4340CAB63C08773E6BA31B8F8DA43938013ABEFAC0E1F2193828438CA0545760",
+      "ledger_open_error": "Cannot find an overload for Move and the argument count: 3.",
+      "ledger_sha256_before_and_after": "3F7E8C4677EFEC382BAE136D69385320261EF2EF6504FD38D1C5198FC5FC4B10",
+      "ledger_unchanged": true,
+      "cycle_ledger_open_intervals": 0,
+      "cycle_preflight": "NOT_RUN",
+      "preparation": "NOT_RUN",
+      "ssm_dispatch": "NOT_RUN",
+      "unloaded_blocks_completed": 0,
+      "unloaded_blocks_expected": 6,
+      "calibration_assembly": "NOT_RUN",
+      "measurement_results": "NONE; no pilot measurement started"
+    },
+    "teardown": {
+      "first_destroy_attempt": {
+        "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/destroy-record.json",
+        "sha256": "E87E9BF8F7DA9696C82223520EC135DD75BC71B29D2BB2237FF91F71D6D2A40C",
+        "status": "FAIL; required Terraform inputs were missing; no resources destroyed"
+      },
+      "second_destroy_attempt": {
+        "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/destroy-record-attempt-2.json",
+        "sha256": "F26473FD0C572BC246008D5385376D03A1B95820B489B659E1B76337436E0CAD",
+        "status": "FAIL; JSON-quoted string variables failed validation; no resources destroyed"
+      },
+      "successful_destroy": {
+        "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/destroy-record-final-attempt.json",
+        "sha256": "8CFB5F4D65B49E18E71995059B581E5BCA240A4A6C6C5142B39D51013F46AFC4",
+        "status": "PASS",
+        "started_at_utc": "2026-09-27T04:54:32.3616565Z",
+        "completed_at_utc": "2026-09-27T04:55:45.4572760Z",
+        "terraform_exit_code": 0,
+        "destroyed": 31
+      },
+      "ledger_close_attempt": {
+        "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/ledger-close-failure.json",
+        "sha256": "E1D54FD7B301A83F8DF89F53870E0F66027049D754B7FBB84783F8C74AACA5AC",
+        "status": "FAIL; no cycle interval existed to close"
+      },
+      "post_destroy_inventory": {
+        "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/post-destroy-inventory.json",
+        "sha256": "0BBE6671DC176933160981F05BC841B9337E3BC00DD016F98833E9BA6E576A99",
+        "status": "PASS",
+        "terraform_state_resource_count": 0,
+        "terraform_state_lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
+        "terraform_state_serial": 231,
+        "region_non_terminated_instances": 0,
+        "region_volumes": 0,
+        "task_vpcs": 0,
+        "task_subnets": 0,
+        "task_security_groups": 0,
+        "task_network_interfaces": 0,
+        "task_eips": 0,
+        "task_snapshots": 0,
+        "task_nat_gateways": 0,
+        "task_load_balancers": 0,
+        "campaign_iam_roles": 0,
+        "campaign_instance_profiles": 0,
+        "campaign_ssm_parameters_absent": true,
+        "open_cycle_ledger_intervals": 0,
+        "ledger_sha256": "3F7E8C4677EFEC382BAE136D69385320261EF2EF6504FD38D1C5198FC5FC4B10"
+      }
+    },
+    "cost": {
+      "task_ledger_recorded_cost_usd": null,
+      "task_ledger_recorded_cost_note": "No cycle interval was added because the atomic ledger update failed; null does not mean zero cost.",
+      "conservative_ec2_compute_estimate_usd": 0.066637,
+      "estimate_basis": "0.4515 USD/hour (three c7i.large and one m7i.large at the manifest rates) multiplied by 531.3281664 seconds from apply invocation start through successful destroy completion; rounded to 6 decimals.",
+      "estimate_limitations": "Estimate only, not AWS billed actual; excludes EBS, networking, API and other service charges, and uses apply start as a conservative common start rather than per-instance launch times."
+    },
+    "local_state_after_destroy": {
+      "path": "deploy/aws/terraform.tfstate (local ignored file; removed only after passing post-destroy inventory)",
+      "sha256_before_cleanup": "C9D6746790D72A3DE092585335D3CD19FBA19C98CF78557D8B4A4C0634809B53",
+      "lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
+      "serial": 231,
+      "resource_count": 0
     }
   }
 }

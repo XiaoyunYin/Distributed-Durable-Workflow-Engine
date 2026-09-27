@@ -1,0 +1,9 @@
+{
+    "schema":  "dur050-ledger-close-attempt.v1",
+    "status":  "FAIL",
+    "cycle_id":  "cycle-3b-2330417",
+    "destroy_completed_at_utc":  "2026-09-27T04:55:45.4572760Z",
+    "error":  "Cannot close cycle cycle-3b-2330417: expected exactly one open app-1 interval, found 0.",
+    "reason":  "ledger-record -Open did not commit intervals; no cycle rows exist to close",
+    "task_ledger_sha256":  "3F7E8C4677EFEC382BAE136D69385320261EF2EF6504FD38D1C5198FC5FC4B10"
+}

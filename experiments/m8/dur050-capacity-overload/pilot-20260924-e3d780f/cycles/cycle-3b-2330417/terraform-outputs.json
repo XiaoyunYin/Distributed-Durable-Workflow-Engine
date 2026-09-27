@@ -1,0 +1,91 @@
+{
+  "app_instance_ids": {
+    "sensitive": false,
+    "type": [
+      "tuple",
+      [
+        "string",
+        "string"
+      ]
+    ],
+    "value": [
+      "i-055db1d3eeabee348",
+      "i-04cc1d41f74cc2a7f"
+    ]
+  },
+  "app_private_ips": {
+    "sensitive": false,
+    "type": [
+      "tuple",
+      [
+        "string",
+        "string"
+      ]
+    ],
+    "value": [
+      "10.49.1.38",
+      "10.49.2.20"
+    ]
+  },
+  "app_public_ips": {
+    "sensitive": false,
+    "type": [
+      "tuple",
+      [
+        "string",
+        "string"
+      ]
+    ],
+    "value": [
+      "18.145.190.241",
+      "52.53.170.200"
+    ]
+  },
+  "dependency_instance_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "i-082ab1ace586a96c1"
+  },
+  "dependency_private_ip": {
+    "sensitive": false,
+    "type": "string",
+    "value": "10.49.1.75"
+  },
+  "dependency_public_ip": {
+    "sensitive": false,
+    "type": "string",
+    "value": "13.56.78.40"
+  },
+  "dur050_observer_secret_parameter_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "/durable-engine-dur050/dur050-observer-password"
+  },
+  "load_generator_instance_ids": {
+    "sensitive": false,
+    "type": [
+      "tuple",
+      [
+        "string"
+      ]
+    ],
+    "value": [
+      "i-0d3f97f4822a3d9c8"
+    ]
+  },
+  "load_generator_instance_profile_name": {
+    "sensitive": false,
+    "type": "string",
+    "value": "durable-engine-dur050-load-generator-ssm"
+  },
+  "load_generator_security_group_id": {
+    "sensitive": false,
+    "type": "string",
+    "value": "sg-049c6e119f6fca97f"
+  },
+  "resource_expiration": {
+    "sensitive": false,
+    "type": "string",
+    "value": "2026-10-05T00:00:00Z"
+  }
+}
