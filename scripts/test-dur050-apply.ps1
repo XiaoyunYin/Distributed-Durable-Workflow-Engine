@@ -26,7 +26,7 @@ function Set-StubExecutable([string]$Path, [string]$UnixBody, [string]$WindowsBo
         Write-Utf8 ($Path + '.cmd') $WindowsBody
         return ($Path + '.cmd')
     }
-    Write-Utf8 $Path $UnixBody
+    Write-Utf8 $Path ($UnixBody -replace "`r`n", "`n" -replace "`r", "`n")
     [IO.File]::SetUnixFileMode($Path, [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite -bor [IO.UnixFileMode]::UserExecute -bor [IO.UnixFileMode]::GroupRead -bor [IO.UnixFileMode]::GroupExecute -bor [IO.UnixFileMode]::OtherRead -bor [IO.UnixFileMode]::OtherExecute)
     return $Path
 }
