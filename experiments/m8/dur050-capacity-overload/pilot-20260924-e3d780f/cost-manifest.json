@@ -513,19 +513,19 @@
   },
   "approved_saved_plan": {
     "source_commit": "2330417f7521b487291cb793ead9d97eda637062",
-    "saved_plan_path": "deploy/aws/.terraform/dur050-preapply-round112-20260927T034431Z.tfplan",
-    "saved_plan_sha256": "F517A64A6A6C552EEC4064E13C6FA271599331AD09F277A9E5A434CDA1DC94FC",
-    "inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round112-20260927T034431Z/plan-inspection.json",
-    "inspection_sha256": "1B32A5EA9E3AAC000B209B214A91F22A49B9669968EE56DD2008FBEF19F60E73",
+    "saved_plan_path": "deploy/aws/.terraform/dur050-preapply-round117-20260927T161545Z-f73a483e.tfplan",
+    "saved_plan_sha256": "B3909081D819591C65B060EB420E53D3DAFA2E78B676FC927BCD453C686E90B7",
+    "inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round117-20260927T161545Z/plan-inspection.json",
+    "inspection_sha256": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
     "baseline_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r173-2330417/plan-inspection.json",
     "expected_plan_prior_state_lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
-    "expected_plan_prior_state_serial": 167,
-    "review_state": "APPLIED_2026-09-27T04:46:54.1291096Z",
+    "expected_plan_prior_state_serial": 231,
+    "review_state": "PENDING_CLAUDE_GO",
     "terraform_executable_path": "C:/Users/yxyfz/AppData/Local/Programs/Terraform/1.16.4/terraform.exe",
     "terraform_executable_sha256": "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
     "terraform_version": "1.16.4",
-    "plan_generated_at_utc": "2026-09-27T03:45:36.1496377Z",
-    "local_state_sha256_at_plan": "FA8AD0B3DDA2F98077B2ABA33540D46E2F80F7C7603EE8D6D2B96088404856FE"
+    "plan_generated_at_utc": "2026-09-27T16:15:49.2278332Z",
+    "local_state_sha256_at_plan": "C9D6746790D72A3DE092585335D3CD19FBA19C98CF78557D8B4A4C0634809B53"
   },
   "preapply_round112_2330417": {
     "status": "PASS; NOT APPLY AUTHORITY",
