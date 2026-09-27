@@ -128,8 +128,26 @@ jobs:
           printf 'terraform { required_version = "= 1.16.4" }\n' > "$temp_dir/empty-config/main.tf"
           terraform -chdir="$temp_dir/empty-config" init -backend=false -input=false
           terraform -chdir="$temp_dir/empty-config" plan -refresh=false -input=false -out="$temp_dir/empty.tfplan"
+          mkdir -p "$temp_dir/lifecycle-config"
+          cat > "$temp_dir/lifecycle-config/main.tf" <<'EOF'
+          terraform { required_version = "= 1.16.4" }
+          variable "v" {
+            type    = string
+            default = "a"
+          }
+          output "o" { value = var.v }
+          EOF
+          terraform -chdir="$temp_dir/lifecycle-config" init -backend=false -input=false
+          terraform -chdir="$temp_dir/lifecycle-config" apply -auto-approve -input=false
+          terraform -chdir="$temp_dir/lifecycle-config" plan -input=false -out="$temp_dir/lifecycle-config/p1.tfplan"
+          terraform -chdir="$temp_dir/lifecycle-config" apply -auto-approve -input=false -var v=c
+          terraform -chdir="$temp_dir/lifecycle-config" plan -input=false -var v=d -out="$temp_dir/lifecycle-config/p2.tfplan"
           export DUR050_NATIVE_PLAN_PATH="$temp_dir/empty.tfplan"
           export DUR050_NATIVE_STATE_PATH="$temp_dir/no-local-state.tfstate"
+          export DUR050_NATIVE_LIFECYCLE_WORKDIR="$temp_dir/lifecycle-config"
+          export DUR050_NATIVE_LIFECYCLE_P1_PATH="$temp_dir/lifecycle-config/p1.tfplan"
+          export DUR050_NATIVE_LIFECYCLE_P2_PATH="$temp_dir/lifecycle-config/p2.tfplan"
+          export DUR050_NATIVE_LIFECYCLE_STATE_PATH="$temp_dir/lifecycle-config/terraform.tfstate"
           export DUR050_TERRAFORM_EXE="$(command -v terraform)"
           pwsh -NoProfile -File scripts/test-dur050-plan-state.ps1
 

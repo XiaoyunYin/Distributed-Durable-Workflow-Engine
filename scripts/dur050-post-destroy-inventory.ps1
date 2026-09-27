@@ -131,6 +131,14 @@ function Invoke-Dur050PostDestroyInventory {
         $record.terraform_state_path = [System.IO.Path]::GetFullPath($TerraformStatePath)
         $record.ledger_path = [System.IO.Path]::GetFullPath($LedgerPath)
 
+        # This must remain the first AWS read. A wrong profile must fail before
+        # an empty inventory from another account can be mistaken for teardown.
+        $identity = Invoke-Dur050InventoryAws 'sts.get-caller-identity' @('sts', 'get-caller-identity', '--output', 'json')
+        $record.account_id = [string]$identity.Account
+        $record.arn = [string]$identity.Arn
+        $record.checks.aws_identity = [ordered]@{ user_id = [string]$identity.UserId; account_id = [string]$identity.Account; arn = [string]$identity.Arn }
+        if ([string]$identity.Account -ne '372206265946') { throw "AWS account $($identity.Account) does not match required account 372206265946." }
+
         $terraformIdentity = Resolve-Dur050TerraformExecutable -TerraformExe $TerraformExe
         if ($env:DUR050_ENABLE_TEST_HOOKS -ne '1' -and $terraformIdentity.sha256 -cne $pinnedTerraformSha256) {
             throw "Terraform executable SHA-256 $($terraformIdentity.sha256) does not match the pinned 1.16.4 binary."

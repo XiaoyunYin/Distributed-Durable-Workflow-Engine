@@ -100,7 +100,7 @@ function Write-TestPlanZip([string]$Path, [string]$Lineage, [long]$Serial) {
     } finally { $archive.Dispose() }
 }
 
-function Invoke-Gate([string]$Scenario, [string]$Name, [string]$ScriptPath, [string]$ExpectedHash, [string]$InspectionOverridePath, [int]$ReserveMinutes = 480, [string]$LedgerOverride, [switch]$DryRun) {
+function Invoke-Gate([string]$Scenario, [string]$Name, [string]$ScriptPath, [string]$ExpectedHash, [string]$InspectionOverridePath, [int]$ReserveMinutes = 480, [string]$LedgerOverride, [scriptblock]$ManifestMutation, [switch]$RehashInspection, [switch]$DryRun) {
     $isMutant = -not [string]::IsNullOrWhiteSpace($ScriptPath)
     if (-not $ScriptPath) { $ScriptPath = Join-Path $PSScriptRoot 'dur050-preapply-gate.ps1' }
     $outputPath = Join-Path $temp "$Name-gate.json"
@@ -109,6 +109,11 @@ function Invoke-Gate([string]$Scenario, [string]$Name, [string]$ScriptPath, [str
     $gateManifest = Get-Content -LiteralPath $manifestTemplatePath -Raw | ConvertFrom-Json
     $gateManifest.approved_saved_plan.saved_plan_sha256 = $ExpectedHash.ToUpperInvariant()
     $gateManifest.approved_saved_plan.inspection_path = [System.IO.Path]::GetFullPath($gateInspectionPath)
+    if ($ManifestMutation) { & $ManifestMutation $gateManifest }
+    if ($RehashInspection) {
+        if (-not (Test-Path -LiteralPath $gateInspectionPath -PathType Leaf)) { throw "Cannot rehash missing test inspection: $gateInspectionPath" }
+        $gateManifest.approved_saved_plan.inspection_sha256 = (Get-FileHash -LiteralPath $gateInspectionPath -Algorithm SHA256).Hash.ToUpperInvariant()
+    }
     $manifestForInvocation = Join-Path $temp "$Name-manifest.json"
     Write-TestJson $manifestForInvocation $gateManifest
     $arguments = @(
@@ -157,6 +162,14 @@ function Assert-ControlFailed($Result, [string]$Name, [string]$MessagePattern) {
     if ($failure.schema -ne 'dur050-pre-apply-gate.v1' -or $failure.status -ne 'FAIL' -or $failure.apply_authority -ne 'NONE; Claude go/no-go required') {
         throw "Negative control '$Name' did not write the expected FAIL record."
     }
+}
+
+function Assert-GateMutationSensitive($Result, [string]$Name) {
+    if ($Result.ExitCode -ne 0) { throw "Removing the '$Name' guard did not let its negative control pass: $($Result.Text)" }
+    $record = Get-Content -LiteralPath $Result.OutputPath -Raw | ConvertFrom-Json
+    if ($record.status -ne 'PASS') { throw "Removing the '$Name' guard did not produce a PASS record for its negative: $($Result.Text)" }
+    try { Assert-ControlFailed $Result $Name '.'; throw "The $Name negative assertion unexpectedly survived its guard-removal mutation." }
+    catch { if ($_.Exception.Message -notmatch [regex]::Escape("Negative control '$Name' was accepted")) { throw } }
 }
 
 function Assert-PlannedProjection($Record) {
@@ -282,6 +295,29 @@ try {
     Assert-ControlFailed $hashMismatch 'plan-hash-mismatch' 'Saved plan SHA-256 does not match approved_saved_plan'
     Write-Host 'PASS: plan hash mismatch is recorded FAIL.'
 
+    $invalidatedPlan = Invoke-Gate -Scenario pass -Name invalidated-approved-plan -ExpectedHash $planHash -ManifestMutation {
+        param($candidate)
+        $candidate.approved_saved_plan.review_state = 'INVALIDATED_ROUND_110'
+    }
+    Assert-ControlFailed $invalidatedPlan 'invalidated-approved-plan' 'approved_saved_plan is invalidated'
+    Write-Host 'PASS: an otherwise-valid plan marked INVALIDATED is refused.'
+
+    $approvedSerialMismatch = Invoke-Gate -Scenario pass -Name approved-serial-mismatch -ExpectedHash $planHash -ManifestMutation {
+        param($candidate)
+        $candidate.approved_saved_plan.expected_plan_prior_state_serial = 1
+    }
+    Assert-ControlFailed $approvedSerialMismatch 'approved-serial-mismatch' 'prior-state serial does not match approved_saved_plan.expected_plan_prior_state_serial'
+    Write-Host 'PASS: approved expected serial must match the plan and current state.'
+
+    $wrongExecutableInspectionPath = Join-Path $temp 'inspection-wrong-executable-sha.json'
+    $wrongExecutableInspection = Get-Content -LiteralPath $inspectionPath -Raw | ConvertFrom-Json
+    $wrongExecutableInspection.terraform_executable_sha256 = 'FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'
+    Write-TestJson $wrongExecutableInspectionPath $wrongExecutableInspection
+    $wrongExecutableInspectionResult = Invoke-Gate -Scenario pass -Name wrong-inspected-executable-sha -ExpectedHash $planHash `
+        -InspectionOverridePath $wrongExecutableInspectionPath -RehashInspection
+    Assert-ControlFailed $wrongExecutableInspectionResult 'wrong-inspected-executable-sha' 'Terraform executable SHA-256 at gate time does not match'
+    Write-Host 'PASS: an inspection pinned to a different Terraform executable SHA-256 is refused.'
+
     $nonempty = [ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 0; lineage = 'gate-fixture-lineage'; resources = @([ordered]@{ mode = 'managed'; type = 'aws_vpc'; name = 'unexpected'; provider = 'provider[registry.terraform.io/hashicorp/aws]'; instances = @() }) }
     Write-TestJson $statePath $nonempty
     $stateFailure = Invoke-Gate -Scenario pass -Name nonempty-state -ExpectedHash $planHash
@@ -311,22 +347,35 @@ try {
     $accountGuard = 'if ([string]$identity.Account -ne ''372206265946'') { throw "AWS account $($identity.Account) does not match required account 372206265946." }'
     $inspectionGuard = 'if ([string]$approvedPlan.inspection_sha256 -ne $inspectionHash) {'
     $projectionGuard = '$ledgerCheck = Invoke-Dur050LedgerCheck -PlannedInstanceTypes $plannedTypes'
+    $reviewGuard = '        if ([string]$approvedPlan.review_state -match ''^INVALIDATED'') { throw ''approved_saved_plan is invalidated and cannot be used for a pre-apply gate.'' }'
+    $approvedSerialGuardPattern = '(?s)        if \(\[long\]\$planStateSnapshot\.plan_prior_state_serial -ne \[long\]\$approvedPriorSerial\) \{\s*throw ''Saved plan prior-state serial does not match approved_saved_plan\.expected_plan_prior_state_serial\.''\s*\}\s*'
+    $executableShaGuardPattern = '(?s)        if \(\[string\]\$inspection\.terraform_executable_sha256 -cne \[string\]\$planStateSnapshot\.terraform_executable_sha256\) \{\s*throw ''Terraform executable SHA-256 at gate time does not match the inspected plan producer executable\.''\s*\}\s*'
     $hashMutant = $gateSource.Replace($hashGuard, '# mutation: expected-hash guard removed')
     $instanceMutant = $gateSource.Replace($instanceGuard, '# mutation: zero-instance guard removed')
     $accountMutant = $gateSource.Replace($accountGuard, '# mutation: early account guard removed').Replace("if (`$record.account_id -ne '372206265946' -or `$record.region -ne 'us-west-1' -or `$record.apply_authority -ne 'NONE; Claude go/no-go required') {", "if (`$record.region -ne 'us-west-1' -or `$record.apply_authority -ne 'NONE; Claude go/no-go required') {")
     $inspectionMutant = $gateSource.Replace($inspectionGuard, 'if ($false) {')
     $projectionMutant = $gateSource.Replace($projectionGuard, '$ledgerCheck = Invoke-Dur050LedgerCheck')
-    if ($hashMutant -eq $gateSource -or $instanceMutant -eq $gateSource -or $accountMutant -eq $gateSource -or $inspectionMutant -eq $gateSource -or $projectionMutant -eq $gateSource) { throw 'Could not apply all focused guard-removal mutations.' }
+    $reviewMutant = $gateSource.Replace($reviewGuard, '        # mutation: approved review-state guard removed')
+    $approvedSerialMutant = [regex]::Replace($gateSource, $approvedSerialGuardPattern, '', 1)
+    $executableShaMutant = [regex]::Replace($gateSource, $executableShaGuardPattern, '', 1)
+    if ($hashMutant -eq $gateSource -or $instanceMutant -eq $gateSource -or $accountMutant -eq $gateSource -or $inspectionMutant -eq $gateSource -or $projectionMutant -eq $gateSource -or
+        $reviewMutant -eq $gateSource -or $approvedSerialMutant -eq $gateSource -or $executableShaMutant -eq $gateSource) { throw 'Could not apply all focused guard-removal mutations.' }
     $hashMutantPath = Join-Path $mutantDir 'dur050-preapply-hash-mutant.ps1'
     $instanceMutantPath = Join-Path $mutantDir 'dur050-preapply-instance-mutant.ps1'
     $accountMutantPath = Join-Path $mutantDir 'dur050-preapply-account-mutant.ps1'
     $inspectionMutantPath = Join-Path $mutantDir 'dur050-preapply-inspection-mutant.ps1'
     $projectionMutantPath = Join-Path $mutantDir 'dur050-preapply-projection-mutant.ps1'
+    $reviewMutantPath = Join-Path $mutantDir 'dur050-preapply-review-state-mutant.ps1'
+    $approvedSerialMutantPath = Join-Path $mutantDir 'dur050-preapply-approved-serial-mutant.ps1'
+    $executableShaMutantPath = Join-Path $mutantDir 'dur050-preapply-executable-sha-mutant.ps1'
     [IO.File]::WriteAllText($hashMutantPath, $hashMutant, $utf8)
     [IO.File]::WriteAllText($instanceMutantPath, $instanceMutant, $utf8)
     [IO.File]::WriteAllText($accountMutantPath, $accountMutant, $utf8)
     [IO.File]::WriteAllText($inspectionMutantPath, $inspectionMutant, $utf8)
     [IO.File]::WriteAllText($projectionMutantPath, $projectionMutant, $utf8)
+    [IO.File]::WriteAllText($reviewMutantPath, $reviewMutant, $utf8)
+    [IO.File]::WriteAllText($approvedSerialMutantPath, $approvedSerialMutant, $utf8)
+    [IO.File]::WriteAllText($executableShaMutantPath, $executableShaMutant, $utf8)
     $expectedHashTest = Invoke-Gate -Scenario pass -Name mutant-hash-guard -ScriptPath $hashMutantPath -ExpectedHash $badHash
     if ($expectedHashTest.ExitCode -ne 0 -or (Get-Content $expectedHashTest.OutputPath -Raw | ConvertFrom-Json).status -ne 'PASS') {
         throw "Removing the plan-hash guard did not make the mismatch control pass: $($expectedHashTest.Text)"
@@ -369,6 +418,25 @@ try {
     try { Assert-PlannedProjection $mutantRecord } catch { if ($_.Exception.Message -match 'omitted the four-host planned reserve') { $projectionAssertionFailed = $true } else { throw } }
     if (-not $projectionAssertionFailed) { throw 'Positive planned-projection assertion survived removal of the projection guard.' }
     Write-Host 'PASS: removing planned-host projection makes the positive projection assertion fail.'
+
+    $reviewMutantResult = Invoke-Gate -Scenario pass -Name mutant-invalidated-review-state -ScriptPath $reviewMutantPath -ExpectedHash $planHash -ManifestMutation {
+        param($candidate)
+        $candidate.approved_saved_plan.review_state = 'INVALIDATED_ROUND_110'
+    }
+    Assert-GateMutationSensitive $reviewMutantResult 'invalidated-approved-plan'
+    Write-Host 'PASS: removing the review_state guard makes the invalidated-plan negative assertion fail.'
+
+    $approvedSerialMutantResult = Invoke-Gate -Scenario pass -Name mutant-approved-serial -ScriptPath $approvedSerialMutantPath -ExpectedHash $planHash -ManifestMutation {
+        param($candidate)
+        $candidate.approved_saved_plan.expected_plan_prior_state_serial = 1
+    }
+    Assert-GateMutationSensitive $approvedSerialMutantResult 'approved-serial-mismatch'
+    Write-Host 'PASS: removing the approved expected-serial guard makes its negative assertion fail.'
+
+    $executableShaMutantResult = Invoke-Gate -Scenario pass -Name mutant-executable-sha -ScriptPath $executableShaMutantPath -ExpectedHash $planHash `
+        -InspectionOverridePath $wrongExecutableInspectionPath -RehashInspection
+    Assert-GateMutationSensitive $executableShaMutantResult 'wrong-inspected-executable-sha'
+    Write-Host 'PASS: removing the executable-SHA guard makes its negative assertion fail.'
 
     if (Test-Path $ssmLog) { throw "A forbidden SSM call was attempted: $(Get-Content $ssmLog -Raw)" }
     Write-Host 'PASS: AWS stub observed zero SSM calls across all positive, negative, and mutation cases.'

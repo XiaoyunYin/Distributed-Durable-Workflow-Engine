@@ -93,11 +93,32 @@ exit 89
         if ($record.status -ne 'PASS' -or $record.checks.region_instances.non_terminated_count -ne 0 -or
             $record.checks.region_volumes.volume_count -ne 0 -or $record.checks.task_vpcs.count -ne 0 -or
             $record.checks.task_nat_gateways.count -ne 0 -or $record.checks.ssm_parameters.missing_expected_names.Count -ne 0 -or
-            -not $record.raw_aws_responses.'ec2.describe-vpcs') {
+            -not $record.raw_aws_responses.'ec2.describe-vpcs' -or $record.account_id -ne '372206265946' -or
+            $record.arn -ne 'arn:aws:iam::372206265946:user/test-inventory' -or
+            $record.checks.aws_identity.user_id -ne 'AIDATESTUSER') {
             throw "Empty inventory case '$scenario' did not preserve raw responses and explicit zero counts."
+        }
+        $awsCallCount = (Get-Content -LiteralPath $result.AwsLogPath).Count
+        $firstAwsCall = Get-Content -LiteralPath $result.AwsLogPath -TotalCount 1 | ConvertFrom-Json
+        if ($awsCallCount -lt 2 -or $firstAwsCall[2] -ne 'sts' -or $firstAwsCall[3] -ne 'get-caller-identity') {
+            throw "STS caller identity was not the first AWS read in '$scenario'."
         }
         Write-Host "PASS: $scenario empty/null AWS arrays count as zero and raw responses are retained."
     }
+
+    $wrongAccount = Invoke-Inventory 'wrong-account' 'wrong-account'
+    Assert-InventoryFail $wrongAccount 'wrong-account' 'account_id'
+    $wrongAccountRecord = Get-Content -LiteralPath $wrongAccount.OutputPath -Raw | ConvertFrom-Json
+    $wrongAccountCallCount = (Get-Content -LiteralPath $wrongAccount.AwsLogPath).Count
+    $wrongAccountFirstCall = Get-Content -LiteralPath $wrongAccount.AwsLogPath -TotalCount 1 | ConvertFrom-Json
+    if ($wrongAccountRecord.account_id -ne '000000000000' -or
+        $wrongAccountRecord.arn -ne 'arn:aws:iam::000000000000:user/test-inventory' -or
+        $wrongAccountRecord.error -notmatch 'does not match required account 372206265946' -or
+        $wrongAccountRecord.raw_aws_responses.'sts.get-caller-identity' -notmatch '000000000000' -or
+        $wrongAccountCallCount -ne 1 -or $wrongAccountFirstCall[2] -ne 'sts' -or $wrongAccountFirstCall[3] -ne 'get-caller-identity') {
+        throw "Wrong-account FAIL record did not preserve identity/error or continued AWS reads: $($wrongAccountRecord | ConvertTo-Json -Depth 8 -Compress)"
+    }
+    Write-Host 'PASS: a wrong AWS account records FAIL after the first STS read and performs no later AWS reads.'
 
     $cases = @(
         @{ scenario = 'state'; name = 'terraform-state'; path = 'checks.terraform_state_list.resource_count'; pattern = 'state still contains' },
@@ -172,6 +193,21 @@ exit 89
     try { Assert-InventoryFail $mutantResult 'instance mutation' 'checks.region_instances.non_terminated_count' 'non-terminated instance'; throw 'The leftover-instance assertion survived guard removal.' }
     catch { if ($_.Exception.Message -notmatch 'unexpectedly passed') { throw } }
     Write-Host 'PASS: removing the region-instance guard makes its negative assertion fail.'
+
+    $accountGuard = 'if ([string]$identity.Account -ne ''372206265946'') { throw "AWS account $($identity.Account) does not match required account 372206265946." }'
+    $accountMutant = $source.Replace($accountGuard, '# mutation: required-account guard removed')
+    if ($accountMutant -eq $source) { throw 'Could not construct the post-destroy required-account guard-removal mutant.' }
+    $accountMutantScript = Join-Path $mutantDir 'dur050-post-destroy-account-mutant.ps1'
+    [IO.File]::WriteAllText($accountMutantScript, $accountMutant, $utf8)
+    Copy-Item -LiteralPath (Join-Path $PSScriptRoot 'dur050-plan-state.psm1') -Destination (Join-Path $mutantDir 'dur050-plan-state.psm1') -Force
+    $accountMutantResult = Invoke-Inventory 'wrong-account' 'wrong-account-guard-mutant' -ToolPath $accountMutantScript
+    $accountMutantRecord = Get-Content -LiteralPath $accountMutantResult.OutputPath -Raw | ConvertFrom-Json
+    if ($accountMutantResult.ExitCode -ne 0 -or $accountMutantRecord.status -ne 'PASS' -or $accountMutantRecord.account_id -ne '000000000000') {
+        throw "Removing the account guard did not make the all-empty wrong-account control pass: $($accountMutantResult.Text)"
+    }
+    try { Assert-InventoryFail $accountMutantResult 'wrong-account guard mutation' 'account_id' 'AWS account 000000000000'; throw 'The wrong-account negative survived removal of the account guard.' }
+    catch { if ($_.Exception.Message -notmatch 'unexpectedly passed') { throw } }
+    Write-Host 'PASS: removing the AWS-account guard makes the wrong-account negative assertion fail.'
 } finally {
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }

@@ -103,6 +103,39 @@ try {
             throw "Terraform-native empty-config plan did not carry the expected empty prior state: $($native | ConvertTo-Json -Compress)"
         }
         Write-Host "PASS: Terraform 1.16.4 native plan ZIP inspected; prior state lineage='$($native.plan_prior_state_lineage)', serial=$($native.plan_prior_state_serial), executable SHA-256=$($native.terraform_executable_sha256)."
+
+        foreach ($name in @('DUR050_NATIVE_LIFECYCLE_WORKDIR', 'DUR050_NATIVE_LIFECYCLE_P1_PATH', 'DUR050_NATIVE_LIFECYCLE_P2_PATH', 'DUR050_NATIVE_LIFECYCLE_STATE_PATH')) {
+            if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) { throw "CI must provide $name for the Terraform-produced state lifecycle check." }
+        }
+        $lifecycleWorkdir = $env:DUR050_NATIVE_LIFECYCLE_WORKDIR
+        $lifecycleStatePath = $env:DUR050_NATIVE_LIFECYCLE_STATE_PATH
+        $p1Path = $env:DUR050_NATIVE_LIFECYCLE_P1_PATH
+        $p2Path = $env:DUR050_NATIVE_LIFECYCLE_P2_PATH
+        $p2Snapshot = Get-Dur050PlanStateSnapshot -SavedPlanPath $p2Path -TerraformStatePath $lifecycleStatePath -TerraformExe $terraform
+        if (-not $p2Snapshot.state_matches -or $p2Snapshot.plan_prior_state_lineage -ne $p2Snapshot.local_state_lineage -or
+            $p2Snapshot.plan_prior_state_serial -ne $p2Snapshot.local_state_serial) {
+            throw "Terraform-native p2 did not match the current state: $($p2Snapshot | ConvertTo-Json -Compress)"
+        }
+        Write-Host "PASS: p2 embedded prior state matches the local lifecycle state's lineage and serial $($p2Snapshot.local_state_serial)."
+
+        $p1Snapshot = Get-Dur050PlanStateSnapshot -SavedPlanPath $p1Path -TerraformStatePath $lifecycleStatePath -TerraformExe $terraform -AllowMismatch
+        if ($p1Snapshot.state_matches -or $p1Snapshot.plan_prior_state_lineage -ne $p1Snapshot.local_state_lineage -or
+            $p1Snapshot.plan_prior_state_serial -eq $p1Snapshot.local_state_serial -or $p1Snapshot.state_mismatch -notmatch 'serial') {
+            throw "Terraform-native p1 did not report only the expected stale serial mismatch: $($p1Snapshot | ConvertTo-Json -Compress)"
+        }
+        Write-Host "PASS: p1 retains the same lineage but reports its prior serial $($p1Snapshot.plan_prior_state_serial) differs from current serial $($p1Snapshot.local_state_serial)."
+
+        $p2ApplyOutput = & $terraform "-chdir=$lifecycleWorkdir" apply -auto-approve -input=false $p2Path 2>&1 | Out-String
+        $p2ApplyExitCode = $LASTEXITCODE
+        if ($p2ApplyExitCode -ne 0) { throw "Terraform rejected matching p2 (exit $p2ApplyExitCode): $p2ApplyOutput" }
+        Write-Host 'PASS: Terraform 1.16.4 applied matching p2 successfully.'
+
+        $p1ApplyOutput = & $terraform "-chdir=$lifecycleWorkdir" apply -auto-approve -input=false $p1Path 2>&1 | Out-String
+        $p1ApplyExitCode = $LASTEXITCODE
+        if ($p1ApplyExitCode -eq 0 -or $p1ApplyOutput -notmatch 'Saved plan is stale') {
+            throw "Terraform did not reject stale p1 with the expected diagnostic (exit $p1ApplyExitCode): $p1ApplyOutput"
+        }
+        Write-Host 'PASS: Terraform itself rejects stale p1 with "Saved plan is stale".'
     } else {
         Write-Host 'SKIP: native Terraform plan check excluded by FixturesOnly; CI must run it without that switch.'
     }

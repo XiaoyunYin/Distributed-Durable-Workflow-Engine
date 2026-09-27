@@ -27,7 +27,10 @@ def main() -> int:
         print(json.dumps({"error": "unexpected region", "region": region}), file=sys.stderr)
         return 91
 
-    if service == "ec2" and operation == "describe-instances":
+    if service == "sts" and operation == "get-caller-identity":
+        account = "000000000000" if scenario == "wrong-account" else "372206265946"
+        result = {"UserId": "AIDATESTUSER", "Account": account, "Arn": f"arn:aws:iam::{account}:user/test-inventory"}
+    elif service == "ec2" and operation == "describe-instances":
         if scenario == "instance":
             result = {"Reservations": [{"Instances": [{"InstanceId": "i-0123456789abcdef0", "InstanceType": "c7i.large", "State": {"Name": "stopped"}, "Tags": [{"Key": "Task", "Value": "DUR-050"}]}]}]}
         else:
