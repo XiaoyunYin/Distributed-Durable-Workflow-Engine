@@ -1,0 +1,409 @@
+{
+  "schema": "dur050-pre-apply-gate.v1",
+  "status": "PASS",
+  "account_id": "372206265946",
+  "region": "us-west-1",
+  "campaign_id": "pilot-20260924-e3d780f",
+  "checked_at_utc_start": "2026-09-27T22:45:28.7719396+00:00",
+  "checked_at_utc": "2026-09-27T22:45:37.3300181+00:00",
+  "planned_peak_vcpu": 8,
+  "plan_sha256": "B3909081D819591C65B060EB420E53D3DAFA2E78B676FC927BCD453C686E90B7",
+  "plan_inspection_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\preapply-round117-20260927T161545Z\\plan-inspection.json",
+  "plan_inspection_sha256": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
+  "campaign_manifest_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cost-manifest.json",
+  "campaign_manifest_sha256": "8C8B96A4F72AFF96B026C151895E3CBA109D194BD658EF61947BF2F7675049BD",
+  "terraform_state_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\deploy\\aws\\terraform.tfstate",
+  "terraform_state_resource_count": 0,
+  "checks": {
+    "powershell": {
+      "path": "C:\\Users\\yxyfz\\AppData\\Local\\Programs\\PowerShell\\7.6.6\\payload\\pwsh.exe",
+      "version": "7.6.6",
+      "edition": "Core"
+    },
+    "inputs": {
+      "saved_plan_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\deploy\\aws\\.terraform\\dur050-preapply-round117-20260927T161545Z-f73a483e.tfplan",
+      "actual_plan_sha256": "B3909081D819591C65B060EB420E53D3DAFA2E78B676FC927BCD453C686E90B7",
+      "expected_plan_sha256": "B3909081D819591C65B060EB420E53D3DAFA2E78B676FC927BCD453C686E90B7",
+      "plan_inspection_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\preapply-round117-20260927T161545Z\\plan-inspection.json",
+      "plan_inspection_sha256": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
+      "manifest_expected_inspection_sha256": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
+      "approved_saved_plan_source_commit": "2330417f7521b487291cb793ead9d97eda637062",
+      "baseline_inspection_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\preflight-r173-2330417\\plan-inspection.json",
+      "campaign_manifest_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cost-manifest.json",
+      "campaign_manifest_sha256": "8C8B96A4F72AFF96B026C151895E3CBA109D194BD658EF61947BF2F7675049BD",
+      "terraform_state_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\deploy\\aws\\terraform.tfstate",
+      "ledger_check_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\preapply-round124-20260927T224413Z\\ledger-check.json",
+      "reserve_minutes": 1440,
+      "aws_profile_name": "admin-learning"
+    },
+    "plan_inspection_baseline": {
+      "path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\preflight-r173-2330417\\plan-inspection.json",
+      "resource_addresses_types_actions_match": true,
+      "resource_count": 31
+    },
+    "plan_inspection": {
+      "resource_changes": 31,
+      "creates": 31,
+      "updates": 0,
+      "deletes": 0,
+      "replacements": 0,
+      "instances": 4,
+      "c7i_large": 3,
+      "m7i_large": 1,
+      "planned_peak_vcpu": 8.0,
+      "taggable_resources": 23,
+      "correctly_tagged_resources": 23,
+      "prohibited_resources": 0,
+      "state_resources": 0,
+      "addresses_and_types": 31
+    },
+    "plan_state_provenance": {
+      "plan_prior_state_lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
+      "plan_prior_state_serial": 231,
+      "plan_prior_state_terraform_version": "1.16.4",
+      "local_state_lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
+      "local_state_serial": 231,
+      "local_state_file_present": true,
+      "local_state_resource_count": 0,
+      "terraform_state_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\deploy\\aws\\terraform.tfstate",
+      "terraform_executable_path": "C:\\Users\\yxyfz\\AppData\\Local\\Programs\\Terraform\\1.16.4\\terraform.exe",
+      "terraform_executable_sha256": "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
+      "terraform_executable_version": "1.16.4",
+      "state_matches": true,
+      "state_mismatch": null
+    },
+    "terraform_state": {
+      "path": "D:\\portfolio-projects\\durable-agent-execution-engine\\deploy\\aws\\terraform.tfstate",
+      "state_file_present": true,
+      "lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
+      "serial": 231,
+      "resource_count": 0,
+      "state": "EMPTY"
+    },
+    "identity": {
+      "account_id": "372206265946",
+      "arn": "arn:aws:iam::372206265946:user/admin-learning",
+      "region_used_for_regional_checks": "us-west-1"
+    },
+    "service_quota_response": {
+      "Quota": {
+        "ServiceCode": "ec2",
+        "ServiceName": "Amazon Elastic Compute Cloud (Amazon EC2)",
+        "QuotaArn": "arn:aws:servicequotas:us-west-1:372206265946:ec2/L-1216C47A",
+        "QuotaCode": "L-1216C47A",
+        "QuotaName": "Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances",
+        "Value": 32.0,
+        "Unit": "None",
+        "Adjustable": true,
+        "GlobalQuota": false,
+        "UsageMetric": {
+          "MetricNamespace": "AWS/Usage",
+          "MetricName": "ResourceCount",
+          "MetricDimensions": {
+            "Class": "Standard/OnDemand",
+            "Resource": "vCPU",
+            "Service": "EC2",
+            "Type": "Resource"
+          },
+          "MetricStatisticRecommendation": "Maximum"
+        },
+        "QuotaAppliedAtLevel": "ACCOUNT",
+        "Description": "Maximum number of vCPUs assigned to the Running On-Demand Standard (A, C, D, H, I, M, R, T, Z) instances."
+      }
+    },
+    "quota": {
+      "quota_code": "L-1216C47A",
+      "quota_vcpu": 32.0,
+      "current_on_demand_standard_vcpu": 0.0,
+      "planned_peak_vcpu": 8.0,
+      "projected_vcpu": 8.0,
+      "state": "OK"
+    },
+    "dur050_inventory": {
+      "task_tag": "DUR-050",
+      "instance_filter_states": [
+        "pending",
+        "running",
+        "stopping",
+        "stopped",
+        "shutting-down"
+      ],
+      "region_wide_non_terminated_instance_count": 0,
+      "region_wide_volume_count": 0,
+      "tagged_dur050_instance_count": 0,
+      "instances": [],
+      "forbidden_volume_count": 0,
+      "volumes": [],
+      "state": "OK"
+    },
+    "budget_response": {
+      "Budget": {
+        "BudgetName": "durable-engine-D022-aggregate-20260923",
+        "BudgetLimit": {
+          "Amount": "200.0",
+          "Unit": "USD"
+        },
+        "CostTypes": {
+          "IncludeTax": true,
+          "IncludeSubscription": true,
+          "UseBlended": false,
+          "IncludeRefund": false,
+          "IncludeCredit": false,
+          "IncludeUpfront": true,
+          "IncludeRecurring": true,
+          "IncludeOtherSubscription": true,
+          "IncludeSupport": true,
+          "IncludeDiscount": false,
+          "UseAmortized": false
+        },
+        "TimeUnit": "CUSTOM",
+        "TimePeriod": {
+          "Start": "2026-09-22T17:00:00-07:00",
+          "End": "2026-10-06T17:00:00-07:00"
+        },
+        "CalculatedSpend": {
+          "ActualSpend": {
+            "Amount": "1.954",
+            "Unit": "USD"
+          },
+          "ForecastedSpend": {
+            "Amount": "4.23",
+            "Unit": "USD"
+          }
+        },
+        "BudgetType": "COST",
+        "LastUpdatedTime": "2026-09-27T03:42:53.946-07:00",
+        "HealthStatus": {
+          "Status": "HEALTHY",
+          "LastUpdatedTime": "2026-09-27T03:42:53.112-07:00"
+        }
+      }
+    },
+    "notification_response": {
+      "Notifications": [
+        {
+          "NotificationType": "ACTUAL",
+          "ComparisonOperator": "GREATER_THAN",
+          "Threshold": 160.0,
+          "ThresholdType": "ABSOLUTE_VALUE",
+          "NotificationState": "OK"
+        },
+        {
+          "NotificationType": "ACTUAL",
+          "ComparisonOperator": "GREATER_THAN",
+          "Threshold": 76.47,
+          "ThresholdType": "ABSOLUTE_VALUE",
+          "NotificationState": "OK"
+        },
+        {
+          "NotificationType": "FORECASTED",
+          "ComparisonOperator": "GREATER_THAN",
+          "Threshold": 160.0,
+          "ThresholdType": "ABSOLUTE_VALUE",
+          "NotificationState": "OK"
+        }
+      ]
+    },
+    "budget_notification_observations": [
+      {
+        "notification_type": "ACTUAL",
+        "comparison_operator": "GREATER_THAN",
+        "threshold_type": "ABSOLUTE_VALUE",
+        "threshold_usd": 160.0,
+        "state": "OK"
+      },
+      {
+        "notification_type": "ACTUAL",
+        "comparison_operator": "GREATER_THAN",
+        "threshold_type": "ABSOLUTE_VALUE",
+        "threshold_usd": 76.47,
+        "state": "OK"
+      },
+      {
+        "notification_type": "FORECASTED",
+        "comparison_operator": "GREATER_THAN",
+        "threshold_type": "ABSOLUTE_VALUE",
+        "threshold_usd": 160.0,
+        "state": "OK"
+      }
+    ],
+    "budget": {
+      "name": "durable-engine-D022-aggregate-20260923",
+      "limit_usd": 200.0,
+      "actual_spend_usd": 1.954,
+      "forecasted_spend_usd": 4.23,
+      "notifications": [
+        {
+          "type": "ACTUAL",
+          "comparison_operator": "GREATER_THAN",
+          "threshold_type": "ABSOLUTE_VALUE",
+          "threshold_usd": 160.0,
+          "state": "OK"
+        },
+        {
+          "type": "ACTUAL",
+          "comparison_operator": "GREATER_THAN",
+          "threshold_type": "ABSOLUTE_VALUE",
+          "threshold_usd": 76.47,
+          "state": "OK"
+        },
+        {
+          "type": "FORECASTED",
+          "comparison_operator": "GREATER_THAN",
+          "threshold_type": "ABSOLUTE_VALUE",
+          "threshold_usd": 160.0,
+          "state": "OK"
+        }
+      ]
+    },
+    "cost_allocation_tags_response": {
+      "CostAllocationTags": [
+        {
+          "TagKey": "Environment",
+          "Type": "UserDefined",
+          "Status": "Active",
+          "LastUpdatedDate": "2026-09-25T07:06:39Z",
+          "LastUsedDate": "2026-09-01T00:00:00Z"
+        },
+        {
+          "TagKey": "Task",
+          "Type": "UserDefined",
+          "Status": "Active",
+          "LastUpdatedDate": "2026-09-25T07:06:39Z",
+          "LastUsedDate": "2026-09-01T00:00:00Z"
+        }
+      ]
+    },
+    "cost_allocation_tags": {
+      "Task": {
+        "status": "Active",
+        "last_updated_at": "09/25/2026 07:06:39"
+      },
+      "Environment": {
+        "status": "Active",
+        "last_updated_at": "09/25/2026 07:06:39"
+      },
+      "state": "OK"
+    },
+    "ledger_check": {
+      "status": "PASS",
+      "path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\preapply-round124-20260927T224413Z\\ledger-check.json",
+      "checked_at_utc": "2026-09-27T22:45:37.3063140Z",
+      "reserve_minutes": 1440,
+      "ledger_path": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
+      "ledger_path_override_used": false,
+      "open_interval_count": 0,
+      "accrued_instance_cost_usd": "0.315548",
+      "next_block_reserve_usd": "10.836000",
+      "projected_instance_cost_usd": "11.151548",
+      "planned_host_projection_usd": "10.836000",
+      "planned_host_projection": [
+        {
+          "hourly_price_usd": "0.1113",
+          "instance_type": "c7i.large",
+          "planned_index": 0,
+          "projected_apply_started_at_utc": "2026-09-27T22:45:37.306314Z",
+          "projected_destroy_completed_at_utc": "2026-09-28T22:45:37.306314Z",
+          "projected_reserve_usd": "2.671200",
+          "reserve_minutes": 1440
+        },
+        {
+          "hourly_price_usd": "0.1113",
+          "instance_type": "c7i.large",
+          "planned_index": 1,
+          "projected_apply_started_at_utc": "2026-09-27T22:45:37.306314Z",
+          "projected_destroy_completed_at_utc": "2026-09-28T22:45:37.306314Z",
+          "projected_reserve_usd": "2.671200",
+          "reserve_minutes": 1440
+        },
+        {
+          "hourly_price_usd": "0.1113",
+          "instance_type": "c7i.large",
+          "planned_index": 2,
+          "projected_apply_started_at_utc": "2026-09-27T22:45:37.306314Z",
+          "projected_destroy_completed_at_utc": "2026-09-28T22:45:37.306314Z",
+          "projected_reserve_usd": "2.671200",
+          "reserve_minutes": 1440
+        },
+        {
+          "hourly_price_usd": "0.1176",
+          "instance_type": "m7i.large",
+          "planned_index": 3,
+          "projected_apply_started_at_utc": "2026-09-27T22:45:37.306314Z",
+          "projected_destroy_completed_at_utc": "2026-09-28T22:45:37.306314Z",
+          "projected_reserve_usd": "2.822400",
+          "reserve_minutes": 1440
+        }
+      ],
+      "budget_cap_usd": "75.0",
+      "check_schema": "dur050-cost-ledger-check.v2"
+    },
+    "planned_host_projection": {
+      "instance_types": [
+        "c7i.large",
+        "c7i.large",
+        "c7i.large",
+        "m7i.large"
+      ],
+      "reserve_minutes": 1440,
+      "projected_usd": "10.836000",
+      "total_projected_usd": "11.151548",
+      "below_cap": true
+    }
+  },
+  "ledger_check_path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\preapply-round124-20260927T224413Z\\ledger-check.json",
+  "ledger_check": {
+    "status": "PASS",
+    "path": "D:\\portfolio-projects\\durable-agent-execution-engine\\experiments\\m8\\dur050-capacity-overload\\pilot-20260924-e3d780f\\cycles\\preapply-round124-20260927T224413Z\\ledger-check.json",
+    "checked_at_utc": "2026-09-27T22:45:37.3063140Z",
+    "reserve_minutes": 1440,
+    "ledger_path": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
+    "ledger_path_override_used": false,
+    "open_interval_count": 0,
+    "accrued_instance_cost_usd": "0.315548",
+    "next_block_reserve_usd": "10.836000",
+    "projected_instance_cost_usd": "11.151548",
+    "planned_host_projection_usd": "10.836000",
+    "planned_host_projection": [
+      {
+        "hourly_price_usd": "0.1113",
+        "instance_type": "c7i.large",
+        "planned_index": 0,
+        "projected_apply_started_at_utc": "2026-09-27T22:45:37.306314Z",
+        "projected_destroy_completed_at_utc": "2026-09-28T22:45:37.306314Z",
+        "projected_reserve_usd": "2.671200",
+        "reserve_minutes": 1440
+      },
+      {
+        "hourly_price_usd": "0.1113",
+        "instance_type": "c7i.large",
+        "planned_index": 1,
+        "projected_apply_started_at_utc": "2026-09-27T22:45:37.306314Z",
+        "projected_destroy_completed_at_utc": "2026-09-28T22:45:37.306314Z",
+        "projected_reserve_usd": "2.671200",
+        "reserve_minutes": 1440
+      },
+      {
+        "hourly_price_usd": "0.1113",
+        "instance_type": "c7i.large",
+        "planned_index": 2,
+        "projected_apply_started_at_utc": "2026-09-27T22:45:37.306314Z",
+        "projected_destroy_completed_at_utc": "2026-09-28T22:45:37.306314Z",
+        "projected_reserve_usd": "2.671200",
+        "reserve_minutes": 1440
+      },
+      {
+        "hourly_price_usd": "0.1176",
+        "instance_type": "m7i.large",
+        "planned_index": 3,
+        "projected_apply_started_at_utc": "2026-09-27T22:45:37.306314Z",
+        "projected_destroy_completed_at_utc": "2026-09-28T22:45:37.306314Z",
+        "projected_reserve_usd": "2.822400",
+        "reserve_minutes": 1440
+      }
+    ],
+    "budget_cap_usd": "75.0",
+    "check_schema": "dur050-cost-ledger-check.v2"
+  },
+  "apply_authority": "NONE; Claude go/no-go required"
+}
