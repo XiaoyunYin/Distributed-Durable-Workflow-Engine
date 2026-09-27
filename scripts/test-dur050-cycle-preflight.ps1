@@ -73,8 +73,8 @@ esac
 '@
 [IO.File]::WriteAllText((Join-Path $bin 'aws'),$aws.Replace("`r",'')+"`n",$utf8); & chmod 0755 (Join-Path $bin 'aws'); if($LASTEXITCODE){throw 'chmod aws stub failed'}
 function Write-Json([string]$Path,$Value){[IO.File]::WriteAllText($Path,(($Value|ConvertTo-Json -Depth 30)+"`n"),$utf8)}
-function Invoke-Tool([string]$Scenario,[string]$Name,[string]$PlanPath,[switch]$DryRun,[string]$Timezone,[string]$ScriptPath){
-  $out=Join-Path $temp "$Name-preflight.json"; $ledgerOut=Join-Path $temp "$Name-ledger-check.json"
+function Invoke-Tool([string]$Scenario,[string]$Name,[string]$PlanPath,[switch]$DryRun,[string]$Timezone,[string]$ScriptPath,[switch]$NestedLedgerOutput){
+  $out=Join-Path $temp "$Name-preflight.json"; $ledgerOut=if($NestedLedgerOutput){Join-Path $temp "$Name/new/deep/ledger-check.json"}else{Join-Path $temp "$Name-ledger-check.json"}
   if(-not $ScriptPath){$ScriptPath=Join-Path $PSScriptRoot 'dur050-cycle-preflight.ps1'}
   $start=[Diagnostics.ProcessStartInfo]::new(); $start.FileName=Join-Path $PSHOME 'pwsh'; $start.UseShellExecute=$false; $start.RedirectStandardOutput=$true; $start.RedirectStandardError=$true
   $arguments=@('-NoProfile','-File',$ScriptPath,'-TerraformOutputsPath',(Join-Path $repoRoot 'tests/fixtures/dur050-terraform-outputs.json'),'-PlanInspectionPath',$PlanPath,'-CycleID','ci-r163r164','-CampaignManifestPath',$manifestPath,'-LedgerCheckPath',$ledgerOut,'-OutputPath',$out,'-ReserveMinutes','15','-LedgerPath',$ledgerPath,'-PythonExe','python3')
@@ -118,13 +118,15 @@ try {
   foreach($exe in @('dur050-observer','dur050-loadgen','dur050-sink')){[IO.File]::WriteAllText((Join-Path $fakeRoot "opt/durable-agent-execution-engine/bin/$exe"),''); & chmod 0755 (Join-Path $fakeRoot "opt/durable-agent-execution-engine/bin/$exe")}
   $cloud=Join-Path $bin 'cloud-init'; [IO.File]::WriteAllText($cloud,"#!/bin/sh`nprintf 'status: done\nerrors: []\nrecoverable_errors: {}\n'`n",$utf8); & chmod 0755 $cloud
   $plan=Join-Path $repoRoot 'tests/fixtures/dur050-plan-inspection.json'
-  $pass=Invoke-Tool 'pass' 'pass' $plan; if($pass.ExitCode -ne 0){throw "PASS fixture failed: $($pass.Text)"}
+  $pass=Invoke-Tool 'pass' 'pass' $plan -NestedLedgerOutput; if($pass.ExitCode -ne 0){throw "PASS fixture failed: $($pass.Text)"}
   $record=Get-Content $pass.Out -Raw | ConvertFrom-Json
   if($record.schema -ne 'dur050-d022-preflight.v1' -or $record.status -ne 'PASS' -or $record.account_id -ne '372206265946' -or $record.region -ne 'us-west-1' -or $record.planned_peak_vcpu -ne 8 -or $record.bootstrap.Count -ne 4 -or -not $record.ledger_check.checked_at_utc -or $record.checks.ledger_instance_crosscheck.open_interval_count -ne 4){throw "PASS record omitted required fields: schema=$($record.schema) status=$($record.status) account=$($record.account_id) region=$($record.region) peak=$($record.planned_peak_vcpu) bootstrap=$($record.bootstrap.Count) ledger=$($record.ledger_check.checked_at_utc) crosscheck=$($record.checks.ledger_instance_crosscheck|ConvertTo-Json -Compress)."}
   if($record.checks.root_volume_tags.root_volumes.Count -ne 4 -or -not $record.checks.root_volume_tags.all_root_volumes_tagged_task_dur050){throw 'PASS record did not report all four root-volume Task tags.'}
   if($record.checks.budget.notifications.Count -ne 3 -or @($record.checks.budget.notifications|Where-Object {$_.state -ne 'OK' -or $_.comparison_operator -ne 'GREATER_THAN'}).Count -ne 0 -or $record.checks.budget.notifications[0].PSObject.Properties['subscriber_count']){throw 'Budget PASS record did not preserve observed notification states/operators without invented subscriber counts.'}
   if((Get-Content $pass.Ledger -Raw | ConvertFrom-Json).reserve_minutes -ne 15){throw 'PASS record omitted its explicit ledger reserve check.'}
+  if(-not(Test-Path -LiteralPath $pass.Ledger -PathType Leaf) -or (Get-Content $pass.Ledger -Raw|ConvertFrom-Json).status -ne 'PASS' -or -not(Test-Path -LiteralPath (Split-Path -Parent $pass.Ledger) -PathType Container)){throw 'Cycle preflight did not write a PASS ledger check into its previously nonexistent nested output directory.'}
   Write-Host 'PASS: D022 preflight stub checks account, quota, budget notifications, tags, ledger reserve and four bootstrap hosts.'
+  Write-Host 'PASS: cycle preflight creates a nested ledger-check directory and writes the check.'
   foreach($zone in @('America/Los_Angeles','Asia/Shanghai')){
     $zoneName=$zone.Replace('/','-');$zonePass=Invoke-Tool 'pass' "timezone-$zoneName" $plan -Timezone $zone
     if($zonePass.ExitCode -ne 0){throw "PASS preflight failed under TZ=${zone}: $($zonePass.Text)"}
@@ -147,6 +149,13 @@ try {
   $mutantDir=Join-Path $temp 'mutant/scripts';New-Item -ItemType Directory -Force -Path $mutantDir|Out-Null
   foreach($file in @('dur050-cycle-preflight.ps1','dur050-ssm-wrapper.ps1','dur050-d022-validator.ps1','dur050-d022-shared.ps1','dur050-cost-ledger.py')){Copy-Item (Join-Path $PSScriptRoot $file) (Join-Path $mutantDir $file)}
   $cycleSource=Get-Content (Join-Path $PSScriptRoot 'dur050-cycle-preflight.ps1') -Raw
+  $ledgerCliSource=Get-Content (Join-Path $PSScriptRoot 'dur050-cost-ledger.py') -Raw
+  $ledgerMkdirPattern='(?m)^[ \t]*args\.output\.parent\.mkdir\(parents=True, exist_ok=True\)\r?\n'
+  if([regex]::Matches($ledgerCliSource,$ledgerMkdirPattern).Count -ne 1){throw 'Expected exactly one parent-directory mkdir in the cost-ledger CLI.'}
+  $ledgerCliMutant=[regex]::Replace($ledgerCliSource,$ledgerMkdirPattern,'')
+  [IO.File]::WriteAllText((Join-Path $mutantDir 'dur050-cost-ledger.py'),$ledgerCliMutant,$utf8)
+  $ledgerOutputPreflightMutant=Join-Path $mutantDir 'dur050-cycle-preflight-ledger-output-mutant.ps1'
+  [IO.File]::WriteAllText($ledgerOutputPreflightMutant,$cycleSource,$utf8)
   $crossCheckCall='$script:awsSnapshot.ledger_instance_crosscheck = Assert-Dur050LedgerMatchesOutputs -Outputs $outputs -ExpectedCycleID $CycleID'
   $crossCheckMutant=$cycleSource.Replace($crossCheckCall,"`$script:awsSnapshot.ledger_instance_crosscheck = [ordered]@{ state = 'OK'; open_interval_count = 4 }")
   if($crossCheckMutant -eq $cycleSource){throw 'Could not apply ledger cross-check guard-removal mutant.'}
@@ -156,6 +165,9 @@ try {
   if($mutantResult.ExitCode -ne 0 -or (Get-Content $mutantResult.Out -Raw|ConvertFrom-Json).status -ne 'PASS'){throw "Removing the ledger/output cross-check did not make the mismatched ledger pass: $($mutantResult.Text)"}
   try{Assert-CycleFailure $mutantResult 'ledger cross-check mutation' 'does not match Terraform';throw 'The ledger/output cross-check negative unexpectedly survived guard removal.'}catch{if($_.Exception.Message -notmatch 'Expected ledger cross-check mutation to fail'){throw}}
   Write-Host 'PASS: removing the ledger/output guard makes its negative assertion fail.'
+  $nestedLedgerMutant=Invoke-Tool 'pass' 'mutant-nested-ledger-output' $plan -ScriptPath $ledgerOutputPreflightMutant -NestedLedgerOutput
+  Assert-CycleFailure $nestedLedgerMutant 'nested-ledger-parent-mkdir mutation' 'No such file or directory'
+  Write-Host 'PASS: removing parent mkdir makes the cycle-preflight nested-output positive case fail.'
   Write-Json (Join-Path $temp 'ledger.json') $validOpenLedger
   $ledgerPath=Join-Path $temp 'ledger-close-test.json';Copy-Item (Join-Path $temp 'ledger.json') $ledgerPath
   $beforeBadClose=(Get-FileHash $ledgerPath -Algorithm SHA256).Hash

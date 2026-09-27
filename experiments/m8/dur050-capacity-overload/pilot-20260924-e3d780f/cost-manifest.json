@@ -527,6 +527,35 @@
     "plan_generated_at_utc": "2026-09-27T16:15:49.2278332Z",
     "local_state_sha256_at_plan": "C9D6746790D72A3DE092585335D3CD19FBA19C98CF78557D8B4A4C0634809B53"
   },
+  "preapply_round117_round118_failures_r190": {
+    "saved_plan_sha256": "B3909081D819591C65B060EB420E53D3DAFA2E78B676FC927BCD453C686E90B7",
+    "local_state_lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
+    "local_state_serial": 231,
+    "attempts": [
+      {
+        "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round117-20260927T161545Z/d022-preapply-gate.json",
+        "sha256": "B9B93A9768732262AD025638DF8EBDC1CA1BE820D5513CC43323C05001CA64E2",
+        "status": "FAIL",
+        "checked_at_utc": "2026-09-27T16:19:30.8649055+00:00",
+        "cause": "Operator environment supplied AWS_PROFILE with a trailing space (admin-learning ); AWS identity lookup failed closed before subsequent checks."
+      },
+      {
+        "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round118-retry-20260927T164211Z/d022-preapply-gate.json",
+        "sha256": "C54CBC4A6FB21BE311F00548CB49B55431A306B142D382676CF00F025D58EF70",
+        "status": "FAIL",
+        "checked_at_utc": "2026-09-27T16:44:10.1616694+00:00",
+        "cause": "AWS, plan, inventory, budget and tag checks passed; the ledger CLI failed because the requested output parent directory did not exist."
+      }
+    ],
+    "post_failure_local_ledger_check": {
+      "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round118-retry-20260927T164211Z/ledger-check.json",
+      "sha256": "69190A0847FF355EB27133DFC077678431E0F067ADC9481D18E00EA9080FDE0E",
+      "status": "PASS",
+      "checked_at_utc": "2026-09-27T17:10:11.447680Z",
+      "note": "Generated locally by the fixed ledger CLI after the gate failure; this is not a retry of the live gate and involved no AWS or SSM calls."
+    },
+    "note": "Gate-record SHA-256 values cover their committed LF-normalized bytes. Both attempts used the same saved plan and unchanged local Terraform state; no plan regeneration or apply occurred."
+  },
   "preapply_round112_2330417": {
     "status": "PASS; NOT APPLY AUTHORITY",
     "recorded_at_utc": "2026-09-27T03:48:13.1755021+00:00",

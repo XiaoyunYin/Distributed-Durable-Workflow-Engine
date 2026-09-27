@@ -339,7 +339,7 @@ def test_cli_reads_one_shared_ledger_and_writes_unique_check_record(tmp_path: Pa
     ledger_path = tmp_path / "task-ledger.json"
     ledger = task_ledger()
     ledger_path.write_text(json.dumps(ledger), encoding="utf-8")
-    output_path = tmp_path / "block-check.json"
+    output_path = tmp_path / "new" / "nested" / "block-check.json"
     now_arg = "2026-09-25T13:00:00Z"
     expected = LEDGER.evaluate(
         campaign_manifest(),
@@ -378,6 +378,7 @@ def test_cli_reads_one_shared_ledger_and_writes_unique_check_record(tmp_path: Pa
     assert result["accrued_instance_cost_usd"] == expected["accrued_instance_cost_usd"]
     assert result["projected_instance_cost_usd"] == expected["projected_instance_cost_usd"]
     assert result["open_interval_count"] == expected["open_interval_count"]
+    assert output_path.parent.is_dir()
 
     repeated = subprocess.run(
         [
@@ -400,6 +401,37 @@ def test_cli_reads_one_shared_ledger_and_writes_unique_check_record(tmp_path: Pa
     )
     assert repeated.returncode == 2
     assert "refusing to overwrite" in repeated.stderr
+
+    # Negative control: without the parent mkdir, the exact nested-output
+    # scenario that passed above fails with ENOENT before the exclusive open.
+    source = MODULE_PATH.read_text(encoding="utf-8")
+    mkdir_line = "                args.output.parent.mkdir(parents=True, exist_ok=True)\n"
+    assert source.count(mkdir_line) == 1
+    mutant_path = tmp_path / "dur050-cost-ledger-mutant.py"
+    mutant_path.write_text(source.replace(mkdir_line, "", 1), encoding="utf-8")
+    mutant_output = tmp_path / "mutant" / "new" / "nested" / "block-check.json"
+    mutated = subprocess.run(
+        [
+            sys.executable,
+            str(mutant_path),
+            str(manifest_path),
+            "--reserve-minutes",
+            "30",
+            "--now-utc",
+            now_arg,
+            "--ledger-path",
+            str(ledger_path),
+            "--output",
+            str(mutant_output),
+        ],
+        check=False,
+        capture_output=True,
+        text=True,
+        env=env,
+    )
+    assert mutated.returncode == 2
+    assert "No such file or directory" in mutated.stderr
+    assert not mutant_output.exists()
 
 
 def test_cli_rejects_test_ledger_override_without_explicit_test_environment(tmp_path: Path) -> None:

@@ -340,6 +340,7 @@ def main() -> int:
         output = json.dumps(result, indent=2, sort_keys=True) + "\n"
         if args.output:
             try:
+                args.output.parent.mkdir(parents=True, exist_ok=True)
                 with args.output.open("x", encoding="utf-8", newline="\n") as stream:
                     stream.write(output)
             except FileExistsError as exc:

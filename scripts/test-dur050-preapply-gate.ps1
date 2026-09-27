@@ -100,11 +100,11 @@ function Write-TestPlanZip([string]$Path, [string]$Lineage, [long]$Serial) {
     } finally { $archive.Dispose() }
 }
 
-function Invoke-Gate([string]$Scenario, [string]$Name, [string]$ScriptPath, [string]$ExpectedHash, [string]$InspectionOverridePath, [int]$ReserveMinutes = 480, [string]$LedgerOverride, [scriptblock]$ManifestMutation, [switch]$RehashInspection, [switch]$DryRun) {
+function Invoke-Gate([string]$Scenario, [string]$Name, [string]$ScriptPath, [string]$ExpectedHash, [string]$InspectionOverridePath, [int]$ReserveMinutes = 480, [string]$LedgerOverride, [scriptblock]$ManifestMutation, [switch]$RehashInspection, [switch]$DryRun, [switch]$NestedLedgerOutput) {
     $isMutant = -not [string]::IsNullOrWhiteSpace($ScriptPath)
     if (-not $ScriptPath) { $ScriptPath = Join-Path $PSScriptRoot 'dur050-preapply-gate.ps1' }
     $outputPath = Join-Path $temp "$Name-gate.json"
-    $ledgerOutput = Join-Path $temp "$Name-ledger.json"
+    $ledgerOutput = if ($NestedLedgerOutput) { Join-Path $temp "$Name/new/deep/ledger.json" } else { Join-Path $temp "$Name-ledger.json" }
     $gateInspectionPath = if ($InspectionOverridePath) { $InspectionOverridePath } else { $inspectionPath }
     $gateManifest = Get-Content -LiteralPath $manifestTemplatePath -Raw | ConvertFrom-Json
     $gateManifest.approved_saved_plan.saved_plan_sha256 = $ExpectedHash.ToUpperInvariant()
@@ -225,7 +225,7 @@ try {
     $awsLog = Join-Path $state 'aws-calls.log'
     $ssmLog = Join-Path $state 'ssm-calls.log'
 
-    $positive = Invoke-Gate -Scenario pass -Name positive -ExpectedHash $planHash
+    $positive = Invoke-Gate -Scenario pass -Name positive -ExpectedHash $planHash -NestedLedgerOutput
     if ($positive.ExitCode -ne 0) { throw "Pre-apply PASS case failed: $($positive.Text)" }
     $record = Get-Content -LiteralPath $positive.OutputPath -Raw | ConvertFrom-Json
     if ($record.schema -ne 'dur050-pre-apply-gate.v1' -or $record.status -ne 'PASS' -or $record.account_id -ne '372206265946' -or
@@ -247,7 +247,13 @@ try {
     }
     if ($record.ledger_check.ledger_path_override_used -or $record.ledger_check.ledger_path -ne 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json') { throw 'Positive pre-apply case did not use the real task-wide ledger default path.' }
     Assert-PlannedProjection $record
+    if (-not (Test-Path -LiteralPath $positive.LedgerPath -PathType Leaf) -or
+        (Get-Content -LiteralPath $positive.LedgerPath -Raw | ConvertFrom-Json).status -ne 'PASS' -or
+        -not (Test-Path -LiteralPath (Split-Path -Parent $positive.LedgerPath) -PathType Container)) {
+        throw 'Pre-apply gate did not write a PASS ledger check into its previously nonexistent nested output directory.'
+    }
     Write-Host 'PASS: account-only gate records reviewed plan, empty state/inventory, quota, budget, tags, full ledger reserve, and no apply authority.'
+    Write-Host 'PASS: pre-apply gate creates a nested ledger-check directory and writes the check.'
 
     Write-TestJson $statePath ([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 1; lineage = 'gate-fixture-lineage'; resources = @() })
     $stateProvenanceFailure = Invoke-Gate -Scenario pass -Name plan-state-serial-mismatch -ExpectedHash $planHash
@@ -344,6 +350,14 @@ try {
     Copy-Item (Join-Path $PSScriptRoot 'dur050-cost-ledger.py') (Join-Path $mutantDir 'dur050-cost-ledger.py')
     Copy-Item (Join-Path $PSScriptRoot 'dur050-d022-validator.ps1') (Join-Path $mutantDir 'dur050-d022-validator.ps1')
     Copy-Item (Join-Path $PSScriptRoot 'dur050-plan-state.psm1') (Join-Path $mutantDir 'dur050-plan-state.psm1')
+    $ledgerCliSource = Get-Content (Join-Path $PSScriptRoot 'dur050-cost-ledger.py') -Raw
+    $ledgerMkdirPattern = '(?m)^[ \t]*args\.output\.parent\.mkdir\(parents=True, exist_ok=True\)\r?\n'
+    if ([regex]::Matches($ledgerCliSource, $ledgerMkdirPattern).Count -ne 1) { throw 'Expected exactly one parent-directory mkdir in the cost-ledger CLI.' }
+    $ledgerCliMutant = [regex]::Replace($ledgerCliSource, $ledgerMkdirPattern, '')
+    if ($ledgerCliMutant -eq $ledgerCliSource) { throw 'Could not remove the cost-ledger parent-directory creation for its regression mutant.' }
+    [IO.File]::WriteAllText((Join-Path $mutantDir 'dur050-cost-ledger.py'), $ledgerCliMutant, $utf8)
+    $ledgerGateMutantPath = Join-Path $mutantDir 'dur050-preapply-ledger-output-mutant.ps1'
+    [IO.File]::WriteAllText($ledgerGateMutantPath, $gateSource, $utf8)
     $hashGuard = 'if ($planHash -ne ([string]$approvedPlan.saved_plan_sha256).ToUpperInvariant()) { throw "Saved plan SHA-256 does not match approved_saved_plan (actual $planHash)." }'
     $instanceGuard = 'if ($instanceRows.Count -ne 0) { throw "Found $($instanceRows.Count) non-terminated instance(s) tagged Task=DUR-050." }'
     $accountGuard = 'if ([string]$identity.Account -ne ''372206265946'') { throw "AWS account $($identity.Account) does not match required account 372206265946." }'
@@ -439,6 +453,11 @@ try {
         -InspectionOverridePath $wrongExecutableInspectionPath -RehashInspection
     Assert-GateMutationSensitive $executableShaMutantResult 'wrong-inspected-executable-sha'
     Write-Host 'PASS: removing the executable-SHA guard makes its negative assertion fail.'
+
+    $nestedLedgerMutantResult = Invoke-Gate -Scenario pass -Name mutant-nested-ledger-output -ScriptPath $ledgerGateMutantPath `
+        -ExpectedHash $planHash -NestedLedgerOutput
+    Assert-ControlFailed $nestedLedgerMutantResult 'nested-ledger-parent-mkdir mutation' 'No such file or directory'
+    Write-Host 'PASS: removing parent mkdir makes the pre-apply nested-output positive case fail.'
 
     if (Test-Path $ssmLog) { throw "A forbidden SSM call was attempted: $(Get-Content $ssmLog -Raw)" }
     Write-Host 'PASS: AWS stub observed zero SSM calls across all positive, negative, and mutation cases.'
