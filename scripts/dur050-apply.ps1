@@ -1,8 +1,9 @@
-#Requires -Version 7.0
+#Requires -Version 7.5
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9-]{1,32}$')][string]$CycleID,
     [Parameter(Mandatory)][string]$CampaignManifestPath,
+    [Parameter(Mandatory)][string]$PreApplyGatePath,
     [string]$TerraformDirectory,
     [string]$TerraformStatePath
 )
@@ -26,14 +27,6 @@ if (-not (Test-Path -LiteralPath $terraformStateFullPath -PathType Leaf)) { thro
 
 Import-Module (Join-Path $PSScriptRoot 'dur050-plan-state.psm1') -Force
 
-function ConvertTo-CanonicalJson([object]$Value) {
-    return ConvertTo-Json -InputObject $Value -Depth 100 -Compress
-}
-
-function Copy-JsonObject([object]$Value) {
-    return (ConvertTo-CanonicalJson $Value) | ConvertFrom-Json -AsHashtable -Depth 100 -ErrorAction Stop
-}
-
 function Write-JsonAtomic([string]$Path, [object]$Value, [switch]$CreateOnly) {
     $parent = Split-Path -Parent $Path
     if (-not (Test-Path -LiteralPath $parent -PathType Container)) { throw "Evidence parent directory is missing: $parent" }
@@ -47,6 +40,93 @@ function Write-JsonAtomic([string]$Path, [object]$Value, [switch]$CreateOnly) {
     } finally {
         if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force -ErrorAction SilentlyContinue }
     }
+}
+
+function Find-ByteSequence([byte[]]$Bytes, [byte[]]$Needle) {
+    $found = -1
+    for ($offset = 0; $offset -le ($Bytes.Length - $Needle.Length); $offset++) {
+        $sequenceMatches = $true
+        for ($index = 0; $index -lt $Needle.Length; $index++) {
+            if ($Bytes[$offset + $index] -ne $Needle[$index]) { $sequenceMatches = $false; break }
+        }
+        if ($sequenceMatches) {
+            if ($found -ge 0) { throw 'Manifest review_state marker occurs more than once.' }
+            $found = $offset
+        }
+    }
+    return $found
+}
+
+function Test-ByteArraysEqual([byte[]]$Left, [byte[]]$Right) {
+    if ($Left.Length -ne $Right.Length) { return $false }
+    for ($index = 0; $index -lt $Left.Length; $index++) {
+        if ($Left[$index] -ne $Right[$index]) { return $false }
+    }
+    return $true
+}
+
+function Get-ApprovedPlanObjectSpan([string]$JsonText) {
+    # The manifest also keeps historical per-cycle objects with this key; the
+    # two-space indentation identifies the one top-level approved pin object.
+    $propertyMatches = [regex]::Matches($JsonText, '(?m)^  "approved_saved_plan"\s*:')
+    if ($propertyMatches.Count -ne 1) { throw 'Manifest must contain exactly one top-level approved_saved_plan property.' }
+    $colon = $JsonText.IndexOf(':', $propertyMatches[0].Index + $propertyMatches[0].Length - 1)
+    $open = $colon + 1
+    while ($open -lt $JsonText.Length -and [char]::IsWhiteSpace($JsonText[$open])) { $open++ }
+    if ($open -ge $JsonText.Length -or $JsonText[$open] -ne '{') { throw 'approved_saved_plan must be a JSON object.' }
+    $depth = 0
+    $inString = $false
+    $escaped = $false
+    for ($index = $open; $index -lt $JsonText.Length; $index++) {
+        $character = $JsonText[$index]
+        if ($inString) {
+            if ($escaped) { $escaped = $false; continue }
+            if ($character -eq '\') { $escaped = $true; continue }
+            if ($character -eq '"') { $inString = $false }
+            continue
+        }
+        if ($character -eq '"') { $inString = $true; continue }
+        if ($character -eq '{') { $depth++ }
+        elseif ($character -eq '}') {
+            $depth--
+            if ($depth -eq 0) { return [pscustomobject]@{ Start=$open; End=$index + 1 } }
+        }
+    }
+    throw 'approved_saved_plan object is not terminated.'
+}
+
+function New-ReviewStateManifestBytes([byte[]]$OriginalBytes, [string]$ReviewState) {
+    $strictUtf8 = [Text.UTF8Encoding]::new($false, $true)
+    $jsonText = $strictUtf8.GetString($OriginalBytes)
+    $oldLiteral = '"review_state": "PENDING_CLAUDE_GO"'
+    $newLiteral = '"review_state": "' + $ReviewState + '"'
+    $oldBytes = [Text.Encoding]::ASCII.GetBytes($oldLiteral)
+    $newBytes = [Text.Encoding]::ASCII.GetBytes($newLiteral)
+    $literalOffset = Find-ByteSequence $OriginalBytes $oldBytes
+    if ($literalOffset -lt 0) { throw 'Manifest must contain the exact literal "review_state": "PENDING_CLAUDE_GO" exactly once.' }
+    $span = Get-ApprovedPlanObjectSpan $jsonText
+    $objectStartByte = $strictUtf8.GetByteCount($jsonText.Substring(0, $span.Start))
+    $objectEndByte = $strictUtf8.GetByteCount($jsonText.Substring(0, $span.End))
+    if ($literalOffset -lt $objectStartByte -or ($literalOffset + $oldBytes.Length) -gt $objectEndByte) {
+        throw 'The exact PENDING_CLAUDE_GO literal is not inside approved_saved_plan.'
+    }
+
+    $output = [byte[]]::new($OriginalBytes.Length - $oldBytes.Length + $newBytes.Length)
+    [Array]::Copy($OriginalBytes, 0, $output, 0, $literalOffset)
+    [Array]::Copy($newBytes, 0, $output, $literalOffset, $newBytes.Length)
+    [Array]::Copy($OriginalBytes, $literalOffset + $oldBytes.Length, $output, $literalOffset + $newBytes.Length, $OriginalBytes.Length - $literalOffset - $oldBytes.Length)
+
+    $reverseOffset = Find-ByteSequence $output $newBytes
+    if ($reverseOffset -ne $literalOffset) { throw 'Review-state byte substitution could not be located uniquely for reversal.' }
+    $reversed = [byte[]]::new($output.Length - $newBytes.Length + $oldBytes.Length)
+    [Array]::Copy($output, 0, $reversed, 0, $reverseOffset)
+    [Array]::Copy($oldBytes, 0, $reversed, $reverseOffset, $oldBytes.Length)
+    [Array]::Copy($output, $reverseOffset + $newBytes.Length, $reversed, $reverseOffset + $oldBytes.Length, $output.Length - $reverseOffset - $newBytes.Length)
+    if (-not (Test-ByteArraysEqual $reversed $OriginalBytes)) { throw 'Reversing the review-state substitution did not reproduce the original manifest bytes.' }
+
+    $parsed = $strictUtf8.GetString($output) | ConvertFrom-Json -AsHashtable -DateKind String -Depth 100 -ErrorAction Stop
+    if ([string]$parsed.approved_saved_plan.review_state -cne $ReviewState) { throw 'Byte-edited manifest did not parse with the expected review_state.' }
+    return ,$output
 }
 
 function Test-ManifestContainsCycle([object]$Value, [string]$Candidate) {
@@ -91,7 +171,9 @@ function Get-TeardownCommand([string]$Cycle, [string]$Manifest, [string]$Output,
 
 # All checks through the executable version query are read-only. No manifest,
 # cycle directory, or Terraform state is changed before every precheck passes.
-$manifestBefore = Get-Content -LiteralPath $manifestFullPath -Raw | ConvertFrom-Json -AsHashtable -Depth 100 -ErrorAction Stop
+$manifestOriginalBytes = [IO.File]::ReadAllBytes($manifestFullPath)
+$manifestStrictUtf8 = [Text.UTF8Encoding]::new($false, $true)
+$manifestBefore = $manifestStrictUtf8.GetString($manifestOriginalBytes) | ConvertFrom-Json -AsHashtable -DateKind String -Depth 100 -ErrorAction Stop
 if ([string]$manifestBefore.schema -cne 'dur050-cost-manifest.v2') { throw 'Campaign manifest schema is not dur050-cost-manifest.v2.' }
 $pin = $manifestBefore.approved_saved_plan
 if ($null -eq $pin) { throw 'Campaign manifest lacks approved_saved_plan.' }
@@ -126,6 +208,23 @@ else { $savedPlanPath = [IO.Path]::GetFullPath((Join-Path $repoRoot $planPathTex
 if (-not (Test-Path -LiteralPath $savedPlanPath -PathType Leaf)) { throw "Approved saved plan is missing: $savedPlanPath" }
 $planHash = Get-FileSha256 $savedPlanPath
 if ($planHash -cne ([string]$pin.saved_plan_sha256).ToUpperInvariant()) { throw "Saved plan SHA-256 mismatch: observed $planHash." }
+
+$preApplyGateFullPath = [IO.Path]::GetFullPath($PreApplyGatePath)
+if (-not (Test-Path -LiteralPath $preApplyGateFullPath -PathType Leaf)) { throw "Passing pre-apply gate record is missing: $preApplyGateFullPath" }
+$preApplyGateBytes = [IO.File]::ReadAllBytes($preApplyGateFullPath)
+$preApplyGateHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($preApplyGateBytes))
+try { $preApplyGate = ([Text.UTF8Encoding]::new($false, $true).GetString($preApplyGateBytes)) | ConvertFrom-Json -DateKind String -ErrorAction Stop }
+catch { throw "Pre-apply gate record is not valid JSON: $($_.Exception.Message)" }
+if ([string]$preApplyGate.schema -cne 'dur050-pre-apply-gate.v1' -or [string]$preApplyGate.status -cne 'PASS') { throw 'Pre-apply gate record must have schema dur050-pre-apply-gate.v1 and status PASS.' }
+if ([string]$preApplyGate.plan_sha256 -cne $planHash) { throw 'Pre-apply gate plan_sha256 does not match the approved saved plan.' }
+$gateStampText = [string]$preApplyGate.checked_at_utc
+$gateStamp = [DateTimeOffset]::MinValue
+if (-not $gateStampText -or $gateStampText -notmatch '(?:Z|[+-][0-9]{2}:[0-9]{2})$' -or
+    -not [DateTimeOffset]::TryParse($gateStampText, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind, [ref]$gateStamp)) {
+    throw 'Pre-apply gate checked_at_utc must be an RFC3339 timestamp with an explicit offset.'
+}
+$gateAge = [DateTimeOffset]::UtcNow - $gateStamp.ToUniversalTime()
+if ($gateAge -lt [TimeSpan]::Zero -or $gateAge -gt [TimeSpan]::FromMinutes(240)) { throw 'Pre-apply gate is in the future or older than 240 minutes.' }
 
 $terraformExeText = [string]$pin.terraform_executable_path
 $terraformExe = [IO.Path]::GetFullPath($terraformExeText)
@@ -169,17 +268,12 @@ catch { throw 'Pinned Terraform version response was not valid JSON.' }
 if ([string]$terraformVersionInfo.terraform_version -cne [string]$pin.terraform_version) { throw "Pinned Terraform version mismatch: observed '$($terraformVersionInfo.terraform_version)'" }
 # All read-only validation has passed. From here onward failures retain the
 # APPLIED_ marker and produce an apply record plus the committed teardown command.
-$beforeCanonical = ConvertTo-CanonicalJson $manifestBefore
-$manifestAfter = Copy-JsonObject $manifestBefore
-$originalReviewState = [string]$pin.review_state
-$manifestAfter['approved_saved_plan']['review_state'] = 'APPLIED_VALIDATION_PLACEHOLDER'
-$normalizedAfter = Copy-JsonObject $manifestAfter
-$normalizedAfter['approved_saved_plan']['review_state'] = $originalReviewState
-if ((ConvertTo-CanonicalJson $normalizedAfter) -cne $beforeCanonical) { throw 'Structured manifest edit changed fields other than approved_saved_plan.review_state.' }
+$gateAge = [DateTimeOffset]::UtcNow - $gateStamp.ToUniversalTime()
+if ($gateAge -lt [TimeSpan]::Zero -or $gateAge -gt [TimeSpan]::FromMinutes(240)) { throw 'Pre-apply gate is in the future or older than 240 minutes.' }
 $startedAt = [DateTimeOffset]::UtcNow
 $startedAtText = Format-UtcStamp $startedAt
 $reviewStateAfter = 'APPLIED_' + $startedAtText
-$manifestAfter['approved_saved_plan']['review_state'] = $reviewStateAfter
+$manifestAfterBytes = New-ReviewStateManifestBytes $manifestOriginalBytes $reviewStateAfter
 if (-not (Test-Path -LiteralPath $cycleDirectory)) { New-Item -ItemType Directory -Path $cycleDirectory -Force | Out-Null }
 $manifestTemp = Join-Path (Split-Path -Parent $manifestFullPath) ('.cost-manifest.' + [guid]::NewGuid().ToString('N') + '.tmp')
 $markerApplied = $false
@@ -187,14 +281,13 @@ $record = $null
 $failure = $null
 $outputsWritten = $false
 try {
-    [IO.File]::WriteAllText($manifestTemp, ((ConvertTo-Json -InputObject $manifestAfter -Depth 100) + "`n"), [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllBytes($manifestTemp, $manifestAfterBytes)
     [IO.File]::Move($manifestTemp, $manifestFullPath, $true)
     $markerApplied = $true
-    $manifestReadBack = Get-Content -LiteralPath $manifestFullPath -Raw | ConvertFrom-Json -AsHashtable -Depth 100 -ErrorAction Stop
-    if ((ConvertTo-CanonicalJson $manifestReadBack) -cne (ConvertTo-CanonicalJson $manifestAfter)) { throw 'Atomic manifest write did not round-trip to the intended structured value.' }
-    $normalizedReadBack = Copy-JsonObject $manifestReadBack
-    $normalizedReadBack['approved_saved_plan']['review_state'] = [string]$pin.review_state
-    if ((ConvertTo-CanonicalJson $normalizedReadBack) -cne $beforeCanonical) { throw 'Manifest verification found changes outside approved_saved_plan.review_state.' }
+    $manifestReadBackBytes = [IO.File]::ReadAllBytes($manifestFullPath)
+    if (-not (Test-ByteArraysEqual $manifestReadBackBytes $manifestAfterBytes)) { throw 'Atomic manifest write differed from the verified byte-level substitution.' }
+    $manifestReadBack = $manifestStrictUtf8.GetString($manifestReadBackBytes) | ConvertFrom-Json -AsHashtable -DateKind String -Depth 100 -ErrorAction Stop
+    if ([string]$manifestReadBack.approved_saved_plan.review_state -cne $reviewStateAfter) { throw 'Atomic manifest write did not retain the intended review_state.' }
 
     $record = [ordered]@{
         schema = 'dur050-apply-record.v1'
@@ -205,6 +298,9 @@ try {
         aws_identity = [ordered]@{ account_id = [string]$identity.Account; arn = [string]$identity.Arn }
         saved_plan_path = [IO.Path]::GetRelativePath($repoRoot, $savedPlanPath).Replace('\','/')
         saved_plan_sha256 = $planHash
+        pre_apply_gate_path = [IO.Path]::GetRelativePath($repoRoot, $preApplyGateFullPath).Replace('\','/')
+        pre_apply_gate_sha256 = $preApplyGateHash
+        pre_apply_gate_checked_at_utc = $gateStampText
         plan_prior_state = [ordered]@{ lineage = [string]$planPriorState.lineage; serial = [long]$planPriorState.serial; terraform_version = [string]$planPriorState.terraform_version }
         local_state_before = [ordered]@{ lineage = [string]$localState.lineage; serial = [long]$localState.serial; resource_count = [int]$localState.resource_count; sha256 = $localStateSha }
         terraform_executable = [ordered]@{ path = [string]$terraformExeResolved; sha256 = $terraformExeHash; version = [string]$terraformVersionInfo.terraform_version }

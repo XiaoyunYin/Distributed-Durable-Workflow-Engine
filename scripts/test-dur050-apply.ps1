@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.5
 $ErrorActionPreference = 'Stop'
 $PSNativeCommandUseErrorActionPreference = $false
 
@@ -18,7 +18,29 @@ function To-JsonText([object]$Value) {
 }
 
 function Copy-Json([object]$Value) {
-    return (ConvertTo-Json -InputObject $Value -Depth 100 -Compress) | ConvertFrom-Json -AsHashtable -Depth 100
+    return (ConvertTo-Json -InputObject $Value -Depth 100 -Compress) | ConvertFrom-Json -AsHashtable -DateKind String -Depth 100
+}
+
+function Test-ByteArraysEqual([byte[]]$Left, [byte[]]$Right) {
+    if ($Left.Length -ne $Right.Length) { return $false }
+    for ($index = 0; $index -lt $Left.Length; $index++) { if ($Left[$index] -ne $Right[$index]) { return $false } }
+    return $true
+}
+
+function Assert-OnlyReviewStateLiteralChanged([byte[]]$Before, [string]$AfterPath) {
+    $after = [IO.File]::ReadAllBytes($AfterPath)
+    $utf8Strict = [Text.UTF8Encoding]::new($false, $true)
+    $afterText = $utf8Strict.GetString($after)
+    $newMatches = [regex]::Matches($afterText, '"review_state": "APPLIED_[^"]+"')
+    if ($newMatches.Count -ne 1) { throw 'Applied manifest must contain exactly one serialized APPLIED_ review_state literal.' }
+    $oldLiteral = [Text.Encoding]::ASCII.GetBytes('"review_state": "PENDING_CLAUDE_GO"')
+    $newLiteral = [Text.Encoding]::ASCII.GetBytes($newMatches[0].Value)
+    $spanOffset = [Text.Encoding]::UTF8.GetByteCount($afterText.Substring(0, $newMatches[0].Index))
+    $reversed = [byte[]]::new($after.Length - $newLiteral.Length + $oldLiteral.Length)
+    [Array]::Copy($after, 0, $reversed, 0, $spanOffset)
+    [Array]::Copy($oldLiteral, 0, $reversed, $spanOffset, $oldLiteral.Length)
+    [Array]::Copy($after, $spanOffset + $newLiteral.Length, $reversed, $spanOffset + $oldLiteral.Length, $after.Length - $spanOffset - $newLiteral.Length)
+    if (-not (Test-ByteArraysEqual $Before $reversed)) { throw 'Manifest bytes outside approved_saved_plan.review_state changed.' }
 }
 
 function Set-StubExecutable([string]$Path, [string]$UnixBody, [string]$WindowsBody) {
@@ -104,6 +126,7 @@ exit /b 1
 
 function Invoke-ApplyScenario([string]$Tool, [string]$Cycle, [string]$Manifest, [string]$TerraformDir, [string]$StatePath, [string]$StubDir, [string]$AwsLog, [string]$TerraformLog, [string]$AwsScenario = 'pass') {
     $pathSeparator = [IO.Path]::PathSeparator
+    $gatePath = Join-Path (Split-Path -Parent $Manifest) 'pre-apply-gate.json'
     $environment = @{
         PATH = $StubDir + $pathSeparator + $env:PATH
         DUR050_ENABLE_TEST_HOOKS = '1'
@@ -111,8 +134,9 @@ function Invoke-ApplyScenario([string]$Tool, [string]$Cycle, [string]$Manifest, 
         DUR050_AWS_SCENARIO = $AwsScenario
         DUR050_TERRAFORM_STUB_LOG = $TerraformLog
         AWS_PROFILE = 'apply-test-no-credentials'
+        TZ = 'America/Los_Angeles'
     }
-    return Invoke-Child $Tool @('-CycleID', $Cycle, '-CampaignManifestPath', $Manifest, '-TerraformDirectory', $TerraformDir, '-TerraformStatePath', $StatePath) $environment
+    return Invoke-Child $Tool @('-CycleID', $Cycle, '-CampaignManifestPath', $Manifest, '-PreApplyGatePath', $gatePath, '-TerraformDirectory', $TerraformDir, '-TerraformStatePath', $StatePath) $environment
 }
 
 function Assert-NoTerraformPrecheck([string]$Label, [string]$Tool, [string]$Cycle, [string]$Manifest, [string]$TerraformDir, [string]$StatePath, [string]$StubDir, [string]$AwsLog, [string]$TerraformLog, [string]$ExpectedMessage, [string]$AwsScenario = 'pass') {
@@ -146,7 +170,7 @@ function New-Scenario([string]$Name, [string]$TemplateTerraformDir, [string]$Pla
     $state.serial = $StateSerial
     Write-Utf8 (Join-Path $terraformDir 'terraform.tfstate') (To-JsonText $state)
 
-    $shape = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -AsHashtable -Depth 100
+    $shape = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -AsHashtable -DateKind String -Depth 100
     $manifest = Copy-Json $shape
     $head = (& git rev-parse HEAD).Trim()
     if ($LASTEXITCODE -ne 0) { throw 'Could not read current Git commit for the test manifest.' }
@@ -162,10 +186,21 @@ function New-Scenario([string]$Name, [string]$TemplateTerraformDir, [string]$Pla
     $pin['terraform_executable_path'] = [IO.Path]::GetFullPath($TerraformExePath)
     $pin['terraform_executable_sha256'] = $TerraformExeSha
     $pin['terraform_version'] = '1.16.4'
+    $manifest['r192_fixture_timestamps'] = [ordered]@{
+        offset_timestamp = '2026-09-27T11:06:17.6416273+00:00'
+        utc_timestamp_with_trailing_zeros = '2026-09-27T11:06:17.6416270Z'
+    }
     $manifestFile = Join-Path $campaignDir 'cost-manifest.json'
     Write-Utf8 $manifestFile (To-JsonText $manifest)
+    $gatePath = Join-Path $campaignDir 'pre-apply-gate.json'
+    Write-Utf8 $gatePath (To-JsonText ([ordered]@{
+        schema='dur050-pre-apply-gate.v1'
+        status='PASS'
+        plan_sha256=$PlanSha
+        checked_at_utc=[DateTimeOffset]::UtcNow.AddMinutes(-2).ToString('o')
+    }))
     $cycle = 'ci-apply-' + $Name
-    return [pscustomobject]@{ Root=$scenarioRoot; TerraformDir=$terraformDir; StatePath=(Join-Path $terraformDir 'terraform.tfstate'); CampaignDir=$campaignDir; Manifest=$manifestFile; Cycle=$cycle }
+    return [pscustomobject]@{ Root=$scenarioRoot; TerraformDir=$terraformDir; StatePath=(Join-Path $terraformDir 'terraform.tfstate'); CampaignDir=$campaignDir; Manifest=$manifestFile; Gate=$gatePath; Cycle=$cycle }
 }
 
 try {
@@ -218,21 +253,55 @@ output "o" {
     $native = New-Scenario 'native-positive' $templateTerraformDir $planPath $planSha $stateLineage 231 $terraformExe $terraformExeSha
     $nativeAwsLog = $awsInfo.Log
     $nativeTerraformLog = $terraformFailure.Log
-    $nativeManifestBefore = Get-Content -LiteralPath $native.Manifest -Raw | ConvertFrom-Json -AsHashtable -Depth 100
+    $nativeManifestBeforeBytes = [IO.File]::ReadAllBytes($native.Manifest)
     $nativeResult = Invoke-ApplyScenario $applyTool $native.Cycle $native.Manifest $native.TerraformDir $native.StatePath $stubDir $nativeAwsLog $nativeTerraformLog
     if ($nativeResult.ExitCode -ne 0) { throw "Native Terraform apply case failed: $($nativeResult.Combined)" }
-    $nativeManifestAfter = Get-Content -LiteralPath $native.Manifest -Raw | ConvertFrom-Json -AsHashtable -Depth 100
-    $nativeManifestReset = Copy-Json $nativeManifestAfter
-    $nativeManifestReset['approved_saved_plan']['review_state'] = 'PENDING_CLAUDE_GO'
-    if ((ConvertTo-Json -InputObject $nativeManifestReset -Depth 100 -Compress) -cne (ConvertTo-Json -InputObject $nativeManifestBefore -Depth 100 -Compress)) { throw 'Native apply changed manifest fields other than review_state.' }
+    $nativeManifestAfter = Get-Content -LiteralPath $native.Manifest -Raw | ConvertFrom-Json -AsHashtable -DateKind String -Depth 100
+    Assert-OnlyReviewStateLiteralChanged $nativeManifestBeforeBytes $native.Manifest
     if ([string]$nativeManifestAfter.approved_saved_plan.review_state -notmatch '^APPLIED_\d{4}-\d\d-\d\dT.*Z$') { throw 'Native apply did not retain an APPLIED_ timestamp.' }
+    if ([string]$nativeManifestAfter.r192_fixture_timestamps.offset_timestamp -cne '2026-09-27T11:06:17.6416273+00:00' -or
+        [string]$nativeManifestAfter.r192_fixture_timestamps.utc_timestamp_with_trailing_zeros -cne '2026-09-27T11:06:17.6416270Z') {
+        throw 'Apply changed offset or trailing-zero timestamp literals under the Los Angeles child timezone.'
+    }
+    Write-Output 'PASS: manifest byte comparison preserves +00:00 and trailing-zero Z timestamps with TZ=America/Los_Angeles.'
     $nativeCycleDir = Join-Path (Join-Path $native.CampaignDir 'cycles') $native.Cycle
-    $nativeRecord = Get-Content -LiteralPath (Join-Path $nativeCycleDir 'apply-record.json') -Raw | ConvertFrom-Json
+    $nativeRecord = Get-Content -LiteralPath (Join-Path $nativeCycleDir 'apply-record.json') -Raw | ConvertFrom-Json -DateKind String
     $nativeOutputs = Get-Content -LiteralPath (Join-Path $nativeCycleDir 'terraform-outputs.json') -Raw | ConvertFrom-Json
     if ($nativeRecord.status -ne 'PASS' -or $nativeRecord.exit_code -ne 0 -or $nativeRecord.counts.added -ne 1 -or $nativeRecord.counts.changed -ne 0 -or $nativeRecord.counts.destroyed -ne 0 -or $nativeRecord.post_apply_state.resource_count -ne 1) { throw 'Native apply record did not capture a passing apply and expected counts/state.' }
+    $expectedGateRecordPath = [IO.Path]::GetRelativePath($repoRoot, $native.Gate).Replace('\','/')
+    if ($nativeRecord.pre_apply_gate_path -ne $expectedGateRecordPath -or $nativeRecord.pre_apply_gate_sha256 -ne (Get-FileHash -LiteralPath $native.Gate -Algorithm SHA256).Hash.ToUpperInvariant() -or [string]$nativeRecord.pre_apply_gate_checked_at_utc -ne [string]((Get-Content -LiteralPath $native.Gate -Raw | ConvertFrom-Json -DateKind String).checked_at_utc)) { throw 'Apply record did not preserve the validated pre-apply gate provenance.' }
     if ($nativeRecord.terraform_outputs_sha256 -ne (Get-FileHash -LiteralPath (Join-Path $nativeCycleDir 'terraform-outputs.json') -Algorithm SHA256).Hash.ToUpperInvariant() -or $nativeOutputs.o.value -ne 'dur050-apply-native-test') { throw 'Native outputs or output hash did not match the provider-less fixture.' }
     if ((Get-Content -LiteralPath $nativeAwsLog -Raw) -notmatch 'sts get-caller-identity') { throw 'Native positive did not use the AWS identity stub.' }
     Write-Output 'PASS: provider-less Terraform 1.16.4 plan/apply writes the structured marker, apply record, and hashed outputs.'
+
+    $rewriteNeedle = '$manifestAfterBytes = New-ReviewStateManifestBytes $manifestOriginalBytes $reviewStateAfter'
+    $rewriteSource = Get-Content -LiteralPath $applyTool -Raw
+    if (($rewriteSource.Split([string[]]@($rewriteNeedle), [StringSplitOptions]::None).Length - 1) -ne 1) { throw 'Full-serializer mutation target is not unique.' }
+    $legacyRewrite = @'
+$legacyManifestForRewrite = $manifestStrictUtf8.GetString($manifestOriginalBytes) | ConvertFrom-Json -AsHashtable -Depth 100 -ErrorAction Stop
+$legacyManifestForRewrite['approved_saved_plan']['review_state'] = $reviewStateAfter
+$manifestAfterBytes = [Text.Encoding]::UTF8.GetBytes(((ConvertTo-Json -InputObject $legacyManifestForRewrite -Depth 100) + "`n"))
+'@
+    $legacyRewrite = $legacyRewrite.TrimEnd()
+    $rewriteMutant = Join-Path $PSScriptRoot ('.dur050-apply-full-json-rewrite-mutant-' + [guid]::NewGuid().ToString('N') + '.ps1')
+    $mutants.Add($rewriteMutant)
+    Write-Utf8 $rewriteMutant $rewriteSource.Replace($rewriteNeedle, $legacyRewrite)
+    $rewriteScenario = New-Scenario 'rewrite-m' $templateTerraformDir $planPath $planSha $stateLineage 231 $terraformExe $terraformExeSha
+    $rewriteBeforeBytes = [IO.File]::ReadAllBytes($rewriteScenario.Manifest)
+    $rewriteResult = Invoke-ApplyScenario $rewriteMutant $rewriteScenario.Cycle $rewriteScenario.Manifest $rewriteScenario.TerraformDir $rewriteScenario.StatePath $stubDir (Join-Path $tempRoot 'rewrite-aws.log') (Join-Path $tempRoot 'rewrite-terraform.log')
+    if ($rewriteResult.ExitCode -ne 0) { throw "Full-JSON mutation scenario did not reach its byte oracle: $($rewriteResult.Combined)" }
+    $rewriteRejected = $false
+    try { Assert-OnlyReviewStateLiteralChanged $rewriteBeforeBytes $rewriteScenario.Manifest }
+    catch {
+        if ($_.Exception.Message -cne 'Manifest bytes outside approved_saved_plan.review_state changed.') { throw }
+        $rewriteRejected = $true
+    }
+    $rewriteBefore = [IO.File]::ReadAllBytes($rewriteScenario.Manifest)
+    $rewriteOriginal = [Text.Encoding]::UTF8.GetString($rewriteBefore)
+    if ($rewriteOriginal.Contains('2026-09-27T11:06:17.6416273+00:00')) { throw 'Full-JSON mutation did not expose the offset timestamp rewrite under Pacific TZ.' }
+    if ($rewriteOriginal.Contains('2026-09-27T11:06:17.6416270Z')) { throw 'Full-JSON mutation did not expose fractional-zero trimming.' }
+    if (-not $rewriteRejected) { throw 'Full ConvertTo-Json rewrite mutation survived the byte-preservation assertion.' }
+    Write-Output 'PASS: full ConvertTo-Json rewrite mutation is rejected by the byte-preservation assertion.'
 
     $failureAws = Write-AwsStub $stubDir 'apply-failure'
     $failureTerraform = Write-TerraformFailureStub $stubDir 'apply-failure'
@@ -270,6 +339,24 @@ output "o" {
     $badReviewManifest.approved_saved_plan.review_state = 'APPLIED_old'
     Write-Utf8 $badReview.Manifest (To-JsonText $badReviewManifest)
     $null = Assert-NoTerraformPrecheck 'review-state mismatch' $applyTool $badReview.Cycle $badReview.Manifest $badReview.TerraformDir $badReview.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'review_state must be exactly PENDING_CLAUDE_GO'
+
+    $staleGate = New-Scenario 'stale-preapply-gate' $templateTerraformDir $planPath $planSha $stateLineage 231 $negativeTerraform.Path ((Get-FileHash $negativeTerraform.Path -Algorithm SHA256).Hash.ToUpperInvariant())
+    $staleGateValue = Get-Content -LiteralPath $staleGate.Gate -Raw | ConvertFrom-Json -AsHashtable -DateKind String
+    $staleGateValue.checked_at_utc = [DateTimeOffset]::UtcNow.AddMinutes(-241).ToString('o')
+    Write-Utf8 $staleGate.Gate (To-JsonText $staleGateValue)
+    $null = Assert-NoTerraformPrecheck 'stale pre-apply gate' $applyTool $staleGate.Cycle $staleGate.Manifest $staleGate.TerraformDir $staleGate.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'Pre-apply gate is in the future or older than 240 minutes'
+
+    $failedGate = New-Scenario 'failed-preapply-gate' $templateTerraformDir $planPath $planSha $stateLineage 231 $negativeTerraform.Path ((Get-FileHash $negativeTerraform.Path -Algorithm SHA256).Hash.ToUpperInvariant())
+    $failedGateValue = Get-Content -LiteralPath $failedGate.Gate -Raw | ConvertFrom-Json -AsHashtable -DateKind String
+    $failedGateValue.status = 'FAIL'
+    Write-Utf8 $failedGate.Gate (To-JsonText $failedGateValue)
+    $null = Assert-NoTerraformPrecheck 'FAIL pre-apply gate' $applyTool $failedGate.Cycle $failedGate.Manifest $failedGate.TerraformDir $failedGate.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'Pre-apply gate record must have schema dur050-pre-apply-gate.v1 and status PASS'
+
+    $wrongPlanGate = New-Scenario 'wrong-gate' $templateTerraformDir $planPath $planSha $stateLineage 231 $negativeTerraform.Path ((Get-FileHash $negativeTerraform.Path -Algorithm SHA256).Hash.ToUpperInvariant())
+    $wrongPlanGateValue = Get-Content -LiteralPath $wrongPlanGate.Gate -Raw | ConvertFrom-Json -AsHashtable -DateKind String
+    $wrongPlanGateValue.plan_sha256 = ('0' * 64)
+    Write-Utf8 $wrongPlanGate.Gate (To-JsonText $wrongPlanGateValue)
+    $null = Assert-NoTerraformPrecheck 'wrong-plan pre-apply gate' $applyTool $wrongPlanGate.Cycle $wrongPlanGate.Manifest $wrongPlanGate.TerraformDir $wrongPlanGate.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'Pre-apply gate plan_sha256 does not match the approved saved plan'
 
     $wrongAccount = New-Scenario 'wrong-account' $templateTerraformDir $planPath $planSha $stateLineage 231 $negativeTerraform.Path ((Get-FileHash $negativeTerraform.Path -Algorithm SHA256).Hash.ToUpperInvariant())
     $null = Assert-NoTerraformPrecheck 'wrong AWS account' $applyTool $wrongAccount.Cycle $wrongAccount.Manifest $wrongAccount.TerraformDir $wrongAccount.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'AWS account must be 372206265946' 'wrong-account'

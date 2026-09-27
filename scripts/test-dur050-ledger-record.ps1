@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.5
 $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $sourceScript = Join-Path $PSScriptRoot 'dur050-ledger-record.ps1'
@@ -7,8 +7,69 @@ $temp = Join-Path $repoRoot ('.dur050-ledger-backfill-test-' + [guid]::NewGuid()
 New-Item -ItemType Directory -Path $temp | Out-Null
 $utf8 = [Text.UTF8Encoding]::new($false)
 $env:DUR050_ENABLE_TEST_LEDGER_OVERRIDE = '1'
+$priorTz = $env:TZ
+$env:TZ = 'America/Los_Angeles'
 
 function Write-Json([string]$Path, $Value) { [IO.File]::WriteAllText($Path, (($Value | ConvertTo-Json -Depth 30) + "`n"), $utf8) }
+function Get-RowJsonText([string]$Path, [string]$InstanceId) {
+    $text = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
+    $needle = '"instance_id"\s*:\s*"' + [regex]::Escape($InstanceId) + '"'
+    $rowMatches = [regex]::Matches($text, $needle)
+    if ($rowMatches.Count -ne 1) { throw "Expected one ledger row for $InstanceId; found $($rowMatches.Count)." }
+    $start = $text.LastIndexOf('{', $rowMatches[0].Index)
+    if ($start -lt 0) { throw "Could not locate ledger row start for $InstanceId." }
+    $depth = 0; $quoted = $false; $escaped = $false
+    for ($index = $start; $index -lt $text.Length; $index++) {
+        $ch = $text[$index]
+        if ($quoted) {
+            if ($escaped) { $escaped = $false; continue }
+            if ($ch -eq '\') { $escaped = $true; continue }
+            if ($ch -eq '"') { $quoted = $false }
+            continue
+        }
+        if ($ch -eq '"') { $quoted = $true; continue }
+        if ($ch -eq '{') { $depth++ }
+        elseif ($ch -eq '}') {
+            $depth--
+            if ($depth -eq 0) { return $text.Substring($start, $index - $start + 1) }
+        }
+    }
+    throw "Could not locate ledger row end for $InstanceId."
+}
+function Add-SentinelRows([string]$Path) {
+    $ledger = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -AsHashtable -DateKind String
+    $sentinels = [ordered]@{
+        'app-1' = 'i-aaaaaaaaaaaaaaaaa'
+        'app-2' = 'i-bbbbbbbbbbbbbbbbb'
+        'dependency' = 'i-ccccccccccccccccc'
+        'load-generator' = 'i-ddddddddddddddddd'
+    }
+    $types = [ordered]@{ 'app-1'='c7i.large'; 'app-2'='c7i.large'; 'dependency'='m7i.large'; 'load-generator'='c7i.large' }
+    foreach ($role in $sentinels.Keys) {
+        $start = if ($role -eq 'app-1') { '2020-01-01T00:00:00.1234000+00:00' } else { '2020-01-01T00:00:00.1234000Z' }
+        $end = if ($role -eq 'app-1') { '2020-01-01T01:00:00.4572760Z' } else { '2020-01-01T01:00:00.4572760+00:00' }
+        $sentinel = [ordered]@{
+            cycle_id='r192-byte-preservation'
+            instance_id=$sentinels[$role]
+            instance_type=$types[$role]
+            apply_started_at_utc=$start
+            destroy_completed_at_utc=$end
+            interval_source='test sentinel for exact row-byte preservation'
+        }
+        $ledger.roles[$role] = @($sentinel) + @($ledger.roles[$role])
+    }
+    Write-Json $Path $ledger
+    $snapshots = [ordered]@{}
+    foreach ($role in $sentinels.Keys) { $snapshots[$role] = Get-RowJsonText $Path $sentinels[$role] }
+    return [pscustomobject]@{ ids=$sentinels; rows=$snapshots }
+}
+function Assert-SentinelRowsByteIdentical([string]$Path, $Snapshot, [string]$Operation) {
+    foreach ($role in $Snapshot.ids.Keys) {
+        $current = Get-RowJsonText $Path $Snapshot.ids[$role]
+        if ($current -cne [string]$Snapshot.rows[$role]) { throw "Pre-existing $role ledger row changed byte-for-byte during $Operation." }
+    }
+    Write-Host "PASS: pre-existing sentinel rows remain byte-identical after $Operation."
+}
 function Test-RecordedEvidenceHash([string]$Path, [string]$ExpectedHash) {
     $rawHash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
     if ($rawHash -ceq $ExpectedHash) { return $true }
@@ -31,6 +92,33 @@ function Invoke-Backfill([string]$Script, [string]$Name, [string]$Ledger, [strin
     $result = & $pwsh @args 2>&1 | Out-String
     return [pscustomobject]@{ ExitCode=$LASTEXITCODE; Text=$result; Name=$Name }
 }
+function Invoke-LedgerOperation([string]$Script, [string[]]$Arguments, [string]$AwsStubDir) {
+    $oldPath = $env:PATH
+    try {
+        if ($AwsStubDir) { $env:PATH = $AwsStubDir + [IO.Path]::PathSeparator + $oldPath }
+        $result = & $pwsh -NoProfile -File $Script @Arguments 2>&1 | Out-String
+        return [pscustomobject]@{ ExitCode=$LASTEXITCODE; Text=$result }
+    } finally { $env:PATH = $oldPath }
+}
+function Write-LedgerAwsStub([string]$Directory) {
+    $unix = @'
+#!/bin/sh
+printf '%s\n' '{"Reservations":[{"Instances":[{"InstanceId":"i-11111111111111111","InstanceType":"c7i.large","LaunchTime":"2030-01-02T00:00:00Z"},{"InstanceId":"i-22222222222222222","InstanceType":"c7i.large","LaunchTime":"2030-01-02T00:00:00Z"},{"InstanceId":"i-33333333333333333","InstanceType":"m7i.large","LaunchTime":"2030-01-02T00:00:00Z"},{"InstanceId":"i-44444444444444444","InstanceType":"c7i.large","LaunchTime":"2030-01-02T00:00:00Z"}]}]}'
+'@
+    $windows = @'
+@echo off
+echo {"Reservations":[{"Instances":[{"InstanceId":"i-11111111111111111","InstanceType":"c7i.large","LaunchTime":"2030-01-02T00:00:00Z"},{"InstanceId":"i-22222222222222222","InstanceType":"c7i.large","LaunchTime":"2030-01-02T00:00:00Z"},{"InstanceId":"i-33333333333333333","InstanceType":"m7i.large","LaunchTime":"2030-01-02T00:00:00Z"},{"InstanceId":"i-44444444444444444","InstanceType":"c7i.large","LaunchTime":"2030-01-02T00:00:00Z"}]}]}
+exit /b 0
+'@
+    $path = Join-Path $Directory 'aws'
+    if ([OperatingSystem]::IsWindows()) {
+        [IO.File]::WriteAllText($path + '.cmd', $windows, $utf8)
+        return $Directory
+    }
+    [IO.File]::WriteAllText($path, ($unix -replace "`r`n", "`n" -replace "`r", "`n"), $utf8)
+    [IO.File]::SetUnixFileMode($path, [IO.UnixFileMode]::UserRead -bor [IO.UnixFileMode]::UserWrite -bor [IO.UnixFileMode]::UserExecute -bor [IO.UnixFileMode]::GroupRead -bor [IO.UnixFileMode]::GroupExecute -bor [IO.UnixFileMode]::OtherRead -bor [IO.UnixFileMode]::OtherExecute)
+    return $Directory
+}
 function Assert-BackfillNegative($Result, [string]$Pattern, [string]$Name) {
     if ($Result.ExitCode -eq 0 -or $Result.Text -notmatch $Pattern) { throw "Backfill negative '$Name' failed or returned the wrong guard: $($Result.Text)" }
 }
@@ -41,7 +129,7 @@ function Copy-BaseLedger([string]$Name) {
 }
 
 try {
-    $committedLedger = Get-Content -LiteralPath (Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json') -Raw | ConvertFrom-Json
+    $committedLedger = Get-Content -LiteralPath (Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json') -Raw | ConvertFrom-Json -DateKind String
     $cycle3bRows = @($committedLedger.roles.PSObject.Properties | ForEach-Object { $_.Value } | ForEach-Object { $_ } | Where-Object { $_.cycle_id -eq 'cycle-3b-2330417' })
     if ($cycle3bRows.Count -ne 4) { throw "Committed cycle-3b ledger must have four intervals; found $($cycle3bRows.Count)." }
     foreach ($row in $cycle3bRows) {
@@ -72,9 +160,11 @@ try {
     Write-Json $destroyPath ([ordered]@{ schema='dur050-destroy-record.v1'; status='PASS'; cycle_id='cycle-r187-test'; destroy_completed_at_utc='2026-09-28T04:55:45.4572760Z' })
 
     $positiveLedger = Copy-BaseLedger 'positive'
+    $positiveSnapshot = Add-SentinelRows $positiveLedger
     $positive = Invoke-Backfill $sourceScript 'positive' $positiveLedger $outputsPath $applyPath $destroyPath
     if ($positive.ExitCode -ne 0) { throw "Backfill positive control failed: $($positive.Text)" }
-    $ledger = Get-Content -LiteralPath $positiveLedger -Raw | ConvertFrom-Json
+    Assert-SentinelRowsByteIdentical $positiveLedger $positiveSnapshot 'Backfill'
+    $ledger = Get-Content -LiteralPath $positiveLedger -Raw | ConvertFrom-Json -DateKind String
     $rows = @($ledger.roles.PSObject.Properties | ForEach-Object { $_.Value } | ForEach-Object { $_ } | Where-Object cycle_id -eq 'cycle-r187-test')
     if ($rows.Count -ne 4 -or @($rows | Where-Object { $null -eq $_.destroy_completed_at_utc -or $_.interval_source -cne 'backfill: apply start -> destroy completion (R187)' }).Count -ne 0 -or
         @($rows | Where-Object { $_.evidence.apply_record_sha256 -ne (Get-FileHash $applyPath -Algorithm SHA256).Hash.ToUpperInvariant() -or $_.evidence.destroy_record_sha256 -ne (Get-FileHash $destroyPath -Algorithm SHA256).Hash.ToUpperInvariant() -or $_.evidence.terraform_outputs_sha256 -ne (Get-FileHash $outputsPath -Algorithm SHA256).Hash.ToUpperInvariant() }).Count -ne 0) {
@@ -84,6 +174,22 @@ try {
         throw 'Backfill evidence paths must be relative to the repository root.'
     }
     Write-Host 'PASS: backfill records four closed intervals with IDs, types, exact timestamps, and source-file SHA-256 values.'
+
+    $awsStubDir = Join-Path $temp 'aws-stub'
+    New-Item -ItemType Directory -Path $awsStubDir | Out-Null
+    $null = Write-LedgerAwsStub $awsStubDir
+    $openCloseLedger = Copy-BaseLedger 'open-close'
+    $openCloseSnapshot = Add-SentinelRows $openCloseLedger
+    $openCycle = 'cycle-r192-open-close'
+    $openArgs = @('-Open','-CycleID',$openCycle,'-TerraformOutputsPath',$outputsPath,'-ApplyStartedAtUtc','2030-01-01T00:00:00.0000000Z','-LedgerPath',$openCloseLedger)
+    $openResult = Invoke-LedgerOperation $sourceScript $openArgs $awsStubDir
+    if ($openResult.ExitCode -ne 0) { throw "Ledger open timestamp-preservation test failed: $($openResult.Text)" }
+    Assert-SentinelRowsByteIdentical $openCloseLedger $openCloseSnapshot 'Open'
+    $closeArgs = @('-Close','-CycleID',$openCycle,'-DestroyCompletedAtUtc','2030-01-03T00:00:00.0000000Z','-LedgerPath',$openCloseLedger)
+    $closeResult = Invoke-LedgerOperation $sourceScript $closeArgs $null
+    if ($closeResult.ExitCode -ne 0) { throw "Ledger close timestamp-preservation test failed: $($closeResult.Text)" }
+    Assert-SentinelRowsByteIdentical $openCloseLedger $openCloseSnapshot 'Close'
+    Write-Host 'PASS: ledger open and close preserve pre-existing timestamp rows byte-for-byte under TZ=America/Los_Angeles.'
 
     $applyFailPath = Join-Path $temp 'apply-fail-record.json'
     Write-Json $applyFailPath ([ordered]@{ schema='dur050-apply-record.v1'; status='FAIL'; cycle_id='cycle-r187-test'; apply_started_at_utc='2026-09-28T04:46:54.1291096Z' })
@@ -157,5 +263,6 @@ try {
     }
 } finally {
     Remove-Item Env:DUR050_ENABLE_TEST_LEDGER_OVERRIDE -ErrorAction SilentlyContinue
+    if ($null -eq $priorTz) { Remove-Item Env:TZ -ErrorAction SilentlyContinue } else { $env:TZ = $priorTz }
     Remove-Item -LiteralPath $temp -Recurse -Force -ErrorAction SilentlyContinue
 }

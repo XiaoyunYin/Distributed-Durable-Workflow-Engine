@@ -15,10 +15,12 @@ establish database-host durability, Kafka HA, or multi-region availability.
 
 ## Preflight
 
-Every DUR-050 PowerShell operator tool requires PowerShell 7 Core. Use the
-absolute path to the verified `pwsh.exe` with `-NoProfile -File`; do not run
-these scripts under Windows PowerShell 5.1. For example, set the path for the
-operator host and invoke tools as follows:
+Every DUR-050 PowerShell operator tool requires PowerShell 7 Core. The apply
+and task-ledger tools use `ConvertFrom-Json -DateKind String` and therefore
+require PowerShell 7.5 or newer. Use the absolute path to the verified
+`pwsh.exe` with `-NoProfile -File`; do not run these scripts under Windows
+PowerShell 5.1. For example, set the path for the operator host and invoke
+tools as follows:
 
 ```powershell
 $pwshExe = 'C:\Program Files\PowerShell\7\pwsh.exe' # substitute the verified absolute path if installed elsewhere
@@ -77,8 +79,12 @@ source diff, and cycle ID, then atomically marks the attempt and writes the
 apply record and Terraform outputs:
 
 ```powershell
-& $pwshExe -NoProfile -File .\scripts\dur050-apply.ps1 -CycleID <new-cycle-id> -CampaignManifestPath <manifest.json>
+& $pwshExe -NoProfile -File .\scripts\dur050-apply.ps1 -CycleID <new-cycle-id> -CampaignManifestPath <manifest.json> -PreApplyGatePath <passing-gate-record.json>
 ```
+
+The apply wrapper accepts only a `dur050-pre-apply-gate.v1` PASS record for
+the same saved-plan SHA-256, checked within the previous 240 minutes. It
+records the gate path, hash, and check time with the apply evidence.
 
 The apply record supplies the start timestamp and outputs path for
 `& $pwshExe -NoProfile -File .\scripts\dur050-ledger-record.ps1 -Open ...`. The helper uses read-only

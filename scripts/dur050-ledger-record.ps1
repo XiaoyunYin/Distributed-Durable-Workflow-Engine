@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+#Requires -Version 7.5
 [CmdletBinding(DefaultParameterSetName='Open')]
 param(
     [Parameter(Mandatory, ParameterSetName='Open')][switch]$Open,
@@ -70,7 +70,7 @@ function Invoke-Dur050LedgerAws([string[]]$Arguments) {
 }
 
 function Assert-Dur050LedgerCandidate([string]$Path) {
-    $candidateLedger = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -ErrorAction Stop
+    $candidateLedger = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -DateKind String -ErrorAction Stop
     if ([string]$candidateLedger.schema -ne 'dur050-task-cost-ledger.v1' -or [string]$candidateLedger.task_id -ne 'DUR-050') { throw 'Serialized candidate ledger has an invalid schema or task ID.' }
     $roleTypes = [ordered]@{ 'app-1'='c7i.large'; 'app-2'='c7i.large'; 'dependency'='m7i.large'; 'load-generator'='c7i.large' }
     $allIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -103,7 +103,7 @@ function Assert-Dur050LedgerCandidate([string]$Path) {
 }
 
 $originalBytes = [IO.File]::ReadAllBytes($LedgerPath)
-$ledger = [Text.Encoding]::UTF8.GetString($originalBytes) | ConvertFrom-Json -ErrorAction Stop
+$ledger = [Text.Encoding]::UTF8.GetString($originalBytes) | ConvertFrom-Json -DateKind String -ErrorAction Stop
 if ($ledger.schema -ne 'dur050-task-cost-ledger.v1' -or $ledger.task_id -ne 'DUR-050') { throw 'Task ledger schema or task ID is invalid.' }
 $timestamp = if ($Open) { Read-Dur050LedgerUtc $ApplyStartedAtUtc 'ApplyStartedAtUtc' } elseif ($Close) { Read-Dur050LedgerUtc $DestroyCompletedAtUtc 'DestroyCompletedAtUtc' } else { $null }
 

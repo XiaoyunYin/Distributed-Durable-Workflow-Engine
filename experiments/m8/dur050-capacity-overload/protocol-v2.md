@@ -34,7 +34,9 @@
 ## Cycle preparation and immutable baseline
 
 Before invoking any operator script, set the absolute path to the verified
-PowerShell 7 Core executable. Every `.ps1` invocation in this protocol uses
+PowerShell 7 Core executable. `dur050-apply.ps1` and
+`dur050-ledger-record.ps1` require PowerShell 7.5 or newer for
+`ConvertFrom-Json -DateKind String`. Every `.ps1` invocation in this protocol uses
 `& $pwshExe -NoProfile -File ...`; Windows PowerShell 5.1 is unsupported:
 
 ```powershell
@@ -613,9 +615,11 @@ The required order is:
 3. Stop for Claude's go/no-go review of the exact plan, inspection, and gate
    record. PASS by itself is never apply authorization.
 4. Only after Claude's GO and the user's apply authorization, run
-   `& $pwshExe -NoProfile -File .\scripts\dur050-apply.ps1` with a new cycle ID
-   and the campaign manifest. This is the only DUR-050 apply path: it checks
-   the pinned plan/executable/state/account/source, marks the attempt
+   `& $pwshExe -NoProfile -File .\scripts\dur050-apply.ps1` with a new cycle ID,
+   campaign manifest, and `-PreApplyGatePath <passing-gate-record.json>`. The
+   gate must be `dur050-pre-apply-gate.v1` PASS for the same plan hash and be
+   at most 240 minutes old. This is the only DUR-050 apply path: it checks
+   the gate plus the pinned plan/executable/state/account/source, marks the attempt
    `APPLIED_<start-utc>` atomically, applies the exact saved plan with
    `-input=false`, and writes `apply-record.json` plus `terraform-outputs.json`
    on success. Never invoke `terraform apply` manually for DUR-050.
@@ -654,7 +658,8 @@ preparation and reset reject dur050-pre-apply-gate.v1.
 
 All DUR-050 PowerShell operator tools require PowerShell 7 Core and must be
 invoked with an absolute `pwsh.exe` path and `-NoProfile -File`; never use
-Windows PowerShell 5.1. For example:
+Windows PowerShell 5.1. The apply and ledger-record tools require 7.5 or newer.
+For example:
 
 ```powershell
 $pwshExe = 'C:\Program Files\PowerShell\7\pwsh.exe' # substitute the verified absolute path if installed elsewhere
