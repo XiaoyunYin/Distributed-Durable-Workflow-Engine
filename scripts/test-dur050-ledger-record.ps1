@@ -9,6 +9,23 @@ $utf8 = [Text.UTF8Encoding]::new($false)
 $env:DUR050_ENABLE_TEST_LEDGER_OVERRIDE = '1'
 
 function Write-Json([string]$Path, $Value) { [IO.File]::WriteAllText($Path, (($Value | ConvertTo-Json -Depth 30) + "`n"), $utf8) }
+function Test-RecordedEvidenceHash([string]$Path, [string]$ExpectedHash) {
+    $rawHash = (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToUpperInvariant()
+    if ($rawHash -ceq $ExpectedHash) { return $true }
+
+    # Git may normalize these committed text records from CRLF to LF on Linux.
+    # Reconstruct the producer's CRLF lines plus final LF before comparing the
+    # unchanged provenance digest; content edits still change the normalized hash.
+    $text = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
+    $lfText = [regex]::Replace($text, "`r`n|`r|`n", "`n")
+    $hasFinalLf = $lfText.EndsWith("`n", [StringComparison]::Ordinal)
+    $body = if ($hasFinalLf) { $lfText.Substring(0, $lfText.Length - 1) } else { $lfText }
+    $finalLf = if ($hasFinalLf) { "`n" } else { '' }
+    $producerText = $body.Replace("`n", "`r`n") + $finalLf
+    $bytes = [Text.UTF8Encoding]::new($false).GetBytes($producerText)
+    $normalizedHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($bytes))
+    return $normalizedHash -ceq $ExpectedHash
+}
 function Invoke-Backfill([string]$Script, [string]$Name, [string]$Ledger, [string]$Outputs, [string]$Apply, [string]$Destroy, [string]$Cycle = 'cycle-r187-test') {
     $args = @('-NoProfile','-File',$Script,'-Backfill','-CycleID',$Cycle,'-TerraformOutputsPath',$Outputs,'-ApplyRecordPath',$Apply,'-DestroyRecordPath',$Destroy,'-LedgerPath',$Ledger)
     $result = & $pwsh @args 2>&1 | Out-String
@@ -35,7 +52,7 @@ try {
         )) {
             if ([IO.Path]::IsPathRooted($pair.path)) { throw "Committed cycle-3b evidence path is not relative: $($pair.path)" }
             $sourcePath = [IO.Path]::Combine($repoRoot, $pair.path.Replace('/', [IO.Path]::DirectorySeparatorChar))
-            if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf) -or (Get-FileHash -LiteralPath $sourcePath -Algorithm SHA256).Hash.ToUpperInvariant() -cne $pair.hash) {
+            if (-not (Test-Path -LiteralPath $sourcePath -PathType Leaf) -or -not (Test-RecordedEvidenceHash $sourcePath $pair.hash)) {
                 throw "Committed cycle-3b evidence path/hash does not resolve: $($pair.path)"
             }
         }
