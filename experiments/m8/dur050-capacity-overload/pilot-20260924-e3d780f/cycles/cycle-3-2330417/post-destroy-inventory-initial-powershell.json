@@ -1,0 +1,42 @@
+{
+    "schema":  "dur050-post-destroy-inventory.v1",
+    "cycle_id":  "cycle-3-2330417",
+    "checked_at_utc":  "2026-09-27T00:12:34.1155230Z",
+    "account_id":  "372206265946",
+    "region":  "us-west-1",
+    "terraform_vpc_ids":  {
+
+                          },
+    "task_subnet_ids":  {
+
+                        },
+    "task_security_group_ids":  {
+
+                                },
+    "task_network_interface_ids":  {
+
+                                   },
+    "task_eip_allocation_ids":  {
+
+                                },
+    "task_snapshot_ids":  {
+
+                          },
+    "dur050_iam_role_names":  {
+
+                              },
+    "dur050_instance_profile_names":  {
+
+                                      },
+    "campaign_ssm_parameters":  [
+                                    {
+                                        "present":  false,
+                                        "name":  "/durable-engine-dur050/dur050-observer-password"
+                                    },
+                                    {
+                                        "present":  false,
+                                        "name":  "/durable-engine-dur050/postgres-password"
+                                    }
+                                ],
+    "all_campaign_resources_absent":  true
+}

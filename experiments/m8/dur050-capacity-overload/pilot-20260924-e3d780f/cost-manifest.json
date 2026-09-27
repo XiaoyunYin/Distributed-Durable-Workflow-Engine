@@ -597,5 +597,96 @@
     "apply_authority": "NONE; Claude go/no-go required",
     "apply_performed": false,
     "ssm_dispatched": false
+  },
+  "provisioning_cycle_3_attempt": {
+    "cycle_id": "cycle-3-2330417",
+    "status": "APPLY_FAILED_BEFORE_RESOURCE_CREATION; PILOT_NOT_STARTED",
+    "source_commit": "2330417f7521b487291cb793ead9d97eda637062",
+    "user_authorization": "Explicit user authorization received after Claude Round 109 amended the Round 108 GO.",
+    "terraform": {
+      "version": "1.16.4",
+      "executable": "C:\\Users\\yxyfz\\AppData\\Local\\Temp\\terraform-1.16.4-dur050\\terraform.exe",
+      "executable_sha256": "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
+      "saved_plan_path": "deploy/aws/.terraform/dur050-preapply-round104-2330417-live.tfplan",
+      "saved_plan_sha256": "6377EF256AA08EDEC209F7C669C1F489586EBBB65CA081805D5E608578C22B29"
+    },
+    "apply": {
+      "started_at_utc": "2026-09-27T00:06:14.6570056Z",
+      "exit_code": 1,
+      "status": "FAIL",
+      "error": "Saved plan is stale: state was changed by another operation after the plan was created.",
+      "immediate_pre_apply_state": {
+        "lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
+        "serial": 166,
+        "resource_count": 0,
+        "state_list_count": 0
+      },
+      "retry_or_regeneration_performed": false
+    },
+    "pilot": {
+      "status": "NOT_STARTED",
+      "unloaded_blocks_completed": 0,
+      "unloaded_blocks_expected": 6,
+      "terraform_outputs_written": false,
+      "ledger_open_performed": false,
+      "cycle_preflight_performed": false,
+      "preparation_performed": false,
+      "reset_performed": false,
+      "ssm_dispatched": false
+    },
+    "teardown": {
+      "destroy_started_at_utc": "2026-09-27T00:09:36.8536126Z",
+      "destroy_completed_at_utc": "2026-09-27T00:09:39.4538453Z",
+      "terraform_destroy_exit_code": 0,
+      "terraform_destroyed_resources": 0,
+      "state_after_destroy_serial": 167,
+      "state_after_destroy_resource_count": 0,
+      "ledger_close_status": "NOT_APPLICABLE; no cycle-3 intervals were opened"
+    },
+    "post_destroy_account_check": {
+      "gate_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/post-destroy-preapply-gate.json",
+      "gate_sha256": "A0ACF197E3E730BBCB4974F89D235FC0F6D5266347F0AA434BC66F051DD109C6",
+      "campaign_manifest_sha256_at_gate": "10F794F15D018D3B1D7503F0678366E949245D5BD1FC0F368297281278863B4D",
+      "ledger_check_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/post-destroy-ledger-check.json",
+      "ledger_check_sha256": "66EA525BE26CEFE6113F0686FDB7B0D16FF79940FD67368AC57628C00A02E651",
+      "status": "PASS",
+      "checked_at_utc": "2026-09-27T00:10:52.2630757+00:00",
+      "account_id": "372206265946",
+      "region": "us-west-1",
+      "regional_non_terminated_instances": 0,
+      "regional_volumes": 0,
+      "quota_vcpu": 32,
+      "other_standard_vcpu": 0,
+      "aggregate_actual_spend_usd": 1.911,
+      "aggregate_forecast_spend_usd": 4.372,
+      "budget_notifications": "ACTUAL $160 OK; ACTUAL $76.47 OK; FORECASTED $160 OK",
+      "task_ledger_open_intervals": 0,
+      "task_ledger_accrued_instance_cost_usd": "0.248827",
+      "task_ledger_projected_total_usd": "11.084827"
+    },
+    "post_destroy_inventory": {
+      "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/post-destroy-inventory.json",
+      "sha256": "680099032884DA069562843F005367FF66ED5ED37E99DCBEC094E58C1123FC15",
+      "status": "PASS; all ten captured resource queries returned []",
+      "checked_at_utc": "2026-09-27T00:14:17.8176176Z"
+    },
+    "failure_and_destroy_records": {
+      "apply_failure_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/apply-failure.json",
+      "apply_failure_sha256": "4401DF368FD9C0C74FFD94308131C73448C0B86381C4CF5424BFFD3711CD4AC0",
+      "destroy_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/terraform-destroy.json",
+      "destroy_sha256": "4D6FA1984AF00B7492B1F8F9F4FA0B6882CE736C2C75872D8960CF924A993DE5",
+      "initial_inventory_serialization_attempts": [
+        {
+          "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/post-destroy-inventory-initial-powershell.json",
+          "sha256": "326C47D40701CFF184D060B15EDA499D11035683D23C3336A30CE78084DB4342",
+          "note": "Preserved initial PowerShell empty-array serialization attempt; normalized inventory retains exact raw [] results."
+        },
+        {
+          "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/post-destroy-inventory-initial-count-bug.json",
+          "sha256": "642E50B3EC1878CDB9C2C435B8A0E6E5E75D55DD77F3FDF9D8E7C6CFD20105B4",
+          "note": "Preserved initial count attempt; empty JSON arrays were counted as one null element by the wrapper."
+        }
+      ]
+    }
   }
 }

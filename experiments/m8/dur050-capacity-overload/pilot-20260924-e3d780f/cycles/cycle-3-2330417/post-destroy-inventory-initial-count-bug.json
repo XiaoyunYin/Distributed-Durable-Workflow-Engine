@@ -1,0 +1,70 @@
+{
+    "schema":  "dur050-post-destroy-inventory.v2",
+    "cycle_id":  "cycle-3-2330417",
+    "checked_at_utc":  "2026-09-27T00:14:17.8176176Z",
+    "account_id":  "372206265946",
+    "region":  "us-west-1",
+    "checks":  [
+                   {
+                       "name":  "tagged_vpcs",
+                       "response_json":  "[]",
+                       "result_count":  1,
+                       "absent":  false
+                   },
+                   {
+                       "name":  "tagged_subnets",
+                       "response_json":  "[]",
+                       "result_count":  1,
+                       "absent":  false
+                   },
+                   {
+                       "name":  "tagged_security_groups",
+                       "response_json":  "[]",
+                       "result_count":  1,
+                       "absent":  false
+                   },
+                   {
+                       "name":  "tagged_network_interfaces",
+                       "response_json":  "[]",
+                       "result_count":  1,
+                       "absent":  false
+                   },
+                   {
+                       "name":  "tagged_eips",
+                       "response_json":  "[]",
+                       "result_count":  1,
+                       "absent":  false
+                   },
+                   {
+                       "name":  "tagged_snapshots",
+                       "response_json":  "[]",
+                       "result_count":  1,
+                       "absent":  false
+                   },
+                   {
+                       "name":  "dur050_iam_roles",
+                       "response_json":  "[]",
+                       "result_count":  1,
+                       "absent":  false
+                   },
+                   {
+                       "name":  "dur050_instance_profiles",
+                       "response_json":  "[]",
+                       "result_count":  1,
+                       "absent":  false
+                   },
+                   {
+                       "name":  "ssm_parameter:/durable-engine-dur050/dur050-observer-password",
+                       "response_json":  "[]",
+                       "result_count":  1,
+                       "absent":  false
+                   },
+                   {
+                       "name":  "ssm_parameter:/durable-engine-dur050/postgres-password",
+                       "response_json":  "[]",
+                       "result_count":  1,
+                       "absent":  false
+                   }
+               ],
+    "all_checks_absent":  false
+}

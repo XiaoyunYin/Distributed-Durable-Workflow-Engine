@@ -1,0 +1,71 @@
+{
+    "schema":  "dur050-post-destroy-inventory.v3",
+    "cycle_id":  "cycle-3-2330417",
+    "checked_at_utc":  "2026-09-27T00:14:17.8176176Z",
+    "account_id":  "372206265946",
+    "region":  "us-west-1",
+    "checks":  [
+                   {
+                       "name":  "tagged_vpcs",
+                       "response_json":  "[]",
+                       "result_count":  0,
+                       "absent":  true
+                   },
+                   {
+                       "name":  "tagged_subnets",
+                       "response_json":  "[]",
+                       "result_count":  0,
+                       "absent":  true
+                   },
+                   {
+                       "name":  "tagged_security_groups",
+                       "response_json":  "[]",
+                       "result_count":  0,
+                       "absent":  true
+                   },
+                   {
+                       "name":  "tagged_network_interfaces",
+                       "response_json":  "[]",
+                       "result_count":  0,
+                       "absent":  true
+                   },
+                   {
+                       "name":  "tagged_eips",
+                       "response_json":  "[]",
+                       "result_count":  0,
+                       "absent":  true
+                   },
+                   {
+                       "name":  "tagged_snapshots",
+                       "response_json":  "[]",
+                       "result_count":  0,
+                       "absent":  true
+                   },
+                   {
+                       "name":  "dur050_iam_roles",
+                       "response_json":  "[]",
+                       "result_count":  0,
+                       "absent":  true
+                   },
+                   {
+                       "name":  "dur050_instance_profiles",
+                       "response_json":  "[]",
+                       "result_count":  0,
+                       "absent":  true
+                   },
+                   {
+                       "name":  "ssm_parameter:/durable-engine-dur050/dur050-observer-password",
+                       "response_json":  "[]",
+                       "result_count":  0,
+                       "absent":  true
+                   },
+                   {
+                       "name":  "ssm_parameter:/durable-engine-dur050/postgres-password",
+                       "response_json":  "[]",
+                       "result_count":  0,
+                       "absent":  true
+                   }
+               ],
+    "all_checks_absent":  true,
+    "normalization_note":  "Counts were normalized from the captured AWS CLI JSON responses. The response [] denotes zero results; an initial PowerShell 5.1 wrapper counted the empty array as one null item. The initial attempts are preserved under post-destroy-inventory-initial-*."
+}

@@ -1,0 +1,17 @@
+{
+    "schema":  "dur050-terraform-destroy.v1",
+    "cycle_id":  "cycle-3-2330417",
+    "destroy_started_at_utc":  "2026-09-27T00:09:36.8536126Z",
+    "destroy_completed_at_utc":  "2026-09-27T00:09:39.4538453Z",
+    "terraform_version":  "1.16.4",
+    "terraform_executable":  "C:\\Users\\yxyfz\\AppData\\Local\\Temp\\terraform-1.16.4-dur050\\terraform.exe",
+    "terraform_executable_sha256":  "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
+    "terraform_destroy_exit_code":  0,
+    "terraform_destroy_output":  "No changes. No objects need to be destroyed. Destroy complete! Resources: 0 destroyed.",
+    "terraform_state_lineage":  "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
+    "terraform_state_serial":  167,
+    "terraform_state_resource_count":  0,
+    "terraform_state_list_count":  0,
+    "ledger_close_status":  "NOT_APPLICABLE",
+    "ledger_close_reason":  "Terraform apply failed before resources were created; no cycle-3 ledger intervals were opened, so the close helper correctly has no interval to close."
+}
