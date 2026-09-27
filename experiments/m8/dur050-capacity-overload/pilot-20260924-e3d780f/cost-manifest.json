@@ -556,6 +556,83 @@
     },
     "note": "Gate-record SHA-256 values cover their committed LF-normalized bytes. Both attempts used the same saved plan and unchanged local Terraform state; no plan regeneration or apply occurred."
   },
+  "preapply_round120_20260927T180608Z": {
+    "status": "PASS; NOT APPLY AUTHORITY",
+    "checked_at_utc": "2026-09-27T18:06:17.6416273+00:00",
+    "cycle_id": "preapply-round120-20260927T180608Z",
+    "saved_plan_sha256": "B3909081D819591C65B060EB420E53D3DAFA2E78B676FC927BCD453C686E90B7",
+    "plan_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round117-20260927T161545Z/plan-inspection.json",
+    "plan_inspection_sha256": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
+    "input_manifest_sha256_observed": "6760B1AF5A20136470043B375BC0F1EB69ECBBF66EBD44FBE09F990D183D7152",
+    "gate_record": {
+      "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round120-20260927T180608Z/d022-preapply-gate.json",
+      "sha256_working_file": "5E9A0BE0DBAA3969DDBFD1D499BEE1A663576AEF5B57EF3AB7E8C3D85DC1E3C3",
+      "sha256_committed_blob_lf": "7468477E189A220DA89CEAA8E041694C8985D92CA4B101BE500C5D5A4241C58B"
+    },
+    "ledger_check": {
+      "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round120-20260927T180608Z/ledger-check.json",
+      "sha256_working_file": "66BED16F1E23CBE657FEB98EBB7DB98A5726322EA52BD96A6939B416AB84176D",
+      "sha256_committed_blob_lf": "66BED16F1E23CBE657FEB98EBB7DB98A5726322EA52BD96A6939B416AB84176D"
+    },
+    "aws": {
+      "account_id": "372206265946",
+      "region": "us-west-1",
+      "arn": "arn:aws:iam::372206265946:user/admin-learning"
+    },
+    "terraform_state": {
+      "lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
+      "serial": 231,
+      "resource_count": 0,
+      "sha256": "C9D6746790D72A3DE092585335D3CD19FBA19C98CF78557D8B4A4C0634809B53"
+    },
+    "terraform_executable": {
+      "path": "C:/Users/yxyfz/AppData/Local/Programs/Terraform/1.16.4/terraform.exe",
+      "version": "1.16.4",
+      "sha256": "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349"
+    },
+    "powershell": {
+      "path": "C:/Users/yxyfz/AppData/Local/Programs/PowerShell/7.6.6/payload/pwsh.exe",
+      "version": "7.6.6",
+      "edition": "Core"
+    },
+    "quota": {
+      "code": "L-1216C47A",
+      "state": "OK",
+      "quota_vcpu": 32,
+      "current_on_demand_standard_vcpu": 0,
+      "planned_peak_vcpu": 8,
+      "projected_vcpu": 8
+    },
+    "inventory": {
+      "state": "OK",
+      "region_wide_non_terminated_instance_count": 0,
+      "region_wide_volume_count": 0,
+      "tagged_dur050_instance_count": 0,
+      "forbidden_volume_count": 0
+    },
+    "budget": {
+      "name": "durable-engine-D022-aggregate-20260923",
+      "limit_usd": 200,
+      "actual_spend_usd": 1.954,
+      "forecasted_spend_usd": 4.23,
+      "notifications": [
+        {"type": "ACTUAL", "operator": "GREATER_THAN", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 160, "state": "OK"},
+        {"type": "ACTUAL", "operator": "GREATER_THAN", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 76.47, "state": "OK"},
+        {"type": "FORECASTED", "operator": "GREATER_THAN", "threshold_type": "ABSOLUTE_VALUE", "threshold_usd": 160, "state": "OK"}
+      ]
+    },
+    "cost_allocation_tags": {"Task": "Active", "Environment": "Active", "state": "OK"},
+    "ledger_projection": {
+      "status": "PASS",
+      "reserve_minutes": 1440,
+      "accrued_instance_cost_usd": "0.315548",
+      "planned_host_projection_usd": "10.836000",
+      "projected_instance_cost_usd": "11.151548",
+      "open_interval_count": 0
+    },
+    "apply_authority": "NONE; Claude go/no-go required",
+    "note": "One approved live read-only gate run. No apply. Gate and ledger records are preserved unchanged; both working-file and committed LF-blob SHA-256 values are recorded."
+  },
   "preapply_round112_2330417": {
     "status": "PASS; NOT APPLY AUTHORITY",
     "recorded_at_utc": "2026-09-27T03:48:13.1755021+00:00",
