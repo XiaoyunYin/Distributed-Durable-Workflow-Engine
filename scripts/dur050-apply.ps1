@@ -215,8 +215,9 @@ $preApplyGateBytes = [IO.File]::ReadAllBytes($preApplyGateFullPath)
 $preApplyGateHash = [Convert]::ToHexString([Security.Cryptography.SHA256]::HashData($preApplyGateBytes))
 try { $preApplyGate = ([Text.UTF8Encoding]::new($false, $true).GetString($preApplyGateBytes)) | ConvertFrom-Json -DateKind String -ErrorAction Stop }
 catch { throw "Pre-apply gate record is not valid JSON: $($_.Exception.Message)" }
-if ([string]$preApplyGate.schema -cne 'dur050-pre-apply-gate.v1' -or [string]$preApplyGate.status -cne 'PASS') { throw 'Pre-apply gate record must have schema dur050-pre-apply-gate.v1 and status PASS.' }
-if ([string]$preApplyGate.plan_sha256 -cne $planHash) { throw 'Pre-apply gate plan_sha256 does not match the approved saved plan.' }
+if ([string]$preApplyGate.schema -cne 'dur050-pre-apply-gate.v1') { throw 'Pre-apply gate schema must be dur050-pre-apply-gate.v1.' }
+if ([string]$preApplyGate.status -cne 'PASS') { throw 'Pre-apply gate status must be PASS.' }
+if ([string]$preApplyGate.plan_sha256 -cne $planHash) { throw 'Pre-apply gate plan hash does not match the approved plan.' }
 $gateStampText = [string]$preApplyGate.checked_at_utc
 $gateStamp = [DateTimeOffset]::MinValue
 if (-not $gateStampText -or $gateStampText -notmatch '(?:Z|[+-][0-9]{2}:[0-9]{2})$' -or
@@ -224,7 +225,7 @@ if (-not $gateStampText -or $gateStampText -notmatch '(?:Z|[+-][0-9]{2}:[0-9]{2}
     throw 'Pre-apply gate checked_at_utc must be an RFC3339 timestamp with an explicit offset.'
 }
 $gateAge = [DateTimeOffset]::UtcNow - $gateStamp.ToUniversalTime()
-if ($gateAge -lt [TimeSpan]::Zero -or $gateAge -gt [TimeSpan]::FromMinutes(240)) { throw 'Pre-apply gate is in the future or older than 240 minutes.' }
+if ($gateAge -lt [TimeSpan]::Zero -or $gateAge -gt [TimeSpan]::FromMinutes(240)) { throw 'Pre-apply gate freshness check failed: future timestamp or age over 240 minutes.' }
 
 $terraformExeText = [string]$pin.terraform_executable_path
 $terraformExe = [IO.Path]::GetFullPath($terraformExeText)
@@ -269,7 +270,7 @@ if ([string]$terraformVersionInfo.terraform_version -cne [string]$pin.terraform_
 # All read-only validation has passed. From here onward failures retain the
 # APPLIED_ marker and produce an apply record plus the committed teardown command.
 $gateAge = [DateTimeOffset]::UtcNow - $gateStamp.ToUniversalTime()
-if ($gateAge -lt [TimeSpan]::Zero -or $gateAge -gt [TimeSpan]::FromMinutes(240)) { throw 'Pre-apply gate is in the future or older than 240 minutes.' }
+if ($gateAge -lt [TimeSpan]::Zero -or $gateAge -gt [TimeSpan]::FromMinutes(240)) { throw 'Pre-apply gate freshness check failed: future timestamp or age over 240 minutes.' }
 $startedAt = [DateTimeOffset]::UtcNow
 $startedAtText = Format-UtcStamp $startedAt
 $reviewStateAfter = 'APPLIED_' + $startedAtText

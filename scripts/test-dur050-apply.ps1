@@ -344,19 +344,19 @@ $manifestAfterBytes = [Text.Encoding]::UTF8.GetBytes(((ConvertTo-Json -InputObje
     $staleGateValue = Get-Content -LiteralPath $staleGate.Gate -Raw | ConvertFrom-Json -AsHashtable -DateKind String
     $staleGateValue.checked_at_utc = [DateTimeOffset]::UtcNow.AddMinutes(-241).ToString('o')
     Write-Utf8 $staleGate.Gate (To-JsonText $staleGateValue)
-    $null = Assert-NoTerraformPrecheck 'stale pre-apply gate' $applyTool $staleGate.Cycle $staleGate.Manifest $staleGate.TerraformDir $staleGate.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'Pre-apply gate is in the future or older than 240 minutes'
+    $null = Assert-NoTerraformPrecheck 'stale pre-apply gate' $applyTool $staleGate.Cycle $staleGate.Manifest $staleGate.TerraformDir $staleGate.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'Pre-apply gate freshness check failed'
 
     $failedGate = New-Scenario 'failed-preapply-gate' $templateTerraformDir $planPath $planSha $stateLineage 231 $negativeTerraform.Path ((Get-FileHash $negativeTerraform.Path -Algorithm SHA256).Hash.ToUpperInvariant())
     $failedGateValue = Get-Content -LiteralPath $failedGate.Gate -Raw | ConvertFrom-Json -AsHashtable -DateKind String
     $failedGateValue.status = 'FAIL'
     Write-Utf8 $failedGate.Gate (To-JsonText $failedGateValue)
-    $null = Assert-NoTerraformPrecheck 'FAIL pre-apply gate' $applyTool $failedGate.Cycle $failedGate.Manifest $failedGate.TerraformDir $failedGate.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'Pre-apply gate record must have schema dur050-pre-apply-gate.v1 and status PASS'
+    $null = Assert-NoTerraformPrecheck 'FAIL pre-apply gate' $applyTool $failedGate.Cycle $failedGate.Manifest $failedGate.TerraformDir $failedGate.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'Pre-apply gate status must be PASS'
 
     $wrongPlanGate = New-Scenario 'wrong-gate' $templateTerraformDir $planPath $planSha $stateLineage 231 $negativeTerraform.Path ((Get-FileHash $negativeTerraform.Path -Algorithm SHA256).Hash.ToUpperInvariant())
     $wrongPlanGateValue = Get-Content -LiteralPath $wrongPlanGate.Gate -Raw | ConvertFrom-Json -AsHashtable -DateKind String
     $wrongPlanGateValue.plan_sha256 = ('0' * 64)
     Write-Utf8 $wrongPlanGate.Gate (To-JsonText $wrongPlanGateValue)
-    $null = Assert-NoTerraformPrecheck 'wrong-plan pre-apply gate' $applyTool $wrongPlanGate.Cycle $wrongPlanGate.Manifest $wrongPlanGate.TerraformDir $wrongPlanGate.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'Pre-apply gate plan_sha256 does not match the approved saved plan'
+    $null = Assert-NoTerraformPrecheck 'wrong-plan pre-apply gate' $applyTool $wrongPlanGate.Cycle $wrongPlanGate.Manifest $wrongPlanGate.TerraformDir $wrongPlanGate.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'Pre-apply gate plan hash does not match'
 
     $wrongAccount = New-Scenario 'wrong-account' $templateTerraformDir $planPath $planSha $stateLineage 231 $negativeTerraform.Path ((Get-FileHash $negativeTerraform.Path -Algorithm SHA256).Hash.ToUpperInvariant())
     $null = Assert-NoTerraformPrecheck 'wrong AWS account' $applyTool $wrongAccount.Cycle $wrongAccount.Manifest $wrongAccount.TerraformDir $wrongAccount.StatePath $stubDir $negativeAws.Log $negativeTerraform.Log 'AWS account must be 372206265946' 'wrong-account'
