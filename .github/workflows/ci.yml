@@ -85,6 +85,10 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Test DUR-050 post-destroy inventory controls
+        shell: pwsh
+        run: ./scripts/test-dur050-post-destroy-inventory.ps1
+
       - name: Set up uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -113,6 +117,21 @@ jobs:
         with:
           terraform_version: 1.16.4
           terraform_wrapper: false
+
+      - name: Test DUR-050 plan-state provenance with native Terraform plan
+        shell: bash
+        run: |
+          set -euo pipefail
+          temp_dir="$(mktemp -d)"
+          trap 'rm -rf "$temp_dir"' EXIT
+          mkdir -p "$temp_dir/empty-config"
+          printf 'terraform { required_version = "= 1.16.4" }\n' > "$temp_dir/empty-config/main.tf"
+          terraform -chdir="$temp_dir/empty-config" init -backend=false -input=false
+          terraform -chdir="$temp_dir/empty-config" plan -refresh=false -input=false -out="$temp_dir/empty.tfplan"
+          export DUR050_NATIVE_PLAN_PATH="$temp_dir/empty.tfplan"
+          export DUR050_NATIVE_STATE_PATH="$temp_dir/no-local-state.tfstate"
+          export DUR050_TERRAFORM_EXE="$(command -v terraform)"
+          pwsh -NoProfile -File scripts/test-dur050-plan-state.ps1
 
       - name: Validate AWS Terraform profile
         shell: bash

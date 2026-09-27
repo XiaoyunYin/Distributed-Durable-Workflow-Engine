@@ -5,6 +5,8 @@ $temp = Join-Path ([System.IO.Path]::GetTempPath()) ('dur050-preapply-test-' + [
 $bin = Join-Path $temp 'bin'
 $state = Join-Path $temp 'state'
 $utf8 = [System.Text.UTF8Encoding]::new($false)
+Add-Type -AssemblyName System.IO.Compression
+Add-Type -AssemblyName System.IO.Compression.FileSystem
 New-Item -ItemType Directory -Force -Path $bin, $state | Out-Null
 
 $awsStub = @'
@@ -66,9 +68,36 @@ esac
 [IO.File]::WriteAllText((Join-Path $bin 'aws'), $awsStub.Replace("`r", '') + [Environment]::NewLine, $utf8)
 & chmod 0755 (Join-Path $bin 'aws')
 if ($LASTEXITCODE -ne 0) { throw 'Could not mark AWS stub executable.' }
+$terraformStub = @'
+#!/bin/sh
+set -eu
+if [ "${1:-}" = version ] && [ "${2:-}" = -json ]; then
+  printf '{"terraform_version":"1.16.4"}\n'
+  exit 0
+fi
+echo "unexpected Terraform invocation: $*" >&2
+exit 89
+'@
+$terraformStubPath = Join-Path $bin 'terraform'
+[IO.File]::WriteAllText($terraformStubPath, $terraformStub.Replace("`r", '') + [Environment]::NewLine, $utf8)
+& chmod 0755 $terraformStubPath
+if ($LASTEXITCODE -ne 0) { throw 'Could not mark Terraform stub executable.' }
 
 function Write-TestJson([string]$Path, $Value) {
     [IO.File]::WriteAllText($Path, (($Value | ConvertTo-Json -Depth 30) + [Environment]::NewLine), $utf8)
+}
+
+function Write-TestPlanZip([string]$Path, [string]$Lineage, [long]$Serial) {
+    $archive = [System.IO.Compression.ZipFile]::Open($Path, [System.IO.Compression.ZipArchiveMode]::Create)
+    try {
+        $entry = $archive.CreateEntry('tfstate')
+        $stream = $entry.Open()
+        try {
+            $writer = [System.IO.StreamWriter]::new($stream, $utf8)
+            try { $writer.Write((([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = $Serial; lineage = $Lineage; resources = @() }) | ConvertTo-Json -Compress)) }
+            finally { $writer.Dispose() }
+        } finally { $stream.Dispose() }
+    } finally { $archive.Dispose() }
 }
 
 function Invoke-Gate([string]$Scenario, [string]$Name, [string]$ScriptPath, [string]$ExpectedHash, [string]$InspectionOverridePath, [int]$ReserveMinutes = 480, [string]$LedgerOverride, [switch]$DryRun) {
@@ -76,16 +105,22 @@ function Invoke-Gate([string]$Scenario, [string]$Name, [string]$ScriptPath, [str
     if (-not $ScriptPath) { $ScriptPath = Join-Path $PSScriptRoot 'dur050-preapply-gate.ps1' }
     $outputPath = Join-Path $temp "$Name-gate.json"
     $ledgerOutput = Join-Path $temp "$Name-ledger.json"
+    $gateInspectionPath = if ($InspectionOverridePath) { $InspectionOverridePath } else { $inspectionPath }
+    $gateManifest = Get-Content -LiteralPath $manifestTemplatePath -Raw | ConvertFrom-Json
+    $gateManifest.approved_saved_plan.saved_plan_sha256 = $ExpectedHash.ToUpperInvariant()
+    $gateManifest.approved_saved_plan.inspection_path = [System.IO.Path]::GetFullPath($gateInspectionPath)
+    $manifestForInvocation = Join-Path $temp "$Name-manifest.json"
+    Write-TestJson $manifestForInvocation $gateManifest
     $arguments = @(
         '-NoProfile', '-File', $ScriptPath,
         '-SavedPlanPath', $planPath,
-        '-ExpectedPlanSha256', $ExpectedHash,
-        '-PlanInspectionPath', $(if ($InspectionOverridePath) { $InspectionOverridePath } else { $inspectionPath }),
-        '-CampaignManifestPath', $manifestPath,
+        '-PlanInspectionPath', $gateInspectionPath,
+        '-CampaignManifestPath', $manifestForInvocation,
         '-LedgerCheckPath', $ledgerOutput,
         '-ReserveMinutes', [string]$ReserveMinutes,
         '-OutputPath', $outputPath,
         '-TerraformStatePath', $statePath,
+        '-TerraformExe', $terraformStubPath,
         '-RepositoryRoot', $repoRoot,
         '-PythonExe', 'python3'
     )
@@ -135,20 +170,42 @@ function Assert-PlannedProjection($Record) {
 try {
     $campaignDir = Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f'
     $manifest = Get-Content (Join-Path $campaignDir 'cost-manifest.json') -Raw | ConvertFrom-Json
-    $manifestPath = Join-Path $temp 'campaign-manifest.json'
-    Write-TestJson $manifestPath $manifest
+    $manifestTemplatePath = Join-Path $temp 'campaign-manifest-template.json'
 
     $planPath = Join-Path $temp 'reviewed-plan.tfplan'
-    [IO.File]::WriteAllBytes($planPath, [Text.Encoding]::UTF8.GetBytes('R177 test plan bytes'))
+    Write-TestPlanZip $planPath 'gate-fixture-lineage' 0
     $planHash = (Get-FileHash -LiteralPath $planPath -Algorithm SHA256).Hash.ToUpperInvariant()
     $inspection = Get-Content (Join-Path $campaignDir 'cycles/preflight-r173-2330417/plan-inspection.json') -Raw | ConvertFrom-Json
     $inspection.plan_sha256 = $planHash
+    $inspection | Add-Member -NotePropertyName plan_prior_state_lineage -NotePropertyValue 'gate-fixture-lineage'
+    $inspection | Add-Member -NotePropertyName plan_prior_state_serial -NotePropertyValue 0
+    $inspection | Add-Member -NotePropertyName plan_prior_state_terraform_version -NotePropertyValue '1.16.4'
+    $inspection | Add-Member -NotePropertyName local_state_lineage -NotePropertyValue 'gate-fixture-lineage'
+    $inspection | Add-Member -NotePropertyName local_state_serial -NotePropertyValue 0
+    $inspection | Add-Member -NotePropertyName local_state_file_present -NotePropertyValue $true
+    $inspection | Add-Member -NotePropertyName terraform_state_path -NotePropertyValue (Join-Path $temp 'terraform.tfstate')
+    $inspection | Add-Member -NotePropertyName terraform_executable_path -NotePropertyValue $terraformStubPath
+    $inspection | Add-Member -NotePropertyName terraform_executable_sha256 -NotePropertyValue ((Get-FileHash -LiteralPath $terraformStubPath -Algorithm SHA256).Hash.ToUpperInvariant())
     $inspectionPath = Join-Path $temp 'inspection.json'
+    $inspection | Add-Member -NotePropertyName compared_with -NotePropertyValue ([ordered]@{
+        path = [string]$manifest.preapply_round_104_2330417_plan_inspection.offline_reference_path
+        sha256 = 'fixture-baseline-sha256'
+        same_resource_addresses_types_actions = $true
+    })
     Write-TestJson $inspectionPath $inspection
-    $manifest.preapply_round_104_2330417_plan_inspection.inspection_sha256 = (Get-FileHash -LiteralPath $inspectionPath -Algorithm SHA256).Hash.ToUpperInvariant()
-    Write-TestJson $manifestPath $manifest
+    $manifest.approved_saved_plan = [ordered]@{
+        source_commit = [string]$manifest.terraform_profile.repo_ref
+        saved_plan_sha256 = $planHash
+        inspection_path = [System.IO.Path]::GetFullPath($inspectionPath)
+        inspection_sha256 = (Get-FileHash -LiteralPath $inspectionPath -Algorithm SHA256).Hash.ToUpperInvariant()
+        baseline_inspection_path = [string]$manifest.preapply_round_104_2330417_plan_inspection.offline_reference_path
+        expected_plan_prior_state_lineage = 'gate-fixture-lineage'
+        expected_plan_prior_state_serial = 0
+        review_state = 'CANDIDATE_FOR_CLAUDE_REVIEW'
+    }
+    Write-TestJson $manifestTemplatePath $manifest
     $statePath = Join-Path $temp 'terraform.tfstate'
-    Write-TestJson $statePath ([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 0; resources = @() })
+    Write-TestJson $statePath ([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 0; lineage = 'gate-fixture-lineage'; resources = @() })
 
     $sourceLedger = Get-Content (Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json') -Raw | ConvertFrom-Json
     $ledgerPath = Join-Path $temp 'task-wide-ledger.json'
@@ -165,12 +222,29 @@ try {
         $record.checks.cost_allocation_tags.Task.status -ne 'Active' -or $record.checks.cost_allocation_tags.Environment.status -ne 'Active' -or
         $record.ledger_check.reserve_minutes -ne 480 -or $record.ledger_check.open_interval_count -ne 0 -or
         [decimal]$record.ledger_check.planned_host_projection_usd -ne [decimal]3.612 -or
-        -not $record.checks.planned_host_projection.below_cap -or $record.apply_authority -ne 'NONE; Claude go/no-go required') {
+        -not $record.checks.planned_host_projection.below_cap -or $record.apply_authority -ne 'NONE; Claude go/no-go required' -or
+        $record.checks.plan_state_provenance.plan_prior_state_lineage -ne 'gate-fixture-lineage' -or
+        $record.checks.plan_state_provenance.plan_prior_state_serial -ne 0 -or
+        $record.checks.plan_state_provenance.local_state_lineage -ne 'gate-fixture-lineage' -or
+        $record.checks.plan_state_provenance.local_state_serial -ne 0 -or
+        $record.checks.plan_state_provenance.terraform_executable_sha256 -ne (Get-FileHash -LiteralPath $terraformStubPath -Algorithm SHA256).Hash.ToUpperInvariant()) {
         throw 'Pre-apply PASS record omitted a required observed value or authority boundary.'
     }
     if ($record.ledger_check.ledger_path_override_used -or $record.ledger_check.ledger_path -ne 'experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json') { throw 'Positive pre-apply case did not use the real task-wide ledger default path.' }
     Assert-PlannedProjection $record
     Write-Host 'PASS: account-only gate records reviewed plan, empty state/inventory, quota, budget, tags, full ledger reserve, and no apply authority.'
+
+    Write-TestJson $statePath ([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 1; lineage = 'gate-fixture-lineage'; resources = @() })
+    $stateProvenanceFailure = Invoke-Gate -Scenario pass -Name plan-state-serial-mismatch -ExpectedHash $planHash
+    Assert-ControlFailed $stateProvenanceFailure 'plan-state-serial-mismatch' 'prior-state serial 0 does not match local-state serial 1'
+    $stateMismatchRecord = Get-Content -LiteralPath $stateProvenanceFailure.OutputPath -Raw | ConvertFrom-Json
+    if ($stateMismatchRecord.checks.plan_state_provenance.state_matches -or
+        $stateMismatchRecord.checks.plan_state_provenance.plan_prior_state_serial -ne 0 -or
+        $stateMismatchRecord.checks.plan_state_provenance.local_state_serial -ne 1) {
+        throw 'Gate FAIL record did not preserve both mismatching plan and local state serials.'
+    }
+    Write-Host 'PASS: pre-apply gate re-reads and rejects a local-state serial change after plan inspection.'
+    Write-TestJson $statePath ([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 0; lineage = 'gate-fixture-lineage'; resources = @() })
 
     $dryAwsCallsBefore = if (Test-Path $awsLog) { (Get-Content $awsLog).Count } else { 0 }
     $dry = Invoke-Gate -Scenario pass -Name dry-run -ExpectedHash $planHash -DryRun
@@ -205,15 +279,15 @@ try {
 
     $badHash = '0000000000000000000000000000000000000000000000000000000000000000'
     $hashMismatch = Invoke-Gate -Scenario pass -Name plan-hash-mismatch -ExpectedHash $badHash
-    Assert-ControlFailed $hashMismatch 'plan-hash-mismatch' 'Saved plan SHA-256 does not match expected'
+    Assert-ControlFailed $hashMismatch 'plan-hash-mismatch' 'Saved plan SHA-256 does not match approved_saved_plan'
     Write-Host 'PASS: plan hash mismatch is recorded FAIL.'
 
-    $nonempty = [ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 3; resources = @([ordered]@{ mode = 'managed'; type = 'aws_vpc'; name = 'unexpected'; provider = 'provider[registry.terraform.io/hashicorp/aws]'; instances = @() }) }
+    $nonempty = [ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 0; lineage = 'gate-fixture-lineage'; resources = @([ordered]@{ mode = 'managed'; type = 'aws_vpc'; name = 'unexpected'; provider = 'provider[registry.terraform.io/hashicorp/aws]'; instances = @() }) }
     Write-TestJson $statePath $nonempty
     $stateFailure = Invoke-Gate -Scenario pass -Name nonempty-state -ExpectedHash $planHash
     Assert-ControlFailed $stateFailure 'nonempty-state' 'Terraform state contains 1 resource'
     Write-Host 'PASS: nonempty Terraform state is recorded FAIL.'
-    Write-TestJson $statePath ([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 0; resources = @() })
+    Write-TestJson $statePath ([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 0; lineage = 'gate-fixture-lineage'; resources = @() })
 
     $ledgerCopy = $sourceLedger | ConvertTo-Json -Depth 30 | ConvertFrom-Json
     $ledgerCopy.roles.'app-1'[-1].destroy_completed_at_utc = $null
@@ -231,10 +305,11 @@ try {
     Copy-Item (Join-Path $PSScriptRoot 'dur050-d022-shared.ps1') (Join-Path $mutantDir 'dur050-d022-shared.ps1')
     Copy-Item (Join-Path $PSScriptRoot 'dur050-cost-ledger.py') (Join-Path $mutantDir 'dur050-cost-ledger.py')
     Copy-Item (Join-Path $PSScriptRoot 'dur050-d022-validator.ps1') (Join-Path $mutantDir 'dur050-d022-validator.ps1')
-    $hashGuard = 'if ($planHash -ne $ExpectedPlanSha256.ToUpperInvariant()) { throw "Saved plan SHA-256 does not match expected value (actual $planHash)." }'
+    Copy-Item (Join-Path $PSScriptRoot 'dur050-plan-state.psm1') (Join-Path $mutantDir 'dur050-plan-state.psm1')
+    $hashGuard = 'if ($planHash -ne ([string]$approvedPlan.saved_plan_sha256).ToUpperInvariant()) { throw "Saved plan SHA-256 does not match approved_saved_plan (actual $planHash)." }'
     $instanceGuard = 'if ($instanceRows.Count -ne 0) { throw "Found $($instanceRows.Count) non-terminated instance(s) tagged Task=DUR-050." }'
     $accountGuard = 'if ([string]$identity.Account -ne ''372206265946'') { throw "AWS account $($identity.Account) does not match required account 372206265946." }'
-    $inspectionGuard = 'if ([string]$reviewedInspection.inspection_sha256 -ne $inspectionHash) {'
+    $inspectionGuard = 'if ([string]$approvedPlan.inspection_sha256 -ne $inspectionHash) {'
     $projectionGuard = '$ledgerCheck = Invoke-Dur050LedgerCheck -PlannedInstanceTypes $plannedTypes'
     $hashMutant = $gateSource.Replace($hashGuard, '# mutation: expected-hash guard removed')
     $instanceMutant = $gateSource.Replace($instanceGuard, '# mutation: zero-instance guard removed')
@@ -260,7 +335,7 @@ try {
     catch { if ($_.Exception.Message -notmatch "Negative control 'plan-hash-mismatch mutation' was accepted") { throw } }
     Write-Host 'PASS: removing the plan-hash guard makes the negative assertion fail.'
 
-    Write-TestJson $statePath ([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 3; resources = @() })
+    Write-TestJson $statePath ([ordered]@{ version = 4; terraform_version = '1.16.4'; serial = 0; lineage = 'gate-fixture-lineage'; resources = @() })
     $instanceMutantResult = Invoke-Gate -Scenario instance -Name mutant-zero-instance-guard -ScriptPath $instanceMutantPath -ExpectedHash $planHash
     if ($instanceMutantResult.ExitCode -ne 0 -or (Get-Content $instanceMutantResult.OutputPath -Raw | ConvertFrom-Json).status -ne 'PASS') {
         throw "Removing the zero-instance guard did not make the tagged-instance case pass: $($instanceMutantResult.Text)"

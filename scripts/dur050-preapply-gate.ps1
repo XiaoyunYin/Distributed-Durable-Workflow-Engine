@@ -1,13 +1,13 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)] [string]$SavedPlanPath,
-    [Parameter(Mandatory)] [ValidatePattern('^[A-Fa-f0-9]{64}$')] [string]$ExpectedPlanSha256,
     [Parameter(Mandatory)] [string]$PlanInspectionPath,
     [Parameter(Mandatory)] [string]$CampaignManifestPath,
     [Parameter(Mandatory)] [string]$LedgerCheckPath,
     [Parameter(Mandatory)] [ValidateRange(1, 10080)] [int]$ReserveMinutes,
     [Parameter(Mandatory)] [string]$OutputPath,
     [string]$TerraformStatePath,
+    [string]$TerraformExe = 'terraform',
     [string]$LedgerPath,
     [string]$RepositoryRoot,
     [string]$PythonExe = 'python',
@@ -32,6 +32,7 @@ $utf8 = [System.Text.UTF8Encoding]::new($false)
 if (-not $TerraformStatePath) { $TerraformStatePath = Join-Path $repoRoot 'deploy/aws/terraform.tfstate' }
 
 . (Join-Path $PSScriptRoot 'dur050-d022-shared.ps1')
+Import-Module (Join-Path $PSScriptRoot 'dur050-plan-state.psm1') -Force
 
 function Write-Dur050PreApplyJson([string]$Path, $Value) {
     $parent = Split-Path -Parent $Path
@@ -49,30 +50,20 @@ function Get-Dur050Numeric([object]$Value, [string]$Name) {
     return $number
 }
 
-function Get-Dur050LocalStateSnapshot([string]$Path) {
-    $workspaceFile = Join-Path $repoRoot 'deploy/aws/.terraform/environment'
-    $workspace = if ($env:TF_WORKSPACE) { $env:TF_WORKSPACE } elseif (Test-Path -LiteralPath $workspaceFile) { (Get-Content -LiteralPath $workspaceFile -Raw).Trim() } else { 'default' }
-    if (-not $workspace) { $workspace = 'default' }
-    if ($workspace -ne 'default') { throw "Pre-apply gate supports only Terraform's default local workspace; observed '$workspace'." }
-    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
-        return [ordered]@{ path = [System.IO.Path]::GetFullPath($Path); workspace = $workspace; state_file_present = $false; state_version = $null; serial = $null; resource_count = 0; state = 'EMPTY' }
-    }
-    try { $state = Get-Content -LiteralPath $Path -Raw | ConvertFrom-Json -ErrorAction Stop }
-    catch { throw "Terraform local state is invalid JSON: $Path ($($_.Exception.Message))" }
-    if ([int]$state.version -ne 4 -or $null -eq $state.resources) { throw "Terraform local state has an unsupported shape: $Path." }
-    $resources = @($state.resources)
-    return [ordered]@{ path = [System.IO.Path]::GetFullPath($Path); workspace = $workspace; state_file_present = $true; state_version = [int]$state.version; serial = [long]$state.serial; resource_count = $resources.Count; state = $(if ($resources.Count -eq 0) { 'EMPTY' } else { 'NON_EMPTY' }) }
+function Resolve-Dur050ManifestPath([string]$Path) {
+    if ([System.IO.Path]::IsPathRooted($Path)) { return [System.IO.Path]::GetFullPath($Path) }
+    return [System.IO.Path]::GetFullPath((Join-Path $repoRoot $Path))
 }
 
-function Assert-Dur050PlanInspection($Inspection, [string]$ActualPlanHash, $Manifest) {
-    $expectedRepoRef = [string]$Manifest.terraform_profile.repo_ref
-    if ($expectedRepoRef -ne '2330417f7521b487291cb793ead9d97eda637062') {
-        throw 'Campaign manifest repo_ref must remain the reviewed 2330417 source commit.'
-    }
+function Assert-Dur050PlanInspection($Inspection, [string]$ActualPlanHash, $Manifest, [string]$BaselinePath) {
+    $approved = $Manifest.approved_saved_plan
+    $expectedRepoRef = [string]$approved.source_commit
+    if ($expectedRepoRef -notmatch '^[0-9a-f]{40}$') { throw 'approved_saved_plan.source_commit must be a full lowercase commit SHA.' }
     if ([string]$Inspection.schema -ne 'dur050-recorded-plan-inspection.v1') { throw 'Plan inspection schema must be dur050-recorded-plan-inspection.v1.' }
     if ([string]$Inspection.source_commit -ne $expectedRepoRef) { throw 'Plan inspection source_commit does not match the campaign manifest repo_ref.' }
     if ([string]$Inspection.aws_region -ne 'us-west-1' -or [string]$Inspection.repo_ref -ne $expectedRepoRef) { throw 'Plan inspection region/repo_ref does not match the approved campaign profile.' }
     if ([string]$Inspection.plan_sha256 -ne $ActualPlanHash) { throw 'Plan inspection plan_sha256 does not match the saved plan.' }
+    if ([string]$Inspection.compared_with.path -ne [string]$approved.baseline_inspection_path) { throw 'Plan inspection baseline path does not match approved_saved_plan.baseline_inspection_path.' }
     $changes = $Inspection.resource_changes
     $counts = [ordered]@{
         resource_changes = [int]$Inspection.resource_change_count
@@ -101,9 +92,8 @@ function Assert-Dur050PlanInspection($Inspection, [string]$ActualPlanHash, $Mani
     }
     $addresses = @($Inspection.resource_addresses_and_types | ForEach-Object { [string]$_.address })
     if (($addresses | Select-Object -Unique).Count -ne 31) { throw 'Plan inspection contains duplicate resource addresses.' }
-    $baselinePath = Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r173-2330417/plan-inspection.json'
-    if (-not (Test-Path -LiteralPath $baselinePath -PathType Leaf)) { throw "Reviewed offline plan baseline is missing: $baselinePath" }
-    $baseline = Get-Content -LiteralPath $baselinePath -Raw | ConvertFrom-Json -ErrorAction Stop
+    if (-not (Test-Path -LiteralPath $BaselinePath -PathType Leaf)) { throw "Reviewed offline plan baseline is missing: $BaselinePath" }
+    $baseline = Get-Content -LiteralPath $BaselinePath -Raw | ConvertFrom-Json -ErrorAction Stop
     $currentSignature = @($Inspection.resource_addresses_and_types | ForEach-Object {
         '{0}|{1}|{2}' -f $_.address, $_.type, (@($_.actions) -join ',')
     } | Sort-Object)
@@ -114,7 +104,7 @@ function Assert-Dur050PlanInspection($Inspection, [string]$ActualPlanHash, $Mani
         throw 'Plan inspection resource addresses, types, or actions differ from the reviewed offline inspection.'
     }
     $script:observed.plan_inspection_baseline = [ordered]@{
-        path = [System.IO.Path]::GetFullPath($baselinePath)
+        path = [System.IO.Path]::GetFullPath($BaselinePath)
         resource_addresses_types_actions_match = $true
         resource_count = $baselineSignature.Count
     }
@@ -181,24 +171,41 @@ function Invoke-Dur050PreApplyGate {
         $inspection = Get-Content -LiteralPath $PlanInspectionPath -Raw | ConvertFrom-Json -ErrorAction Stop
         $inspectionHash = (Get-FileHash -LiteralPath $PlanInspectionPath -Algorithm SHA256).Hash.ToUpperInvariant()
         $planHash = (Get-FileHash -LiteralPath $SavedPlanPath -Algorithm SHA256).Hash.ToUpperInvariant()
-        $reviewedInspection = $manifest.preapply_round_104_2330417_plan_inspection
-        if ($null -eq $reviewedInspection -or [string]$reviewedInspection.status -ne 'MATCHED_OFFLINE; NOT APPLY AUTHORITY') {
-            throw 'Campaign manifest does not contain the reviewed evidence-only live-plan inspection record.'
+        $approvedPlan = $manifest.approved_saved_plan
+        if ($null -eq $approvedPlan) { throw 'Campaign manifest is missing approved_saved_plan.' }
+        if ([string]$approvedPlan.review_state -match '^INVALIDATED') { throw 'approved_saved_plan is invalidated and cannot be used for a pre-apply gate.' }
+        if ([string]$approvedPlan.source_commit -notmatch '^[0-9a-f]{40}$' -or
+            [string]$approvedPlan.source_commit -ne [string]$manifest.terraform_profile.repo_ref) {
+            throw 'approved_saved_plan.source_commit must be the full campaign terraform_profile.repo_ref.'
         }
-        if ([string]$reviewedInspection.source_commit -ne '2330417f7521b487291cb793ead9d97eda637062' -or
-            [string]$reviewedInspection.saved_plan_sha256 -ne '6377EF256AA08EDEC209F7C669C1F489586EBBB65CA081805D5E608578C22B29') {
-            throw 'Campaign manifest live-plan evidence does not pin the reviewed 2330417 saved plan.'
+        if ([string]$approvedPlan.saved_plan_sha256 -notmatch '^[A-Fa-f0-9]{64}$') { throw 'approved_saved_plan.saved_plan_sha256 must be a SHA-256 hex digest.' }
+        if ([string]$approvedPlan.inspection_sha256 -notmatch '^[A-Fa-f0-9]{64}$') { throw 'approved_saved_plan.inspection_sha256 must be a SHA-256 hex digest.' }
+        if ($null -eq $approvedPlan.PSObject.Properties['expected_plan_prior_state_lineage'] -or
+            $null -eq $approvedPlan.expected_plan_prior_state_lineage -or
+            $null -eq $approvedPlan.PSObject.Properties['expected_plan_prior_state_serial']) {
+            throw 'approved_saved_plan must declare expected plan prior-state lineage and serial.'
         }
-        if ([string]$reviewedInspection.inspection_sha256 -ne $inspectionHash) {
-            throw 'Plan inspection SHA-256 does not match the committed campaign-manifest evidence.'
+        $approvedPriorSerial = Get-Dur050Numeric $approvedPlan.expected_plan_prior_state_serial 'approved_saved_plan.expected_plan_prior_state_serial'
+        if ($approvedPriorSerial -lt 0 -or $approvedPriorSerial -ne [math]::Floor($approvedPriorSerial)) {
+            throw 'approved_saved_plan.expected_plan_prior_state_serial must be a non-negative integer.'
+        }
+        $expectedInspectionPath = Resolve-Dur050ManifestPath ([string]$approvedPlan.inspection_path)
+        $expectedBaselinePath = Resolve-Dur050ManifestPath ([string]$approvedPlan.baseline_inspection_path)
+        if ([System.IO.Path]::GetFullPath($PlanInspectionPath) -ne $expectedInspectionPath) {
+            throw 'PlanInspectionPath does not match approved_saved_plan.inspection_path.'
+        }
+        if ([string]$approvedPlan.inspection_sha256 -ne $inspectionHash) {
+            throw 'Plan inspection SHA-256 does not match approved_saved_plan.inspection_sha256.'
         }
         $script:observed.inputs = [ordered]@{
             saved_plan_path = [System.IO.Path]::GetFullPath($SavedPlanPath)
             actual_plan_sha256 = $planHash
-            expected_plan_sha256 = $ExpectedPlanSha256.ToUpperInvariant()
+            expected_plan_sha256 = ([string]$approvedPlan.saved_plan_sha256).ToUpperInvariant()
             plan_inspection_path = [System.IO.Path]::GetFullPath($PlanInspectionPath)
             plan_inspection_sha256 = $inspectionHash
-            manifest_expected_inspection_sha256 = [string]$reviewedInspection.inspection_sha256
+            manifest_expected_inspection_sha256 = [string]$approvedPlan.inspection_sha256
+            approved_saved_plan_source_commit = [string]$approvedPlan.source_commit
+            baseline_inspection_path = $expectedBaselinePath
             campaign_manifest_path = [System.IO.Path]::GetFullPath($CampaignManifestPath)
             campaign_manifest_sha256 = $manifestHash
             terraform_state_path = [System.IO.Path]::GetFullPath($TerraformStatePath)
@@ -206,9 +213,45 @@ function Invoke-Dur050PreApplyGate {
             reserve_minutes = $ReserveMinutes
             aws_profile_name = if ($env:AWS_PROFILE) { $env:AWS_PROFILE } else { $null }
         }
-        if ($planHash -ne $ExpectedPlanSha256.ToUpperInvariant()) { throw "Saved plan SHA-256 does not match expected value (actual $planHash)." }
-        $script:observed.plan_inspection = Assert-Dur050PlanInspection -Inspection $inspection -ActualPlanHash $planHash -Manifest $manifest
-        $state = Get-Dur050LocalStateSnapshot -Path $TerraformStatePath
+        if ($planHash -ne ([string]$approvedPlan.saved_plan_sha256).ToUpperInvariant()) { throw "Saved plan SHA-256 does not match approved_saved_plan (actual $planHash)." }
+        if ([string]$inspection.source_commit -ne [string]$approvedPlan.source_commit) { throw 'Plan inspection source_commit does not match approved_saved_plan.source_commit.' }
+        $script:observed.plan_inspection = Assert-Dur050PlanInspection -Inspection $inspection -ActualPlanHash $planHash -Manifest $manifest -BaselinePath $expectedBaselinePath
+
+        $workspaceFile = Join-Path $repoRoot 'deploy/aws/.terraform/environment'
+        $workspace = if ($env:TF_WORKSPACE) { $env:TF_WORKSPACE } elseif (Test-Path -LiteralPath $workspaceFile) { (Get-Content -LiteralPath $workspaceFile -Raw).Trim() } else { 'default' }
+        if ($workspace -and $workspace -ne 'default') { throw "Pre-apply gate supports only Terraform's default local workspace; observed '$workspace'." }
+        $planStateSnapshot = Get-Dur050PlanStateSnapshot -SavedPlanPath $SavedPlanPath -TerraformStatePath $TerraformStatePath -TerraformExe $TerraformExe -AllowMismatch
+        $script:observed.plan_state_provenance = $planStateSnapshot
+        if (-not $planStateSnapshot.state_matches) { throw [string]$planStateSnapshot.state_mismatch }
+        if ([string]$planStateSnapshot.plan_prior_state_lineage -cne [string]$approvedPlan.expected_plan_prior_state_lineage) {
+            throw 'Saved plan prior-state lineage does not match approved_saved_plan.expected_plan_prior_state_lineage.'
+        }
+        if ([long]$planStateSnapshot.plan_prior_state_serial -ne [long]$approvedPriorSerial) {
+            throw 'Saved plan prior-state serial does not match approved_saved_plan.expected_plan_prior_state_serial.'
+        }
+        if ([string]$inspection.plan_prior_state_lineage -cne [string]$planStateSnapshot.plan_prior_state_lineage -or
+            [long]$inspection.plan_prior_state_serial -ne [long]$planStateSnapshot.plan_prior_state_serial -or
+            [string]$inspection.local_state_lineage -cne [string]$planStateSnapshot.local_state_lineage -or
+            [long]$inspection.local_state_serial -ne [long]$planStateSnapshot.local_state_serial) {
+            throw 'Plan inspection state provenance does not match the plan ZIP and current local state.'
+        }
+        if ([string]$inspection.terraform_executable_sha256 -cne [string]$planStateSnapshot.terraform_executable_sha256) {
+            throw 'Terraform executable SHA-256 at gate time does not match the inspected plan producer executable.'
+        }
+        if ([System.IO.Path]::GetFullPath([string]$inspection.terraform_executable_path) -ne [System.IO.Path]::GetFullPath([string]$planStateSnapshot.terraform_executable_path)) {
+            throw 'Terraform executable path at gate time does not match the inspected plan producer executable path.'
+        }
+        if ([string]$inspection.terraform_version -ne [string]$planStateSnapshot.terraform_executable_version) {
+            throw 'Terraform executable version at gate time does not match the inspected plan.'
+        }
+        $state = [ordered]@{
+            path = $planStateSnapshot.terraform_state_path
+            state_file_present = $planStateSnapshot.local_state_file_present
+            lineage = $planStateSnapshot.local_state_lineage
+            serial = $planStateSnapshot.local_state_serial
+            resource_count = $planStateSnapshot.local_state_resource_count
+            state = if ($planStateSnapshot.local_state_resource_count -eq 0) { 'EMPTY' } else { 'NON_EMPTY' }
+        }
         $script:observed.terraform_state = $state
         if ($state.resource_count -ne 0) { throw "Terraform state contains $($state.resource_count) resource(s); pre-apply requires an empty state." }
 
@@ -364,6 +407,4 @@ if ($RepositoryRoot -and $env:DUR050_ENABLE_TEST_HOOKS -ne '1') { throw 'Reposit
 if ($env:DUR050_ENABLE_TEST_STATE_OVERRIDE -ne '1' -and [System.IO.Path]::GetFullPath($TerraformStatePath) -ne [System.IO.Path]::GetFullPath((Join-Path $repoRoot 'deploy/aws/terraform.tfstate'))) {
     throw 'A non-default Terraform state path is test-only and requires DUR050_ENABLE_TEST_STATE_OVERRIDE=1.'
 }
-if (-not $ExpectedPlanSha256) { throw 'ExpectedPlanSha256 is required.' }
-
 exit (Invoke-Dur050PreApplyGate)

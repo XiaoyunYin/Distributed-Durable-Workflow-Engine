@@ -591,7 +591,14 @@ apply_authority: "NONE; Claude go/no-go required".
 
 The required order is:
 
-1. Generate and inspect the live saved plan; do not apply it.
+1. Generate the live saved plan from this checkout's `deploy/aws` directory,
+   against this directory's `terraform.tfstate`, using the checksum-verified
+   Terraform 1.16.4 executable that will also inspect, gate, apply, list state,
+   and destroy it. Never generate it in a container or copied directory.
+   `dur050-inspect-saved-plan.ps1` reads the ZIP's embedded `tfstate` lineage
+   and serial and requires an exact match with local state. Record plan pins in
+   the manifest's `approved_saved_plan` entry; the gate reads plan/inspection
+   hashes and paths from that entry, not from fixed script constants.
 2. Run the account-only dur050-preapply-gate.ps1 and retain its unique result
    and ledger-check record.
 3. Stop for Claude's go/no-go review of the exact plan, inspection, and gate
@@ -611,6 +618,13 @@ The required order is:
    separately gated by their recorded cycle checks.
 8. After destroy completes, run scripts/dur050-ledger-record.ps1 -Close with
    that cycle ID and the observed destroy-completion UTC timestamp.
+9. Run scripts/dur050-post-destroy-inventory.ps1 with the same cycle ID,
+   manifest, pinned Terraform executable, and a unique output path. Retain its
+   raw read-only AWS responses and PASS/FAIL record. It verifies empty
+   Terraform state, zero region-wide non-terminated instances and volumes,
+   absent Task-tagged VPC/subnet/security-group/ENI/EIP/snapshot/NAT/load
+   balancer resources, absent prefixed DUR-050 IAM roles/profiles, both SSM
+   parameters absent, and no open task-ledger intervals for that cycle.
 
 The cycle-preflight schema is not interchangeable with the pre-apply schema;
 preparation and reset reject dur050-pre-apply-gate.v1.

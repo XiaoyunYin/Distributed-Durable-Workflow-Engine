@@ -5,12 +5,15 @@ param(
     [Parameter(Mandatory)] [ValidatePattern('^[A-Fa-f0-9]{40}$')] [string]$SourceCommit,
     [Parameter(Mandatory)] [string]$CampaignManifestPath,
     [Parameter(Mandatory)] [string]$OutputPath,
-    [string]$TerraformExe = 'terraform'
+    [string]$TerraformExe = 'terraform',
+    [string]$TerraformStatePath
 )
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot '..')).Path
-$baselinePath = Join-Path $repoRoot 'experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r173-2330417/plan-inspection.json'
+$planStateModule = Join-Path $PSScriptRoot 'dur050-plan-state.psm1'
+Import-Module $planStateModule -Force
+$approvedPlan = $null
 $utf8 = [System.Text.UTF8Encoding]::new($false)
 
 function Get-PlanModuleResourceCount($Module) {
@@ -22,20 +25,32 @@ function Get-PlanModuleResourceCount($Module) {
 
 if (-not (Test-Path -LiteralPath $SavedPlanPath -PathType Leaf)) { throw "Saved plan not found: $SavedPlanPath" }
 if (-not (Test-Path -LiteralPath $CampaignManifestPath -PathType Leaf)) { throw "Campaign manifest not found: $CampaignManifestPath" }
-if (-not (Test-Path -LiteralPath $baselinePath -PathType Leaf)) { throw "Reviewed offline inspection baseline not found: $baselinePath" }
 if (Test-Path -LiteralPath $OutputPath) { throw "Refusing to overwrite plan inspection: $OutputPath" }
 
 $actualHash = (Get-FileHash -LiteralPath $SavedPlanPath -Algorithm SHA256).Hash.ToUpperInvariant()
 if ($actualHash -ne $ExpectedSha256.ToUpperInvariant()) { throw "Saved plan hash mismatch: expected $($ExpectedSha256.ToUpperInvariant()), observed $actualHash." }
 $manifest = Get-Content -LiteralPath $CampaignManifestPath -Raw | ConvertFrom-Json -ErrorAction Stop
-if ([string]$manifest.terraform_profile.repo_ref -ne $SourceCommit.ToLowerInvariant()) { throw 'SourceCommit must match the campaign manifest repo_ref.' }
+$approvedPlan = $manifest.approved_saved_plan
+if ($null -eq $approvedPlan -or [string]::IsNullOrWhiteSpace([string]$approvedPlan.baseline_inspection_path)) {
+    throw 'Campaign manifest must contain approved_saved_plan with baseline_inspection_path.'
+}
+if ([string]$manifest.terraform_profile.repo_ref -ne $SourceCommit.ToLowerInvariant() -or [string]$approvedPlan.source_commit -ne $SourceCommit.ToLowerInvariant()) { throw 'SourceCommit must match terraform_profile.repo_ref and approved_saved_plan.source_commit.' }
+if ([string]$approvedPlan.saved_plan_sha256 -ne $ExpectedSha256.ToUpperInvariant()) { throw 'ExpectedSha256 must match approved_saved_plan.saved_plan_sha256.' }
+$approvedInspectionPath = [string]$approvedPlan.inspection_path
+if (-not [System.IO.Path]::IsPathRooted($approvedInspectionPath)) { $approvedInspectionPath = Join-Path $repoRoot $approvedInspectionPath }
+if ([System.IO.Path]::GetFullPath($OutputPath) -ne [System.IO.Path]::GetFullPath($approvedInspectionPath)) { throw 'OutputPath must match approved_saved_plan.inspection_path.' }
+$baselinePath = [string]$approvedPlan.baseline_inspection_path
+if (-not [System.IO.Path]::IsPathRooted($baselinePath)) { $baselinePath = Join-Path $repoRoot $baselinePath }
+if (-not (Test-Path -LiteralPath $baselinePath -PathType Leaf)) { throw "Reviewed offline inspection baseline not found: $baselinePath" }
+if (-not $TerraformStatePath) { $TerraformStatePath = Join-Path $repoRoot 'deploy/aws/terraform.tfstate' }
+$planStateSnapshot = Get-Dur050PlanStateSnapshot -SavedPlanPath $SavedPlanPath -TerraformStatePath $TerraformStatePath -TerraformExe $TerraformExe
 $resolvedPlanPath = (Resolve-Path -LiteralPath $SavedPlanPath).Path
 $repoPrefix = $repoRoot.TrimEnd([char[]]@('\', '/')) + [System.IO.Path]::DirectorySeparatorChar
 if (-not $resolvedPlanPath.StartsWith($repoPrefix, [StringComparison]::OrdinalIgnoreCase)) {
     throw 'The inspected saved plan must be inside the repository so the record can use a portable relative path.'
 }
 $planPathForRecord = $resolvedPlanPath.Substring($repoPrefix.Length).Replace('\', '/')
-$terraformOutput = & $TerraformExe '-chdir=deploy/aws' 'show' '-json' $resolvedPlanPath 2>&1 | Out-String
+$terraformOutput = & ([string]$planStateSnapshot.terraform_executable_path) '-chdir=deploy/aws' 'show' '-json' $resolvedPlanPath 2>&1 | Out-String
 if ($LASTEXITCODE -ne 0) { throw "terraform show -json failed: $terraformOutput" }
 try { $plan = $terraformOutput | ConvertFrom-Json -ErrorAction Stop }
 catch { throw "terraform show -json returned invalid JSON: $($_.Exception.Message)" }
@@ -91,6 +106,15 @@ $record = [ordered]@{
     terraform_version = [string]$plan.terraform_version
     plan_path = $planPathForRecord
     plan_sha256 = $actualHash
+    plan_prior_state_lineage = $planStateSnapshot.plan_prior_state_lineage
+    plan_prior_state_serial = $planStateSnapshot.plan_prior_state_serial
+    plan_prior_state_terraform_version = $planStateSnapshot.plan_prior_state_terraform_version
+    local_state_lineage = $planStateSnapshot.local_state_lineage
+    local_state_serial = $planStateSnapshot.local_state_serial
+    local_state_file_present = $planStateSnapshot.local_state_file_present
+    terraform_state_path = $planStateSnapshot.terraform_state_path
+    terraform_executable_path = $planStateSnapshot.terraform_executable_path
+    terraform_executable_sha256 = $planStateSnapshot.terraform_executable_sha256
     planned_peak_vcpu = $peakVcpu
     instance_vcpu_basis = [ordered]@{
         'c7i.large' = [ordered]@{ count = [int]$instanceTypeCounts['c7i.large']; vcpus_each = 2 }
@@ -109,7 +133,7 @@ $record = [ordered]@{
     repo_ref = [string]$manifest.terraform_profile.repo_ref
     resource_addresses_and_types = $resourceRows
     compared_with = [ordered]@{
-        path = 'experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r173-2330417/plan-inspection.json'
+        path = [string]$approvedPlan.baseline_inspection_path
         sha256 = (Get-FileHash -LiteralPath $baselinePath -Algorithm SHA256).Hash.ToUpperInvariant()
         same_resource_addresses_types_actions = $true
     }

@@ -18,15 +18,39 @@ establish database-host durability, Kafka HA, or multi-region availability.
 For the DUR-050 third provisioning cycle, the order is:
 **live saved plan → account-only pre-apply gate → Claude go/no-go → apply →
 ledger-record -Open → post-apply cycle preflight → preparation → destroy →
-ledger-record -Close**. Do not apply based only on a
+ledger-record -Close → post-destroy inventory**. Do not apply based only on a
 successful pre-apply gate; its record explicitly grants no apply authority.
 
-Generate the live read-only plan with the reviewed Terraform 1.16.4 profile,
-inspect that exact saved plan with
-scripts/dur050-inspect-saved-plan.ps1, and then run
-scripts/dur050-preapply-gate.ps1 with the saved plan path/hash, inspection,
-campaign manifest, unique ledger-check/output paths, and the full cycle
-reserve. The account-only gate checks the empty local Terraform state, AWS
+Generate the live read-only plan from this checkout's `deploy/aws` directory
+against its local `terraform.tfstate`. Use the same checksum-verified Terraform
+1.16.4 executable to create, inspect, gate, apply, list state, and destroy the
+plan. The known Windows executable SHA-256 is
+`D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349`; if it is
+re-downloaded, verify it against HashiCorp's checksum file first. Do not create
+the plan in a container or copied directory.
+
+```powershell
+$terraformExe = 'C:\path\to\verified\terraform.exe'
+if ((Get-FileHash $terraformExe -Algorithm SHA256).Hash -ne 'D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349') { throw 'Unexpected Terraform binary.' }
+if ((& $terraformExe version -json | ConvertFrom-Json).terraform_version -ne '1.16.4') { throw 'Terraform 1.16.4 is required.' }
+Push-Location deploy/aws
+try {
+    & $terraformExe plan -input=false -out='.terraform/dur050-candidate.tfplan'
+    if ($LASTEXITCODE -ne 0) { throw 'Terraform plan failed.' }
+} finally { Pop-Location }
+```
+
+Put the candidate's full source commit, saved-plan SHA-256, inspection path,
+baseline inspection path, and expected prior-state lineage/serial in the
+manifest's single `approved_saved_plan` entry. Inspect the exact candidate
+with `scripts/dur050-inspect-saved-plan.ps1` using that same executable and
+state file; it reads the ZIP's `tfstate` entry and fails if lineage/serial
+differs from the local state. Then record the produced inspection SHA-256 in
+the same manifest entry. Run `scripts/dur050-preapply-gate.ps1` with the saved
+plan, inspection, manifest, unique ledger-check/output paths, and full-cycle
+reserve; the gate takes expected hashes and paths only from
+`approved_saved_plan` and repeats the state comparison at gate time. The
+account-only gate checks the empty local Terraform state, AWS
 identity, regional inventory/quota, D022 budget/notifications, cost-allocation
 tags, and ledger; it does not require Terraform outputs and does not call SSM.
 Wait for Claude's explicit go/no-go before applying the exact reviewed plan.
@@ -42,7 +66,14 @@ outputs and cycle ID before checking cost; it also records whether each
 attached root volume has Task=DUR-050. Run scripts/dur050-prepare-pilot.ps1
 only after that cycle preflight passes. After Terraform destroy completes, run
 scripts/dur050-ledger-record.ps1 -Close with the cycle ID and observed
-destroy-completion UTC timestamp.
+destroy-completion UTC timestamp. Then run the read-only
+`scripts/dur050-post-destroy-inventory.ps1` with that cycle ID, the campaign
+manifest, a unique output path, and the same pinned Terraform executable. It
+requires an empty Terraform state, no regional instances or volumes, no
+Task-tagged campaign network/storage/load-balancer resources, no prefixed
+campaign IAM roles or profiles, no campaign SSM parameters, and no open ledger
+intervals for the cycle. It preserves the raw AWS responses in a non-overwrite
+PASS/FAIL record; retain that record with cycle closeout evidence.
 
 Use the non-root portfolio identity and a full 40-character immutable source
 SHA. A short SHA, tag, or branch cannot be fetched as the pinned campaign
