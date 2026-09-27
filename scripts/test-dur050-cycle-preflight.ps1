@@ -165,6 +165,7 @@ try {
   if($mutantResult.ExitCode -ne 0 -or (Get-Content $mutantResult.Out -Raw|ConvertFrom-Json).status -ne 'PASS'){throw "Removing the ledger/output cross-check did not make the mismatched ledger pass: $($mutantResult.Text)"}
   try{Assert-CycleFailure $mutantResult 'ledger cross-check mutation' 'does not match Terraform';throw 'The ledger/output cross-check negative unexpectedly survived guard removal.'}catch{if($_.Exception.Message -notmatch 'Expected ledger cross-check mutation to fail'){throw}}
   Write-Host 'PASS: removing the ledger/output guard makes its negative assertion fail.'
+  Write-Json $ledgerPath $validOpenLedger
   $nestedLedgerMutant=Invoke-Tool 'pass' 'mutant-nested-ledger-output' $plan -ScriptPath $ledgerOutputPreflightMutant -NestedLedgerOutput
   Assert-CycleFailure $nestedLedgerMutant 'nested-ledger-parent-mkdir mutation' 'No such file or directory'
   Write-Host 'PASS: removing parent mkdir makes the cycle-preflight nested-output positive case fail.'
