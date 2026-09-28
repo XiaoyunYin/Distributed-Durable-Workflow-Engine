@@ -1010,6 +1010,64 @@ def write_once(directory: Path, stem: str, value: Any) -> Path:
     return path
 
 
+def _merge_embedding_provenance(
+    directory: Path,
+    *,
+    corpus_fingerprint: str,
+    current_requests: Sequence[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    """Carry forward successful embedding calls when a dev run reuses vectors."""
+
+    requests: list[dict[str, Any]] = []
+    sources: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    def include(record: dict[str, Any]) -> None:
+        key = str(record.get("response_id") or fingerprint(record))
+        if key not in seen:
+            requests.append(record)
+            seen.add(key)
+
+    for path in sorted(directory.glob("study-manifest-*.json")):
+        try:
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise RetrievalStudyError(
+                f"cannot read prior study manifest {path.name}: {error}"
+            ) from error
+        if (
+            not isinstance(manifest, dict)
+            or manifest.get("schema") != "dur055-study-manifest.v1"
+            or manifest.get("corpus_fingerprint") != corpus_fingerprint
+            or manifest.get("embedding_model") != EMBEDDING_MODEL
+            or manifest.get("embedding_dimension") != EMBEDDING_DIMENSION
+        ):
+            continue
+        prior_requests = manifest.get("embedding_requests")
+        if not isinstance(prior_requests, list):
+            raise RetrievalStudyError(
+                f"prior study manifest {path.name} has invalid embedding requests"
+            )
+        if not prior_requests:
+            continue
+        if any(not isinstance(record, dict) for record in prior_requests):
+            raise RetrievalStudyError(
+                f"prior study manifest {path.name} has malformed embedding records"
+            )
+        for record in prior_requests:
+            include(record)
+        sources.append(
+            {
+                "manifest_path": path.name,
+                "manifest_fingerprint": fingerprint(manifest),
+                "request_count": len(prior_requests),
+            }
+        )
+    for record in current_requests:
+        include(record)
+    return requests, sources
+
+
 def retrieval_artifact_bundle(
     connection: psycopg.Connection[Any],
     provider: OpenAIEmbeddingProvider,
@@ -1024,6 +1082,11 @@ def retrieval_artifact_bundle(
     results["config_fingerprint"] = config["config_fingerprint"]
     config_path = write_once(directory, "retrieval-frozen-config", config)
     results_path = write_once(directory, "retrieval-development", results)
+    embedding_requests, embedding_sources = _merge_embedding_provenance(
+        directory,
+        corpus_fingerprint=str(config["corpus_fingerprint"]),
+        current_requests=provider.records,
+    )
     manifest = {
         "schema": "dur055-study-manifest.v1",
         "study_version": STUDY_VERSION,
@@ -1038,7 +1101,8 @@ def retrieval_artifact_bundle(
         "heldout_queries_scored": False,
         "embedding_model": EMBEDDING_MODEL,
         "embedding_dimension": EMBEDDING_DIMENSION,
-        "embedding_requests": provider.records,
+        "embedding_requests": embedding_requests,
+        "embedding_provenance_sources": embedding_sources,
         "frozen_config_path": config_path.name,
         "development_results_path": results_path.name,
     }
