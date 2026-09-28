@@ -1,0 +1,78 @@
+{
+  "config_fingerprint": "sha256:10ad8b313376a02513e9ad96bebeb1c6d63cb758a2151074da1947cafdfa2672",
+  "corpus_fingerprint": "sha256:3d01ba83258015fc1e8961fa5773d674e49c2ee5705181289e17611a85d5cc21",
+  "database": {
+    "pgvector_version": "0.8.6",
+    "postgres_version": "PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit"
+  },
+  "dense": {
+    "balanced_accuracy": 0.5357142857142857,
+    "false_positive_count": 0.0,
+    "hnsw_ef_search": 40,
+    "threshold": 0.7943787387973725
+  },
+  "development_query_fingerprint": "sha256:fa14ae3ec1bd66b7b5e880a7ea84406130c3afb3e86abfb6c154db08f7d963fd",
+  "embedding_dimension": 1536,
+  "embedding_model": "text-embedding-3-small",
+  "embedding_normalization": "provider_default",
+  "heldout_corpus_embedded": false,
+  "heldout_queries_embedded": false,
+  "hybrid": {
+    "rrf_k": 60
+  },
+  "index": {
+    "ef_construction": 64,
+    "m": 16,
+    "type": "HNSW"
+  },
+  "keyword": {
+    "balanced_accuracy": 0.5714285714285714,
+    "false_positive_count": 15.0,
+    "threshold": 0.0374109
+  },
+  "keyword_query": {
+    "rank": "ts_rank",
+    "strategy": "sanitized_or_joined_to_tsquery_simple",
+    "token_pattern": "[a-z0-9_]+"
+  },
+  "ranking": {
+    "top_k": 3
+  },
+  "schema": "dur056-retrieval-frozen-config.v2",
+  "selection": {
+    "arm_balanced_accuracy": {
+      "dense": 0.5357142857142857,
+      "hybrid": 0.5714285714285714,
+      "keyword": 0.5714285714285714
+    },
+    "arm_false_positive_count": {
+      "dense": 0,
+      "hybrid": 15,
+      "keyword": 15
+    },
+    "candidate_hnsw_ef_search": [
+      40,
+      80
+    ],
+    "candidate_rrf_k": [
+      30,
+      60,
+      90
+    ],
+    "candidate_top_k": [
+      3,
+      5,
+      8
+    ],
+    "mean_delivered_recall": 0.6055555555555555,
+    "objective": "mean balanced accuracy; then lower false positives, higher delivered recall, lower top-k, lower ef_search, rrf_k nearest 60",
+    "query_count": 60,
+    "query_variants_per_case": [
+      "clean-a",
+      "clean-b"
+    ],
+    "split": "development"
+  },
+  "study_version": "dur056-solvable-evidence-v2",
+  "threshold_tuning_split": "development"
+}

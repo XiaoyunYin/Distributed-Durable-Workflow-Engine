@@ -1,0 +1,2291 @@
+{
+  "candidate_grid": [
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 30,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -3,
+        -40,
+        -30
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 60,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -3,
+        -40,
+        0
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 90,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -3,
+        -40,
+        -30
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 30,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -3,
+        -80,
+        -30
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 60,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -3,
+        -80,
+        0
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 90,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -3,
+        -80,
+        -30
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 30,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -5,
+        -40,
+        -30
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 60,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -5,
+        -40,
+        0
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 90,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -5,
+        -40,
+        -30
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 30,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -5,
+        -80,
+        -30
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 60,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -5,
+        -80,
+        0
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 90,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -5,
+        -80,
+        -30
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 30,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -8,
+        -40,
+        -30
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 60,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -8,
+        -40,
+        0
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 90,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -8,
+        -40,
+        -30
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 30,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -8,
+        -80,
+        -30
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 60,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -8,
+        -80,
+        0
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "dense_threshold": 0.7943787387973725,
+      "false_positive_count_by_arm": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.0374109,
+      "mean_delivered_recall": 0.6055555555555555,
+      "rrf_k": 90,
+      "selection_key": [
+        0.5595238095238095,
+        -30.0,
+        0.6055555555555555,
+        -8,
+        -80,
+        -30
+      ],
+      "top_k": 8
+    }
+  ],
+  "case_count": 30,
+  "frozen_candidate": {
+    "config_fingerprint": "sha256:10ad8b313376a02513e9ad96bebeb1c6d63cb758a2151074da1947cafdfa2672",
+    "corpus_fingerprint": "sha256:3d01ba83258015fc1e8961fa5773d674e49c2ee5705181289e17611a85d5cc21",
+    "database": {
+      "pgvector_version": "0.8.6",
+      "postgres_version": "PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit"
+    },
+    "dense": {
+      "balanced_accuracy": 0.5357142857142857,
+      "false_positive_count": 0.0,
+      "hnsw_ef_search": 40,
+      "threshold": 0.7943787387973725
+    },
+    "development_query_fingerprint": "sha256:fa14ae3ec1bd66b7b5e880a7ea84406130c3afb3e86abfb6c154db08f7d963fd",
+    "embedding_dimension": 1536,
+    "embedding_model": "text-embedding-3-small",
+    "embedding_normalization": "provider_default",
+    "heldout_corpus_embedded": false,
+    "heldout_queries_embedded": false,
+    "hybrid": {
+      "rrf_k": 60
+    },
+    "index": {
+      "ef_construction": 64,
+      "m": 16,
+      "type": "HNSW"
+    },
+    "keyword": {
+      "balanced_accuracy": 0.5714285714285714,
+      "false_positive_count": 15.0,
+      "threshold": 0.0374109
+    },
+    "keyword_query": {
+      "rank": "ts_rank",
+      "strategy": "sanitized_or_joined_to_tsquery_simple",
+      "token_pattern": "[a-z0-9_]+"
+    },
+    "ranking": {
+      "top_k": 3
+    },
+    "schema": "dur056-retrieval-frozen-config.v2",
+    "selection": {
+      "arm_balanced_accuracy": {
+        "dense": 0.5357142857142857,
+        "hybrid": 0.5714285714285714,
+        "keyword": 0.5714285714285714
+      },
+      "arm_false_positive_count": {
+        "dense": 0,
+        "hybrid": 15,
+        "keyword": 15
+      },
+      "candidate_hnsw_ef_search": [
+        40,
+        80
+      ],
+      "candidate_rrf_k": [
+        30,
+        60,
+        90
+      ],
+      "candidate_top_k": [
+        3,
+        5,
+        8
+      ],
+      "mean_delivered_recall": 0.6055555555555555,
+      "objective": "mean balanced accuracy; then lower false positives, higher delivered recall, lower top-k, lower ef_search, rrf_k nearest 60",
+      "query_count": 60,
+      "query_variants_per_case": [
+        "clean-a",
+        "clean-b"
+      ],
+      "split": "development"
+    },
+    "study_version": "dur056-solvable-evidence-v2",
+    "threshold_tuning_split": "development"
+  },
+  "query_count": 60,
+  "rows": [
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-01",
+      "dense": [
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-d5dc3854444041daa9d1",
+        "chunk-af911d32270ecc80443c"
+      ],
+      "hybrid": [
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-d5dc3854444041daa9d1",
+        "chunk-4abb0da0f97dba328064"
+      ],
+      "keyword": [
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-d5dc3854444041daa9d1",
+        "chunk-4abb0da0f97dba328064"
+      ],
+      "query": "Service checkout on release v371 showed ERR_CFG_4XX with invalid request bursts.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-17b1e7d161b52bdf453e"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-01",
+      "dense": [
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-d5dc3854444041daa9d1",
+        "chunk-7a69f7df60a99cef1310"
+      ],
+      "hybrid": [
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-d5dc3854444041daa9d1",
+        "chunk-4abb0da0f97dba328064"
+      ],
+      "keyword": [
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-d5dc3854444041daa9d1",
+        "chunk-4abb0da0f97dba328064"
+      ],
+      "query": "For ERR_CFG_4XX, the checkout deployment at v371 reported invalid request bursts.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-17b1e7d161b52bdf453e"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-02",
+      "dense": [
+        "chunk-fdf446c42408c9749fea",
+        "chunk-4abb0da0f97dba328064",
+        "chunk-17b1e7d161b52bdf453e"
+      ],
+      "hybrid": [
+        "chunk-fdf446c42408c9749fea",
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-4abb0da0f97dba328064"
+      ],
+      "keyword": [
+        "chunk-fdf446c42408c9749fea",
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-4abb0da0f97dba328064"
+      ],
+      "query": "For ERR_CFG_4XX, the checkout deployment at v371 reported configuration parse failures.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-fdf446c42408c9749fea"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-02",
+      "dense": [
+        "chunk-fdf446c42408c9749fea",
+        "chunk-4abb0da0f97dba328064",
+        "chunk-17b1e7d161b52bdf453e"
+      ],
+      "hybrid": [
+        "chunk-fdf446c42408c9749fea",
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-4abb0da0f97dba328064"
+      ],
+      "keyword": [
+        "chunk-fdf446c42408c9749fea",
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-4abb0da0f97dba328064"
+      ],
+      "query": "Investigate checkout version v371: configuration parse failures accompanied alert ERR_CFG_4XX.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-fdf446c42408c9749fea"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-03",
+      "dense": [
+        "chunk-4abb0da0f97dba328064",
+        "chunk-fdf446c42408c9749fea",
+        "chunk-17b1e7d161b52bdf453e"
+      ],
+      "hybrid": [
+        "chunk-4abb0da0f97dba328064",
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-fdf446c42408c9749fea"
+      ],
+      "keyword": [
+        "chunk-4abb0da0f97dba328064",
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-fdf446c42408c9749fea"
+      ],
+      "query": "Service checkout on release v371 showed ERR_CFG_4XX with malformed settings payloads.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-4abb0da0f97dba328064"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-03",
+      "dense": [
+        "chunk-4abb0da0f97dba328064",
+        "chunk-fdf446c42408c9749fea",
+        "chunk-17b1e7d161b52bdf453e"
+      ],
+      "hybrid": [
+        "chunk-4abb0da0f97dba328064",
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-fdf446c42408c9749fea"
+      ],
+      "keyword": [
+        "chunk-4abb0da0f97dba328064",
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-fdf446c42408c9749fea"
+      ],
+      "query": "Investigate checkout version v371: malformed settings payloads accompanied alert ERR_CFG_4XX.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-4abb0da0f97dba328064"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-01",
+      "dense": [
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-340efa7533f58e9da3a7",
+        "chunk-1b8b3a5629122d57c634"
+      ],
+      "hybrid": [
+        "chunk-340efa7533f58e9da3a7",
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-1b8b3a5629122d57c634"
+      ],
+      "keyword": [
+        "chunk-340efa7533f58e9da3a7",
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-4b0cc3c66ebf66ac388c"
+      ],
+      "query": "During waiting clients, POOL_WAIT_P95_HIGH appeared on payments running v1122.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-01",
+      "dense": [
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-340efa7533f58e9da3a7",
+        "chunk-1b8b3a5629122d57c634"
+      ],
+      "hybrid": [
+        "chunk-340efa7533f58e9da3a7",
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-1b8b3a5629122d57c634"
+      ],
+      "keyword": [
+        "chunk-340efa7533f58e9da3a7",
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-4b0cc3c66ebf66ac388c"
+      ],
+      "query": "Service payments on release v1122 showed POOL_WAIT_P95_HIGH with waiting clients.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-02",
+      "dense": [
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-f81b81e70befa7d951d5",
+        "chunk-ade52e524340ad5a6fa8"
+      ],
+      "hybrid": [
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-f81b81e70befa7d951d5",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "keyword": [
+        "chunk-f81b81e70befa7d951d5",
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "query": "During saturated connection queues, POOL_WAIT_P95_HIGH appeared on payments running v1122.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-f81b81e70befa7d951d5"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-02",
+      "dense": [
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-f81b81e70befa7d951d5",
+        "chunk-ade52e524340ad5a6fa8"
+      ],
+      "hybrid": [
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-f81b81e70befa7d951d5",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "keyword": [
+        "chunk-f81b81e70befa7d951d5",
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "query": "For POOL_WAIT_P95_HIGH, the payments deployment at v1122 reported saturated connection queues.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-f81b81e70befa7d951d5"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-03",
+      "dense": [
+        "chunk-5fc6864dd9c413047f11",
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-f81b81e70befa7d951d5"
+      ],
+      "hybrid": [
+        "chunk-5fc6864dd9c413047f11",
+        "chunk-f81b81e70befa7d951d5",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "keyword": [
+        "chunk-5fc6864dd9c413047f11",
+        "chunk-340efa7533f58e9da3a7",
+        "chunk-f81b81e70befa7d951d5"
+      ],
+      "query": "For POOL_WAIT_P95_HIGH, the payments deployment at v1122 reported checkout acquisition delays.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-5fc6864dd9c413047f11"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-03",
+      "dense": [
+        "chunk-5fc6864dd9c413047f11",
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-4b0cc3c66ebf66ac388c"
+      ],
+      "hybrid": [
+        "chunk-5fc6864dd9c413047f11",
+        "chunk-340efa7533f58e9da3a7",
+        "chunk-4aff89077f6c33c1dfb9"
+      ],
+      "keyword": [
+        "chunk-5fc6864dd9c413047f11",
+        "chunk-340efa7533f58e9da3a7",
+        "chunk-f81b81e70befa7d951d5"
+      ],
+      "query": "During checkout acquisition delays, POOL_WAIT_P95_HIGH appeared on payments running v1122.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-5fc6864dd9c413047f11"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-01",
+      "dense": [
+        "chunk-418bf451079d1b3e6e25",
+        "chunk-c7b1cffc8748c7c15a7a",
+        "chunk-38de0b1970ad627ae357"
+      ],
+      "hybrid": [
+        "chunk-418bf451079d1b3e6e25",
+        "chunk-c7b1cffc8748c7c15a7a",
+        "chunk-b24542d22a3cf07be1d7"
+      ],
+      "keyword": [
+        "chunk-418bf451079d1b3e6e25",
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-c7b1cffc8748c7c15a7a"
+      ],
+      "query": "For INODE_PRESSURE_92, the search deployment at v385 reported inode allocation pressure.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-418bf451079d1b3e6e25"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-01",
+      "dense": [
+        "chunk-418bf451079d1b3e6e25",
+        "chunk-38de0b1970ad627ae357",
+        "chunk-b24542d22a3cf07be1d7"
+      ],
+      "hybrid": [
+        "chunk-418bf451079d1b3e6e25",
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-38de0b1970ad627ae357"
+      ],
+      "keyword": [
+        "chunk-418bf451079d1b3e6e25",
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-c7b1cffc8748c7c15a7a"
+      ],
+      "query": "During inode allocation pressure, INODE_PRESSURE_92 appeared on search running v385.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-418bf451079d1b3e6e25"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-02",
+      "dense": [
+        "chunk-c7b1cffc8748c7c15a7a",
+        "chunk-800c7c6c7450818d96e5",
+        "chunk-38de0b1970ad627ae357"
+      ],
+      "hybrid": [
+        "chunk-c7b1cffc8748c7c15a7a",
+        "chunk-38de0b1970ad627ae357",
+        "chunk-418bf451079d1b3e6e25"
+      ],
+      "keyword": [
+        "chunk-c7b1cffc8748c7c15a7a",
+        "chunk-418bf451079d1b3e6e25",
+        "chunk-38de0b1970ad627ae357"
+      ],
+      "query": "Service search on release v385 showed INODE_PRESSURE_92 with filesystem metadata exhaustion.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-c7b1cffc8748c7c15a7a"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-02",
+      "dense": [
+        "chunk-c7b1cffc8748c7c15a7a",
+        "chunk-800c7c6c7450818d96e5",
+        "chunk-38de0b1970ad627ae357"
+      ],
+      "hybrid": [
+        "chunk-c7b1cffc8748c7c15a7a",
+        "chunk-38de0b1970ad627ae357",
+        "chunk-418bf451079d1b3e6e25"
+      ],
+      "keyword": [
+        "chunk-c7b1cffc8748c7c15a7a",
+        "chunk-418bf451079d1b3e6e25",
+        "chunk-38de0b1970ad627ae357"
+      ],
+      "query": "Investigate search version v385: filesystem metadata exhaustion accompanied alert INODE_PRESSURE_92.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-c7b1cffc8748c7c15a7a"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-03",
+      "dense": [
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-fdf01e2dd54072111638"
+      ],
+      "hybrid": [
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-6b74fba9750c548bfff4"
+      ],
+      "keyword": [
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-7025aa23c328e9c96ec9"
+      ],
+      "query": "Service search on release v385 showed INODE_PRESSURE_92 with directory entry creation failures.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-b24542d22a3cf07be1d7"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-03",
+      "dense": [
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-fdf01e2dd54072111638"
+      ],
+      "hybrid": [
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-6b74fba9750c548bfff4"
+      ],
+      "keyword": [
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-7025aa23c328e9c96ec9"
+      ],
+      "query": "For INODE_PRESSURE_92, the search deployment at v385 reported directory entry creation failures.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-b24542d22a3cf07be1d7"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-01",
+      "dense": [
+        "chunk-8d2f78ae5bef668fb5f0",
+        "chunk-e5fbb34149cdac10e8e8",
+        "chunk-4c8964ebe90507712702"
+      ],
+      "hybrid": [
+        "chunk-8d2f78ae5bef668fb5f0",
+        "chunk-4c8964ebe90507712702",
+        "chunk-e5fbb34149cdac10e8e8"
+      ],
+      "keyword": [
+        "chunk-8d2f78ae5bef668fb5f0",
+        "chunk-4c8964ebe90507712702",
+        "chunk-83d1baa23d0af5133b50"
+      ],
+      "query": "Investigate catalog version v411: upstream deadline spikes accompanied alert UPSTREAM_DEADLINE_5XX.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-8d2f78ae5bef668fb5f0"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-01",
+      "dense": [
+        "chunk-8d2f78ae5bef668fb5f0",
+        "chunk-e5fbb34149cdac10e8e8",
+        "chunk-4c8964ebe90507712702"
+      ],
+      "hybrid": [
+        "chunk-8d2f78ae5bef668fb5f0",
+        "chunk-4c8964ebe90507712702",
+        "chunk-e5fbb34149cdac10e8e8"
+      ],
+      "keyword": [
+        "chunk-8d2f78ae5bef668fb5f0",
+        "chunk-4c8964ebe90507712702",
+        "chunk-83d1baa23d0af5133b50"
+      ],
+      "query": "Service catalog on release v411 showed UPSTREAM_DEADLINE_5XX with upstream deadline spikes.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-8d2f78ae5bef668fb5f0"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-02",
+      "dense": [
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-83d1baa23d0af5133b50",
+        "chunk-2cabfd896c46217b8054"
+      ],
+      "hybrid": [
+        "chunk-83d1baa23d0af5133b50",
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-2cabfd896c46217b8054"
+      ],
+      "keyword": [
+        "chunk-83d1baa23d0af5133b50",
+        "chunk-2cabfd896c46217b8054",
+        "chunk-41add7e68f6dcef2d8a2"
+      ],
+      "query": "During slow dependency responses, UPSTREAM_DEADLINE_5XX appeared on catalog running v411.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-83d1baa23d0af5133b50"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-02",
+      "dense": [
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-83d1baa23d0af5133b50",
+        "chunk-2cabfd896c46217b8054"
+      ],
+      "hybrid": [
+        "chunk-83d1baa23d0af5133b50",
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-2cabfd896c46217b8054"
+      ],
+      "keyword": [
+        "chunk-83d1baa23d0af5133b50",
+        "chunk-2cabfd896c46217b8054",
+        "chunk-41add7e68f6dcef2d8a2"
+      ],
+      "query": "Investigate catalog version v411: slow dependency responses accompanied alert UPSTREAM_DEADLINE_5XX.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-83d1baa23d0af5133b50"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-03",
+      "dense": [
+        "chunk-4c8964ebe90507712702",
+        "chunk-e5fbb34149cdac10e8e8",
+        "chunk-8d2f78ae5bef668fb5f0"
+      ],
+      "hybrid": [
+        "chunk-4c8964ebe90507712702",
+        "chunk-e5fbb34149cdac10e8e8",
+        "chunk-8d2f78ae5bef668fb5f0"
+      ],
+      "keyword": [
+        "chunk-4c8964ebe90507712702",
+        "chunk-e5fbb34149cdac10e8e8",
+        "chunk-8d2f78ae5bef668fb5f0"
+      ],
+      "query": "For UPSTREAM_DEADLINE_5XX, the catalog deployment at v411 reported remote service response delays.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-4c8964ebe90507712702"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-03",
+      "dense": [
+        "chunk-4c8964ebe90507712702",
+        "chunk-e5fbb34149cdac10e8e8",
+        "chunk-6ad8acb66fe4aa0c1507"
+      ],
+      "hybrid": [
+        "chunk-4c8964ebe90507712702",
+        "chunk-e5fbb34149cdac10e8e8",
+        "chunk-6ad8acb66fe4aa0c1507"
+      ],
+      "keyword": [
+        "chunk-4c8964ebe90507712702",
+        "chunk-e5fbb34149cdac10e8e8",
+        "chunk-8d2f78ae5bef668fb5f0"
+      ],
+      "query": "Investigate catalog version v411: remote service response delays accompanied alert UPSTREAM_DEADLINE_5XX.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-4c8964ebe90507712702"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-bad-01",
+      "dense": [
+        "chunk-af911d32270ecc80443c",
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-1fdf24599df53986fff2"
+      ],
+      "hybrid": [
+        "chunk-af911d32270ecc80443c",
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-1fdf24599df53986fff2"
+      ],
+      "keyword": [
+        "chunk-af911d32270ecc80443c",
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "query": "During invalid request bursts, CFG_PARSE_REJECTED appeared on checkout running v147.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-af911d32270ecc80443c"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-bad-01",
+      "dense": [
+        "chunk-af911d32270ecc80443c",
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "hybrid": [
+        "chunk-af911d32270ecc80443c",
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "keyword": [
+        "chunk-af911d32270ecc80443c",
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "query": "Service checkout on release v147 showed CFG_PARSE_REJECTED with invalid request bursts.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-af911d32270ecc80443c"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-bad-05",
+      "dense": [
+        "chunk-1fdf24599df53986fff2",
+        "chunk-e7c82adb7e6c498866e4",
+        "chunk-af911d32270ecc80443c"
+      ],
+      "hybrid": [
+        "chunk-1fdf24599df53986fff2",
+        "chunk-e7c82adb7e6c498866e4",
+        "chunk-af911d32270ecc80443c"
+      ],
+      "keyword": [
+        "chunk-1fdf24599df53986fff2",
+        "chunk-e7c82adb7e6c498866e4",
+        "chunk-af911d32270ecc80443c"
+      ],
+      "query": "Service checkout on release v147 showed CFG_PARSE_REJECTED with invalid field combinations.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-1fdf24599df53986fff2"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-bad-05",
+      "dense": [
+        "chunk-e7c82adb7e6c498866e4",
+        "chunk-1fdf24599df53986fff2",
+        "chunk-af911d32270ecc80443c"
+      ],
+      "hybrid": [
+        "chunk-1fdf24599df53986fff2",
+        "chunk-e7c82adb7e6c498866e4",
+        "chunk-af911d32270ecc80443c"
+      ],
+      "keyword": [
+        "chunk-1fdf24599df53986fff2",
+        "chunk-e7c82adb7e6c498866e4",
+        "chunk-af911d32270ecc80443c"
+      ],
+      "query": "For CFG_PARSE_REJECTED, the checkout deployment at v147 reported invalid field combinations.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-1fdf24599df53986fff2"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-con-02",
+      "dense": [
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-3e4768fe6a1438350e49"
+      ],
+      "hybrid": [
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-3e4768fe6a1438350e49",
+        "chunk-4aff89077f6c33c1dfb9"
+      ],
+      "keyword": [
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-3b604433eb7a293f69d7",
+        "chunk-3e4768fe6a1438350e49"
+      ],
+      "query": "Service payments on release v165 showed POOL_QUEUE_SATURATION with saturated connection queues.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-f095275efa6d8b424ffb"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-con-02",
+      "dense": [
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-3e4768fe6a1438350e49"
+      ],
+      "hybrid": [
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-3e4768fe6a1438350e49",
+        "chunk-4aff89077f6c33c1dfb9"
+      ],
+      "keyword": [
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-3b604433eb7a293f69d7",
+        "chunk-3e4768fe6a1438350e49"
+      ],
+      "query": "For POOL_QUEUE_SATURATION, the payments deployment at v165 reported saturated connection queues.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-f095275efa6d8b424ffb"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-con-06",
+      "dense": [
+        "chunk-84a47b24a748ee7ceb03",
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-4aff89077f6c33c1dfb9"
+      ],
+      "hybrid": [
+        "chunk-84a47b24a748ee7ceb03",
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-3b604433eb7a293f69d7"
+      ],
+      "keyword": [
+        "chunk-84a47b24a748ee7ceb03",
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-3b604433eb7a293f69d7"
+      ],
+      "query": "Service payments on release v165 showed POOL_QUEUE_SATURATION with connection allocation stalls.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-84a47b24a748ee7ceb03"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-con-06",
+      "dense": [
+        "chunk-84a47b24a748ee7ceb03",
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-4aff89077f6c33c1dfb9"
+      ],
+      "hybrid": [
+        "chunk-84a47b24a748ee7ceb03",
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-3b604433eb7a293f69d7"
+      ],
+      "keyword": [
+        "chunk-84a47b24a748ee7ceb03",
+        "chunk-f095275efa6d8b424ffb",
+        "chunk-3b604433eb7a293f69d7"
+      ],
+      "query": "During connection allocation stalls, POOL_QUEUE_SATURATION appeared on payments running v165.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-84a47b24a748ee7ceb03"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-dis-04",
+      "dense": [
+        "chunk-800c7c6c7450818d96e5",
+        "chunk-38de0b1970ad627ae357",
+        "chunk-c7b1cffc8748c7c15a7a"
+      ],
+      "hybrid": [
+        "chunk-800c7c6c7450818d96e5",
+        "chunk-38de0b1970ad627ae357",
+        "chunk-c7b1cffc8748c7c15a7a"
+      ],
+      "keyword": [
+        "chunk-800c7c6c7450818d96e5",
+        "chunk-38de0b1970ad627ae357",
+        "chunk-c7b1cffc8748c7c15a7a"
+      ],
+      "query": "During metadata allocation delays, FILESYSTEM_INODE_EXHAUSTION appeared on search running v389.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-800c7c6c7450818d96e5"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-dis-04",
+      "dense": [
+        "chunk-800c7c6c7450818d96e5",
+        "chunk-38de0b1970ad627ae357",
+        "chunk-c7b1cffc8748c7c15a7a"
+      ],
+      "hybrid": [
+        "chunk-800c7c6c7450818d96e5",
+        "chunk-38de0b1970ad627ae357",
+        "chunk-c7b1cffc8748c7c15a7a"
+      ],
+      "keyword": [
+        "chunk-800c7c6c7450818d96e5",
+        "chunk-38de0b1970ad627ae357",
+        "chunk-c7b1cffc8748c7c15a7a"
+      ],
+      "query": "Investigate search version v389: metadata allocation delays accompanied alert FILESYSTEM_INODE_EXHAUSTION.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-800c7c6c7450818d96e5"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-dow-03",
+      "dense": [
+        "chunk-6ad8acb66fe4aa0c1507",
+        "chunk-15b82b24de58419dffda",
+        "chunk-6a18099263142219b219"
+      ],
+      "hybrid": [
+        "chunk-6ad8acb66fe4aa0c1507",
+        "chunk-15b82b24de58419dffda",
+        "chunk-67af94e0ff7cf7d26c8b"
+      ],
+      "keyword": [
+        "chunk-6ad8acb66fe4aa0c1507",
+        "chunk-15b82b24de58419dffda",
+        "chunk-67af94e0ff7cf7d26c8b"
+      ],
+      "query": "During remote service response delays, UPSTREAM_TIMEOUT_RATE appeared on catalog running v711.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-6ad8acb66fe4aa0c1507"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-dow-03",
+      "dense": [
+        "chunk-6ad8acb66fe4aa0c1507",
+        "chunk-6a18099263142219b219",
+        "chunk-15b82b24de58419dffda"
+      ],
+      "hybrid": [
+        "chunk-6ad8acb66fe4aa0c1507",
+        "chunk-15b82b24de58419dffda",
+        "chunk-6a18099263142219b219"
+      ],
+      "keyword": [
+        "chunk-6ad8acb66fe4aa0c1507",
+        "chunk-15b82b24de58419dffda",
+        "chunk-67af94e0ff7cf7d26c8b"
+      ],
+      "query": "For UPSTREAM_TIMEOUT_RATE, the catalog deployment at v711 reported remote service response delays.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-6ad8acb66fe4aa0c1507"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-con-01",
+      "dense": [
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-4aff89077f6c33c1dfb9"
+      ],
+      "hybrid": [
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "keyword": [
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "query": "During waiting clients, POOL_WAIT_P95_HIGH appeared on payments running v294.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-4b0cc3c66ebf66ac388c"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-con-01",
+      "dense": [
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-340efa7533f58e9da3a7",
+        "chunk-1b8b3a5629122d57c634"
+      ],
+      "hybrid": [
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "keyword": [
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "query": "Service payments on release v294 showed POOL_WAIT_P95_HIGH with waiting clients.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-4b0cc3c66ebf66ac388c"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-dis-03",
+      "dense": [
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-6b74fba9750c548bfff4"
+      ],
+      "hybrid": [
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-b24542d22a3cf07be1d7"
+      ],
+      "keyword": [
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-b24542d22a3cf07be1d7"
+      ],
+      "query": "Service search on release v290 showed INODE_PRESSURE_92 with directory entry creation failures.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-7025aa23c328e9c96ec9"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-dis-03",
+      "dense": [
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-b24542d22a3cf07be1d7",
+        "chunk-6b74fba9750c548bfff4"
+      ],
+      "hybrid": [
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-b24542d22a3cf07be1d7"
+      ],
+      "keyword": [
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-b24542d22a3cf07be1d7"
+      ],
+      "query": "During directory entry creation failures, INODE_PRESSURE_92 appeared on search running v290.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-7025aa23c328e9c96ec9"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-dow-02",
+      "dense": [
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-83d1baa23d0af5133b50",
+        "chunk-2cabfd896c46217b8054"
+      ],
+      "hybrid": [
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-2cabfd896c46217b8054",
+        "chunk-83d1baa23d0af5133b50"
+      ],
+      "keyword": [
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-2cabfd896c46217b8054",
+        "chunk-71dd48b04bdd9b088d92"
+      ],
+      "query": "During slow dependency responses, UPSTREAM_DEADLINE_5XX appeared on catalog running v1476.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-41add7e68f6dcef2d8a2"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-dow-02",
+      "dense": [
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-83d1baa23d0af5133b50",
+        "chunk-2cabfd896c46217b8054"
+      ],
+      "hybrid": [
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-2cabfd896c46217b8054",
+        "chunk-83d1baa23d0af5133b50"
+      ],
+      "keyword": [
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-2cabfd896c46217b8054",
+        "chunk-71dd48b04bdd9b088d92"
+      ],
+      "query": "Service catalog on release v1476 showed UPSTREAM_DEADLINE_5XX with slow dependency responses.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-41add7e68f6dcef2d8a2"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-bad-01",
+      "dense": [
+        "chunk-af911d32270ecc80443c",
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-17b1e7d161b52bdf453e"
+      ],
+      "hybrid": [
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-af911d32270ecc80443c",
+        "chunk-17b1e7d161b52bdf453e"
+      ],
+      "keyword": [
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-af911d32270ecc80443c",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "query": "During invalid request bursts, CFG_PARSE_REJECTED appeared on checkout running v637.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [],
+      "sufficient": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-bad-01",
+      "dense": [
+        "chunk-d5dc3854444041daa9d1",
+        "chunk-17b1e7d161b52bdf453e",
+        "chunk-af911d32270ecc80443c"
+      ],
+      "hybrid": [
+        "chunk-af911d32270ecc80443c",
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-d5dc3854444041daa9d1"
+      ],
+      "keyword": [
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-af911d32270ecc80443c",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "query": "Investigate checkout version v637: invalid request bursts accompanied alert CFG_PARSE_REJECTED.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-con-02",
+      "dense": [
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-3e4768fe6a1438350e49",
+        "chunk-3f3765f8561b73715866"
+      ],
+      "hybrid": [
+        "chunk-3e4768fe6a1438350e49",
+        "chunk-3f3765f8561b73715866",
+        "chunk-3b604433eb7a293f69d7"
+      ],
+      "keyword": [
+        "chunk-3b604433eb7a293f69d7",
+        "chunk-3e4768fe6a1438350e49",
+        "chunk-3f3765f8561b73715866"
+      ],
+      "query": "Service payments on release v1295 showed POOL_QUEUE_SATURATION with saturated connection queues.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-con-02",
+      "dense": [
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-ade52e524340ad5a6fa8",
+        "chunk-3e4768fe6a1438350e49"
+      ],
+      "hybrid": [
+        "chunk-3e4768fe6a1438350e49",
+        "chunk-3b604433eb7a293f69d7",
+        "chunk-4aff89077f6c33c1dfb9"
+      ],
+      "keyword": [
+        "chunk-3b604433eb7a293f69d7",
+        "chunk-3e4768fe6a1438350e49",
+        "chunk-3f3765f8561b73715866"
+      ],
+      "query": "During saturated connection queues, POOL_QUEUE_SATURATION appeared on payments running v1295.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [],
+      "sufficient": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-dow-03",
+      "dense": [
+        "chunk-6ad8acb66fe4aa0c1507",
+        "chunk-e5fbb34149cdac10e8e8",
+        "chunk-4c8964ebe90507712702"
+      ],
+      "hybrid": [
+        "chunk-15b82b24de58419dffda",
+        "chunk-6ad8acb66fe4aa0c1507",
+        "chunk-67af94e0ff7cf7d26c8b"
+      ],
+      "keyword": [
+        "chunk-15b82b24de58419dffda",
+        "chunk-67af94e0ff7cf7d26c8b",
+        "chunk-6a18099263142219b219"
+      ],
+      "query": "Investigate catalog version v1115: remote service response delays accompanied alert UPSTREAM_TIMEOUT_RATE.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-dow-03",
+      "dense": [
+        "chunk-6ad8acb66fe4aa0c1507",
+        "chunk-6a18099263142219b219",
+        "chunk-15b82b24de58419dffda"
+      ],
+      "hybrid": [
+        "chunk-15b82b24de58419dffda",
+        "chunk-6a18099263142219b219",
+        "chunk-6ad8acb66fe4aa0c1507"
+      ],
+      "keyword": [
+        "chunk-15b82b24de58419dffda",
+        "chunk-67af94e0ff7cf7d26c8b",
+        "chunk-6a18099263142219b219"
+      ],
+      "query": "For UPSTREAM_TIMEOUT_RATE, the catalog deployment at v1115 reported remote service response delays.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [],
+      "sufficient": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-bad-01",
+      "dense": [
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-af911d32270ecc80443c",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "hybrid": [
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-af911d32270ecc80443c",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "keyword": [
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-af911d32270ecc80443c",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "query": "Service checkout on release v1428 showed CFG_PARSE_REJECTED with invalid request bursts.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-7a69f7df60a99cef1310"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-bad-01",
+      "dense": [
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-af911d32270ecc80443c",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "hybrid": [
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-af911d32270ecc80443c",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "keyword": [
+        "chunk-7a69f7df60a99cef1310",
+        "chunk-af911d32270ecc80443c",
+        "chunk-e912236da0de21f5bddb"
+      ],
+      "query": "During invalid request bursts, CFG_PARSE_REJECTED appeared on checkout running v1428.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-7a69f7df60a99cef1310"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-con-02",
+      "dense": [
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-ade52e524340ad5a6fa8",
+        "chunk-3f3765f8561b73715866"
+      ],
+      "hybrid": [
+        "chunk-ade52e524340ad5a6fa8",
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-3b604433eb7a293f69d7"
+      ],
+      "keyword": [
+        "chunk-ade52e524340ad5a6fa8",
+        "chunk-3b604433eb7a293f69d7",
+        "chunk-3e4768fe6a1438350e49"
+      ],
+      "query": "Service payments on release v932 showed POOL_QUEUE_SATURATION with saturated connection queues.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-ade52e524340ad5a6fa8"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-con-02",
+      "dense": [
+        "chunk-4aff89077f6c33c1dfb9",
+        "chunk-ade52e524340ad5a6fa8",
+        "chunk-3b604433eb7a293f69d7"
+      ],
+      "hybrid": [
+        "chunk-ade52e524340ad5a6fa8",
+        "chunk-3b604433eb7a293f69d7",
+        "chunk-4aff89077f6c33c1dfb9"
+      ],
+      "keyword": [
+        "chunk-ade52e524340ad5a6fa8",
+        "chunk-3b604433eb7a293f69d7",
+        "chunk-3e4768fe6a1438350e49"
+      ],
+      "query": "During saturated connection queues, POOL_QUEUE_SATURATION appeared on payments running v932.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-ade52e524340ad5a6fa8"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-dow-03",
+      "dense": [
+        "chunk-b195e87b7de7ab759b60",
+        "chunk-15b82b24de58419dffda",
+        "chunk-6a18099263142219b219"
+      ],
+      "hybrid": [
+        "chunk-b195e87b7de7ab759b60",
+        "chunk-15b82b24de58419dffda",
+        "chunk-67af94e0ff7cf7d26c8b"
+      ],
+      "keyword": [
+        "chunk-b195e87b7de7ab759b60",
+        "chunk-15b82b24de58419dffda",
+        "chunk-67af94e0ff7cf7d26c8b"
+      ],
+      "query": "Service catalog on release v26 showed UPSTREAM_TIMEOUT_RATE with remote service response delays.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-b195e87b7de7ab759b60"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-dow-03",
+      "dense": [
+        "chunk-b195e87b7de7ab759b60",
+        "chunk-6ad8acb66fe4aa0c1507",
+        "chunk-15b82b24de58419dffda"
+      ],
+      "hybrid": [
+        "chunk-b195e87b7de7ab759b60",
+        "chunk-15b82b24de58419dffda",
+        "chunk-6ad8acb66fe4aa0c1507"
+      ],
+      "keyword": [
+        "chunk-b195e87b7de7ab759b60",
+        "chunk-15b82b24de58419dffda",
+        "chunk-67af94e0ff7cf7d26c8b"
+      ],
+      "query": "Investigate catalog version v26: remote service response delays accompanied alert UPSTREAM_TIMEOUT_RATE.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-b195e87b7de7ab759b60"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-con-01",
+      "dense": [
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-9d4d951e58dfe5e0da56",
+        "chunk-4b0cc3c66ebf66ac388c"
+      ],
+      "hybrid": [
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-9d4d951e58dfe5e0da56",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "keyword": [
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-9d4d951e58dfe5e0da56",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "query": "Investigate payments version v86: waiting clients accompanied alert POOL_WAIT_P95_HIGH.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-9d4d951e58dfe5e0da56",
+        "chunk-1b8b3a5629122d57c634"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-con-01",
+      "dense": [
+        "chunk-4b0cc3c66ebf66ac388c",
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-9d4d951e58dfe5e0da56"
+      ],
+      "hybrid": [
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-9d4d951e58dfe5e0da56",
+        "chunk-4b0cc3c66ebf66ac388c"
+      ],
+      "keyword": [
+        "chunk-1b8b3a5629122d57c634",
+        "chunk-9d4d951e58dfe5e0da56",
+        "chunk-340efa7533f58e9da3a7"
+      ],
+      "query": "During waiting clients, POOL_WAIT_P95_HIGH appeared on payments running v86.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-9d4d951e58dfe5e0da56",
+        "chunk-1b8b3a5629122d57c634"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-dis-03",
+      "dense": [
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-fdf01e2dd54072111638",
+        "chunk-6b74fba9750c548bfff4"
+      ],
+      "hybrid": [
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-fdf01e2dd54072111638"
+      ],
+      "keyword": [
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-fdf01e2dd54072111638",
+        "chunk-7025aa23c328e9c96ec9"
+      ],
+      "query": "Investigate search version v741: directory entry creation failures accompanied alert INODE_PRESSURE_92.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-fdf01e2dd54072111638"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-dis-03",
+      "dense": [
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-fdf01e2dd54072111638",
+        "chunk-6b74fba9750c548bfff4"
+      ],
+      "hybrid": [
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-7025aa23c328e9c96ec9",
+        "chunk-fdf01e2dd54072111638"
+      ],
+      "keyword": [
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-fdf01e2dd54072111638",
+        "chunk-7025aa23c328e9c96ec9"
+      ],
+      "query": "For INODE_PRESSURE_92, the search deployment at v741 reported directory entry creation failures.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-6b74fba9750c548bfff4",
+        "chunk-fdf01e2dd54072111638"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-dow-02",
+      "dense": [
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-2cabfd896c46217b8054",
+        "chunk-71dd48b04bdd9b088d92"
+      ],
+      "hybrid": [
+        "chunk-2cabfd896c46217b8054",
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-71dd48b04bdd9b088d92"
+      ],
+      "keyword": [
+        "chunk-2cabfd896c46217b8054",
+        "chunk-71dd48b04bdd9b088d92",
+        "chunk-41add7e68f6dcef2d8a2"
+      ],
+      "query": "Service catalog on release v1002 showed UPSTREAM_DEADLINE_5XX with slow dependency responses.",
+      "query_variant": "clean-a",
+      "relevant_chunk_ids": [
+        "chunk-71dd48b04bdd9b088d92",
+        "chunk-2cabfd896c46217b8054"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-dow-02",
+      "dense": [
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-2cabfd896c46217b8054",
+        "chunk-71dd48b04bdd9b088d92"
+      ],
+      "hybrid": [
+        "chunk-2cabfd896c46217b8054",
+        "chunk-41add7e68f6dcef2d8a2",
+        "chunk-71dd48b04bdd9b088d92"
+      ],
+      "keyword": [
+        "chunk-2cabfd896c46217b8054",
+        "chunk-71dd48b04bdd9b088d92",
+        "chunk-41add7e68f6dcef2d8a2"
+      ],
+      "query": "During slow dependency responses, UPSTREAM_DEADLINE_5XX appeared on catalog running v1002.",
+      "query_variant": "clean-b",
+      "relevant_chunk_ids": [
+        "chunk-71dd48b04bdd9b088d92",
+        "chunk-2cabfd896c46217b8054"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    }
+  ],
+  "schema": "dur056-retrieval-development.v2",
+  "selected_config_fingerprint": "sha256:10ad8b313376a02513e9ad96bebeb1c6d63cb758a2151074da1947cafdfa2672",
+  "split": "development"
+}
