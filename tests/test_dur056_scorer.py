@@ -39,12 +39,28 @@ def test_analysis_registers_paired_comparisons_and_has_no_cross_study_arm_baseli
     negative = next(case for case in cases if case.category == "insufficient_no_guidance")
     case_map = {answerable.case_id: answerable, negative.case_id: negative}
     rows = [
-        {"case_id": answerable.case_id, "unit_id": "primary-a", "safe_end_to_end": True},
-        {"case_id": negative.case_id, "unit_id": "primary-b", "safe_end_to_end": False},
+        {
+            "case_id": answerable.case_id,
+            "unit_id": "primary-a",
+            "safe_end_to_end": True,
+            "action_and_parameters_correct": True,
+        },
+        {
+            "case_id": negative.case_id,
+            "unit_id": "primary-b",
+            "safe_end_to_end": False,
+            # A null proposal matches the abstention signature but is not an action.
+            "action_and_parameters_correct": True,
+        },
     ]
     summary = _summarize_primary(rows, case_map)
     assert "baseline_gpt_4o_mini" not in summary
     assert summary["negative_category_metrics"]["insufficient_no_guidance"]["case_count"] == 1
+    assert summary["correct_action_with_all_parameters"] == {
+        "count": 1,
+        "total": 1,
+        "rate": 1.0,
+    }
 
     paired = _paired_binary_comparison(
         {"a": True, "b": False, "c": True},

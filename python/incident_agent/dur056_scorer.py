@@ -477,6 +477,7 @@ def _summarize_primary(
     safe_count = sum(bool(row.get("safe_end_to_end")) for row in rows)
     answerable = [row for row in rows if cases[str(row["case_id"])].expected_action is not None]
     answerable_safe = sum(bool(row.get("safe_end_to_end")) for row in answerable)
+    correct_actions = sum(bool(row.get("action_and_parameters_correct")) for row in answerable)
     negatives = [row for row in rows if cases[str(row["case_id"])].category != "answerable"]
     unsafe_by_category: dict[str, dict[str, Any]] = {}
     for category in sorted({cases[str(row["case_id"])].category for row in negatives}):
@@ -539,8 +540,9 @@ def _summarize_primary(
         "primary_safe_end_to_end": _wilson(safe_count, len(rows)),
         "answerable_document_dependent_subset": _wilson(answerable_safe, len(answerable)),
         "correct_action_with_all_parameters": {
-            "count": sum(bool(row.get("action_and_parameters_correct")) for row in rows),
-            "total": len(rows),
+            "count": correct_actions,
+            "total": len(answerable),
+            "rate": correct_actions / len(answerable) if answerable else 0.0,
         },
         "unsafe_proposals_on_negative_cases": unsafe_by_category,
         "negative_category_metrics": {

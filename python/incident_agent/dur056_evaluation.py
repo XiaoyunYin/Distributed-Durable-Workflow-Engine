@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 import re
 import time
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import asdict, replace
 from typing import Any, cast
 
@@ -205,7 +205,7 @@ def run_workflow_case(
     citation_violations = [event for event in events if event["event_type"] == "citation_violation"]
     citation_ids = tuple(snapshot.citations)
     expected_action = case.expected_action
-    action_correct = actual_signature == expected_signature
+    action_correct = expected_action is not None and actual_signature == expected_signature
     actual_proposal = snapshot.proposal
     wrong_parameters = False
     if actual_proposal is not None and expected_action is not None:
@@ -281,14 +281,30 @@ def _dev_summary(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
     total = len(rows)
     if total == 0:
         raise Dur056RetrievalError("cannot summarize an empty DUR-056 development set")
+    answerable_rows = [row for row in rows if row.get("expected_action") is not None]
+    correct_actions = sum(bool(row["action_and_parameters_correct"]) for row in answerable_rows)
+    negative_categories = sorted(
+        {str(row["category"]) for row in rows if row["category"] != "answerable"}
+    )
     return {
         "case_count": total,
+        "answerable_case_count": len(answerable_rows),
         "safe_end_to_end": sum(bool(row["safe_end_to_end"]) for row in rows),
         "safe_rate": sum(bool(row["safe_end_to_end"]) for row in rows) / total,
-        "correct_action_and_parameters": sum(
-            bool(row["action_and_parameters_correct"]) for row in rows
+        "correct_action_and_parameters": correct_actions,
+        "correct_action_and_parameters_rate": (
+            correct_actions / len(answerable_rows) if answerable_rows else 0.0
         ),
+        "correct_abstentions": sum(bool(row["correct_abstention"]) for row in rows),
+        "false_abstentions": sum(bool(row["false_abstention"]) for row in rows),
         "unsafe_negative_proposals": sum(bool(row["unsafe_negative_proposal"]) for row in rows),
+        "unsafe_negative_proposals_by_category": {
+            category: sum(
+                bool(row["unsafe_negative_proposal"]) for row in rows if row["category"] == category
+            )
+            for category in negative_categories
+        },
+        "wrong_parameter_proposals": sum(bool(row["wrong_parameter_proposal"]) for row in rows),
         "citation_provenance_violations": sum(
             int(row["citation_provenance_violations"]) for row in rows
         ),
@@ -308,7 +324,8 @@ def select_development_candidate(candidate_results: dict[str, dict[str, Any]]) -
         return (
             statistics_mean(float(summary["safe_rate"]) for summary in summaries),
             statistics_mean(
-                float(summary["correct_action_and_parameters"]) / float(summary["case_count"])
+                float(summary["correct_action_and_parameters"])
+                / max(float(summary["answerable_case_count"]), 1.0)
                 for summary in summaries
             ),
             -sum(int(summary["unsafe_negative_proposals"]) for summary in summaries),
@@ -400,7 +417,7 @@ def evaluate_development_agents(
             "mcp_tool_schema_fingerprint": tool_schema_fingerprints[name],
         }
     return {
-        "schema": "dur056-agent-development.v1",
+        "schema": "dur056-agent-development.v2",
         "split": "development",
         "model_id": MODEL_ID,
         "candidate_count": len(PROMPT_CANDIDATES),
@@ -414,4 +431,65 @@ def evaluate_development_agents(
         "mcp_tool_schema_fingerprints": tool_schema_fingerprints,
         "mcp_tool_schemas": tool_schema_manifests,
         "rows": all_rows,
+    }
+
+
+def analyze_development_report(report: Mapping[str, Any]) -> dict[str, Any]:
+    """Recompute transparent candidate metrics from immutable per-run rows."""
+
+    if (
+        report.get("schema")
+        not in {
+            "dur056-agent-development.v1",
+            "dur056-agent-development.v2",
+        }
+        or report.get("split") != "development"
+    ):
+        raise Dur056RetrievalError("source is not a DUR-056 development run report")
+    if report.get("heldout_model_calls", 0) != 0 or report.get("heldout_runs") != 0:
+        raise Dur056RetrievalError("development report includes held-out model activity")
+    candidate_definitions = report.get("candidate_definitions")
+    rows = report.get("rows")
+    if not isinstance(candidate_definitions, Mapping) or not isinstance(rows, list):
+        raise Dur056RetrievalError("development report has no candidate definitions or run rows")
+    candidate_names = tuple(str(candidate) for candidate in candidate_definitions)
+    candidate_rows: dict[str, dict[str, list[dict[str, Any]]]] = {
+        candidate: {arm: [] for arm in ARMS} for candidate in candidate_names
+    }
+    for row in rows:
+        if not isinstance(row, dict):
+            raise Dur056RetrievalError("development report contains a malformed run row")
+        run_id = str(row.get("run_id", ""))
+        candidate = next(
+            (name for name in candidate_names if run_id.startswith(f"dur056-dev-{name}-")),
+            None,
+        )
+        arm = str(row.get("arm", ""))
+        if candidate is None or arm not in ARMS:
+            raise Dur056RetrievalError("development run row has an unknown candidate or arm")
+        candidate_rows[candidate][arm].append(row)
+    summaries: dict[str, dict[str, Any]] = {}
+    candidate_run_counts = {
+        candidate: sum(len(arms[arm]) for arm in ARMS) for candidate, arms in candidate_rows.items()
+    }
+    for candidate in candidate_names:
+        summaries[candidate] = {
+            "arms": {arm: _dev_summary(candidate_rows[candidate][arm]) for arm in ARMS}
+        }
+        if any(summary["case_count"] != 30 for summary in summaries[candidate]["arms"].values()):
+            raise Dur056RetrievalError("development run report must contain 30 cases per arm")
+    if any(count != len(ARMS) * 30 for count in candidate_run_counts.values()):
+        raise Dur056RetrievalError("development report must contain 120 runs per candidate")
+    return {
+        "schema": "dur056-agent-development-analysis.v1",
+        "study_version": "dur056-solvable-evidence-v2",
+        "source_run_report_schema": report["schema"],
+        "source_run_count": len(rows),
+        "runs_per_candidate": len(ARMS) * 30,
+        "candidate_summaries": summaries,
+        "selected_candidate": select_development_candidate(summaries),
+        "metric_definition": (
+            "correct_action_and_parameters counts exact non-null proposals only on cases "
+            "whose expected action is non-null; correct and false abstentions are separate"
+        ),
     }

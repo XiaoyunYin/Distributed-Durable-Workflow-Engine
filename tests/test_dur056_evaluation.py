@@ -10,7 +10,7 @@ from incident_agent.dur056_agent import (
     OpenAIResponsesDecisionProvider,
 )
 from incident_agent.dur056_budget import Dur056SpendLedger
-from incident_agent.dur056_evaluation import run_workflow_case
+from incident_agent.dur056_evaluation import _dev_summary, run_workflow_case
 from incident_agent.dur056_fixtures import Dur056Case, as_incident_case, build_cases
 from incident_agent.dur056_retrieval import NoRetrievalAdapter
 from incident_agent.mcp import BoundedMCPServer
@@ -98,7 +98,56 @@ def test_stub_model_correctly_abstains_on_insufficient_evidence() -> None:
     assert row["state"] == "ABSTAINED"
     assert row["safe_end_to_end"] is True
     assert row["correct_abstention"] is True
+    assert row["action_and_parameters_correct"] is False
     assert row["receipt"] is None
+
+
+def test_development_summary_separates_correct_actions_from_abstentions() -> None:
+    common = {
+        "safe_end_to_end": True,
+        "unsafe_negative_proposal": False,
+        "wrong_parameter_proposal": False,
+        "citation_provenance_violations": 0,
+        "diagnosis_correct": True,
+        "input_tokens": 10,
+        "output_tokens": 5,
+        "reasoning_tokens": 0,
+        "latency_ms": 100.0,
+        "wall_latency_ms": 110.0,
+        "cost_usd": "0.0001",
+    }
+    rows = [
+        {
+            **common,
+            "expected_action": {"action": "scale_pool"},
+            "action_and_parameters_correct": True,
+            "correct_abstention": False,
+            "false_abstention": False,
+            "category": "answerable",
+        },
+        {
+            **common,
+            "expected_action": None,
+            "action_and_parameters_correct": True,
+            "correct_abstention": True,
+            "false_abstention": False,
+            "category": "insufficient_no_guidance",
+        },
+        {
+            **common,
+            "expected_action": {"action": "set_timeout"},
+            "action_and_parameters_correct": False,
+            "correct_abstention": False,
+            "false_abstention": True,
+            "category": "answerable",
+        },
+    ]
+    summary = _dev_summary(rows)
+    assert summary["answerable_case_count"] == 2
+    assert summary["correct_action_and_parameters"] == 1
+    assert summary["correct_action_and_parameters_rate"] == 0.5
+    assert summary["correct_abstentions"] == 1
+    assert summary["false_abstentions"] == 1
 
 
 def test_invalid_citation_is_recorded_as_unsafe_and_provenance_violation() -> None:

@@ -19,9 +19,9 @@ from incident_agent.dur056_agent import (
     PROMPT_CANDIDATES,
     RESPONSE_SCHEMAS,
 )
-from incident_agent.dur056_artifacts import current_git_head, write_once
+from incident_agent.dur056_artifacts import current_git_head, read_json, write_once
 from incident_agent.dur056_budget import Dur056SpendLedger
-from incident_agent.dur056_evaluation import evaluate_development_agents
+from incident_agent.dur056_evaluation import analyze_development_report, evaluate_development_agents
 from incident_agent.dur056_fixtures import (
     CATEGORY_ANNOUNCEMENTS,
     DEV_QUERY_TEMPLATES,
@@ -147,8 +147,7 @@ def _embedding_provenance(
         )
         sources.append(path.name)
     records.extend(
-        {**record, "provenance_manifest": "current-development-run"}
-        for record in current_records
+        {**record, "provenance_manifest": "current-development-run"} for record in current_records
     )
     return records, sources
 
@@ -452,20 +451,53 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
         connection.close()
 
 
+def analyze_development_results(root: Path, source_report_name: str) -> dict[str, Any]:
+    """Recompute development metrics from persisted rows without provider calls."""
+
+    if (
+        Path(source_report_name).name != source_report_name
+        or not source_report_name.startswith("agent-development-v2-")
+        or not source_report_name.endswith(".json")
+    ):
+        raise Dur056StudyError("analysis requires a versioned DUR-056 v2 development report")
+    output_directory = _study_directory(root)
+    report = read_json(output_directory / source_report_name)
+    if not isinstance(report, dict):
+        raise Dur056StudyError("development run report must be a JSON object")
+    analysis = analyze_development_report(report)
+    analysis.update(
+        {
+            "source_run_report": source_report_name,
+            "analysis_code_commit": current_git_head(root),
+            "provider_calls": 0,
+        }
+    )
+    path = write_once(output_directory, "agent-development-analysis-v2", analysis)
+    return {"status": "ANALYZED", "analysis_path": str(path), "provider_calls": 0}
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
         "command",
-        choices=("validate-fixtures", "prepare-dev", "score-heldout"),
+        choices=("validate-fixtures", "prepare-dev", "analyze-dev", "score-heldout"),
     )
     parser.add_argument(
         "--resume",
         action="store_true",
         help="resume score-heldout only after an ABORTED_INFRASTRUCTURE marker",
     )
+    parser.add_argument(
+        "--source-report",
+        help="immutable agent-development-v2 report for local analysis; no provider calls",
+    )
     args = parser.parse_args(argv)
     if args.resume and args.command != "score-heldout":
         parser.error("--resume is valid only with score-heldout")
+    if args.command == "analyze-dev" and not args.source_report:
+        parser.error("analyze-dev requires --source-report")
+    if args.source_report and args.command != "analyze-dev":
+        parser.error("--source-report is valid only with analyze-dev")
     project_root = _root()
     output_directory = _study_directory(project_root)
     try:
@@ -475,6 +507,8 @@ def main(argv: list[str] | None = None) -> int:
             result: dict[str, Any] = {"status": "VALID", "report_path": str(path), "oracle": report}
         elif args.command == "prepare-dev":
             result = prepare_development(project_root)
+        elif args.command == "analyze-dev":
+            result = analyze_development_results(project_root, args.source_report)
         else:
             result = score_heldout(
                 root=project_root,

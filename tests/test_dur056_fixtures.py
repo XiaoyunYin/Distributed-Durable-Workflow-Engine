@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import json
 from dataclasses import replace
 
 import pytest
+from incident_agent.dur056_agent import PROMPT_CANDIDATES, RESPONSE_SCHEMAS
 from incident_agent.dur056_fixtures import (
     ACTION_PARAMETERS,
     CATEGORY_ANNOUNCEMENTS,
@@ -225,6 +227,19 @@ def test_seeded_answer_values_differ_between_development_and_heldout() -> None:
                 assert parameters["timeout_ms"] % 100 == 0
             elif case.family == "disk_pressure":
                 assert 7 <= parameters["retention_days"] <= 60
+
+
+def test_agent_prompts_and_structured_schemas_contain_no_answer_values() -> None:
+    cases = (*build_cases("development"), *build_cases("heldout"))
+    for candidate in PROMPT_CANDIDATES.values():
+        prompt = str(candidate["instructions"])
+        schema = json.dumps(RESPONSE_SCHEMAS[str(candidate["schema_id"])], sort_keys=True)
+        for case in cases:
+            if case.expected_action is None:
+                continue
+            for value in case.expected_action["parameters"].values():
+                assert str(value) not in prompt
+                assert str(value) not in schema
 
 
 def test_dev_and_heldout_query_template_sets_are_disjoint_and_fact_based() -> None:
