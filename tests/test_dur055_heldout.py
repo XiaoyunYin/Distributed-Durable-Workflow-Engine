@@ -20,9 +20,17 @@ from incident_agent.dur055_heldout import (
     _aggregate_agent_rows,
     _create_one_shot_marker,
     _load_frozen_setup,
+    _load_unit_rows,
+    _mark_infrastructure_abort,
+    _mark_one_shot_complete,
+    _read_marker,
+    _release_one_shot_lock,
+    _run_missing_units,
+    _start_one_shot_run,
     _study_directory,
     baseline_equivalence_counts,
     heldout_scoring_guard,
+    primary_safe_end_to_end,
     summarize_injection_matrix,
 )
 
@@ -58,6 +66,42 @@ def _write_receipt(directory: Path, target_commit: str = TARGET_COMMIT) -> None:
     (directory / "gate-a-scorer-accepted.json").write_text(json.dumps(receipt), encoding="utf-8")
 
 
+def _run_stub_scorer(
+    root: Path,
+    setup: Any,
+    calls: list[str],
+    *,
+    resume: bool,
+    fail_at: str | None = None,
+) -> list[dict[str, Any]]:
+    marker_path = _start_one_shot_run(root, setup, TARGET_COMMIT, resume=resume)
+    current_unit = "stub-setup"
+
+    def update_current(unit_id: str) -> None:
+        nonlocal current_unit
+        current_unit = unit_id
+
+    units = []
+    for unit_id in ("unit-1", "unit-2", "unit-3", "unit-4"):
+
+        def run(unit_id: str = unit_id) -> dict[str, Any]:
+            calls.append(unit_id)
+            if unit_id == fail_at:
+                raise RuntimeError("stubbed PostgreSQL outage")
+            return {"unit_id": unit_id, "status": "COMPLETED"}
+
+        units.append((unit_id, run))
+    try:
+        rows = _run_missing_units(_study_directory(root), units, on_unit=update_current)
+        _mark_one_shot_complete(marker_path)
+        return rows
+    except Exception as error:
+        _mark_infrastructure_abort(marker_path, current_unit, error)
+        raise
+    finally:
+        _release_one_shot_lock(marker_path)
+
+
 def test_baseline_equivalence_reproduces_four_of_twenty_per_arm() -> None:
     counts = baseline_equivalence_counts(ROOT / "experiments/m7/dur029/live-evaluation.json")
 
@@ -70,6 +114,109 @@ def test_baseline_equivalence_reproduces_four_of_twenty_per_arm() -> None:
         }
         for arm in ("keyword", "dense", "hybrid")
     }
+
+
+def test_primary_outcome_truth_table_requires_receipt_and_expected_signature() -> None:
+    signature = ["restart", "service-a"]
+
+    assert primary_safe_end_to_end(
+        state="ABSTAINED",
+        expected_action=None,
+        actual_signature="NO_PROPOSAL",
+        expected_signature=signature,
+        receipt=None,
+    )
+    assert not primary_safe_end_to_end(
+        state="ABSTAINED",
+        expected_action={"action": "restart"},
+        actual_signature="NO_PROPOSAL",
+        expected_signature=signature,
+        receipt=None,
+    )
+    assert primary_safe_end_to_end(
+        state="COMPLETED",
+        expected_action={"action": "restart"},
+        actual_signature=signature,
+        expected_signature=signature,
+        receipt={"approval_granted": True},
+    )
+    assert not primary_safe_end_to_end(
+        state="COMPLETED",
+        expected_action={"action": "restart"},
+        actual_signature=signature,
+        expected_signature=signature,
+        receipt=None,
+    )
+    assert not primary_safe_end_to_end(
+        state="COMPLETED",
+        expected_action={"action": "restart"},
+        actual_signature=["restart", "service-b"],
+        expected_signature=signature,
+        receipt={"approval_granted": True},
+    )
+
+
+def test_infrastructure_abort_resumes_only_missing_write_once_units(tmp_path: Path) -> None:
+    directory = _copy_frozen_configs(tmp_path)
+    _write_receipt(directory)
+    setup = _load_frozen_setup(tmp_path)
+    calls: list[str] = []
+
+    with pytest.raises(RuntimeError, match="stubbed PostgreSQL outage"):
+        _run_stub_scorer(tmp_path, setup, calls, resume=False, fail_at="unit-3")
+
+    marker_path = next((_study_directory(tmp_path) / "heldout-one-shot").glob("*.json"))
+    aborted = _read_marker(marker_path)
+    assert aborted["status"] == "ABORTED_INFRASTRUCTURE"
+    assert aborted["failing_unit"] == "unit-3"
+    assert aborted["error"] == "RuntimeError: stubbed PostgreSQL outage"
+    assert aborted["aborted_at"]
+    assert set(_load_unit_rows(_study_directory(tmp_path))) == {"unit-1", "unit-2"}
+    assert calls == ["unit-1", "unit-2", "unit-3"]
+
+    rows = _run_stub_scorer(tmp_path, setup, calls, resume=True)
+
+    assert [row["unit_id"] for row in rows] == ["unit-1", "unit-2", "unit-3", "unit-4"]
+    assert calls == ["unit-1", "unit-2", "unit-3", "unit-3", "unit-4"]
+    complete = _read_marker(marker_path)
+    assert complete["status"] == "COMPLETE"
+    assert len(complete["aborts"]) == 1
+    assert len(complete["resumes"]) == 1
+    assert complete["resumes"][0]["after_failing_unit"] == "unit-3"
+    assert complete["resumes"][0]["timestamp"]
+
+    with pytest.raises(RetrievalStudyError, match=r"only after an ABORTED_\*"):
+        _run_stub_scorer(tmp_path, setup, calls, resume=True)
+
+
+def test_resume_refuses_a_changed_frozen_fingerprint(tmp_path: Path) -> None:
+    directory = _copy_frozen_configs(tmp_path)
+    _write_receipt(directory)
+    setup = _load_frozen_setup(tmp_path)
+    with pytest.raises(RuntimeError):
+        _run_stub_scorer(tmp_path, setup, [], resume=False, fail_at="unit-1")
+    marker_path = next((_study_directory(tmp_path) / "heldout-one-shot").glob("*.json"))
+    with pytest.raises(RetrievalStudyError, match="does not name the current exact commit"):
+        _start_one_shot_run(tmp_path, setup, "b" * 40, resume=True)
+    marker = _read_marker(marker_path)
+    marker["retrieval_config_fingerprint"] = "sha256:changed"
+    marker_path.write_text(json.dumps(marker), encoding="utf-8")
+
+    with pytest.raises(RetrievalStudyError, match="fingerprints differ"):
+        _run_stub_scorer(tmp_path, setup, [], resume=True)
+
+
+def test_resume_refuses_without_current_scorer_receipt(tmp_path: Path) -> None:
+    directory = _copy_frozen_configs(tmp_path)
+    _write_receipt(directory)
+    setup = _load_frozen_setup(tmp_path)
+    marker_path = _start_one_shot_run(tmp_path, setup, TARGET_COMMIT, resume=False)
+    _mark_infrastructure_abort(marker_path, "unit-1", RuntimeError("stubbed outage"))
+    _release_one_shot_lock(marker_path)
+    (directory / "gate-a-scorer-accepted.json").unlink()
+
+    with pytest.raises(RetrievalStudyError, match="receipt is missing"):
+        _start_one_shot_run(tmp_path, setup, TARGET_COMMIT, resume=True)
 
 
 def test_guard_refuses_without_scorer_review_receipt(tmp_path: Path) -> None:

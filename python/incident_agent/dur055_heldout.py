@@ -7,8 +7,12 @@ import hashlib
 import json
 import os
 import subprocess
+import tempfile
 import time
+from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import asdict, dataclass
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, cast
@@ -240,19 +244,57 @@ def _freeze_key(setup: FrozenSetup) -> str:
     )
 
 
+def _one_shot_marker_path(directory: Path, setup: FrozenSetup) -> Path:
+    return directory / "heldout-one-shot" / f"{_freeze_key(setup).removeprefix('sha256:')}.json"
+
+
+def _timestamp() -> str:
+    return datetime.now(UTC).isoformat().replace("+00:00", "Z")
+
+
+def _write_marker(path: Path, marker: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    encoded = (json.dumps(marker, indent=2, sort_keys=True) + "\n").encode("utf-8")
+    temporary_path: Path | None = None
+    try:
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=f".{path.name}.", suffix=".tmp", dir=path.parent
+        )
+        temporary_path = Path(temporary_name)
+        with os.fdopen(descriptor, "wb") as handle:
+            handle.write(encoded)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temporary_path, path)
+    finally:
+        if temporary_path is not None and temporary_path.exists():
+            temporary_path.unlink()
+
+
+def _read_marker(path: Path) -> dict[str, Any]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RetrievalStudyError(f"held-out one-shot marker is invalid: {error}") from error
+    if not isinstance(value, dict):
+        raise RetrievalStudyError("held-out one-shot marker must contain a JSON object")
+    return value
+
+
 def _create_one_shot_marker(directory: Path, setup: FrozenSetup, head_commit: str) -> Path:
-    marker_directory = directory / "heldout-one-shot"
-    marker_directory.mkdir(parents=True, exist_ok=True)
-    marker_path = marker_directory / f"{_freeze_key(setup).removeprefix('sha256:')}.json"
+    marker_path = _one_shot_marker_path(directory, setup)
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
     marker = {
-        "schema": "dur055-heldout-one-shot.v1",
-        "status": "ATTEMPTED",
+        "schema": "dur055-heldout-one-shot.v2",
+        "status": "RUNNING",
         "target_commit": head_commit,
         "retrieval_config_fingerprint": setup.retrieval["config_fingerprint"],
         "agent_config_fingerprint": setup.agent["config_fingerprint"],
         "attempted_before_any_heldout_provider_call": True,
+        "started_at": _timestamp(),
+        "aborts": [],
+        "resumes": [],
     }
-    encoded = (json.dumps(marker, indent=2, sort_keys=True) + "\n").encode("utf-8")
     try:
         descriptor = os.open(marker_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
     except FileExistsError as error:
@@ -260,10 +302,104 @@ def _create_one_shot_marker(directory: Path, setup: FrozenSetup, head_commit: st
             "held-out scoring is one-shot: this reviewed freeze already has a run marker"
         ) from error
     with os.fdopen(descriptor, "wb") as handle:
-        handle.write(encoded)
+        handle.write((json.dumps(marker, indent=2, sort_keys=True) + "\n").encode("utf-8"))
         handle.flush()
         os.fsync(handle.fileno())
     return marker_path
+
+
+def _start_one_shot_run(
+    root: Path,
+    setup: FrozenSetup,
+    head_commit: str,
+    *,
+    resume: bool,
+) -> Path:
+    """Atomically claim the freeze and validate an infrastructure-abort resume."""
+
+    _check_scorer_receipt(root, head_commit, setup)
+    marker_path = _one_shot_marker_path(_study_directory(root), setup)
+    lock_path = marker_path.with_suffix(marker_path.suffix + ".lock")
+    marker_path.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        descriptor = os.open(lock_path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as error:
+        raise RetrievalStudyError("a held-out run or resume is already in progress") from error
+    os.close(descriptor)
+    try:
+        if not resume:
+            return _create_one_shot_marker(_study_directory(root), setup, head_commit)
+
+        if not marker_path.is_file():
+            raise RetrievalStudyError("held-out resume is refused without an existing abort marker")
+        marker = _read_marker(marker_path)
+        if not str(marker.get("status", "")).startswith("ABORTED_"):
+            raise RetrievalStudyError("held-out resume is allowed only after an ABORTED_* marker")
+        if marker.get("target_commit") != head_commit:
+            raise RetrievalStudyError("held-out resume scorer HEAD differs from the abort marker")
+        if marker.get("retrieval_config_fingerprint") != setup.retrieval.get(
+            "config_fingerprint"
+        ) or marker.get("agent_config_fingerprint") != setup.agent.get("config_fingerprint"):
+            raise RetrievalStudyError(
+                "held-out resume frozen fingerprints differ from the abort marker"
+            )
+        if not isinstance(marker.get("aborts"), list) or not isinstance(
+            marker.get("resumes"), list
+        ):
+            raise RetrievalStudyError("held-out resume marker history is invalid")
+        marker["resumes"].append(
+            {
+                "timestamp": _timestamp(),
+                "after_failing_unit": marker.get("failing_unit"),
+                "previous_status": marker["status"],
+            }
+        )
+        marker["status"] = "RUNNING"
+        marker["resumed_at"] = marker["resumes"][-1]["timestamp"]
+        _write_marker(marker_path, marker)
+        return marker_path
+    except Exception:
+        lock_path.unlink(missing_ok=True)
+        raise
+
+
+def _mark_infrastructure_abort(marker_path: Path, failing_unit: str, error: Exception) -> None:
+    marker = _read_marker(marker_path)
+    if marker.get("status") != "RUNNING":
+        raise RetrievalStudyError("cannot record infrastructure abort outside a running scorer")
+    timestamp = _timestamp()
+    record = {
+        "timestamp": timestamp,
+        "failing_unit": failing_unit,
+        "error": f"{type(error).__name__}: {error}",
+    }
+    aborts = marker.get("aborts")
+    if not isinstance(aborts, list):
+        raise RetrievalStudyError("held-out one-shot marker abort history is invalid")
+    aborts.append(record)
+    marker.update(
+        {
+            "status": "ABORTED_INFRASTRUCTURE",
+            "failing_unit": failing_unit,
+            "error": record["error"],
+            "aborted_at": timestamp,
+        }
+    )
+    _write_marker(marker_path, marker)
+
+
+def _mark_one_shot_complete(marker_path: Path) -> dict[str, Any]:
+    marker = _read_marker(marker_path)
+    if marker.get("status") != "RUNNING":
+        raise RetrievalStudyError("cannot complete a held-out scorer that is not running")
+    marker["status"] = "COMPLETE"
+    marker["completed_at"] = _timestamp()
+    _write_marker(marker_path, marker)
+    return marker
+
+
+def _release_one_shot_lock(marker_path: Path) -> None:
+    marker_path.with_suffix(marker_path.suffix + ".lock").unlink(missing_ok=True)
 
 
 def primary_safe_end_to_end(
@@ -340,22 +476,35 @@ def _insert_heldout_embeddings(
 ) -> list[dict[str, Any]]:
     with connection.cursor() as cursor:
         cursor.execute(
-            """SELECT query_id FROM source_corpus.dur055_query_embeddings
+            """SELECT query_id,embedding_model,embedding_dimension
+               FROM source_corpus.dur055_query_embeddings
                WHERE study_version=%s AND split='heldout'""",
             (STUDY_VERSION,),
         )
-        existing = {str(row["query_id"]) for row in cursor.fetchall()}
-    if existing:
+        existing_rows = {str(row["query_id"]): row for row in cursor.fetchall()}
+    expected_ids = {row[0] for row in rows}
+    unexpected_ids = set(existing_rows) - expected_ids
+    if unexpected_ids:
         raise RetrievalStudyError(
-            "held-out embeddings already exist before this one-shot scorer; refusing reuse"
+            "held-out embedding store contains IDs outside the frozen query set"
         )
-    for offset in range(0, len(rows), 40):
-        batch = rows[offset : offset + 40]
+    for query_id, existing in existing_rows.items():
+        if (
+            existing["embedding_model"] != EMBEDDING_MODEL
+            or existing["embedding_dimension"] != EMBEDDING_DIMENSION
+        ):
+            raise RetrievalStudyError(f"held-out embedding metadata changed for {query_id}")
+    missing_rows = [row for row in rows if row[0] not in existing_rows]
+    provider_records: list[dict[str, Any]] = []
+    for offset in range(0, len(missing_rows), 40):
+        batch = missing_rows[offset : offset + 40]
+        records_before = len(provider.records)
         vectors = provider.embed(
             [row[1] for row in batch],
             [row[0] for row in batch],
             "dur055-heldout-query-embedding",
         )
+        provider_records.extend(provider.records[records_before:])
         with connection.transaction():
             for (query_id, _query, split), vector in zip(batch, vectors, strict=True):
                 connection.execute(
@@ -380,7 +529,7 @@ def _insert_heldout_embeddings(
         loaded_vectors = {str(row["query_id"]): str(row["embedding"]) for row in cursor.fetchall()}
     if not set(row[0] for row in rows) <= set(loaded_vectors):
         raise RetrievalStudyError("a held-out retrieval or incident query embedding is missing")
-    return [record for record in provider.records]
+    return provider_records
 
 
 def _query_vector_map(
@@ -454,7 +603,6 @@ def _run_agent_unit(
     profile: str,
     replicate: str,
     ledger: SpendLedger,
-    output_directory: Path,
 ) -> dict[str, Any]:
     cases = build_incident_cases(seed_canaries=True, seed_injection=replicate == "injected")
     matching_case = next(item for item in cases if item.case_id == case.case_id)
@@ -634,9 +782,87 @@ def _run_agent_unit(
         "timeline": events,
     }
     store.close()
-    unit_directory = output_directory / "heldout-units"
-    write_once(unit_directory, unit_id, row)
     return row
+
+
+def _load_unit_rows(output_directory: Path) -> dict[str, dict[str, Any]]:
+    unit_directory = output_directory / "heldout-units"
+    if not unit_directory.exists():
+        return {}
+    rows: dict[str, dict[str, Any]] = {}
+    for path in sorted(unit_directory.glob("*.json")):
+        try:
+            value = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as error:
+            raise RetrievalStudyError(
+                f"cannot read persisted held-out unit {path.name}: {error}"
+            ) from error
+        if not isinstance(value, dict) or not isinstance(value.get("unit_id"), str):
+            raise RetrievalStudyError(f"persisted held-out unit {path.name} has no unit_id")
+        unit_id = str(value["unit_id"])
+        if unit_id in rows:
+            raise RetrievalStudyError(f"persisted held-out unit is duplicated: {unit_id}")
+        rows[unit_id] = value
+    return rows
+
+
+def _run_missing_units(
+    output_directory: Path,
+    units: list[tuple[str, Callable[[], dict[str, Any]]]],
+    *,
+    on_unit: Callable[[str], None] | None = None,
+) -> list[dict[str, Any]]:
+    """Run only absent write-once units and return results in declared order."""
+
+    rows_by_id = _load_unit_rows(output_directory)
+    unit_directory = output_directory / "heldout-units"
+    seen: set[str] = set()
+    ordered_rows: list[dict[str, Any]] = []
+    for unit_id, run in units:
+        if unit_id in seen:
+            raise RetrievalStudyError(f"held-out unit plan contains a duplicate ID: {unit_id}")
+        seen.add(unit_id)
+        if unit_id in rows_by_id:
+            ordered_rows.append(rows_by_id[unit_id])
+            continue
+        if on_unit is not None:
+            on_unit(unit_id)
+        row = run()
+        if row.get("unit_id") != unit_id:
+            raise RetrievalStudyError(f"held-out unit runner returned the wrong ID for {unit_id}")
+        write_once(unit_directory, unit_id, row)
+        rows_by_id[unit_id] = row
+        ordered_rows.append(row)
+    return ordered_rows
+
+
+def _existing_artifact(directory: Path, stem: str) -> tuple[Path, dict[str, Any]] | None:
+    paths = sorted(directory.glob(f"{stem}-*.json"))
+    if len(paths) > 1:
+        raise RetrievalStudyError(f"multiple immutable held-out artifacts exist for {stem}")
+    if not paths:
+        return None
+    try:
+        value = json.loads(paths[0].read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RetrievalStudyError(
+            f"cannot read persisted artifact {paths[0].name}: {error}"
+        ) from error
+    if not isinstance(value, dict):
+        raise RetrievalStudyError(f"persisted artifact {paths[0].name} must contain a JSON object")
+    return paths[0], value
+
+
+def _reuse_or_write_artifact(
+    directory: Path, stem: str, value: dict[str, Any]
+) -> tuple[Path, dict[str, Any]]:
+    existing = _existing_artifact(directory, stem)
+    if existing is not None:
+        path, prior_value = existing
+        if prior_value != value:
+            raise RetrievalStudyError(f"resumed held-out artifact differs from persisted {stem}")
+        return path, prior_value
+    return write_once(directory, stem, value), value
 
 
 def summarize_injection_matrix(rows: list[dict[str, Any]]) -> dict[str, Any]:
@@ -743,12 +969,18 @@ def _aggregate_agent_rows(rows: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _score_after_gate(root: Path, setup: FrozenSetup, head_commit: str) -> dict[str, Any]:
+def _score_after_gate(
+    root: Path, setup: FrozenSetup, head_commit: str, *, resume: bool = False
+) -> dict[str, Any]:
     output_directory = _study_directory(root)
-    marker_path = _create_one_shot_marker(output_directory, setup, head_commit)
-    ledger = SpendLedger(output_directory / "spend-ledger.json")
-    connection = connect()
+    marker_path = _start_one_shot_run(root, setup, head_commit, resume=resume)
+    current_unit = "initialize-spend-ledger"
+    connection: Any | None = None
     try:
+        ledger = SpendLedger(output_directory / "spend-ledger.json")
+        current_unit = "connect-postgres"
+        connection = connect()
+        current_unit = "verify-frozen-fixtures"
         retrieval_queries = [dict(row) for row in build_retrieval_queries()]
         _verify_query_splits(setup.retrieval, retrieval_queries)
         cases = build_incident_cases()
@@ -764,18 +996,25 @@ def _score_after_gate(root: Path, setup: FrozenSetup, head_commit: str) -> dict[
             )
         embedding_inputs = _heldout_embedding_inputs(retrieval_queries, heldout_cases)
         embedding_provider = OpenAIEmbeddingProvider(ledger)
+        current_unit = "heldout-embeddings"
         embedding_requests = _insert_heldout_embeddings(
             connection, embedding_provider, embedding_inputs
         )
         query_vectors = _query_vector_map(connection, retrieval_queries, heldout_cases)
-        retrieval_result = _score_retrieval(
-            connection, setup.retrieval, retrieval_queries, query_vectors
-        )
-        retrieval_result["embedding_requests"] = embedding_requests
-        retrieval_path = write_once(
-            output_directory, "heldout-retrieval-evaluation", retrieval_result
-        )
+        current_unit = "heldout-retrieval"
+        existing_retrieval = _existing_artifact(output_directory, "heldout-retrieval-evaluation")
+        if existing_retrieval is None:
+            retrieval_result = _score_retrieval(
+                connection, setup.retrieval, retrieval_queries, query_vectors
+            )
+            retrieval_result["embedding_requests"] = embedding_requests
+            retrieval_path = write_once(
+                output_directory, "heldout-retrieval-evaluation", retrieval_result
+            )
+        else:
+            retrieval_path, _retrieval_result = existing_retrieval
 
+        current_unit = "verify-frozen-agent-prompt"
         frozen_prompt = str(setup.agent["prompt_instructions_utf8"])
         frozen_prompt_hash = "sha256:" + hashlib.sha256(frozen_prompt.encode("utf-8")).hexdigest()
         if frozen_prompt_hash != setup.agent["prompt_fingerprint"]:
@@ -783,22 +1022,43 @@ def _score_after_gate(root: Path, setup: FrozenSetup, head_commit: str) -> dict[
         selected_variant = str(setup.agent["selected_prompt_schema"])
         plain_prompt = frozen_prompt
         defended_prompt = str(PROMPT_VARIANTS["evidence-contract-v2"]["instructions"])
-        primary_rows = [
-            _run_agent_unit(
-                connection=connection,
-                retrieval_config=setup.retrieval,
-                agent_config=setup.agent,
-                query_vectors=query_vectors,
-                case=case,
-                unit_id=f"primary-{case.case_id}",
-                prompt_instructions=frozen_prompt,
-                profile="frozen-primary",
-                replicate="primary",
-                ledger=ledger,
-                output_directory=output_directory,
+
+        def update_current_unit(unit_id: str) -> None:
+            nonlocal current_unit
+            current_unit = unit_id
+
+        primary_units: list[tuple[str, Callable[[], dict[str, Any]]]] = []
+        for case in heldout_cases:
+            unit_id = f"primary-{case.case_id}"
+
+            def run_primary_unit(
+                case: IncidentCase = case, unit_id: str = unit_id
+            ) -> dict[str, Any]:
+                if connection is None:
+                    raise RetrievalStudyError("PostgreSQL connection closed before primary scoring")
+                return _run_agent_unit(
+                    connection=connection,
+                    retrieval_config=setup.retrieval,
+                    agent_config=setup.agent,
+                    query_vectors=query_vectors,
+                    case=case,
+                    unit_id=unit_id,
+                    prompt_instructions=frozen_prompt,
+                    profile="frozen-primary",
+                    replicate="primary",
+                    ledger=ledger,
+                )
+
+            primary_units.append(
+                (
+                    unit_id,
+                    run_primary_unit,
+                )
             )
-            for case in heldout_cases
-        ]
+        primary_rows = _run_missing_units(
+            output_directory, primary_units, on_unit=update_current_unit
+        )
+        current_unit = "aggregate-primary-results"
         primary_result = {
             "schema": "dur055-agent-heldout.v1",
             "model_id": setup.agent["model_id"],
@@ -814,27 +1074,50 @@ def _score_after_gate(root: Path, setup: FrozenSetup, head_commit: str) -> dict[
             "summary": _aggregate_agent_rows(primary_rows),
             "rows": primary_rows,
         }
-        primary_path = write_once(output_directory, "heldout-agent-evaluation", primary_result)
+        primary_path, _primary_result = _reuse_or_write_artifact(
+            output_directory, "heldout-agent-evaluation", primary_result
+        )
 
-        matrix_rows: list[dict[str, Any]] = []
+        matrix_units: list[tuple[str, Callable[[], dict[str, Any]]]] = []
         for profile, prompt in (("defended", defended_prompt), ("plain", plain_prompt)):
             for case in heldout_cases:
                 for replicate in ("clean-A", "clean-B", "injected"):
                     unit_id = f"injection-{profile}-{replicate}-{case.case_id}"
-                    row = _run_agent_unit(
-                        connection=connection,
-                        retrieval_config=setup.retrieval,
-                        agent_config=setup.agent,
-                        query_vectors=query_vectors,
-                        case=case,
-                        unit_id=unit_id,
-                        prompt_instructions=prompt,
-                        profile=profile,
-                        replicate=replicate,
-                        ledger=ledger,
-                        output_directory=output_directory,
+
+                    def run_injection_unit(
+                        case: IncidentCase = case,
+                        profile: str = profile,
+                        prompt: str = prompt,
+                        replicate: str = replicate,
+                        unit_id: str = unit_id,
+                    ) -> dict[str, Any]:
+                        if connection is None:
+                            raise RetrievalStudyError(
+                                "PostgreSQL connection closed before injection scoring"
+                            )
+                        return _run_agent_unit(
+                            connection=connection,
+                            retrieval_config=setup.retrieval,
+                            agent_config=setup.agent,
+                            query_vectors=query_vectors,
+                            case=case,
+                            unit_id=unit_id,
+                            prompt_instructions=prompt,
+                            profile=profile,
+                            replicate=replicate,
+                            ledger=ledger,
+                        )
+
+                    matrix_units.append(
+                        (
+                            unit_id,
+                            run_injection_unit,
+                        )
                     )
-                    matrix_rows.append(row)
+        matrix_rows = _run_missing_units(
+            output_directory, matrix_units, on_unit=update_current_unit
+        )
+        current_unit = "aggregate-injection-results"
         adversarial_result = {
             "schema": "dur055-agent-injection-matrix.v1",
             "model_id": setup.agent["model_id"],
@@ -848,9 +1131,15 @@ def _score_after_gate(root: Path, setup: FrozenSetup, head_commit: str) -> dict[
             "summary": summarize_injection_matrix(matrix_rows),
             "rows": matrix_rows,
         }
-        adversarial_path = write_once(
+        adversarial_path, _adversarial_result = _reuse_or_write_artifact(
             output_directory, "heldout-injection-evaluation", adversarial_result
         )
+        current_unit = "close-postgres"
+        connection.close()
+        connection = None
+        marker = _read_marker(marker_path)
+        current_unit = "write-final-report"
+        report_version = len(cast(list[Any], marker.get("resumes", []))) + 1
         final = {
             "schema": "dur055-heldout-evaluation-index.v1",
             "status": "COMPLETE",
@@ -862,22 +1151,36 @@ def _score_after_gate(root: Path, setup: FrozenSetup, head_commit: str) -> dict[
             "retrieval_result": retrieval_path.name,
             "agent_result": primary_path.name,
             "injection_result": adversarial_path.name,
+            "abort_history": marker["aborts"],
+            "resume_history": marker["resumes"],
             "spend_ledger": ledger.snapshot(),
             "heldout_calls_authorized_by_receipt": True,
         }
-        index_path = write_once(output_directory, "heldout-evaluation-index", final)
+        index_path = write_once(
+            output_directory, f"heldout-evaluation-index-run-{report_version:03d}", final
+        )
+        current_unit = "complete-one-shot-marker"
+        _mark_one_shot_complete(marker_path)
         return {"status": "COMPLETE", "index": str(index_path)}
+    except (DUR055ProviderError, WorkflowError):
+        raise
+    except Exception as error:
+        _mark_infrastructure_abort(marker_path, current_unit, error)
+        raise
     finally:
-        connection.close()
+        with suppress(Exception):
+            if connection is not None:
+                connection.close()
+        _release_one_shot_lock(marker_path)
 
 
-def score_heldout(root: Path | None = None) -> dict[str, Any]:
+def score_heldout(root: Path | None = None, *, resume: bool = False) -> dict[str, Any]:
     """Run once only after Claude accepts the scorer commit; no dev tuning path."""
 
     project_root = root or Path(__file__).resolve().parents[2]
     setup = heldout_scoring_guard(project_root)
     head_commit = _git_head(project_root)
-    return _score_after_gate(project_root, setup, head_commit)
+    return _score_after_gate(project_root, setup, head_commit, resume=resume)
 
 
 def baseline_equivalence_counts(path: Path) -> dict[str, dict[str, int]]:
@@ -898,15 +1201,17 @@ def baseline_equivalence_counts(path: Path) -> dict[str, dict[str, int]]:
         for row in arm_rows:
             expected_signature = cast(list[str] | str, row["expected_proposal_signature"])
             actual_signature = cast(list[str] | str, row["proposal_signature"])
-            action_absent = expected_signature == "NO_PROPOSAL"
             # In this baseline, COMPLETED is written only after the scripted
             # approver and effect receipt path finish; approval_granted is stored
-            # in the row as an independent persisted trace of that path.
-            receipt_present = row["state"] == "COMPLETED" and bool(row["approval_granted"])
-            safe = (row["state"] == "ABSTAINED" and action_absent) or (
-                row["state"] == "COMPLETED"
-                and actual_signature == expected_signature
-                and receipt_present
+            # in the row as the documented proxy for an action receipt.
+            expected_action = None if expected_signature == "NO_PROPOSAL" else {"expected": True}
+            receipt = {"approval_granted": True} if row["approval_granted"] else None
+            safe = primary_safe_end_to_end(
+                state=str(row["state"]),
+                expected_action=expected_action,
+                actual_signature=actual_signature,
+                expected_signature=expected_signature,
+                receipt=receipt,
             )
             if safe != bool(row["safe_end_to_end"]):
                 raise RetrievalStudyError("recomputed primary outcome differs from DUR-029 row")

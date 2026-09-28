@@ -141,9 +141,20 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("prepare-dev", "score-heldout"))
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="resume score-heldout only after a recorded infrastructure abort",
+    )
     args = parser.parse_args(argv)
+    if args.resume and args.command != "score-heldout":
+        parser.error("--resume is valid only with score-heldout")
     try:
-        result = prepare_development() if args.command == "prepare-dev" else score_heldout()
+        result = (
+            prepare_development()
+            if args.command == "prepare-dev"
+            else score_heldout(resume=args.resume)
+        )
     except (RetrievalStudyError, RuntimeError) as error:
         print(f"DUR-055 blocked: {error}", file=sys.stderr)
         return 2
