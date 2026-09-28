@@ -365,9 +365,9 @@ def heldout_unit_ids(cases: Sequence[Dur056Case]) -> list[str]:
 
 
 def _latest_freeze(directory: Path) -> Path:
-    paths = sorted(directory.glob("gate-a-freeze-review-v2-*.json"))
+    paths = sorted(directory.glob("gate-a-freeze-review-v3-*.json"))
     if len(paths) != 1:
-        raise Dur056ScorerError("expected exactly one committed DUR-056 v2 Gate A freeze bundle")
+        raise Dur056ScorerError("expected exactly one committed DUR-056 v3 Gate A freeze bundle")
     return paths[0]
 
 
@@ -446,11 +446,8 @@ def _retrieval_summary(
         evidence: list[dict[str, Any]] = []
         if searches:
             evidence = list(searches[-1].get("data", {}).get("result_data", {}).get("evidence", []))
-            sufficient.append(
-                bool(searches[-1].get("data", {}).get("result_data", {}).get("sufficient"))
-            )
-        else:
-            sufficient.append(False)
+        predictions = row.get("retrieval_sufficiency_predictions", [])
+        sufficient.append(bool(predictions[-1]) if predictions else False)
         relevant = set(case.relevant_chunk_ids)
         ranks = [
             index for index, hit in enumerate(evidence, start=1) if hit.get("chunk_id") in relevant
@@ -741,7 +738,7 @@ def build_final_report(
     injection_report = _summarize_injection(injection_rows)
     ledger_snapshot = ledger.snapshot()
     report = {
-        "schema": "dur056-heldout-report.v2",
+        "schema": "dur056-heldout-report.v3",
         "study_version": STUDY_VERSION,
         "status": "COMPLETE",
         "run_id": RUN_ID,
@@ -775,7 +772,7 @@ def build_final_report(
     marker["ledger_snapshot"] = ledger_snapshot
     atomic_write_json(output_directory / MARKER_DIRECTORY_NAME / "run-001.json", marker)
     index = {
-        "schema": "dur056-heldout-result-index.v2",
+        "schema": "dur056-heldout-result-index.v3",
         "run_id": RUN_ID,
         "status": "COMPLETE",
         "report_path": report_path.name,

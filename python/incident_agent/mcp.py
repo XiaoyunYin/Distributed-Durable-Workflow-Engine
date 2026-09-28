@@ -53,11 +53,13 @@ class BoundedMCPServer:
         seed_canaries: bool = True,
         seed_injection: bool = True,
         cases: Iterable[IncidentCase] | None = None,
+        include_retrieval_diagnostics: bool = True,
     ) -> None:
         self.index = index
         self.max_calls = max_calls
         self.max_rows = max_rows
         self.redact_outputs = redact_outputs
+        self.include_retrieval_diagnostics = include_retrieval_diagnostics
         self._calls: dict[str, list[MCPCall]] = {}
         self._results: dict[str, list[ToolResult]] = {}
         self._status: dict[str, dict[str, Any]] = {}
@@ -205,6 +207,9 @@ class BoundedMCPServer:
                     "snippet": snippet,
                 }
             )
+        result_data: dict[str, Any] = {"arm": arm, "evidence": evidence}
+        if self.include_retrieval_diagnostics:
+            result_data.update({"sufficient": response.sufficient, "reason": response.reason})
         return self._record(
             run_id,
             "search_runbooks",
@@ -212,12 +217,7 @@ class BoundedMCPServer:
             ToolResult(
                 "search_runbooks",
                 SCHEMA_VERSION,
-                {
-                    "arm": arm,
-                    "sufficient": response.sufficient,
-                    "reason": response.reason,
-                    "evidence": evidence,
-                },
+                result_data,
                 tuple(hit.chunk_id for hit in response.delivered),
                 redactions,
             ),

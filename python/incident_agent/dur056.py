@@ -215,6 +215,10 @@ def validate_fixtures() -> dict[str, Any]:
         oracle = oracle_report(split)
         if oracle["correct"] != len(cases) or oracle["accuracy"] != 1.0:
             raise Dur056StudyError(f"DUR-056 {split} deterministic oracle did not score 100%")
+        if oracle["unique_incident_keys"] != len(cases):
+            raise Dur056StudyError(
+                f"DUR-056 {split} must have one unique incident key per case"
+            )
         if oracle["provider_calls"] != 0:
             raise Dur056StudyError("the local DUR-056 oracle must make zero provider calls")
         reports[split] = {
@@ -247,7 +251,7 @@ def validate_fixtures() -> dict[str, Any]:
     reports["study_version"] = STUDY_VERSION
     reports["model_provider_calls"] = 0
     reports["embedding_provider_calls"] = 0
-    return {"schema": "dur056-fixture-validity.v2", "splits": reports}
+    return {"schema": "dur056-fixture-validity.v3", "splits": reports}
 
 
 def prepare_development(root: Path | None = None) -> dict[str, Any]:
@@ -256,7 +260,7 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
     project_root = root or _root()
     output_directory = _study_directory(project_root)
     output_directory.mkdir(parents=True, exist_ok=True)
-    existing_freezes = list(output_directory.glob("gate-a-freeze-review-v2-*.json"))
+    existing_freezes = list(output_directory.glob("gate-a-freeze-review-v3-*.json"))
     if existing_freezes:
         raise Dur056StudyError(
             "a DUR-056 frozen Gate A bundle already exists; refusing to retune or overwrite"
@@ -264,12 +268,12 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
     validity = validate_fixtures()
     oracle_paths = {
         split: write_once(
-            output_directory, f"oracle-report-{split}-v2", validity["splits"][split]["oracle"]
+            output_directory, f"oracle-report-{split}-v3", validity["splits"][split]["oracle"]
         )
         for split in ("development", "heldout")
     }
     validity["oracle_report_paths"] = {key: value.name for key, value in oracle_paths.items()}
-    validity_path = write_once(output_directory, "fixture-validity-v2", validity)
+    validity_path = write_once(output_directory, "fixture-validity-v3", validity)
 
     ledger = Dur056SpendLedger(output_directory / "spend-ledger.json")
     cases = build_cases("development")
@@ -320,13 +324,13 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
         retrieval_results["selected_config_fingerprint"] = retrieval_config["config_fingerprint"]
         retrieval_results["frozen_candidate"] = retrieval_config
         retrieval_config_path = write_once(
-            output_directory, "retrieval-frozen-config-v2", retrieval_config
+            output_directory, "retrieval-frozen-config-v3", retrieval_config
         )
         retrieval_results_path = write_once(
-            output_directory, "retrieval-development-v2", retrieval_results
+            output_directory, "retrieval-development-v3", retrieval_results
         )
         manifest = {
-            "schema": "dur056-study-manifest.v2",
+            "schema": "dur056-study-manifest.v3",
             "study_version": STUDY_VERSION,
             "source_commit": current_git_head(project_root),
             "fixture_validity_path": validity_path.name,
@@ -348,7 +352,7 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
             "database": database_manifest(connection),
             "spend_ledger_snapshot": ledger.snapshot(),
         }
-        manifest_path = write_once(output_directory, "study-manifest-v2", manifest)
+        manifest_path = write_once(output_directory, "study-manifest-v3", manifest)
         agent_results = evaluate_development_agents(
             cases=cases,
             ledger=ledger,
@@ -362,7 +366,7 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
         agent_results["heldout_seed"] = HELDOUT_SEED
         agent_results["heldout_model_calls"] = 0
         agent_results["per_run_cost_authority"] = "DUR-056 spend-ledger.json"
-        agent_results_path = write_once(output_directory, "agent-development-v2", agent_results)
+        agent_results_path = write_once(output_directory, "agent-development-v3", agent_results)
 
         selected = str(agent_results["selected_candidate"])
         candidate = PROMPT_CANDIDATES[selected]
@@ -387,7 +391,7 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
             profile["structured_output_schema_fingerprint"] = fingerprint(schema)
             profile["mcp_tool_schema_fingerprint"] = definition["mcp_tool_schema_fingerprint"]
         agent_config: dict[str, Any] = {
-            "schema": "dur056-agent-frozen-config.v2",
+            "schema": "dur056-agent-frozen-config.v3",
             "study_version": STUDY_VERSION,
             "model_id": MODEL_ID,
             "endpoint": ENDPOINT,
@@ -414,9 +418,9 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
             "heldout_scored": False,
         }
         agent_config["config_fingerprint"] = fingerprint(agent_config)
-        agent_config_path = write_once(output_directory, "agent-frozen-config-v2", agent_config)
+        agent_config_path = write_once(output_directory, "agent-frozen-config-v3", agent_config)
         freeze_bundle: dict[str, Any] = {
-            "schema": "dur056-gate-a-freeze-bundle.v2",
+            "schema": "dur056-gate-a-freeze-bundle.v3",
             "study_version": STUDY_VERSION,
             "gate": "A",
             "status": "READY_FOR_FREEZE_REVIEW",
@@ -438,7 +442,7 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
             "heldout_embedding_calls": 0,
         }
         freeze_bundle["freeze_fingerprint"] = fingerprint(freeze_bundle)
-        freeze_path = write_once(output_directory, "gate-a-freeze-review-v2", freeze_bundle)
+        freeze_path = write_once(output_directory, "gate-a-freeze-review-v3", freeze_bundle)
         return {
             "status": "READY_FOR_FREEZE_REVIEW",
             "freeze_bundle_path": str(freeze_path),
@@ -456,10 +460,10 @@ def analyze_development_results(root: Path, source_report_name: str) -> dict[str
 
     if (
         Path(source_report_name).name != source_report_name
-        or not source_report_name.startswith("agent-development-v2-")
+        or not source_report_name.startswith("agent-development-v3-")
         or not source_report_name.endswith(".json")
     ):
-        raise Dur056StudyError("analysis requires a versioned DUR-056 v2 development report")
+        raise Dur056StudyError("analysis requires a versioned DUR-056 v3 development report")
     output_directory = _study_directory(root)
     report = read_json(output_directory / source_report_name)
     if not isinstance(report, dict):
@@ -472,7 +476,7 @@ def analyze_development_results(root: Path, source_report_name: str) -> dict[str
             "provider_calls": 0,
         }
     )
-    path = write_once(output_directory, "agent-development-analysis-v2", analysis)
+    path = write_once(output_directory, "agent-development-analysis-v3", analysis)
     return {"status": "ANALYZED", "analysis_path": str(path), "provider_calls": 0}
 
 
@@ -489,7 +493,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "--source-report",
-        help="immutable agent-development-v2 report for local analysis; no provider calls",
+        help="immutable agent-development-v3 report for local analysis; no provider calls",
     )
     args = parser.parse_args(argv)
     if args.resume and args.command != "score-heldout":
@@ -503,7 +507,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "validate-fixtures":
             report = validate_fixtures()
-            path = write_once(output_directory, "fixture-validity-v2", report)
+            path = write_once(output_directory, "fixture-validity-v3", report)
             result: dict[str, Any] = {"status": "VALID", "report_path": str(path), "oracle": report}
         elif args.command == "prepare-dev":
             result = prepare_development(project_root)

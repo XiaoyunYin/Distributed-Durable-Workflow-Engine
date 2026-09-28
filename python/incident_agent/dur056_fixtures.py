@@ -12,14 +12,14 @@ import inspect
 import json
 import random
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, Literal, cast
 
 from incident_agent.models import EvidenceChunk, IncidentCase
 
-STUDY_VERSION = "dur056-solvable-evidence-v2"
-DEV_SEED = 5603
-HELDOUT_SEED = 5604
+STUDY_VERSION = "dur056-solvable-evidence-v3"
+DEV_SEED = 5703
+HELDOUT_SEED = 5704
 FAMILIES = (
     "bad_configuration",
     "connection_pool",
@@ -237,6 +237,7 @@ def _fact_text(
     symptom: str,
     action: dict[str, Any] | None = None,
     supersedes: str | None = None,
+    superseded_by: str | None = None,
     policy: str | None = None,
     observation: str | None = None,
 ) -> str:
@@ -250,6 +251,8 @@ def _fact_text(
     ]
     if supersedes is not None:
         facts.append(f"SUPERSEDES={supersedes}")
+    if superseded_by is not None:
+        facts.append(f"SUPERSEDED_BY={superseded_by}")
     if policy is not None:
         facts.append(f"POLICY={policy}")
     if action is not None:
@@ -415,7 +418,7 @@ def _case(
                         effective=f"2026-08-{rng.randint(1, 27):02d}",
                         symptom=symptom,
                         action=old_action,
-                        supersedes=f"policy-{active_version_number}",
+                        superseded_by=f"policy-{active_version_number}",
                     ),
                 ),
                 _chunk(
@@ -583,15 +586,20 @@ def build_cases(split: Literal["development", "heldout"]) -> tuple[Dur056Case, .
     for index in range(negative_count):
         descriptors.append(("near_duplicate_decoy", _balanced_family(index, negative_count), index))
 
-    groups = list(dict.fromkeys((category, family) for category, family, _ in descriptors))
     version_pool = list(range(20, 1500))
     rng.shuffle(version_pool)
     category_order = {category: index for index, category in enumerate(CATEGORY_CODES)}
-    plans: dict[tuple[CaseCategory, str], _KeyPlan] = {}
-    for (category, family), version_number in zip(groups, version_pool[: len(groups)], strict=True):
+    plans: dict[tuple[CaseCategory, str, int], _KeyPlan] = {}
+    target_keys: set[IncidentKey] = set()
+    for descriptor, version_number in zip(
+        descriptors, version_pool[: len(descriptors)], strict=True
+    ):
+        category, family, index = descriptor
         service = SERVICES[family]
         version = f"v{version_number}"
-        signal = SIGNALS[family][category_order[category] % len(SIGNALS[family])]
+        signal = SIGNALS[family][
+            (index + category_order[category]) % len(SIGNALS[family])
+        ]
         action = _expected_action(family, service, version, rng)
         conflict: dict[str, Any] | None = None
         if category == "stale_unresolved_conflict":
@@ -600,27 +608,61 @@ def build_cases(split: Literal["development", "heldout"]) -> tuple[Dur056Case, .
                 "service": service,
                 "parameters": _wrong_parameters(family, action["parameters"], version, rng),
             }
-        decoy: dict[str, Any] = {}
-        if category == "near_duplicate_decoy":
-            decoy_family = FAMILIES[(FAMILIES.index(family) + 1) % len(FAMILIES)]
-            decoy_service = SERVICES[decoy_family]
-            decoy_version = f"v{version_number + 5000}"
-            decoy = {
-                "decoy_service": decoy_service,
-                "decoy_version": decoy_version,
-                "decoy_signal": rng.choice(SIGNALS[decoy_family]),
-                "decoy_symptom": rng.choice(SYMPTOMS[decoy_family]),
-                "decoy_action": _expected_action(decoy_family, decoy_service, decoy_version, rng),
-            }
-        plans[(category, family)] = _KeyPlan(
+        plans[descriptor] = _KeyPlan(
             active_version_number=version_number,
             signal=signal,
             action=action,
             conflicting_action=conflict,
-            **decoy,
         )
+        target_keys.add((service, version, signal))
+
+    used_keys = set(target_keys)
+    nearby_offsets = (1, -1, 2, -2, 3, -3)
+    for descriptor, plan in tuple(plans.items()):
+        category, family, _index = descriptor
+        if category != "near_duplicate_decoy":
+            continue
+        service = SERVICES[family]
+        active_version_number = plan.active_version_number
+        version = f"v{active_version_number}"
+        offsets = list(nearby_offsets)
+        rng.shuffle(offsets)
+        decoy_version_number = next(
+            (
+                active_version_number + offset
+                for offset in offsets
+                if active_version_number + offset > 1
+                and (
+                    service,
+                    f"v{active_version_number + offset}",
+                    plan.signal,
+                )
+                not in used_keys
+            ),
+            None,
+        )
+        if decoy_version_number is None:
+            raise ValueError("cannot assign a collision-free nearby decoy version")
+        decoy_version = f"v{decoy_version_number}"
+        decoy_parameters = _wrong_parameters(
+            family, plan.action["parameters"], decoy_version, rng
+        )
+        decoy_action = {
+            "action": plan.action["action"],
+            "service": service,
+            "parameters": decoy_parameters,
+        }
+        plans[descriptor] = replace(
+            plan,
+            decoy_service=service,
+            decoy_version=decoy_version,
+            decoy_signal=plan.signal,
+            decoy_symptom=rng.choice(SYMPTOMS[family]),
+            decoy_action=decoy_action,
+        )
+        used_keys.add((service, decoy_version, plan.signal))
     rows = tuple(
-        _case(split, category, family, index, plans[(category, family)], rng)
+        _case(split, category, family, index, plans[(category, family, index)], rng)
         for category, family, index in descriptors
     )
     rows = tuple(sorted(rows, key=lambda case: case.case_id))
@@ -807,7 +849,7 @@ def oracle_report(split: Literal["development", "heldout"]) -> dict[str, Any]:
         json.dumps(fixture_payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
     ).hexdigest()
     return {
-        "schema": "dur056-oracle-report.v2",
+        "schema": "dur056-oracle-report.v3",
         "study_version": STUDY_VERSION,
         "split": split,
         "seed": DEV_SEED if split == "development" else HELDOUT_SEED,

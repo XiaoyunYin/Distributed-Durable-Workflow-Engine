@@ -386,7 +386,11 @@ class InvestigationWorkflow:
             search = self.mcp.search_runbooks(run_id, case.query, cast(Any, arm))
             self._record_tool_call(run_id, search)
             search_events = self._checkpoints(run_id, "search_runbooks")
-        if not bool(search.data["sufficient"]):
+        # Older MCP responses include retrieval diagnostics and preserve the
+        # historical retry/abstention behavior. DUR-056 v3 omits those fields
+        # so the agent sees ranked evidence and makes its own sufficiency
+        # decision.
+        if "sufficient" in search.data and not bool(search.data["sufficient"]):
             self.store.event(
                 run_id,
                 "investigation_round_opened",

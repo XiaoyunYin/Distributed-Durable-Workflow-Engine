@@ -16,7 +16,9 @@ from incident_agent.dur056_fixtures import (
     LEGACY_QUERY_PADDING,
     STUDY_VERSION,
     Dur056Case,
+    _complete_action,
     _fact_text,
+    _parse_facts,
     all_fixture_text,
     build_cases,
     build_corpus,
@@ -39,12 +41,12 @@ def _answer_values(cases: tuple[Dur056Case, ...]) -> set[tuple[str, str, str]]:
     }
 
 
-def test_dur056_v2_splits_and_family_balance_are_registered() -> None:
+def test_dur056_v3_splits_and_family_balance_are_registered() -> None:
     development = build_cases("development")
     heldout = build_cases("heldout")
-    assert STUDY_VERSION == "dur056-solvable-evidence-v2"
-    assert DEV_SEED == 5603
-    assert HELDOUT_SEED == 5604
+    assert STUDY_VERSION == "dur056-solvable-evidence-v3"
+    assert DEV_SEED == 5703
+    assert HELDOUT_SEED == 5704
     assert len(development) == 30
     assert len(heldout) == 60
     assert all(case.split == "development" for case in development)
@@ -111,13 +113,84 @@ def test_stale_current_winner_and_unresolved_conflict_are_structural() -> None:
         for case in cases:
             if case.category == "stale_current_action":
                 assert any("STATUS=SUPERSEDED" in chunk.text for chunk in case.evidence)
+                superseded = next(
+                    chunk for chunk in case.evidence if "STATUS=SUPERSEDED" in chunk.text
+                )
+                assert "SUPERSEDED_BY=policy-" in superseded.text
+                assert "SUPERSEDES=policy-" not in superseded.text
                 assert corpus_oracle_decision(case, corpus) == case.expected_action
             elif case.category == "stale_unresolved_conflict":
                 assert case.expected_action is None
                 assert corpus_oracle_decision(case, corpus) is None
             elif case.category == "near_duplicate_decoy":
-                assert any(chunk.service != case.service for chunk in case.evidence)
+                target_key = derive_incident_key(case.logs, case.metrics)
+                target_action = case.expected_action
+                assert target_action is not None
+                decoy_chunks = []
+                for chunk in case.evidence:
+                    facts = _parse_facts(chunk.text)
+                    if (
+                        facts.get("STATUS") == "CURRENT"
+                        and facts.get("SERVICE") == target_key[0]
+                        and facts.get("SIGNAL") == target_key[2]
+                        and facts.get("VERSION") != target_key[1]
+                    ):
+                        decoy_chunks.append((chunk, facts))
+                assert len(decoy_chunks) == 1
+                _chunk, decoy_facts = decoy_chunks[0]
+                decoy_key = (
+                    decoy_facts["SERVICE"],
+                    decoy_facts["VERSION"],
+                    decoy_facts["SIGNAL"],
+                )
+                shared_fields = sum(
+                    left == right for left, right in zip(target_key, decoy_key, strict=True)
+                )
+                assert shared_fields >= 2
+                assert 0 < abs(int(decoy_key[1][1:]) - int(target_key[1][1:])) <= 3
+                decoy_action = _complete_action(decoy_facts, decoy_key)
+                assert decoy_action is not None
+                assert decoy_action["action"] == target_action["action"]
+                assert decoy_action["parameters"] != target_action["parameters"]
                 assert corpus_oracle_decision(case, corpus) == case.expected_action
+
+
+def test_each_split_has_one_unique_incident_key_per_case() -> None:
+    for split in ("development", "heldout"):
+        cases = build_cases(split)
+        keys = {derive_incident_key(case.logs, case.metrics) for case in cases}
+        assert len(keys) == len(cases)
+        assert validate_key_label_consistency(cases) is None
+
+
+def test_decoy_keys_do_not_collide_with_targets_or_other_decoys() -> None:
+    for split in ("development", "heldout"):
+        cases = build_cases(split)
+        target_keys = {derive_incident_key(case.logs, case.metrics) for case in cases}
+        decoy_keys = set()
+        for case in cases:
+            if case.category != "near_duplicate_decoy":
+                continue
+            target_key = derive_incident_key(case.logs, case.metrics)
+            for chunk in case.evidence:
+                facts = _parse_facts(chunk.text)
+                if (
+                    facts.get("STATUS") == "CURRENT"
+                    and facts.get("SERVICE") == target_key[0]
+                    and facts.get("SIGNAL") == target_key[2]
+                    and facts.get("VERSION") != target_key[1]
+                ):
+                    decoy_key = (
+                        facts["SERVICE"],
+                        facts["VERSION"],
+                        facts["SIGNAL"],
+                    )
+                    assert decoy_key not in target_keys
+                    assert decoy_key not in decoy_keys
+                    decoy_keys.add(decoy_key)
+        assert len(decoy_keys) == sum(
+            case.category == "near_duplicate_decoy" for case in cases
+        )
 
 
 def test_fixture_fails_if_repeated_incident_key_has_different_expected_outcomes() -> None:
@@ -261,6 +334,6 @@ def test_deterministic_full_corpus_oracle_scores_both_splits_at_100_percent() ->
         assert report["correct"] == expected_count
         assert report["accuracy"] == 1.0
         assert report["provider_calls"] == 0
-        assert 0 < report["unique_incident_keys"] < expected_count
+        assert report["unique_incident_keys"] == expected_count
         for case in build_cases(split):
             assert oracle_decision(case) == case.expected_action

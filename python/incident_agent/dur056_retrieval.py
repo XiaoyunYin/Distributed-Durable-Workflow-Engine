@@ -21,7 +21,7 @@ from incident_agent.dur056_budget import Dur056SpendError, Dur056SpendLedger
 from incident_agent.dur056_fixtures import Dur056Case, build_cases
 from incident_agent.models import EvidenceChunk, RetrievalArm, RetrievalHit, RetrievalResponse
 
-STUDY_VERSION = "dur056-solvable-evidence-v2"
+STUDY_VERSION = "dur056-solvable-evidence-v3"
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIMENSION = 1536
 EMBEDDING_BATCH_SIZE = 48
@@ -68,6 +68,7 @@ def connect(database_url: str | None = None) -> psycopg.Connection[Any]:
 def apply_migration(connection: psycopg.Connection[Any], root: Path) -> None:
     migration_56 = root / "migrations" / "dur056" / "000056_solvable_evidence.up.sql"
     migration_57 = root / "migrations" / "dur056" / "000057_version_v2_support.up.sql"
+    migration_58 = root / "migrations" / "dur056" / "000058_version_v3_support.up.sql"
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT to_regclass('dur056.schema_migrations') AS relation")
@@ -78,7 +79,11 @@ def apply_migration(connection: psycopg.Connection[Any], root: Path) -> None:
                 raise Dur056RetrievalError(f"DUR-056 migration is missing: {migration_56}")
             with connection.cursor() as cursor:
                 cursor.execute(migration_56.read_text(encoding="utf-8"))
-        for version, migration in ((56, migration_56), (57, migration_57)):
+        for version, migration in (
+            (56, migration_56),
+            (57, migration_57),
+            (58, migration_58),
+        ):
             with connection.cursor() as cursor:
                 cursor.execute(
                     "SELECT EXISTS (SELECT 1 FROM dur056.schema_migrations WHERE version=%s)",
@@ -578,23 +583,22 @@ class PostgresRetrievalAdapter:
             self.config["keyword"]["threshold"]
         )
         dense_ok = bool(dense) and dense[0].score >= float(self.config["dense"]["threshold"])
+        classifier_prediction: bool
         selected: Sequence[RetrievalHit]
         if arm == "keyword":
-            selected, sufficient, reason = (
-                (keyword, True, "keyword_threshold_pass")
-                if keyword_ok
-                else ([], False, "keyword_threshold_failed")
-            )
+            selected = keyword
+            classifier_prediction = keyword_ok
         elif arm == "dense":
-            selected, sufficient, reason = (
-                (dense, True, "dense_threshold_pass")
-                if dense_ok
-                else ([], False, "dense_threshold_failed")
-            )
-        elif keyword_ok or dense_ok:
-            selected, sufficient, reason = hybrid, bool(hybrid), "hybrid_constituent_pass"
+            selected = dense
+            classifier_prediction = dense_ok
         else:
-            selected, sufficient, reason = [], False, "hybrid_constituents_failed"
+            selected = hybrid
+            classifier_prediction = keyword_ok or dense_ok
+        reason = (
+            "sufficiency_classifier_positive"
+            if classifier_prediction
+            else "sufficiency_classifier_negative"
+        )
         return RetrievalResponse(
             arm=arm,
             query=query,
@@ -602,7 +606,7 @@ class PostgresRetrievalAdapter:
             pre_gate_dense=tuple(dense),
             pre_gate_hybrid=hybrid,
             delivered=tuple(selected),
-            sufficient=sufficient,
+            sufficient=classifier_prediction,
             reason=reason,
         )
 
@@ -664,7 +668,7 @@ def tune_development(
     labels = [case.expected_action is not None for case, _query in query_cases]
     best_config: dict[str, Any] | None = None
     best_results: dict[str, Any] | None = None
-    best_key: tuple[float, float, float, int, int, int] | None = None
+    best_key: tuple[float, float, float, float, float, int, int, int] | None = None
     candidate_grid: list[dict[str, Any]] = []
     for top_k in TOP_K_CANDIDATES:
         for ef_search in EF_SEARCH_CANDIDATES:
@@ -694,8 +698,14 @@ def tune_development(
             keyword_threshold = _choose_threshold(keyword_scores, labels)
             dense_threshold = _choose_threshold(dense_scores, labels)
             for rrf_k in RRF_K_CANDIDATES:
-                per_arm: dict[str, list[bool]] = {"keyword": [], "dense": [], "hybrid": []}
+                per_arm_classifier: dict[str, list[bool]] = {
+                    "keyword": [],
+                    "dense": [],
+                    "hybrid": [],
+                }
                 per_arm_recall: dict[str, list[float]] = {"keyword": [], "dense": [], "hybrid": []}
+                per_arm_hits: dict[str, list[bool]] = {"keyword": [], "dense": [], "hybrid": []}
+                per_arm_mrr: dict[str, list[float]] = {"keyword": [], "dense": [], "hybrid": []}
                 rrf_rows: list[list[RetrievalHit]] = []
                 for rows in raw:
                     hybrid = list(
@@ -706,44 +716,75 @@ def tune_development(
                     keyword_ok = keyword_scores[index] >= keyword_threshold["threshold"]
                     dense_ok = dense_scores[index] >= dense_threshold["threshold"]
                     selected = {
-                        "keyword": rows["keyword"] if keyword_ok else [],
-                        "dense": rows["dense"] if dense_ok else [],
-                        "hybrid": rrf_rows[index] if keyword_ok or dense_ok else [],
+                        "keyword": rows["keyword"],
+                        "dense": rows["dense"],
+                        "hybrid": rrf_rows[index],
+                    }
+                    classifier_predictions = {
+                        "keyword": keyword_ok,
+                        "dense": dense_ok,
+                        "hybrid": keyword_ok or dense_ok,
                     }
                     relevant = set(rows["case"].relevant_chunk_ids)
-                    for arm in per_arm:
-                        per_arm[arm].append(bool(selected[arm]))
+                    for arm in per_arm_classifier:
+                        per_arm_classifier[arm].append(classifier_predictions[arm])
                         if relevant:
+                            ranked_ids = [hit.chunk_id for hit in selected[arm]]
+                            rank_positions = [
+                                position
+                                for position, chunk_id in enumerate(ranked_ids, start=1)
+                                if chunk_id in relevant
+                            ]
                             per_arm_recall[arm].append(
-                                len(relevant.intersection(hit.chunk_id for hit in selected[arm]))
-                                / len(relevant)
+                                len(set(ranked_ids).intersection(relevant)) / len(relevant)
                             )
-                        else:
-                            per_arm_recall[arm].append(0.0)
-                accuracy = {arm: _balanced_accuracy(labels, per_arm[arm]) for arm in per_arm}
+                            per_arm_hits[arm].append(bool(rank_positions))
+                            per_arm_mrr[arm].append(
+                                1 / min(rank_positions) if rank_positions else 0.0
+                            )
+                accuracy = {
+                    arm: _balanced_accuracy(labels, per_arm_classifier[arm])
+                    for arm in per_arm_classifier
+                }
                 false_positives = {
                     arm: sum(
                         prediction
-                        for label, prediction in zip(labels, per_arm[arm], strict=True)
+                        for label, prediction in zip(
+                            labels, per_arm_classifier[arm], strict=True
+                        )
                         if not label
                     )
-                    for arm in per_arm
+                    for arm in per_arm_classifier
                 }
                 mean_accuracy = statistics.mean(accuracy.values())
                 total_false_positive = float(sum(false_positives.values()))
-                mean_recall = statistics.mean(
-                    statistics.mean(values) if values else 0.0 for values in per_arm_recall.values()
-                )
+                ranking_recall = {
+                    arm: statistics.mean(per_arm_hits[arm]) if per_arm_hits[arm] else 0.0
+                    for arm in per_arm_hits
+                }
+                ranking_mrr = {
+                    arm: statistics.mean(per_arm_mrr[arm]) if per_arm_mrr[arm] else 0.0
+                    for arm in per_arm_mrr
+                }
+                delivered_recall = {
+                    arm: statistics.mean(per_arm_recall[arm]) if per_arm_recall[arm] else 0.0
+                    for arm in per_arm_recall
+                }
+                mean_ranking_recall = statistics.mean(ranking_recall.values())
+                mean_ranking_mrr = statistics.mean(ranking_mrr.values())
+                mean_delivered_recall = statistics.mean(delivered_recall.values())
                 key = (
                     mean_accuracy,
                     -total_false_positive,
-                    mean_recall,
+                    mean_ranking_recall,
+                    mean_ranking_mrr,
+                    mean_delivered_recall,
                     -top_k,
                     -ef_search,
                     -abs(rrf_k - 60),
                 )
                 config = {
-                    "schema": "dur056-retrieval-frozen-config.v2",
+                    "schema": "dur056-retrieval-frozen-config.v3",
                     "study_version": STUDY_VERSION,
                     "embedding_model": EMBEDDING_MODEL,
                     "embedding_dimension": EMBEDDING_DIMENSION,
@@ -764,38 +805,69 @@ def tune_development(
                     "selection": {
                         "split": "development",
                         "objective": (
-                            "mean balanced accuracy; then lower false positives, higher "
-                            "delivered recall, lower top-k, lower ef_search, rrf_k nearest 60"
+                            "sufficiency-classifier mean balanced accuracy; then lower "
+                            "false positives, higher ranking recall@k, higher MRR, higher "
+                            "delivered chunk recall, lower top-k, lower ef_search, "
+                            "rrf_k nearest 60"
                         ),
                         "query_variants_per_case": ["clean-a", "clean-b"],
                         "query_count": len(query_cases),
+                        "sufficiency_classifier_label": "expected_action_is_non_null",
+                        "insufficient_case_count": sum(
+                            case.category.startswith("insufficient_") for case in cases
+                        ),
+                        "insufficient_case_sample_caveat": (
+                            "Only six insufficient cases are present in development; "
+                            "classifier metrics are descriptive and are not agent gates."
+                        ),
                         "arm_balanced_accuracy": accuracy,
                         "arm_false_positive_count": false_positives,
-                        "mean_delivered_recall": mean_recall,
+                        "arm_ranking_recall_at_k": ranking_recall,
+                        "arm_mrr": ranking_mrr,
+                        "arm_delivered_chunk_recall": delivered_recall,
+                        "mean_ranking_recall_at_k": mean_ranking_recall,
+                        "mean_mrr": mean_ranking_mrr,
+                        "mean_delivered_chunk_recall": mean_delivered_recall,
                         "candidate_top_k": list(TOP_K_CANDIDATES),
                         "candidate_hnsw_ef_search": list(EF_SEARCH_CANDIDATES),
                         "candidate_rrf_k": list(RRF_K_CANDIDATES),
                     },
                 }
                 config["config_fingerprint"] = fingerprint(config)
-                rows_payload = [
-                    {
-                        "case_id": rows["case"].case_id,
-                        "query_variant": "clean-a"
-                        if rows["query"] == rows["case"].query_clean_a
-                        else "clean-b",
-                        "query": rows["query"],
-                        "answerable": labels[index],
-                        "keyword": [hit.chunk_id for hit in rows["keyword"]],
-                        "dense": [hit.chunk_id for hit in rows["dense"]],
-                        "hybrid": [hit.chunk_id for hit in rrf_rows[index]],
-                        "sufficient": {arm: per_arm[arm][index] for arm in per_arm},
-                        "relevant_chunk_ids": list(rows["case"].relevant_chunk_ids),
+                rows_payload: list[dict[str, Any]] = []
+                for index, rows in enumerate(raw):
+                    ranked = {
+                        "keyword": rows["keyword"],
+                        "dense": rows["dense"],
+                        "hybrid": rrf_rows[index],
                     }
-                    for index, rows in enumerate(raw)
-                ]
+                    relevant = set(rows["case"].relevant_chunk_ids)
+                    rows_payload.append(
+                        {
+                            "case_id": rows["case"].case_id,
+                            "query_variant": "clean-a"
+                            if rows["query"] == rows["case"].query_clean_a
+                            else "clean-b",
+                            "query": rows["query"],
+                            "answerable": labels[index],
+                            "keyword": [hit.chunk_id for hit in rows["keyword"]],
+                            "dense": [hit.chunk_id for hit in rows["dense"]],
+                            "hybrid": [hit.chunk_id for hit in rrf_rows[index]],
+                            "sufficiency_classifier_prediction": {
+                                arm: per_arm_classifier[arm][index]
+                                for arm in per_arm_classifier
+                            },
+                            "ranking_hit_at_k": {
+                                arm: bool(relevant.intersection(hit.chunk_id for hit in hits))
+                                if relevant
+                                else None
+                                for arm, hits in ranked.items()
+                            },
+                            "relevant_chunk_ids": list(rows["case"].relevant_chunk_ids),
+                        }
+                    )
                 results = {
-                    "schema": "dur056-retrieval-development.v2",
+                    "schema": "dur056-retrieval-development.v3",
                     "split": "development",
                     "case_count": len(cases),
                     "query_count": len(query_cases),
@@ -811,7 +883,12 @@ def tune_development(
                         "dense_threshold": dense_threshold["threshold"],
                         "balanced_accuracy_by_arm": accuracy,
                         "false_positive_count_by_arm": false_positives,
-                        "mean_delivered_recall": mean_recall,
+                        "ranking_recall_at_k_by_arm": ranking_recall,
+                        "mrr_by_arm": ranking_mrr,
+                        "delivered_chunk_recall_by_arm": delivered_recall,
+                        "mean_ranking_recall_at_k": mean_ranking_recall,
+                        "mean_mrr": mean_ranking_mrr,
+                        "mean_delivered_chunk_recall": mean_delivered_recall,
                         "selection_key": list(key),
                     }
                 )

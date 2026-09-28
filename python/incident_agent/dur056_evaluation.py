@@ -50,7 +50,7 @@ class InjectedRetrievalAdapter:
 
     def __init__(
         self,
-        base: PostgresRetrievalAdapter,
+        base: Any,
         target_queries: set[str],
         injection_text: str,
     ) -> None:
@@ -59,7 +59,7 @@ class InjectedRetrievalAdapter:
         self.injection_text = injection_text
 
     def search(self, query: str, arm: RetrievalArm = "hybrid") -> RetrievalResponse:
-        response = self.base.search(query, arm)
+        response = cast(RetrievalResponse, self.base.search(query, arm))
         if query not in self.target_queries or not response.delivered:
             return response
 
@@ -68,6 +68,19 @@ class InjectedRetrievalAdapter:
 
         delivered = tuple(add_note(hit) for hit in response.delivered)
         return replace(response, delivered=delivered)
+
+
+class RecordingRetrievalAdapter:
+    """Keep retrieval classifier output out of MCP while recording it for analysis."""
+
+    def __init__(self, base: Any) -> None:
+        self.base = base
+        self.responses: list[RetrievalResponse] = []
+
+    def search(self, query: str, arm: RetrievalArm = "hybrid") -> RetrievalResponse:
+        response = cast(RetrievalResponse, self.base.search(query, arm))
+        self.responses.append(response)
+        return response
 
 
 def _expected_signature(case: Dur056Case) -> list[str] | str:
@@ -142,14 +155,21 @@ def run_workflow_case(
         )
         for row in all_cases
     )
-    workflow_index = index
+    retrieval_recorder = RecordingRetrievalAdapter(index)
+    workflow_index: Any = retrieval_recorder
     if injection_text:
         if not isinstance(index, PostgresRetrievalAdapter):
             raise Dur056RetrievalError(
                 "injection matrix requires the frozen hybrid retrieval index"
             )
-        workflow_index = InjectedRetrievalAdapter(index, {case_query}, injection_text)
-    backend = BoundedMCPServer(workflow_index, cases=incident_cases)
+        workflow_index = InjectedRetrievalAdapter(
+            retrieval_recorder, {case_query}, injection_text
+        )
+    backend = BoundedMCPServer(
+        workflow_index,
+        cases=incident_cases,
+        include_retrieval_diagnostics=False,
+    )
     schema_profile = str(decision_provider.config["prompt_profile"])
     mcp_client = MCPClientFacade(backend, schema_profile=schema_profile)
     store = DurableStore()
@@ -258,6 +278,9 @@ def run_workflow_case(
         "approval_actor": APPROVER if snapshot.action_receipt is not None else None,
         "mcp_call_count": len(calls),
         "mcp_call_methods": [call.method for call in calls],
+        "retrieval_sufficiency_predictions": [
+            response.sufficient for response in retrieval_recorder.responses
+        ],
         "model_runs": model_records,
         "input_tokens": sum(int(record["input_tokens"]) for record in model_records),
         "output_tokens": sum(int(record["output_tokens"]) for record in model_records),
@@ -343,7 +366,11 @@ def candidate_tool_schemas(
     candidate: str, index: Any, cases: Sequence[Dur056Case]
 ) -> tuple[list[dict[str, Any]], str]:
     profile = str(PROMPT_CANDIDATES[candidate]["prompt_profile"])
-    backend = BoundedMCPServer(index, cases=tuple(as_incident_case(case) for case in cases))
+    backend = BoundedMCPServer(
+        index,
+        cases=tuple(as_incident_case(case) for case in cases),
+        include_retrieval_diagnostics=False,
+    )
     client = MCPClientFacade(backend, schema_profile=profile)
     schemas = client.schema_manifest()
     return schemas, fingerprint(schemas)
@@ -414,7 +441,7 @@ def evaluate_development_agents(
             "mcp_tool_schema_fingerprint": tool_schema_fingerprints[name],
         }
     return {
-        "schema": "dur056-agent-development.v2",
+        "schema": "dur056-agent-development.v3",
         "split": "development",
         "model_id": MODEL_ID,
         "candidate_count": len(PROMPT_CANDIDATES),
@@ -439,6 +466,7 @@ def analyze_development_report(report: Mapping[str, Any]) -> dict[str, Any]:
         not in {
             "dur056-agent-development.v1",
             "dur056-agent-development.v2",
+            "dur056-agent-development.v3",
         }
         or report.get("split") != "development"
     ):
@@ -478,8 +506,8 @@ def analyze_development_report(report: Mapping[str, Any]) -> dict[str, Any]:
     if any(count != len(ARMS) * 30 for count in candidate_run_counts.values()):
         raise Dur056RetrievalError("development report must contain 120 runs per candidate")
     return {
-        "schema": "dur056-agent-development-analysis.v1",
-        "study_version": "dur056-solvable-evidence-v2",
+        "schema": "dur056-agent-development-analysis.v3",
+        "study_version": "dur056-solvable-evidence-v3",
         "source_run_report_schema": report["schema"],
         "source_run_count": len(rows),
         "runs_per_candidate": len(ARMS) * 30,

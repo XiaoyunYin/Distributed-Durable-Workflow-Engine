@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
+from incident_agent import dur056_retrieval
 from incident_agent.dur056_budget import Dur056SpendLedger
 from incident_agent.dur056_fixtures import LEGACY_QUERY_PADDING, build_cases
 from incident_agent.dur056_retrieval import (
@@ -68,6 +69,22 @@ def test_v2_database_migration_preserves_v1_study_version() -> None:
     assert "drop table" not in sql
 
 
+def test_v3_database_migration_preserves_v1_and_v2_study_versions() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "dur056"
+        / "000058_version_v3_support.up.sql"
+    )
+    sql = migration.read_text(encoding="utf-8").lower()
+    assert "dur056-solvable-evidence-v1" in sql
+    assert "dur056-solvable-evidence-v2" in sql
+    assert "dur056-solvable-evidence-v3" in sql
+    assert "delete from" not in sql
+    assert "truncate" not in sql
+    assert "drop table" not in sql
+
+
 def test_embedding_provider_refuses_heldout_scope_before_gate_a() -> None:
     with pytest.raises(Dur056RetrievalError, match="requires accepted Gate A receipt"):
         Dur056OpenAIEmbeddingProvider(
@@ -88,6 +105,31 @@ def test_development_retrieval_adapter_refuses_heldout_query_before_sql() -> Non
     )
     with pytest.raises(Dur056RetrievalError, match="refused query split"):
         adapter.search("heldout query")
+
+
+@pytest.mark.parametrize("arm", ["keyword", "dense", "hybrid"])
+def test_retrieval_arm_delivers_ranked_results_when_sufficiency_classifier_is_negative(
+    monkeypatch: pytest.MonkeyPatch, arm: str
+) -> None:
+    keyword = [_hit("keyword", 0.2)]
+    dense = [_hit("dense", 0.3)]
+    monkeypatch.setattr(dur056_retrieval, "_keyword_hits", lambda *_args: keyword)
+    monkeypatch.setattr(dur056_retrieval, "_dense_hits", lambda *_args: dense)
+    adapter = PostgresRetrievalAdapter(
+        cast(Any, object()),
+        {
+            "ranking": {"top_k": 3},
+            "dense": {"hnsw_ef_search": 40, "threshold": 0.99},
+            "keyword": {"threshold": 0.99},
+            "hybrid": {"rrf_k": 60},
+        },
+        {"query": ("dev-q", "[0.0]")},
+        {"query": "development"},
+    )
+    response = adapter.search("query", arm)  # type: ignore[arg-type]
+    assert response.sufficient is False
+    assert response.delivered
+    assert response.reason == "sufficiency_classifier_negative"
 
 
 def test_no_retrieval_arm_returns_no_documents() -> None:

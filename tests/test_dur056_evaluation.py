@@ -89,6 +89,16 @@ def test_stub_model_runs_through_official_mcp_client_and_approval_receipt() -> N
     assert row["receipt"]["state"] == "APPLIED"
     assert row["mcp_call_methods"][:2] == ["query_logs", "query_metrics"]
     assert "search_runbooks" in row["mcp_call_methods"]
+    assert row["retrieval_sufficiency_predictions"] == [False]
+    search_event = next(
+        event
+        for event in row["timeline"]
+        if event["event_type"] == "mcp_tool_call"
+        and event["data"].get("method") == "search_runbooks"
+    )
+    search_result = search_event["data"]["result_data"]
+    assert "sufficient" not in search_result
+    assert "reason" not in search_result
     assert row["citation_provenance_violations"] == 0
     assert index.queries
     assert set(index.queries) == {case.query_clean_a}
