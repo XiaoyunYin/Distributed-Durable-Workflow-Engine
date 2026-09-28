@@ -142,7 +142,7 @@ def verify_source_blocks(calibration_dir: Path) -> dict[str, Any]:
     for filename in MERGED_VIEW_FILES:
         fields, rows = merged_rows[filename]
         rebuilt = io.StringIO(newline="")
-        writer = csv.DictWriter(rebuilt, fieldnames=fields)
+        writer = csv.DictWriter(rebuilt, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
         rebuilt_bytes = rebuilt.getvalue().encode("utf-8")

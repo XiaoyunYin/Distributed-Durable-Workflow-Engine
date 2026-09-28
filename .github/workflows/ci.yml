@@ -85,6 +85,10 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Verify DUR-050 evidence hashes against committed Git blobs
+        shell: bash
+        run: python3 scripts/test-dur050-manifest-hashes.py
+
       - name: Test DUR-050 post-destroy inventory controls
         shell: pwsh
         run: ./scripts/test-dur050-post-destroy-inventory.ps1

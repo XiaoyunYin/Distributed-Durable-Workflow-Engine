@@ -77,8 +77,11 @@ function Invoke-Ssm([pscustomobject]$StagePlanEntry) {
         } while ([DateTime]::UtcNow -lt $deadline)
         $stem = "$Stage-$InstanceID"
         if ($null -ne $invocation) {
-            [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "$stem.stdout.txt"), [string]$invocation.StandardOutputContent)
-            [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "$stem.stderr.txt"), [string]$invocation.StandardErrorContent)
+            $stdoutText = ([string]$invocation.StandardOutputContent).Replace("`r`n", "`n").Replace("`r", "`n")
+            $stderrText = ([string]$invocation.StandardErrorContent).Replace("`r`n", "`n").Replace("`r", "`n")
+            $evidenceUtf8 = [System.Text.UTF8Encoding]::new($false)
+            [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "$stem.stdout.txt"), $stdoutText, $evidenceUtf8)
+            [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "$stem.stderr.txt"), $stderrText, $evidenceUtf8)
             $script:commands.Add([pscustomobject]@{ stage = $Stage; instance_role = $InstanceRole; instance_id = $InstanceID; command_id = $commandID; status = $invocation.Status; remote_shell = "base64 temp-file wrapper; bash"; remote_lines = @($RemoteLines) })
         }
         if ($null -eq $invocation -or $invocation.Status -ne "Success") {
@@ -335,7 +338,9 @@ SELECT json_build_object(
             $outputStream = [System.IO.MemoryStream]::new()
             try {
                 $gzipStream.CopyTo($outputStream)
-                [System.IO.File]::WriteAllBytes((Join-Path $OutputDirectory 'warmup-observer.csv'), $outputStream.ToArray())
+                $csvText = [System.Text.Encoding]::UTF8.GetString($outputStream.ToArray()).Replace("`r`n", "`n").Replace("`r", "`n")
+                $csvBytes = [System.Text.UTF8Encoding]::new($false).GetBytes($csvText)
+                [System.IO.File]::WriteAllBytes((Join-Path $OutputDirectory 'warmup-observer.csv'), $csvBytes)
             } finally {
                 $outputStream.Dispose()
                 $gzipStream.Dispose()
@@ -371,6 +376,7 @@ SELECT json_build_object(
             ssm_commands = $script:commands
             recorded_at_utc = [DateTime]::UtcNow.ToString("o")
         }
-        [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "reset-sequence.json"), ($artifact | ConvertTo-Json -Depth 12))
+        $artifactJson = ($artifact | ConvertTo-Json -Depth 12).Replace("`r", '')
+        [System.IO.File]::WriteAllText((Join-Path $OutputDirectory "reset-sequence.json"), ($artifactJson + "`n"))
     }
 }

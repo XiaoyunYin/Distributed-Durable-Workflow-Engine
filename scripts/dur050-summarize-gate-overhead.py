@@ -299,7 +299,7 @@ def summarize(manifest_path: Path, timings_path: Path, output_dir: Path) -> dict
         "recorded_at_utc",
     ]
     with (output_dir / "gate-overhead.csv").open("x", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=output_fields)
+        writer = csv.DictWriter(stream, fieldnames=output_fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows({key: row[key] for key in output_fields} for row in transaction_rows)
     shutil.copy2(manifest_path, output_dir / "block-manifest.csv")
@@ -316,7 +316,7 @@ def summarize(manifest_path: Path, timings_path: Path, output_dir: Path) -> dict
         "paired_effect_summary": paired_effect_summary,
     }
     (output_dir / "gate-overhead-summary.json").write_text(
-        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
     )
     return result
 

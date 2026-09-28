@@ -33,7 +33,7 @@ function Write-JsonAtomic([string]$Path, [object]$Value, [switch]$CreateOnly) {
     if ($CreateOnly -and (Test-Path -LiteralPath $Path)) { throw "Refusing to overwrite evidence: $Path" }
     $temp = Join-Path $parent ('.' + [IO.Path]::GetFileName($Path) + '.' + [guid]::NewGuid().ToString('N') + '.tmp')
     try {
-        $json = (ConvertTo-Json -InputObject $Value -Depth 100) + "`n"
+        $json = ((ConvertTo-Json -InputObject $Value -Depth 100).Replace("`r", '')) + "`n"
         [IO.File]::WriteAllText($temp, $json, [Text.UTF8Encoding]::new($false))
         if ($CreateOnly) { [IO.File]::Move($temp, $Path) }
         else { [IO.File]::Move($temp, $Path, $true) }
@@ -345,7 +345,8 @@ try {
             if (-not $failure) {
                 $outputsTemp = Join-Path $cycleDirectory ('.terraform-outputs.' + [guid]::NewGuid().ToString('N') + '.tmp')
                 try {
-                    [IO.File]::WriteAllText($outputsTemp, ($outputsRaw.TrimEnd("`r", "`n") + "`n"), [Text.UTF8Encoding]::new($false))
+                    $outputsJson = $outputsRaw.Replace("`r", '').TrimEnd("`n") + "`n"
+                    [IO.File]::WriteAllText($outputsTemp, $outputsJson, [Text.UTF8Encoding]::new($false))
                     [IO.File]::Move($outputsTemp, $outputsPath)
                     $outputsWritten = $true
                     $record.terraform_outputs_sha256 = Get-FileSha256 $outputsPath

@@ -32,7 +32,8 @@ function Write-Dur050Json([string]$Path, $Value) {
     if (Test-Path -LiteralPath $Path) { throw "Refusing to overwrite evidence: $Path" }
     $parent = Split-Path -Parent $Path
     if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
-    [System.IO.File]::WriteAllText($Path, (($Value | ConvertTo-Json -Depth 24) + "`n"), $utf8)
+    $json = ($Value | ConvertTo-Json -Depth 24).Replace("`r", '')
+    [System.IO.File]::WriteAllText($Path, ($json + "`n"), $utf8)
 }
 
 function Get-Dur050OutputValue($Outputs, [string]$Name) {

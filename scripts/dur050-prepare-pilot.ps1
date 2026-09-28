@@ -36,8 +36,8 @@ function ConvertTo-BashSingleQuoted([string]$Value) {
 }
 
 function Write-JsonFile([string]$Path, $Value) {
-    $json = $Value | ConvertTo-Json -Depth 30
-    [System.IO.File]::WriteAllText($Path, $json + [Environment]::NewLine, $utf8)
+    $json = ($Value | ConvertTo-Json -Depth 30).Replace("`r", '')
+    [System.IO.File]::WriteAllText($Path, $json + "`n", $utf8)
 }
 
 function Get-Sha256Hex([byte[]]$Bytes) {
@@ -110,7 +110,7 @@ function Get-StageDefinitions($Frozen, $Outputs) {
         'printf ''DUR050_FIXTURE_CONFIG_B64=%s\n'' "$(printf ''%s'' "$fixture_config" | base64 -w0)"'
     )
 
-    $renderedJSON = ($rendered | ConvertTo-Json -Depth 30) + "`n"
+    $renderedJSON = (($rendered | ConvertTo-Json -Depth 30).Replace("`r", '')) + "`n"
     $renderedBytes = $utf8.GetBytes($renderedJSON)
     $configB64 = [Convert]::ToBase64String($renderedBytes)
     $configHash = Get-Sha256Hex $renderedBytes

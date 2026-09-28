@@ -88,7 +88,7 @@ try {
     if ($tempFull.StartsWith($repoRoot.TrimEnd([IO.Path]::DirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'Temporary Terraform variables must be outside the repository.'
     }
-    $json = $variables | ConvertTo-Json -Depth 30
+    $json = ($variables | ConvertTo-Json -Depth 30).Replace("`r", '')
     [System.IO.File]::WriteAllText($tempVarsPath, $json, [System.Text.UTF8Encoding]::new($false))
     $check = Get-Content -LiteralPath $tempVarsPath -Raw | ConvertFrom-Json -ErrorAction Stop
     if ($check.root_volume_size_gb -isnot [ValueType] -or $check.enable_dur050_load_generator -isnot [bool] -or
@@ -136,7 +136,8 @@ $outputParent = Split-Path -Parent $OutputPath
 if ($outputParent) { New-Item -ItemType Directory -Force -Path $outputParent | Out-Null }
 $recordTemp = "$OutputPath.$([guid]::NewGuid().ToString('N')).tmp"
 try {
-    [System.IO.File]::WriteAllText($recordTemp, (($record | ConvertTo-Json -Depth 16) + [Environment]::NewLine), [System.Text.UTF8Encoding]::new($false))
+    $recordJson = ($record | ConvertTo-Json -Depth 16).Replace("`r", '')
+    [System.IO.File]::WriteAllText($recordTemp, ($recordJson + "`n"), [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::Move($recordTemp, $OutputPath)
 } finally { Remove-Item -LiteralPath $recordTemp -Force -ErrorAction SilentlyContinue }
 $record | ConvertTo-Json -Depth 16

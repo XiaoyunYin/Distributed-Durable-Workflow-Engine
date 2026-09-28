@@ -57,7 +57,8 @@ try {
         $parent = Split-Path -Parent ([System.IO.Path]::GetFullPath($ResultPath))
         if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
         $tempResult = "$ResultPath.$([guid]::NewGuid().ToString('N')).tmp"
-        [System.IO.File]::WriteAllText($tempResult, ($result | ConvertTo-Json -Depth 5), [System.Text.UTF8Encoding]::new($false))
+        $resultJson = ($result | ConvertTo-Json -Depth 5).Replace("`r", '')
+        [System.IO.File]::WriteAllText($tempResult, ($resultJson + "`n"), [System.Text.UTF8Encoding]::new($false))
         Move-Item -LiteralPath $tempResult -Destination $ResultPath
     }
     if ($null -eq $invocation) { throw "No SSM invocation result before timeout for '$Stage' (command $commandID)." }

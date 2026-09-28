@@ -10,7 +10,10 @@ $env:DUR050_ENABLE_TEST_LEDGER_OVERRIDE = '1'
 $priorTz = $env:TZ
 $env:TZ = 'America/Los_Angeles'
 
-function Write-Json([string]$Path, $Value) { [IO.File]::WriteAllText($Path, (($Value | ConvertTo-Json -Depth 30) + "`n"), $utf8) }
+function Write-Json([string]$Path, $Value) {
+    $json = ($Value | ConvertTo-Json -Depth 30).Replace("`r", '') + "`n"
+    [IO.File]::WriteAllText($Path, $json, $utf8)
+}
 function Get-RowJsonText([string]$Path, [string]$InstanceId) {
     $text = [IO.File]::ReadAllText($Path, [Text.Encoding]::UTF8)
     $needle = '"instance_id"\s*:\s*"' + [regex]::Escape($InstanceId) + '"'
@@ -66,7 +69,11 @@ function Add-SentinelRows([string]$Path) {
 function Assert-SentinelRowsByteIdentical([string]$Path, $Snapshot, [string]$Operation) {
     foreach ($role in $Snapshot.ids.Keys) {
         $current = Get-RowJsonText $Path $Snapshot.ids[$role]
-        if ($current -cne [string]$Snapshot.rows[$role]) { throw "Pre-existing $role ledger row changed byte-for-byte during $Operation." }
+        if ($current -cne [string]$Snapshot.rows[$role]) {
+            $beforeEscaped = ConvertTo-Json -InputObject ([string]$Snapshot.rows[$role]) -Compress
+            $afterEscaped = ConvertTo-Json -InputObject $current -Compress
+            throw "Pre-existing $role ledger row changed byte-for-byte during $Operation.`nBefore: $beforeEscaped`nAfter:  $afterEscaped"
+        }
     }
     Write-Host "PASS: pre-existing sentinel rows remain byte-identical after $Operation."
 }

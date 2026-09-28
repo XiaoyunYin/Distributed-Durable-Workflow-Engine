@@ -3,6 +3,7 @@
   "campaign_id": "pilot-20260924-e3d780f",
   "ledger_scope": "task-wide shared DUR-050 ledger; campaign manifests cannot reset accumulated instance-hours",
   "task_ledger_path": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
+  "evidence_hash_convention": "A paired *_path/*_sha256 records the SHA-256 of the committed Git blob bytes. Historical Windows checkout hashes are retained only in *_sha256_windows_crlf fields. Ignored saved-plan, executable, and local-state pins are not committed-evidence hashes.",
   "terraform_profile": {
     "aws_region": "us-west-1",
     "availability_zones": ["us-west-1a", "us-west-1c"],
@@ -108,8 +109,10 @@
       "classification": "DRY RUN ONLY - AWS calls and SSM dispatch are not performed",
       "cycle_id": "preflight-r161-c911faf",
       "fixture_outputs_path": "tests/fixtures/dur050-terraform-outputs.json",
+      "fixture_outputs_sha256": "F1EC621A9F9D3B2E66E4A471536DAEE52F9B26B9859F1A23E6D342885DC81EDA",
       "artifact_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r161-c911faf/dur050-prepare-pilot-dry-run.json",
-      "artifact_sha256": "404A064AB41350DD2090B661E8D2BEF04380E3881B1745A8203CFED193DF504E",
+      "artifact_sha256": "07CF88F7D72C1F64075568089F1904EAFE84B044310E9D7C8C66596D73ADFCBE",
+      "artifact_sha256_windows_crlf": "404A064AB41350DD2090B661E8D2BEF04380E3881B1745A8203CFED193DF504E",
       "stages": 6,
       "rendered_config_sha256": "3b5891d4dd7834e8086f9e0b23d08d2319c26476541d496a6e1f1ef2a0799a45"
     },
@@ -117,7 +120,8 @@
       "classification": "DRY RUN ONLY; no AWS calls or SSM dispatch; not a PASS D022 preflight",
       "cycle_id": "round99-af8c946-r1",
       "artifact_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-round99-af8c946/cycle-preflight-dry-run-retry.json",
-      "artifact_sha256": "28B78F40FBBE37C5D3E33F9DCDE605C7F8A85328F859632D67F6E7030C256283",
+      "artifact_sha256": "28D5B2DB60E0546A2077D23A4C240FDA4758D6820281CCB1A6CECBAA15A52526",
+      "artifact_sha256_windows_crlf": "28B78F40FBBE37C5D3E33F9DCDE605C7F8A85328F859632D67F6E7030C256283",
       "plan_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-round99-af8c946/plan-inspection.json",
       "plan_inspection_sha256": "85DE72803CEB87EAF4074DB0FAA36B2B62E824F1F5C33B1B7D3E7EFA3D3E686D",
       "ledger_check_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-round99-af8c946/cycle-preflight-ledger-check-retry.json",
@@ -276,7 +280,7 @@
     "sha256": "1425B1E45FF63FDAC75A473C7EF6EF3FEC750AA391036D43CC6BAB9941071FE3",
     "source_commit": "4c625b3536da9f0334aa86bed01127914382fb34",
     "cycle_independent_template_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/pilot-calibration/frozen-config.json",
-    "cycle_independent_template_sha256_after_r161": "f0a20e4275da38445f0c943f6a0a4dcee762f925c0dfe0880fbf32f43c252305",
+    "cycle_independent_template_sha256": "F0A20E4275DA38445F0C943F6A0A4DCEE762F925C0DFE0880FBF32F43C252305",
     "namespace": "dur050-pilot-20260925",
     "seed": 50050,
     "definition_installation_status": "PASS",
@@ -516,11 +520,12 @@
     "saved_plan_path": "deploy/aws/.terraform/dur050-preapply-round117-20260927T161545Z-f73a483e.tfplan",
     "saved_plan_sha256": "B3909081D819591C65B060EB420E53D3DAFA2E78B676FC927BCD453C686E90B7",
     "inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round117-20260927T161545Z/plan-inspection.json",
-    "inspection_sha256": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
+    "inspection_sha256": "FC460DB77D0E23D15023719A0833DE5F72C0B57D7FE03214EBB723AB705DF834",
+    "inspection_sha256_windows_crlf": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
     "baseline_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r173-2330417/plan-inspection.json",
     "expected_plan_prior_state_lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
     "expected_plan_prior_state_serial": 231,
-    "review_state": "PENDING_CLAUDE_GO",
+    "review_state": "INVALIDATED_BY_USER_DEFERRAL",
     "terraform_executable_path": "C:/Users/yxyfz/AppData/Local/Programs/Terraform/1.16.4/terraform.exe",
     "terraform_executable_sha256": "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
     "terraform_version": "1.16.4",
@@ -562,17 +567,17 @@
     "cycle_id": "preapply-round120-20260927T180608Z",
     "saved_plan_sha256": "B3909081D819591C65B060EB420E53D3DAFA2E78B676FC927BCD453C686E90B7",
     "plan_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round117-20260927T161545Z/plan-inspection.json",
-    "plan_inspection_sha256": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
+    "plan_inspection_sha256": "FC460DB77D0E23D15023719A0833DE5F72C0B57D7FE03214EBB723AB705DF834",
+    "plan_inspection_sha256_windows_crlf": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
     "input_manifest_sha256_observed": "6760B1AF5A20136470043B375BC0F1EB69ECBBF66EBD44FBE09F990D183D7152",
     "gate_record": {
       "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round120-20260927T180608Z/d022-preapply-gate.json",
-      "sha256_working_file": "5E9A0BE0DBAA3969DDBFD1D499BEE1A663576AEF5B57EF3AB7E8C3D85DC1E3C3",
-      "sha256_committed_blob_lf": "7468477E189A220DA89CEAA8E041694C8985D92CA4B101BE500C5D5A4241C58B"
+      "sha256": "7468477E189A220DA89CEAA8E041694C8985D92CA4B101BE500C5D5A4241C58B",
+      "sha256_windows_crlf": "5E9A0BE0DBAA3969DDBFD1D499BEE1A663576AEF5B57EF3AB7E8C3D85DC1E3C3"
     },
     "ledger_check": {
       "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round120-20260927T180608Z/ledger-check.json",
-      "sha256_working_file": "66BED16F1E23CBE657FEB98EBB7DB98A5726322EA52BD96A6939B416AB84176D",
-      "sha256_committed_blob_lf": "66BED16F1E23CBE657FEB98EBB7DB98A5726322EA52BD96A6939B416AB84176D"
+      "sha256": "66BED16F1E23CBE657FEB98EBB7DB98A5726322EA52BD96A6939B416AB84176D"
     },
     "aws": {
       "account_id": "372206265946",
@@ -639,17 +644,17 @@
     "cycle_id": "preapply-round124-20260927T224413Z",
     "saved_plan_sha256": "B3909081D819591C65B060EB420E53D3DAFA2E78B676FC927BCD453C686E90B7",
     "plan_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round117-20260927T161545Z/plan-inspection.json",
-    "plan_inspection_sha256": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
+    "plan_inspection_sha256": "FC460DB77D0E23D15023719A0833DE5F72C0B57D7FE03214EBB723AB705DF834",
+    "plan_inspection_sha256_windows_crlf": "5AEF9D10019618DF9B49F44817024A26DB1A1C74FB8743FCD60F69A9D4217BCD",
     "input_manifest_sha256_observed": "8C8B96A4F72AFF96B026C151895E3CBA109D194BD658EF61947BF2F7675049BD",
     "gate_record": {
       "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round124-20260927T224413Z/d022-preapply-gate.json",
-      "sha256_working_file": "6DFEDD0CDBD1F4B9E456894F5085F9CE6AE5819BC342E76AFE86E4D38517FE00",
-      "sha256_committed_blob_lf": "BAF99616D11942489BB08DDF02E6B1AABD918F149997A752AA9FC1DE65EE2E59"
+      "sha256": "BAF99616D11942489BB08DDF02E6B1AABD918F149997A752AA9FC1DE65EE2E59",
+      "sha256_windows_crlf": "6DFEDD0CDBD1F4B9E456894F5085F9CE6AE5819BC342E76AFE86E4D38517FE00"
     },
     "ledger_check": {
       "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round124-20260927T224413Z/ledger-check.json",
-      "sha256_working_file": "9B4D4EE29B0B00C8F05B2751BDD3378870E58A1877867F46CB453C2F72157E69",
-      "sha256_committed_blob_lf": "9B4D4EE29B0B00C8F05B2751BDD3378870E58A1877867F46CB453C2F72157E69"
+      "sha256": "9B4D4EE29B0B00C8F05B2751BDD3378870E58A1877867F46CB453C2F72157E69"
     },
     "aws": {
       "account_id": "372206265946",
@@ -716,7 +721,8 @@
     "saved_plan_path": "deploy/aws/.terraform/dur050-preapply-round112-20260927T034431Z.tfplan",
     "saved_plan_sha256": "F517A64A6A6C552EEC4064E13C6FA271599331AD09F277A9E5A434CDA1DC94FC",
     "inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round112-20260927T034431Z/plan-inspection.json",
-    "inspection_sha256": "1B32A5EA9E3AAC000B209B214A91F22A49B9669968EE56DD2008FBEF19F60E73",
+    "inspection_sha256": "460CEEE666CF9684615964B2CB4EB47196EC509F3BFD22DFA58B1AFC8BB36C53",
+    "inspection_sha256_windows_crlf": "1B32A5EA9E3AAC000B209B214A91F22A49B9669968EE56DD2008FBEF19F60E73",
     "baseline_inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r173-2330417/plan-inspection.json",
     "terraform_executable_path": "C:/Users/yxyfz/AppData/Local/Programs/Terraform/1.16.4/terraform.exe",
     "terraform_executable_sha256": "D1F5754B41B44C7E4CE7283780D2CCB9492F2C32C9629555686FC29FA8067349",
@@ -734,7 +740,8 @@
     "preapply_gate_checked_at_utc": "2026-09-27T03:48:13.1755021+00:00",
     "preapply_gate_input_manifest_sha256": "5460FEA562F5AD035D6740C82A141B44A456CAE7E030970F3D67D1439331C267",
     "preapply_gate_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round112-20260927T034431Z/d022-preapply-gate.json",
-    "preapply_gate_sha256": "7B8B9A04C447375F2679A86C54BCB4351A0031B7E15A6E1B813A8FF10FF4735A",
+    "preapply_gate_sha256": "88613EEB107E1AF89057DBF738B69FA01C0C1291406B54BE739943B32A7B6BAA",
+    "preapply_gate_sha256_windows_crlf": "7B8B9A04C447375F2679A86C54BCB4351A0031B7E15A6E1B813A8FF10FF4735A",
     "ledger_check_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round112-20260927T034431Z/ledger-check.json",
     "ledger_check_sha256": "BC412DE880DF1918429A80ACE008054F930B6C123717E6FC505FEC65D5B8236A",
     "gate_result": {
@@ -776,7 +783,8 @@
     "saved_plan_path": "deploy/aws/.terraform/dur050-preapply-round104-2330417-live.tfplan",
     "saved_plan_sha256": "6377EF256AA08EDEC209F7C669C1F489586EBBB65CA081805D5E608578C22B29",
     "inspection_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round104-2330417/plan-inspection.json",
-    "inspection_sha256": "3A2BC8782FC3491BAB8E787EEBAF2FBAE28F25EE31C5D7365FD5FF1292951855",
+    "inspection_sha256": "C6C58A83599F99B861D404A902C83893EDF2DC9F6F77E181FA167C5CD2DE844A",
+    "inspection_sha256_windows_crlf": "3A2BC8782FC3491BAB8E787EEBAF2FBAE28F25EE31C5D7365FD5FF1292951855",
     "offline_reference_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preflight-r173-2330417/plan-inspection.json",
     "offline_reference_sha256": "8667CC6298FA607FB07F6CD2122696809B742E06157B9B43CE7A95C3CFE33580",
     "comparison": {
@@ -803,7 +811,8 @@
     "status": "PASS",
     "checked_at_utc": "2026-09-26T23:07:26.8053650+00:00",
     "gate_record_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round104-2330417/d022-live-preapply-gate-round107-20260926T230717Z.json",
-    "gate_record_sha256": "4BE7DCC6E5CA2829D89BEA36C0A35616FC85F4601CFAEFD4A5724C47BCB013CA",
+    "gate_record_sha256": "4C80B490FE86D0EF7CC6DE3E1BC48F7BAFE0233AAEFA817580457F84122D4249",
+    "gate_record_sha256_windows_crlf": "4BE7DCC6E5CA2829D89BEA36C0A35616FC85F4601CFAEFD4A5724C47BCB013CA",
     "ledger_check_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/preapply-round104-2330417/d022-live-ledger-check-round107-20260926T230717Z.json",
     "ledger_check_sha256": "15BF8C52D539F42E7919BA762D21BE967C516CC96A84316A29756C53A3011516",
     "manifest_sha256_at_gate": "F590F69AFC254CB0FCFB9DBD5FAAC37CE15E3CD65FB20DECD464CF6C3516B9D4",
@@ -903,7 +912,8 @@
     },
     "post_destroy_account_check": {
       "gate_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/post-destroy-preapply-gate.json",
-      "gate_sha256": "A0ACF197E3E730BBCB4974F89D235FC0F6D5266347F0AA434BC66F051DD109C6",
+      "gate_sha256": "C26242A7CF346AEDB1DF78FC0BAECAB10EA505867E8F3B9258CF4F554E9E3AB2",
+      "gate_sha256_windows_crlf": "A0ACF197E3E730BBCB4974F89D235FC0F6D5266347F0AA434BC66F051DD109C6",
       "campaign_manifest_sha256_at_gate": "10F794F15D018D3B1D7503F0678366E949245D5BD1FC0F368297281278863B4D",
       "ledger_check_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/post-destroy-ledger-check.json",
       "ledger_check_sha256": "66EA525BE26CEFE6113F0686FDB7B0D16FF79940FD67368AC57628C00A02E651",
@@ -924,24 +934,29 @@
     },
     "post_destroy_inventory": {
       "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/post-destroy-inventory.json",
-      "sha256": "680099032884DA069562843F005367FF66ED5ED37E99DCBEC094E58C1123FC15",
+      "sha256": "50D916599B1176942344EE32F8F275CE2FA2FA3267FC1C60832C9817CB260F4A",
+      "sha256_windows_crlf": "680099032884DA069562843F005367FF66ED5ED37E99DCBEC094E58C1123FC15",
       "status": "PASS; all ten captured resource queries returned []",
       "checked_at_utc": "2026-09-27T00:14:17.8176176Z"
     },
     "failure_and_destroy_records": {
       "apply_failure_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/apply-failure.json",
-      "apply_failure_sha256": "4401DF368FD9C0C74FFD94308131C73448C0B86381C4CF5424BFFD3711CD4AC0",
+      "apply_failure_sha256": "79C75CD9AF19B14A095E7F44D4C7B9ADE8C5DE2CC6F97716E4850C6EDC7811AE",
+      "apply_failure_sha256_windows_crlf": "4401DF368FD9C0C74FFD94308131C73448C0B86381C4CF5424BFFD3711CD4AC0",
       "destroy_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/terraform-destroy.json",
-      "destroy_sha256": "4D6FA1984AF00B7492B1F8F9F4FA0B6882CE736C2C75872D8960CF924A993DE5",
+      "destroy_sha256": "F9A87FFCC135B4AAFD0924F9F4A02E8BDC3412B6BAAE5EFB95EFABAEE6D21FC5",
+      "destroy_sha256_windows_crlf": "4D6FA1984AF00B7492B1F8F9F4FA0B6882CE736C2C75872D8960CF924A993DE5",
       "initial_inventory_serialization_attempts": [
         {
           "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/post-destroy-inventory-initial-powershell.json",
-          "sha256": "326C47D40701CFF184D060B15EDA499D11035683D23C3336A30CE78084DB4342",
+          "sha256": "A838D3688F42A3942809EBDA8F8C316F31C4563FA204CE593D6C215A53C89F73",
+          "sha256_windows_crlf": "326C47D40701CFF184D060B15EDA499D11035683D23C3336A30CE78084DB4342",
           "note": "Preserved initial PowerShell empty-array serialization attempt; normalized inventory retains exact raw [] results."
         },
         {
           "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3-2330417/post-destroy-inventory-initial-count-bug.json",
-          "sha256": "642E50B3EC1878CDB9C2C435B8A0E6E5E75D55DD77F3FDF9D8E7C6CFD20105B4",
+          "sha256": "9600F56B8EC417E18961398B846F3E2A2C1F1AE2381D54C91A1F8F1B1981BEC1",
+          "sha256_windows_crlf": "642E50B3EC1878CDB9C2C435B8A0E6E5E75D55DD77F3FDF9D8E7C6CFD20105B4",
           "note": "Preserved initial count attempt; empty JSON arrays were counted as one null element by the wrapper."
         }
       ]
@@ -965,13 +980,14 @@
       "interval_source": "backfill: apply start -> destroy completion (R187)",
       "evidence_path_portability_note": "R189: cycle-3b evidence paths were converted from absolute local paths to repository-relative paths; source evidence hashes are unchanged.",
       "task_ledger_path": "experiments/m8/dur050-capacity-overload/dur050-cost-ledger.json",
-      "task_ledger_sha256": "90A0C226FA014B1E3F0097B6DABEDC706B55AAA97B14043FFCF0AAEBF2A47877",
+      "task_ledger_sha256": "7A71E2A650ED4193BB1A1EABC85AC470D0CBA4B23824DE122F655DD7BA0CD45B",
+      "task_ledger_sha256_windows_crlf": "90A0C226FA014B1E3F0097B6DABEDC706B55AAA97B14043FFCF0AAEBF2A47877",
       "ledger_check_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/ledger-check-r189-relative-paths.json",
       "ledger_check_sha256": "05993200D7834B9F100C4ACB683F3446BB081D1560853F9A213C856A1379D60F",
       "source_evidence": {
-        "terraform_outputs_sha256": "1E437E33FDE7ABF1E32220FEB6F6BC7910E271AF57FD5910C1A5BD2C36373286",
-        "apply_record_sha256": "33C154C6E27589AF01F44D2D383C952C21CB36CE2EFDA66FBAABD1CD4D85FC9F",
-        "destroy_record_sha256": "8CFB5F4D65B49E18E71995059B581E5BCA240A4A6C6C5142B39D51013F46AFC4"
+        "terraform_outputs_sha256": "B1EAE48D19D0E090F146310FEEDD797B057048639B43F26362EC28B9D487F3D0",
+        "apply_record_sha256": "0EE47D53976D84BCACDAFA7BE618DDB518219C525AA0ED67B4992172D79F06F5",
+        "destroy_record_sha256": "6CCE492E8C4A03088FF409DB3B95526F0E1F854CCCDD34E7C8D77FE58E2C8935"
       },
       "accrued_cost_before_usd": 0.248827,
       "accrued_cost_after_usd": 0.315548,
@@ -980,7 +996,8 @@
     },
     "apply": {
       "record_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/apply-record.json",
-      "record_sha256": "33C154C6E27589AF01F44D2D383C952C21CB36CE2EFDA66FBAABD1CD4D85FC9F",
+      "record_sha256": "0EE47D53976D84BCACDAFA7BE618DDB518219C525AA0ED67B4992172D79F06F5",
+      "record_sha256_windows_crlf": "33C154C6E27589AF01F44D2D383C952C21CB36CE2EFDA66FBAABD1CD4D85FC9F",
       "status": "PASS",
       "started_at_utc": "2026-09-27T04:46:54.1291096Z",
       "terraform_exit_code": 0,
@@ -988,7 +1005,8 @@
       "changed": 0,
       "destroyed": 0,
       "terraform_outputs_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/terraform-outputs.json",
-      "terraform_outputs_sha256": "1E437E33FDE7ABF1E32220FEB6F6BC7910E271AF57FD5910C1A5BD2C36373286",
+      "terraform_outputs_sha256": "B1EAE48D19D0E090F146310FEEDD797B057048639B43F26362EC28B9D487F3D0",
+      "terraform_outputs_sha256_windows_crlf": "1E437E33FDE7ABF1E32220FEB6F6BC7910E271AF57FD5910C1A5BD2C36373286",
       "hosts": [
         {"role": "app-1", "instance_id": "i-055db1d3eeabee348", "instance_type": "c7i.large"},
         {"role": "app-2", "instance_id": "i-04cc1d41f74cc2a7f", "instance_type": "c7i.large"},
@@ -1015,17 +1033,20 @@
     "teardown": {
       "first_destroy_attempt": {
         "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/destroy-record.json",
-        "sha256": "E87E9BF8F7DA9696C82223520EC135DD75BC71B29D2BB2237FF91F71D6D2A40C",
+        "sha256": "0CB11895CE9F9029D98A674A9E9C21448107B6CCAAB9F93647D4FBCDFF88757D",
+        "sha256_windows_crlf": "E87E9BF8F7DA9696C82223520EC135DD75BC71B29D2BB2237FF91F71D6D2A40C",
         "status": "FAIL; required Terraform inputs were missing; no resources destroyed"
       },
       "second_destroy_attempt": {
         "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/destroy-record-attempt-2.json",
-        "sha256": "F26473FD0C572BC246008D5385376D03A1B95820B489B659E1B76337436E0CAD",
+        "sha256": "0A57E51BC0A9BE54143873D258C43D7FAE40A4360611B095DCC5F9EE370099F5",
+        "sha256_windows_crlf": "F26473FD0C572BC246008D5385376D03A1B95820B489B659E1B76337436E0CAD",
         "status": "FAIL; JSON-quoted string variables failed validation; no resources destroyed"
       },
       "successful_destroy": {
         "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/destroy-record-final-attempt.json",
-        "sha256": "8CFB5F4D65B49E18E71995059B581E5BCA240A4A6C6C5142B39D51013F46AFC4",
+        "sha256": "6CCE492E8C4A03088FF409DB3B95526F0E1F854CCCDD34E7C8D77FE58E2C8935",
+        "sha256_windows_crlf": "8CFB5F4D65B49E18E71995059B581E5BCA240A4A6C6C5142B39D51013F46AFC4",
         "status": "PASS",
         "started_at_utc": "2026-09-27T04:54:32.3616565Z",
         "completed_at_utc": "2026-09-27T04:55:45.4572760Z",
@@ -1034,12 +1055,14 @@
       },
       "ledger_close_attempt": {
         "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/ledger-close-failure.json",
-        "sha256": "E1D54FD7B301A83F8DF89F53870E0F66027049D754B7FBB84783F8C74AACA5AC",
+        "sha256": "E01145C1B957F96F00DEA42D4CCE03B62737D6DE45CE5CB6FE71D9352ABD22E4",
+        "sha256_windows_crlf": "E1D54FD7B301A83F8DF89F53870E0F66027049D754B7FBB84783F8C74AACA5AC",
         "status": "FAIL; no cycle interval existed to close"
       },
       "post_destroy_inventory": {
         "path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/cycle-3b-2330417/post-destroy-inventory.json",
-        "sha256": "0BBE6671DC176933160981F05BC841B9337E3BC00DD016F98833E9BA6E576A99",
+        "sha256": "B9F762067733BD7373A97C777684A8774126E146A2335D187FFD1CD212AAE1D9",
+        "sha256_windows_crlf": "0BBE6671DC176933160981F05BC841B9337E3BC00DD016F98833E9BA6E576A99",
         "status": "PASS",
         "terraform_state_resource_count": 0,
         "terraform_state_lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
@@ -1058,8 +1081,8 @@
         "campaign_instance_profiles": 0,
         "campaign_ssm_parameters_absent": true,
         "open_cycle_ledger_intervals": 0,
-        "ledger_sha256": "3F7E8C4677EFEC382BAE136D69385320261EF2EF6504FD38D1C5198FC5FC4B10"
-      }
+      "ledger_sha256": "3F7E8C4677EFEC382BAE136D69385320261EF2EF6504FD38D1C5198FC5FC4B10"
+    }
     },
     "cost": {
       "task_ledger_recorded_cost_usd": null,
@@ -1075,5 +1098,37 @@
       "serial": 231,
       "resource_count": 0
     }
+  },
+  "user_deferral_closeout": {
+    "decision_id": "D026",
+    "status": "NO-GO BY USER DEFERRAL; NO APPLY OR SSM",
+    "record_path": "experiments/m8/dur050-capacity-overload/pilot-20260924-e3d780f/cycles/round126-user-deferral/post-destroy-inventory-lf.json",
+    "record_sha256": "2F6865C7319B5290D69BFE94B72BA92E9987FD58495C8758E342FF2040540F2D",
+    "checked_at_utc": "2026-09-27T23:30:30.7063131+00:00",
+    "account_id": "372206265946",
+    "region": "us-west-1",
+    "terraform_state": {
+      "lineage": "bf6723dd-9d4a-83db-a564-d75e6fb9277e",
+      "serial": 231,
+      "resource_count": 0,
+      "local_state_sha256": "C9D6746790D72A3DE092585335D3CD19FBA19C98CF78557D8B4A4C0634809B53",
+      "retained_in_place": true
+    },
+    "inventory_status": "PASS",
+    "non_terminated_region_instances": 0,
+    "region_volumes": 0,
+    "task_vpcs": 0,
+    "task_subnets": 0,
+    "task_security_groups": 0,
+    "task_network_interfaces": 0,
+    "task_elastic_ips": 0,
+    "task_snapshots": 0,
+    "task_nat_gateways": 0,
+    "task_load_balancers": 0,
+    "dur050_iam_roles": 0,
+    "dur050_instance_profiles": 0,
+    "dur050_ssm_parameters_absent": true,
+    "cycle_ledger_open_intervals": 0,
+    "note": "Read-only inventory only; terraform.tfstate deliberately retained."
   }
 }

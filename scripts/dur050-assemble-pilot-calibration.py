@@ -182,7 +182,7 @@ def assemble(output: Path, block_paths: list[Path]) -> dict[str, Any]:
             if any(row_fields != fields for row_fields, _ in rows):
                 raise ValueError(f"CSV headers differ across source blocks for {name}")
             with (output / name).open("x", newline="", encoding="utf-8") as stream:
-                writer = csv.DictWriter(stream, fieldnames=fields)
+                writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
                 writer.writeheader()
                 writer.writerows(row for _, row in rows)
 
@@ -196,7 +196,7 @@ def assemble(output: Path, block_paths: list[Path]) -> dict[str, Any]:
             "blocks": blocks,
         }
         (output / "assembly.json").write_text(
-            json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+            json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8", newline="\n"
         )
         lines = [
             "# DUR-050 pilot calibration",

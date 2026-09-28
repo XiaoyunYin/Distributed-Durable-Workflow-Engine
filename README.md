@@ -36,6 +36,14 @@ flowchart LR
   detected in [hosted CI](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/35941481466),
   alongside a reference model and Go fuzz targets. [Mutation results](mutations/results-powershell.json).
   The gate covers representative guards, not every line.
+- **Production-path approval safety:** the incident remediation traversed the
+  PostgreSQL-backed API, engine, source-corpus lookup, approval grant, and
+  effect service; the attack matrix rejected resource, argument, revision,
+  grant-reuse, and pre-approval-dispatch changes. [DUR-033A integration](internal/incident/production_integration_test.go).
+- **HTTP-to-worker recovery trace:** normal and worker-recovery runs reached
+  terminal state through PostgreSQL, outbox, Kafka, and the worker path.
+  [DUR-048 protocol](experiments/m8/dur042-pilot/protocol.json) ·
+  [recovery evidence](experiments/m8/dur042-pilot/recovery/recovery.json).
 
 ## Engineering focus
 
@@ -47,12 +55,17 @@ flowchart LR
 
 ## Measurements
 
+- Crash/pause lease takeover tracked the tested TTLs, and the 60-episode
+  checker recorded useful recovery with zero false takeovers. [DUR-027](experiments/m7/dur027/results.json)
 - Two schedulers met 2 offered workflows/s where one did not, through the
   in-process engine path with four fixed worker processes; single-host
   Docker Desktop/WSL2, not end-to-end deployed capacity. [DUR-026](experiments/m7/dur026/results.json)
+- Safeguard ablations exposed the targeted missing-history, missing-outbox,
+  and stale-lease behaviors; no cost effect is promoted because repeated-run
+  spread was 3.2–29.3%. [DUR-034](experiments/m7/dur034/results.json)
 - Notification-direct beat Kafka at the resolved terminal stage; ready-to-claim
   was unresolved in the named campaign. [DUR-035](experiments/m7/dur035/results.json)
-- Every-chunk checkpointing took 7.5552× the boundary-only median at one
+- Every-chunk checkpointing took 7.6× the boundary-only median at one
   SHA-256 work unit per chunk, under an in-process panic model; not a crossover
   estimate. [DUR-028](experiments/m7/dur028/results.json)
 
@@ -85,11 +98,13 @@ reaping, campaign-only timeout overrides, failed-attempt history, cleanup, and
 the limits of these measurements are documented in the campaign records and
 [failure case study](experiments/portfolio/recruiter/failure-case-study.md).
 
-The pending DUR-050 provisioning workflow keeps account checks separate from
-host bootstrap: live plan → account-only pre-apply D022 gate → Claude go/no-go
-→ apply → ledger-record `-Open` → post-apply cycle preflight → preparation →
-destroy → ledger-record `-Close`. A gate PASS is not apply authority; the
-pre-apply record explicitly requires the independent review.
+## Future work
+
+DUR-050 capacity/pilot runs (including protocol step 2), DUR-052 operations
+dashboard and oldest-work alert, DUR-053 Kubernetes deployment/recovery work,
+and DUR-054 release/supply-chain work are deferred until after the user's
+AI-infrastructure project. No capacity/SLO result or Kubernetes/EKS deployment
+claim is made here.
 
 ### Scoped recovery case study
 

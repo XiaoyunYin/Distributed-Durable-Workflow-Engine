@@ -43,7 +43,8 @@ Import-Module (Join-Path $PSScriptRoot 'dur050-plan-state.psm1') -Force
 function Write-Dur050PreApplyJson([string]$Path, $Value) {
     $parent = Split-Path -Parent $Path
     if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
-    [System.IO.File]::WriteAllText($Path, (($Value | ConvertTo-Json -Depth 28) + [Environment]::NewLine), $utf8)
+    $json = ($Value | ConvertTo-Json -Depth 28).Replace("`r", '')
+    [System.IO.File]::WriteAllText($Path, ($json + "`n"), $utf8)
 }
 
 function Get-Dur050Numeric([object]$Value, [string]$Name) {

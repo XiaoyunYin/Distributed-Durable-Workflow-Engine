@@ -183,7 +183,7 @@ try {
     $parent = Split-Path -Parent ([IO.Path]::GetFullPath($RecordPath))
     if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
     $tempRecord = "$RecordPath.$([guid]::NewGuid().ToString('N')).tmp"
-    [IO.File]::WriteAllText($tempRecord, ($record | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText($tempRecord, ((($record | ConvertTo-Json -Depth 8).Replace("`r", '')) + "`n"), [Text.UTF8Encoding]::new($false))
     Move-Item -LiteralPath $tempRecord -Destination $RecordPath
     $record | ConvertTo-Json -Depth 8
 } catch {
@@ -206,7 +206,7 @@ try {
         }
         $parent = Split-Path -Parent ([IO.Path]::GetFullPath($RecordPath))
         if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
-        [IO.File]::WriteAllText($RecordPath, ($failedRecord | ConvertTo-Json -Depth 6), [Text.UTF8Encoding]::new($false))
+        [IO.File]::WriteAllText($RecordPath, ((($failedRecord | ConvertTo-Json -Depth 6).Replace("`r", '')) + "`n"), [Text.UTF8Encoding]::new($false))
     }
     throw
 } finally {

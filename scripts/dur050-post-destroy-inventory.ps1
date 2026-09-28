@@ -93,7 +93,7 @@ function Get-Dur050LedgerOpenIntervals {
 function Write-Dur050InventoryRecord([string]$Path, $Record) {
     $parent = Split-Path -Parent $Path
     if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
-    $json = ($Record | ConvertTo-Json -Depth 30) + [Environment]::NewLine
+    $json = (($Record | ConvertTo-Json -Depth 30).Replace("`r", '')) + "`n"
     $stream = [System.IO.File]::Open($Path, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write, [System.IO.FileShare]::None)
     try {
         $bytes = $utf8.GetBytes($json)

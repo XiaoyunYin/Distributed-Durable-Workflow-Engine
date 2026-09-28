@@ -160,6 +160,7 @@ if ($record.resource_change_count -ne 31 -or $createCount -ne 31 -or $updateCoun
 }
 $parent = Split-Path -Parent $OutputPath
 if ($parent) { New-Item -ItemType Directory -Force -Path $parent | Out-Null }
-[System.IO.File]::WriteAllText($OutputPath, (($record | ConvertTo-Json -Depth 18) + [Environment]::NewLine), $utf8)
+$inspectionJson = ($record | ConvertTo-Json -Depth 18).Replace("`r", '')
+[System.IO.File]::WriteAllText($OutputPath, ($inspectionJson + "`n"), $utf8)
 Write-Output ($record | ConvertTo-Json -Depth 8)
 Write-Host "Inspection written: $OutputPath"

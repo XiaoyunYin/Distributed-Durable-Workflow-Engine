@@ -103,7 +103,7 @@ function Assert-Dur050LedgerCandidate([string]$Path) {
 }
 
 $originalBytes = [IO.File]::ReadAllBytes($LedgerPath)
-$ledger = [Text.Encoding]::UTF8.GetString($originalBytes) | ConvertFrom-Json -DateKind String -ErrorAction Stop
+$ledger = [Text.Encoding]::UTF8.GetString($originalBytes) | ConvertFrom-Json -AsHashtable -DateKind String -ErrorAction Stop
 if ($ledger.schema -ne 'dur050-task-cost-ledger.v1' -or $ledger.task_id -ne 'DUR-050') { throw 'Task ledger schema or task ID is invalid.' }
 $timestamp = if ($Open) { Read-Dur050LedgerUtc $ApplyStartedAtUtc 'ApplyStartedAtUtc' } elseif ($Close) { Read-Dur050LedgerUtc $DestroyCompletedAtUtc 'DestroyCompletedAtUtc' } else { $null }
 
@@ -201,7 +201,7 @@ if ($Backfill) {
 # Validate the complete candidate ledger before any file replacement.
 $tempLedger = "$LedgerPath.$([guid]::NewGuid().ToString('N')).tmp"
 try {
-    $json = ($ledger | ConvertTo-Json -Depth 30) + "`n"
+    $json = (($ledger | ConvertTo-Json -Depth 30).Replace("`r", '')) + "`n"
     [IO.File]::WriteAllText($tempLedger, $json, [Text.UTF8Encoding]::new($false))
     if ((Get-Item -LiteralPath $tempLedger).Length -eq 0) { throw 'Serialized candidate ledger is empty.' }
     Assert-Dur050LedgerCandidate $tempLedger

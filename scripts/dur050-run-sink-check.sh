@@ -46,7 +46,7 @@ cleanup() {
 import json, sys
 from pathlib import Path
 path, run_id, started, loadgen_exit, exit_status = sys.argv[1:]
-with Path(path).open("x", encoding="utf-8") as stream:
+with Path(path).open("x", encoding="utf-8", newline="\n") as stream:
     json.dump({"schema": "dur050-generator-sink.v1", "status": "FAIL",
                "run_id": run_id, "started_at_utc": started,
                "loadgen_exit": int(loadgen_exit), "runner_exit": int(exit_status),
@@ -138,7 +138,7 @@ result = {
     "pidstat_sha256": hashlib.sha256(pidstat.read_bytes()).hexdigest() if pidstat.is_file() else None,
     "reason": None if valid else "expected 19,200 accepted requests and PASS generator CPU validation",
 }
-with Path(artifact).open("x", encoding="utf-8") as stream:
+with Path(artifact).open("x", encoding="utf-8", newline="\n") as stream:
     json.dump(result, stream, indent=2, sort_keys=True)
     stream.write("\n")
 if not valid:

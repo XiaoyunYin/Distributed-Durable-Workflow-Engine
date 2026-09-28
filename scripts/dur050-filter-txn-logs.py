@@ -31,7 +31,7 @@ def main() -> int:
     ]
     count = 0
     try:
-        with output_path.open("x", encoding="utf-8") as output:
+        with output_path.open("x", encoding="utf-8", newline="\n") as output:
             for line in sys.stdin:
                 marker = "DUR050_TXN "
                 position = line.find(marker)

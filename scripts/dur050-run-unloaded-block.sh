@@ -121,7 +121,7 @@ reason = terminal["reason"]
 if summary["valid"].lower() != "true":
     reason = ";".join(filter(None, [reason, summary["reason"]]))
 with open(output_path, "a", newline="", encoding="utf-8") as stream:
-    writer = csv.writer(stream)
+    writer = csv.writer(stream, lineterminator="\n")
     writer.writerow([family, block_id, sample, run_id, submission["workflow_id"], submission["outcome"], terminal["state"], submission["scheduled_at_utc"], submission["scheduled_at_monotonic_ns"], terminal["observed_at_utc"], terminal["observed_at_monotonic_ns"], f"{latency_ms:.6f}", terminal["max_preterminal_gap_ms"], query_match.group(1), summary["observer_qps"], str(valid).lower(), reason])
 PY
   jq -c --arg run_id "$run_id" --arg family "$family" '{run_id:$run_id,family:$family,summary:.}' "$run_dir/submission.csv.summary.json" >> "$output_dir/loadgen-summaries.jsonl"
