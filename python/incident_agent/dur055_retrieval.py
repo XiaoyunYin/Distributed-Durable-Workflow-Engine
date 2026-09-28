@@ -139,7 +139,8 @@ def corpus_hash(chunks: Sequence[EvidenceChunk] | None = None) -> str:
 def heldout_ids_fingerprint() -> str:
     """Fingerprint the known held-out identifier pattern without loading labels."""
 
-    return fingerprint([f"held-q-{index:03d}" for index in range(1, 121)])
+    # build_retrieval_queries uses split[:3], so "heldout" IDs start with "hel".
+    return fingerprint([f"hel-q-{index:03d}" for index in range(1, 121)])
 
 
 def connect(database_url: str | None = None) -> psycopg.Connection[Any]:

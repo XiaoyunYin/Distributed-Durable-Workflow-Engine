@@ -50,6 +50,7 @@ local engine database or its volume. Supply the existing local credentials via
 
 ```powershell
 docker compose --env-file .env -f deploy/local/dur055-postgres.yaml up -d
+$env:PYTHONPATH = 'python'
 uv run --env-file .env python -m incident_agent.dur055 prepare-dev
 ```
 

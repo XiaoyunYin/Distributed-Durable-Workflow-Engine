@@ -9,6 +9,7 @@ from incident_agent.dur055_budget import SpendLedger, SpendLimitError
 from incident_agent.dur055_retrieval import (
     RetrievalStudyError,
     development_retrieval_queries,
+    fingerprint,
     heldout_ids_fingerprint,
     tune_development,
 )
@@ -22,7 +23,9 @@ def test_dur055_development_inputs_have_only_frozen_dev_counts() -> None:
     assert all(row["split"] == "development" for row in queries)
     assert all(case.split == "development" for case in cases)
     assert [row["query_id"] for row in queries] == [f"dev-q-{i:03d}" for i in range(1, 41)]
-    assert heldout_ids_fingerprint().startswith("sha256:")
+    assert heldout_ids_fingerprint() == fingerprint(
+        [f"hel-q-{index:03d}" for index in range(1, 121)]
+    )
 
 
 def test_dur055_tuning_rejects_heldout_rows_before_database_access() -> None:
@@ -36,6 +39,9 @@ def test_dur055_spend_ledger_rejects_oversized_request(tmp_path: Path) -> None:
     )
     data = json.loads(source.read_text(encoding="utf-8"))
     data["entries"] = []
+    data["spent_usd"] = "0.00"
+    data["reserved_usd"] = "0.00"
+    data["uncertain_usd"] = "0.00"
     ledger_path = tmp_path / "ledger.json"
     ledger_path.write_text(json.dumps(data), encoding="utf-8")
     ledger = SpendLedger(ledger_path)

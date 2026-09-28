@@ -14,6 +14,10 @@ the runner may read/query/embed only the development set. Its code must check
 counts and ID-only fingerprints without invoking retrieval, embedding, or
 labels on held-out query rows.
 
+The existing fixture's identifier prefix is derived from `split[:3]`; thus its
+held-out IDs are `hel-q-001` through `hel-q-120`. The pre-freeze ID fingerprint
+must use that exact sequence without materializing held-out query records.
+
 The database is a dedicated DUR-055 local PostgreSQL instance using the
 versioned `source_corpus` schema. Existing `embedding vector(64)` and all
 DUR-029 output files are untouched. The new embedding relation has a study
