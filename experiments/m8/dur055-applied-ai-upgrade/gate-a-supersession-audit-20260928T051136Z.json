@@ -1,0 +1,42 @@
+{
+  "created_at_utc": "2026-09-28T05:11:36Z",
+  "explanation": "Only metadata/provenance defects were corrected. All earlier development artifacts and spend-ledger entries remain unchanged; the final Gate A bundle has the corrected ID-only fingerprint and references the inherited successful embedding call records. The full development preparation was repeated on the same ten incident cases.",
+  "heldout_cases_scored": false,
+  "heldout_queries_read": false,
+  "heldout_queries_scored": false,
+  "heldout_query_text_or_labels_loaded": false,
+  "replacement_agent_config_fingerprint": "sha256:d01d9a37c48de3410547e1b38609c27be344326a40cb6466cee03a3bed96f47c",
+  "replacement_freeze_bundle": "gate-a-freeze-review-20260928T050959Z.json",
+  "replacement_retrieval_config_fingerprint": "sha256:04695baf2218305d0b7d8697223501181a1ff641f1a317fabfa8d409657ede7f",
+  "schema": "dur055-pre-freeze-audit.v1",
+  "spend_ledger_snapshot": {
+    "cap_usd": "100.00",
+    "reserved_usd": "0.00000000",
+    "spent_usd": "0.00961044",
+    "status": "IN_PROGRESS",
+    "uncertain_usd": "0.00022412"
+  },
+  "status": "SUPERSEDED_DEVELOPMENT_BUNDLES_RETAINED",
+  "superseded_bundles": [
+    {
+      "agent_config": "agent-frozen-config-20260928T045914Z.json",
+      "agent_development_results": "agent-development-20260928T045914Z.json",
+      "freeze_bundle": "gate-a-freeze-review-20260928T045914Z.json",
+      "preserved_unchanged": true,
+      "reason": "The held-out ID-only fingerprint used held-q-*; fixture IDs use hel-q-*. Development rows and scores remain preserved but this bundle is invalid for freeze review.",
+      "retrieval_config": "retrieval-frozen-config-20260928T045819Z.json",
+      "retrieval_development_results": "retrieval-development-20260928T045819Z.json",
+      "study_manifest": "study-manifest-20260928T045819Z.json"
+    },
+    {
+      "agent_config": "agent-frozen-config-20260928T050444Z.json",
+      "agent_development_results": "agent-development-20260928T050444Z.json",
+      "freeze_bundle": "gate-a-freeze-review-20260928T050444Z.json",
+      "preserved_unchanged": true,
+      "reason": "This rerun corrected the ID fingerprint but reused prior vectors without carrying the prior successful embedding request records into its manifest. Its dev results remain preserved but this bundle is incomplete for freeze review.",
+      "retrieval_config": "retrieval-frozen-config-20260928T050351Z.json",
+      "retrieval_development_results": "retrieval-development-20260928T050351Z.json",
+      "study_manifest": "study-manifest-20260928T050351Z.json"
+    }
+  ]
+}

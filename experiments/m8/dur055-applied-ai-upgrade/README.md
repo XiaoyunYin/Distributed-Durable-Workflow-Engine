@@ -1,10 +1,44 @@
 # DUR-055 applied-AI upgrade
 
-Status: **IN_PROGRESS — Gate A development/freeze preparation**. No held-out
+Status: **READY_FOR_FREEZE_REVIEW — Gate A**. No held-out
 retrieval query or incident case has been scored in this study.
 
 This is a new versioned study. DUR-029 artifacts, including the 4/20
 `gpt-4o-mini` held-out result, remain unchanged and are the comparison baseline.
+
+The current Gate A bundle is [`gate-a-freeze-review-20260928T050959Z.json`](gate-a-freeze-review-20260928T050959Z.json)
+with retrieval config fingerprint `sha256:04695baf2218305d0b7d8697223501181a1ff641f1a317fabfa8d409657ede7f`
+and agent config fingerprint `sha256:d01d9a37c48de3410547e1b38609c27be344326a40cb6466cee03a3bed96f47c`.
+The supersession audit at
+[`gate-a-supersession-audit-20260928T051136Z.json`](gate-a-supersession-audit-20260928T051136Z.json)
+explains two earlier preserved development bundles that were superseded before
+freeze review. All their calls remain in the spend ledger.
+
+## Development-only measurements
+
+The selected retrieval settings are top-k 5, HNSW `ef_search` 40, and RRF-k 60.
+Across 40 dev queries, balanced accuracy was 0.70 for keyword and 1.00 for
+dense and hybrid; no-answer false-positive rate was 0 for all three. Mean
+delivered Recall@K was 0.40, 0.90, and 0.9333, respectively. The dense model is
+`text-embedding-3-small` (1536 dimensions), indexed with HNSW.
+
+The final agent development iteration used `gpt-6-luna` on the same 10 dev
+incidents for each candidate. The selected `evidence-contract-v1` scored
+0.3654 under the preregistered dev selection objective; v2 scored 0.3560.
+Both had 0 unsafe proposals on insufficient cases and 100% valid citations.
+These small dev results do not establish improvement over the unchanged 4/20
+held-out `gpt-4o-mini` baseline.
+
+| Prompt/schema | Input tokens | Output tokens | Reasoning tokens | Mean latency | API cost |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| evidence-contract-v1 | 12,179 | 1,798 | 345 | 2,628 ms | $0.00102349 |
+| evidence-contract-v2 | 13,489 | 2,417 | 491 | 2,902 ms | $0.00134609 |
+
+Every response ID and run-level usage record is in
+[`agent-development-20260928T050959Z.json`](agent-development-20260928T050959Z.json).
+The ledger records $0.00961044 settled spend against the $100.00 cap and
+$0.00022412 conservatively reserved for one socket-blocked attempt with no API
+response. It records all three dev iterations and embedding calls.
 
 ## Frozen inputs and intended setup
 
