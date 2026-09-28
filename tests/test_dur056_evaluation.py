@@ -133,6 +133,15 @@ def test_development_summary_separates_correct_actions_from_abstentions() -> Non
     rows = [
         {
             **common,
+            "timeline": [
+                {
+                    "event_type": "mcp_tool_call",
+                    "data": {
+                        "method": "search_runbooks",
+                        "result_data": {"evidence": [{"chunk_id": "a"}, {"chunk_id": "b"}]},
+                    },
+                }
+            ],
             "expected_action": {"action": "scale_pool"},
             "action_and_parameters_correct": True,
             "correct_abstention": False,
@@ -141,6 +150,12 @@ def test_development_summary_separates_correct_actions_from_abstentions() -> Non
         },
         {
             **common,
+            "timeline": [
+                {
+                    "event_type": "mcp_tool_call",
+                    "data": {"method": "search_runbooks", "result_data": {"evidence": []}},
+                }
+            ],
             "expected_action": None,
             "action_and_parameters_correct": True,
             "correct_abstention": True,
@@ -162,6 +177,15 @@ def test_development_summary_separates_correct_actions_from_abstentions() -> Non
     assert summary["correct_action_and_parameters_rate"] == 0.5
     assert summary["correct_abstentions"] == 1
     assert summary["false_abstentions"] == 1
+    assert summary["retrieval_evidence_list_sizes"] == {
+        "search_call_count": 2,
+        "runs_without_search_call": 1,
+        "empty_evidence_lists": 1,
+        "nonempty_evidence_lists": 1,
+        "total_evidence_items": 2,
+        "mean_items_per_search_call": 1.0,
+        "size_histogram": {"0": 1, "2": 1},
+    }
 
 
 def test_analysis_recomputes_answerable_metrics_from_immutable_run_rows() -> None:

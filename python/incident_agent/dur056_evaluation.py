@@ -105,6 +105,32 @@ def _event_rows(timeline: Sequence[Any]) -> list[dict[str, Any]]:
     return [asdict(event) for event in timeline]
 
 
+def _retrieval_evidence_list_sizes(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
+    sizes: list[int] = []
+    for row in rows:
+        for event in row.get("timeline", []):
+            if (
+                event.get("event_type") != "mcp_tool_call"
+                or event.get("data", {}).get("method") != "search_runbooks"
+            ):
+                continue
+            evidence = event.get("data", {}).get("result_data", {}).get("evidence", [])
+            sizes.append(len(evidence) if isinstance(evidence, list) else 0)
+    histogram: dict[str, int] = {}
+    for size in sizes:
+        label = str(size)
+        histogram[label] = histogram.get(label, 0) + 1
+    return {
+        "search_call_count": len(sizes),
+        "runs_without_search_call": max(0, len(rows) - len(sizes)),
+        "empty_evidence_lists": sum(size == 0 for size in sizes),
+        "nonempty_evidence_lists": sum(size > 0 for size in sizes),
+        "total_evidence_items": sum(sizes),
+        "mean_items_per_search_call": round(sum(sizes) / len(sizes), 3) if sizes else 0.0,
+        "size_histogram": histogram,
+    }
+
+
 def _surface_measurements(
     case: Dur056Case,
     all_cases: Sequence[Dur056Case],
@@ -162,9 +188,7 @@ def run_workflow_case(
             raise Dur056RetrievalError(
                 "injection matrix requires the frozen hybrid retrieval index"
             )
-        workflow_index = InjectedRetrievalAdapter(
-            retrieval_recorder, {case_query}, injection_text
-        )
+        workflow_index = InjectedRetrievalAdapter(retrieval_recorder, {case_query}, injection_text)
     backend = BoundedMCPServer(
         workflow_index,
         cases=incident_cases,
@@ -328,6 +352,7 @@ def _dev_summary(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
         "citation_provenance_violations": sum(
             int(row["citation_provenance_violations"]) for row in rows
         ),
+        "retrieval_evidence_list_sizes": _retrieval_evidence_list_sizes(rows),
         "diagnosis_accuracy": sum(bool(row["diagnosis_correct"]) for row in rows) / total,
         "input_tokens": sum(int(row["input_tokens"]) for row in rows),
         "output_tokens": sum(int(row["output_tokens"]) for row in rows),

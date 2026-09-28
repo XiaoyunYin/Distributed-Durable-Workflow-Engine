@@ -41,13 +41,14 @@ PostgreSQL full-text search with OR-joined `to_tsquery` terms, and hybrid RRF.
 The agent model is `gpt-6-luna`; the existing append-only ledger enforces the
 **$25.00 USD** hard cap and preserves its $0.11859702 prior settled spend.
 
-The v3 development embeddings, retrieval tuning, agent prompt/schema tuning,
-frozen configs, and fingerprints are pending because this task shell currently
-has no `OPENAI_API_KEY`. The isolated PostgreSQL service is healthy and its
-v3 migration and 42 development corpus rows have been prepared. No held-out
-material has been sent to any provider. The package is not ready for Gate A
-review until development tuning is complete and the v3 retrieval and agent
-configurations are frozen.
+The isolated PostgreSQL service is healthy and its v3 migration and 42
+development corpus rows have been prepared. Development embeddings, retrieval
+tuning, agent prompt/schema tuning, and frozen configs/fingerprints are pending.
+The repository's gitignored `.env` provides development credentials through
+`uv run --env-file .env`; the API key is not copied into artifacts or printed.
+No held-out material has been sent to any provider. The package is not ready
+for Gate A review until development tuning is complete and the v3 retrieval and
+agent configurations are frozen.
 
 ## Scope and reproduction
 
@@ -65,7 +66,7 @@ uv run python -m incident_agent.dur056 validate-fixtures
 uv run pytest tests/test_dur056_fixtures.py tests/test_dur056_retrieval.py
 ```
 
-The development-only command is `uv run python -m incident_agent.dur056
+The development-only command is `uv run --env-file .env python -m incident_agent.dur056
 prepare-dev`. It must use the configured DUR-056 PostgreSQL service and the
 development split only; its provider clients enforce the study split and
 ledger cap. Do not invoke `score-heldout` without Claude's later accepted

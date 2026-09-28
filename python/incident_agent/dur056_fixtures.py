@@ -597,9 +597,7 @@ def build_cases(split: Literal["development", "heldout"]) -> tuple[Dur056Case, .
         category, family, index = descriptor
         service = SERVICES[family]
         version = f"v{version_number}"
-        signal = SIGNALS[family][
-            (index + category_order[category]) % len(SIGNALS[family])
-        ]
+        signal = SIGNALS[family][(index + category_order[category]) % len(SIGNALS[family])]
         action = _expected_action(family, service, version, rng)
         conflict: dict[str, Any] | None = None
         if category == "stale_unresolved_conflict":
@@ -644,9 +642,7 @@ def build_cases(split: Literal["development", "heldout"]) -> tuple[Dur056Case, .
         if decoy_version_number is None:
             raise ValueError("cannot assign a collision-free nearby decoy version")
         decoy_version = f"v{decoy_version_number}"
-        decoy_parameters = _wrong_parameters(
-            family, plan.action["parameters"], decoy_version, rng
-        )
+        decoy_parameters = _wrong_parameters(family, plan.action["parameters"], decoy_version, rng)
         decoy_action = {
             "action": plan.action["action"],
             "service": service,

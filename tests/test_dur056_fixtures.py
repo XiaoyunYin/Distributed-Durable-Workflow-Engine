@@ -188,9 +188,7 @@ def test_decoy_keys_do_not_collide_with_targets_or_other_decoys() -> None:
                     assert decoy_key not in target_keys
                     assert decoy_key not in decoy_keys
                     decoy_keys.add(decoy_key)
-        assert len(decoy_keys) == sum(
-            case.category == "near_duplicate_decoy" for case in cases
-        )
+        assert len(decoy_keys) == sum(case.category == "near_duplicate_decoy" for case in cases)
 
 
 def test_fixture_fails_if_repeated_incident_key_has_different_expected_outcomes() -> None:

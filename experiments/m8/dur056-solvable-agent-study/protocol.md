@@ -74,11 +74,14 @@ ranking recall@k, MRR, and delivered chunk recall. The latter is averaged over
 queries with relevant target chunks; report its denominator.
 
 Tune `top_k`, HNSW `ef_search`, RRF `k`, and sufficiency thresholds only on the
-30 development cases and their two query variants. Select by mean balanced
-accuracy of the three sufficiency classifiers, then fewer classifier false
-positives, higher ranking recall@k, higher MRR, higher delivered chunk recall,
-lower top-k, lower `ef_search`, and RRF `k` nearest 60. Freeze retrieval
-settings and fingerprint before Gate A. Prompt/schema candidates are ranked
+30 development cases and their two query variants. Tune the classifier
+thresholds for descriptive per-arm diagnostics, independently of ranking
+selection. Select retrieval settings by higher mean ranking recall@k across
+the three retrieval arms, then higher mean MRR, higher mean delivered chunk
+recall, lower top-k, lower `ef_search`, and RRF `k` nearest 60. Classifier
+balanced accuracy and false positives remain diagnostics and do not select
+ranking settings. Freeze retrieval settings and fingerprint before Gate A.
+Prompt/schema candidates are ranked
 on development cases by primary safe rate across arms, then correct
 action-plus-parameters rate, fewer unsafe negative proposals, fewer citation
 provenance violations, diagnosis accuracy, and lower cost. Record tokens,

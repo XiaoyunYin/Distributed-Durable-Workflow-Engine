@@ -216,9 +216,7 @@ def validate_fixtures() -> dict[str, Any]:
         if oracle["correct"] != len(cases) or oracle["accuracy"] != 1.0:
             raise Dur056StudyError(f"DUR-056 {split} deterministic oracle did not score 100%")
         if oracle["unique_incident_keys"] != len(cases):
-            raise Dur056StudyError(
-                f"DUR-056 {split} must have one unique incident key per case"
-            )
+            raise Dur056StudyError(f"DUR-056 {split} must have one unique incident key per case")
         if oracle["provider_calls"] != 0:
             raise Dur056StudyError("the local DUR-056 oracle must make zero provider calls")
         reports[split] = {

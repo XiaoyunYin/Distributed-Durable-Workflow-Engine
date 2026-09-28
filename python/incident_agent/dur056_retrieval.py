@@ -668,7 +668,7 @@ def tune_development(
     labels = [case.expected_action is not None for case, _query in query_cases]
     best_config: dict[str, Any] | None = None
     best_results: dict[str, Any] | None = None
-    best_key: tuple[float, float, float, float, float, int, int, int] | None = None
+    best_key: tuple[float, float, float, int, int, int] | None = None
     candidate_grid: list[dict[str, Any]] = []
     for top_k in TOP_K_CANDIDATES:
         for ef_search in EF_SEARCH_CANDIDATES:
@@ -749,15 +749,11 @@ def tune_development(
                 false_positives = {
                     arm: sum(
                         prediction
-                        for label, prediction in zip(
-                            labels, per_arm_classifier[arm], strict=True
-                        )
+                        for label, prediction in zip(labels, per_arm_classifier[arm], strict=True)
                         if not label
                     )
                     for arm in per_arm_classifier
                 }
-                mean_accuracy = statistics.mean(accuracy.values())
-                total_false_positive = float(sum(false_positives.values()))
                 ranking_recall = {
                     arm: statistics.mean(per_arm_hits[arm]) if per_arm_hits[arm] else 0.0
                     for arm in per_arm_hits
@@ -774,8 +770,6 @@ def tune_development(
                 mean_ranking_mrr = statistics.mean(ranking_mrr.values())
                 mean_delivered_recall = statistics.mean(delivered_recall.values())
                 key = (
-                    mean_accuracy,
-                    -total_false_positive,
                     mean_ranking_recall,
                     mean_ranking_mrr,
                     mean_delivered_recall,
@@ -805,11 +799,19 @@ def tune_development(
                     "selection": {
                         "split": "development",
                         "objective": (
-                            "sufficiency-classifier mean balanced accuracy; then lower "
-                            "false positives, higher ranking recall@k, higher MRR, higher "
+                            "higher mean ranking recall@k, higher mean MRR, higher mean "
                             "delivered chunk recall, lower top-k, lower ef_search, "
-                            "rrf_k nearest 60"
+                            "rrf_k nearest 60; sufficiency classifiers are diagnostics "
+                            "and do not select ranking settings"
                         ),
+                        "selection_key_order": [
+                            "mean_ranking_recall_at_k",
+                            "mean_mrr",
+                            "mean_delivered_chunk_recall",
+                            "lower_top_k",
+                            "lower_hnsw_ef_search",
+                            "rrf_k_nearest_60",
+                        ],
                         "query_variants_per_case": ["clean-a", "clean-b"],
                         "query_count": len(query_cases),
                         "sufficiency_classifier_label": "expected_action_is_non_null",
@@ -854,8 +856,7 @@ def tune_development(
                             "dense": [hit.chunk_id for hit in rows["dense"]],
                             "hybrid": [hit.chunk_id for hit in rrf_rows[index]],
                             "sufficiency_classifier_prediction": {
-                                arm: per_arm_classifier[arm][index]
-                                for arm in per_arm_classifier
+                                arm: per_arm_classifier[arm][index] for arm in per_arm_classifier
                             },
                             "ranking_hit_at_k": {
                                 arm: bool(relevant.intersection(hit.chunk_id for hit in hits))
@@ -889,6 +890,14 @@ def tune_development(
                         "mean_ranking_recall_at_k": mean_ranking_recall,
                         "mean_mrr": mean_ranking_mrr,
                         "mean_delivered_chunk_recall": mean_delivered_recall,
+                        "selection_key_order": [
+                            "mean_ranking_recall_at_k",
+                            "mean_mrr",
+                            "mean_delivered_chunk_recall",
+                            "lower_top_k",
+                            "lower_hnsw_ef_search",
+                            "rrf_k_nearest_60",
+                        ],
                         "selection_key": list(key),
                     }
                 )

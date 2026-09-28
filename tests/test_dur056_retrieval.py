@@ -16,6 +16,7 @@ from incident_agent.dur056_retrieval import (
     development_query_rows,
     heldout_query_rows,
     reciprocal_rank_fusion,
+    tune_development,
 )
 from incident_agent.models import RetrievalHit
 
@@ -130,6 +131,66 @@ def test_retrieval_arm_delivers_ranked_results_when_sufficiency_classifier_is_ne
     assert response.sufficient is False
     assert response.delivered
     assert response.reason == "sufficiency_classifier_negative"
+
+
+def test_development_retrieval_selection_prioritizes_ranking_over_classifier(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    cases = build_cases("development")
+    query_cases = {
+        query: case for case in cases for query in (case.query_clean_a, case.query_clean_b)
+    }
+
+    def fake_keyword(_connection: Any, query: str, _splits: Any, top_k: int) -> list[RetrievalHit]:
+        case = query_cases[query]
+        relevant = case.relevant_chunk_ids[0] if case.relevant_chunk_ids else "zzzz-keyword"
+        chunk_id = relevant if top_k == 3 else "zzzz-keyword"
+        aligned = top_k != 3
+        positive = case.expected_action is not None
+        score = 0.9 if positive == aligned else 0.1
+        return [_hit(chunk_id, score)]
+
+    def fake_dense(
+        _connection: Any,
+        _query_id: str,
+        _vector: str,
+        _split: str,
+        top_k: int,
+        ef_search: int,
+        _corpus_splits: Any,
+    ) -> list[RetrievalHit]:
+        # This synthetic candidate has worse classifier scores but perfect
+        # rankings only at the preferred top_k/ef_search combination.
+        query = next(query for query, pair in vectors.items() if pair[0] == _query_id)
+        case = query_cases[query]
+        relevant = case.relevant_chunk_ids[0] if case.relevant_chunk_ids else "zzzz-dense"
+        rankable = top_k == 3 and ef_search == 40
+        chunk_id = relevant if rankable else "zzzz-dense"
+        aligned = top_k == 5 and ef_search == 80
+        positive = case.expected_action is not None
+        score = 0.9 if positive == aligned else 0.1
+        return [_hit(chunk_id, score)]
+
+    monkeypatch.setattr(dur056_retrieval, "_keyword_hits", fake_keyword)
+    monkeypatch.setattr(dur056_retrieval, "_dense_hits", fake_dense)
+    query_rows = development_query_rows(cases)
+    vectors = {row["query"]: (row["query_id"], "[0.0]") for row in query_rows}
+    query_splits = {row["query"]: row["split"] for row in query_rows}
+    config, report = tune_development(cast(Any, object()), cases, vectors, query_splits)
+    selection = config["selection"]
+    assert config["ranking"]["top_k"] == 3
+    assert config["dense"]["hnsw_ef_search"] == 40
+    assert selection["selection_key_order"] == [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60",
+    ]
+    assert selection["mean_ranking_recall_at_k"] > 0
+    assert "arm_balanced_accuracy" in selection
+    assert "sufficiency_classifier_prediction" in report["rows"][0]
 
 
 def test_no_retrieval_arm_returns_no_documents() -> None:
