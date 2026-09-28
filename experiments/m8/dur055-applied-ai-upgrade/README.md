@@ -19,11 +19,23 @@ freeze review. All their calls remain in the spend ledger.
 ## Held-out results
 
 The scorer used the exact Gate A fingerprints listed above. Its model was
-`gpt-6-luna`, using the frozen hybrid retrieval arm. The historical
-`gpt-4o-mini` primary-safe result remains 4/20 per arm; the new setup also
-scored 4/20, so primary end-to-end safety did not improve. The document-
-dependent subset was 0/16, matching the historical 0/16. All 20 cases
-completed without provider errors.
+`gpt-6-luna`, using the frozen hybrid retrieval arm. It abstained on all 20
+held-out cases. The four primary-safe outcomes are the four fixture-labeled
+`insufficient_evidence` cases where abstention was expected. The historical
+`gpt-4o-mini` primary-safe result remains 4/20 per arm, so there was no measured
+improvement in primary safety. The document-dependent subset was 0/16,
+matching the historical 0/16.
+
+This benchmark cannot distinguish a careful model from a non-functional one
+on those 16 answerable cases. The case logs and metrics contain family signals,
+not the expected actions or their parameters. The runbook/postmortem chunks
+provide generic guidance but likewise omit the expected action and parameters;
+the case builder assigns those labels from the family. Thus the reported 16
+"false abstentions" are false relative to fixture labels, not demonstrated
+model errors. See `python/incident_agent/fixtures.py:106-112` for chunk text,
+`:147-177` for case evidence, and `:179-188` for family-derived expected
+actions. Both development candidates, `evidence-contract-v1` and
+`evidence-contract-v2`, abstained on all 10/10 development cases.
 
 | Retrieval arm | MRR | Ranking Recall@K | Delivered Recall@K | Distractor hit rate | No-answer false-positive rate | Median / max latency |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: |
@@ -31,22 +43,38 @@ completed without provider errors.
 | pgvector dense | 0.4528 | 0.8667 | 0.6556 | 0 | 0 | 5.002 / 14.238 ms |
 | Hybrid RRF | 0.6574 | 0.8889 | 0.6778 | 0 | 0 | 5.002 / 16.234 ms |
 
+The keyword arm filters with conjunctive `plainto_tsquery('simple', query)`
+(`python/incident_agent/dur055_retrieval.py:517`). In this template it matches
+only two of five families: per-family Recall@K is 1.0, 1.0, 0, 0, 0 for
+`bad_configuration`, `connection_pool`, `downstream_latency`, `disk_pressure`,
+and `insufficient_evidence`, respectively. The overall 0.400 keyword result
+is therefore determined by fixture construction, not a general lexical-
+retrieval comparison. The more informative within-study comparison is hybrid
+versus dense: MRR 0.657 versus 0.453 and ranking Recall@K 0.889 versus 0.867.
+Those results remain specific to this synthetic corpus and query set.
+
 Each arm scored the same 120 held-out queries: 90 answerable and 30 no-answer.
-The agent's secondary outcomes were 8/20 diagnosis accuracy, 4 correct
-abstentions, 16 false abstentions, and zero citation-provenance violations.
+Secondary counts were 8/20 diagnosis accuracy, 4 correct abstentions, and 16
+fixture-relative false-abstention labels; the latter are not demonstrated model
+errors because answerable evidence omits expected actions and parameters.
+Citation-provenance violations were zero.
 The 20 agent runs used 24,077 input, 3,672 output, and 791 reasoning tokens;
 API latency averaged 2,981.655 ms/run and wall latency averaged 3,043.924
 ms/run. Their known cost was $0.00424370 total ($0.000212185/run).
 
 The injection matrix contained 120 runs (20 cases x two profiles x three
-conditions). Using the baseline canonical signature and
+conditions). All 120 runs abstained with `NO_PROPOSAL`. Using the baseline
+canonical signature and
 `(clean-A != injected) - (clean-A != clean-B)`, defended raw clean-clean flips
 were 0/20, defended clean-A-to-injected changes were 0/20, and defended excess
 was 0/20. The corresponding plain counts were 0/20, 0/20, and 0/20. Diagnosis
-diverged in 20/20 cases under each profile even though proposal signatures did
-not change. Canary leaks were zero across all 120 runs on each of
+diverged in 20/20 cases under each profile. Since all signatures were
+`NO_PROPOSAL`, the 0/20 excess is uninformative about injection resistance in
+either direction; this study provides no evidence of injection resistance.
+Canary leaks were zero across 120 runs x five surfaces:
 `workflow_payload`, `rendered_prompt`, `persisted_model_record`, `mcp_response`,
-and `exported_span`.
+and `exported_span`. This canary scan is a separate measurement from the
+uninformative proposal-change metric.
 
 Those 120 runs used 149,122 input, 20,846 output, and 4,244 reasoning tokens;
 API latency averaged 2,754.620 ms/run and wall latency averaged 2,810.109
@@ -115,10 +143,13 @@ worst-case amount before sending, then records the provider's reported usage,
 latency, and list-price estimate. Uncertain network outcomes retain their
 reservation until reconciled.
 
-The public list prices were checked before Gate B calls: $0.10/$0.50 per
-million input/output tokens for `gpt-6-luna`, and $0.02 per million input tokens
-for `text-embedding-3-small`. The ledger records actual reported usage and the
-corresponding estimated cost for each call.
+The ledger's `pricing_checked_date` is 2026-09-27; its recorded standard list
+prices are $0.10/$0.50 per million input/output tokens for `gpt-6-luna`, and
+$0.02 per million input tokens for `text-embedding-3-small`. This README does
+not assert a later price check before Gate B. The ledger and per-run
+`known_cost_usd`/`model` fields are authoritative for cost and model identity.
+Timeline actor `model-fixture` and `model_usage.cost_cents: 0.0` are legacy
+labels and are not authoritative for live provider usage.
 
 ## Local PostgreSQL
 
@@ -151,5 +182,7 @@ request for final results/claims review.
 
 The corpus and its labels are synthetic. This is a local retrieval/index and
 bounded agent-quality study, not a production relevance, availability, or cost
-claim. HNSW is approximate. Results stay tied to the recorded corpus, model IDs,
+claim. HNSW is approximate. The agent benchmark does not demonstrate model
+quality on answerable cases because the fixture evidence omits the expected
+actions and parameters. Results stay tied to the recorded corpus, model IDs,
 settings, query population, and sample counts.

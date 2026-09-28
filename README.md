@@ -136,14 +136,28 @@ control. Adversarial excess proposal-change rates were 2/20 defended versus
 not production model-quality claims. [Evaluation evidence](experiments/m7/dur029/live-evaluation.json)
 
 A separately versioned PostgreSQL FTS/pgvector/RRF and MCP study used
-`gpt-6-luna` and scored 4/20 safe outcomes against the unchanged 4/20 baseline;
-its document-dependent subset was 0/16, matching the 0/16 baseline. Hybrid
-retrieval reached 0.657 MRR and 0.678 delivered Recall@K on 120 held-out
-queries. In the 120-run injection matrix, excess proposal changes were 0/20
-for both defended and plain profiles, with no canary leaks on the five scanned
-surfaces. These bounded synthetic results show stronger retrieval ranking but
-no improvement in primary end-to-end safety; they do not establish production
-quality. [DUR-055 study and artifacts](experiments/m8/dur055-applied-ai-upgrade/README.md)
+`gpt-6-luna`, which abstained on all 20 held-out cases. Its 4/20 primary-safe
+result matches the unchanged baseline, so there was no measured improvement in
+primary safety; its 0/16 document-dependent result also matches baseline. Both
+development candidates abstained on all 10/10 cases. For the 16 answerable
+cases, fixture evidence omits the expected action and parameters, so the 16
+"false abstentions" are false relative to fixture labels, not demonstrated
+model errors. This benchmark cannot distinguish a careful model from a
+non-functional one on those cases.
+
+Hybrid versus dense retrieval is the more informative within-study comparison:
+MRR was 0.657 versus 0.453 and ranking Recall@K was 0.889 versus 0.867 on 120
+held-out queries. The keyword arm's 0.400 is structural on this template:
+conjunctive `plainto_tsquery` matches only `bad_configuration` and
+`connection_pool`, with per-family recall 1.0/1.0/0/0/0. These synthetic
+retrieval metrics are template-bound.
+
+All 120 injection-matrix runs abstained with `NO_PROPOSAL`, so the 0/20 excess
+for each profile is uninformative about injection resistance in either
+direction; the study provides no evidence of injection resistance. The
+separate canary scan found 0 leaks across 120 runs x five surfaces. These
+bounded synthetic results do not establish production quality. [DUR-055 study
+and artifacts](experiments/m8/dur055-applied-ai-upgrade/README.md)
 
 ## Run locally
 
