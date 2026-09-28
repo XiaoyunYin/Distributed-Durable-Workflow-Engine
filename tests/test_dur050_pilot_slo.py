@@ -59,7 +59,7 @@ def write_calibration(root: Path, *, valid_count: int = 300, failed_observer: bo
     submission_rows: list[dict[str, object]] = []
     latency_rows: list[dict[str, object]] = []
     with (root / "unloaded-latency.csv").open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=LATENCY_FIELDS)
+        writer = csv.DictWriter(stream, fieldnames=LATENCY_FIELDS, lineterminator="\n")
         writer.writeheader()
         for family, latency in (("seq-8", 1000.0), ("fanout-8", 2000.0)):
             for sample in range(1, valid_count + 1):
@@ -156,12 +156,14 @@ def write_calibration(root: Path, *, valid_count: int = 300, failed_observer: bo
                 )
     with (root / "unloaded-observer-polls.csv").open("w", newline="", encoding="utf-8") as stream:
         fields = observer_csv_fields()
-        writer = csv.DictWriter(stream, fieldnames=fields)
+        writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(poll_rows)
     with (root / "submission-rows.csv").open("w", newline="", encoding="utf-8") as stream:
         writer = csv.DictWriter(
-            stream, fieldnames=["record_type", "workflow_id", "family", "outcome"]
+            stream,
+            fieldnames=["record_type", "workflow_id", "family", "outcome"],
+            lineterminator="\n",
         )
         writer.writeheader()
         writer.writerows(submission_rows)
@@ -192,7 +194,7 @@ def write_calibration(root: Path, *, valid_count: int = 300, failed_observer: bo
             }
             for filename, (fields, rows) in datasets.items():
                 with (block_dir / filename).open("w", newline="", encoding="utf-8") as stream:
-                    writer = csv.DictWriter(stream, fieldnames=fields)
+                    writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
                     writer.writeheader()
                     writer.writerows(rows)
             with (block_dir / "loadgen-summaries.jsonl").open("w", encoding="utf-8") as stream:
@@ -342,7 +344,7 @@ def test_unloaded_runner_aggregates_observer_header_without_hardcoding(tmp_path:
 
     def write_observer(path: Path, header: list[str], workflow_id: str) -> None:
         with path.open("w", newline="", encoding="utf-8") as stream:
-            writer = csv.DictWriter(stream, fieldnames=header)
+            writer = csv.DictWriter(stream, fieldnames=header, lineterminator="\n")
             writer.writeheader()
             writer.writerow({"record_type": "snapshot", "workflow_id": workflow_id})
 
@@ -469,7 +471,7 @@ def write_source_block(root: Path, family: str, block_number: int) -> None:
     root.mkdir()
     latency_fields = ["family", "workflow_id"]
     with (root / "unloaded-latency.csv").open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=latency_fields)
+        writer = csv.DictWriter(stream, fieldnames=latency_fields, lineterminator="\n")
         writer.writeheader()
         for sample in range(100):
             writer.writerow(
@@ -478,7 +480,11 @@ def write_source_block(root: Path, family: str, block_number: int) -> None:
     with (root / "unloaded-observer-polls.csv").open("w", encoding="utf-8") as stream:
         stream.write("record_type,workflow_id\nsnapshot,wf\n")
     with (root / "submission-rows.csv").open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=["record_type", "workflow_id", "outcome"])
+        writer = csv.DictWriter(
+            stream,
+            fieldnames=["record_type", "workflow_id", "outcome"],
+            lineterminator="\n",
+        )
         writer.writeheader()
         for sample in range(100):
             writer.writerow(
@@ -551,7 +557,7 @@ def test_calibration_assembler_rejects_missing_family_block_before_creating_outp
             else ["record_type", "workflow_id", "outcome"]
         )
         with path.open("w", newline="", encoding="utf-8") as stream:
-            writer = csv.DictWriter(stream, fieldnames=fields)
+            writer = csv.DictWriter(stream, fieldnames=fields, lineterminator="\n")
             writer.writeheader()
             for sample in range(100):
                 row = {
@@ -599,7 +605,9 @@ def write_gate_inputs(root: Path) -> tuple[Path, Path]:
             submissions_path = root / f"{block_id}-submissions.csv"
             with submissions_path.open("w", newline="", encoding="utf-8") as stream:
                 writer = csv.DictWriter(
-                    stream, fieldnames=["record_type", "workflow_id", "family", "outcome"]
+                    stream,
+                    fieldnames=["record_type", "workflow_id", "family", "outcome"],
+                    lineterminator="\n",
                 )
                 writer.writeheader()
                 for sample in range(100):
@@ -642,7 +650,7 @@ def write_gate_inputs(root: Path) -> tuple[Path, Path]:
                 }
             )
     with manifest_path.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(manifest_rows[0]))
+        writer = csv.DictWriter(stream, fieldnames=list(manifest_rows[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(manifest_rows)
     timings_path.write_text(
@@ -694,7 +702,7 @@ def test_gate_overhead_summary_rejects_manifest_out_of_execution_order(tmp_path:
     rows = list(csv.DictReader(manifest.open(newline="", encoding="utf-8")))
     rows[1]["block_started_at_utc"] = rows[0]["block_started_at_utc"]
     with manifest.open("w", newline="", encoding="utf-8") as stream:
-        writer = csv.DictWriter(stream, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0]), lineterminator="\n")
         writer.writeheader()
         writer.writerows(rows)
     output = tmp_path / "out-of-order-summary"
