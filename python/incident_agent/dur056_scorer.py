@@ -74,7 +74,7 @@ def verify_receipt(
     retrieval_fingerprint: str,
     agent_fingerprint: str,
 ) -> dict[str, Any]:
-    receipt = cast(dict[str, Any], read_json(receipt_path))
+    receipt = read_json(receipt_path)
     expected = {
         "schema": RECEIPT_SCHEMA,
         "reviewer": "Claude",

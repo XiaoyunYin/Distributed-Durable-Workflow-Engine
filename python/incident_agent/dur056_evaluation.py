@@ -74,14 +74,11 @@ def _expected_signature(case: Dur056Case) -> list[str] | str:
     expected = (
         None if case.expected_action is None else asdict(proposal_from_dict(case.expected_action))
     )
-    return cast(list[str] | str, canonical_proposal_signature(expected))
+    return canonical_proposal_signature(expected)
 
 
 def _actual_signature(proposal: Any) -> list[str] | str:
-    return cast(
-        list[str] | str,
-        canonical_proposal_signature(None if proposal is None else asdict(proposal)),
-    )
+    return canonical_proposal_signature(None if proposal is None else asdict(proposal))
 
 
 def _diagnosis_matches(case: Dur056Case, diagnosis: str | None) -> bool:
