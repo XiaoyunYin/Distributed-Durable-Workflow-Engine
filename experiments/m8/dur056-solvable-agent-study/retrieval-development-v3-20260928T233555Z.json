@@ -1,0 +1,3069 @@
+{
+  "candidate_grid": [
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 30,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -3,
+        -40,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 60,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -3,
+        -40,
+        0
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 90,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -3,
+        -40,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 30,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -3,
+        -80,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 60,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -3,
+        -80,
+        0
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 90,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -3,
+        -80,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 30,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -5,
+        -40,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 60,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -5,
+        -40,
+        0
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 90,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -5,
+        -40,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 30,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -5,
+        -80,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 60,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -5,
+        -80,
+        0
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 90,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -5,
+        -80,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 30,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -8,
+        -40,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 60,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -8,
+        -40,
+        0
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 90,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -8,
+        -40,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 30,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -8,
+        -80,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 60,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -8,
+        -80,
+        0
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "delivered_chunk_recall_by_arm": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "dense_threshold": 0.775,
+      "false_positive_count_by_arm": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.03909958,
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "mrr_by_arm": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "ranking_recall_at_k_by_arm": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "rrf_k": 90,
+      "selection_key": [
+        1,
+        0.9629629629629629,
+        1.0,
+        -8,
+        -80,
+        -30
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "top_k": 8
+    }
+  ],
+  "case_count": 30,
+  "frozen_candidate": {
+    "config_fingerprint": "sha256:c6a73abbb7b2ee4665c381ca3867b69a6fa45ed0a9d74b88c31b6b103f2d837c",
+    "corpus_fingerprint": "sha256:d72aa4e39038db461bc0d9e55857444ea0797b6e628ff54463dd1aede7b23560",
+    "database": {
+      "pgvector_version": "0.8.6",
+      "postgres_version": "PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit"
+    },
+    "dense": {
+      "balanced_accuracy": 0.5476190476190477,
+      "false_positive_count": 3.0,
+      "hnsw_ef_search": 40,
+      "threshold": 0.775
+    },
+    "development_query_fingerprint": "sha256:08c2f0c83f2c3f111dd250dddf00103885f65ecbc3818741bc725ed401d39290",
+    "embedding_dimension": 1536,
+    "embedding_model": "text-embedding-3-small",
+    "embedding_normalization": "provider_default",
+    "heldout_corpus_embedded": false,
+    "heldout_queries_embedded": false,
+    "hybrid": {
+      "rrf_k": 60
+    },
+    "index": {
+      "ef_construction": 64,
+      "m": 16,
+      "type": "HNSW"
+    },
+    "keyword": {
+      "balanced_accuracy": 0.5992063492063492,
+      "false_positive_count": 11.0,
+      "threshold": 0.03909958
+    },
+    "keyword_query": {
+      "rank": "ts_rank",
+      "strategy": "sanitized_or_joined_to_tsquery_simple",
+      "token_pattern": "[a-z0-9_]+"
+    },
+    "ranking": {
+      "top_k": 3
+    },
+    "schema": "dur056-retrieval-frozen-config.v3",
+    "selection": {
+      "arm_balanced_accuracy": {
+        "dense": 0.5476190476190477,
+        "hybrid": 0.5952380952380952,
+        "keyword": 0.5992063492063492
+      },
+      "arm_delivered_chunk_recall": {
+        "dense": 1.0,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "arm_false_positive_count": {
+        "dense": 3,
+        "hybrid": 12,
+        "keyword": 11
+      },
+      "arm_mrr": {
+        "dense": 0.8888888888888888,
+        "hybrid": 1.0,
+        "keyword": 1.0
+      },
+      "arm_ranking_recall_at_k": {
+        "dense": 1,
+        "hybrid": 1,
+        "keyword": 1
+      },
+      "candidate_hnsw_ef_search": [
+        40,
+        80
+      ],
+      "candidate_rrf_k": [
+        30,
+        60,
+        90
+      ],
+      "candidate_top_k": [
+        3,
+        5,
+        8
+      ],
+      "insufficient_case_count": 6,
+      "insufficient_case_sample_caveat": "Only six insufficient cases are present in development; classifier metrics are descriptive and are not agent gates.",
+      "mean_delivered_chunk_recall": 1.0,
+      "mean_mrr": 0.9629629629629629,
+      "mean_ranking_recall_at_k": 1,
+      "objective": "higher mean ranking recall@k, higher mean MRR, higher mean delivered chunk recall, lower top-k, lower ef_search, rrf_k nearest 60; sufficiency classifiers are diagnostics and do not select ranking settings",
+      "query_count": 60,
+      "query_variants_per_case": [
+        "clean-a",
+        "clean-b"
+      ],
+      "selection_key_order": [
+        "mean_ranking_recall_at_k",
+        "mean_mrr",
+        "mean_delivered_chunk_recall",
+        "lower_top_k",
+        "lower_hnsw_ef_search",
+        "rrf_k_nearest_60"
+      ],
+      "split": "development",
+      "sufficiency_classifier_label": "expected_action_is_non_null"
+    },
+    "study_version": "dur056-solvable-evidence-v3",
+    "threshold_tuning_split": "development"
+  },
+  "query_count": 60,
+  "rows": [
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-01",
+      "dense": [
+        "chunk-e2869a52369aa7bc2ee9",
+        "chunk-437ac62746e25a752b84",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "hybrid": [
+        "chunk-e2869a52369aa7bc2ee9",
+        "chunk-437ac62746e25a752b84",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "keyword": [
+        "chunk-e2869a52369aa7bc2ee9",
+        "chunk-437ac62746e25a752b84",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "query": "Investigate checkout version v613: invalid request bursts accompanied alert ERR_CFG_4XX.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-e2869a52369aa7bc2ee9"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-01",
+      "dense": [
+        "chunk-e2869a52369aa7bc2ee9",
+        "chunk-437ac62746e25a752b84",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "hybrid": [
+        "chunk-e2869a52369aa7bc2ee9",
+        "chunk-437ac62746e25a752b84",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "keyword": [
+        "chunk-e2869a52369aa7bc2ee9",
+        "chunk-437ac62746e25a752b84",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "query": "For ERR_CFG_4XX, the checkout deployment at v613 reported invalid request bursts.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-e2869a52369aa7bc2ee9"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-02",
+      "dense": [
+        "chunk-bf4a6de80e6e2b00df2e",
+        "chunk-974f99d3e1088893c5f5",
+        "chunk-43082ad12d3435eedfe5"
+      ],
+      "hybrid": [
+        "chunk-bf4a6de80e6e2b00df2e",
+        "chunk-974f99d3e1088893c5f5",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "keyword": [
+        "chunk-bf4a6de80e6e2b00df2e",
+        "chunk-974f99d3e1088893c5f5",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "query": "Investigate checkout version v1380: configuration parse failures accompanied alert CFG_PARSE_REJECTED.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-bf4a6de80e6e2b00df2e"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-02",
+      "dense": [
+        "chunk-bf4a6de80e6e2b00df2e",
+        "chunk-974f99d3e1088893c5f5",
+        "chunk-43082ad12d3435eedfe5"
+      ],
+      "hybrid": [
+        "chunk-bf4a6de80e6e2b00df2e",
+        "chunk-974f99d3e1088893c5f5",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "keyword": [
+        "chunk-bf4a6de80e6e2b00df2e",
+        "chunk-974f99d3e1088893c5f5",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "query": "For CFG_PARSE_REJECTED, the checkout deployment at v1380 reported configuration parse failures.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-bf4a6de80e6e2b00df2e"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-03",
+      "dense": [
+        "chunk-434d68f79a89a1e4b3d7",
+        "chunk-43082ad12d3435eedfe5",
+        "chunk-e2869a52369aa7bc2ee9"
+      ],
+      "hybrid": [
+        "chunk-434d68f79a89a1e4b3d7",
+        "chunk-43082ad12d3435eedfe5",
+        "chunk-437ac62746e25a752b84"
+      ],
+      "keyword": [
+        "chunk-434d68f79a89a1e4b3d7",
+        "chunk-43082ad12d3435eedfe5",
+        "chunk-437ac62746e25a752b84"
+      ],
+      "query": "Investigate checkout version v888: malformed settings payloads accompanied alert ERR_CFG_4XX.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-434d68f79a89a1e4b3d7"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-03",
+      "dense": [
+        "chunk-434d68f79a89a1e4b3d7",
+        "chunk-43082ad12d3435eedfe5",
+        "chunk-e2869a52369aa7bc2ee9"
+      ],
+      "hybrid": [
+        "chunk-434d68f79a89a1e4b3d7",
+        "chunk-43082ad12d3435eedfe5",
+        "chunk-437ac62746e25a752b84"
+      ],
+      "keyword": [
+        "chunk-434d68f79a89a1e4b3d7",
+        "chunk-43082ad12d3435eedfe5",
+        "chunk-437ac62746e25a752b84"
+      ],
+      "query": "Service checkout on release v888 showed ERR_CFG_4XX with malformed settings payloads.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-434d68f79a89a1e4b3d7"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-01",
+      "dense": [
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-5eef0ab72559c023bc9e",
+        "chunk-b8cf94727b66546df00d"
+      ],
+      "hybrid": [
+        "chunk-5eef0ab72559c023bc9e",
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-0dca460d9d789a1a4d55"
+      ],
+      "keyword": [
+        "chunk-5eef0ab72559c023bc9e",
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-6b070bddb5e8320593b2"
+      ],
+      "query": "During waiting clients, POOL_WAIT_P95_HIGH appeared on payments running v870.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-5eef0ab72559c023bc9e"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-01",
+      "dense": [
+        "chunk-5eef0ab72559c023bc9e",
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-b8cf94727b66546df00d"
+      ],
+      "hybrid": [
+        "chunk-5eef0ab72559c023bc9e",
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-0dca460d9d789a1a4d55"
+      ],
+      "keyword": [
+        "chunk-5eef0ab72559c023bc9e",
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-6b070bddb5e8320593b2"
+      ],
+      "query": "Investigate payments version v870: waiting clients accompanied alert POOL_WAIT_P95_HIGH.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-5eef0ab72559c023bc9e"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-02",
+      "dense": [
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-9f43d1905b5a75e5c973",
+        "chunk-561273f6b41b390154ff"
+      ],
+      "hybrid": [
+        "chunk-9f43d1905b5a75e5c973",
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-06217df8389f8613d170"
+      ],
+      "keyword": [
+        "chunk-9f43d1905b5a75e5c973",
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-06217df8389f8613d170"
+      ],
+      "query": "Investigate payments version v1296: saturated connection queues accompanied alert POOL_QUEUE_SATURATION.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-9f43d1905b5a75e5c973"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-02",
+      "dense": [
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-9f43d1905b5a75e5c973",
+        "chunk-561273f6b41b390154ff"
+      ],
+      "hybrid": [
+        "chunk-9f43d1905b5a75e5c973",
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-06217df8389f8613d170"
+      ],
+      "keyword": [
+        "chunk-9f43d1905b5a75e5c973",
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-06217df8389f8613d170"
+      ],
+      "query": "For POOL_QUEUE_SATURATION, the payments deployment at v1296 reported saturated connection queues.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-9f43d1905b5a75e5c973"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-03",
+      "dense": [
+        "chunk-21ceef395f16a1f1e432",
+        "chunk-87ecf8a30b41d1887a0e",
+        "chunk-6b070bddb5e8320593b2"
+      ],
+      "hybrid": [
+        "chunk-21ceef395f16a1f1e432",
+        "chunk-87ecf8a30b41d1887a0e",
+        "chunk-6b070bddb5e8320593b2"
+      ],
+      "keyword": [
+        "chunk-21ceef395f16a1f1e432",
+        "chunk-87ecf8a30b41d1887a0e",
+        "chunk-7a2a28591550130ea774"
+      ],
+      "query": "Service payments on release v1012 showed POOL_WAIT_P95_HIGH with checkout acquisition delays.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-21ceef395f16a1f1e432"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-03",
+      "dense": [
+        "chunk-21ceef395f16a1f1e432",
+        "chunk-87ecf8a30b41d1887a0e",
+        "chunk-6b070bddb5e8320593b2"
+      ],
+      "hybrid": [
+        "chunk-21ceef395f16a1f1e432",
+        "chunk-87ecf8a30b41d1887a0e",
+        "chunk-6b070bddb5e8320593b2"
+      ],
+      "keyword": [
+        "chunk-21ceef395f16a1f1e432",
+        "chunk-87ecf8a30b41d1887a0e",
+        "chunk-7a2a28591550130ea774"
+      ],
+      "query": "For POOL_WAIT_P95_HIGH, the payments deployment at v1012 reported checkout acquisition delays.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-21ceef395f16a1f1e432"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-01",
+      "dense": [
+        "chunk-44ace892af2f62ee8800",
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-ebdf3378844bb91bc800"
+      ],
+      "hybrid": [
+        "chunk-44ace892af2f62ee8800",
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "keyword": [
+        "chunk-44ace892af2f62ee8800",
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-124aab0fa0d43eb6e5e3"
+      ],
+      "query": "During inode allocation pressure, INODE_PRESSURE_92 appeared on search running v1030.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-44ace892af2f62ee8800"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-01",
+      "dense": [
+        "chunk-44ace892af2f62ee8800",
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-124aab0fa0d43eb6e5e3"
+      ],
+      "hybrid": [
+        "chunk-44ace892af2f62ee8800",
+        "chunk-124aab0fa0d43eb6e5e3",
+        "chunk-11f2333cf126366d9ca6"
+      ],
+      "keyword": [
+        "chunk-44ace892af2f62ee8800",
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-124aab0fa0d43eb6e5e3"
+      ],
+      "query": "Investigate search version v1030: inode allocation pressure accompanied alert INODE_PRESSURE_92.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-44ace892af2f62ee8800"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-02",
+      "dense": [
+        "chunk-358c851fde5286c577cb",
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "hybrid": [
+        "chunk-358c851fde5286c577cb",
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-44ace892af2f62ee8800"
+      ],
+      "keyword": [
+        "chunk-358c851fde5286c577cb",
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-44ace892af2f62ee8800"
+      ],
+      "query": "Service search on release v137 showed FILESYSTEM_INODE_EXHAUSTION with filesystem metadata exhaustion.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-358c851fde5286c577cb"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-02",
+      "dense": [
+        "chunk-358c851fde5286c577cb",
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-11f2333cf126366d9ca6"
+      ],
+      "hybrid": [
+        "chunk-358c851fde5286c577cb",
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "keyword": [
+        "chunk-358c851fde5286c577cb",
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-44ace892af2f62ee8800"
+      ],
+      "query": "Investigate search version v137: filesystem metadata exhaustion accompanied alert FILESYSTEM_INODE_EXHAUSTION.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-358c851fde5286c577cb"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-03",
+      "dense": [
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-ebdf3378844bb91bc800",
+        "chunk-3d2cd0fa776febbad1f2"
+      ],
+      "hybrid": [
+        "chunk-ebdf3378844bb91bc800",
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "keyword": [
+        "chunk-ebdf3378844bb91bc800",
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0"
+      ],
+      "query": "Investigate search version v201: directory entry creation failures accompanied alert INODE_PRESSURE_92.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-ebdf3378844bb91bc800"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-03",
+      "dense": [
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-ebdf3378844bb91bc800",
+        "chunk-3d2cd0fa776febbad1f2"
+      ],
+      "hybrid": [
+        "chunk-ebdf3378844bb91bc800",
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "keyword": [
+        "chunk-ebdf3378844bb91bc800",
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0"
+      ],
+      "query": "During directory entry creation failures, INODE_PRESSURE_92 appeared on search running v201.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-ebdf3378844bb91bc800"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-01",
+      "dense": [
+        "chunk-3a6ed91bb6acc50a3f32",
+        "chunk-971c05b644aba9fba63b",
+        "chunk-91be0c9d3aa1a61d6536"
+      ],
+      "hybrid": [
+        "chunk-3a6ed91bb6acc50a3f32",
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-971c05b644aba9fba63b"
+      ],
+      "keyword": [
+        "chunk-3a6ed91bb6acc50a3f32",
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-971c05b644aba9fba63b"
+      ],
+      "query": "Service catalog on release v367 showed UPSTREAM_DEADLINE_5XX with upstream deadline spikes.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-3a6ed91bb6acc50a3f32"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-01",
+      "dense": [
+        "chunk-3a6ed91bb6acc50a3f32",
+        "chunk-971c05b644aba9fba63b",
+        "chunk-91be0c9d3aa1a61d6536"
+      ],
+      "hybrid": [
+        "chunk-3a6ed91bb6acc50a3f32",
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-971c05b644aba9fba63b"
+      ],
+      "keyword": [
+        "chunk-3a6ed91bb6acc50a3f32",
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-971c05b644aba9fba63b"
+      ],
+      "query": "For UPSTREAM_DEADLINE_5XX, the catalog deployment at v367 reported upstream deadline spikes.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-3a6ed91bb6acc50a3f32"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-02",
+      "dense": [
+        "chunk-ce047893572835d44e40",
+        "chunk-1779c2bfb089703b4f00",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "hybrid": [
+        "chunk-ce047893572835d44e40",
+        "chunk-b3416964d1742efe51d0",
+        "chunk-1779c2bfb089703b4f00"
+      ],
+      "keyword": [
+        "chunk-ce047893572835d44e40",
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "query": "For UPSTREAM_TIMEOUT_RATE, the catalog deployment at v620 reported slow dependency responses.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-ce047893572835d44e40"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-02",
+      "dense": [
+        "chunk-ce047893572835d44e40",
+        "chunk-1779c2bfb089703b4f00",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "hybrid": [
+        "chunk-ce047893572835d44e40",
+        "chunk-b3416964d1742efe51d0",
+        "chunk-1779c2bfb089703b4f00"
+      ],
+      "keyword": [
+        "chunk-ce047893572835d44e40",
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "query": "During slow dependency responses, UPSTREAM_TIMEOUT_RATE appeared on catalog running v620.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-ce047893572835d44e40"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-03",
+      "dense": [
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-971c05b644aba9fba63b",
+        "chunk-3a6ed91bb6acc50a3f32"
+      ],
+      "hybrid": [
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-971c05b644aba9fba63b",
+        "chunk-3a6ed91bb6acc50a3f32"
+      ],
+      "keyword": [
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-971c05b644aba9fba63b",
+        "chunk-88a7f880ac9439ce25c9"
+      ],
+      "query": "During remote service response delays, UPSTREAM_DEADLINE_5XX appeared on catalog running v807.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-91be0c9d3aa1a61d6536"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-03",
+      "dense": [
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-971c05b644aba9fba63b",
+        "chunk-e6f99d1d55ed252b89c2"
+      ],
+      "hybrid": [
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-971c05b644aba9fba63b",
+        "chunk-88a7f880ac9439ce25c9"
+      ],
+      "keyword": [
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-971c05b644aba9fba63b",
+        "chunk-88a7f880ac9439ce25c9"
+      ],
+      "query": "For UPSTREAM_DEADLINE_5XX, the catalog deployment at v807 reported remote service response delays.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-91be0c9d3aa1a61d6536"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-bad-01",
+      "dense": [
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-151ee4d916db55e90b86",
+        "chunk-974f99d3e1088893c5f5"
+      ],
+      "hybrid": [
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-151ee4d916db55e90b86",
+        "chunk-974f99d3e1088893c5f5"
+      ],
+      "keyword": [
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-151ee4d916db55e90b86",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "query": "For CFG_PARSE_REJECTED, the checkout deployment at v1443 reported invalid request bursts.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-5911b15e8c4d87dc87bd"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-bad-01",
+      "dense": [
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-151ee4d916db55e90b86",
+        "chunk-e2869a52369aa7bc2ee9"
+      ],
+      "hybrid": [
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-151ee4d916db55e90b86",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "keyword": [
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-151ee4d916db55e90b86",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "query": "Investigate checkout version v1443: invalid request bursts accompanied alert CFG_PARSE_REJECTED.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-5911b15e8c4d87dc87bd"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-bad-05",
+      "dense": [
+        "chunk-b22860aabd1518a73190",
+        "chunk-43082ad12d3435eedfe5",
+        "chunk-974f99d3e1088893c5f5"
+      ],
+      "hybrid": [
+        "chunk-b22860aabd1518a73190",
+        "chunk-151ee4d916db55e90b86",
+        "chunk-43082ad12d3435eedfe5"
+      ],
+      "keyword": [
+        "chunk-b22860aabd1518a73190",
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd"
+      ],
+      "query": "For CFG_PARSE_REJECTED, the checkout deployment at v302 reported invalid field combinations.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-b22860aabd1518a73190"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-bad-05",
+      "dense": [
+        "chunk-b22860aabd1518a73190",
+        "chunk-43082ad12d3435eedfe5",
+        "chunk-5911b15e8c4d87dc87bd"
+      ],
+      "hybrid": [
+        "chunk-b22860aabd1518a73190",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "keyword": [
+        "chunk-b22860aabd1518a73190",
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd"
+      ],
+      "query": "Service checkout on release v302 showed CFG_PARSE_REJECTED with invalid field combinations.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-b22860aabd1518a73190"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-con-02",
+      "dense": [
+        "chunk-561273f6b41b390154ff",
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-06217df8389f8613d170"
+      ],
+      "hybrid": [
+        "chunk-561273f6b41b390154ff",
+        "chunk-06217df8389f8613d170",
+        "chunk-d417b1bbbad8e104bd58"
+      ],
+      "keyword": [
+        "chunk-561273f6b41b390154ff",
+        "chunk-06217df8389f8613d170",
+        "chunk-872e5e1e5dafb18099c7"
+      ],
+      "query": "During saturated connection queues, POOL_WAIT_P95_HIGH appeared on payments running v908.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-561273f6b41b390154ff"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-con-02",
+      "dense": [
+        "chunk-561273f6b41b390154ff",
+        "chunk-06217df8389f8613d170",
+        "chunk-d417b1bbbad8e104bd58"
+      ],
+      "hybrid": [
+        "chunk-561273f6b41b390154ff",
+        "chunk-06217df8389f8613d170",
+        "chunk-872e5e1e5dafb18099c7"
+      ],
+      "keyword": [
+        "chunk-561273f6b41b390154ff",
+        "chunk-06217df8389f8613d170",
+        "chunk-872e5e1e5dafb18099c7"
+      ],
+      "query": "For POOL_WAIT_P95_HIGH, the payments deployment at v908 reported saturated connection queues.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-561273f6b41b390154ff"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-con-06",
+      "dense": [
+        "chunk-1dc6061e367b200bfd25",
+        "chunk-561273f6b41b390154ff",
+        "chunk-7a2a28591550130ea774"
+      ],
+      "hybrid": [
+        "chunk-1dc6061e367b200bfd25",
+        "chunk-561273f6b41b390154ff",
+        "chunk-06217df8389f8613d170"
+      ],
+      "keyword": [
+        "chunk-1dc6061e367b200bfd25",
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff"
+      ],
+      "query": "For POOL_WAIT_P95_HIGH, the payments deployment at v934 reported connection allocation stalls.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-1dc6061e367b200bfd25"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-con-06",
+      "dense": [
+        "chunk-1dc6061e367b200bfd25",
+        "chunk-561273f6b41b390154ff",
+        "chunk-06217df8389f8613d170"
+      ],
+      "hybrid": [
+        "chunk-1dc6061e367b200bfd25",
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff"
+      ],
+      "keyword": [
+        "chunk-1dc6061e367b200bfd25",
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff"
+      ],
+      "query": "Service payments on release v934 showed POOL_WAIT_P95_HIGH with connection allocation stalls.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-1dc6061e367b200bfd25"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-dis-04",
+      "dense": [
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-44ace892af2f62ee8800",
+        "chunk-124aab0fa0d43eb6e5e3"
+      ],
+      "hybrid": [
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-44ace892af2f62ee8800",
+        "chunk-124aab0fa0d43eb6e5e3"
+      ],
+      "keyword": [
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-44ace892af2f62ee8800",
+        "chunk-124aab0fa0d43eb6e5e3"
+      ],
+      "query": "Service search on release v74 showed INODE_PRESSURE_92 with metadata allocation delays.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-11f2333cf126366d9ca6"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-dis-04",
+      "dense": [
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-44ace892af2f62ee8800",
+        "chunk-124aab0fa0d43eb6e5e3"
+      ],
+      "hybrid": [
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-44ace892af2f62ee8800",
+        "chunk-124aab0fa0d43eb6e5e3"
+      ],
+      "keyword": [
+        "chunk-11f2333cf126366d9ca6",
+        "chunk-44ace892af2f62ee8800",
+        "chunk-124aab0fa0d43eb6e5e3"
+      ],
+      "query": "For INODE_PRESSURE_92, the search deployment at v74 reported metadata allocation delays.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-11f2333cf126366d9ca6"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-dow-03",
+      "dense": [
+        "chunk-e1d1e7878318707a85fa",
+        "chunk-e6f99d1d55ed252b89c2",
+        "chunk-88a7f880ac9439ce25c9"
+      ],
+      "hybrid": [
+        "chunk-e6f99d1d55ed252b89c2",
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-e1d1e7878318707a85fa"
+      ],
+      "keyword": [
+        "chunk-e6f99d1d55ed252b89c2",
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-c876d56c6b1e7ae1aabc"
+      ],
+      "query": "Service catalog on release v1406 showed UPSTREAM_TIMEOUT_RATE with remote service response delays.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-e6f99d1d55ed252b89c2"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-dow-03",
+      "dense": [
+        "chunk-e1d1e7878318707a85fa",
+        "chunk-e6f99d1d55ed252b89c2",
+        "chunk-88a7f880ac9439ce25c9"
+      ],
+      "hybrid": [
+        "chunk-e6f99d1d55ed252b89c2",
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-e1d1e7878318707a85fa"
+      ],
+      "keyword": [
+        "chunk-e6f99d1d55ed252b89c2",
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-c876d56c6b1e7ae1aabc"
+      ],
+      "query": "During remote service response delays, UPSTREAM_TIMEOUT_RATE appeared on catalog running v1406.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-e6f99d1d55ed252b89c2"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-con-01",
+      "dense": [
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-5eef0ab72559c023bc9e",
+        "chunk-0dca460d9d789a1a4d55"
+      ],
+      "hybrid": [
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-5eef0ab72559c023bc9e"
+      ],
+      "keyword": [
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-5eef0ab72559c023bc9e"
+      ],
+      "query": "Investigate payments version v1037: waiting clients accompanied alert POOL_WAIT_P95_HIGH.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-6b070bddb5e8320593b2"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-con-01",
+      "dense": [
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-b8cf94727b66546df00d"
+      ],
+      "hybrid": [
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-5eef0ab72559c023bc9e"
+      ],
+      "keyword": [
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-5eef0ab72559c023bc9e"
+      ],
+      "query": "For POOL_WAIT_P95_HIGH, the payments deployment at v1037 reported waiting clients.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-6b070bddb5e8320593b2"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-dis-03",
+      "dense": [
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-ebdf3378844bb91bc800",
+        "chunk-3d2cd0fa776febbad1f2"
+      ],
+      "hybrid": [
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-ebdf3378844bb91bc800"
+      ],
+      "keyword": [
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0"
+      ],
+      "query": "For INODE_PRESSURE_92, the search deployment at v967 reported directory entry creation failures.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-dis-03",
+      "dense": [
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-ebdf3378844bb91bc800",
+        "chunk-3d2cd0fa776febbad1f2"
+      ],
+      "hybrid": [
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-ebdf3378844bb91bc800"
+      ],
+      "keyword": [
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0"
+      ],
+      "query": "Service search on release v967 showed INODE_PRESSURE_92 with directory entry creation failures.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-dow-02",
+      "dense": [
+        "chunk-1779c2bfb089703b4f00",
+        "chunk-ce047893572835d44e40",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "hybrid": [
+        "chunk-1779c2bfb089703b4f00",
+        "chunk-b3416964d1742efe51d0",
+        "chunk-a1fbe550b8a24a961dd5"
+      ],
+      "keyword": [
+        "chunk-1779c2bfb089703b4f00",
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "query": "For UPSTREAM_TIMEOUT_RATE, the catalog deployment at v601 reported slow dependency responses.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-1779c2bfb089703b4f00"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-dow-02",
+      "dense": [
+        "chunk-1779c2bfb089703b4f00",
+        "chunk-ce047893572835d44e40",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "hybrid": [
+        "chunk-1779c2bfb089703b4f00",
+        "chunk-b3416964d1742efe51d0",
+        "chunk-a1fbe550b8a24a961dd5"
+      ],
+      "keyword": [
+        "chunk-1779c2bfb089703b4f00",
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "query": "During slow dependency responses, UPSTREAM_TIMEOUT_RATE appeared on catalog running v601.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-1779c2bfb089703b4f00"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-bad-01",
+      "dense": [
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "hybrid": [
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "keyword": [
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "query": "For CFG_PARSE_REJECTED, the checkout deployment at v1371 reported invalid request bursts.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": null,
+        "hybrid": null,
+        "keyword": null
+      },
+      "relevant_chunk_ids": [],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-bad-01",
+      "dense": [
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-437ac62746e25a752b84",
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "hybrid": [
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-151ee4d916db55e90b86",
+        "chunk-437ac62746e25a752b84"
+      ],
+      "keyword": [
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "query": "Service checkout on release v1371 showed CFG_PARSE_REJECTED with invalid request bursts.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": null,
+        "hybrid": null,
+        "keyword": null
+      },
+      "relevant_chunk_ids": [],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-con-02",
+      "dense": [
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff"
+      ],
+      "hybrid": [
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff",
+        "chunk-d417b1bbbad8e104bd58"
+      ],
+      "keyword": [
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff",
+        "chunk-872e5e1e5dafb18099c7"
+      ],
+      "query": "During saturated connection queues, POOL_WAIT_P95_HIGH appeared on payments running v1245.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": null,
+        "hybrid": null,
+        "keyword": null
+      },
+      "relevant_chunk_ids": [],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-con-02",
+      "dense": [
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-561273f6b41b390154ff",
+        "chunk-06217df8389f8613d170"
+      ],
+      "hybrid": [
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff",
+        "chunk-d417b1bbbad8e104bd58"
+      ],
+      "keyword": [
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff",
+        "chunk-872e5e1e5dafb18099c7"
+      ],
+      "query": "Investigate payments version v1245: saturated connection queues accompanied alert POOL_WAIT_P95_HIGH.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": null,
+        "hybrid": null,
+        "keyword": null
+      },
+      "relevant_chunk_ids": [],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-dow-03",
+      "dense": [
+        "chunk-e6f99d1d55ed252b89c2",
+        "chunk-e1d1e7878318707a85fa",
+        "chunk-91be0c9d3aa1a61d6536"
+      ],
+      "hybrid": [
+        "chunk-e1d1e7878318707a85fa",
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-e6f99d1d55ed252b89c2"
+      ],
+      "keyword": [
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-c876d56c6b1e7ae1aabc",
+        "chunk-e1d1e7878318707a85fa"
+      ],
+      "query": "For UPSTREAM_TIMEOUT_RATE, the catalog deployment at v892 reported remote service response delays.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": null,
+        "hybrid": null,
+        "keyword": null
+      },
+      "relevant_chunk_ids": [],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-dow-03",
+      "dense": [
+        "chunk-971c05b644aba9fba63b",
+        "chunk-91be0c9d3aa1a61d6536",
+        "chunk-e6f99d1d55ed252b89c2"
+      ],
+      "hybrid": [
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-971c05b644aba9fba63b",
+        "chunk-91be0c9d3aa1a61d6536"
+      ],
+      "keyword": [
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-c876d56c6b1e7ae1aabc",
+        "chunk-e1d1e7878318707a85fa"
+      ],
+      "query": "Investigate catalog version v892: remote service response delays accompanied alert UPSTREAM_TIMEOUT_RATE.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": null,
+        "hybrid": null,
+        "keyword": null
+      },
+      "relevant_chunk_ids": [],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-bad-01",
+      "dense": [
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "hybrid": [
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "keyword": [
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "query": "Service checkout on release v894 showed CFG_PARSE_REJECTED with invalid request bursts.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-bad-01",
+      "dense": [
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "hybrid": [
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "keyword": [
+        "chunk-151ee4d916db55e90b86",
+        "chunk-5911b15e8c4d87dc87bd",
+        "chunk-c2733a8fa9f78865b4e3"
+      ],
+      "query": "For CFG_PARSE_REJECTED, the checkout deployment at v894 reported invalid request bursts.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-151ee4d916db55e90b86"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": false,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-con-02",
+      "dense": [
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff"
+      ],
+      "hybrid": [
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff",
+        "chunk-d417b1bbbad8e104bd58"
+      ],
+      "keyword": [
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff",
+        "chunk-872e5e1e5dafb18099c7"
+      ],
+      "query": "Investigate payments version v1154: saturated connection queues accompanied alert POOL_WAIT_P95_HIGH.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-06217df8389f8613d170"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-con-02",
+      "dense": [
+        "chunk-06217df8389f8613d170",
+        "chunk-d417b1bbbad8e104bd58",
+        "chunk-561273f6b41b390154ff"
+      ],
+      "hybrid": [
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff",
+        "chunk-d417b1bbbad8e104bd58"
+      ],
+      "keyword": [
+        "chunk-06217df8389f8613d170",
+        "chunk-561273f6b41b390154ff",
+        "chunk-872e5e1e5dafb18099c7"
+      ],
+      "query": "During saturated connection queues, POOL_WAIT_P95_HIGH appeared on payments running v1154.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-06217df8389f8613d170"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-dow-03",
+      "dense": [
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-e1d1e7878318707a85fa",
+        "chunk-e6f99d1d55ed252b89c2"
+      ],
+      "hybrid": [
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-e1d1e7878318707a85fa",
+        "chunk-c876d56c6b1e7ae1aabc"
+      ],
+      "keyword": [
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-c876d56c6b1e7ae1aabc",
+        "chunk-e1d1e7878318707a85fa"
+      ],
+      "query": "During remote service response delays, UPSTREAM_TIMEOUT_RATE appeared on catalog running v270.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-88a7f880ac9439ce25c9"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-dow-03",
+      "dense": [
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-e1d1e7878318707a85fa",
+        "chunk-e6f99d1d55ed252b89c2"
+      ],
+      "hybrid": [
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-e1d1e7878318707a85fa",
+        "chunk-c876d56c6b1e7ae1aabc"
+      ],
+      "keyword": [
+        "chunk-88a7f880ac9439ce25c9",
+        "chunk-c876d56c6b1e7ae1aabc",
+        "chunk-e1d1e7878318707a85fa"
+      ],
+      "query": "For UPSTREAM_TIMEOUT_RATE, the catalog deployment at v270 reported remote service response delays.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-88a7f880ac9439ce25c9"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-con-01",
+      "dense": [
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-b8cf94727b66546df00d",
+        "chunk-0dca460d9d789a1a4d55"
+      ],
+      "hybrid": [
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-b8cf94727b66546df00d",
+        "chunk-6b070bddb5e8320593b2"
+      ],
+      "keyword": [
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-b8cf94727b66546df00d",
+        "chunk-5eef0ab72559c023bc9e"
+      ],
+      "query": "Service payments on release v648 showed POOL_WAIT_P95_HIGH with waiting clients.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-b8cf94727b66546df00d"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-con-01",
+      "dense": [
+        "chunk-6b070bddb5e8320593b2",
+        "chunk-b8cf94727b66546df00d",
+        "chunk-0dca460d9d789a1a4d55"
+      ],
+      "hybrid": [
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-b8cf94727b66546df00d",
+        "chunk-6b070bddb5e8320593b2"
+      ],
+      "keyword": [
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-b8cf94727b66546df00d",
+        "chunk-5eef0ab72559c023bc9e"
+      ],
+      "query": "During waiting clients, POOL_WAIT_P95_HIGH appeared on payments running v648.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-0dca460d9d789a1a4d55",
+        "chunk-b8cf94727b66546df00d"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-dis-03",
+      "dense": [
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0"
+      ],
+      "hybrid": [
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-bf64909093bc1c649aa3",
+        "chunk-74053991be4722d906e0"
+      ],
+      "keyword": [
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0",
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "query": "During directory entry creation failures, INODE_PRESSURE_92 appeared on search running v910.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-dis-03",
+      "dense": [
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0",
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "hybrid": [
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0",
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "keyword": [
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0",
+        "chunk-bf64909093bc1c649aa3"
+      ],
+      "query": "Service search on release v910 showed INODE_PRESSURE_92 with directory entry creation failures.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-3d2cd0fa776febbad1f2",
+        "chunk-74053991be4722d906e0"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-dow-02",
+      "dense": [
+        "chunk-b3416964d1742efe51d0",
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-1779c2bfb089703b4f00"
+      ],
+      "hybrid": [
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0",
+        "chunk-1779c2bfb089703b4f00"
+      ],
+      "keyword": [
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0",
+        "chunk-ce047893572835d44e40"
+      ],
+      "query": "Investigate catalog version v583: slow dependency responses accompanied alert UPSTREAM_TIMEOUT_RATE.",
+      "query_variant": "clean-a",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-dow-02",
+      "dense": [
+        "chunk-1779c2bfb089703b4f00",
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "hybrid": [
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0",
+        "chunk-1779c2bfb089703b4f00"
+      ],
+      "keyword": [
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0",
+        "chunk-ce047893572835d44e40"
+      ],
+      "query": "During slow dependency responses, UPSTREAM_TIMEOUT_RATE appeared on catalog running v583.",
+      "query_variant": "clean-b",
+      "ranking_hit_at_k": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      },
+      "relevant_chunk_ids": [
+        "chunk-a1fbe550b8a24a961dd5",
+        "chunk-b3416964d1742efe51d0"
+      ],
+      "sufficiency_classifier_prediction": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    }
+  ],
+  "schema": "dur056-retrieval-development.v3",
+  "selected_config_fingerprint": "sha256:c6a73abbb7b2ee4665c381ca3867b69a6fa45ed0a9d74b88c31b6b103f2d837c",
+  "split": "development"
+}

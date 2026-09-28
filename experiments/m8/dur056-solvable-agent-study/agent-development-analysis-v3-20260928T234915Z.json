@@ -1,0 +1,326 @@
+{
+  "analysis_code_commit": "40435262918e4ec447da372ac6a5836101201f0d",
+  "candidate_summaries": {
+    "candidate-v1": {
+      "arms": {
+        "dense": {
+          "answerable_case_count": 21,
+          "case_count": 30,
+          "citation_provenance_violations": 0,
+          "correct_abstentions": 8,
+          "correct_action_and_parameters": 21,
+          "correct_action_and_parameters_rate": 1.0,
+          "cost_usd": "0.00652770",
+          "diagnosis_accuracy": 0.23333333333333334,
+          "false_abstentions": 0,
+          "input_tokens": 36897,
+          "latency_ms": 73633.754,
+          "output_tokens": 5676,
+          "reasoning_tokens": 1234,
+          "retrieval_evidence_list_sizes": {
+            "empty_evidence_lists": 0,
+            "mean_items_per_search_call": 3.0,
+            "nonempty_evidence_lists": 30,
+            "runs_without_search_call": 0,
+            "search_call_count": 30,
+            "size_histogram": {
+              "3": 30
+            },
+            "total_evidence_items": 90
+          },
+          "safe_end_to_end": 29,
+          "safe_rate": 0.9666666666666667,
+          "unsafe_negative_proposals": 1,
+          "unsafe_negative_proposals_by_category": {
+            "insufficient_missing_parameter": 0,
+            "insufficient_no_guidance": 0,
+            "near_duplicate_decoy": 0,
+            "stale_current_action": 0,
+            "stale_unresolved_conflict": 1
+          },
+          "wall_latency_ms": 76063.132,
+          "wrong_parameter_proposals": 0
+        },
+        "hybrid": {
+          "answerable_case_count": 21,
+          "case_count": 30,
+          "citation_provenance_violations": 0,
+          "correct_abstentions": 9,
+          "correct_action_and_parameters": 21,
+          "correct_action_and_parameters_rate": 1.0,
+          "cost_usd": "0.00643900",
+          "diagnosis_accuracy": 0.16666666666666666,
+          "false_abstentions": 0,
+          "input_tokens": 37010,
+          "latency_ms": 86044.027,
+          "output_tokens": 5476,
+          "reasoning_tokens": 999,
+          "retrieval_evidence_list_sizes": {
+            "empty_evidence_lists": 0,
+            "mean_items_per_search_call": 3.0,
+            "nonempty_evidence_lists": 30,
+            "runs_without_search_call": 0,
+            "search_call_count": 30,
+            "size_histogram": {
+              "3": 30
+            },
+            "total_evidence_items": 90
+          },
+          "safe_end_to_end": 30,
+          "safe_rate": 1.0,
+          "unsafe_negative_proposals": 0,
+          "unsafe_negative_proposals_by_category": {
+            "insufficient_missing_parameter": 0,
+            "insufficient_no_guidance": 0,
+            "near_duplicate_decoy": 0,
+            "stale_current_action": 0,
+            "stale_unresolved_conflict": 0
+          },
+          "wall_latency_ms": 88341.66,
+          "wrong_parameter_proposals": 0
+        },
+        "keyword": {
+          "answerable_case_count": 21,
+          "case_count": 30,
+          "citation_provenance_violations": 0,
+          "correct_abstentions": 9,
+          "correct_action_and_parameters": 21,
+          "correct_action_and_parameters_rate": 1.0,
+          "cost_usd": "0.00660200",
+          "diagnosis_accuracy": 0.26666666666666666,
+          "false_abstentions": 0,
+          "input_tokens": 36895,
+          "latency_ms": 71227.567,
+          "output_tokens": 5825,
+          "reasoning_tokens": 1304,
+          "retrieval_evidence_list_sizes": {
+            "empty_evidence_lists": 0,
+            "mean_items_per_search_call": 3.0,
+            "nonempty_evidence_lists": 30,
+            "runs_without_search_call": 0,
+            "search_call_count": 30,
+            "size_histogram": {
+              "3": 30
+            },
+            "total_evidence_items": 90
+          },
+          "safe_end_to_end": 30,
+          "safe_rate": 1.0,
+          "unsafe_negative_proposals": 0,
+          "unsafe_negative_proposals_by_category": {
+            "insufficient_missing_parameter": 0,
+            "insufficient_no_guidance": 0,
+            "near_duplicate_decoy": 0,
+            "stale_current_action": 0,
+            "stale_unresolved_conflict": 0
+          },
+          "wall_latency_ms": 73530.441,
+          "wrong_parameter_proposals": 0
+        },
+        "no_retrieval": {
+          "answerable_case_count": 21,
+          "case_count": 30,
+          "citation_provenance_violations": 0,
+          "correct_abstentions": 9,
+          "correct_action_and_parameters": 0,
+          "correct_action_and_parameters_rate": 0.0,
+          "cost_usd": "0.00498070",
+          "diagnosis_accuracy": 0.16666666666666666,
+          "false_abstentions": 21,
+          "input_tokens": 25722,
+          "latency_ms": 68144.616,
+          "output_tokens": 4817,
+          "reasoning_tokens": 1419,
+          "retrieval_evidence_list_sizes": {
+            "empty_evidence_lists": 30,
+            "mean_items_per_search_call": 0.0,
+            "nonempty_evidence_lists": 0,
+            "runs_without_search_call": 0,
+            "search_call_count": 30,
+            "size_histogram": {
+              "0": 30
+            },
+            "total_evidence_items": 0
+          },
+          "safe_end_to_end": 9,
+          "safe_rate": 0.3,
+          "unsafe_negative_proposals": 0,
+          "unsafe_negative_proposals_by_category": {
+            "insufficient_missing_parameter": 0,
+            "insufficient_no_guidance": 0,
+            "near_duplicate_decoy": 0,
+            "stale_current_action": 0,
+            "stale_unresolved_conflict": 0
+          },
+          "wall_latency_ms": 70151.29,
+          "wrong_parameter_proposals": 0
+        }
+      }
+    },
+    "candidate-v2": {
+      "arms": {
+        "dense": {
+          "answerable_case_count": 21,
+          "case_count": 30,
+          "citation_provenance_violations": 0,
+          "correct_abstentions": 6,
+          "correct_action_and_parameters": 21,
+          "correct_action_and_parameters_rate": 1.0,
+          "cost_usd": "0.00757420",
+          "diagnosis_accuracy": 0.36666666666666664,
+          "false_abstentions": 0,
+          "input_tokens": 40377,
+          "latency_ms": 95130.829,
+          "output_tokens": 7073,
+          "reasoning_tokens": 1431,
+          "retrieval_evidence_list_sizes": {
+            "empty_evidence_lists": 0,
+            "mean_items_per_search_call": 3.0,
+            "nonempty_evidence_lists": 30,
+            "runs_without_search_call": 0,
+            "search_call_count": 30,
+            "size_histogram": {
+              "3": 30
+            },
+            "total_evidence_items": 90
+          },
+          "safe_end_to_end": 27,
+          "safe_rate": 0.9,
+          "unsafe_negative_proposals": 3,
+          "unsafe_negative_proposals_by_category": {
+            "insufficient_missing_parameter": 2,
+            "insufficient_no_guidance": 0,
+            "near_duplicate_decoy": 0,
+            "stale_current_action": 0,
+            "stale_unresolved_conflict": 1
+          },
+          "wall_latency_ms": 97629.867,
+          "wrong_parameter_proposals": 0
+        },
+        "hybrid": {
+          "answerable_case_count": 21,
+          "case_count": 30,
+          "citation_provenance_violations": 0,
+          "correct_abstentions": 8,
+          "correct_action_and_parameters": 21,
+          "correct_action_and_parameters_rate": 1.0,
+          "cost_usd": "0.00747300",
+          "diagnosis_accuracy": 0.3333333333333333,
+          "false_abstentions": 0,
+          "input_tokens": 40490,
+          "latency_ms": 92070.629,
+          "output_tokens": 6848,
+          "reasoning_tokens": 1139,
+          "retrieval_evidence_list_sizes": {
+            "empty_evidence_lists": 0,
+            "mean_items_per_search_call": 3.0,
+            "nonempty_evidence_lists": 30,
+            "runs_without_search_call": 0,
+            "search_call_count": 30,
+            "size_histogram": {
+              "3": 30
+            },
+            "total_evidence_items": 90
+          },
+          "safe_end_to_end": 29,
+          "safe_rate": 0.9666666666666667,
+          "unsafe_negative_proposals": 1,
+          "unsafe_negative_proposals_by_category": {
+            "insufficient_missing_parameter": 1,
+            "insufficient_no_guidance": 0,
+            "near_duplicate_decoy": 0,
+            "stale_current_action": 0,
+            "stale_unresolved_conflict": 0
+          },
+          "wall_latency_ms": 94496.205,
+          "wrong_parameter_proposals": 0
+        },
+        "keyword": {
+          "answerable_case_count": 21,
+          "case_count": 30,
+          "citation_provenance_violations": 0,
+          "correct_abstentions": 9,
+          "correct_action_and_parameters": 21,
+          "correct_action_and_parameters_rate": 1.0,
+          "cost_usd": "0.00755100",
+          "diagnosis_accuracy": 0.36666666666666664,
+          "false_abstentions": 0,
+          "input_tokens": 40375,
+          "latency_ms": 94413.333,
+          "output_tokens": 7027,
+          "reasoning_tokens": 1282,
+          "retrieval_evidence_list_sizes": {
+            "empty_evidence_lists": 0,
+            "mean_items_per_search_call": 3.0,
+            "nonempty_evidence_lists": 30,
+            "runs_without_search_call": 0,
+            "search_call_count": 30,
+            "size_histogram": {
+              "3": 30
+            },
+            "total_evidence_items": 90
+          },
+          "safe_end_to_end": 30,
+          "safe_rate": 1.0,
+          "unsafe_negative_proposals": 0,
+          "unsafe_negative_proposals_by_category": {
+            "insufficient_missing_parameter": 0,
+            "insufficient_no_guidance": 0,
+            "near_duplicate_decoy": 0,
+            "stale_current_action": 0,
+            "stale_unresolved_conflict": 0
+          },
+          "wall_latency_ms": 96750.633,
+          "wrong_parameter_proposals": 0
+        },
+        "no_retrieval": {
+          "answerable_case_count": 21,
+          "case_count": 30,
+          "citation_provenance_violations": 0,
+          "correct_abstentions": 9,
+          "correct_action_and_parameters": 0,
+          "correct_action_and_parameters_rate": 0.0,
+          "cost_usd": "0.00582870",
+          "diagnosis_accuracy": 0.3333333333333333,
+          "false_abstentions": 21,
+          "input_tokens": 29202,
+          "latency_ms": 106940.534,
+          "output_tokens": 5817,
+          "reasoning_tokens": 1299,
+          "retrieval_evidence_list_sizes": {
+            "empty_evidence_lists": 30,
+            "mean_items_per_search_call": 0.0,
+            "nonempty_evidence_lists": 0,
+            "runs_without_search_call": 0,
+            "search_call_count": 30,
+            "size_histogram": {
+              "0": 30
+            },
+            "total_evidence_items": 0
+          },
+          "safe_end_to_end": 9,
+          "safe_rate": 0.3,
+          "unsafe_negative_proposals": 0,
+          "unsafe_negative_proposals_by_category": {
+            "insufficient_missing_parameter": 0,
+            "insufficient_no_guidance": 0,
+            "near_duplicate_decoy": 0,
+            "stale_current_action": 0,
+            "stale_unresolved_conflict": 0
+          },
+          "wall_latency_ms": 108994.252,
+          "wrong_parameter_proposals": 0
+        }
+      }
+    }
+  },
+  "metric_definition": "correct_action_and_parameters counts exact non-null proposals only on cases whose expected action is non-null; correct and false abstentions are separate",
+  "provider_calls": 0,
+  "runs_per_candidate": 120,
+  "schema": "dur056-agent-development-analysis.v3",
+  "selected_candidate": "candidate-v1",
+  "source_run_count": 240,
+  "source_run_report": "agent-development-v3-20260928T234744Z.json",
+  "source_run_report_schema": "dur056-agent-development.v3",
+  "study_version": "dur056-solvable-evidence-v3"
+}

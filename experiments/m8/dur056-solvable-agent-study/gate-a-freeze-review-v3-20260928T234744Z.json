@@ -1,0 +1,32 @@
+{
+  "agent_config_fingerprint": "sha256:00dd204048421a0b22670c81571ac2c7d4c9710126b05798f804b7fe1716fa40",
+  "agent_config_path": "agent-frozen-config-v3-20260928T234744Z.json",
+  "agent_development_results_path": "agent-development-v3-20260928T234744Z.json",
+  "fixture_validity_path": "fixture-validity-v3-20260928T233549Z.json",
+  "freeze_fingerprint": "sha256:2f376a2d4d9b1fab48d7d01f78d0071b2e3c936fed808e3cd7c563b7836c504c",
+  "gate": "A",
+  "heldout_embedding_calls": 0,
+  "heldout_model_calls": 0,
+  "heldout_scored": false,
+  "heldout_scoring_authorized": false,
+  "model_id": "gpt-6-luna",
+  "oracle_report_paths": {
+    "development": "oracle-report-development-v3-20260928T233549Z.json",
+    "heldout": "oracle-report-heldout-v3-20260928T233549Z.json"
+  },
+  "retrieval_config_fingerprint": "sha256:c6a73abbb7b2ee4665c381ca3867b69a6fa45ed0a9d74b88c31b6b103f2d837c",
+  "retrieval_config_path": "retrieval-frozen-config-v3-20260928T233555Z.json",
+  "retrieval_development_results_path": "retrieval-development-v3-20260928T233555Z.json",
+  "schema": "dur056-gate-a-freeze-bundle.v3",
+  "spend_ledger_path": "spend-ledger.json",
+  "spend_ledger_snapshot": {
+    "cap_usd": "25.00",
+    "reserved_usd": "0.00000000",
+    "spent_usd": "0.17164038",
+    "status": "IN_PROGRESS",
+    "uncertain_usd": "0.00016240"
+  },
+  "status": "READY_FOR_FREEZE_REVIEW",
+  "study_manifest_path": "study-manifest-v3-20260928T233555Z.json",
+  "study_version": "dur056-solvable-evidence-v3"
+}
