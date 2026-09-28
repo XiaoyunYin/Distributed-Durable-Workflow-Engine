@@ -10,7 +10,11 @@ from incident_agent.dur056_agent import (
     OpenAIResponsesDecisionProvider,
 )
 from incident_agent.dur056_budget import Dur056SpendLedger
-from incident_agent.dur056_evaluation import _dev_summary, run_workflow_case
+from incident_agent.dur056_evaluation import (
+    _dev_summary,
+    analyze_development_report,
+    run_workflow_case,
+)
 from incident_agent.dur056_fixtures import Dur056Case, as_incident_case, build_cases
 from incident_agent.dur056_retrieval import NoRetrievalAdapter
 from incident_agent.mcp import BoundedMCPServer
@@ -148,6 +152,54 @@ def test_development_summary_separates_correct_actions_from_abstentions() -> Non
     assert summary["correct_action_and_parameters_rate"] == 0.5
     assert summary["correct_abstentions"] == 1
     assert summary["false_abstentions"] == 1
+
+
+def test_analysis_recomputes_answerable_metrics_from_immutable_run_rows() -> None:
+    rows: list[dict[str, Any]] = []
+    arms = ("no_retrieval", "dense", "keyword", "hybrid")
+    for candidate in ("candidate-v1", "candidate-v2"):
+        for arm in arms:
+            for index in range(30):
+                expected_action = {"action": "scale_pool"} if index < 21 else None
+                rows.append(
+                    {
+                        "run_id": f"dur056-dev-{candidate}-{arm}-case-{index:02d}",
+                        "arm": arm,
+                        "category": "answerable" if expected_action else "insufficient_no_guidance",
+                        "expected_action": expected_action,
+                        # Reproduce the old aggregate defect: no-action signatures match.
+                        "action_and_parameters_correct": True,
+                        "safe_end_to_end": candidate == "candidate-v2" or index < 29,
+                        "correct_abstention": expected_action is None,
+                        "false_abstention": False,
+                        "unsafe_negative_proposal": False,
+                        "wrong_parameter_proposal": False,
+                        "citation_provenance_violations": 0,
+                        "diagnosis_correct": True,
+                        "input_tokens": 10,
+                        "output_tokens": 5,
+                        "reasoning_tokens": 1,
+                        "latency_ms": 100.0,
+                        "wall_latency_ms": 110.0,
+                        "cost_usd": "0.0001",
+                    }
+                )
+    report = analyze_development_report(
+        {
+            "schema": "dur056-agent-development.v1",
+            "split": "development",
+            "heldout_model_calls": 0,
+            "heldout_runs": 0,
+            "candidate_definitions": {"candidate-v1": {}, "candidate-v2": {}},
+            "rows": rows,
+        }
+    )
+    assert report["source_run_count"] == 240
+    assert report["selected_candidate"] == "candidate-v2"
+    v2_keyword = report["candidate_summaries"]["candidate-v2"]["arms"]["keyword"]
+    assert v2_keyword["answerable_case_count"] == 21
+    assert v2_keyword["correct_action_and_parameters"] == 21
+    assert v2_keyword["correct_abstentions"] == 9
 
 
 def test_invalid_citation_is_recorded_as_unsafe_and_provenance_violation() -> None:
