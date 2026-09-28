@@ -1,15 +1,17 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
 from incident_agent.dur056_budget import Dur056SpendLedger
-from incident_agent.dur056_fixtures import build_cases
+from incident_agent.dur056_fixtures import LEGACY_QUERY_PADDING, build_cases
 from incident_agent.dur056_retrieval import (
     Dur056OpenAIEmbeddingProvider,
     Dur056RetrievalError,
     NoRetrievalAdapter,
     PostgresRetrievalAdapter,
+    _disjunctive_tsquery,
     development_query_rows,
     heldout_query_rows,
     reciprocal_rank_fusion,
@@ -36,9 +38,34 @@ def test_dev_queries_are_dev_only_and_holdout_build_has_registered_count() -> No
     assert all(row["query_id"].startswith("dev-") for row in development)
 
     heldout = heldout_query_rows(build_cases("heldout"))
-    assert len(heldout) == 240
+    assert len(heldout) == 120
     assert {row["split"] for row in heldout} == {"heldout"}
     assert all(row["query_id"].startswith("hel-") for row in heldout)
+    for row in (*development, *heldout):
+        assert row["case_id"] not in row["query"]
+        assert LEGACY_QUERY_PADDING not in row["query"]
+        assert row["query"].endswith(".")
+
+
+def test_keyword_query_is_sanitized_disjunctive_terms() -> None:
+    assert _disjunctive_tsquery("Checkout v42: CFG_PARSE_REJECTED; slow requests!") == (
+        "checkout | v42 | cfg_parse_rejected | slow | requests"
+    )
+
+
+def test_v2_database_migration_preserves_v1_study_version() -> None:
+    migration = (
+        Path(__file__).resolve().parents[1]
+        / "migrations"
+        / "dur056"
+        / "000057_version_v2_support.up.sql"
+    )
+    sql = migration.read_text(encoding="utf-8").lower()
+    assert "dur056-solvable-evidence-v1" in sql
+    assert "dur056-solvable-evidence-v2" in sql
+    assert "delete from" not in sql
+    assert "truncate" not in sql
+    assert "drop table" not in sql
 
 
 def test_embedding_provider_refuses_heldout_scope_before_gate_a() -> None:

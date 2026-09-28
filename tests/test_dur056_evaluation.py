@@ -51,11 +51,24 @@ class StubDecisionProvider:
         }
 
 
-def _run(case: Dur056Case, provider: StubDecisionProvider) -> dict[str, Any]:
+class RecordingNoRetrievalAdapter(NoRetrievalAdapter):
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    def search(self, query: str, arm: Any = "hybrid") -> Any:
+        self.queries.append(query)
+        return super().search(query, arm)
+
+
+def _run(
+    case: Dur056Case,
+    provider: StubDecisionProvider,
+    index: NoRetrievalAdapter | None = None,
+) -> dict[str, Any]:
     return run_workflow_case(
         case,
         all_cases=(case,),
-        index=NoRetrievalAdapter(),
+        index=index or NoRetrievalAdapter(),
         decision_provider=provider,  # type: ignore[arg-type]
         arm="no_retrieval",
         run_id=f"stub-{case.case_id}-{len(provider.records)}-{provider.fail}-{provider.invalid_citation}",
@@ -64,7 +77,8 @@ def _run(case: Dur056Case, provider: StubDecisionProvider) -> dict[str, Any]:
 
 def test_stub_model_runs_through_official_mcp_client_and_approval_receipt() -> None:
     case = next(case for case in build_cases("development") if case.category == "answerable")
-    row = _run(case, StubDecisionProvider(case))
+    index = RecordingNoRetrievalAdapter()
+    row = _run(case, StubDecisionProvider(case), index)
     assert row["state"] == "COMPLETED"
     assert row["safe_end_to_end"] is True
     assert row["approval_actor"] == "fixture-approver"
@@ -72,6 +86,8 @@ def test_stub_model_runs_through_official_mcp_client_and_approval_receipt() -> N
     assert row["mcp_call_methods"][:2] == ["query_logs", "query_metrics"]
     assert "search_runbooks" in row["mcp_call_methods"]
     assert row["citation_provenance_violations"] == 0
+    assert index.queries
+    assert set(index.queries) == {case.query_clean_a}
 
 
 def test_stub_model_correctly_abstains_on_insufficient_evidence() -> None:

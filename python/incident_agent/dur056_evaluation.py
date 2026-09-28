@@ -74,11 +74,14 @@ def _expected_signature(case: Dur056Case) -> list[str] | str:
     expected = (
         None if case.expected_action is None else asdict(proposal_from_dict(case.expected_action))
     )
-    return canonical_proposal_signature(expected)
+    return cast(list[str] | str, canonical_proposal_signature(expected))
 
 
 def _actual_signature(proposal: Any) -> list[str] | str:
-    return canonical_proposal_signature(None if proposal is None else asdict(proposal))
+    return cast(
+        list[str] | str,
+        canonical_proposal_signature(None if proposal is None else asdict(proposal)),
+    )
 
 
 def _diagnosis_matches(case: Dur056Case, diagnosis: str | None) -> bool:
@@ -148,11 +151,7 @@ def run_workflow_case(
             raise Dur056RetrievalError(
                 "injection matrix requires the frozen hybrid retrieval index"
             )
-        workflow_index = InjectedRetrievalAdapter(
-            index,
-            {case_query, f"{case_query} runbook"},
-            injection_text,
-        )
+        workflow_index = InjectedRetrievalAdapter(index, {case_query}, injection_text)
     backend = BoundedMCPServer(workflow_index, cases=incident_cases)
     schema_profile = str(decision_provider.config["prompt_profile"])
     mcp_client = MCPClientFacade(backend, schema_profile=schema_profile)
@@ -163,6 +162,7 @@ def run_workflow_case(
         mcp_client,
         decisions=decision_provider,
         cases=incident_cases,
+        search_query_suffix="",
     )
     workflow_arm: str = "hybrid" if arm == "no_retrieval" else arm
     model_record_start = len(decision_provider.records)

@@ -1,24 +1,48 @@
 from __future__ import annotations
 
-import json
-import re
+from dataclasses import replace
 
+import pytest
 from incident_agent.dur056_fixtures import (
     ACTION_PARAMETERS,
+    CATEGORY_ANNOUNCEMENTS,
     DEV_QUERY_TEMPLATES,
+    DEV_SEED,
     FAMILIES,
     HELDOUT_QUERY_TEMPLATES,
+    HELDOUT_SEED,
+    LEGACY_QUERY_PADDING,
+    STUDY_VERSION,
+    Dur056Case,
+    _fact_text,
     all_fixture_text,
     build_cases,
     build_corpus,
+    corpus_oracle_decision,
+    derive_incident_key,
     oracle_decision,
     oracle_report,
+    validate_corpus_labels,
+    validate_key_label_consistency,
 )
+from incident_agent.models import EvidenceChunk
 
 
-def test_dur056_split_counts_and_family_balance_are_registered() -> None:
+def _answer_values(cases: tuple[Dur056Case, ...]) -> set[tuple[str, str, str]]:
+    return {
+        (str(case.expected_action["action"]), name, str(value))
+        for case in cases
+        if case.expected_action is not None
+        for name, value in case.expected_action["parameters"].items()
+    }
+
+
+def test_dur056_v2_splits_and_family_balance_are_registered() -> None:
     development = build_cases("development")
     heldout = build_cases("heldout")
+    assert STUDY_VERSION == "dur056-solvable-evidence-v2"
+    assert DEV_SEED == 5603
+    assert HELDOUT_SEED == 5604
     assert len(development) == 30
     assert len(heldout) == 60
     assert all(case.split == "development" for case in development)
@@ -39,72 +63,189 @@ def test_dur056_split_counts_and_family_balance_are_registered() -> None:
     assert sum(case.category == "near_duplicate_decoy" for case in heldout) == 12
 
 
-def test_answerable_evidence_states_action_and_every_required_parameter() -> None:
+def test_answerable_facts_contain_seeded_actions_and_all_parameters() -> None:
     for split in ("development", "heldout"):
-        for case in build_cases(split):
-            if case.category not in {"answerable", "stale_current_action", "near_duplicate_decoy"}:
-                continue
-            assert case.expected_action is not None
-            current_evidence = "\n".join(
-                chunk.text
-                for chunk in case.evidence
-                if chunk.service == case.service and chunk.version == case.active_version
-            )
-            assert f"action={case.expected_action['action']}" in current_evidence
-            for parameter in ACTION_PARAMETERS[case.expected_action["action"]]:
-                assert parameter in current_evidence
-                assert str(case.expected_action["parameters"][parameter]) in current_evidence
-
-
-def test_insufficient_cases_lack_guidance_or_a_required_parameter() -> None:
-    for split in ("development", "heldout"):
-        for case in build_cases(split):
-            if case.category == "insufficient_no_guidance":
-                assert all("DIRECTIVE:" not in chunk.text for chunk in case.evidence)
-            elif case.category == "insufficient_missing_parameter":
-                match = re.search(
-                    r"DIRECTIVE: action=([a-z_]+); service=[a-z-]+; version=v\d+; "
-                    r"parameters=(\{[^}]*\})\.",
-                    all_fixture_text(case),
-                )
-                assert match is not None
-                action, raw_parameters = match.groups()
-                assert action in ACTION_PARAMETERS
-                required = ACTION_PARAMETERS[action]
-                parsed_parameters = json.loads(raw_parameters)
-                assert any(parameter not in parsed_parameters for parameter in required)
-
-
-def test_stale_and_decoy_cases_have_preregistered_conflict_shapes() -> None:
-    for split, count in (("development", 3), ("heldout", 6)):
         cases = build_cases(split)
-        assert sum(case.category == "stale_current_action" for case in cases) == count
-        assert sum(case.category == "stale_unresolved_conflict" for case in cases) == count
+        corpus = build_corpus(split)
+        for case in cases:
+            if case.expected_action is None:
+                continue
+            assert corpus_oracle_decision(case, corpus) == case.expected_action
+            key = derive_incident_key(case.logs, case.metrics)
+            current = [
+                chunk.text
+                for chunk in corpus
+                if chunk.text.startswith("STATUS=CURRENT")
+                and f"SERVICE={key[0]}" in chunk.text
+                and f"VERSION={key[1]}" in chunk.text
+                and f"SIGNAL={key[2]}" in chunk.text
+            ]
+            assert current
+            assert f"ACTION={case.expected_action['action']}" in "\n".join(current)
+            for parameter in ACTION_PARAMETERS[str(case.expected_action["action"])]:
+                assert (
+                    f"PARAMETER={parameter}:{case.expected_action['parameters'][parameter]}"
+                    in "\n".join(current)
+                )
+
+
+def test_insufficient_truth_is_corpus_wide_for_both_negative_shapes() -> None:
+    for split in ("development", "heldout"):
+        cases = build_cases(split)
+        corpus = build_corpus(split)
+        for case in cases:
+            if case.category in {
+                "insufficient_no_guidance",
+                "insufficient_missing_parameter",
+            }:
+                assert case.expected_action is None
+                assert corpus_oracle_decision(case, corpus) is None
+
+
+def test_stale_current_winner_and_unresolved_conflict_are_structural() -> None:
+    for split in ("development", "heldout"):
+        cases = build_cases(split)
+        corpus = build_corpus(split)
         for case in cases:
             if case.category == "stale_current_action":
                 assert any("STATUS=SUPERSEDED" in chunk.text for chunk in case.evidence)
-                assert oracle_decision(case) == case.expected_action
+                assert corpus_oracle_decision(case, corpus) == case.expected_action
             elif case.category == "stale_unresolved_conflict":
                 assert case.expected_action is None
-                assert oracle_decision(case) is None
+                assert corpus_oracle_decision(case, corpus) is None
             elif case.category == "near_duplicate_decoy":
                 assert any(chunk.service != case.service for chunk in case.evidence)
-                assert oracle_decision(case) == case.expected_action
+                assert corpus_oracle_decision(case, corpus) == case.expected_action
 
 
-def test_dev_and_heldout_query_template_sets_are_disjoint() -> None:
+def test_fixture_fails_if_repeated_incident_key_has_different_expected_outcomes() -> None:
+    cases = build_cases("development")
+    answerable = next(case for case in cases if case.category == "answerable")
+    insufficient = next(case for case in cases if case.category == "insufficient_no_guidance")
+    duplicate_key = replace(
+        insufficient,
+        service=answerable.service,
+        active_version=answerable.active_version,
+        signal=answerable.signal,
+        logs=answerable.logs,
+        metrics=answerable.metrics,
+    )
+    with pytest.raises(ValueError, match="disagree on corpus-key truth"):
+        validate_key_label_consistency((answerable, duplicate_key))
+
+
+def test_corpus_oracle_catches_complete_current_directive_mutant_elsewhere() -> None:
+    cases = build_cases("development")
+    corpus = build_corpus("development")
+    insufficient = next(case for case in cases if case.category == "insufficient_no_guidance")
+    donor = next(
+        case
+        for case in cases
+        if case.category == "answerable" and case.family == insufficient.family
+    )
+    action = donor.expected_action
+    assert action is not None
+    key = derive_incident_key(insufficient.logs, insufficient.metrics)
+    same_key_cases = [case for case in cases if derive_incident_key(case.logs, case.metrics) == key]
+    mutant_action = {
+        "action": action["action"],
+        "service": key[0],
+        "parameters": dict(action["parameters"]),
+    }
+    if "revision" in mutant_action["parameters"]:
+        mutant_action["parameters"]["revision"] = f"v{int(key[1][1:]) - 1}"
+    injected = EvidenceChunk(
+        chunk_id="chunk-mutant-complete-current",
+        document_id="document-mutant-complete-current",
+        version=key[1],
+        service=key[0],
+        text=_fact_text(
+            status="CURRENT",
+            service=key[0],
+            version=key[1],
+            signal=key[2],
+            effective="2026-09-28",
+            symptom="synthetic load increase",
+            action=mutant_action,
+        ),
+        source_type="runbook",
+    )
+    mutated_corpus = (*corpus, injected)
+    assert corpus_oracle_decision(insufficient, mutated_corpus) == mutant_action
+    validation = validate_corpus_labels(cases, mutated_corpus)
+    assert {case.case_id for case in same_key_cases}.issubset(validation["mismatches"])
+    assert validation["correct"] == len(cases) - len(same_key_cases)
+
+
+def test_case_ids_split_prefixes_and_legacy_padding_never_reach_queries_or_chunks() -> None:
+    for split in ("development", "heldout"):
+        prefix = "dev-" if split == "development" else "hel-"
+        for case in build_cases(split):
+            assert case.canary in case.logs[0]["message"]
+            assert case.logs[0]["case_id"] == case.case_id
+            assert case.metrics[0]["case_id"] == case.case_id
+            for text in (
+                case.query_clean_a,
+                case.query_clean_b,
+                *(chunk.text for chunk in case.evidence),
+            ):
+                assert case.case_id not in text
+                assert "case-id" not in text.lower()
+                assert prefix not in text
+                assert LEGACY_QUERY_PADDING not in text
+                assert "reference=" not in text.lower()
+
+
+def test_negative_evidence_does_not_announce_its_category() -> None:
+    for split in ("development", "heldout"):
+        for case in build_cases(split):
+            if case.category == "answerable":
+                continue
+            evidence = all_fixture_text(case).lower()
+            assert all(phrase not in evidence for phrase in CATEGORY_ANNOUNCEMENTS)
+
+
+def test_seeded_answer_values_differ_between_development_and_heldout() -> None:
+    development = build_cases("development")
+    heldout = build_cases("heldout")
+    assert _answer_values(development) != _answer_values(heldout)
+    for cases in (development, heldout):
+        for family in FAMILIES:
+            assert len({case.signal for case in cases if case.family == family}) == 2
+        for case in cases:
+            if case.expected_action is None:
+                continue
+            parameters = case.expected_action["parameters"]
+            if case.family == "bad_configuration":
+                assert int(parameters["revision"][1:]) < int(case.active_version[1:])
+            elif case.family == "connection_pool":
+                assert 3 <= parameters["replicas"] <= 12
+            elif case.family == "downstream_latency":
+                assert 800 <= parameters["timeout_ms"] <= 3000
+                assert parameters["timeout_ms"] % 100 == 0
+            elif case.family == "disk_pressure":
+                assert 7 <= parameters["retention_days"] <= 60
+
+
+def test_dev_and_heldout_query_template_sets_are_disjoint_and_fact_based() -> None:
     assert set(DEV_QUERY_TEMPLATES).isdisjoint(HELDOUT_QUERY_TEMPLATES)
     for split in ("development", "heldout"):
-        queries = [case.query_clean_a for case in build_cases(split)]
+        queries = [
+            q for case in build_cases(split) for q in (case.query_clean_a, case.query_clean_b)
+        ]
         assert len(queries) == len(set(queries))
+        assert all(
+            not any(phrase in q.lower() for phrase in CATEGORY_ANNOUNCEMENTS) for q in queries
+        )
 
 
-def test_deterministic_local_oracle_scores_both_splits_at_100_percent() -> None:
+def test_deterministic_full_corpus_oracle_scores_both_splits_at_100_percent() -> None:
     for split, expected_count in (("development", 30), ("heldout", 60)):
         report = oracle_report(split)
         assert report["cases"] == expected_count
         assert report["correct"] == expected_count
         assert report["accuracy"] == 1.0
         assert report["provider_calls"] == 0
+        assert 0 < report["unique_incident_keys"] < expected_count
         for case in build_cases(split):
             assert oracle_decision(case) == case.expected_action

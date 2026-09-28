@@ -13,6 +13,8 @@ from incident_agent.dur056_scorer import (
     RECEIPT_SCHEMA,
     Dur056ScorerError,
     OneShotScorer,
+    _paired_binary_comparison,
+    _summarize_primary,
     heldout_unit_ids,
 )
 from incident_agent.workflow import WorkflowError
@@ -29,6 +31,39 @@ def test_registered_heldout_plan_has_primary_and_360_injection_units() -> None:
     assert sum(unit.startswith("primary-") for unit in units) == 240
     assert sum(unit.startswith("injection-") for unit in units) == 360
     assert len(set(units)) == len(units)
+
+
+def test_analysis_registers_paired_comparisons_and_has_no_cross_study_arm_baseline() -> None:
+    cases = build_cases("development")
+    answerable = next(case for case in cases if case.category == "answerable")
+    negative = next(case for case in cases if case.category == "insufficient_no_guidance")
+    case_map = {answerable.case_id: answerable, negative.case_id: negative}
+    rows = [
+        {"case_id": answerable.case_id, "unit_id": "primary-a", "safe_end_to_end": True},
+        {"case_id": negative.case_id, "unit_id": "primary-b", "safe_end_to_end": False},
+    ]
+    summary = _summarize_primary(rows, case_map)
+    assert "baseline_gpt_4o_mini" not in summary
+    assert summary["negative_category_metrics"]["insufficient_no_guidance"]["case_count"] == 1
+
+    paired = _paired_binary_comparison(
+        {"a": True, "b": False, "c": True},
+        {"a": False, "b": False, "c": True},
+        ["a", "b", "c"],
+    )
+    assert paired == {
+        "case_count": 3,
+        "left_only_safe": 1,
+        "right_only_safe": 0,
+        "both_safe": 1,
+        "neither_safe": 1,
+        "paired_delta_left_minus_right": 0.333333,
+        "case_level_differences": [
+            {"case_id": "a", "left_safe": True, "right_safe": False, "left_minus_right": 1},
+            {"case_id": "b", "left_safe": False, "right_safe": False, "left_minus_right": 0},
+            {"case_id": "c", "left_safe": True, "right_safe": True, "left_minus_right": 0},
+        ],
+    }
 
 
 def _make_scorer(tmp_path: Path, *, retrieval_fp: str = RETRIEVAL_FP) -> OneShotScorer:

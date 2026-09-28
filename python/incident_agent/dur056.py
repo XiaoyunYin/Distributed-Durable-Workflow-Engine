@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import sys
 from dataclasses import asdict
 from pathlib import Path
@@ -24,16 +23,21 @@ from incident_agent.dur056_artifacts import current_git_head, write_once
 from incident_agent.dur056_budget import Dur056SpendLedger
 from incident_agent.dur056_evaluation import evaluate_development_agents
 from incident_agent.dur056_fixtures import (
-    ACTION_PARAMETERS,
+    CATEGORY_ANNOUNCEMENTS,
     DEV_QUERY_TEMPLATES,
+    DEV_SEED,
     FAMILIES,
     HELDOUT_QUERY_TEMPLATES,
+    HELDOUT_SEED,
+    LEGACY_QUERY_PADDING,
     Dur056Case,
     all_fixture_text,
     build_cases,
     build_corpus,
     oracle_decision,
     oracle_report,
+    validate_corpus_labels,
+    validate_key_label_consistency,
 )
 from incident_agent.dur056_retrieval import (
     EMBEDDING_DIMENSION,
@@ -98,6 +102,8 @@ def _fixture_fingerprint(cases: tuple[Dur056Case, ...]) -> str:
                 "category": case.category,
                 "query_clean_a": case.query_clean_a,
                 "query_clean_b": case.query_clean_b,
+                "logs": case.logs,
+                "metrics": case.metrics,
                 "expected_action": case.expected_action,
                 "evidence": [asdict(chunk) for chunk in case.evidence],
             }
@@ -106,10 +112,54 @@ def _fixture_fingerprint(cases: tuple[Dur056Case, ...]) -> str:
     )
 
 
+def _embedding_provenance(
+    output_directory: Path,
+    *,
+    corpus_fingerprint: str,
+    query_fingerprint: str,
+    current_records: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    """Carry forward exact v2 embedding records when vectors are reused."""
+
+    records: list[dict[str, Any]] = []
+    sources: list[str] = []
+    for path in sorted(output_directory.glob("study-manifest-v2-*.json")):
+        try:
+            manifest = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            continue
+        if (
+            manifest.get("study_version") != STUDY_VERSION
+            or manifest.get("development_corpus_fingerprint") != corpus_fingerprint
+            or manifest.get("development_query_fingerprint") != query_fingerprint
+        ):
+            continue
+        requests = manifest.get("embedding_requests", [])
+        if not isinstance(requests, list) or not requests:
+            continue
+        records.extend(
+            {
+                **record,
+                "provenance_manifest": path.name,
+            }
+            for record in requests
+            if isinstance(record, dict)
+        )
+        sources.append(path.name)
+    records.extend(
+        {**record, "provenance_manifest": "current-development-run"}
+        for record in current_records
+    )
+    return records, sources
+
+
 def validate_fixtures() -> dict[str, Any]:
     reports: dict[str, Any] = {}
+    cases_by_split: dict[str, tuple[Dur056Case, ...]] = {}
     for split in ("development", "heldout"):
         cases = build_cases(split)  # local deterministic oracle only; no provider API is used
+        corpus = build_corpus(split)
+        cases_by_split[split] = cases
         actual_counts = {
             category: sum(case.category == category for case in cases)
             for category in EXPECTED_COUNTS[split]
@@ -131,51 +181,38 @@ def validate_fixtures() -> dict[str, Any]:
             )
             if family_answerable != expected_answerable:
                 raise Dur056StudyError(f"DUR-056 {split} answerable cases are not family balanced")
+        try:
+            validate_key_label_consistency(cases)
+            corpus_validation = validate_corpus_labels(cases, corpus)
+        except ValueError as error:
+            raise Dur056StudyError(str(error)) from error
+        if corpus_validation["correct"] != len(cases):
+            raise Dur056StudyError(
+                "corpus-level oracle disagrees with fixture labels: "
+                + ", ".join(corpus_validation["mismatches"])
+            )
         for case in cases:
-            if case.expected_action is not None:
-                current_text = "\n".join(
-                    chunk.text
-                    for chunk in case.evidence
-                    if chunk.service == case.service and chunk.version == case.active_version
-                )
-                action = str(case.expected_action["action"])
-                if f"action={action}" not in current_text:
+            if oracle_decision(case, corpus) != case.expected_action:
+                raise Dur056StudyError(f"full-split oracle disagrees on {case.case_id}")
+            for text in [
+                *(chunk.text for chunk in case.evidence),
+                case.query_clean_a,
+                case.query_clean_b,
+            ]:
+                if case.case_id in text or text.startswith(("dev-", "hel-")):
+                    raise Dur056StudyError("case ID or split prefix leaked into fixture text")
+                if LEGACY_QUERY_PADDING in text:
+                    raise Dur056StudyError("legacy query padding leaked into fixture text")
+                if split == "development" and "heldout" in text.lower():
+                    raise Dur056StudyError("held-out marker leaked into development text")
+                if split == "heldout" and "development" in text.lower():
+                    raise Dur056StudyError("development marker leaked into held-out text")
+            if case.category != "answerable":
+                lowered = all_fixture_text(case).lower()
+                if any(phrase in lowered for phrase in CATEGORY_ANNOUNCEMENTS):
                     raise Dur056StudyError(
-                        f"expected action absent from evidence for {case.case_id}"
+                        f"negative evidence announces its category for {case.case_id}"
                     )
-                required = ACTION_PARAMETERS[action]
-                for parameter in required:
-                    value = case.expected_action["parameters"].get(parameter)
-                    if parameter not in current_text or str(value) not in current_text:
-                        raise Dur056StudyError(
-                            "required parameter absent from evidence for "
-                            f"{case.case_id}: {parameter}"
-                        )
-            if case.category == "insufficient_no_guidance" and any(
-                "DIRECTIVE:" in chunk.text for chunk in case.evidence
-            ):
-                raise Dur056StudyError(
-                    f"insufficient no-guidance case has an action: {case.case_id}"
-                )
-            if case.category == "insufficient_missing_parameter":
-                evidence = all_fixture_text(case)
-                match = re.search(
-                    r"DIRECTIVE: action=([a-z_]+); service=[a-z-]+; version=v\d+; "
-                    r"parameters=(\{[^}]*\})\.",
-                    evidence,
-                )
-                if match is None:
-                    raise Dur056StudyError(
-                        f"missing-parameter case lost its partial guidance: {case.case_id}"
-                    )
-                action, raw_params = match.groups()
-                parsed = json.loads(raw_params)
-                if all(key in parsed for key in ACTION_PARAMETERS[action]):
-                    raise Dur056StudyError(
-                        f"insufficient case includes all parameters: {case.case_id}"
-                    )
-            if oracle_decision(case) != case.expected_action:
-                raise Dur056StudyError(f"deterministic oracle disagrees on {case.case_id}")
         oracle = oracle_report(split)
         if oracle["correct"] != len(cases) or oracle["accuracy"] != 1.0:
             raise Dur056StudyError(f"DUR-056 {split} deterministic oracle did not score 100%")
@@ -191,11 +228,27 @@ def validate_fixtures() -> dict[str, Any]:
     if not set(DEV_QUERY_TEMPLATES).isdisjoint(HELDOUT_QUERY_TEMPLATES):
         raise Dur056StudyError("DUR-056 development/held-out query templates overlap")
     reports["template_sets_disjoint"] = True
-    reports["development_seed"] = 5601
-    reports["heldout_seed"] = 5602
+    dev_values = {
+        (case.expected_action["action"], name, str(value))
+        for case in cases_by_split["development"]
+        if case.expected_action is not None
+        for name, value in case.expected_action["parameters"].items()
+    }
+    heldout_values = {
+        (case.expected_action["action"], name, str(value))
+        for case in cases_by_split["heldout"]
+        if case.expected_action is not None
+        for name, value in case.expected_action["parameters"].items()
+    }
+    if dev_values == heldout_values:
+        raise Dur056StudyError("DUR-056 development and held-out answer-value sets are identical")
+    reports["answer_value_sets_differ"] = True
+    reports["development_seed"] = DEV_SEED
+    reports["heldout_seed"] = HELDOUT_SEED
+    reports["study_version"] = STUDY_VERSION
     reports["model_provider_calls"] = 0
     reports["embedding_provider_calls"] = 0
-    return {"schema": "dur056-fixture-validity.v1", "splits": reports}
+    return {"schema": "dur056-fixture-validity.v2", "splits": reports}
 
 
 def prepare_development(root: Path | None = None) -> dict[str, Any]:
@@ -204,7 +257,7 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
     project_root = root or _root()
     output_directory = _study_directory(project_root)
     output_directory.mkdir(parents=True, exist_ok=True)
-    existing_freezes = list(output_directory.glob("gate-a-freeze-review-*.json"))
+    existing_freezes = list(output_directory.glob("gate-a-freeze-review-v2-*.json"))
     if existing_freezes:
         raise Dur056StudyError(
             "a DUR-056 frozen Gate A bundle already exists; refusing to retune or overwrite"
@@ -212,12 +265,12 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
     validity = validate_fixtures()
     oracle_paths = {
         split: write_once(
-            output_directory, f"oracle-report-{split}", validity["splits"][split]["oracle"]
+            output_directory, f"oracle-report-{split}-v2", validity["splits"][split]["oracle"]
         )
         for split in ("development", "heldout")
     }
     validity["oracle_report_paths"] = {key: value.name for key, value in oracle_paths.items()}
-    validity_path = write_once(output_directory, "fixture-validity", validity)
+    validity_path = write_once(output_directory, "fixture-validity-v2", validity)
 
     ledger = Dur056SpendLedger(output_directory / "spend-ledger.json")
     cases = build_cases("development")
@@ -247,6 +300,12 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
         )
         corpus_fingerprint = _fixture_fingerprint(cases)
         query_fingerprint = fingerprint(queries)
+        embedding_requests, embedding_provenance_manifests = _embedding_provenance(
+            output_directory,
+            corpus_fingerprint=corpus_fingerprint,
+            query_fingerprint=query_fingerprint,
+            current_records=embedding_provider.records,
+        )
         retrieval_config.pop("config_fingerprint", None)
         retrieval_config.update(
             {
@@ -262,13 +321,13 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
         retrieval_results["selected_config_fingerprint"] = retrieval_config["config_fingerprint"]
         retrieval_results["frozen_candidate"] = retrieval_config
         retrieval_config_path = write_once(
-            output_directory, "retrieval-frozen-config", retrieval_config
+            output_directory, "retrieval-frozen-config-v2", retrieval_config
         )
         retrieval_results_path = write_once(
-            output_directory, "retrieval-development", retrieval_results
+            output_directory, "retrieval-development-v2", retrieval_results
         )
         manifest = {
-            "schema": "dur056-study-manifest.v1",
+            "schema": "dur056-study-manifest.v2",
             "study_version": STUDY_VERSION,
             "source_commit": current_git_head(project_root),
             "fixture_validity_path": validity_path.name,
@@ -278,17 +337,19 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
             "development_query_count": len(queries),
             "development_corpus_fingerprint": corpus_fingerprint,
             "development_query_fingerprint": query_fingerprint,
-            "query_seeds": {"development": 5601, "heldout": 5602},
+            "query_seeds": {"development": DEV_SEED, "heldout": HELDOUT_SEED},
             "embedding_model": EMBEDDING_MODEL,
             "embedding_dimension": EMBEDDING_DIMENSION,
-            "embedding_requests": embedding_provider.records,
+            "embedding_requests": embedding_requests,
+            "embedding_provenance_source_manifests": embedding_provenance_manifests,
+            "embedding_provenance_complete": bool(embedding_requests),
             "heldout_cases_sent_to_model": 0,
             "heldout_queries_sent_to_embedding_provider": 0,
             "heldout_documents_sent_to_embedding_provider": 0,
             "database": database_manifest(connection),
             "spend_ledger_snapshot": ledger.snapshot(),
         }
-        manifest_path = write_once(output_directory, "study-manifest", manifest)
+        manifest_path = write_once(output_directory, "study-manifest-v2", manifest)
         agent_results = evaluate_development_agents(
             cases=cases,
             ledger=ledger,
@@ -298,10 +359,11 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
             query_splits=query_splits,
         )
         agent_results["fixture_validity_path"] = validity_path.name
-        agent_results["development_seed"] = 5601
+        agent_results["development_seed"] = DEV_SEED
+        agent_results["heldout_seed"] = HELDOUT_SEED
         agent_results["heldout_model_calls"] = 0
         agent_results["per_run_cost_authority"] = "DUR-056 spend-ledger.json"
-        agent_results_path = write_once(output_directory, "agent-development", agent_results)
+        agent_results_path = write_once(output_directory, "agent-development-v2", agent_results)
 
         selected = str(agent_results["selected_candidate"])
         candidate = PROMPT_CANDIDATES[selected]
@@ -326,7 +388,7 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
             profile["structured_output_schema_fingerprint"] = fingerprint(schema)
             profile["mcp_tool_schema_fingerprint"] = definition["mcp_tool_schema_fingerprint"]
         agent_config: dict[str, Any] = {
-            "schema": "dur056-agent-frozen-config.v1",
+            "schema": "dur056-agent-frozen-config.v2",
             "study_version": STUDY_VERSION,
             "model_id": MODEL_ID,
             "endpoint": ENDPOINT,
@@ -353,9 +415,10 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
             "heldout_scored": False,
         }
         agent_config["config_fingerprint"] = fingerprint(agent_config)
-        agent_config_path = write_once(output_directory, "agent-frozen-config", agent_config)
+        agent_config_path = write_once(output_directory, "agent-frozen-config-v2", agent_config)
         freeze_bundle: dict[str, Any] = {
-            "schema": "dur056-gate-a-freeze-bundle.v1",
+            "schema": "dur056-gate-a-freeze-bundle.v2",
+            "study_version": STUDY_VERSION,
             "gate": "A",
             "status": "READY_FOR_FREEZE_REVIEW",
             "heldout_scoring_authorized": False,
@@ -374,15 +437,9 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
             "spend_ledger_snapshot": ledger.snapshot(),
             "heldout_model_calls": 0,
             "heldout_embedding_calls": 0,
-            "baseline_reference": {
-                "study": "DUR-029",
-                "model_id": "gpt-4o-mini",
-                "primary_safe_end_to_end": "4/20",
-                "preserved": True,
-            },
         }
         freeze_bundle["freeze_fingerprint"] = fingerprint(freeze_bundle)
-        freeze_path = write_once(output_directory, "gate-a-freeze-review", freeze_bundle)
+        freeze_path = write_once(output_directory, "gate-a-freeze-review-v2", freeze_bundle)
         return {
             "status": "READY_FOR_FREEZE_REVIEW",
             "freeze_bundle_path": str(freeze_path),
@@ -414,7 +471,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.command == "validate-fixtures":
             report = validate_fixtures()
-            path = write_once(output_directory, "fixture-validity", report)
+            path = write_once(output_directory, "fixture-validity-v2", report)
             result: dict[str, Any] = {"status": "VALID", "report_path": str(path), "oracle": report}
         elif args.command == "prepare-dev":
             result = prepare_development(project_root)

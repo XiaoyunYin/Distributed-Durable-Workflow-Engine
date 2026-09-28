@@ -332,11 +332,13 @@ class InvestigationWorkflow:
         mcp: BoundedMCPServer | MCPClientFacade,
         decisions: DecisionProvider | None = None,
         cases: tuple[IncidentCase, ...] | None = None,
+        search_query_suffix: str = " runbook",
     ) -> None:
         self.store = store
         self.mcp = MCPClientFacade(mcp) if isinstance(mcp, BoundedMCPServer) else mcp
         self.decisions = decisions or FixtureDecisionProvider()
         self.cases = cases if cases is not None else build_incident_cases()
+        self.search_query_suffix = search_query_suffix
         self._cases_by_id = {case.case_id: case for case in self.cases}
         self.effect = SandboxEffect(store, self.mcp)
 
@@ -392,7 +394,9 @@ class InvestigationWorkflow:
                 {"round": 2, "reason": search.data["reason"]},
             )
             if len(search_events) < 2:
-                search = self.mcp.search_runbooks(run_id, f"{case.query} runbook", cast(Any, arm))
+                search = self.mcp.search_runbooks(
+                    run_id, f"{case.query}{self.search_query_suffix}", cast(Any, arm)
+                )
                 self._record_tool_call(run_id, search)
             else:
                 search = search_events[-1]

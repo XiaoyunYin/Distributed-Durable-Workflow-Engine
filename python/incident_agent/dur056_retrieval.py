@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import statistics
 import time
 from collections import defaultdict
@@ -20,7 +21,7 @@ from incident_agent.dur056_budget import Dur056SpendError, Dur056SpendLedger
 from incident_agent.dur056_fixtures import Dur056Case, build_cases
 from incident_agent.models import EvidenceChunk, RetrievalArm, RetrievalHit, RetrievalResponse
 
-STUDY_VERSION = "dur056-solvable-evidence-v1"
+STUDY_VERSION = "dur056-solvable-evidence-v2"
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIMENSION = 1536
 EMBEDDING_BATCH_SIZE = 48
@@ -65,23 +66,29 @@ def connect(database_url: str | None = None) -> psycopg.Connection[Any]:
 
 
 def apply_migration(connection: psycopg.Connection[Any], root: Path) -> None:
-    migration = root / "migrations" / "dur056" / "000056_solvable_evidence.up.sql"
-    if not migration.is_file():
-        raise Dur056RetrievalError(f"DUR-056 migration is missing: {migration}")
+    migration_56 = root / "migrations" / "dur056" / "000056_solvable_evidence.up.sql"
+    migration_57 = root / "migrations" / "dur056" / "000057_version_v2_support.up.sql"
     try:
         with connection.cursor() as cursor:
             cursor.execute("SELECT to_regclass('dur056.schema_migrations') AS relation")
             relation_row = cursor.fetchone()
             exists = relation_row is not None and relation_row["relation"] is not None
-        applied = False
-        if exists:
+        if not exists:
+            if not migration_56.is_file():
+                raise Dur056RetrievalError(f"DUR-056 migration is missing: {migration_56}")
+            with connection.cursor() as cursor:
+                cursor.execute(migration_56.read_text(encoding="utf-8"))
+        for version, migration in ((56, migration_56), (57, migration_57)):
             with connection.cursor() as cursor:
                 cursor.execute(
-                    "SELECT EXISTS (SELECT 1 FROM dur056.schema_migrations WHERE version=56)"
+                    "SELECT EXISTS (SELECT 1 FROM dur056.schema_migrations WHERE version=%s)",
+                    (version,),
                 )
                 applied_row = cursor.fetchone()
-                applied = applied_row is not None and bool(applied_row["exists"])
-        if not applied:
+            if applied_row is not None and bool(applied_row["exists"]):
+                continue
+            if not migration.is_file():
+                raise Dur056RetrievalError(f"DUR-056 migration is missing: {migration}")
             with connection.cursor() as cursor:
                 cursor.execute(migration.read_text(encoding="utf-8"))
         with connection.cursor() as cursor:
@@ -146,22 +153,15 @@ def development_query_rows(cases: Sequence[Dur056Case] | None = None) -> list[di
     for case in cases if cases is not None else build_cases("development"):
         if case.split != "development":
             raise Dur056RetrievalError("development query builder received held-out case data")
-        rows.append(
-            {
-                "query_id": f"dev-{case.case_id}-a",
-                "case_id": case.case_id,
-                "query": case.query_clean_a,
-                "split": "development",
-            }
-        )
-        rows.append(
-            {
-                "query_id": f"dev-{case.case_id}-fallback",
-                "case_id": case.case_id,
-                "query": f"{case.query_clean_a} runbook",
-                "split": "development",
-            }
-        )
+        for suffix, query in (("a", case.query_clean_a), ("b", case.query_clean_b)):
+            rows.append(
+                {
+                    "query_id": f"dev-{case.case_id}-{suffix}",
+                    "case_id": case.case_id,
+                    "query": query,
+                    "split": "development",
+                }
+            )
     return rows
 
 
@@ -170,12 +170,7 @@ def heldout_query_rows(cases: Sequence[Dur056Case]) -> list[dict[str, str]]:
         raise Dur056RetrievalError("held-out query builder requires only held-out fixtures")
     rows: list[dict[str, str]] = []
     for case in cases:
-        for suffix, query in (
-            ("a", case.query_clean_a),
-            ("a-fallback", f"{case.query_clean_a} runbook"),
-            ("b", case.query_clean_b),
-            ("b-fallback", f"{case.query_clean_b} runbook"),
-        ):
+        for suffix, query in (("a", case.query_clean_a), ("b", case.query_clean_b)):
             rows.append(
                 {
                     "query_id": f"hel-{case.case_id}-{suffix}",
@@ -425,9 +420,12 @@ def _keyword_hits(
     splits: Sequence[str],
     top_k: int,
 ) -> list[RetrievalHit]:
+    tsquery = _disjunctive_tsquery(query)
+    if not tsquery:
+        return []
     with connection.cursor() as cursor:
         cursor.execute(
-            """WITH q AS (SELECT plainto_tsquery('simple', %s) AS tsq)
+            """WITH q AS (SELECT to_tsquery('simple', %s) AS tsq)
             SELECT e.chunk_id, e.document_id, e.version, e.service,
                    ts_rank(e.search_vector, q.tsq) AS score,
                    left(e.content, 1200) AS snippet
@@ -436,7 +434,7 @@ def _keyword_hits(
               AND e.split = ANY(%s)
             ORDER BY score DESC, e.chunk_id
             LIMIT %s""",
-            (query, STUDY_VERSION, list(splits), top_k),
+            (tsquery, STUDY_VERSION, list(splits), top_k),
         )
         rows = cursor.fetchall()
     return [
@@ -450,6 +448,13 @@ def _keyword_hits(
         )
         for row in rows
     ]
+
+
+def _disjunctive_tsquery(query: str) -> str:
+    """Return sanitized OR terms for PostgreSQL simple-dictionary tsquery."""
+
+    terms = list(dict.fromkeys(re.findall(r"[a-z0-9_]+", query.lower())))
+    return " | ".join(terms)
 
 
 def _dense_hits(
@@ -653,7 +658,10 @@ def tune_development(
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     if len(cases) != 30 or any(case.split != "development" for case in cases):
         raise Dur056RetrievalError("DUR-056 retrieval tuning accepts only the 30 dev cases")
-    labels = [case.expected_action is not None for case in cases]
+    query_cases = [
+        (case, query) for case in cases for query in (case.query_clean_a, case.query_clean_b)
+    ]
+    labels = [case.expected_action is not None for case, _query in query_cases]
     best_config: dict[str, Any] | None = None
     best_results: dict[str, Any] | None = None
     best_key: tuple[float, float, float, int, int, int] | None = None
@@ -661,8 +669,7 @@ def tune_development(
     for top_k in TOP_K_CANDIDATES:
         for ef_search in EF_SEARCH_CANDIDATES:
             raw: list[dict[str, Any]] = []
-            for case in cases:
-                query = case.query_clean_a
+            for case, query in query_cases:
                 query_id, vector = query_vectors[query]
                 keyword = _keyword_hits(connection, query, ("development",), top_k)
                 dense = _dense_hits(
@@ -736,13 +743,18 @@ def tune_development(
                     -abs(rrf_k - 60),
                 )
                 config = {
-                    "schema": "dur056-retrieval-frozen-config.v1",
+                    "schema": "dur056-retrieval-frozen-config.v2",
                     "study_version": STUDY_VERSION,
                     "embedding_model": EMBEDDING_MODEL,
                     "embedding_dimension": EMBEDDING_DIMENSION,
                     "embedding_normalization": "provider_default",
                     "index": {"type": "HNSW", "m": 16, "ef_construction": 64},
                     "ranking": {"top_k": top_k},
+                    "keyword_query": {
+                        "strategy": "sanitized_or_joined_to_tsquery_simple",
+                        "rank": "ts_rank",
+                        "token_pattern": "[a-z0-9_]+",
+                    },
                     "dense": {
                         "hnsw_ef_search": ef_search,
                         **dense_threshold,
@@ -755,6 +767,8 @@ def tune_development(
                             "mean balanced accuracy; then lower false positives, higher "
                             "delivered recall, lower top-k, lower ef_search, rrf_k nearest 60"
                         ),
+                        "query_variants_per_case": ["clean-a", "clean-b"],
+                        "query_count": len(query_cases),
                         "arm_balanced_accuracy": accuracy,
                         "arm_false_positive_count": false_positives,
                         "mean_delivered_recall": mean_recall,
@@ -767,6 +781,9 @@ def tune_development(
                 rows_payload = [
                     {
                         "case_id": rows["case"].case_id,
+                        "query_variant": "clean-a"
+                        if rows["query"] == rows["case"].query_clean_a
+                        else "clean-b",
                         "query": rows["query"],
                         "answerable": labels[index],
                         "keyword": [hit.chunk_id for hit in rows["keyword"]],
@@ -778,9 +795,10 @@ def tune_development(
                     for index, rows in enumerate(raw)
                 ]
                 results = {
-                    "schema": "dur056-retrieval-development.v1",
+                    "schema": "dur056-retrieval-development.v2",
                     "split": "development",
                     "case_count": len(cases),
+                    "query_count": len(query_cases),
                     "frozen_candidate": config,
                     "rows": rows_payload,
                 }

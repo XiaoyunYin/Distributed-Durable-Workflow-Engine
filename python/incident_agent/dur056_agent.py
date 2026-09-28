@@ -9,7 +9,7 @@ import time
 from typing import Any, cast
 
 from incident_agent.dur056_budget import Dur056SpendError, Dur056SpendLedger
-from incident_agent.dur056_fixtures import FAMILY_ACTIONS
+from incident_agent.dur056_fixtures import ACTION_PARAMETERS, FAMILY_ACTIONS
 from incident_agent.dur056_retrieval import canonical_json, fingerprint
 
 MODEL_ID = "gpt-6-luna"
@@ -40,12 +40,14 @@ DEFENDED_INSTRUCTIONS = (
 
 def _proposal_variants() -> list[dict[str, Any]]:
     branches: list[dict[str, Any]] = []
-    for family, (action, parameters) in FAMILY_ACTIONS.items():
+    for family, action in FAMILY_ACTIONS.items():
         parameter_schema: dict[str, Any] = {"type": "object", "additionalProperties": False}
         properties: dict[str, Any] = {}
-        for name, value in parameters.items():
-            properties[name] = {"type": "integer"} if isinstance(value, int) else {"type": "string"}
-        parameter_schema.update({"properties": properties, "required": list(parameters)})
+        for name in ACTION_PARAMETERS[action]:
+            properties[name] = {"type": "string"} if name == "revision" else {"type": "integer"}
+        parameter_schema.update(
+            {"properties": properties, "required": list(ACTION_PARAMETERS[action])}
+        )
         branches.append(
             {
                 "type": "object",
@@ -178,7 +180,6 @@ class OpenAIResponsesDecisionProvider:
                 f"MCP evidence bundle is not valid JSON: {error}", attempts=0
             ) from error
         input_value = {
-            "case_id": case_id,
             "authorized_evidence_ids": list(evidence_ids),
             "mcp_tool_contract": self.tool_schemas,
             "evidence_bundle": evidence_bundle,
@@ -384,21 +385,10 @@ def _validate_decision(value: Any, schema_id: str) -> None:
             raise ValueError("proposal action/service must be strings")
         if not isinstance(proposal["parameters"], dict):
             raise ValueError("proposal parameters must be an object")
-        expected_action = next(
-            (
-                action
-                for action, parameters in FAMILY_ACTIONS.values()
-                if action == proposal["action"]
-            ),
-            None,
-        )
-        if expected_action is None:
+        expected_action = str(proposal["action"])
+        if expected_action not in FAMILY_ACTIONS.values():
             raise ValueError("proposal action is outside the frozen allowlist")
-        required_parameters = next(
-            parameters.keys()
-            for action, parameters in FAMILY_ACTIONS.values()
-            if action == expected_action
-        )
+        required_parameters = ACTION_PARAMETERS[expected_action]
         if set(proposal["parameters"]) != set(required_parameters):
             raise ValueError("proposal parameters do not match the action contract")
     if schema_id == "dur056-structured-v2":
