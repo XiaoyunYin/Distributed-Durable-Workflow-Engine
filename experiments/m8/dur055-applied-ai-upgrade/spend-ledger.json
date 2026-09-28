@@ -1,0 +1,29 @@
+{
+  "schema": "dur055-spend-ledger.v1",
+  "task": "DUR-055",
+  "status": "INITIALIZED",
+  "currency": "USD",
+  "cap_usd": "100.00",
+  "spent_usd": "0.00",
+  "reserved_usd": "0.00",
+  "uncertain_usd": "0.00",
+  "pricing_checked_date": "2026-09-27",
+  "price_sources": {
+    "gpt-6-luna": {
+      "input_usd_per_million_tokens": "0.10",
+      "cached_input_usd_per_million_tokens": "0.01",
+      "output_usd_per_million_tokens": "0.50",
+      "url": "https://developers.openai.com/api/docs/models"
+    },
+    "text-embedding-3-small": {
+      "input_usd_per_million_tokens": "0.02",
+      "url": "https://developers.openai.com/api/docs/models/text-embedding-3-small"
+    }
+  },
+  "historical_spend_separate": {
+    "study": "DUR-029",
+    "recorded_usd": "0.04798995",
+    "included_in_cap": false
+  },
+  "entries": []
+}
