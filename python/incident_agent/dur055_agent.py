@@ -131,6 +131,10 @@ PROMPT_VARIANTS: dict[str, dict[str, Any]] = {
 class DUR055ProviderError(RuntimeError):
     """Raised when a DUR-055 model response cannot be safely used."""
 
+    def __init__(self, message: str, *, attempts: int = 1) -> None:
+        super().__init__(message)
+        self.attempts = attempts
+
 
 class OpenAIResponsesDecisionProvider:
     """One prompt/schema candidate on the explicitly budgeted GPT-6 Luna model."""
@@ -141,6 +145,9 @@ class OpenAIResponsesDecisionProvider:
         tool_schemas: list[dict[str, Any]],
         ledger: SpendLedger,
         timeout_seconds: float = 90,
+        transport_retries: int = 0,
+        instructions_override: str | None = None,
+        schema_override: dict[str, Any] | None = None,
     ) -> None:
         if variant not in PROMPT_VARIANTS:
             raise DUR055ProviderError(f"unknown DUR-055 prompt variant: {variant}")
@@ -148,11 +155,18 @@ class OpenAIResponsesDecisionProvider:
             raise DUR055ProviderError("OPENAI_API_KEY is required for the DUR-055 agent runs")
         self.variant = variant
         self.config = PROMPT_VARIANTS[variant]
+        if not 0 <= transport_retries <= 2:
+            raise DUR055ProviderError("transport retries must be between zero and two")
+        self.transport_retries = transport_retries
+        self.instructions = instructions_override or str(self.config["instructions"])
+        self.schema = schema_override or cast(dict[str, Any], self.config["schema"])
         self.tool_schemas = tool_schemas
         self.tool_schema_fingerprint = fingerprint(tool_schemas)
         self.ledger = ledger
         self.timeout_seconds = timeout_seconds
         self.records: list[dict[str, Any]] = []
+        self.failures: list[dict[str, Any]] = []
+        self.call_ids: list[str] = []
 
     def diagnose(
         self, case_id: str, evidence_ids: tuple[str, ...], tool_text: str
@@ -163,10 +177,10 @@ class OpenAIResponsesDecisionProvider:
             "mcp_tool_contract": self.tool_schemas,
             "evidence_bundle": json.loads(tool_text),
         }
-        instructions = str(self.config["instructions"])
+        instructions = self.instructions
         request_input = canonical_json(input_value)
         prompt_hash = "sha256:" + hashlib.sha256(instructions.encode("utf-8")).hexdigest()
-        schema = cast(dict[str, Any], self.config["schema"])
+        schema = self.schema
         schema_hash = fingerprint(schema)
         payload = {
             "model": MODEL_ID,
@@ -185,17 +199,23 @@ class OpenAIResponsesDecisionProvider:
             },
         }
         body = canonical_json(payload).encode("utf-8")
-        call_id = self.ledger.reserve(
-            model=MODEL_ID,
-            operation=f"dur055-agent-{self.variant}",
-            request_bytes=len(body),
-            max_output_tokens=MAX_OUTPUT_TOKENS,
-        )
-        started = time.perf_counter()
-        try:
-            import urllib.error
-            import urllib.request
+        import urllib.error
+        import urllib.request
 
+        attempt_latencies: list[float] = []
+        response_data: dict[str, Any] | None = None
+        for attempt in range(1, self.transport_retries + 2):
+            operation = f"dur055-agent-{self.variant}"
+            if self.transport_retries:
+                operation += f"-{case_id}-attempt-{attempt}"
+            call_id = self.ledger.reserve(
+                model=MODEL_ID,
+                operation=operation,
+                request_bytes=len(body),
+                max_output_tokens=MAX_OUTPUT_TOKENS,
+            )
+            self.call_ids.append(call_id)
+            started_attempt = time.perf_counter()
             request = urllib.request.Request(
                 ENDPOINT,
                 data=body,
@@ -205,18 +225,69 @@ class OpenAIResponsesDecisionProvider:
                 },
                 method="POST",
             )
-            with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                response_data = json.loads(response.read().decode("utf-8"))
-        except Exception as error:
-            uncertain = not isinstance(error, urllib.error.HTTPError)
-            self.ledger.fail(call_id, outcome_uncertain=uncertain, detail=str(error))
-            if isinstance(error, urllib.error.HTTPError):
-                raise DUR055ProviderError(
+            try:
+                with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
+                    response_data = json.loads(response.read().decode("utf-8"))
+                attempt_latencies.append((time.perf_counter() - started_attempt) * 1000)
+                break
+            except urllib.error.HTTPError as error:
+                attempt_latency = (time.perf_counter() - started_attempt) * 1000
+                attempt_latencies.append(attempt_latency)
+                detail = (
                     f"Responses API HTTP {error.code}: "
-                    f"{error.read().decode('utf-8', errors='replace')[:500]}"
+                    + error.read().decode("utf-8", errors="replace")[:500]
+                )
+                self.ledger.fail(call_id, outcome_uncertain=False, detail=detail)
+                self.failures.append(
+                    {
+                        "case_id": case_id,
+                        "attempt": attempt,
+                        "kind": "http",
+                        "detail": detail,
+                        "latency_ms": round(attempt_latency, 3),
+                    }
+                )
+                raise DUR055ProviderError(detail, attempts=attempt) from error
+            except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as error:
+                attempt_latency = (time.perf_counter() - started_attempt) * 1000
+                attempt_latencies.append(attempt_latency)
+                self.ledger.fail(call_id, outcome_uncertain=True, detail=str(error))
+                self.failures.append(
+                    {
+                        "case_id": case_id,
+                        "attempt": attempt,
+                        "kind": "transport",
+                        "detail": str(error)[:500],
+                        "latency_ms": round(attempt_latency, 3),
+                    }
+                )
+                if attempt <= self.transport_retries:
+                    continue
+                raise DUR055ProviderError(
+                    f"Responses API transport failed after {attempt} attempts: {error}",
+                    attempts=attempt,
                 ) from error
-            raise DUR055ProviderError(f"Responses API request failed: {error}") from error
-        latency_ms = (time.perf_counter() - started) * 1000
+            except Exception as error:
+                attempt_latency = (time.perf_counter() - started_attempt) * 1000
+                attempt_latencies.append(attempt_latency)
+                self.ledger.fail(call_id, outcome_uncertain=True, detail=str(error))
+                self.failures.append(
+                    {
+                        "case_id": case_id,
+                        "attempt": attempt,
+                        "kind": "response",
+                        "detail": str(error)[:500],
+                        "latency_ms": round(attempt_latency, 3),
+                    }
+                )
+                raise DUR055ProviderError(
+                    f"Responses API request failed: {error}", attempts=attempt
+                ) from error
+        if response_data is None:
+            raise DUR055ProviderError(
+                "Responses API returned no response", attempts=len(attempt_latencies)
+            )
+        latency_ms = sum(attempt_latencies)
         try:
             usage = response_data["usage"]
             input_tokens = int(usage["input_tokens"])
@@ -246,7 +317,8 @@ class OpenAIResponsesDecisionProvider:
         except (KeyError, TypeError, ValueError, json.JSONDecodeError) as error:
             self.ledger.fail(call_id, outcome_uncertain=True, detail=f"bad response: {error}")
             raise DUR055ProviderError(
-                f"Responses API returned an invalid decision: {error}"
+                f"Responses API returned an invalid decision: {error}",
+                attempts=len(attempt_latencies),
             ) from error
         usage_record = {
             "input_tokens": input_tokens,
@@ -255,6 +327,8 @@ class OpenAIResponsesDecisionProvider:
             "reasoning_tokens": reasoning_tokens,
             "cost_usd": f"{cost:.8f}",
             "latency_ms": round(latency_ms, 3),
+            "attempt_count": len(attempt_latencies),
+            "attempt_latency_ms": [round(value, 3) for value in attempt_latencies],
         }
         decision.update(
             {

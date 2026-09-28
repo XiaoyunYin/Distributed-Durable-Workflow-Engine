@@ -17,6 +17,7 @@ from incident_agent.dur055_agent import (
     evaluate_development_agent,
 )
 from incident_agent.dur055_budget import SpendLedger
+from incident_agent.dur055_heldout import score_heldout
 from incident_agent.dur055_retrieval import (
     OpenAIEmbeddingProvider,
     RetrievalStudyError,
@@ -137,52 +138,12 @@ def prepare_development(root: Path | None = None) -> dict[str, Any]:
         connection.close()
 
 
-def heldout_scoring_guard(root: Path | None = None) -> None:
-    """Refuse held-out work without Claude's receipt for the exact HEAD commit."""
-
-    project_root = root or _root()
-    receipt_path = _study_directory(project_root) / "gate-a-accepted.json"
-    if not receipt_path.is_file():
-        raise RetrievalStudyError(
-            "held-out scoring is locked: the Claude Gate A acceptance receipt is missing"
-        )
-    try:
-        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as error:
-        raise RetrievalStudyError(
-            f"Claude Gate A acceptance receipt is invalid: {error}"
-        ) from error
-    required = {"reviewer", "verdict", "target_commit", "freeze_fingerprint"}
-    if not isinstance(receipt, dict) or not required <= set(receipt):
-        raise RetrievalStudyError("Claude Gate A receipt is missing required review fields")
-    if receipt["reviewer"] != "Claude" or receipt["verdict"] != "NO_BLOCKING_FINDINGS":
-        raise RetrievalStudyError("Claude Gate A receipt does not accept the freeze")
-    import subprocess
-
-    current = subprocess.run(
-        ["git", "rev-parse", "HEAD"],
-        cwd=project_root,
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.strip()
-    if receipt["target_commit"] != current:
-        raise RetrievalStudyError("Claude Gate A receipt does not name the current exact commit")
-    raise RetrievalStudyError(
-        "Gate A is accepted, but the one-shot held-out scorer will be added after review"
-    )
-
-
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("command", choices=("prepare-dev", "score-heldout"))
     args = parser.parse_args(argv)
     try:
-        if args.command == "prepare-dev":
-            result = prepare_development()
-        else:
-            heldout_scoring_guard()
-            return 2
+        result = prepare_development() if args.command == "prepare-dev" else score_heldout()
     except (RetrievalStudyError, RuntimeError) as error:
         print(f"DUR-055 blocked: {error}", file=sys.stderr)
         return 2
