@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+from typing import Any, cast
+
+import pytest
+from incident_agent.dur056_budget import Dur056SpendLedger
+from incident_agent.dur056_fixtures import build_cases
+from incident_agent.dur056_retrieval import (
+    Dur056OpenAIEmbeddingProvider,
+    Dur056RetrievalError,
+    NoRetrievalAdapter,
+    PostgresRetrievalAdapter,
+    development_query_rows,
+    heldout_query_rows,
+    reciprocal_rank_fusion,
+)
+from incident_agent.models import RetrievalHit
+
+
+def _hit(chunk_id: str, score: float = 0.5) -> RetrievalHit:
+    return RetrievalHit(chunk_id, f"doc-{chunk_id}", "v2", "checkout", score, chunk_id)
+
+
+def test_rrf_combines_both_arms_and_breaks_ties_by_chunk_id() -> None:
+    keyword = (_hit("b"), _hit("a"))
+    dense = (_hit("a"), _hit("c"))
+    rows = reciprocal_rank_fusion(keyword, dense, rrf_k=60, top_k=3)
+    assert [row.chunk_id for row in rows] == ["a", "b", "c"]
+    assert rows[0].score > rows[1].score > rows[2].score
+
+
+def test_dev_queries_are_dev_only_and_holdout_build_has_registered_count() -> None:
+    development = development_query_rows()
+    assert len(development) == 60
+    assert {row["split"] for row in development} == {"development"}
+    assert all(row["query_id"].startswith("dev-") for row in development)
+
+    heldout = heldout_query_rows(build_cases("heldout"))
+    assert len(heldout) == 240
+    assert {row["split"] for row in heldout} == {"heldout"}
+    assert all(row["query_id"].startswith("hel-") for row in heldout)
+
+
+def test_embedding_provider_refuses_heldout_scope_before_gate_a() -> None:
+    with pytest.raises(Dur056RetrievalError, match="requires accepted Gate A receipt"):
+        Dur056OpenAIEmbeddingProvider(
+            cast(Dur056SpendLedger, object()),
+            split_scope="heldout",
+            heldout_authorized=False,
+        )
+
+
+def test_development_retrieval_adapter_refuses_heldout_query_before_sql() -> None:
+    adapter = PostgresRetrievalAdapter(
+        cast(Any, object()),
+        {},
+        {"heldout query": ("hel-q-1", "[0.0]")},
+        {"heldout query": "heldout"},
+        allowed_query_splits=("development",),
+        corpus_splits=("development",),
+    )
+    with pytest.raises(Dur056RetrievalError, match="refused query split"):
+        adapter.search("heldout query")
+
+
+def test_no_retrieval_arm_returns_no_documents() -> None:
+    response = NoRetrievalAdapter().search("diagnostic query")
+    assert response.sufficient is False
+    assert response.delivered == ()
+    assert response.reason == "no_retrieval_arm"

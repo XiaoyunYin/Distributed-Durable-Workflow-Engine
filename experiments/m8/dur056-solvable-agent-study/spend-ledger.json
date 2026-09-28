@@ -1,0 +1,22 @@
+{
+  "schema": "dur056-spend-ledger.v1",
+  "study_version": "dur056-solvable-evidence-v1",
+  "cap_usd": "25.00",
+  "status": "NOT_STARTED",
+  "spent_usd": "0.00000000",
+  "reserved_usd": "0.00000000",
+  "uncertain_usd": "0.00000000",
+  "pricing_checked_date": "2026-09-28",
+  "price_sources": {
+    "gpt-6-luna": {
+      "source_url": "https://openai.com/api/pricing/",
+      "input_usd_per_million_tokens": "0.10",
+      "output_usd_per_million_tokens": "0.50"
+    },
+    "text-embedding-3-small": {
+      "source_url": "https://openai.com/api/pricing/",
+      "input_usd_per_million_tokens": "0.02"
+    }
+  },
+  "entries": []
+}
