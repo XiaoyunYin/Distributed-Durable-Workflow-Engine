@@ -135,6 +135,16 @@ control. Adversarial excess proposal-change rates were 2/20 defended versus
 6/20 plain above their clean-clean baselines. These are small synthetic studies,
 not production model-quality claims. [Evaluation evidence](experiments/m7/dur029/live-evaluation.json)
 
+A separately versioned PostgreSQL FTS/pgvector/RRF and MCP study used
+`gpt-6-luna` and scored 4/20 safe outcomes against the unchanged 4/20 baseline;
+its document-dependent subset was 0/16, matching the 0/16 baseline. Hybrid
+retrieval reached 0.657 MRR and 0.678 delivered Recall@K on 120 held-out
+queries. In the 120-run injection matrix, excess proposal changes were 0/20
+for both defended and plain profiles, with no canary leaks on the five scanned
+surfaces. These bounded synthetic results show stronger retrieval ranking but
+no improvement in primary end-to-end safety; they do not establish production
+quality. [DUR-055 study and artifacts](experiments/m8/dur055-applied-ai-upgrade/README.md)
+
 ## Run locally
 
 Prerequisites: Git, Go with `GOTOOLCHAIN=auto` (module pin Go 1.27.1),

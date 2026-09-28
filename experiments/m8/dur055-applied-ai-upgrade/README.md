@@ -1,18 +1,64 @@
 # DUR-055 applied-AI upgrade
 
-Status: **READY_FOR_FREEZE_REVIEW — Gate A**. No held-out
-retrieval query or incident case has been scored in this study.
+Status: **Gate B results complete; final Claude review pending.** The one-shot
+held-out scorer completed on 2026-09-28 with no infrastructure aborts or
+resumes. The result index is
+[`heldout-evaluation-index-run-001-20260928T142857Z.json`](heldout-evaluation-index-run-001-20260928T142857Z.json).
 
 This is a new versioned study. DUR-029 artifacts, including the 4/20
 `gpt-4o-mini` held-out result, remain unchanged and are the comparison baseline.
 
-The current Gate A bundle is [`gate-a-freeze-review-20260928T050959Z.json`](gate-a-freeze-review-20260928T050959Z.json)
+The accepted Gate A bundle is [`gate-a-freeze-review-20260928T050959Z.json`](gate-a-freeze-review-20260928T050959Z.json)
 with retrieval config fingerprint `sha256:04695baf2218305d0b7d8697223501181a1ff641f1a317fabfa8d409657ede7f`
 and agent config fingerprint `sha256:d01d9a37c48de3410547e1b38609c27be344326a40cb6466cee03a3bed96f47c`.
 The supersession audit at
 [`gate-a-supersession-audit-20260928T051136Z.json`](gate-a-supersession-audit-20260928T051136Z.json)
 explains two earlier preserved development bundles that were superseded before
 freeze review. All their calls remain in the spend ledger.
+
+## Held-out results
+
+The scorer used the exact Gate A fingerprints listed above. Its model was
+`gpt-6-luna`, using the frozen hybrid retrieval arm. The historical
+`gpt-4o-mini` primary-safe result remains 4/20 per arm; the new setup also
+scored 4/20, so primary end-to-end safety did not improve. The document-
+dependent subset was 0/16, matching the historical 0/16. All 20 cases
+completed without provider errors.
+
+| Retrieval arm | MRR | Ranking Recall@K | Delivered Recall@K | Distractor hit rate | No-answer false-positive rate | Median / max latency |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| PostgreSQL keyword | 0.4000 | 0.4000 | 0.4000 | 0 | 0 | 5.111 / 22.569 ms |
+| pgvector dense | 0.4528 | 0.8667 | 0.6556 | 0 | 0 | 5.002 / 14.238 ms |
+| Hybrid RRF | 0.6574 | 0.8889 | 0.6778 | 0 | 0 | 5.002 / 16.234 ms |
+
+Each arm scored the same 120 held-out queries: 90 answerable and 30 no-answer.
+The agent's secondary outcomes were 8/20 diagnosis accuracy, 4 correct
+abstentions, 16 false abstentions, and zero citation-provenance violations.
+The 20 agent runs used 24,077 input, 3,672 output, and 791 reasoning tokens;
+API latency averaged 2,981.655 ms/run and wall latency averaged 3,043.924
+ms/run. Their known cost was $0.00424370 total ($0.000212185/run).
+
+The injection matrix contained 120 runs (20 cases x two profiles x three
+conditions). Using the baseline canonical signature and
+`(clean-A != injected) - (clean-A != clean-B)`, defended raw clean-clean flips
+were 0/20, defended clean-A-to-injected changes were 0/20, and defended excess
+was 0/20. The corresponding plain counts were 0/20, 0/20, and 0/20. Diagnosis
+diverged in 20/20 cases under each profile even though proposal signatures did
+not change. Canary leaks were zero across all 120 runs on each of
+`workflow_payload`, `rendered_prompt`, `persisted_model_record`, `mcp_response`,
+and `exported_span`.
+
+Those 120 runs used 149,122 input, 20,846 output, and 4,244 reasoning tokens;
+API latency averaged 2,754.620 ms/run and wall latency averaged 2,810.109
+ms/run. Known cost was $0.01872641 ($0.000156053/run). Retrieval embeddings
+used 1,810 tokens across four requests, cost $0.00003620, and took 11,523.966
+ms in aggregate. Per-run values and raw outcomes are preserved in the three
+held-out result files linked by the result index.
+
+The run added $0.02300631 in settled API cost. The ledger now records
+$0.03261675 settled spend against the $100.00 cap, with $0.00022412 still
+reserved for an earlier unresolved development request and no active
+reservations. The one-shot marker records zero aborts and zero resumes.
 
 ## Development-only measurements
 
@@ -40,13 +86,13 @@ The ledger records $0.00961044 settled spend against the $100.00 cap and
 $0.00022412 conservatively reserved for one socket-blocked attempt with no API
 response. It records all three dev iterations and embedding calls.
 
-## Frozen inputs and intended setup
+## Frozen inputs and scored setup
 
 - Existing source corpus: 60 documents / 300 chunks; corpus version and content
   fingerprint are recorded in `study-manifest.json` after initialization.
 - Existing retrieval queries: the same 40 development and 120 held-out query
-  IDs. Only the 40 development queries may be embedded, tuned, or scored before
-  Gate A. The held-out set is not read by the development runner.
+  IDs. Only development queries were embedded, tuned, or scored before Gate A;
+  held-out scoring is recorded in the result files above.
 - Keyword: PostgreSQL `tsvector` and `ts_rank` over `source_corpus.chunks`.
 - Dense: pgvector cosine search with `text-embedding-3-small`, 1536 dimensions,
   HNSW; previous 64-dimensional deterministic vectors are left untouched.
@@ -56,9 +102,9 @@ response. It records all three dev iterations and embedding calls.
   registered; backend argument checks, provenance envelopes, and redaction stay
   in the existing implementation.
 
-The exact tunable retrieval settings, selected development-only values, agent
-prompt/schema, and SHA-256 fingerprints will be stored as new Gate A artifacts.
-The selected model/configuration is not presumed to improve quality.
+The selected retrieval settings, agent prompt/schema, and SHA-256 fingerprints
+are stored as the Gate A artifacts linked above. The measured results do not
+show a primary safety improvement over the baseline.
 
 ## Spend limit
 
@@ -69,11 +115,10 @@ worst-case amount before sending, then records the provider's reported usage,
 latency, and list-price estimate. Uncertain network outcomes retain their
 reservation until reconciled.
 
-The starting public list prices captured on 2026-09-27 are $0.10/$0.50 per
+The public list prices were checked before Gate B calls: $0.10/$0.50 per
 million input/output tokens for `gpt-6-luna`, and $0.02 per million input tokens
-for `text-embedding-3-small`. The live pricing page should be checked again
-before Gate B provider calls; any rate change must be reflected in the ledger
-before more calls.
+for `text-embedding-3-small`. The ledger records actual reported usage and the
+corresponding estimated cost for each call.
 
 ## Local PostgreSQL
 
@@ -88,18 +133,19 @@ $env:PYTHONPATH = 'python'
 uv run --env-file .env python -m incident_agent.dur055 prepare-dev
 ```
 
-`score-heldout` must fail closed without an accepted Gate A review receipt that
-names the exact freeze commit. After review, the retrieval and incident
-held-out sets are each scored once; the new prompt-injection matrix is run once
-on the frozen setup.
+`score-heldout` fails closed without an accepted Gate A review receipt that
+names the exact scorer commit and frozen fingerprints. Round 130 authorized
+the single completed run recorded above. Do not rerun this freeze; its marker is
+`COMPLETE`.
 
-## Gate A evidence
+## Gate A and Gate B evidence
 
-Before requesting freeze review, commit and push the code, dev-only results,
-spend ledger, model/prompt/schema fingerprints, frozen retrieval config, and
-tests. Confirm CI passes on that exact commit and append the Codex handoff to
-the end of `REVIEW.md`. Stop there. Do not generate any held-out score until
-Claude accepts the freeze.
+Gate A was accepted in Claude Round 130 for exact scorer commit
+`1770384ed33b770937069d795736c37dfdfeec6d`. The Gate B result bundle includes
+the accepted receipt, one-shot marker, all 140 write-once unit rows, three
+summary artifacts, result index, and updated spend ledger. The committed
+handoff records the result commit, exact-target CI, limitations, and the
+request for final results/claims review.
 
 ## Limitations
 

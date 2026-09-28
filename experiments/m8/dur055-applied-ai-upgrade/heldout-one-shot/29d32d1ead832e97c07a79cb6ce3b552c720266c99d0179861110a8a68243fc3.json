@@ -1,0 +1,12 @@
+{
+  "aborts": [],
+  "agent_config_fingerprint": "sha256:d01d9a37c48de3410547e1b38609c27be344326a40cb6466cee03a3bed96f47c",
+  "attempted_before_any_heldout_provider_call": true,
+  "completed_at": "2026-09-28T14:28:57.481500Z",
+  "resumes": [],
+  "retrieval_config_fingerprint": "sha256:04695baf2218305d0b7d8697223501181a1ff641f1a317fabfa8d409657ede7f",
+  "schema": "dur055-heldout-one-shot.v2",
+  "started_at": "2026-09-28T14:22:01.134002Z",
+  "status": "COMPLETE",
+  "target_commit": "1770384ed33b770937069d795736c37dfdfeec6d"
+}
