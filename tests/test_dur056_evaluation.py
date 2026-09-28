@@ -11,8 +11,9 @@ from incident_agent.dur056_agent import (
 )
 from incident_agent.dur056_budget import Dur056SpendLedger
 from incident_agent.dur056_evaluation import run_workflow_case
-from incident_agent.dur056_fixtures import Dur056Case, build_cases
+from incident_agent.dur056_fixtures import Dur056Case, as_incident_case, build_cases
 from incident_agent.dur056_retrieval import NoRetrievalAdapter
+from incident_agent.mcp import BoundedMCPServer
 
 LEDGER_SOURCE = (
     Path(__file__).parents[1]
@@ -106,7 +107,9 @@ def test_agent_provider_refuses_heldout_case_without_gate_a_authorization(
 ) -> None:
     monkeypatch.setenv("OPENAI_API_KEY", "stub-no-network")
     ledger_path = tmp_path / "spend-ledger.json"
-    ledger_path.write_text(LEDGER_SOURCE.read_text(encoding="utf-8"), encoding="utf-8")
+    source_ledger = json.loads(LEDGER_SOURCE.read_text(encoding="utf-8"))
+    expected_entries = source_ledger["entries"]
+    ledger_path.write_text(json.dumps(source_ledger), encoding="utf-8")
     provider = OpenAIResponsesDecisionProvider(
         "candidate-v2",
         [],
@@ -116,4 +119,17 @@ def test_agent_provider_refuses_heldout_case_without_gate_a_authorization(
     with pytest.raises(Dur056ProviderError, match="held-out model call requires"):
         provider.diagnose("hel-fake-case", (), "{}")
     data = json.loads(ledger_path.read_text(encoding="utf-8"))
-    assert data["entries"] == []
+    assert data["entries"] == expected_entries
+
+
+def test_all_development_canaries_are_redacted_before_mcp_output() -> None:
+    for case in build_cases("development"):
+        server = BoundedMCPServer(
+            NoRetrievalAdapter(),
+            cases=(as_incident_case(case),),
+        )
+        result = server.query_logs("redaction-audit", case.case_id, case.service)
+        serialized = json.dumps(result.data, sort_keys=True)
+        assert result.redactions == 1
+        assert case.canary not in serialized
+        assert "[REDACTED:CANARY]" in serialized

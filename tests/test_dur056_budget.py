@@ -18,7 +18,12 @@ LEDGER_SOURCE = (
 
 def _ledger(tmp_path: Path) -> tuple[Dur056SpendLedger, Path]:
     path = tmp_path / "spend-ledger.json"
-    path.write_text(LEDGER_SOURCE.read_text(encoding="utf-8"), encoding="utf-8")
+    data = json.loads(LEDGER_SOURCE.read_text(encoding="utf-8"))
+    data["entries"] = []
+    data["spent_usd"] = "0.00000000"
+    data["reserved_usd"] = "0.00000000"
+    data["uncertain_usd"] = "0.00000000"
+    path.write_text(json.dumps(data), encoding="utf-8")
     return Dur056SpendLedger(path), path
 
 
