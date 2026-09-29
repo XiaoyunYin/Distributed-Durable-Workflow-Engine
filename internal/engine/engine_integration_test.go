@@ -270,6 +270,7 @@ func TestM1InterpreterTimersAndRestart(t *testing.T) {
 	third := New(store, driver)
 	third.OwnerID = lease.OwnerID
 	third.LeaseTTL = time.Minute
+	third.MaxSteps = 2
 	run, err = third.Run(ctx, workflowID)
 	if err != nil || !run.Blocked || run.Workflow.State != state.StateWaitingTimer {
 		t.Fatalf("timer scheduling run = %+v, err=%v", run, err)
