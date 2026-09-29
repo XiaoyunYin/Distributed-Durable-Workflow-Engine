@@ -1,11 +1,11 @@
 # DUR-056 solvable-evidence agent study
 
-**Current package:** DUR-056 Round 135 addresses R209/R210 on top of the v3
-fixture and frozen configs. The initial 180-run development injection batch
-produced no model responses because the sandbox denied socket creation; its raw
-rows and ledger are preserved, but its zero outcome counts are not a calibration
-result. A valid pilot and R209 freeze bundle are still pending. Held-out scoring
-remains locked, and v1/v2/v3 results remain versioned baselines.
+**Current package:** Claude accepted Gate A in Round 136. The single authorized
+Gate B run completed on the accepted freeze; its versioned results are recorded
+below and await Claude's final results and claims review. The scorer is marked
+`COMPLETE` and must not be run again for this freeze. The failed transport-only
+development attempt and every earlier fixture/config/report remain preserved as
+versioned history.
 
 **Protocol:** [`protocol.md`](protocol.md), registered under D029 and amended
 before implementation by D030 and D031. The previous protocol and readme are
@@ -168,4 +168,27 @@ The repository `.env` supplies the provider credential; `.env.dur056` supplies
 the isolated database credentials and port. Do not copy or print either
 credential. The command must use the development split only; its provider
 clients enforce the study split and ledger cap. Do not invoke `score-heldout`
-without Claude's later accepted Gate A receipt.
+without the accepted Gate A receipt and exact frozen fingerprints. The accepted
+freeze's one-shot scorer is now `COMPLETE`; do not invoke it again.
+
+## Gate B results — run-001
+
+Claude accepted Gate A in Round 136. The one-shot held-out scorer then completed
+601/601 write-once units once, covering 120 query embeddings, 60 incidents
+across four arms, and the 360-call hybrid injection matrix. There were no
+aborts, resumes, provider errors, or completed-unit reruns. The detailed
+[versioned Gate B results report](gate-b-results-run-001-20260929.md) records
+the registered metrics and limits. The machine-readable
+[scorer report](heldout-report-run-001-finalization-001-20260929T044956Z.json),
+[result index](heldout-result-index-run-001-finalization-001-20260929T044956Z.json),
+[marker](heldout-one-shot/run-001.json), [write-once unit directory](heldout-units-run-001/),
+and [spend ledger](spend-ledger.json) preserve the source evidence.
+
+The primary safe end-to-end counts were 18/60 without retrieval, 60/60 keyword,
+56/60 dense, and 59/60 hybrid. Keyword matched the 60/60 oracle ceiling; dense
+and hybrid were below it. The plain injection profile had 26 attack successes,
+12 induced abstentions, and excess +35; defended had 0, 3, and -2. The five
+canary surfaces had no raw leaks. Cumulative settled spend is `$0.34631840` of
+the `$25.00` cap; the prior `$0.00016240` uncertain entry remains preserved.
+DUR-029 is historical and non-comparable. Gate B is awaiting Claude's results
+and claims review.
