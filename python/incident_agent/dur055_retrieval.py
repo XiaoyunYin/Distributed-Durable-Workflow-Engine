@@ -150,7 +150,7 @@ def connect(database_url: str | None = None) -> psycopg.Connection[Any]:
         database = os.environ.get("POSTGRES_DB")
         password = os.environ.get("POSTGRES_PASSWORD")
         if user and database and password:
-            port = os.environ.get("DUR055_POSTGRES_PORT", "55432")
+            port = os.environ.get("DUR055_POSTGRES_PORT", "15432")
             dsn = (
                 f"postgresql://{quote(user, safe='')}:{quote(password, safe='')}"
                 f"@127.0.0.1:{port}/{quote(database, safe='')}"

@@ -255,7 +255,7 @@ jobs:
             if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
           }
           $port = $values['DUR055_POSTGRES_PORT']
-          if ([string]::IsNullOrWhiteSpace($port)) { $port = '55432' }
+          if ([string]::IsNullOrWhiteSpace($port)) { $port = '15432' }
           $encodedUser = [uri]::EscapeDataString($values['POSTGRES_USER'])
           $encodedPassword = [uri]::EscapeDataString($values['POSTGRES_PASSWORD'])
           $encodedDatabase = [uri]::EscapeDataString($values['POSTGRES_DB'])
