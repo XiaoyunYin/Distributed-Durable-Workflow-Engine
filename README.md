@@ -170,6 +170,8 @@ one-model, 60-key sample limit these results; DUR-029 is non-comparable. See
 the [DUR-056 report](experiments/m8/dur056-solvable-agent-study/gate-b-results-run-001-20260929.md)
 and [R211 supplement](experiments/m8/dur056-solvable-agent-study/retrieval-metrics-supplement-run-001-r211-v1-20260929.md).
 
+The published counts retain per-split labels: one held-out key conflicts with a development chunk in the 126-chunk search corpus, although that chunk was absent from all 10 delivered lists for the case; see [R214 collision and sensitivity supplement](experiments/m8/dur056-solvable-agent-study/key-collision-supplement-run-001-r214-v1-20260929.md).
+
 ## Run locally
 
 Prerequisites: Git, Go with `GOTOOLCHAIN=auto` (module pin Go 1.27.1),

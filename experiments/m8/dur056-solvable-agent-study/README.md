@@ -173,6 +173,8 @@ freeze's one-shot scorer is now `COMPLETE`; do not invoke it again.
 
 ## Gate B results - run-001
 
+The published counts retain per-split labels: one held-out key conflicts with a development chunk in the 126-chunk search corpus, although that chunk was absent from all 10 delivered lists for the case; see [R214 collision and sensitivity supplement](key-collision-supplement-run-001-r214-v1-20260929.md).
+
 Claude accepted Gate A in Round 136. The one-shot held-out scorer completed
 601/601 write-once units once: 120 query embeddings, 60 incidents across four
 arms, and the 360-call hybrid injection matrix. There were no aborts, resumes,
