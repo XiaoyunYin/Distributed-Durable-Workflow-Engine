@@ -61,8 +61,9 @@ flowchart LR
   in-process engine path with four fixed worker processes; single-host
   Docker Desktop/WSL2, not end-to-end deployed capacity. [DUR-026](experiments/m7/dur026/results.json)
 - Safeguard ablations exposed the targeted missing-history, missing-outbox,
-  and stale-lease behaviors; no cost effect is promoted because repeated-run
-  spread was 3.2–29.3%. [DUR-034](experiments/m7/dur034/results.json)
+  and stale-lease behaviors. No safeguard-cost effect is promoted: per-profile
+  latency and throughput spreads ranged from 11.7% to 15.8% over three
+  repeats. [DUR-034](experiments/m7/dur034/results.json)
 - Notification-direct beat Kafka at the resolved terminal stage; ready-to-claim
   was unresolved in the named campaign. [DUR-035](experiments/m7/dur035/results.json)
 - Every-chunk checkpointing took 7.6× the boundary-only median at one
