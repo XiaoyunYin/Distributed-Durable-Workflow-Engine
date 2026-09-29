@@ -159,6 +159,17 @@ separate canary scan found 0 leaks across 120 runs x five surfaces. These
 bounded synthetic results do not establish production quality. [DUR-055 study
 and artifacts](experiments/m8/dur055-applied-ai-upgrade/README.md)
 
+DUR-056's synthetic study of 60 independent held-out keys with one model scored 18/60 safe
+without retrieval and 56-60/60 with retrieval (+38 to +42 paired cases); there
+were zero wrong-parameter proposals. In the hybrid injection matrix, attack
+success was 26/60 plain versus 0/60 defended, safe-under-attack was 21/60 versus
+60/60, and there were zero raw leaks across five canary surfaces. Corrected
+retrieval metrics use 54 relevant queries: keyword 1.000/1.000, dense
+0.972/0.914, and hybrid 1.000/0.981 Recall@3/MRR. The synthetic fixture and
+one-model, 60-key sample limit these results; DUR-029 is non-comparable. See
+the [DUR-056 report](experiments/m8/dur056-solvable-agent-study/gate-b-results-run-001-20260929.md)
+and [R211 supplement](experiments/m8/dur056-solvable-agent-study/retrieval-metrics-supplement-run-001-r211-v1-20260929.md).
+
 ## Run locally
 
 Prerequisites: Git, Go with `GOTOOLCHAIN=auto` (module pin Go 1.27.1),
