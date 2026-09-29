@@ -1,0 +1,15 @@
+{
+  "accuracy": 1.0,
+  "cases": 60,
+  "corpus_chunks": 84,
+  "correct": 60,
+  "fixture_fingerprint": "sha256:cc718d367316ba4ec860bd60fd10a771cd4a5475fe1b87599d32b0b924f384fa",
+  "mismatches": [],
+  "oracle_fingerprint": "sha256:502756b4ef3cf61c6e6944bae780b486bb731da3306404f2cc271c3323359b86",
+  "provider_calls": 0,
+  "schema": "dur056-oracle-report.v3",
+  "seed": 5704,
+  "split": "heldout",
+  "study_version": "dur056-solvable-evidence-v3",
+  "unique_incident_keys": 60
+}

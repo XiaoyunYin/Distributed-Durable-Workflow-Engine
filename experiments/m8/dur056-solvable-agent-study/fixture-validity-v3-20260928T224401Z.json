@@ -1,0 +1,70 @@
+{
+  "schema": "dur056-fixture-validity.v3",
+  "splits": {
+    "answer_value_sets_differ": true,
+    "development": {
+      "allocation": {
+        "answerable": 12,
+        "insufficient_missing_parameter": 3,
+        "insufficient_no_guidance": 3,
+        "near_duplicate_decoy": 6,
+        "stale_current_action": 3,
+        "stale_unresolved_conflict": 3,
+        "total": 30
+      },
+      "corpus_chunk_count": 42,
+      "fixture_fingerprint": "sha256:d72aa4e39038db461bc0d9e55857444ea0797b6e628ff54463dd1aede7b23560",
+      "oracle": {
+        "accuracy": 1.0,
+        "cases": 30,
+        "corpus_chunks": 42,
+        "correct": 30,
+        "fixture_fingerprint": "sha256:2efd4b979f7cc4a00d70b65ce9bf6153983167d490e5071f3fa8cf79261be641",
+        "mismatches": [],
+        "oracle_fingerprint": "sha256:502756b4ef3cf61c6e6944bae780b486bb731da3306404f2cc271c3323359b86",
+        "provider_calls": 0,
+        "schema": "dur056-oracle-report.v3",
+        "seed": 5703,
+        "split": "development",
+        "study_version": "dur056-solvable-evidence-v3",
+        "unique_incident_keys": 30
+      },
+      "provider_calls": 0
+    },
+    "development_seed": 5703,
+    "embedding_provider_calls": 0,
+    "heldout": {
+      "allocation": {
+        "answerable": 24,
+        "insufficient_missing_parameter": 6,
+        "insufficient_no_guidance": 6,
+        "near_duplicate_decoy": 12,
+        "stale_current_action": 6,
+        "stale_unresolved_conflict": 6,
+        "total": 60
+      },
+      "corpus_chunk_count": 84,
+      "fixture_fingerprint": "sha256:d8f3773fe7959f5ab57bdd0141e267d9323ff7c0983d150a20db057abe28a4ff",
+      "oracle": {
+        "accuracy": 1.0,
+        "cases": 60,
+        "corpus_chunks": 84,
+        "correct": 60,
+        "fixture_fingerprint": "sha256:cc718d367316ba4ec860bd60fd10a771cd4a5475fe1b87599d32b0b924f384fa",
+        "mismatches": [],
+        "oracle_fingerprint": "sha256:502756b4ef3cf61c6e6944bae780b486bb731da3306404f2cc271c3323359b86",
+        "provider_calls": 0,
+        "schema": "dur056-oracle-report.v3",
+        "seed": 5704,
+        "split": "heldout",
+        "study_version": "dur056-solvable-evidence-v3",
+        "unique_incident_keys": 60
+      },
+      "provider_calls": 0
+    },
+    "heldout_seed": 5704,
+    "model_provider_calls": 0,
+    "study_version": "dur056-solvable-evidence-v3",
+    "template_sets_disjoint": true
+  }
+}

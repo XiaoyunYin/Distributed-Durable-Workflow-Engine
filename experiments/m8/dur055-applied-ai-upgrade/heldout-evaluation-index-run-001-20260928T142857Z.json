@@ -1,0 +1,22 @@
+{
+  "abort_history": [],
+  "agent_config_fingerprint": "sha256:d01d9a37c48de3410547e1b38609c27be344326a40cb6466cee03a3bed96f47c",
+  "agent_result": "heldout-agent-evaluation-20260928T142317Z.json",
+  "gate_a_commit": "2e3492dd694c01ac262c78de07f299aa7baebc2d",
+  "heldout_calls_authorized_by_receipt": true,
+  "injection_result": "heldout-injection-evaluation-20260928T142857Z.json",
+  "one_shot_marker": "experiments\\m8\\dur055-applied-ai-upgrade\\heldout-one-shot\\29d32d1ead832e97c07a79cb6ce3b552c720266c99d0179861110a8a68243fc3.json",
+  "resume_history": [],
+  "retrieval_config_fingerprint": "sha256:04695baf2218305d0b7d8697223501181a1ff641f1a317fabfa8d409657ede7f",
+  "retrieval_result": "heldout-retrieval-evaluation-20260928T142216Z.json",
+  "schema": "dur055-heldout-evaluation-index.v1",
+  "scorer_commit": "1770384ed33b770937069d795736c37dfdfeec6d",
+  "spend_ledger": {
+    "cap_usd": "100.00",
+    "reserved_usd": "0.00000000",
+    "spent_usd": "0.03261675",
+    "status": "IN_PROGRESS",
+    "uncertain_usd": "0.00022412"
+  },
+  "status": "COMPLETE"
+}

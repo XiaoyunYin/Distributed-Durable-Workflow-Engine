@@ -1,0 +1,10 @@
+{
+  "accuracy": 1.0,
+  "cases": 60,
+  "correct": 60,
+  "fixture_fingerprint": "sha256:c190eee02df6adccfdd669a6e5f46efbbec26fa876e2c306c44d4ea06c784325",
+  "oracle_fingerprint": "sha256:9c76bc5df64a23b02b924ec2c07a71bde9e0ae03884da059cbfbc427760ba4a7",
+  "provider_calls": 0,
+  "schema": "dur056-oracle-report.v1",
+  "split": "heldout"
+}

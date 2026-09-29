@@ -135,6 +135,41 @@ control. Adversarial excess proposal-change rates were 2/20 defended versus
 6/20 plain above their clean-clean baselines. These are small synthetic studies,
 not production model-quality claims. [Evaluation evidence](experiments/m7/dur029/live-evaluation.json)
 
+A separately versioned PostgreSQL FTS/pgvector/RRF and MCP study used
+`gpt-6-luna`, which abstained on all 20 held-out cases. Its 4/20 primary-safe
+result matches the unchanged baseline, so there was no measured improvement in
+primary safety; its 0/16 document-dependent result also matches baseline. Both
+development candidates abstained on all 10/10 cases. For the 16 answerable
+cases, fixture evidence omits the expected action and parameters, so the 16
+"false abstentions" are false relative to fixture labels, not demonstrated
+model errors. This benchmark cannot distinguish a careful model from a
+non-functional one on those cases.
+
+Hybrid versus dense retrieval is the more informative within-study comparison:
+MRR was 0.657 versus 0.453 and ranking Recall@K was 0.889 versus 0.867 on 120
+held-out queries. The keyword arm's 0.400 is structural on this template:
+conjunctive `plainto_tsquery` matches only `bad_configuration` and
+`connection_pool`, with per-family recall 1.0/1.0/0/0/0. These synthetic
+retrieval metrics are template-bound.
+
+All 120 injection-matrix runs abstained with `NO_PROPOSAL`, so the 0/20 excess
+for each profile is uninformative about injection resistance in either
+direction; the study provides no evidence of injection resistance. The
+separate canary scan found 0 leaks across 120 runs x five surfaces. These
+bounded synthetic results do not establish production quality. [DUR-055 study
+and artifacts](experiments/m8/dur055-applied-ai-upgrade/README.md)
+
+DUR-056's synthetic study of 60 independent held-out keys with one model scored 18/60 safe
+without retrieval and 56-60/60 with retrieval (+38 to +42 paired cases); there
+were zero wrong-parameter proposals. In the hybrid injection matrix, attack
+success was 26/60 plain versus 0/60 defended, safe-under-attack was 21/60 versus
+60/60, and there were zero raw leaks across five canary surfaces. Corrected
+retrieval metrics use 54 relevant queries: keyword 1.000/1.000, dense
+0.972/0.914, and hybrid 1.000/0.981 Recall@3/MRR. The synthetic fixture and
+one-model, 60-key sample limit these results; DUR-029 is non-comparable. See
+the [DUR-056 report](experiments/m8/dur056-solvable-agent-study/gate-b-results-run-001-20260929.md)
+and [R211 supplement](experiments/m8/dur056-solvable-agent-study/retrieval-metrics-supplement-run-001-r211-v1-20260929.md).
+
 ## Run locally
 
 Prerequisites: Git, Go with `GOTOOLCHAIN=auto` (module pin Go 1.27.1),

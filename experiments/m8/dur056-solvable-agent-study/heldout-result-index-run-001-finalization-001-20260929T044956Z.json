@@ -1,0 +1,13 @@
+{
+  "agent_config_fingerprint": "sha256:00dd204048421a0b22670c81571ac2c7d4c9710126b05798f804b7fe1716fa40",
+  "marker_path": "heldout-one-shot/run-001.json",
+  "report_fingerprint": "sha256:644ebd97296913e4afa07b136d02a38041fb1c82127b10bd1d72a064b9821db5",
+  "report_path": "heldout-report-run-001-finalization-001-20260929T044956Z.json",
+  "retrieval_config_fingerprint": "sha256:c6a73abbb7b2ee4665c381ca3867b69a6fa45ed0a9d74b88c31b6b103f2d837c",
+  "run_id": "run-001",
+  "schema": "dur056-heldout-result-index.v3",
+  "spend_ledger_path": "spend-ledger.json",
+  "status": "COMPLETE",
+  "unit_count": 601,
+  "unit_directory": "heldout-units-run-001"
+}

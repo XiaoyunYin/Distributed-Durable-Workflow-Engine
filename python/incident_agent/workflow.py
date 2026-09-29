@@ -14,7 +14,9 @@ from typing import Any, Protocol, cast
 
 from incident_agent.fixtures import build_incident_cases
 from incident_agent.mcp import BoundedMCPServer
+from incident_agent.mcp_protocol import MCPClientFacade
 from incident_agent.models import (
+    IncidentCase,
     Proposal,
     RetrievalArm,
     TimelineEvent,
@@ -262,7 +264,7 @@ class FixtureDecisionProvider:
 
 
 class SandboxEffect:
-    def __init__(self, store: DurableStore, mcp: BoundedMCPServer) -> None:
+    def __init__(self, store: DurableStore, mcp: MCPClientFacade) -> None:
         self.store = store
         self.mcp = mcp
 
@@ -325,15 +327,23 @@ def proposal_from_dict(value: dict[str, Any]) -> Proposal:
 
 class InvestigationWorkflow:
     def __init__(
-        self, store: DurableStore, mcp: BoundedMCPServer, decisions: DecisionProvider | None = None
+        self,
+        store: DurableStore,
+        mcp: BoundedMCPServer | MCPClientFacade,
+        decisions: DecisionProvider | None = None,
+        cases: tuple[IncidentCase, ...] | None = None,
+        search_query_suffix: str = " runbook",
     ) -> None:
         self.store = store
-        self.mcp = mcp
+        self.mcp = MCPClientFacade(mcp) if isinstance(mcp, BoundedMCPServer) else mcp
         self.decisions = decisions or FixtureDecisionProvider()
-        self.effect = SandboxEffect(store, mcp)
+        self.cases = cases if cases is not None else build_incident_cases()
+        self.search_query_suffix = search_query_suffix
+        self._cases_by_id = {case.case_id: case for case in self.cases}
+        self.effect = SandboxEffect(store, self.mcp)
 
     def start(self, case_id: str, run_id: str | None = None, arm: str = "hybrid") -> str:
-        if case_id not in {case.case_id for case in build_incident_cases()}:
+        if case_id not in self._cases_by_id:
             raise WorkflowError(f"unknown incident case: {case_id}")
         run_id = run_id or f"incident-{uuid.uuid4().hex}"
         self.store.create(run_id, case_id)
@@ -347,7 +357,12 @@ class InvestigationWorkflow:
         self, run_id: str, arm: str = "hybrid", interrupt_after: str | None = None
     ) -> WorkflowSnapshot:
         row = self.store.row(run_id)
-        case = next(case for case in build_incident_cases() if case.case_id == row["case_id"])
+        try:
+            case = self._cases_by_id[str(row["case_id"])]
+        except KeyError as error:
+            raise WorkflowError(
+                f"case is not configured for this workflow: {row['case_id']}"
+            ) from error
         if row["state"] in {"COMPLETED", "ABSTAINED", "REJECTED"}:
             return self.snapshot(run_id)
         self.store.update(run_id, "INVESTIGATING")
@@ -371,7 +386,11 @@ class InvestigationWorkflow:
             search = self.mcp.search_runbooks(run_id, case.query, cast(Any, arm))
             self._record_tool_call(run_id, search)
             search_events = self._checkpoints(run_id, "search_runbooks")
-        if not bool(search.data["sufficient"]):
+        # Older MCP responses include retrieval diagnostics and preserve the
+        # historical retry/abstention behavior. DUR-056 v3 omits those fields
+        # so the agent sees ranked evidence and makes its own sufficiency
+        # decision.
+        if "sufficient" in search.data and not bool(search.data["sufficient"]):
             self.store.event(
                 run_id,
                 "investigation_round_opened",
@@ -379,7 +398,9 @@ class InvestigationWorkflow:
                 {"round": 2, "reason": search.data["reason"]},
             )
             if len(search_events) < 2:
-                search = self.mcp.search_runbooks(run_id, f"{case.query} runbook", cast(Any, arm))
+                search = self.mcp.search_runbooks(
+                    run_id, f"{case.query}{self.search_query_suffix}", cast(Any, arm)
+                )
                 self._record_tool_call(run_id, search)
             else:
                 search = search_events[-1]

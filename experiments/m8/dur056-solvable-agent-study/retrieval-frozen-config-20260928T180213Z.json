@@ -1,0 +1,68 @@
+{
+  "config_fingerprint": "sha256:0942e5d48e8bd51207c4f126bbf60aeef9e996239e63886bce0ce8082e2d431e",
+  "corpus_fingerprint": "sha256:3cb92caac0f30c496424e689ace7bfe97bfadb475ef1167bf5e3fad4d00823de",
+  "database": {
+    "pgvector_version": "0.8.6",
+    "postgres_version": "PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit"
+  },
+  "dense": {
+    "balanced_accuracy": 0.6507936507936507,
+    "false_positive_count": 5.0,
+    "hnsw_ef_search": 40,
+    "threshold": 0.6851199266983261
+  },
+  "development_query_fingerprint": "sha256:9e2837b818df465b7a676413b83247bbf37f5993bc0bd31fdd5d4bf5a2f6357c",
+  "embedding_dimension": 1536,
+  "embedding_model": "text-embedding-3-small",
+  "embedding_normalization": "provider_default",
+  "heldout_corpus_embedded": false,
+  "heldout_queries_embedded": false,
+  "hybrid": {
+    "rrf_k": 60
+  },
+  "index": {
+    "ef_construction": 64,
+    "m": 16,
+    "type": "HNSW"
+  },
+  "keyword": {
+    "balanced_accuracy": 0.6984126984126984,
+    "false_positive_count": 5.0,
+    "threshold": 0.99999964
+  },
+  "ranking": {
+    "top_k": 8
+  },
+  "schema": "dur056-retrieval-frozen-config.v1",
+  "selection": {
+    "arm_balanced_accuracy": {
+      "dense": 0.6507936507936507,
+      "hybrid": 0.5,
+      "keyword": 0.6984126984126984
+    },
+    "arm_false_positive_count": {
+      "dense": 5,
+      "hybrid": 9,
+      "keyword": 5
+    },
+    "candidate_hnsw_ef_search": [
+      40,
+      80
+    ],
+    "candidate_rrf_k": [
+      30,
+      60,
+      90
+    ],
+    "candidate_top_k": [
+      3,
+      5,
+      8
+    ],
+    "mean_delivered_recall": 0.8666666666666667,
+    "objective": "mean balanced accuracy; then lower false positives, higher delivered recall, lower top-k, lower ef_search, rrf_k nearest 60",
+    "split": "development"
+  },
+  "study_version": "dur056-solvable-evidence-v1",
+  "threshold_tuning_split": "development"
+}

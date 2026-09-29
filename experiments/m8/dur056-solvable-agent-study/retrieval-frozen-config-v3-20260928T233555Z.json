@@ -1,0 +1,106 @@
+{
+  "config_fingerprint": "sha256:c6a73abbb7b2ee4665c381ca3867b69a6fa45ed0a9d74b88c31b6b103f2d837c",
+  "corpus_fingerprint": "sha256:d72aa4e39038db461bc0d9e55857444ea0797b6e628ff54463dd1aede7b23560",
+  "database": {
+    "pgvector_version": "0.8.6",
+    "postgres_version": "PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit"
+  },
+  "dense": {
+    "balanced_accuracy": 0.5476190476190477,
+    "false_positive_count": 3.0,
+    "hnsw_ef_search": 40,
+    "threshold": 0.775
+  },
+  "development_query_fingerprint": "sha256:08c2f0c83f2c3f111dd250dddf00103885f65ecbc3818741bc725ed401d39290",
+  "embedding_dimension": 1536,
+  "embedding_model": "text-embedding-3-small",
+  "embedding_normalization": "provider_default",
+  "heldout_corpus_embedded": false,
+  "heldout_queries_embedded": false,
+  "hybrid": {
+    "rrf_k": 60
+  },
+  "index": {
+    "ef_construction": 64,
+    "m": 16,
+    "type": "HNSW"
+  },
+  "keyword": {
+    "balanced_accuracy": 0.5992063492063492,
+    "false_positive_count": 11.0,
+    "threshold": 0.03909958
+  },
+  "keyword_query": {
+    "rank": "ts_rank",
+    "strategy": "sanitized_or_joined_to_tsquery_simple",
+    "token_pattern": "[a-z0-9_]+"
+  },
+  "ranking": {
+    "top_k": 3
+  },
+  "schema": "dur056-retrieval-frozen-config.v3",
+  "selection": {
+    "arm_balanced_accuracy": {
+      "dense": 0.5476190476190477,
+      "hybrid": 0.5952380952380952,
+      "keyword": 0.5992063492063492
+    },
+    "arm_delivered_chunk_recall": {
+      "dense": 1.0,
+      "hybrid": 1.0,
+      "keyword": 1.0
+    },
+    "arm_false_positive_count": {
+      "dense": 3,
+      "hybrid": 12,
+      "keyword": 11
+    },
+    "arm_mrr": {
+      "dense": 0.8888888888888888,
+      "hybrid": 1.0,
+      "keyword": 1.0
+    },
+    "arm_ranking_recall_at_k": {
+      "dense": 1,
+      "hybrid": 1,
+      "keyword": 1
+    },
+    "candidate_hnsw_ef_search": [
+      40,
+      80
+    ],
+    "candidate_rrf_k": [
+      30,
+      60,
+      90
+    ],
+    "candidate_top_k": [
+      3,
+      5,
+      8
+    ],
+    "insufficient_case_count": 6,
+    "insufficient_case_sample_caveat": "Only six insufficient cases are present in development; classifier metrics are descriptive and are not agent gates.",
+    "mean_delivered_chunk_recall": 1.0,
+    "mean_mrr": 0.9629629629629629,
+    "mean_ranking_recall_at_k": 1,
+    "objective": "higher mean ranking recall@k, higher mean MRR, higher mean delivered chunk recall, lower top-k, lower ef_search, rrf_k nearest 60; sufficiency classifiers are diagnostics and do not select ranking settings",
+    "query_count": 60,
+    "query_variants_per_case": [
+      "clean-a",
+      "clean-b"
+    ],
+    "selection_key_order": [
+      "mean_ranking_recall_at_k",
+      "mean_mrr",
+      "mean_delivered_chunk_recall",
+      "lower_top_k",
+      "lower_hnsw_ef_search",
+      "rrf_k_nearest_60"
+    ],
+    "split": "development",
+    "sufficiency_classifier_label": "expected_action_is_non_null"
+  },
+  "study_version": "dur056-solvable-evidence-v3",
+  "threshold_tuning_split": "development"
+}

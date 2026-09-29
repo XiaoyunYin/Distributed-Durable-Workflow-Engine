@@ -1,21 +1,20 @@
-"""Schema-constrained local MCP-style evidence and action surface.
+"""Schema-constrained evidence and action policy backend for the MCP server.
 
-This is deliberately transport-neutral.  The durable workflow calls one
-allowlisted method at a time; a future wire-level MCP adapter can wrap this
-dispatcher without changing the authorization or provenance rules.
+The official MCP SDK transport wraps this dispatcher while keeping the
+allowlist, per-run bounds, provenance tagging, and redaction here.
 """
 
 from __future__ import annotations
 
 import json
 import time
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol
 
 from incident_agent.fixtures import build_incident_cases
-from incident_agent.models import RetrievalArm, RetrievalResponse, ToolResult
+from incident_agent.models import IncidentCase, RetrievalArm, RetrievalResponse, ToolResult
 from incident_agent.redaction import redact
-from incident_agent.retrieval import RetrievalIndex
 
 SCHEMA_VERSION = "m6-mcp-v1"
 METHOD_ARGUMENTS = {
@@ -25,6 +24,10 @@ METHOD_ARGUMENTS = {
     "remediation_status": ("resource_id",),
 }
 METHODS = tuple(METHOD_ARGUMENTS)
+
+
+class RetrievalSearchIndex(Protocol):
+    def search(self, query: str, arm: RetrievalArm = "hybrid") -> RetrievalResponse: ...
 
 
 @dataclass(frozen=True)
@@ -43,26 +46,29 @@ class MCPValidationError(ValueError):
 class BoundedMCPServer:
     def __init__(
         self,
-        index: RetrievalIndex,
+        index: RetrievalSearchIndex,
         max_calls: int = 8,
         max_rows: int = 20,
         redact_outputs: bool = True,
         seed_canaries: bool = True,
         seed_injection: bool = True,
+        cases: Iterable[IncidentCase] | None = None,
+        include_retrieval_diagnostics: bool = True,
     ) -> None:
         self.index = index
         self.max_calls = max_calls
         self.max_rows = max_rows
         self.redact_outputs = redact_outputs
+        self.include_retrieval_diagnostics = include_retrieval_diagnostics
         self._calls: dict[str, list[MCPCall]] = {}
         self._results: dict[str, list[ToolResult]] = {}
         self._status: dict[str, dict[str, Any]] = {}
-        self._cases = {
-            case.case_id: case
-            for case in build_incident_cases(
-                seed_canaries=seed_canaries, seed_injection=seed_injection
-            )
-        }
+        case_rows = (
+            cases
+            if cases is not None
+            else build_incident_cases(seed_canaries=seed_canaries, seed_injection=seed_injection)
+        )
+        self._cases = {case.case_id: case for case in case_rows}
 
     def call(self, run_id: str, method: str, arguments: dict[str, Any]) -> ToolResult:
         """Dispatch one schema-constrained, allowlisted MCP-style call."""
@@ -201,6 +207,9 @@ class BoundedMCPServer:
                     "snippet": snippet,
                 }
             )
+        result_data: dict[str, Any] = {"arm": arm, "evidence": evidence}
+        if self.include_retrieval_diagnostics:
+            result_data.update({"sufficient": response.sufficient, "reason": response.reason})
         return self._record(
             run_id,
             "search_runbooks",
@@ -208,12 +217,7 @@ class BoundedMCPServer:
             ToolResult(
                 "search_runbooks",
                 SCHEMA_VERSION,
-                {
-                    "arm": arm,
-                    "sufficient": response.sufficient,
-                    "reason": response.reason,
-                    "evidence": evidence,
-                },
+                result_data,
                 tuple(hit.chunk_id for hit in response.delivered),
                 redactions,
             ),

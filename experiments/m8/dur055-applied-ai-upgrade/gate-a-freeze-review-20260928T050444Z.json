@@ -1,0 +1,31 @@
+{
+  "agent_config_fingerprint": "sha256:369829467a579ef1cb18fa92e31d443d26f6dd9971e9a652b92119096afaa767",
+  "agent_config_path": "agent-frozen-config-20260928T050444Z.json",
+  "agent_development_result_fingerprint": "sha256:dfbbdd1315bc5660b56600e0b2ec243b1623747e363bd07a5e28b5ef595084cd",
+  "agent_development_results_path": "agent-development-20260928T050444Z.json",
+  "baseline_reference": {
+    "heldout_safe_end_to_end": "4/20",
+    "model_id": "gpt-4o-mini",
+    "preserved": true,
+    "study": "DUR-029"
+  },
+  "freeze_fingerprint": "sha256:ad73bc9098eaf4eee8caed25af34f47c0fe832a1dfcd4dc9d75ddc7238b0ddd4",
+  "gate": "A",
+  "heldout_scored": false,
+  "heldout_scoring_authorized": false,
+  "model_id": "gpt-6-luna",
+  "retrieval_config_fingerprint": "sha256:04695baf2218305d0b7d8697223501181a1ff641f1a317fabfa8d409657ede7f",
+  "retrieval_config_path": "retrieval-frozen-config-20260928T050351Z.json",
+  "retrieval_development_results_path": "retrieval-development-20260928T050351Z.json",
+  "schema": "dur055-gate-a-freeze-bundle.v1",
+  "spend_ledger_path": "spend-ledger.json",
+  "spend_ledger_snapshot": {
+    "cap_usd": "100.00",
+    "reserved_usd": "0.00000000",
+    "spent_usd": "0.00724086",
+    "status": "IN_PROGRESS",
+    "uncertain_usd": "0.00022412"
+  },
+  "status": "READY_FOR_FREEZE_REVIEW",
+  "study_manifest_path": "study-manifest-20260928T050351Z.json"
+}

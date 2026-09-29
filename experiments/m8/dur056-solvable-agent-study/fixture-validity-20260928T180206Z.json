@@ -1,0 +1,62 @@
+{
+  "oracle_report_paths": {
+    "development": "oracle-report-development-20260928T180206Z.json",
+    "heldout": "oracle-report-heldout-20260928T180206Z.json"
+  },
+  "schema": "dur056-fixture-validity.v1",
+  "splits": {
+    "development": {
+      "allocation": {
+        "answerable": 12,
+        "insufficient_missing_parameter": 3,
+        "insufficient_no_guidance": 3,
+        "near_duplicate_decoy": 6,
+        "stale_current_action": 3,
+        "stale_unresolved_conflict": 3,
+        "total": 30
+      },
+      "corpus_chunk_count": 42,
+      "fixture_fingerprint": "sha256:3cb92caac0f30c496424e689ace7bfe97bfadb475ef1167bf5e3fad4d00823de",
+      "oracle": {
+        "accuracy": 1.0,
+        "cases": 30,
+        "correct": 30,
+        "fixture_fingerprint": "sha256:bc9d3baefd27cba7e90ad71b899de03811c646b2f4a5a3381eed5ba774618f78",
+        "oracle_fingerprint": "sha256:9c76bc5df64a23b02b924ec2c07a71bde9e0ae03884da059cbfbc427760ba4a7",
+        "provider_calls": 0,
+        "schema": "dur056-oracle-report.v1",
+        "split": "development"
+      },
+      "provider_calls": 0
+    },
+    "development_seed": 5601,
+    "embedding_provider_calls": 0,
+    "heldout": {
+      "allocation": {
+        "answerable": 24,
+        "insufficient_missing_parameter": 6,
+        "insufficient_no_guidance": 6,
+        "near_duplicate_decoy": 12,
+        "stale_current_action": 6,
+        "stale_unresolved_conflict": 6,
+        "total": 60
+      },
+      "corpus_chunk_count": 84,
+      "fixture_fingerprint": "sha256:da4332309eed1254841a59c60ac97d1fcc4c549874f7c2d469fa37299bdd0087",
+      "oracle": {
+        "accuracy": 1.0,
+        "cases": 60,
+        "correct": 60,
+        "fixture_fingerprint": "sha256:c190eee02df6adccfdd669a6e5f46efbbec26fa876e2c306c44d4ea06c784325",
+        "oracle_fingerprint": "sha256:9c76bc5df64a23b02b924ec2c07a71bde9e0ae03884da059cbfbc427760ba4a7",
+        "provider_calls": 0,
+        "schema": "dur056-oracle-report.v1",
+        "split": "heldout"
+      },
+      "provider_calls": 0
+    },
+    "heldout_seed": 5602,
+    "model_provider_calls": 0,
+    "template_sets_disjoint": true
+  }
+}

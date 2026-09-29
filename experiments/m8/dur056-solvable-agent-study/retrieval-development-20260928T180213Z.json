@@ -1,0 +1,1623 @@
+{
+  "candidate_grid": [
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8055555555555556,
+      "rrf_k": 30,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8055555555555556,
+        -3,
+        -40,
+        -30
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8055555555555556,
+      "rrf_k": 60,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8055555555555556,
+        -3,
+        -40,
+        0
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8055555555555556,
+      "rrf_k": 90,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8055555555555556,
+        -3,
+        -40,
+        -30
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8055555555555556,
+      "rrf_k": 30,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8055555555555556,
+        -3,
+        -80,
+        -30
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8055555555555556,
+      "rrf_k": 60,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8055555555555556,
+        -3,
+        -80,
+        0
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8055555555555556,
+      "rrf_k": 90,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8055555555555556,
+        -3,
+        -80,
+        -30
+      ],
+      "top_k": 3
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8388888888888889,
+      "rrf_k": 30,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8388888888888889,
+        -5,
+        -40,
+        -30
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8388888888888889,
+      "rrf_k": 60,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8388888888888889,
+        -5,
+        -40,
+        0
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8388888888888889,
+      "rrf_k": 90,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8388888888888889,
+        -5,
+        -40,
+        -30
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8388888888888889,
+      "rrf_k": 30,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8388888888888889,
+        -5,
+        -80,
+        -30
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8388888888888889,
+      "rrf_k": 60,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8388888888888889,
+        -5,
+        -80,
+        0
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8388888888888889,
+      "rrf_k": 90,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8388888888888889,
+        -5,
+        -80,
+        -30
+      ],
+      "top_k": 5
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8666666666666667,
+      "rrf_k": 30,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8666666666666667,
+        -8,
+        -40,
+        -30
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8666666666666667,
+      "rrf_k": 60,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8666666666666667,
+        -8,
+        -40,
+        0
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 40,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8666666666666667,
+      "rrf_k": 90,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8666666666666667,
+        -8,
+        -40,
+        -30
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8666666666666667,
+      "rrf_k": 30,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8666666666666667,
+        -8,
+        -80,
+        -30
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8666666666666667,
+      "rrf_k": 60,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8666666666666667,
+        -8,
+        -80,
+        0
+      ],
+      "top_k": 8
+    },
+    {
+      "balanced_accuracy_by_arm": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "dense_threshold": 0.6851199266983261,
+      "false_positive_count_by_arm": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "hnsw_ef_search": 80,
+      "keyword_threshold": 0.99999964,
+      "mean_delivered_recall": 0.8666666666666667,
+      "rrf_k": 90,
+      "selection_key": [
+        0.6164021164021164,
+        -19.0,
+        0.8666666666666667,
+        -8,
+        -80,
+        -30
+      ],
+      "top_k": 8
+    }
+  ],
+  "case_count": 30,
+  "frozen_candidate": {
+    "config_fingerprint": "sha256:0942e5d48e8bd51207c4f126bbf60aeef9e996239e63886bce0ce8082e2d431e",
+    "corpus_fingerprint": "sha256:3cb92caac0f30c496424e689ace7bfe97bfadb475ef1167bf5e3fad4d00823de",
+    "database": {
+      "pgvector_version": "0.8.6",
+      "postgres_version": "PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit"
+    },
+    "dense": {
+      "balanced_accuracy": 0.6507936507936507,
+      "false_positive_count": 5.0,
+      "hnsw_ef_search": 40,
+      "threshold": 0.6851199266983261
+    },
+    "development_query_fingerprint": "sha256:9e2837b818df465b7a676413b83247bbf37f5993bc0bd31fdd5d4bf5a2f6357c",
+    "embedding_dimension": 1536,
+    "embedding_model": "text-embedding-3-small",
+    "embedding_normalization": "provider_default",
+    "heldout_corpus_embedded": false,
+    "heldout_queries_embedded": false,
+    "hybrid": {
+      "rrf_k": 60
+    },
+    "index": {
+      "ef_construction": 64,
+      "m": 16,
+      "type": "HNSW"
+    },
+    "keyword": {
+      "balanced_accuracy": 0.6984126984126984,
+      "false_positive_count": 5.0,
+      "threshold": 0.99999964
+    },
+    "ranking": {
+      "top_k": 8
+    },
+    "schema": "dur056-retrieval-frozen-config.v1",
+    "selection": {
+      "arm_balanced_accuracy": {
+        "dense": 0.6507936507936507,
+        "hybrid": 0.5,
+        "keyword": 0.6984126984126984
+      },
+      "arm_false_positive_count": {
+        "dense": 5,
+        "hybrid": 9,
+        "keyword": 5
+      },
+      "candidate_hnsw_ef_search": [
+        40,
+        80
+      ],
+      "candidate_rrf_k": [
+        30,
+        60,
+        90
+      ],
+      "candidate_top_k": [
+        3,
+        5,
+        8
+      ],
+      "mean_delivered_recall": 0.8666666666666667,
+      "objective": "mean balanced accuracy; then lower false positives, higher delivered recall, lower top-k, lower ef_search, rrf_k nearest 60",
+      "split": "development"
+    },
+    "study_version": "dur056-solvable-evidence-v1",
+    "threshold_tuning_split": "development"
+  },
+  "rows": [
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-01",
+      "dense": [
+        "dev-ing-bad-01-signal-only",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-03-current",
+        "dev-ans-bad-02-current",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-dec-bad-01-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-ans-bad-01-current",
+        "dev-ing-bad-01-signal-only",
+        "dev-ans-bad-03-current",
+        "dev-ans-bad-02-current",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-dec-bad-01-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-ans-bad-01-current"
+      ],
+      "query": "Case reference dev-ans-bad-01, signal ERR_CFG_4XX, service checkout, active version v2. Case dev-ans-bad-01.",
+      "relevant_chunk_ids": [
+        "dev-ans-bad-01-current"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-02",
+      "dense": [
+        "dev-ing-bad-01-signal-only",
+        "dev-ans-bad-02-current",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-03-current",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-dec-bad-01-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-ans-bad-02-current",
+        "dev-ing-bad-01-signal-only",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-03-current",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-dec-bad-01-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-ans-bad-02-current"
+      ],
+      "query": "Active version v2, service checkout, case dev-ans-bad-02, alert signal ERR_CFG_4XX. Case dev-ans-bad-02.",
+      "relevant_chunk_ids": [
+        "dev-ans-bad-02-current"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-bad-03",
+      "dense": [
+        "dev-ing-bad-01-signal-only",
+        "dev-ans-bad-03-current",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-02-current",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-01-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-ans-bad-03-current",
+        "dev-ing-bad-01-signal-only",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-02-current",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-01-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-ans-bad-03-current"
+      ],
+      "query": "Service checkout, release v2, signal ERR_CFG_4XX, case reference dev-ans-bad-03. Case dev-ans-bad-03.",
+      "relevant_chunk_ids": [
+        "dev-ans-bad-03-current"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-01",
+      "dense": [
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service",
+        "dev-stu-con-01-current-policy-a",
+        "dev-stu-con-01-current-policy-b"
+      ],
+      "hybrid": [
+        "dev-ans-con-01-current",
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service",
+        "dev-stu-con-01-current-policy-a",
+        "dev-stu-con-01-current-policy-b"
+      ],
+      "keyword": [
+        "dev-ans-con-01-current"
+      ],
+      "query": "Service payments, release v2, signal POOL_WAIT_P95_HIGH, case reference dev-ans-con-01. Case dev-ans-con-01.",
+      "relevant_chunk_ids": [
+        "dev-ans-con-01-current"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-02",
+      "dense": [
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service",
+        "dev-stu-con-01-current-policy-a",
+        "dev-stu-con-01-current-policy-b"
+      ],
+      "hybrid": [
+        "dev-ans-con-02-current",
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service",
+        "dev-stu-con-01-current-policy-a",
+        "dev-stu-con-01-current-policy-b"
+      ],
+      "keyword": [
+        "dev-ans-con-02-current"
+      ],
+      "query": "Case reference dev-ans-con-02, signal POOL_WAIT_P95_HIGH, service payments, active version v2. Case dev-ans-con-02.",
+      "relevant_chunk_ids": [
+        "dev-ans-con-02-current"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-con-03",
+      "dense": [
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-stc-con-02-current-v2",
+        "dev-dec-con-06-current-correct-service",
+        "dev-dec-con-02-current-correct-service",
+        "dev-stu-con-01-current-policy-a"
+      ],
+      "hybrid": [
+        "dev-ans-con-03-current",
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-01-current",
+        "dev-ans-con-02-current",
+        "dev-stc-con-02-current-v2",
+        "dev-dec-con-06-current-correct-service",
+        "dev-dec-con-02-current-correct-service",
+        "dev-stu-con-01-current-policy-a"
+      ],
+      "keyword": [
+        "dev-ans-con-03-current"
+      ],
+      "query": "Active version v2, service payments, case dev-ans-con-03, alert signal POOL_WAIT_P95_HIGH. Case dev-ans-con-03.",
+      "relevant_chunk_ids": [
+        "dev-ans-con-03-current"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-01",
+      "dense": [
+        "dev-ans-dis-01-current",
+        "dev-ans-dis-02-current",
+        "dev-ans-dis-03-current",
+        "dev-dec-dis-04-current-correct-service",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-ans-dis-01-current",
+        "dev-ans-dis-02-current",
+        "dev-ans-dis-03-current",
+        "dev-dec-dis-04-current-correct-service",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-ans-dis-01-current"
+      ],
+      "query": "Active version v2, service search, case dev-ans-dis-01, alert signal INODE_PRESSURE_92. Case dev-ans-dis-01.",
+      "relevant_chunk_ids": [
+        "dev-ans-dis-01-current"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-02",
+      "dense": [
+        "dev-ans-dis-02-current",
+        "dev-ans-dis-01-current",
+        "dev-ans-dis-03-current",
+        "dev-dec-dis-04-current-correct-service",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-ans-dis-02-current",
+        "dev-ans-dis-01-current",
+        "dev-ans-dis-03-current",
+        "dev-dec-dis-04-current-correct-service",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-ans-dis-02-current"
+      ],
+      "query": "Active version v2, service search, case dev-ans-dis-02, alert signal INODE_PRESSURE_92. Case dev-ans-dis-02.",
+      "relevant_chunk_ids": [
+        "dev-ans-dis-02-current"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dis-03",
+      "dense": [
+        "dev-ans-dis-03-current",
+        "dev-ans-dis-01-current",
+        "dev-ans-dis-02-current",
+        "dev-dec-dis-04-current-correct-service",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-ans-dis-03-current",
+        "dev-ans-dis-01-current",
+        "dev-ans-dis-02-current",
+        "dev-dec-dis-04-current-correct-service",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-ans-dis-03-current"
+      ],
+      "query": "Case reference dev-ans-dis-03, signal INODE_PRESSURE_92, service search, active version v2. Case dev-ans-dis-03.",
+      "relevant_chunk_ids": [
+        "dev-ans-dis-03-current"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-01",
+      "dense": [
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-dec-dow-03-decoy-other-service",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "hybrid": [
+        "dev-ans-dow-01-current",
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-ans-dow-02-current",
+        "dev-dec-dow-03-decoy-other-service",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "keyword": [
+        "dev-ans-dow-01-current"
+      ],
+      "query": "Case reference dev-ans-dow-01, signal UPSTREAM_DEADLINE_5XX, service catalog, active version v2. Case dev-ans-dow-01.",
+      "relevant_chunk_ids": [
+        "dev-ans-dow-01-current"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-02",
+      "dense": [
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-ans-dow-02-current",
+        "dev-ans-dow-01-current",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-dec-dow-03-decoy-other-service",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "hybrid": [
+        "dev-ans-dow-02-current",
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-ans-dow-01-current",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-dec-dow-03-decoy-other-service",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "keyword": [
+        "dev-ans-dow-02-current"
+      ],
+      "query": "Case reference dev-ans-dow-02, signal UPSTREAM_DEADLINE_5XX, service catalog, active version v2. Case dev-ans-dow-02.",
+      "relevant_chunk_ids": [
+        "dev-ans-dow-02-current"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-ans-dow-03",
+      "dense": [
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-ans-dow-02-current",
+        "dev-ans-dow-01-current",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-stc-dow-03-current-v2",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "hybrid": [
+        "dev-ans-dow-03-current",
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-02-current",
+        "dev-ans-dow-01-current",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-stc-dow-03-current-v2",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "keyword": [
+        "dev-ans-dow-03-current"
+      ],
+      "query": "Service catalog, release v2, signal UPSTREAM_DEADLINE_5XX, case reference dev-ans-dow-03. Case dev-ans-dow-03.",
+      "relevant_chunk_ids": [
+        "dev-ans-dow-03-current"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-bad-01",
+      "dense": [
+        "dev-ing-bad-01-signal-only",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-03-current",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-ans-bad-02-current",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-01-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-dec-bad-01-current-correct-service",
+        "dev-ing-bad-01-signal-only",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-03-current",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-ans-bad-02-current",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-01-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-dec-bad-01-current-correct-service"
+      ],
+      "query": "Case reference dev-dec-bad-01, signal ERR_CFG_4XX, service checkout, active version v2. Case dev-dec-bad-01.",
+      "relevant_chunk_ids": [
+        "dev-dec-bad-01-current-correct-service"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-bad-05",
+      "dense": [
+        "dev-ing-bad-01-signal-only",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-03-current",
+        "dev-ans-bad-02-current",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-05-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-ing-bad-01-signal-only",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-03-current",
+        "dev-ans-bad-02-current",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-05-decoy-other-service"
+      ],
+      "keyword": [],
+      "query": "Signal ERR_CFG_4XX for service checkout; deployment version v2; case dev-dec-bad-05. Case dev-dec-bad-05.",
+      "relevant_chunk_ids": [
+        "dev-dec-bad-05-current-correct-service"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-con-02",
+      "dense": [
+        "dev-ing-con-02-signal-only",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-stu-con-01-current-policy-a",
+        "dev-stc-con-02-current-v2"
+      ],
+      "hybrid": [
+        "dev-dec-con-02-current-correct-service",
+        "dev-ing-con-02-signal-only",
+        "dev-dec-con-06-current-correct-service",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-stu-con-01-current-policy-a",
+        "dev-stc-con-02-current-v2"
+      ],
+      "keyword": [
+        "dev-dec-con-02-current-correct-service"
+      ],
+      "query": "Service payments, release v2, signal POOL_WAIT_P95_HIGH, case reference dev-dec-con-02. Case dev-dec-con-02.",
+      "relevant_chunk_ids": [
+        "dev-dec-con-02-current-correct-service"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-con-06",
+      "dense": [
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-dec-con-06-current-correct-service",
+        "dev-ans-con-02-current",
+        "dev-stc-con-02-current-v2",
+        "dev-dec-con-02-current-correct-service",
+        "dev-stu-con-01-current-policy-a"
+      ],
+      "hybrid": [
+        "dev-dec-con-06-current-correct-service",
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-stc-con-02-current-v2",
+        "dev-dec-con-02-current-correct-service",
+        "dev-stu-con-01-current-policy-a"
+      ],
+      "keyword": [
+        "dev-dec-con-06-current-correct-service"
+      ],
+      "query": "Active version v2, service payments, case dev-dec-con-06, alert signal POOL_WAIT_P95_HIGH. Case dev-dec-con-06.",
+      "relevant_chunk_ids": [
+        "dev-dec-con-06-current-correct-service"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-dis-04",
+      "dense": [
+        "dev-dec-dis-04-current-correct-service",
+        "dev-ans-dis-03-current",
+        "dev-ans-dis-02-current",
+        "dev-ans-dis-01-current",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-dec-dis-04-current-correct-service",
+        "dev-ans-dis-03-current",
+        "dev-ans-dis-02-current",
+        "dev-ans-dis-01-current",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-dec-dis-04-current-correct-service"
+      ],
+      "query": "Service search, release v2, signal INODE_PRESSURE_92, case reference dev-dec-dis-04. Case dev-dec-dis-04.",
+      "relevant_chunk_ids": [
+        "dev-dec-dis-04-current-correct-service"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-dec-dow-03",
+      "dense": [
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-stc-dow-03-current-v2",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-dec-dow-03-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-dec-dow-03-current-correct-service",
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-stc-dow-03-current-v2",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-dec-dow-03-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-dec-dow-03-current-correct-service"
+      ],
+      "query": "Active version v2, service catalog, case dev-dec-dow-03, alert signal UPSTREAM_DEADLINE_5XX. Case dev-dec-dow-03.",
+      "relevant_chunk_ids": [
+        "dev-dec-dow-03-current-correct-service"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-con-01",
+      "dense": [
+        "dev-ing-con-02-signal-only",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service",
+        "dev-stu-con-01-current-policy-b",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-stu-con-01-current-policy-a"
+      ],
+      "hybrid": [
+        "dev-imp-con-01-incomplete",
+        "dev-ing-con-02-signal-only",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service",
+        "dev-stu-con-01-current-policy-b",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current"
+      ],
+      "keyword": [
+        "dev-imp-con-01-incomplete"
+      ],
+      "query": "Case reference dev-imp-con-01, signal POOL_WAIT_P95_HIGH, service payments, active version v2. Case dev-imp-con-01.",
+      "relevant_chunk_ids": [
+        "dev-imp-con-01-incomplete"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-dis-03",
+      "dense": [
+        "dev-dec-dis-04-current-correct-service",
+        "dev-ans-dis-03-current",
+        "dev-ans-dis-01-current",
+        "dev-ans-dis-02-current",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-current-correct-service",
+        "dev-ans-dis-03-current",
+        "dev-ans-dis-01-current",
+        "dev-ans-dis-02-current",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-imp-dis-03-incomplete"
+      ],
+      "query": "Case reference dev-imp-dis-03, signal INODE_PRESSURE_92, service search, active version v2. Case dev-imp-dis-03.",
+      "relevant_chunk_ids": [
+        "dev-imp-dis-03-incomplete"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-imp-dow-02",
+      "dense": [
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-dec-dow-03-decoy-other-service",
+        "dev-stc-dow-03-current-v2"
+      ],
+      "hybrid": [
+        "dev-imp-dow-02-incomplete",
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-dec-dow-03-decoy-other-service"
+      ],
+      "keyword": [
+        "dev-imp-dow-02-incomplete"
+      ],
+      "query": "Case reference dev-imp-dow-02, signal UPSTREAM_DEADLINE_5XX, service catalog, active version v2. Case dev-imp-dow-02.",
+      "relevant_chunk_ids": [
+        "dev-imp-dow-02-incomplete"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-bad-01",
+      "dense": [
+        "dev-ing-bad-01-signal-only",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-03-current",
+        "dev-ans-bad-02-current",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-01-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-ing-bad-01-signal-only",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-03-current",
+        "dev-ans-bad-02-current",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-stc-bad-01-current-v2",
+        "dev-dec-bad-01-decoy-other-service"
+      ],
+      "keyword": [],
+      "query": "Signal ERR_CFG_4XX for service checkout; deployment version v2; case dev-ing-bad-01. Case dev-ing-bad-01.",
+      "relevant_chunk_ids": [
+        "dev-ing-bad-01-signal-only"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-con-02",
+      "dense": [
+        "dev-ing-con-02-signal-only",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-stu-con-01-current-policy-a",
+        "dev-stc-con-02-current-v2"
+      ],
+      "hybrid": [
+        "dev-ing-con-02-signal-only",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-stu-con-01-current-policy-a",
+        "dev-stc-con-02-current-v2"
+      ],
+      "keyword": [
+        "dev-ing-con-02-signal-only"
+      ],
+      "query": "Case reference dev-ing-con-02, signal POOL_WAIT_P95_HIGH, service payments, active version v2. Case dev-ing-con-02.",
+      "relevant_chunk_ids": [
+        "dev-ing-con-02-signal-only"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-ing-dow-03",
+      "dense": [
+        "dev-dec-dow-03-current-correct-service",
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-stc-dow-03-current-v2",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "hybrid": [
+        "dev-dec-dow-03-current-correct-service",
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-stc-dow-03-current-v2",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "keyword": [],
+      "query": "Signal UPSTREAM_DEADLINE_5XX for service catalog; deployment version v2; case dev-ing-dow-03. Case dev-ing-dow-03.",
+      "relevant_chunk_ids": [
+        "dev-ing-dow-03-signal-only"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-bad-01",
+      "dense": [
+        "dev-ing-bad-01-signal-only",
+        "dev-stc-bad-01-current-v2",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-02-current",
+        "dev-ans-bad-03-current",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-ing-dow-03-signal-only"
+      ],
+      "hybrid": [
+        "dev-stc-bad-01-current-v2",
+        "dev-ing-bad-01-signal-only",
+        "dev-ans-bad-01-current",
+        "dev-ans-bad-02-current",
+        "dev-ans-bad-03-current",
+        "dev-dec-bad-01-current-correct-service",
+        "dev-dec-bad-05-current-correct-service",
+        "dev-ing-dow-03-signal-only"
+      ],
+      "keyword": [
+        "dev-stc-bad-01-current-v2"
+      ],
+      "query": "Case reference dev-stc-bad-01, signal ERR_CFG_4XX, service checkout, active version v2. Case dev-stc-bad-01.",
+      "relevant_chunk_ids": [
+        "dev-stc-bad-01-current-v2"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-con-02",
+      "dense": [
+        "dev-stc-con-02-current-v2",
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-stu-con-01-current-policy-a",
+        "dev-ans-con-02-current",
+        "dev-dec-con-06-current-correct-service",
+        "dev-dec-con-02-current-correct-service"
+      ],
+      "hybrid": [
+        "dev-stc-con-02-current-v2",
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-stu-con-01-current-policy-a",
+        "dev-ans-con-02-current",
+        "dev-dec-con-06-current-correct-service",
+        "dev-dec-con-02-current-correct-service"
+      ],
+      "keyword": [
+        "dev-stc-con-02-current-v2"
+      ],
+      "query": "Active version v2, service payments, case dev-stc-con-02, alert signal POOL_WAIT_P95_HIGH. Case dev-stc-con-02.",
+      "relevant_chunk_ids": [
+        "dev-stc-con-02-current-v2"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": true,
+      "case_id": "dev-stc-dow-03",
+      "dense": [
+        "dev-ing-dow-03-signal-only",
+        "dev-stc-dow-03-current-v2",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-ans-dow-03-current",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "hybrid": [
+        "dev-stc-dow-03-current-v2",
+        "dev-ing-dow-03-signal-only",
+        "dev-stu-dow-02-current-policy-a",
+        "dev-ans-dow-03-current",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "keyword": [
+        "dev-stc-dow-03-current-v2"
+      ],
+      "query": "Active version v2, service catalog, case dev-stc-dow-03, alert signal UPSTREAM_DEADLINE_5XX. Case dev-stc-dow-03.",
+      "relevant_chunk_ids": [
+        "dev-stc-dow-03-current-v2"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-con-01",
+      "dense": [
+        "dev-ing-con-02-signal-only",
+        "dev-stu-con-01-current-policy-a",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-stu-con-01-current-policy-b",
+        "dev-ans-con-02-current",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service"
+      ],
+      "hybrid": [
+        "dev-stu-con-01-current-policy-a",
+        "dev-stu-con-01-current-policy-b",
+        "dev-ing-con-02-signal-only",
+        "dev-ans-con-01-current",
+        "dev-ans-con-03-current",
+        "dev-ans-con-02-current",
+        "dev-dec-con-02-current-correct-service",
+        "dev-dec-con-06-current-correct-service"
+      ],
+      "keyword": [
+        "dev-stu-con-01-current-policy-a",
+        "dev-stu-con-01-current-policy-b"
+      ],
+      "query": "Service payments, release v2, signal POOL_WAIT_P95_HIGH, case reference dev-stu-con-01. Case dev-stu-con-01.",
+      "relevant_chunk_ids": [
+        "dev-stu-con-01-current-policy-a",
+        "dev-stu-con-01-current-policy-b"
+      ],
+      "sufficient": {
+        "dense": false,
+        "hybrid": true,
+        "keyword": true
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-dis-03",
+      "dense": [
+        "dev-dec-dis-04-current-correct-service",
+        "dev-ans-dis-03-current",
+        "dev-ans-dis-02-current",
+        "dev-ans-dis-01-current",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "hybrid": [
+        "dev-dec-dis-04-current-correct-service",
+        "dev-ans-dis-03-current",
+        "dev-ans-dis-02-current",
+        "dev-ans-dis-01-current",
+        "dev-stu-dis-03-current-policy-a",
+        "dev-stu-dis-03-current-policy-b",
+        "dev-imp-dis-03-incomplete",
+        "dev-dec-dis-04-decoy-other-service"
+      ],
+      "keyword": [],
+      "query": "Signal INODE_PRESSURE_92 for service search; deployment version v2; case dev-stu-dis-03. Case dev-stu-dis-03.",
+      "relevant_chunk_ids": [
+        "dev-stu-dis-03-current-policy-a",
+        "dev-stu-dis-03-current-policy-b"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": false
+      }
+    },
+    {
+      "answerable": false,
+      "case_id": "dev-stu-dow-02",
+      "dense": [
+        "dev-stu-dow-02-current-policy-a",
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-stc-dow-03-current-v2",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "hybrid": [
+        "dev-stu-dow-02-current-policy-a",
+        "dev-stu-dow-02-current-policy-b",
+        "dev-ing-dow-03-signal-only",
+        "dev-ans-dow-03-current",
+        "dev-ans-dow-01-current",
+        "dev-ans-dow-02-current",
+        "dev-dec-dow-03-current-correct-service",
+        "dev-stc-dow-03-current-v2"
+      ],
+      "keyword": [
+        "dev-stu-dow-02-current-policy-a",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "query": "Service catalog, release v2, signal UPSTREAM_DEADLINE_5XX, case reference dev-stu-dow-02. Case dev-stu-dow-02.",
+      "relevant_chunk_ids": [
+        "dev-stu-dow-02-current-policy-a",
+        "dev-stu-dow-02-current-policy-b"
+      ],
+      "sufficient": {
+        "dense": true,
+        "hybrid": true,
+        "keyword": false
+      }
+    }
+  ],
+  "schema": "dur056-retrieval-development.v1",
+  "selected_config_fingerprint": "sha256:0942e5d48e8bd51207c4f126bbf60aeef9e996239e63886bce0ce8082e2d431e",
+  "split": "development"
+}
