@@ -154,7 +154,7 @@ labels and are not authoritative for live provider usage.
 ## Local PostgreSQL
 
 The isolated `deploy/local/dur055-postgres.yaml` service uses a new volume and
-binds only to loopback port 55432 by default. It does not replace the existing
+binds only to loopback port 15432 by default. It does not replace the existing
 local engine database or its volume. Supply the existing local credentials via
 `.env`; do not print or commit them.
 

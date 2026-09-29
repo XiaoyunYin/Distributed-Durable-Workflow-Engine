@@ -23,7 +23,7 @@ services:
       - -c
       - idle_in_transaction_session_timeout=10s
     ports:
-      - 127.0.0.1:${DUR056_POSTGRES_PORT:-55433}:5432
+      - 127.0.0.1:${DUR056_POSTGRES_PORT:-15433}:5432
     volumes:
       - dur056-postgres-data:/var/lib/postgresql
     healthcheck:
