@@ -257,9 +257,7 @@ class Dur056SpendLedger:
                 )
             remaining = uncertain - amount_total
             self._data["uncertain_usd"] = f"{remaining:.8f}"
-            self._data["status"] = (
-                "RECONCILIATION_REQUIRED" if remaining > 0 else "IN_PROGRESS"
-            )
+            self._data["status"] = "RECONCILIATION_REQUIRED" if remaining > 0 else "IN_PROGRESS"
             self._write()
             return {
                 "requests_reconciled": len(targets),

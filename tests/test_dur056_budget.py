@@ -104,6 +104,4 @@ def test_dur056_not_sent_reconciliation_appends_without_mutating_original_reques
     assert reconciliation["requests_reconciled"] == 1
     assert ledger.snapshot()["uncertain_usd"] == "0.00000000"
     with pytest.raises(Dur056SpendError, match="already has"):
-        ledger.reconcile_not_sent(
-            [call_id], reason="duplicate", evidence="assessment.json"
-        )
+        ledger.reconcile_not_sent([call_id], reason="duplicate", evidence="assessment.json")

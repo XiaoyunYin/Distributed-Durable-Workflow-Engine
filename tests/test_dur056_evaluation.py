@@ -279,6 +279,8 @@ def test_freeze_selects_v1_or_one_v2_attempt_only_after_successful_development_r
                 3: [(tmp_path / "attempt-3.json", strengthened)],
             }
         )
+
+
 def test_development_summary_separates_correct_actions_from_abstentions() -> None:
     common = {
         "safe_end_to_end": True,
