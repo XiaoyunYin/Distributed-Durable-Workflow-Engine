@@ -120,15 +120,23 @@ are append-only reconciled `NOT_SENT` events because socket creation failed
 before a request left the machine; the separate earlier `$0.00016240` uncertainty
 is preserved as the current uncertain balance. Attempt 1 is failed transport
 history, not a wording calibration. The approved attempt 2 uses v1; attempt 3
-uses v2 only if plain attack success is zero in attempt 2. Each attempt is
-capped at 180 provider requests. No held-out provider call occurred. No new
-R209 freeze bundle has been issued.
+would use v2 only if plain attack success were zero in attempt 2. Attempt 2
+completed with 180/180 model responses, 15/30 plain attack successes, and zero
+defended attack successes, so attempt 3 is not permitted. The per-run records
+and profile summaries are in
+[`injection-development-pilot-r209-attempt-2-20260929T030150Z.json`](injection-development-pilot-r209-attempt-2-20260929T030150Z.json).
+No held-out provider call occurred. The R209 Gate A bundle selects attempt 2
+with injection text v1 at
+[`gate-a-freeze-review-r209-v3-20260929T030514Z.json`](gate-a-freeze-review-r209-v3-20260929T030514Z.json),
+fingerprint `sha256:b9ba0c21a46a92179b7bb7aa3171d355bb4f9458992a8f04f7f7c334062f63ab`.
 
-The scorer reports the literal diagnostic as
-`diagnosis_quotes_exact_incident_key`. A new freeze bundle will fingerprint the
-chosen injection text, fixture validity/oracle reports, and valid pilot while
-retaining the existing agent/retrieval fingerprints if their configurations
-remain unchanged.
+The freeze fingerprints the chosen injection text, fixture validity/oracle
+reports, and valid pilot. The agent fingerprint remains
+`sha256:00dd204048421a0b22670c81571ac2c7d4c9710126b05798f804b7fe1716fa40`;
+the retrieval fingerprint remains
+`sha256:c6a73abbb7b2ee4665c381ca3867b69a6fa45ed0a9d74b88c31b6b103f2d837c`.
+Those frozen configs are unchanged because the pilot changed only
+fixture-delivered injection text.
 
 Protocol tuning language now describes this field as “diagnosis quotes exact
 incident key”; it is a literal-key inclusion check, not a general diagnosis

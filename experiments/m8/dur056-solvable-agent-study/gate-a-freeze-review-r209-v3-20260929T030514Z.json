@@ -1,0 +1,59 @@
+{
+  "agent_config_fingerprint": "sha256:00dd204048421a0b22670c81571ac2c7d4c9710126b05798f804b7fe1716fa40",
+  "agent_config_path": "agent-frozen-config-v3-20260928T234744Z.json",
+  "agent_development_results_path": "agent-development-v3-20260928T234744Z.json",
+  "attempt_1_transport_assessment_fingerprint": "sha256:4d7f1a1dbc5c57a6254ef094f748cd2879ac27276831b0011bad1617c075141f",
+  "attempt_1_transport_assessment_path": "injection-pilot-r209-attempt-1-transport-assessment-20260929T015455Z.json",
+  "config_fingerprint_note": "Agent and retrieval config fingerprints are unchanged because the pilot changed only fixture-delivered injection text; neither config includes it.",
+  "fixture_fingerprints": {
+    "development": "sha256:f3ca9ccd948251fd69a08324078ac74a258072dfbb9faaf52b07f03bc6149a4c",
+    "heldout": "sha256:722b680a23adac8be61561c6b18bbd7d953534eca8d07874fe50cfab0cc89b8d"
+  },
+  "fixture_validity_path": "fixture-validity-v3-r209-20260929T030514Z.json",
+  "freeze_fingerprint": "sha256:b9ba0c21a46a92179b7bb7aa3171d355bb4f9458992a8f04f7f7c334062f63ab",
+  "frozen_agent_or_retrieval_settings_changed": false,
+  "gate": "A",
+  "heldout_embedding_calls": 0,
+  "heldout_model_calls": 0,
+  "heldout_scored": false,
+  "heldout_scoring_authorized": false,
+  "injection_attempt": 2,
+  "injection_attempt_paths": {
+    "1": [
+      "injection-development-pilot-r209-attempt-1-20260929T014259Z.json"
+    ],
+    "2": [
+      "injection-development-pilot-r209-attempt-2-20260929T030150Z.json"
+    ]
+  },
+  "injection_pilot_fingerprint": "sha256:84cd18baf326dc8c8622253e66a3eaeff295440fb821f4531119c0f23eb60c23",
+  "injection_pilot_path": "injection-development-pilot-r209-attempt-2-20260929T030150Z.json",
+  "injection_text_fingerprint": "sha256:4fa7fe35e591c44be8bca4a216e3a7bfa777a5c244ed1500332f8e45c239593f",
+  "injection_text_version": 1,
+  "model_id": "gpt-6-luna",
+  "oracle_accuracy": {
+    "development": 1.0,
+    "heldout": 1.0
+  },
+  "oracle_report_paths": {
+    "development": "oracle-report-development-v3-r209-20260929T030514Z.json",
+    "heldout": "oracle-report-heldout-v3-r209-20260929T030514Z.json"
+  },
+  "retrieval_config_fingerprint": "sha256:c6a73abbb7b2ee4665c381ca3867b69a6fa45ed0a9d74b88c31b6b103f2d837c",
+  "retrieval_config_path": "retrieval-frozen-config-v3-20260928T233555Z.json",
+  "retrieval_development_results_path": "retrieval-development-v3-20260928T233555Z.json",
+  "schema": "dur056-gate-a-freeze-bundle.r209.v1",
+  "source_commit": "79c10d280c0ace20ef8f3efe28304c3ac521f588",
+  "source_v3_freeze_bundle_path": "gate-a-freeze-review-v3-20260928T234744Z.json",
+  "spend_ledger_path": "spend-ledger.json",
+  "spend_ledger_snapshot": {
+    "cap_usd": "25.00",
+    "reserved_usd": "0.00000000",
+    "spent_usd": "0.21327208",
+    "status": "IN_PROGRESS",
+    "uncertain_usd": "0.00016240"
+  },
+  "status": "READY_FOR_FREEZE_REVIEW",
+  "study_manifest_path": "study-manifest-v3-20260928T233555Z.json",
+  "study_version": "dur056-solvable-evidence-v3"
+}
