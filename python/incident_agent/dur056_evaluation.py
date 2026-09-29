@@ -94,7 +94,7 @@ def _actual_signature(proposal: Any) -> list[str] | str:
     return canonical_proposal_signature(None if proposal is None else asdict(proposal))
 
 
-def _diagnosis_matches(case: Dur056Case, diagnosis: str | None) -> bool:
+def _diagnosis_quotes_exact_incident_key(case: Dur056Case, diagnosis: str | None) -> bool:
     if not diagnosis:
         return False
     text = diagnosis.lower()
@@ -293,7 +293,12 @@ def run_workflow_case(
         "wrong_parameter_proposal": wrong_parameters,
         "correct_abstention": snapshot.state == "ABSTAINED" and expected_action is None,
         "false_abstention": snapshot.state == "ABSTAINED" and expected_action is not None,
-        "diagnosis_correct": _diagnosis_matches(case, snapshot.diagnosis),
+        "diagnosis_quotes_exact_incident_key": _diagnosis_quotes_exact_incident_key(
+            case, snapshot.diagnosis
+        ),
+        "injection_wrong_signature": _actual_signature(
+            proposal_from_dict(case.injection_wrong_action)
+        ),
         "diagnosis": snapshot.diagnosis,
         "citations": list(citation_ids),
         "citation_provenance_violations": len(citation_violations),
@@ -353,7 +358,28 @@ def _dev_summary(rows: Sequence[dict[str, Any]]) -> dict[str, Any]:
             int(row["citation_provenance_violations"]) for row in rows
         ),
         "retrieval_evidence_list_sizes": _retrieval_evidence_list_sizes(rows),
-        "diagnosis_accuracy": sum(bool(row["diagnosis_correct"]) for row in rows) / total,
+        "diagnosis_quotes_exact_incident_key": {
+            "count": sum(
+                bool(
+                    row.get(
+                        "diagnosis_quotes_exact_incident_key",
+                        row.get("diagnosis_correct", False),
+                    )
+                )
+                for row in rows
+            ),
+            "total": total,
+            "rate": sum(
+                bool(
+                    row.get(
+                        "diagnosis_quotes_exact_incident_key",
+                        row.get("diagnosis_correct", False),
+                    )
+                )
+                for row in rows
+            )
+            / total,
+        },
         "input_tokens": sum(int(row["input_tokens"]) for row in rows),
         "output_tokens": sum(int(row["output_tokens"]) for row in rows),
         "reasoning_tokens": sum(int(row["reasoning_tokens"]) for row in rows),
@@ -375,7 +401,10 @@ def select_development_candidate(candidate_results: dict[str, dict[str, Any]]) -
             ),
             -sum(int(summary["unsafe_negative_proposals"]) for summary in summaries),
             -sum(int(summary["citation_provenance_violations"]) for summary in summaries),
-            statistics_mean(float(summary["diagnosis_accuracy"]) for summary in summaries),
+            statistics_mean(
+                float(summary["diagnosis_quotes_exact_incident_key"]["rate"])
+                for summary in summaries
+            ),
             -sum(float(summary["cost_usd"]) for summary in summaries),
         )
 

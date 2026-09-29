@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import tempfile
+from collections.abc import Sequence
+from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
 from threading import Lock
@@ -194,6 +196,77 @@ class Dur056SpendLedger:
             )
             self._data["status"] = "RECONCILIATION_REQUIRED" if outcome_uncertain else "IN_PROGRESS"
             self._write()
+
+    def reconcile_not_sent(
+        self,
+        call_ids: Sequence[str],
+        *,
+        reason: str,
+        evidence: str,
+    ) -> dict[str, str | int]:
+        """Append NOT_SENT reconciliation events without changing original requests."""
+
+        if not call_ids or len(set(call_ids)) != len(call_ids):
+            raise Dur056SpendError("NOT_SENT reconciliation requires unique request IDs")
+        if not reason.strip() or not evidence.strip():
+            raise Dur056SpendError("NOT_SENT reconciliation requires reason and evidence")
+        with self._lock:
+            self._data = self._read()
+            entries = self._data["entries"]
+            requests = {
+                str(entry["call_id"]): entry
+                for entry in entries
+                if isinstance(entry, dict) and entry.get("call_id")
+            }
+            reconciled = {
+                str(entry["reconciles_call_id"])
+                for entry in entries
+                if isinstance(entry, dict)
+                and entry.get("entry_type") == "RECONCILIATION"
+                and entry.get("reconciles_call_id")
+            }
+            if any(call_id in reconciled for call_id in call_ids):
+                raise Dur056SpendError("request already has a ledger reconciliation")
+            targets: list[tuple[str, dict[str, Any], Decimal]] = []
+            for call_id in call_ids:
+                entry = requests.get(call_id)
+                if entry is None or entry.get("state") != "UNCERTAIN":
+                    raise Dur056SpendError("NOT_SENT reconciliation requires UNCERTAIN requests")
+                amount = self._decimal(entry.get("reserved_usd"), "request reserved_usd")
+                if amount <= 0:
+                    raise Dur056SpendError("NOT_SENT reconciliation amount must be positive")
+                targets.append((call_id, entry, amount))
+            amount_total = sum((amount for _, _, amount in targets), Decimal(0))
+            uncertain = self._total("uncertain_usd")
+            if amount_total > uncertain:
+                raise Dur056SpendError("NOT_SENT reconciliation exceeds uncertain ledger amount")
+            timestamp = datetime.now(UTC).isoformat()
+            for call_id, _, amount in targets:
+                entries.append(
+                    {
+                        "event_id": uuid4().hex,
+                        "entry_type": "RECONCILIATION",
+                        "reconciles_call_id": call_id,
+                        "prior_state": "UNCERTAIN",
+                        "state": "NOT_SENT",
+                        "amount_usd": f"{amount:.8f}",
+                        "reason": reason[:500],
+                        "evidence": evidence[:300],
+                        "reconciled_at": timestamp,
+                    }
+                )
+            remaining = uncertain - amount_total
+            self._data["uncertain_usd"] = f"{remaining:.8f}"
+            self._data["status"] = (
+                "RECONCILIATION_REQUIRED" if remaining > 0 else "IN_PROGRESS"
+            )
+            self._write()
+            return {
+                "requests_reconciled": len(targets),
+                "amount_reconciled_usd": f"{amount_total:.8f}",
+                "uncertain_usd_remaining": f"{remaining:.8f}",
+                "status": str(self._data["status"]),
+            }
 
     def _entry(self, call_id: str) -> dict[str, Any]:
         for entry in self._data["entries"]:

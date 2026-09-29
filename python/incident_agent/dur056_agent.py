@@ -135,6 +135,7 @@ class OpenAIResponsesDecisionProvider:
         heldout_authorized: bool = False,
         max_output_tokens: int = MAX_OUTPUT_TOKENS,
         timeout_seconds: float = 90,
+        transport_retries: int = TRANSPORT_RETRIES,
     ) -> None:
         if candidate not in PROMPT_CANDIDATES:
             raise Dur056ProviderError(f"unknown DUR-056 candidate: {candidate}", attempts=0)
@@ -144,6 +145,8 @@ class OpenAIResponsesDecisionProvider:
             )
         if not 0 < max_output_tokens <= MAX_OUTPUT_TOKENS:
             raise Dur056ProviderError("DUR-056 output token bound is invalid", attempts=0)
+        if not 0 <= transport_retries <= TRANSPORT_RETRIES:
+            raise Dur056ProviderError("DUR-056 transport retry bound is invalid", attempts=0)
         self.candidate = candidate
         self.config = PROMPT_CANDIDATES[candidate]
         self.instructions = instructions_override or str(self.config["instructions"])
@@ -159,6 +162,7 @@ class OpenAIResponsesDecisionProvider:
         self.ledger = ledger
         self.max_output_tokens = max_output_tokens
         self.timeout_seconds = timeout_seconds
+        self.transport_retries = transport_retries
         self.records: list[dict[str, Any]] = []
         self.failures: list[dict[str, Any]] = []
         self.last_rendered_prompt = ""
@@ -204,7 +208,7 @@ class OpenAIResponsesDecisionProvider:
         }
         body = canonical_json(payload).encode("utf-8")
         call_attempts: list[dict[str, Any]] = []
-        for attempt in range(1, TRANSPORT_RETRIES + 2):
+        for attempt in range(1, self.transport_retries + 2):
             call_id = self.ledger.reserve(
                 model=MODEL_ID,
                 operation=(f"dur056-agent-{self.candidate}-{arm}-{case_id}-attempt-{attempt}"),
@@ -253,7 +257,7 @@ class OpenAIResponsesDecisionProvider:
                 self.failures.append(
                     {"case_id": case_id, "attempt": attempt, "error": type(error).__name__}
                 )
-                if attempt < TRANSPORT_RETRIES + 1:
+                if attempt < self.transport_retries + 1:
                     continue
                 raise Dur056ProviderError(
                     "Responses API transport retries exhausted",

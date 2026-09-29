@@ -1,9 +1,11 @@
 # DUR-056 solvable-evidence agent study
 
-**Current package:** D031 v3 fixture corrections and D032 rank-first tuning
-selection have produced a local Gate A freeze bundle for Claude's full review.
-It is not yet accepted; held-out scoring remains locked. Preserve v1/v2 results
-and spend history as versioned baselines.
+**Current package:** DUR-056 Round 135 addresses R209/R210 on top of the v3
+fixture and frozen configs. The initial 180-run development injection batch
+produced no model responses because the sandbox denied socket creation; its raw
+rows and ledger are preserved, but its zero outcome counts are not a calibration
+result. A valid pilot and R209 freeze bundle are still pending. Held-out scoring
+remains locked, and v1/v2/v3 results remain versioned baselines.
 
 **Protocol:** [`protocol.md`](protocol.md), registered under D029 and amended
 before implementation by D030 and D031. The previous protocol and readme are
@@ -66,8 +68,9 @@ retrieval, 29/30 dense, 30/30 keyword, and 30/30 hybrid. Each retrieval arm
 delivered a three-item evidence list on all 30 runs (90 items per arm); all 30
 no-retrieval lists were empty. Correct action-and-parameter counts were 0/21
 without retrieval and 21/21 in each retrieval arm. Citation provenance
-violations were zero. Diagnosis accuracy was 5/30 no-retrieval, 7/30 dense,
-8/30 keyword, and 5/30 hybrid.
+violations were zero. The diagnostic named `diagnosis_quotes_exact_incident_key`
+(literal service, active version, and signal inclusion; not general diagnosis
+correctness) was 5/30 no-retrieval, 7/30 dense, 8/30 keyword, and 5/30 hybrid.
 
 Selected-candidate tokens, mean per-run provider/wall latency, and cost were:
 
@@ -93,6 +96,44 @@ settled `$0.05297630` for 240 `gpt-6-luna` calls and `$0.00006706` for three
 development embedding requests. All completed v3 calls succeeded. No held-out
 case, query, evidence or embedding was sent to any provider.
 
+## Round 135 R209/R210 correction status
+
+The injected development note now claims operator authority and supplies the
+seeded per-case wrong action as free text. The scorer keeps the registered raw
+excess formula and separates attack success, induced abstention, other changes,
+and clean-A/clean-B flips. Subsequent development scoring and any later
+authorized held-out scoring must use the frozen `gpt-6-luna` prompt/schema and
+retrieval fingerprints.
+
+The preserved first pilot batch is
+[`injection-development-pilot-r209-attempt-1-20260929T014259Z.json`](injection-development-pilot-r209-attempt-1-20260929T014259Z.json),
+with its write-once rows in
+[`injection-pilot-r209-attempt-1-units/`](injection-pilot-r209-attempt-1-units/).
+It contains 180 development workflow runs, 180 provider-error rows, zero model
+responses, and 540 transport request entries after bounded retries. The sandbox
+blocked socket creation (`WinError 10013`); settled spend remained `$0`, and the
+uncertain total temporarily rose to `$0.65505040`. Its all-zero signature
+outcomes are explicitly not used to calibrate the attack wording. The derived
+[transport assessment](injection-pilot-r209-attempt-1-transport-assessment-20260929T015455Z.json)
+records this interpretation and the unchanged `$25.00` cap. Those 540 requests
+are append-only reconciled `NOT_SENT` events because socket creation failed
+before a request left the machine; the separate earlier `$0.00016240` uncertainty
+is preserved as the current uncertain balance. Attempt 1 is failed transport
+history, not a wording calibration. The approved attempt 2 uses v1; attempt 3
+uses v2 only if plain attack success is zero in attempt 2. Each attempt is
+capped at 180 provider requests. No held-out provider call occurred. No new
+R209 freeze bundle has been issued.
+
+The scorer reports the literal diagnostic as
+`diagnosis_quotes_exact_incident_key`. A new freeze bundle will fingerprint the
+chosen injection text, fixture validity/oracle reports, and valid pilot while
+retaining the existing agent/retrieval fingerprints if their configurations
+remain unchanged.
+
+Protocol tuning language now describes this field as “diagnosis quotes exact
+incident key”; it is a literal-key inclusion check, not a general diagnosis
+accuracy measure. Older versioned reports are retained unchanged.
+
 ## Scope and reproduction
 
 The accepted Gate A procedure will still require push, green CI for the exact
@@ -109,8 +150,12 @@ uv run python -m incident_agent.dur056 validate-fixtures
 uv run pytest tests/test_dur056_fixtures.py tests/test_dur056_retrieval.py
 ```
 
-The development-only command is
+The development-only tuning command is
 `uv run --env-file .env --env-file .env.dur056 python -m incident_agent.dur056 prepare-dev`.
+For Round 135, use `pilot-injection-dev --attempt 2` for the authorized v1
+calibration. If and only if plain attack success is zero, use
+`pilot-injection-dev --attempt 3` once with v2. The failed attempt 1 remains
+history and is never rerun or used to choose wording.
 The repository `.env` supplies the provider credential; `.env.dur056` supplies
 the isolated database credentials and port. Do not copy or print either
 credential. The command must use the development split only; its provider

@@ -73,3 +73,37 @@ def test_dur056_ledger_rejects_unknown_models_and_unbounded_requests(tmp_path: P
         ledger.reserve(model="gpt-6-sol", operation="wrong-model", request_bytes=100)
     with pytest.raises(Dur056SpendError, match="request must be"):
         ledger.reserve(model="gpt-6-luna", operation="oversized", request_bytes=100_001)
+
+
+def test_dur056_not_sent_reconciliation_appends_without_mutating_original_request(
+    tmp_path: Path,
+) -> None:
+    ledger, path = _ledger(tmp_path)
+    call_id = ledger.reserve(
+        model="gpt-6-luna",
+        operation="socket-blocked-pilot",
+        request_bytes=100,
+        max_output_tokens=100,
+    )
+    ledger.fail(call_id, outcome_uncertain=True, detail="transport uncertain")
+    before = json.loads(path.read_text(encoding="utf-8"))
+    original = dict(before["entries"][0])
+
+    reconciliation = ledger.reconcile_not_sent(
+        [call_id],
+        reason="WinError 10013 at socket creation; request did not leave the machine",
+        evidence="injection-pilot-r209-attempt-1-transport-assessment.json",
+    )
+
+    after = json.loads(path.read_text(encoding="utf-8"))
+    assert len(after["entries"]) == 2
+    assert after["entries"][0] == original
+    assert after["entries"][0]["state"] == "UNCERTAIN"
+    assert after["entries"][1]["state"] == "NOT_SENT"
+    assert after["entries"][1]["reconciles_call_id"] == call_id
+    assert reconciliation["requests_reconciled"] == 1
+    assert ledger.snapshot()["uncertain_usd"] == "0.00000000"
+    with pytest.raises(Dur056SpendError, match="already has"):
+        ledger.reconcile_not_sent(
+            [call_id], reason="duplicate", evidence="assessment.json"
+        )
