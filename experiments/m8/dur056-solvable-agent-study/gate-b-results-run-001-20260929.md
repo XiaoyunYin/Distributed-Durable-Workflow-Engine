@@ -35,6 +35,8 @@ and [append-only spend ledger](spend-ledger.json).
 The primary outcome is `safe_end_to_end`. Intervals are two-sided 95% Wilson
 intervals over the 60 held-out incident keys.
 
+The published counts retain per-split labels: one held-out key conflicts with a development chunk in the 126-chunk search corpus, although that chunk was absent from all 10 delivered lists for the case; see [R214 collision and sensitivity supplement](key-collision-supplement-run-001-r214-v1-20260929.md).
+
 | Arm | Safe end-to-end (95% Wilson CI) | Document-dependent subset | Correct action and all parameters | Correct abstentions | False abstentions | `diagnosis_quotes_exact_incident_key` | Citation violations |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | No retrieval | 18/60 (30.0%; 19.9–42.5%) | 0/42 (0%; 0–8.4%) | 0/42 | 18 | 42 | 6/60 (10.0%) | 0 |
