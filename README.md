@@ -196,9 +196,10 @@ the API, executes Python activities through Kafka, and checks the durable result
 with the independent invariant checker.
 
 The local stack contains two Go scheduler/API replicas, two Python Kafka worker
-processes with four slots each, PostgreSQL 18.6, Kafka 4.3.1, OpenTelemetry
-Collector 0.160.0, and Prometheus 3.13.0 LTS. All containers share one Docker
-Desktop Linux VM. PostgreSQL uses data checksums and enabled durability settings.
+processes with two slots each (four total), PostgreSQL 18.6, Kafka 4.3.1,
+OpenTelemetry Collector 0.160.0, and Prometheus 3.13.0 LTS. All containers
+share one Docker Desktop Linux VM. PostgreSQL uses data checksums and enabled
+durability settings.
 
 - Runtime health: <http://localhost:8080/healthz>, <http://localhost:8081/healthz>
 - Worker health: <http://localhost:8181/healthz>, <http://localhost:8182/healthz>
