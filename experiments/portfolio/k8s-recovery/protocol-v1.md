@@ -1,3 +1,4 @@
+Superseded by [protocol v2](protocol-v2.md) for K3-K7 before any measurement.
 # DUR-053 Kubernetes recovery protocol v1
 
 Registered 2026-11-03, before pilot or measurement, against base
