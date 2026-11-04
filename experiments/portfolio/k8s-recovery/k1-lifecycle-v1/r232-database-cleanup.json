@@ -1,0 +1,18 @@
+{
+  "schema": "dur053-r232b-cleanup.v1",
+  "databases_created": [
+    "r232b_1793821068700021200",
+    "r232b_1793822267106693100"
+  ],
+  "migrations_applied_per_database": 18,
+  "dropped_with_force": true,
+  "remaining_after_drop": [],
+  "verification": "queried pg_database after each DROP DATABASE WITH (FORCE)",
+  "scratch_root": "D:/coding agent files/durable-engine/codex/r232b",
+  "scratch_root_removed": true,
+  "scratch_files_removed": 14175,
+  "scratch_directories_removed": 2280,
+  "leftover_r232_database_cleanup_json_removed": true,
+  "codex_temp_root_entries_after_cleanup": 0,
+  "temporary_files_retained": 0
+}

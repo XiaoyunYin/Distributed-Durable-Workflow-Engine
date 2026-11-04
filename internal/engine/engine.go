@@ -219,6 +219,8 @@ type Engine struct {
 	// AfterLeaseAcquired is a diagnostic seam used by deployed fault probes to
 	// make the ownership boundary observable. It is nil in normal operation.
 	AfterLeaseAcquired func(context.Context, state.Lease) error
+	// LegacyShutdown is campaign-only: retain pre-K1 hook/exit lease behavior.
+	LegacyShutdown bool
 	// AfterBoundary is a test-only crash injector. Returning an error models a
 	// process crash immediately after the named repository transaction commits.
 	AfterBoundary func(string) error
@@ -301,21 +303,33 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 	if e.Telemetry != nil {
 		e.Telemetry.RecordLeaseAcquired()
 	}
-	if e.AfterLeaseAcquired != nil {
-		if err := e.AfterLeaseAcquired(ctx, lease); err != nil {
-			return RunResult{}, err
-		}
-	}
 	ownedLease := lease
+	hookPassed := false
 	defer func() {
+		if e.LegacyShutdown && !hookPassed {
+			return
+		}
 		cleanup, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 		ref := state.LeaseRef{PartitionID: ownedLease.PartitionID, OwnerID: ownedLease.OwnerID, Epoch: ownedLease.Epoch}
 		if e.ExternalActivities && runErr == nil {
 			runErr = e.Store.AcknowledgeWorkflowWakeups(cleanup, ref, workflowID, result.Workflow.Revision)
 		}
-		_ = e.Store.ReleaseLease(cleanup, ref)
+		if e.LegacyShutdown {
+			_ = e.Store.ReleaseLease(cleanup, ref)
+			return
+		}
+		// Wakeup acknowledgement must not consume the release budget.
+		releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer releaseCancel()
+		_ = e.Store.ReleaseLease(releaseCtx, ref)
 	}()
+	if e.AfterLeaseAcquired != nil {
+		if err := e.AfterLeaseAcquired(ctx, lease); err != nil {
+			return RunResult{}, err
+		}
+	}
+	hookPassed = true
 	if e.ExternalActivities {
 		ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
 		if err := e.Store.ApplyRuntimeCancellations(ctx, ref, workflowID, actorID); err != nil {

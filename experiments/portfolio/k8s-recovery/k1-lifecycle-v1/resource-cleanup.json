@@ -1,0 +1,24 @@
+{
+  "validation_databases_confirmed_absent": [
+    "dur053_k1_5c63fb0e1d",
+    "dur053_k1_6cd7e982a5",
+    "dur053_k1_91fe11c1ef",
+    "dur053_k1_a16c1f0ed8",
+    "dur053_k1_f69fe7340e",
+    "dur053_k1_fda0fe25e1"
+  ],
+  "remaining_validation_databases": [],
+  "remaining_k1_test_topics": [],
+  "empty_k1_test_groups_removed": [],
+  "test_groups_kept": [],
+  "tools": {
+    "go": "go version go1.27.3 windows/amd64",
+    "python": "3.12.7",
+    "uv": "uv 0.9.5 (d5f39331a 2025-10-21)",
+    "kafka-python": "2.2.16",
+    "psycopg": "3.2.13",
+    "pytest": "9.1.1",
+    "ruff": "0.16.7",
+    "mypy": "2.3.1"
+  }
+}

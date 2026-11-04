@@ -1,0 +1,32 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0 -- D:\portfolio-projects\durable-agent-execution-engine\.venv\Scripts\python.exe
+rootdir: D:\portfolio-projects\durable-agent-execution-engine
+configfile: pyproject.toml
+plugins: anyio-4.15.1
+collecting ... collected 23 items
+
+tests/test_worker_lifecycle.py::test_drain_before_delivery_leaves_offset_uncommitted PASSED [  4%]
+tests/test_worker_lifecycle.py::test_shutdown_between_disposition_commit_claim[disposition] PASSED [  8%]
+tests/test_worker_lifecycle.py::test_shutdown_between_disposition_commit_claim[commit] PASSED [ 13%]
+tests/test_worker_lifecycle.py::test_delivery_response_loss_retries_same_disposition PASSED [ 17%]
+tests/test_worker_lifecycle.py::test_commit_failure_does_not_claim PASSED [ 21%]
+tests/test_worker_lifecycle.py::test_revoke_during_disposition_fences_offset_and_claim PASSED [ 26%]
+tests/test_worker_lifecycle.py::test_result_accepted_during_drain_before_deadline PASSED [ 30%]
+tests/test_worker_lifecycle.py::test_abort_reports_nothing_and_stops_heartbeats PASSED [ 34%]
+tests/test_worker_lifecycle.py::test_retry_control_abort_and_admission_guards PASSED [ 39%]
+tests/test_worker_lifecycle.py::test_monotonic_deadline_never_extended PASSED [ 43%]
+tests/test_worker_lifecycle.py::test_bounded_executor_has_no_queue PASSED [ 47%]
+tests/test_worker_lifecycle.py::test_abort_exits_process_without_joining_activity PASSED [ 52%]
+tests/test_worker_lifecycle.py::test_worker_identity_metrics_and_readiness PASSED [ 56%]
+tests/test_worker_lifecycle.py::test_consumer_keeps_polling_rebalances_and_closes_before_activity_finishes PASSED [ 60%]
+tests/test_worker_lifecycle.py::test_legacy_flag_uses_pre_k1_consumer_and_no_result_after_signal PASSED [ 65%]
+tests/test_worker_lifecycle.py::test_legacy_trace_matches_frozen_pre_k1_source PASSED [ 69%]
+tests/test_worker_lifecycle.py::test_retries_bounded_during_control_outage PASSED [ 73%]
+tests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[0] PASSED [ 78%]
+tests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[-1] PASSED [ 82%]
+tests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[31] PASSED [ 86%]
+tests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[nan] PASSED [ 91%]
+tests/test_worker_lifecycle.py::test_signal_handler_registered_before_consumers PASSED [ 95%]
+tests/test_worker_lifecycle.py::test_abort_watchdog_exits_while_startup_hook_blocks PASSED [100%]
+
+============================= 23 passed in 1.94s ==============================

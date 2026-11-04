@@ -39,6 +39,9 @@ class ControlClient:
         self.timeout = timeout
         self.traceparent = traceparent
 
+    def request_timeout(self) -> float:
+        return self.timeout
+
     def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         headers = {"Content-Type": "application/json"}
         if self.traceparent:
@@ -50,7 +53,7 @@ class ControlClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:  # noqa: S310
+            with urllib.request.urlopen(request, timeout=self.request_timeout()) as response:  # noqa: S310
                 decoded = json.loads(response.read())
         except urllib.error.HTTPError as error:
             try:

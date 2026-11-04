@@ -68,3 +68,42 @@ def test_case_baseline_accepts_a_real_passing_test(
     )
     assert valid
     assert evidence == output
+
+
+def test_case_command_keeps_python_config_tripwire_arguments(tmp_path: Path) -> None:
+    runner = load_runner()
+    assert runner.case_command(["python", "-c", "assert True"], "project-python", tmp_path) == [
+        "project-python",
+        "-c",
+        "assert True",
+    ]
+
+
+def test_case_command_normalizes_legacy_pytest_without_nested_sync(tmp_path: Path) -> None:
+    runner = load_runner()
+    assert runner.case_command(
+        ["uv", "run", "python", "-m", "pytest", "tests/test_incident_agent.py", "-q"],
+        "project-python",
+        tmp_path,
+    ) == [
+        "project-python",
+        "-m",
+        "pytest",
+        "tests/test_incident_agent.py",
+        "-q",
+        "--basetemp",
+        str(tmp_path),
+        "-p",
+        "no:cacheprovider",
+    ]
+
+
+def test_source_fingerprint_detects_restoration_drift(tmp_path: Path) -> None:
+    runner = load_runner()
+    source = tmp_path / "source.py"
+    source.write_bytes(b"guard=True\n")
+    original = runner.source_fingerprint(tmp_path)
+    source.write_bytes(b"guard=False\n")
+    assert runner.source_fingerprint(tmp_path) != original
+    source.write_bytes(b"guard=True\n")
+    assert runner.source_fingerprint(tmp_path) == original
