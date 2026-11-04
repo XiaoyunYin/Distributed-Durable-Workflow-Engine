@@ -29,6 +29,12 @@ class ActivityRegistry:
         except KeyError as error:
             raise LookupError(f"activity is not registered: {name}@{version}") from error
 
+    def manifest(self) -> list[dict[str, str]]:
+        return [
+            {"name": name, "version": version}
+            for name, version in sorted(key.rsplit("@", 1) for key in self._activities)
+        ]
+
     @staticmethod
     def key(name: str, version: str) -> str:
         return f"{name}@{version}"

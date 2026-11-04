@@ -26,6 +26,7 @@ const (
 	RoutesOperator      RouteSet = "operator"
 	RoutesWorkerControl RouteSet = "worker-control"
 	RoutesNone          RouteSet = "none"
+	RoutesDemand        RouteSet = "demand"
 )
 
 func (s *Server) WithRoutes(routes RouteSet) *Server { s.routes = routes; return s }

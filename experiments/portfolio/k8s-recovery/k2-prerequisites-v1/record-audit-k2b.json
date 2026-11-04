@@ -1,0 +1,9 @@
+{
+    "head_unchanged":  true,
+    "review_original_prefix_preserved":  true,
+    "review_appended_bytes":  6553,
+    "review_append_lf_ascii":  true,
+    "source_hashes_match":  true,
+    "source_files_hashed":  28,
+    "existing_ci_steps_unchanged":  true
+}

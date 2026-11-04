@@ -10,7 +10,7 @@ import (
 
 func TestK2RoleRoutes(t *testing.T) {
 	t.Setenv("RUNTIME_TOKEN_AUTH", "")
-	for value, want := range map[string]api.RouteSet{"combined": api.RoutesCombined, "api": api.RoutesPublic, "operator": api.RoutesOperator, "worker-control": api.RoutesWorkerControl, "scheduler,relay,ingestor": api.RoutesNone, "scheduler,worker-control": api.RoutesWorkerControl} {
+	for value, want := range map[string]api.RouteSet{"demand": api.RoutesDemand, "combined": api.RoutesCombined, "api": api.RoutesPublic, "operator": api.RoutesOperator, "worker-control": api.RoutesWorkerControl, "scheduler,relay,ingestor": api.RoutesNone, "scheduler,worker-control": api.RoutesWorkerControl} {
 		roles, err := lifecycleRoles(value)
 		if err != nil {
 			t.Fatal(err)
@@ -25,7 +25,7 @@ func TestK2RoleRoutes(t *testing.T) {
 		t.Fatal("role route isolation bypassed: authenticated combined mode")
 	}
 	t.Setenv("RUNTIME_TOKEN_AUTH", "")
-	for _, value := range []string{"api,worker-control", "operator,worker-control", "api,operator"} {
+	for _, value := range []string{"api,worker-control", "operator,worker-control", "api,operator", "demand,api", "demand,worker-control", "demand,operator", "demand,scheduler", "demand,relay"} {
 		roles, err := lifecycleRoles(value)
 		if err != nil {
 			t.Fatal(err)

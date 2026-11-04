@@ -58,6 +58,8 @@ type Server struct {
 	tracing          *telemetry.Tracing
 	routes           RouteSet
 	authenticator    *TokenReviewer
+	demandRepository DemandRepository
+	demandNamespace  string
 }
 
 func NewServer(repository Repository) *Server {
@@ -71,7 +73,7 @@ func (s *Server) WithTracing(tracing *telemetry.Tracing) *Server {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	if s.routes != RoutesWorkerControl && s.routes != RoutesNone {
+	if s.routes == RoutesCombined || s.routes == RoutesPublic || s.routes == RoutesOperator {
 		mux.HandleFunc("POST /v1/workflows", s.createWorkflow)
 		mux.HandleFunc("GET /v1/workflows/{workflowID}", s.getWorkflow)
 		mux.HandleFunc("GET /v1/workflows/{workflowID}/history", s.getHistory)
@@ -88,6 +90,9 @@ func (s *Server) Handler() http.Handler {
 		mux.HandleFunc("POST /v1/approvals/{intentID}/apply", s.applyApproval)
 		mux.HandleFunc("POST /v1/workflows/{workflowID}/cancel-request", s.requestCancellation)
 		mux.HandleFunc("POST /v1/cancellations/{requestID}/apply", s.applyCancellation)
+	}
+	if s.routes == RoutesDemand {
+		mux.HandleFunc("GET /v1/demand", s.durableDemand)
 	}
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "route was not found", nil)

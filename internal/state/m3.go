@@ -1396,9 +1396,6 @@ func (s *Store) GetBacklog(ctx context.Context, partitionID int16) (Backlog, err
 		&backlog.PendingOutbox, &backlog.PendingWakeups, &backlog.OpenItems,
 		&backlog.QuarantinedOutbox, &backlog.PoisonRecords, &oldestAgeSeconds)
 	backlog.OldestAge = time.Duration(oldestAgeSeconds * float64(time.Second))
-	if err == nil && s.telemetry != nil {
-		s.telemetry.SetBacklogAge(backlog.OldestAge)
-	}
 	return backlog, err
 }
 

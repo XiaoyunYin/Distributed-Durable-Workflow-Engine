@@ -188,6 +188,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check.ps1
 
+      - name: Check effective activity registry parity
+        shell: bash
+        run: uv run python scripts/check-activity-registry.py
+
       - name: Run Go race tests
         shell: pwsh
         run: go test -race ./...

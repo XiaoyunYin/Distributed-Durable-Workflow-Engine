@@ -31,6 +31,16 @@ const (
 // migration runner owns schema installation; the repository only operates on
 // the already versioned schema.
 func NewFromURL(ctx context.Context, databaseURL string) (*Store, error) {
+	return newFromURL(ctx, databaseURL, 8, false)
+}
+
+// NewDemandFromURL uses two connections, read-only transactions and a 2 s
+// server-side statement limit as well as each operation's context deadline.
+func NewDemandFromURL(ctx context.Context, databaseURL string) (*Store, error) {
+	return newFromURL(ctx, databaseURL, 2, true)
+}
+
+func newFromURL(ctx context.Context, databaseURL string, maxConns int32, readOnly bool) (*Store, error) {
 	ledgerSetting := os.Getenv("DUR049_RECORD_LEASE_ACQUISITIONS")
 	if ledgerSetting != "" && ledgerSetting != "0" && ledgerSetting != "1" {
 		return nil, fmt.Errorf("DUR049_RECORD_LEASE_ACQUISITIONS must be 0 or 1, got %q", ledgerSetting)
@@ -47,7 +57,7 @@ func NewFromURL(ctx context.Context, databaseURL string) (*Store, error) {
 	if err != nil {
 		return nil, fmt.Errorf("parse database URL: %w", err)
 	}
-	config.MaxConns = 8
+	config.MaxConns = maxConns
 	config.ConnConfig.RuntimeParams = map[string]string{
 		"lock_timeout":                        postgresLockTimeout,
 		"statement_timeout":                   postgresStatementTimeout,
@@ -55,6 +65,11 @@ func NewFromURL(ctx context.Context, databaseURL string) (*Store, error) {
 		"tcp_keepalives_idle":                 postgresTCPKeepaliveIdle,
 		"tcp_keepalives_interval":             postgresTCPKeepaliveInterval,
 		"tcp_keepalives_count":                postgresTCPKeepaliveCount,
+	}
+	if readOnly {
+		config.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
+		config.ConnConfig.RuntimeParams["statement_timeout"] = "2s"
+		config.ConnConfig.RuntimeParams["application_name"] = "durable-demand"
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {

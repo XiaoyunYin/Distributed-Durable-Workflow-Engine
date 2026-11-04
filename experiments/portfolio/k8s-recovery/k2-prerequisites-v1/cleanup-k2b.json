@@ -1,0 +1,20 @@
+{
+    "temporary_root":  "D:\\coding agent files\\durable-engine\\codex\\k2b",
+    "codex_root":  "D:\\coding agent files\\durable-engine\\codex",
+    "databases_dropped":  [
+                              "dur053_k2b_race",
+                              "dur053_k2b_mutation"
+                          ],
+    "database_query_after_drop":  [
+
+                                  ],
+    "database_drop_verified":  true,
+    "temporary_files_before_removal":  13278,
+    "temporary_bytes_before_removal":  1647995585,
+    "filesystem_cleanup":  "PASS",
+    "codex_root_listing_after_removal":  [
+
+                                         ],
+    "temporary_root_exists_after_removal":  false,
+    "cleanup_verified_at_utc":  "2026-11-04T23:33:15.8810617+00:00"
+}

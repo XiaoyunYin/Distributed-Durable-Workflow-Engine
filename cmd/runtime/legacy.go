@@ -29,6 +29,15 @@ func legacyServe(ctx context.Context) {
 		os.Exit(1)
 	}
 
+	// Demand did not exist before K2; it has one identical read-only process
+	// in both campaign arms. Legacy lifecycle flags affect the application roles.
+	if roles["demand"] {
+		if err := serveLifecycle(ctx); err != nil {
+			slog.Error("demand stopped", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
 	routes, routeErr := lifecycleRoutes(*rolesValue, roles)
 	reviewer, authErr := api.AuthenticationFromEnvironment()
 	if routeErr != nil || authErr != nil {

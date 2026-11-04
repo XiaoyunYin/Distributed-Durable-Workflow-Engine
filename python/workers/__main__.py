@@ -212,7 +212,10 @@ def main() -> None:
         return
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "command", choices=("run", "healthcheck", "version"), nargs="?", default="run"
+        "command",
+        choices=("run", "healthcheck", "version", "activity-registry"),
+        nargs="?",
+        default="run",
     )
     args = parser.parse_args()
 
@@ -220,6 +223,10 @@ def main() -> None:
         run()
     elif args.command == "healthcheck":
         healthcheck()
+    elif args.command == "activity-registry":
+        from workers.registry import default_registry
+
+        print(json.dumps(default_registry().manifest()))
     else:
         print(__version__)
 

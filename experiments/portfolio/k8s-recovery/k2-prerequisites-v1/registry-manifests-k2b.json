@@ -1,0 +1,72 @@
+{
+  "base_commit": "c36a2dd0d794d17b918c18dab19c7d6cdcfb5314",
+  "basis": "uncommitted source commands, not image/container exports",
+  "profiles": [
+    {
+      "fixture_enabled": false,
+      "settings": {
+        "DUR048_ALLOW_FIXTURE_ACTIVITY": "0",
+        "DUR048_ACTIVITY_DELAY_MS": "0",
+        "DUR050_ENABLE_SHA256_ACTIVITY": "0"
+      },
+      "go_registry": [
+        {
+          "name": "pure.add",
+          "version": "v1"
+        },
+        {
+          "name": "pure.echo",
+          "version": "v1"
+        }
+      ],
+      "python_registry": [
+        {
+          "name": "pure.add",
+          "version": "v1"
+        },
+        {
+          "name": "pure.echo",
+          "version": "v1"
+        }
+      ],
+      "parity": "PASS"
+    },
+    {
+      "fixture_enabled": true,
+      "settings": {
+        "DUR048_ALLOW_FIXTURE_ACTIVITY": "1",
+        "DUR048_ACTIVITY_DELAY_MS": "1",
+        "DUR050_ENABLE_SHA256_ACTIVITY": "0"
+      },
+      "go_registry": [
+        {
+          "name": "dur048.sleep",
+          "version": "v1"
+        },
+        {
+          "name": "pure.add",
+          "version": "v1"
+        },
+        {
+          "name": "pure.echo",
+          "version": "v1"
+        }
+      ],
+      "python_registry": [
+        {
+          "name": "dur048.sleep",
+          "version": "v1"
+        },
+        {
+          "name": "pure.add",
+          "version": "v1"
+        },
+        {
+          "name": "pure.echo",
+          "version": "v1"
+        }
+      ],
+      "parity": "PASS"
+    }
+  ]
+}
