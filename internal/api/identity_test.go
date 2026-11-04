@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,14 +14,18 @@ import (
 	"testing"
 	"time"
 
+	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
 )
 
 type identityRepository struct {
 	*fakeWorkerRepository
 	ApprovalRepository
-	decision state.ApprovalDecisionInput
-	claim    state.ClaimInput
+	decision    state.ApprovalDecisionInput
+	claim       state.ClaimInput
+	approval    state.ApprovalIntentInput
+	applied     state.ApplyApprovalInput
+	cancelActor string
 }
 
 func (f *identityRepository) RecordApprovalDecision(_ context.Context, in state.ApprovalDecisionInput) (state.ApprovalIntent, error) {
@@ -30,6 +35,19 @@ func (f *identityRepository) RecordApprovalDecision(_ context.Context, in state.
 func (f *identityRepository) ClaimAttempt(_ context.Context, in state.ClaimInput) (state.ClaimResult, error) {
 	f.claim = in
 	return state.ClaimResult{}, nil
+}
+
+func (f *identityRepository) CreateApprovalIntent(_ context.Context, in state.ApprovalIntentInput) (state.ApprovalIntent, error) {
+	f.approval = in
+	return state.ApprovalIntent{}, nil
+}
+func (f *identityRepository) ApplyApproval(_ context.Context, in state.ApplyApprovalInput) (state.ApprovalGrant, error) {
+	f.applied = in
+	return state.ApprovalGrant{}, nil
+}
+func (f *identityRepository) ApplyCancellationRequest(_ context.Context, _ state.LeaseRef, _, actor string) (state.Workflow, error) {
+	f.cancelActor = actor
+	return state.Workflow{}, nil
 }
 
 func projectedToken(issuer, subject, audience string, expiry int64) string {
@@ -44,12 +62,13 @@ type reviewFixture struct {
 	username, credential, err string
 	status, calls             int
 	malformed                 bool
+	extra                     map[string][]string
 }
 
 // Models trusted API-server responses over TLS, not a cluster/signature proof.
 func identityFixture(t *testing.T) (*TokenReviewer, *reviewFixture) {
 	t.Helper()
-	fixture := &reviewFixture{authenticated: true, audiences: []string{"durable-worker"}, username: "system:serviceaccount:engine:worker", status: 201, credential: "reviewer"}
+	fixture := &reviewFixture{extra: podExtras(), authenticated: true, audiences: []string{"durable-worker"}, username: "system:serviceaccount:engine:worker", status: 201, credential: "reviewer"}
 	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		fixture.calls++
 		if r.URL.Path != "/apis/authentication.k8s.io/v1/tokenreviews" || r.Method != "POST" || r.Header.Get("Authorization") != "Bearer "+fixture.credential {
@@ -86,7 +105,7 @@ func identityFixture(t *testing.T) (*TokenReviewer, *reviewFixture) {
 		}
 		_ = json.NewEncoder(w).Encode(map[string]any{"status": map[string]any{
 			"authenticated": fixture.authenticated && (claims.Exp == 0 || claims.Exp > time.Now().Unix()),
-			"audiences":     fixture.audiences, "user": map[string]string{"username": fixture.username}, "error": fixture.err,
+			"audiences":     fixture.audiences, "user": map[string]any{"username": fixture.username, "extra": fixture.extra}, "error": fixture.err,
 		}})
 	}))
 	t.Cleanup(server.Close)
@@ -105,6 +124,13 @@ func identityFixture(t *testing.T) (*TokenReviewer, *reviewFixture) {
 		t.Fatal(err)
 	}
 	return reviewer, fixture
+}
+
+func podExtras() map[string][]string {
+	return map[string][]string{
+		"authentication.kubernetes.io/pod-name": {"worker-0"},
+		"authentication.kubernetes.io/pod-uid":  {"7fa8065c-c4cb-4b9b-a021-380edda831e8"},
+	}
 }
 
 func TestK2IdentityGuards(t *testing.T) {
@@ -129,6 +155,15 @@ func TestK2IdentityGuards(t *testing.T) {
 		{"empty-review-audience", good, func() { remote.audiences = nil }},
 		{"wrong-review-audience", good, func() { remote.audiences = []string{"kubernetes"} }},
 		{"wrong-review-user", good, func() { remote.username = "system:serviceaccount:engine:attacker" }},
+		{"no-pod-extras", good, func() { remote.extra = nil }},
+		{"no-pod-name", good, func() { delete(remote.extra, "authentication.kubernetes.io/pod-name") }},
+		{"no-pod-uid", good, func() { delete(remote.extra, "authentication.kubernetes.io/pod-uid") }},
+		{"empty-pod-name", good, func() { remote.extra["authentication.kubernetes.io/pod-name"] = []string{""} }},
+		{"empty-pod-uid", good, func() { remote.extra["authentication.kubernetes.io/pod-uid"] = []string{""} }},
+		{"multiple-pod-names", good, func() { remote.extra["authentication.kubernetes.io/pod-name"] = []string{"worker-0", "worker-1"} }},
+		{"multiple-pod-uids", good, func() { remote.extra["authentication.kubernetes.io/pod-uid"] = []string{"uid-0", "uid-1"} }},
+		{"invalid-pod-name", good, func() { remote.extra["authentication.kubernetes.io/pod-name"] = []string{"other:uid:spoof"} }},
+		{"invalid-pod-uid", good, func() { remote.extra["authentication.kubernetes.io/pod-uid"] = []string{"uid/other"} }},
 		{"review-unavailable", good, func() { remote.status = 503 }},
 		{"review-malformed", good, func() { remote.malformed = true }},
 		{"review-redirect", good, func() { remote.redirect = true }},
@@ -139,6 +174,7 @@ func TestK2IdentityGuards(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			reviewer.config = config
+			remote.extra = podExtras()
 			remote.authenticated = true
 			remote.err = ""
 			remote.audiences = []string{"durable-worker"}
@@ -169,6 +205,7 @@ func TestK2IdentityGuards(t *testing.T) {
 		})
 	}
 	reviewer.config = config
+	remote.extra = podExtras()
 	remote.authenticated = true
 	remote.err = ""
 	remote.audiences = []string{"durable-worker"}
@@ -177,7 +214,7 @@ func TestK2IdentityGuards(t *testing.T) {
 	remote.malformed = false
 	remote.credential = "rotated"
 	_ = os.WriteFile(config.ReviewerTokenFile, []byte(remote.credential), 0600)
-	if id, err := reviewer.verify(context.Background(), good); err != nil || id != remote.username {
+	if id, err := reviewer.verify(context.Background(), good); err != nil || id != remote.username+":pod:worker-0:uid:7fa8065c-c4cb-4b9b-a021-380edda831e8" {
 		t.Fatalf("rotated token failed: %q %v", id, err)
 	}
 	reviewer.config.APIURL = "https://127.0.0.1:1"
@@ -275,19 +312,169 @@ func TestK2RouteSetsAndIdentityBinding(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+token)
 	res := httptest.NewRecorder()
 	NewServer(repo).WithRoutes(RoutesOperator).WithAuthentication(reviewer).Handler().ServeHTTP(res, req)
-	if res.Code != 200 || repo.decision.ApproverID != remote.username {
+	if res.Code != 200 || repo.decision.ApproverID != remote.username+":pod:worker-0:uid:7fa8065c-c4cb-4b9b-a021-380edda831e8" {
 		t.Fatal("authenticated approver spoofed")
 	}
-	req = httptest.NewRequest("POST", "/v1/workflows/w/nodes/n/iterations/0/claim", strings.NewReader(`{"worker_id":"spoof","request_id":"request"}`))
+	req = httptest.NewRequest("POST", "/v1/workflows/w/nodes/n/iterations/0/claim", strings.NewReader(`{"worker_id":"worker-OTHER:slot-9","request_id":"request"}`))
 	req.Header.Set("Authorization", "Bearer "+token)
 	res = httptest.NewRecorder()
 	NewServer(repo).WithRoutes(RoutesWorkerControl).WithAuthentication(reviewer).Handler().ServeHTTP(res, req)
-	if res.Code != 200 || repo.claim.WorkerID != remote.username {
+	if res.Code != 200 || repo.claim.WorkerID != remote.username+":pod:worker-0:uid:7fa8065c-c4cb-4b9b-a021-380edda831e8" {
 		t.Fatal("authenticated worker spoofed")
 	}
 	res = httptest.NewRecorder()
 	NewServer(repo).Handler().ServeHTTP(res, httptest.NewRequest("POST", "/v1/approvals/a/decision", strings.NewReader(`{"approver_id":"localhost","proposal_hash":"hash","decision":"APPROVED"}`)))
 	if res.Code != 200 || repo.decision.ApproverID != "localhost" {
 		t.Fatal("Compose decision behavior changed")
+	}
+}
+
+// Assert repository inputs independently of production identity formatting.
+func TestK2OperatorActorBinding(t *testing.T) {
+	reviewer, remote := identityFixture(t)
+	token := projectedToken(reviewer.config.Issuer, remote.username, "durable-worker", time.Now().Add(time.Hour).Unix())
+	for _, auth := range []bool{true, false} {
+		for _, bodyActor := range []string{"spoof", ""} {
+			for _, operation := range []string{"approval-create", "approval-apply", "cancellation-apply", "workflow-create"} {
+				t.Run(fmt.Sprintf("%s/auth=%t/body=%s", operation, auth, bodyActor), func(t *testing.T) {
+					repo := &identityRepository{fakeWorkerRepository: &fakeWorkerRepository{fakeRepository: &fakeRepository{}}}
+					body := map[string]any{"actor_id": bodyActor, "owner_id": "owner", "epoch": 1, "workflow_id": "w", "node_id": "n", "intent_id": "a", "submission_key": "key", "definition_id": "d", "definition_version": 1, "initial_node_id": "root", "payload": map[string]any{}}
+					// Each route has a strict body schema.
+					var path string
+					var keys []string
+					var actor func() string
+					expectedStatus := 200
+					switch operation {
+					case "approval-create":
+						path, keys = "/v1/workflows/w/nodes/n/iterations/0/approval", []string{"actor_id", "owner_id", "epoch"}
+						actor = func() string { return repo.approval.ActorID }
+						expectedStatus = 201
+					case "approval-apply":
+						path, keys = "/v1/approvals/a/apply", []string{"actor_id", "owner_id", "epoch", "workflow_id", "node_id", "intent_id"}
+						actor = func() string { return repo.applied.ActorID }
+					case "cancellation-apply":
+						path, keys = "/v1/cancellations/c/apply", []string{"actor_id", "owner_id", "epoch"}
+						actor = func() string { return repo.cancelActor }
+					case "workflow-create":
+						path, keys = "/v1/workflows", []string{"actor_id", "submission_key", "definition_id", "definition_version", "initial_node_id", "payload"}
+						actor = func() string { return repo.lastCreate.ActorID }
+					}
+					selected := map[string]any{}
+					for _, key := range keys {
+						selected[key] = body[key]
+					}
+					raw, _ := json.Marshal(selected)
+					server := NewServer(repo).WithRoutes(RoutesOperator)
+					want := bodyActor
+					if auth {
+						server.WithAuthentication(reviewer)
+						want = "system:serviceaccount:engine:worker:pod:worker-0:uid:7fa8065c-c4cb-4b9b-a021-380edda831e8"
+					} else if bodyActor == "" {
+						if operation == "workflow-create" {
+							want = "client"
+						} else {
+							expectedStatus = 400
+						}
+					}
+					req := httptest.NewRequest("POST", path, strings.NewReader(string(raw)))
+					req.Header.Set("Authorization", "Bearer "+token)
+					res := httptest.NewRecorder()
+					server.Handler().ServeHTTP(res, req)
+					if res.Code != expectedStatus || actor() != want {
+						t.Fatalf("operator actor binding bypassed: status=%d actor=%q want=%q body=%s", res.Code, actor(), want, res.Body.String())
+					}
+				})
+			}
+		}
+	}
+}
+
+func TestK2PodClaimPersistence(t *testing.T) {
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	store, err := state.NewFromURL(ctx, apiIntegrationDatabaseURL(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	id := "k2-pod-" + state.NewID()
+	if err := store.CreateDefinition(ctx, state.DefinitionInput{DefinitionID: id, Version: 1, DefinitionHash: id,
+		Graph: []byte(`{"nodes":["root"]}`), ActivityVersions: []byte(`{"root":"v1"}`), EffectClasses: []byte(`{"root":"PURE_ACTIVITY"}`)}); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_executions WHERE namespace=$1`, id)
+		_, _ = store.Pool().Exec(ctx, `DELETE FROM engine.workflow_definitions WHERE definition_id=$1`, id)
+	}()
+	var lease state.Lease
+	var acquired bool
+	ownerID := state.NewID()
+	for p := int16(0); p < 16; p++ {
+		lease, acquired, err = store.AcquireLease(ctx, p, ownerID, time.Minute)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if acquired {
+			break
+		}
+	}
+	if !acquired {
+		t.Fatal("no available fixture partition")
+	}
+	ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
+	defer func() { _ = store.ReleaseLease(ctx, ref) }()
+	reviewer, remote := identityFixture(t)
+	token := projectedToken(reviewer.config.Issuer, remote.username, "durable-worker", time.Now().Add(time.Hour).Unix())
+	handler := NewServer(store).WithRoutes(RoutesWorkerControl).WithAuthentication(reviewer).Handler()
+	for _, uid := range []string{"pod-uid-original", "pod-uid-recreated", ""} {
+		t.Run(uid, func(t *testing.T) {
+			workflowID := ""
+			for tries := 0; tries < 4096; tries++ {
+				candidate := state.NewID()
+				mapped, err := partition.ID(candidate)
+				if err == nil && int16(mapped) == lease.PartitionID {
+					workflowID = candidate
+					break
+				}
+			}
+			if workflowID == "" {
+				t.Fatal("no workflow mapped to fixture partition")
+			}
+			if _, err := store.CreateWorkflow(ctx, state.CreateWorkflowInput{WorkflowID: workflowID, Namespace: id,
+				SubmissionKey: workflowID, SubmissionPayloadHash: "sub-v1:" + workflowID, DefinitionID: id,
+				DefinitionVersion: 1, PartitionID: lease.PartitionID, InitialNodeID: "root", InitialInput: []byte(`{}`), ActorID: "fixture"}); err != nil {
+				t.Fatal(err)
+			}
+			nodeState := state.StateWaitingActivity
+			if err := store.ApplyOwnerTransition(ctx, state.OwnerTransitionInput{Lease: ref, WorkflowID: workflowID,
+				ExpectedRevision: 1, NewState: nodeState, NodeID: "root", NodeState: &nodeState, ActorID: "fixture", Reason: "SCHEDULE_ACTIVITY"}); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := store.CreateAttempt(ctx, state.AttemptInput{Lease: ref, WorkflowID: workflowID, NodeID: "root",
+				ExpectedRevision: 2, EffectClass: state.EffectPure, DispatchLease: time.Minute, ActorID: "fixture"}); err != nil {
+				t.Fatal(err)
+			}
+			remote.extra = podExtras()
+			remote.extra["authentication.kubernetes.io/pod-uid"] = []string{uid}
+			if uid == "" {
+				remote.extra = nil
+			}
+			req := httptest.NewRequest("POST", fmt.Sprintf("/v1/workflows/%s/nodes/root/iterations/0/claim", workflowID),
+				strings.NewReader(fmt.Sprintf(`{"worker_id":"another-pod:slot-1","request_id":%q}`, workflowID)))
+			req.Header.Set("Authorization", "Bearer "+token)
+			res := httptest.NewRecorder()
+			handler.ServeHTTP(res, req)
+			var workerID string
+			if err := store.Pool().QueryRow(ctx, `SELECT coalesce(worker_id,'') FROM engine.activity_attempts WHERE workflow_id=$1`, workflowID).Scan(&workerID); err != nil {
+				t.Fatal(err)
+			}
+			if uid == "" {
+				if res.Code != 401 || workerID != "" {
+					t.Fatalf("unbound claim recorded: status=%d worker=%q", res.Code, workerID)
+				}
+			} else if res.Code != 200 || workerID != "system:serviceaccount:engine:worker:pod:worker-0:uid:"+uid {
+				t.Fatalf("pod claim attribution lost: status=%d worker=%q body=%s", res.Code, workerID, res.Body.String())
+			}
+		})
 	}
 }

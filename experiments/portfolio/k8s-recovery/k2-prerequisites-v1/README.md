@@ -1,8 +1,17 @@
 # DUR-053 K2a prerequisites
 
 Scope: R218 identity/route isolation and R222 database clock construction.
-Base 2406292fa890096603274cf6bdfb315e83232011, uncommitted working tree;
-Claude commits. K2 stays IN_PROGRESS; handoff PROVISIONAL.
+Original evidence below describes the earlier K2a working tree on base
+2406292fa890096603274cf6bdfb315e83232011, subsequently committed by Claude at
+d007d26507fee4ca50e68bcdc389de160fbf647f. It is historical evidence, not a
+claim that those commands were rerun in the Round 158 fix pass.
+
+Round 158 R233/R234 follow-up uses base d007d26 and stays uncommitted;
+Claude commits. K2 stays IN_PROGRESS; handoff PROVISIONAL. Files with `r158`
+in their names contain only this pass's executed checks. The authoritative
+check/skip record is validation-r158.json; mutation results, full race output,
+identity output, source hashes, and cleanup are separately suffixed `r158`.
+No cluster, Compose, hosted CI, or real TokenReview signature proof is claimed.
 
 Identity: Go TLS TokenReview fixtures test route absence, authenticated actor
 binding, missing/wrong/expired credentials, trust configuration, reviewer

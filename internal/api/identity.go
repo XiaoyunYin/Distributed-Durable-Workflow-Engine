@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -153,7 +154,8 @@ func (v *TokenReviewer) verify(ctx context.Context, token string) (string, error
 			Audiences     []string `json:"audiences"`
 			Error         string   `json:"error"`
 			User          struct {
-				Username string `json:"username"`
+				Username string              `json:"username"`
+				Extra    map[string][]string `json:"extra"`
 			} `json:"user"`
 		} `json:"status"`
 	}
@@ -169,8 +171,21 @@ func (v *TokenReviewer) verify(ctx context.Context, token string) (string, error
 	if review.Status.User.Username != identity {
 		return "", errors.New("TokenReview ServiceAccount mismatch")
 	}
-	return identity, nil
+	podNames := review.Status.User.Extra["authentication.kubernetes.io/pod-name"]
+	podUIDs := review.Status.User.Extra["authentication.kubernetes.io/pod-uid"]
+	if !validPodExtra(podNames) || !validPodExtra(podUIDs) {
+		return "", errors.New("pod-bound projected token required")
+	}
+	return identity + ":pod:" + podNames[0] + ":uid:" + podUIDs[0], nil
 }
+
+// Delimiter-free singleton values make the persisted pod identity unambiguous.
+var podIdentityPart = regexp.MustCompile(`^[a-zA-Z0-9][a-zA-Z0-9.-]*$`)
+
+func validPodExtra(values []string) bool {
+	return len(values) == 1 && len(values[0]) <= 253 && podIdentityPart.MatchString(values[0])
+}
+
 func hasAudience(audiences []string, expected string) bool {
 	for _, a := range audiences {
 		if a == expected {

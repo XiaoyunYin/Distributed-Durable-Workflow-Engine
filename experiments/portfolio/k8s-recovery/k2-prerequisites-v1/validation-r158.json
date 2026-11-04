@@ -1,0 +1,190 @@
+{
+  "scope": "Round 158 R233/R234 only",
+  "base_commit": "d007d26507fee4ca50e68bcdc389de160fbf647f",
+  "target_commit": null,
+  "handoff_basis": "PROVISIONAL",
+  "task_status": "IN_PROGRESS",
+  "source_basis": "uncommitted working tree; Claude commits",
+  "status": "PASS",
+  "checks": [
+    {
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit_code": 0,
+      "duration_seconds": 10.88,
+      "name": "vet",
+      "output": ""
+    },
+    {
+      "command": [
+        "gofmt",
+        "-l",
+        "cmd",
+        "internal"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.1,
+      "name": "gofmt",
+      "output": ""
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-p",
+        "1",
+        "-count=1",
+        "./..."
+      ],
+      "exit_code": 0,
+      "duration_seconds": 301.11,
+      "name": "race",
+      "output": "?   \tdurable-agent-execution-engine/cmd/dur026-benchmark\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/dur026-worker\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/dur027-crash-fixture\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur027-lease\t4.151s\nok  \tdurable-agent-execution-engine/cmd/dur028-checkpoint\t1.407s\n?   \tdurable-agent-execution-engine/cmd/dur034-ablation\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur035-dispatch\t1.414s\n?   \tdurable-agent-execution-engine/cmd/dur041a-isolation\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur043-stale-probe\t1.429s\n?   \tdurable-agent-execution-engine/cmd/dur048-load\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur049-checker\t1.437s\nok  \tdurable-agent-execution-engine/cmd/dur049-db-probe\t4.353s\nok  \tdurable-agent-execution-engine/cmd/dur049-lock-holder\t1.494s\nok  \tdurable-agent-execution-engine/cmd/dur050-fixture\t1.482s\nok  \tdurable-agent-execution-engine/cmd/dur050-loadgen\t2.300s\nok  \tdurable-agent-execution-engine/cmd/dur050-observer\t1.520s\nok  \tdurable-agent-execution-engine/cmd/dur050-sink\t1.297s\n?   \tdurable-agent-execution-engine/cmd/fault-checker\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/fault-fixture\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/local-demo\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/m5-fixture\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/runtime\t59.609s\nok  \tdurable-agent-execution-engine/internal/api\t3.154s\nok  \tdurable-agent-execution-engine/internal/dur050\t1.273s\nok  \tdurable-agent-execution-engine/internal/effects\t1.352s\nok  \tdurable-agent-execution-engine/internal/engine\t17.355s\nok  \tdurable-agent-execution-engine/internal/faults\t1.310s\nok  \tdurable-agent-execution-engine/internal/incident\t7.198s\nok  \tdurable-agent-execution-engine/internal/invariants\t2.176s\nok  \tdurable-agent-execution-engine/internal/partition\t1.291s\nok  \tdurable-agent-execution-engine/internal/reconciliation\t2.614s\nok  \tdurable-agent-execution-engine/internal/reference\t3.772s\nok  \tdurable-agent-execution-engine/internal/state\t16.902s\nok  \tdurable-agent-execution-engine/internal/telemetry\t2.465s\nok  \tdurable-agent-execution-engine/internal/transport\t3.099s\n"
+    },
+    {
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "./internal/api",
+        "-run",
+        "^TestK2",
+        "-count=1",
+        "-v"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 34.63,
+      "name": "identity",
+      "output": "=== RUN   TestK2IdentityGuards\n=== RUN   TestK2IdentityGuards/missing\n=== RUN   TestK2IdentityGuards/malformed\n=== RUN   TestK2IdentityGuards/invalid-base64\n=== RUN   TestK2IdentityGuards/invalid-claims\n=== RUN   TestK2IdentityGuards/wrong-audience\n=== RUN   TestK2IdentityGuards/wrong-ServiceAccount\n=== RUN   TestK2IdentityGuards/wrong-namespace\n=== RUN   TestK2IdentityGuards/wrong-issuer\n=== RUN   TestK2IdentityGuards/expired\n=== RUN   TestK2IdentityGuards/no-expiry\n=== RUN   TestK2IdentityGuards/unauthenticated\n=== RUN   TestK2IdentityGuards/review-error\n=== RUN   TestK2IdentityGuards/empty-review-audience\n=== RUN   TestK2IdentityGuards/wrong-review-audience\n=== RUN   TestK2IdentityGuards/wrong-review-user\n=== RUN   TestK2IdentityGuards/no-pod-extras\n=== RUN   TestK2IdentityGuards/no-pod-name\n=== RUN   TestK2IdentityGuards/no-pod-uid\n=== RUN   TestK2IdentityGuards/empty-pod-name\n=== RUN   TestK2IdentityGuards/empty-pod-uid\n=== RUN   TestK2IdentityGuards/multiple-pod-names\n=== RUN   TestK2IdentityGuards/multiple-pod-uids\n=== RUN   TestK2IdentityGuards/invalid-pod-name\n=== RUN   TestK2IdentityGuards/invalid-pod-uid\n=== RUN   TestK2IdentityGuards/review-unavailable\n=== RUN   TestK2IdentityGuards/review-malformed\n=== RUN   TestK2IdentityGuards/review-redirect\n=== RUN   TestK2IdentityGuards/reviewer-missing\n=== RUN   TestK2IdentityGuards/reviewer-empty\n--- PASS: TestK2IdentityGuards (0.11s)\n    --- PASS: TestK2IdentityGuards/missing (0.00s)\n    --- PASS: TestK2IdentityGuards/malformed (0.00s)\n    --- PASS: TestK2IdentityGuards/invalid-base64 (0.00s)\n    --- PASS: TestK2IdentityGuards/invalid-claims (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-ServiceAccount (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-namespace (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-issuer (0.00s)\n    --- PASS: TestK2IdentityGuards/expired (0.02s)\n    --- PASS: TestK2IdentityGuards/no-expiry (0.00s)\n    --- PASS: TestK2IdentityGuards/unauthenticated (0.00s)\n    --- PASS: TestK2IdentityGuards/review-error (0.00s)\n    --- PASS: TestK2IdentityGuards/empty-review-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-review-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-review-user (0.00s)\n    --- PASS: TestK2IdentityGuards/no-pod-extras (0.00s)\n    --- PASS: TestK2IdentityGuards/no-pod-name (0.00s)\n    --- PASS: TestK2IdentityGuards/no-pod-uid (0.00s)\n    --- PASS: TestK2IdentityGuards/empty-pod-name (0.00s)\n    --- PASS: TestK2IdentityGuards/empty-pod-uid (0.00s)\n    --- PASS: TestK2IdentityGuards/multiple-pod-names (0.00s)\n    --- PASS: TestK2IdentityGuards/multiple-pod-uids (0.00s)\n    --- PASS: TestK2IdentityGuards/invalid-pod-name (0.00s)\n    --- PASS: TestK2IdentityGuards/invalid-pod-uid (0.01s)\n    --- PASS: TestK2IdentityGuards/review-unavailable (0.00s)\n    --- PASS: TestK2IdentityGuards/review-malformed (0.00s)\n    --- PASS: TestK2IdentityGuards/review-redirect (0.00s)\n    --- PASS: TestK2IdentityGuards/reviewer-missing (0.00s)\n    --- PASS: TestK2IdentityGuards/reviewer-empty (0.00s)\n=== RUN   TestK2IdentityConfiguration\n--- PASS: TestK2IdentityConfiguration (0.02s)\n=== RUN   TestK2RouteSetsAndIdentityBinding\n--- PASS: TestK2RouteSetsAndIdentityBinding (0.04s)\n=== RUN   TestK2OperatorActorBinding\n=== RUN   TestK2OperatorActorBinding/approval-create/auth=true/body=spoof\n=== RUN   TestK2OperatorActorBinding/approval-apply/auth=true/body=spoof\n=== RUN   TestK2OperatorActorBinding/cancellation-apply/auth=true/body=spoof\n=== RUN   TestK2OperatorActorBinding/workflow-create/auth=true/body=spoof\n=== RUN   TestK2OperatorActorBinding/approval-create/auth=true/body=\n=== RUN   TestK2OperatorActorBinding/approval-apply/auth=true/body=\n=== RUN   TestK2OperatorActorBinding/cancellation-apply/auth=true/body=\n=== RUN   TestK2OperatorActorBinding/workflow-create/auth=true/body=\n=== RUN   TestK2OperatorActorBinding/approval-create/auth=false/body=spoof\n=== RUN   TestK2OperatorActorBinding/approval-apply/auth=false/body=spoof\n=== RUN   TestK2OperatorActorBinding/cancellation-apply/auth=false/body=spoof\n=== RUN   TestK2OperatorActorBinding/workflow-create/auth=false/body=spoof\n=== RUN   TestK2OperatorActorBinding/approval-create/auth=false/body=\n=== RUN   TestK2OperatorActorBinding/approval-apply/auth=false/body=\n=== RUN   TestK2OperatorActorBinding/cancellation-apply/auth=false/body=\n=== RUN   TestK2OperatorActorBinding/workflow-create/auth=false/body=\n--- PASS: TestK2OperatorActorBinding (0.05s)\n    --- PASS: TestK2OperatorActorBinding/approval-create/auth=true/body=spoof (0.01s)\n    --- PASS: TestK2OperatorActorBinding/approval-apply/auth=true/body=spoof (0.00s)\n    --- PASS: TestK2OperatorActorBinding/cancellation-apply/auth=true/body=spoof (0.00s)\n    --- PASS: TestK2OperatorActorBinding/workflow-create/auth=true/body=spoof (0.00s)\n    --- PASS: TestK2OperatorActorBinding/approval-create/auth=true/body= (0.00s)\n    --- PASS: TestK2OperatorActorBinding/approval-apply/auth=true/body= (0.00s)\n    --- PASS: TestK2OperatorActorBinding/cancellation-apply/auth=true/body= (0.00s)\n    --- PASS: TestK2OperatorActorBinding/workflow-create/auth=true/body= (0.00s)\n    --- PASS: TestK2OperatorActorBinding/approval-create/auth=false/body=spoof (0.00s)\n    --- PASS: TestK2OperatorActorBinding/approval-apply/auth=false/body=spoof (0.00s)\n    --- PASS: TestK2OperatorActorBinding/cancellation-apply/auth=false/body=spoof (0.00s)\n    --- PASS: TestK2OperatorActorBinding/workflow-create/auth=false/body=spoof (0.00s)\n    --- PASS: TestK2OperatorActorBinding/approval-create/auth=false/body= (0.00s)\n    --- PASS: TestK2OperatorActorBinding/approval-apply/auth=false/body= (0.00s)\n    --- PASS: TestK2OperatorActorBinding/cancellation-apply/auth=false/body= (0.00s)\n    --- PASS: TestK2OperatorActorBinding/workflow-create/auth=false/body= (0.00s)\n=== RUN   TestK2PodClaimPersistence\n=== RUN   TestK2PodClaimPersistence/pod-uid-original\n=== RUN   TestK2PodClaimPersistence/pod-uid-recreated\n=== RUN   TestK2PodClaimPersistence/#00\n--- PASS: TestK2PodClaimPersistence (0.54s)\n    --- PASS: TestK2PodClaimPersistence/pod-uid-original (0.32s)\n    --- PASS: TestK2PodClaimPersistence/pod-uid-recreated (0.05s)\n    --- PASS: TestK2PodClaimPersistence/#00 (0.04s)\nPASS\nok  \tdurable-agent-execution-engine/internal/api\t5.691s\n"
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "check",
+        "python",
+        "tests"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.48,
+      "name": "ruff",
+      "output": "All checks passed!\n"
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "format",
+        "--check",
+        "python",
+        "tests"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 0.14,
+      "name": "ruff-format",
+      "output": "69 files already formatted\n"
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "mypy"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 18.65,
+      "name": "mypy",
+      "output": "Success: no issues found in 43 source files\n"
+    },
+    {
+      "command": [
+        "uv",
+        "run",
+        "pytest"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 54.1,
+      "name": "pytest",
+      "output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0\nrootdir: D:\\portfolio-projects\\durable-agent-execution-engine\nconfigfile: pyproject.toml\ntestpaths: tests\nplugins: anyio-4.15.1\ncollected 205 items\n\ntests\\test_dur050_cost_ledger.py .................                       [  8%]\ntests\\test_dur050_pilot_slo.py ................                          [ 16%]\ntests\\test_dur050_window_reconciliation.py ....                          [ 18%]\ntests\\test_dur055_development_guards.py ....                             [ 20%]\ntests\\test_dur055_heldout.py ...........                                 [ 25%]\ntests\\test_dur055_mcp.py .......                                         [ 28%]\ntests\\test_dur055_postgres_integration.py ss                             [ 29%]\ntests\\test_dur056_budget.py ....                                         [ 31%]\ntests\\test_dur056_evaluation.py ..............                           [ 38%]\ntests\\test_dur056_fixtures.py ................                           [ 46%]\ntests\\test_dur056_retrieval.py ............                              [ 52%]\ntests\\test_dur056_scorer.py ...........                                  [ 57%]\ntests\\test_fault_control.py .............                                [ 63%]\ntests\\test_fault_proxy.py .                                              [ 64%]\ntests\\test_imports.py ..                                                 [ 65%]\ntests\\test_incident_agent.py ................                            [ 73%]\ntests\\test_kafka_worker.py ......                                        [ 76%]\ntests\\test_mutation_runner.py ........                                   [ 80%]\ntests\\test_partition_vectors.py ...                                      [ 81%]\ntests\\test_runtime_image_targets.py .                                    [ 81%]\ntests\\test_worker_identity.py .                                          [ 82%]\ntests\\test_worker_kafka_lifecycle.py s                                   [ 82%]\ntests\\test_worker_lifecycle.py .......................                   [ 94%]\ntests\\test_workers.py ............                                       [100%]\n\n=========================== short test summary info ===========================\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:34: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:41: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_worker_kafka_lifecycle.py:24: real Kafka witness requires DURABLE_KAFKA_BROKERS\n======================= 202 passed, 3 skipped in 52.18s =======================\n"
+    },
+    {
+      "command": [
+        "C:\\Program Files\\Git\\bin\\bash.exe",
+        "scripts/mutation-gate.sh",
+        "D:\\coding agent files\\durable-engine\\codex\\k2a-fix\\mutations-r158.json"
+      ],
+      "exit_code": 0,
+      "duration_seconds": 1121.95,
+      "name": "mutation",
+      "output_artifact": "mutation-gate-r158.txt"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "output": ""
+    },
+    {
+      "name": "links",
+      "command": [
+        "python",
+        "scripts/check-public-links.py"
+      ],
+      "exit_code": 0,
+      "output": "Public Markdown link check PASS: 172 local links across 37 Markdown files.\n"
+    }
+  ],
+  "mutation_gate": {
+    "status": "PASS",
+    "detected": 106,
+    "total": 106,
+    "new_cases": 8,
+    "database": "dur053_k2afix_mutation",
+    "source_basis": "working-tree overlay"
+  },
+  "temporary_root": "D:\\coding agent files\\durable-engine\\codex\\k2a-fix",
+  "databases": [
+    "dur053_k2afix_race",
+    "dur053_k2afix_mutation"
+  ],
+  "migrations": {
+    "count": 18,
+    "max_version": 18,
+    "native_postgresql": true
+  },
+  "schema_change": false,
+  "skipped_or_unavailable": [
+    {
+      "check": "pytest optional integrations",
+      "reason": "Two tests require DUR055_TEST_DATABASE_URL; one requires DURABLE_KAFKA_BROKERS; pytest reports 202 passed, 3 skipped."
+    },
+    {
+      "check": "Docker/Compose and PowerShell 7 gate",
+      "reason": "Docker and pwsh 7 unavailable in sandbox; native PostgreSQL and Bash gate used."
+    },
+    {
+      "check": "kind, real API-server signature/RBAC/port probes, TimeChaos, hosted CI",
+      "reason": "Not run in this local fix pass; no deployment or campaign result claimed."
+    }
+  ],
+  "failed_or_aborted_attempts": [
+    "New test fixtures initially omitted required submission payload, used a non-UUID lease owner, and reused request IDs across attempts; corrected to valid payload, generated UUID owner, and unique per-workflow request IDs. Final targeted tests passed.",
+    "An initial mutation gate was interrupted during baseline/export after inspection showed the UID mutation would fail at the earlier approver assertion rather than the named worker assertion. The mutation now strips pod identity only at claim assignment; the mutation database was dropped/recreated and migrated before the final gate.",
+    "An optional process inventory via Get-CimInstance was denied; no process metadata was changed.",
+    "A notes update initially used the Windows default text codec and failed before any write; rerun with UTF-8. REVIEW remains byte-preserved and is appended separately."
+  ],
+  "review_original_prefix_sha256": "11246e0304f4c0a556e4c9335880016ecaff2ded0e1b4a17725bc3404a6b9a7f",
+  "review_original_prefix_bytes": 2153777,
+  "review_append_only_preserved": true,
+  "review_append_lf_ascii": true,
+  "cleanup_evidence": "cleanup-r158.json"
+}

@@ -1559,6 +1559,150 @@
       ],
       "expected": "identity guard bypassed",
       "requires_database": false
+    },
+    {
+      "id": "k2-pod-name-required",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if !validPodExtra(podNames) || !validPodExtra(podUIDs) {\n\t\treturn \"\", errors.New(\"pod-bound projected token required\")\n\t}",
+      "new": "if !validPodExtra(podNames) { return identity, nil }\n\tif !validPodExtra(podNames) || !validPodExtra(podUIDs) {\n\t\treturn \"\", errors.New(\"pod-bound projected token required\")\n\t}",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-pod-uid-required",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if !validPodExtra(podNames) || !validPodExtra(podUIDs) {\n\t\treturn \"\", errors.New(\"pod-bound projected token required\")\n\t}",
+      "new": "if !validPodExtra(podUIDs) { return identity, nil }\n\tif !validPodExtra(podNames) || !validPodExtra(podUIDs) {\n\t\treturn \"\", errors.New(\"pod-bound projected token required\")\n\t}",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-pod-binding-required",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "return \"\", errors.New(\"pod-bound projected token required\")",
+      "new": "return identity, nil",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-pod-uid-recorded",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "request.WorkerID = identity",
+      "new": "request.WorkerID = strings.Split(identity, \":pod:\")[0]",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2RouteSetsAndIdentityBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "authenticated worker spoofed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-actor-approval-create",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "\tvar request approvalRequest\n\tif err := decodeJSON(w, r, &request); err != nil {\n\t\twriteError(w, http.StatusBadRequest, \"INVALID_REQUEST\", err.Error(), nil)\n\t\treturn\n\t}\n\tif identity := authenticatedIdentity(r.Context()); identity != \"\" {\n\t\trequest.ActorID = identity\n\t}",
+      "new": "\tvar request approvalRequest\n\tif err := decodeJSON(w, r, &request); err != nil {\n\t\twriteError(w, http.StatusBadRequest, \"INVALID_REQUEST\", err.Error(), nil)\n\t\treturn\n\t}\n",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2OperatorActorBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "operator actor binding bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-actor-approval-apply",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "\tvar request applyApprovalRequest\n\tif err := decodeJSON(w, r, &request); err != nil {\n\t\twriteError(w, http.StatusBadRequest, \"INVALID_REQUEST\", err.Error(), nil)\n\t\treturn\n\t}\n\tif identity := authenticatedIdentity(r.Context()); identity != \"\" {\n\t\trequest.ActorID = identity\n\t}",
+      "new": "\tvar request applyApprovalRequest\n\tif err := decodeJSON(w, r, &request); err != nil {\n\t\twriteError(w, http.StatusBadRequest, \"INVALID_REQUEST\", err.Error(), nil)\n\t\treturn\n\t}\n",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2OperatorActorBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "operator actor binding bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-actor-cancellation-apply",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "\tvar request applyCancellationRequest\n\tif err := decodeJSON(w, r, &request); err != nil {\n\t\twriteError(w, http.StatusBadRequest, \"INVALID_REQUEST\", err.Error(), nil)\n\t\treturn\n\t}\n\tif identity := authenticatedIdentity(r.Context()); identity != \"\" {\n\t\trequest.ActorID = identity\n\t}",
+      "new": "\tvar request applyCancellationRequest\n\tif err := decodeJSON(w, r, &request); err != nil {\n\t\twriteError(w, http.StatusBadRequest, \"INVALID_REQUEST\", err.Error(), nil)\n\t\treturn\n\t}\n",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2OperatorActorBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "operator actor binding bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-actor-workflow-create",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "\tif identity := authenticatedIdentity(r.Context()); identity != \"\" {\n\t\trequest.ActorID = identity\n\t}\n\tif request.ActorID == \"\" {",
+      "new": "\tif request.ActorID == \"\" {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2OperatorActorBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "operator actor binding bypassed",
+      "requires_database": false
     }
   ]
 }

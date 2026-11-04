@@ -1,0 +1,108 @@
+=== RUN   TestK2IdentityGuards
+=== RUN   TestK2IdentityGuards/missing
+=== RUN   TestK2IdentityGuards/malformed
+=== RUN   TestK2IdentityGuards/invalid-base64
+=== RUN   TestK2IdentityGuards/invalid-claims
+=== RUN   TestK2IdentityGuards/wrong-audience
+=== RUN   TestK2IdentityGuards/wrong-ServiceAccount
+=== RUN   TestK2IdentityGuards/wrong-namespace
+=== RUN   TestK2IdentityGuards/wrong-issuer
+=== RUN   TestK2IdentityGuards/expired
+=== RUN   TestK2IdentityGuards/no-expiry
+=== RUN   TestK2IdentityGuards/unauthenticated
+=== RUN   TestK2IdentityGuards/review-error
+=== RUN   TestK2IdentityGuards/empty-review-audience
+=== RUN   TestK2IdentityGuards/wrong-review-audience
+=== RUN   TestK2IdentityGuards/wrong-review-user
+=== RUN   TestK2IdentityGuards/no-pod-extras
+=== RUN   TestK2IdentityGuards/no-pod-name
+=== RUN   TestK2IdentityGuards/no-pod-uid
+=== RUN   TestK2IdentityGuards/empty-pod-name
+=== RUN   TestK2IdentityGuards/empty-pod-uid
+=== RUN   TestK2IdentityGuards/multiple-pod-names
+=== RUN   TestK2IdentityGuards/multiple-pod-uids
+=== RUN   TestK2IdentityGuards/invalid-pod-name
+=== RUN   TestK2IdentityGuards/invalid-pod-uid
+=== RUN   TestK2IdentityGuards/review-unavailable
+=== RUN   TestK2IdentityGuards/review-malformed
+=== RUN   TestK2IdentityGuards/review-redirect
+=== RUN   TestK2IdentityGuards/reviewer-missing
+=== RUN   TestK2IdentityGuards/reviewer-empty
+--- PASS: TestK2IdentityGuards (0.11s)
+    --- PASS: TestK2IdentityGuards/missing (0.00s)
+    --- PASS: TestK2IdentityGuards/malformed (0.00s)
+    --- PASS: TestK2IdentityGuards/invalid-base64 (0.00s)
+    --- PASS: TestK2IdentityGuards/invalid-claims (0.00s)
+    --- PASS: TestK2IdentityGuards/wrong-audience (0.00s)
+    --- PASS: TestK2IdentityGuards/wrong-ServiceAccount (0.00s)
+    --- PASS: TestK2IdentityGuards/wrong-namespace (0.00s)
+    --- PASS: TestK2IdentityGuards/wrong-issuer (0.00s)
+    --- PASS: TestK2IdentityGuards/expired (0.02s)
+    --- PASS: TestK2IdentityGuards/no-expiry (0.00s)
+    --- PASS: TestK2IdentityGuards/unauthenticated (0.00s)
+    --- PASS: TestK2IdentityGuards/review-error (0.00s)
+    --- PASS: TestK2IdentityGuards/empty-review-audience (0.00s)
+    --- PASS: TestK2IdentityGuards/wrong-review-audience (0.00s)
+    --- PASS: TestK2IdentityGuards/wrong-review-user (0.00s)
+    --- PASS: TestK2IdentityGuards/no-pod-extras (0.00s)
+    --- PASS: TestK2IdentityGuards/no-pod-name (0.00s)
+    --- PASS: TestK2IdentityGuards/no-pod-uid (0.00s)
+    --- PASS: TestK2IdentityGuards/empty-pod-name (0.00s)
+    --- PASS: TestK2IdentityGuards/empty-pod-uid (0.00s)
+    --- PASS: TestK2IdentityGuards/multiple-pod-names (0.00s)
+    --- PASS: TestK2IdentityGuards/multiple-pod-uids (0.00s)
+    --- PASS: TestK2IdentityGuards/invalid-pod-name (0.00s)
+    --- PASS: TestK2IdentityGuards/invalid-pod-uid (0.01s)
+    --- PASS: TestK2IdentityGuards/review-unavailable (0.00s)
+    --- PASS: TestK2IdentityGuards/review-malformed (0.00s)
+    --- PASS: TestK2IdentityGuards/review-redirect (0.00s)
+    --- PASS: TestK2IdentityGuards/reviewer-missing (0.00s)
+    --- PASS: TestK2IdentityGuards/reviewer-empty (0.00s)
+=== RUN   TestK2IdentityConfiguration
+--- PASS: TestK2IdentityConfiguration (0.02s)
+=== RUN   TestK2RouteSetsAndIdentityBinding
+--- PASS: TestK2RouteSetsAndIdentityBinding (0.04s)
+=== RUN   TestK2OperatorActorBinding
+=== RUN   TestK2OperatorActorBinding/approval-create/auth=true/body=spoof
+=== RUN   TestK2OperatorActorBinding/approval-apply/auth=true/body=spoof
+=== RUN   TestK2OperatorActorBinding/cancellation-apply/auth=true/body=spoof
+=== RUN   TestK2OperatorActorBinding/workflow-create/auth=true/body=spoof
+=== RUN   TestK2OperatorActorBinding/approval-create/auth=true/body=
+=== RUN   TestK2OperatorActorBinding/approval-apply/auth=true/body=
+=== RUN   TestK2OperatorActorBinding/cancellation-apply/auth=true/body=
+=== RUN   TestK2OperatorActorBinding/workflow-create/auth=true/body=
+=== RUN   TestK2OperatorActorBinding/approval-create/auth=false/body=spoof
+=== RUN   TestK2OperatorActorBinding/approval-apply/auth=false/body=spoof
+=== RUN   TestK2OperatorActorBinding/cancellation-apply/auth=false/body=spoof
+=== RUN   TestK2OperatorActorBinding/workflow-create/auth=false/body=spoof
+=== RUN   TestK2OperatorActorBinding/approval-create/auth=false/body=
+=== RUN   TestK2OperatorActorBinding/approval-apply/auth=false/body=
+=== RUN   TestK2OperatorActorBinding/cancellation-apply/auth=false/body=
+=== RUN   TestK2OperatorActorBinding/workflow-create/auth=false/body=
+--- PASS: TestK2OperatorActorBinding (0.05s)
+    --- PASS: TestK2OperatorActorBinding/approval-create/auth=true/body=spoof (0.01s)
+    --- PASS: TestK2OperatorActorBinding/approval-apply/auth=true/body=spoof (0.00s)
+    --- PASS: TestK2OperatorActorBinding/cancellation-apply/auth=true/body=spoof (0.00s)
+    --- PASS: TestK2OperatorActorBinding/workflow-create/auth=true/body=spoof (0.00s)
+    --- PASS: TestK2OperatorActorBinding/approval-create/auth=true/body= (0.00s)
+    --- PASS: TestK2OperatorActorBinding/approval-apply/auth=true/body= (0.00s)
+    --- PASS: TestK2OperatorActorBinding/cancellation-apply/auth=true/body= (0.00s)
+    --- PASS: TestK2OperatorActorBinding/workflow-create/auth=true/body= (0.00s)
+    --- PASS: TestK2OperatorActorBinding/approval-create/auth=false/body=spoof (0.00s)
+    --- PASS: TestK2OperatorActorBinding/approval-apply/auth=false/body=spoof (0.00s)
+    --- PASS: TestK2OperatorActorBinding/cancellation-apply/auth=false/body=spoof (0.00s)
+    --- PASS: TestK2OperatorActorBinding/workflow-create/auth=false/body=spoof (0.00s)
+    --- PASS: TestK2OperatorActorBinding/approval-create/auth=false/body= (0.00s)
+    --- PASS: TestK2OperatorActorBinding/approval-apply/auth=false/body= (0.00s)
+    --- PASS: TestK2OperatorActorBinding/cancellation-apply/auth=false/body= (0.00s)
+    --- PASS: TestK2OperatorActorBinding/workflow-create/auth=false/body= (0.00s)
+=== RUN   TestK2PodClaimPersistence
+=== RUN   TestK2PodClaimPersistence/pod-uid-original
+=== RUN   TestK2PodClaimPersistence/pod-uid-recreated
+=== RUN   TestK2PodClaimPersistence/#00
+--- PASS: TestK2PodClaimPersistence (0.54s)
+    --- PASS: TestK2PodClaimPersistence/pod-uid-original (0.32s)
+    --- PASS: TestK2PodClaimPersistence/pod-uid-recreated (0.05s)
+    --- PASS: TestK2PodClaimPersistence/#00 (0.04s)
+PASS
+ok  	durable-agent-execution-engine/internal/api	5.691s

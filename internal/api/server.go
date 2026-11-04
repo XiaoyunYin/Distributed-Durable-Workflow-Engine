@@ -338,6 +338,9 @@ func (s *Server) createApproval(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
 	}
+	if identity := authenticatedIdentity(r.Context()); identity != "" {
+		request.ActorID = identity
+	}
 	if request.OwnerID == "" || request.Epoch <= 0 || request.ActorID == "" {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "lease and actor identity are required", nil)
 		return
@@ -394,6 +397,9 @@ func (s *Server) applyApproval(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
 	}
+	if identity := authenticatedIdentity(r.Context()); identity != "" {
+		request.ActorID = identity
+	}
 	if request.WorkflowID == "" || request.NodeID == "" || request.OwnerID == "" || request.Epoch <= 0 || request.IntentID == "" || request.ActorID == "" {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "workflow, node, intent, lease, and actor identity are required", nil)
 		return
@@ -444,6 +450,9 @@ func (s *Server) applyCancellation(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
+	}
+	if identity := authenticatedIdentity(r.Context()); identity != "" {
+		request.ActorID = identity
 	}
 	if request.OwnerID == "" || request.Epoch <= 0 || request.ActorID == "" {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "lease and actor identity are required", nil)
@@ -531,6 +540,9 @@ func (s *Server) createWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 	if request.WorkflowID == "" {
 		request.WorkflowID = state.NewID()
+	}
+	if identity := authenticatedIdentity(r.Context()); identity != "" {
+		request.ActorID = identity
 	}
 	if request.ActorID == "" {
 		request.ActorID = "client"
