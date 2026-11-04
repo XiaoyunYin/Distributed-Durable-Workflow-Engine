@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -54,6 +55,10 @@ type lifecycleRole struct {
 }
 
 func startRole(group *errgroup.Group, fail context.CancelFunc, run func(context.Context, <-chan struct{}) error) *lifecycleRole {
+	return startRoleWithFailure(group, func(error) { fail() }, run)
+}
+
+func startRoleWithFailure(group *errgroup.Group, fail func(error), run func(context.Context, <-chan struct{}) error) *lifecycleRole {
 	ctx, cancel := context.WithCancel(context.Background())
 	role := &lifecycleRole{drain: make(chan struct{}), cancel: cancel, done: make(chan struct{})}
 	group.Go(func() error {
@@ -61,7 +66,7 @@ func startRole(group *errgroup.Group, fail context.CancelFunc, run func(context.
 		defer cancel()
 		err := run(ctx, role.drain)
 		if err != nil && !errors.Is(err, context.Canceled) {
-			fail()
+			fail(err)
 			return err
 		}
 		return nil
@@ -99,15 +104,20 @@ func runtimeReady(ctx context.Context, draining *atomic.Bool, ping func(context.
 	if ping == nil {
 		return false
 	}
-	if ping != nil {
-		checkCtx, cancel := context.WithTimeout(ctx, time.Second)
-		defer cancel()
-		if ping(checkCtx) != nil {
-			return false
-		}
+	checkCtx, cancel := context.WithTimeout(ctx, time.Second)
+	defer cancel()
+	if ping(checkCtx) != nil {
+		return false
 	}
 	return draining == nil || !draining.Load()
 }
+
+var newKafkaBroker = transport.NewKafkaBroker
+var serveScheduler = engine.ServeWithOptions
+var closeRuntimeStore = func(store *state.Store) { store.Close() }
+
+// The final role/controller join may add at most two seconds to the phase budget.
+const runtimeGroupWaitBudget = 2 * time.Second
 
 func lifecycleRoles(value string) (map[string]bool, error) {
 	roles := map[string]bool{}
@@ -174,6 +184,19 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	ctx, fail := context.WithCancel(signalCtx)
 	defer fail()
+	var fatalMu sync.Mutex
+	var fatalErr error
+	recordFatal := func(err error) {
+		if err == nil {
+			return
+		}
+		fatalMu.Lock()
+		if fatalErr == nil {
+			fatalErr = err
+		}
+		fatalMu.Unlock()
+		fail()
+	}
 	var group errgroup.Group
 	httpDone := make(chan struct{})
 	group.Go(func() error {
@@ -182,7 +205,7 @@ func serveLifecycle(signalCtx context.Context) error {
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
-		fail()
+		recordFatal(err)
 		return err
 	})
 	var profile *http.Server
@@ -193,7 +216,7 @@ func serveLifecycle(signalCtx context.Context) error {
 			if errors.Is(err, http.ErrServerClosed) {
 				return nil
 			}
-			fail()
+			recordFatal(err)
 			return err
 		})
 	}
@@ -201,18 +224,19 @@ func serveLifecycle(signalCtx context.Context) error {
 	wake := make(chan struct{}, 1)
 	var scheduler, relay, ingestor *lifecycleRole
 	if store != nil && roles["scheduler"] {
-		scheduler = startRole(&group, fail, func(ctx context.Context, drain <-chan struct{}) error {
+		scheduler = startRoleWithFailure(&group, recordFatal, func(ctx context.Context, drain <-chan struct{}) error {
 			options := schedulerOptions(tracing)
 			options.Drain = drain
-			return engine.ServeWithOptions(ctx, store, envOrDefault("RUNTIME_NAMESPACE", "local-runtime"), wake, options)
+			return serveScheduler(ctx, store, envOrDefault("RUNTIME_NAMESPACE", "local-runtime"), wake, options)
 		})
 	}
 	if store != nil && roles["relay"] && len(brokers) > 0 {
-		broker, brokerErr := transport.NewKafkaBroker(brokers, transport.DefaultTopic)
+		broker, brokerErr := newKafkaBroker(brokers, transport.DefaultTopic)
 		if brokerErr != nil {
-			fail()
+			slog.Error("runtime Kafka relay initialization failed", "error", brokerErr)
+			recordFatal(brokerErr)
 		} else {
-			relay = startRole(&group, fail, func(ctx context.Context, drain <-chan struct{}) error {
+			relay = startRoleWithFailure(&group, recordFatal, func(ctx context.Context, drain <-chan struct{}) error {
 				defer broker.Close()
 				return transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID(), Tracing: tracing, Drain: drain,
 					OnError:   func(err error) { metrics.RecordRelayFailure(); slog.Warn("relay pass failed", "error", err) },
@@ -221,7 +245,7 @@ func serveLifecycle(signalCtx context.Context) error {
 		}
 	}
 	if store != nil && roles["ingestor"] && len(brokers) > 0 {
-		ingestor = startRole(&group, fail, func(ctx context.Context, drain <-chan struct{}) error {
+		ingestor = startRoleWithFailure(&group, recordFatal, func(ctx context.Context, drain <-chan struct{}) error {
 			return runIngestor(ctx, drain, store, brokers, wake)
 		})
 	}
@@ -232,7 +256,8 @@ func serveLifecycle(signalCtx context.Context) error {
 	controller, faultErr := faults.FromContext(connectCtx)
 	connectCancel()
 	if faultErr != nil {
-		fail()
+		slog.Error("fault controller initialization failed", "error", faultErr)
+		recordFatal(faultErr)
 	} else if controller != nil {
 		controllerDone := make(chan struct{})
 		group.Go(func() error {
@@ -244,7 +269,8 @@ func serveLifecycle(signalCtx context.Context) error {
 			return nil
 		})
 		if hitErr := controller.Hit("runtime_ready", map[string]any{"role": roleName}); hitErr != nil {
-			fail()
+			slog.Error("runtime fault boundary failed", "error", hitErr)
+			recordFatal(hitErr)
 		}
 		_ = controller.Emit("released", "runtime_ready", map[string]any{"role": roleName})
 		_ = controller.Close()
@@ -268,7 +294,7 @@ func serveLifecycle(signalCtx context.Context) error {
 	} {
 		slog.Info("runtime shutdown phase", "phase", phase.name)
 		if err := phase.role.stop(phase.grace, phase.forced); err != nil {
-			return fmt.Errorf("%s: %w", phase.name, err)
+			recordFatal(fmt.Errorf("%s: %w", phase.name, err))
 		}
 	}
 	slog.Info("runtime shutdown phase", "phase", "http_drain")
@@ -282,21 +308,44 @@ func serveLifecycle(signalCtx context.Context) error {
 	if profile != nil {
 		_ = profile.Close()
 	}
-	if err := group.Wait(); err != nil {
-		slog.Warn("runtime role failed", "error", err)
+	if err := waitLifecycleGroup(&group, runtimeGroupWaitBudget); err != nil {
+		recordFatal(err)
+		return lifecycleFatalError(&fatalMu, &fatalErr)
 	}
 	slog.Info("runtime shutdown phase", "phase", "store_close")
 	if store != nil {
 		closed := make(chan struct{})
-		group.Go(func() error { store.Close(); close(closed); return nil })
+		go func() { closeRuntimeStore(store); close(closed) }()
 		select {
 		case <-closed:
 		case <-time.After(2 * time.Second):
-			return errors.New("store close exceeded deadline")
+			recordFatal(errors.New("store close exceeded deadline"))
+			return lifecycleFatalError(&fatalMu, &fatalErr)
 		}
-		_ = group.Wait()
+	}
+	if err := lifecycleFatalError(&fatalMu, &fatalErr); err != nil {
+		return err
 	}
 	return shutdownErr
+}
+
+func waitLifecycleGroup(group *errgroup.Group, budget time.Duration) error {
+	done := make(chan error, 1)
+	go func() { done <- group.Wait() }()
+	timer := time.NewTimer(budget)
+	defer timer.Stop()
+	select {
+	case err := <-done:
+		return err
+	case <-timer.C:
+		return errors.New("runtime goroutines exceeded shutdown deadline")
+	}
+}
+
+func lifecycleFatalError(mu *sync.Mutex, fatalErr *error) error {
+	mu.Lock()
+	defer mu.Unlock()
+	return *fatalErr
 }
 
 // Shutdown, unlike Serve, waits for active handlers to return.

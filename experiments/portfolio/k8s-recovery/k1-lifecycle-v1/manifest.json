@@ -2,7 +2,7 @@
   "schema": "dur053-k1-lifecycle-manifest.v1",
   "date": "2026-11-04",
   "task": "DUR-053 K1",
-  "task_status": "READY_FOR_REVIEW",
+  "task_status": "IN_PROGRESS",
   "handoff_basis": "PROVISIONAL - uncommitted working tree; Claude commits",
   "base_commit": "cf10befa896a9843f56fba685d6f0991d22487a1",
   "target_commit": null,
@@ -191,7 +191,10 @@
     "new_k1": 40,
     "behavioral": 57,
     "configuration_tripwires": 1,
-    "status": "PASS"
+    "status": "PASS",
+    "latest_record": "mutations-r232.json",
+    "latest_total": 59,
+    "latest_status": "PASS"
   },
   "pre_k1_reference": {
     "commit": "cf10befa896a9843f56fba685d6f0991d22487a1",
@@ -416,7 +419,116 @@
     "resource-cleanup.json",
     "shutdown-witness.log",
     "validation.json",
-    "worker-witness.log"
+    "worker-witness.log",
+    "mutations-r232.json",
+    "r232-database-cleanup.json"
   ],
-  "finalized_at_utc": "2026-11-04T17:52:54.871674+00:00"
+  "finalized_at_utc": "2026-11-04T17:52:54.871674+00:00",
+  "r232_follow_up": {
+    "finding": "REVIEW.md Round 156 R232",
+    "base_commit": "5ebcabcaf21363053276181e3d84caf01aa8a4f",
+    "target_commit": null,
+    "handoff_basis": "PROVISIONAL - uncommitted; Claude commits",
+    "scope": "Keep R232 fatal-error propagation while bounding waits after role forced deadlines and store-close deadline; preserve shutdown ordering/budgets, legacy path, and lease/fencing.",
+    "checks": [
+      {
+        "name": "go-race",
+        "command": "DURABLE_RUN_INTEGRATION=1 go test -race -p 1 -count=1 ./...",
+        "status": "PASS",
+        "details": "Fresh PostgreSQL database with all 18 migrations; full suite passed."
+      },
+      {
+        "name": "go-vet",
+        "command": "go vet ./...",
+        "status": "PASS"
+      },
+      {
+        "name": "gofmt",
+        "command": "gofmt -l cmd internal",
+        "status": "PASS",
+        "details": "No files reported."
+      },
+      {
+        "name": "pytest",
+        "command": "uv run pytest --basetemp <r232b>/pytest-final -p no:cacheprovider",
+        "status": "PASS",
+        "details": "200 passed, 3 skipped: two DUR-055 database URL skips and one real-Kafka witness skip."
+      },
+      {
+        "name": "mutation-bash",
+        "command": "bash scripts/mutation-gate.sh <r232b>/mutation-results.json",
+        "status": "PASS",
+        "details": "60/60 detected (59 behavioral, 1 configuration tripwire), including k1-bounded-goroutine-wait; fresh 18-migration database."
+      },
+      {
+        "name": "bounded-shutdown-subprocesses",
+        "command": "DURABLE_RUN_INTEGRATION=1 go test -race -p 1 -count=1 ./cmd/runtime -run ^TestK1LifecycleBoundedExit$ -v",
+        "status": "PASS",
+        "details": "Context-ignoring scheduler exited nonzero in 13.27 s; stalled store close exited nonzero in 4.21 s."
+      },
+      {
+        "name": "diff-check",
+        "command": "git diff --check",
+        "status": "PASS"
+      },
+      {
+        "name": "public-links",
+        "command": "python scripts/check-public-links.py",
+        "status": "PASS",
+        "details": "172 local links across 36 Markdown files."
+      }
+    ],
+    "mutation_manifest": "mutations/manifest.json",
+    "mutation_results": "mutations-r232.json",
+    "test_database": {
+      "name": "r232b_1793821068700021200",
+      "migrations_applied": 18,
+      "dropped_with_force": true,
+      "absence_verified": true
+    },
+    "mutation_database": {
+      "name": "r232b_1793822267106693100",
+      "migrations_applied": 18,
+      "dropped_with_force": true,
+      "absence_verified": true
+    },
+    "mutation_cases": {
+      "total": 60,
+      "behavioral": 59,
+      "configuration_tripwires": 1,
+      "result": "PASS"
+    },
+    "failed_attempts": [
+      {
+        "check": "first mutation-gate run",
+        "result": "FAIL (not counted)",
+        "reason": "The older fatal-propagation case targeted an obsolete textual patch site after the error-return logic moved into a helper. Retargeted it and reran all 60 cases successfully."
+      },
+      {
+        "check": "initial race invocation",
+        "result": "INTERRUPTED (not counted)",
+        "reason": "PowerShell argument handling prevented the temporary database URL from being set correctly; that invocation was terminated. The final full race run used a fresh migrated database and passed."
+      },
+      {
+        "check": "initial PostgreSQL mutation preflight",
+        "result": "FAIL (not counted)",
+        "reason": "An unauthenticated URL failed PostgreSQL authentication before the mutation baseline; it was discarded. Final mutation run used a separate fresh migrated database."
+      }
+    ],
+    "cleanup": {
+      "task_databases_dropped_and_verified_absent": 2,
+      "database_names": [
+        "r232b_1793821068700021200",
+        "r232b_1793822267106693100"
+      ],
+      "scratch_root": "D:/coding agent files/durable-engine/codex/r232b",
+      "scratch_root_removed": true,
+      "scratch_files_removed": 14175,
+      "scratch_directories_removed": 2280,
+      "temporary_files_retained": 0,
+      "leftover_r232_database_cleanup_json_removed": true,
+      "codex_temp_root_entries_after_cleanup": 0
+    },
+    "completed_at_utc": "2026-11-04T20:10:14.018427+00:00"
+  }
 }

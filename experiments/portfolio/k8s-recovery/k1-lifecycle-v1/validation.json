@@ -109,7 +109,7 @@
       "status": "BLOCKED",
       "exit_code": null,
       "seconds": 0.062,
-      "output": "[WinError 2] \u7cfb\u7edf\u627e\u4e0d\u5230\u6307\u5b9a\u7684\u6587\u4ef6\u3002"
+      "output": "[WinError 2] 系统找不到指定的文件。"
     },
     {
       "name": "mutation-bash",
@@ -133,7 +133,7 @@
       "status": "BLOCKED",
       "exit_code": null,
       "seconds": 0.047,
-      "output": "[WinError 2] \u7cfb\u7edf\u627e\u4e0d\u5230\u6307\u5b9a\u7684\u6587\u4ef6\u3002"
+      "output": "[WinError 2] 系统找不到指定的文件。"
     },
     {
       "name": "diff-check",
@@ -199,5 +199,112 @@
       "output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0 -- D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe\nrootdir: D:\\portfolio-projects\\durable-agent-execution-engine\nconfigfile: pyproject.toml\nplugins: anyio-4.15.1\ncollecting ... collected 23 items\n\ntests/test_worker_lifecycle.py::test_drain_before_delivery_leaves_offset_uncommitted PASSED [  4%]\ntests/test_worker_lifecycle.py::test_shutdown_between_disposition_commit_claim[disposition] PASSED [  8%]\ntests/test_worker_lifecycle.py::test_shutdown_between_disposition_commit_claim[commit] PASSED [ 13%]\ntests/test_worker_lifecycle.py::test_delivery_response_loss_retries_same_disposition PASSED [ 17%]\ntests/test_worker_lifecycle.py::test_commit_failure_does_not_claim PASSED [ 21%]\ntests/test_worker_lifecycle.py::test_revoke_during_disposition_fences_offset_and_claim PASSED [ 26%]\ntests/test_worker_lifecycle.py::test_result_accepted_during_drain_before_deadline PASSED [ 30%]\ntests/test_worker_lifecycle.py::test_abort_reports_nothing_and_stops_heartbeats PASSED [ 34%]\ntests/test_worker_lifecycle.py::test_retry_control_abort_and_admission_guards PASSED [ 39%]\ntests/test_worker_lifecycle.py::test_monotonic_deadline_never_extended PASSED [ 43%]\ntests/test_worker_lifecycle.py::test_bounded_executor_has_no_queue PASSED [ 47%]\ntests/test_worker_lifecycle.py::test_abort_exits_process_without_joining_activity PASSED [ 52%]\ntests/test_worker_lifecycle.py::test_worker_identity_metrics_and_readiness PASSED [ 56%]\ntests/test_worker_lifecycle.py::test_consumer_keeps_polling_rebalances_and_closes_before_activity_finishes PASSED [ 60%]\ntests/test_worker_lifecycle.py::test_legacy_flag_uses_pre_k1_consumer_and_no_result_after_signal PASSED [ 65%]\ntests/test_worker_lifecycle.py::test_legacy_trace_matches_frozen_pre_k1_source PASSED [ 69%]\ntests/test_worker_lifecycle.py::test_retries_bounded_during_control_outage PASSED [ 73%]\ntests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[0] PASSED [ 78%]\ntests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[-1] PASSED [ 82%]\ntests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[31] PASSED [ 86%]\ntests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[nan] PASSED [ 91%]\ntests/test_worker_lifecycle.py::test_signal_handler_registered_before_consumers PASSED [ 95%]\ntests/test_worker_lifecycle.py::test_abort_watchdog_exits_while_startup_hook_blocks PASSED [100%]\n\n============================= 23 passed in 1.94s ==============================\n"
     }
   ],
-  "finished_at_utc": "2026-11-04T17:36:11.426622+00:00"
+  "finished_at_utc": "2026-11-04T17:36:11.426622+00:00",
+  "r232_follow_up": {
+    "finding": "REVIEW.md Round 156 R232",
+    "base_commit": "5ebcabcaf21363053276181e3d84caf01aa8a4f",
+    "target_commit": null,
+    "handoff_basis": "PROVISIONAL - uncommitted; Claude commits",
+    "scope": "Keep R232 fatal-error propagation while bounding waits after role forced deadlines and store-close deadline; preserve shutdown ordering/budgets, legacy path, and lease/fencing.",
+    "checks": [
+      {
+        "name": "go-race",
+        "command": "DURABLE_RUN_INTEGRATION=1 go test -race -p 1 -count=1 ./...",
+        "status": "PASS",
+        "details": "Fresh PostgreSQL database with all 18 migrations; full suite passed."
+      },
+      {
+        "name": "go-vet",
+        "command": "go vet ./...",
+        "status": "PASS"
+      },
+      {
+        "name": "gofmt",
+        "command": "gofmt -l cmd internal",
+        "status": "PASS",
+        "details": "No files reported."
+      },
+      {
+        "name": "pytest",
+        "command": "uv run pytest --basetemp <r232b>/pytest-final -p no:cacheprovider",
+        "status": "PASS",
+        "details": "200 passed, 3 skipped: two DUR-055 database URL skips and one real-Kafka witness skip."
+      },
+      {
+        "name": "mutation-bash",
+        "command": "bash scripts/mutation-gate.sh <r232b>/mutation-results.json",
+        "status": "PASS",
+        "details": "60/60 detected (59 behavioral, 1 configuration tripwire), including k1-bounded-goroutine-wait; fresh 18-migration database."
+      },
+      {
+        "name": "bounded-shutdown-subprocesses",
+        "command": "DURABLE_RUN_INTEGRATION=1 go test -race -p 1 -count=1 ./cmd/runtime -run ^TestK1LifecycleBoundedExit$ -v",
+        "status": "PASS",
+        "details": "Context-ignoring scheduler exited nonzero in 13.27 s; stalled store close exited nonzero in 4.21 s."
+      },
+      {
+        "name": "diff-check",
+        "command": "git diff --check",
+        "status": "PASS"
+      },
+      {
+        "name": "public-links",
+        "command": "python scripts/check-public-links.py",
+        "status": "PASS",
+        "details": "172 local links across 36 Markdown files."
+      }
+    ],
+    "mutation_manifest": "mutations/manifest.json",
+    "mutation_results": "mutations-r232.json",
+    "test_database": {
+      "name": "r232b_1793821068700021200",
+      "migrations_applied": 18,
+      "dropped_with_force": true,
+      "absence_verified": true
+    },
+    "mutation_database": {
+      "name": "r232b_1793822267106693100",
+      "migrations_applied": 18,
+      "dropped_with_force": true,
+      "absence_verified": true
+    },
+    "mutation_cases": {
+      "total": 60,
+      "behavioral": 59,
+      "configuration_tripwires": 1,
+      "result": "PASS"
+    },
+    "failed_attempts": [
+      {
+        "check": "first mutation-gate run",
+        "result": "FAIL (not counted)",
+        "reason": "The older fatal-propagation case targeted an obsolete textual patch site after the error-return logic moved into a helper. Retargeted it and reran all 60 cases successfully."
+      },
+      {
+        "check": "initial race invocation",
+        "result": "INTERRUPTED (not counted)",
+        "reason": "PowerShell argument handling prevented the temporary database URL from being set correctly; that invocation was terminated. The final full race run used a fresh migrated database and passed."
+      },
+      {
+        "check": "initial PostgreSQL mutation preflight",
+        "result": "FAIL (not counted)",
+        "reason": "An unauthenticated URL failed PostgreSQL authentication before the mutation baseline; it was discarded. Final mutation run used a separate fresh migrated database."
+      }
+    ],
+    "cleanup": {
+      "task_databases_dropped_and_verified_absent": 2,
+      "database_names": [
+        "r232b_1793821068700021200",
+        "r232b_1793822267106693100"
+      ],
+      "scratch_root": "D:/coding agent files/durable-engine/codex/r232b",
+      "scratch_root_removed": true,
+      "scratch_files_removed": 14175,
+      "scratch_directories_removed": 2280,
+      "temporary_files_retained": 0,
+      "leftover_r232_database_cleanup_json_removed": true,
+      "codex_temp_root_entries_after_cleanup": 0
+    },
+    "completed_at_utc": "2026-11-04T20:10:14.018427+00:00"
+  }
 }

@@ -240,8 +240,8 @@
       "id": "k1-ready-db",
       "kind": "behavioral",
       "file": "cmd/runtime/lifecycle.go",
-      "old": "if ping != nil {",
-      "new": "if false && ping != nil {",
+      "old": "if ping(checkCtx) != nil {\n\t\treturn false\n\t}",
+      "new": "if ping(checkCtx) != nil {\n\t\t// mutation: ignore database outage\n\t}",
       "command": [
         "go",
         "test",
@@ -251,7 +251,7 @@
         "-count=1",
         "-v"
       ],
-      "expected": "readiness did not perform fresh DB checks",
+      "expected": "readiness accepted database outage",
       "requires_database": false
     },
     {
@@ -709,7 +709,7 @@
       "kind": "behavioral",
       "file": "cmd/runtime/lifecycle.go",
       "old": "if ping == nil {\n\t\treturn false\n\t}",
-      "new": "if false && ping == nil {\n\t\treturn false\n\t}",
+      "new": "if ping == nil {\n\t\treturn true // mutation: accept missing database\n\t}",
       "command": [
         "go",
         "test",
@@ -857,6 +857,26 @@
       ],
       "expected": "canceled startup dial did not stop",
       "requires_database": false
+    },
+    {
+      "id": "k1-fatal-error-propagation",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "return *fatalErr",
+      "new": "return nil // mutation: swallow the first fatal runtime error",
+      "command": ["go", "test", "./cmd/runtime", "-run", "^TestK1LifecycleFatalExit$", "-count=1", "-v"],
+      "expected": "fatal startup exited 0; expected log",
+      "requires_database": false
+    },
+    {
+      "id": "k1-bounded-goroutine-wait",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "case <-timer.C:\n\t\treturn errors.New(\"runtime goroutines exceeded shutdown deadline\")",
+      "new": "case <-make(chan struct{}): // mutation: wait forever for a stuck runtime goroutine\n\t\treturn errors.New(\"runtime goroutines exceeded shutdown deadline\")",
+      "command": ["go", "test", "./cmd/runtime", "-run", "^TestK1LifecycleBoundedExit$", "-count=1", "-v"],
+      "expected": "stalled shutdown exceeded the 25 second test bound",
+      "requires_database": true
     }
   ]
 }
