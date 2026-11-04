@@ -13,13 +13,13 @@ if ! command -v aws >/dev/null 2>&1; then
   rm -rf /tmp/aws /tmp/awscliv2.zip
 fi
 
-go_archive=/tmp/go1.27.1.linux-amd64.tar.gz
-curl --fail --silent --show-error --location https://go.dev/dl/go1.27.1.linux-amd64.tar.gz -o "$${go_archive}"
-echo '63d339f0da5ab53635a56f2490a7984dfe12dfcff22ad749f63edaf590168445  /tmp/go1.27.1.linux-amd64.tar.gz' | sha256sum --check --status
+go_archive=/tmp/go1.27.3.linux-amd64.tar.gz
+curl --fail --silent --show-error --location https://go.dev/dl/go1.27.3.linux-amd64.tar.gz -o "$${go_archive}"
+echo '65efbc80fdc1fa2cd2631cad5b481777a68e8725f34e89f50fc6ac714e379b40  /tmp/go1.27.3.linux-amd64.tar.gz' | sha256sum --check --status
 tar -C /usr/local -xzf "$${go_archive}"
 rm -f "$${go_archive}"
 export PATH="/usr/local/go/bin:$${PATH}"
-test "$(go version)" = 'go version go1.27.1 linux/amd64'
+test "$(go version)" = 'go version go1.27.3 linux/amd64'
 
 install -d -m 0750 /opt/durable-agent-execution-engine
 git -C /opt/durable-agent-execution-engine init
