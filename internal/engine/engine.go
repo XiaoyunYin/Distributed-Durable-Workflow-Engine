@@ -202,6 +202,8 @@ func (s checkpointSink) Load(ctx context.Context) (state.Checkpoint, error) {
 }
 
 type Engine struct {
+	// Clock is the scheduler wall clock for diagnostics only. Durable timing uses SQL.
+	Clock  func() time.Time
 	Store  *state.Store
 	Driver ActivityDriver
 	// ExternalActivities leaves attempts to Kafka workers. The scheduler only
@@ -233,7 +235,7 @@ type RunResult struct {
 }
 
 func New(store *state.Store, driver ActivityDriver) *Engine {
-	return &Engine{Store: store, Driver: driver, LeaseTTL: time.Minute,
+	return &Engine{Store: store, Driver: driver, Clock: time.Now, LeaseTTL: time.Minute,
 		AttemptLease: time.Minute, RetryBackoff: 25 * time.Millisecond, MaxSteps: 100,
 		Telemetry: func() *telemetry.Metrics {
 			if store == nil {
@@ -246,6 +248,10 @@ func New(store *state.Store, driver ActivityDriver) *Engine {
 func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, runErr error) {
 	if e == nil || e.Store == nil || (e.Driver == nil && !e.ExternalActivities) {
 		return RunResult{}, errors.New("engine requires a store and activity driver")
+	}
+	schedulerNow := time.Now()
+	if e.Clock != nil {
+		schedulerNow = e.Clock()
 	}
 	wf, err := e.Store.GetWorkflow(ctx, workflowID)
 	if err != nil {
@@ -263,7 +269,7 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 		}
 		ctx, runSpan = e.Tracing.Start(ctx, "scheduler.workflow", spanOptions...)
 		runSpan.SetAttributes(attribute.String("durable.workflow_id", workflowID),
-			attribute.Int("durable.partition_id", int(wf.PartitionID)))
+			attribute.Int("durable.partition_id", int(wf.PartitionID)), attribute.String("durable.scheduler_time", schedulerNow.UTC().Format(time.RFC3339Nano)))
 		defer runSpan.End()
 	}
 	definition, err := e.Store.GetDefinition(ctx, wf.DefinitionID, wf.DefinitionVersion)
@@ -449,7 +455,11 @@ func (e *Engine) advanceDueTimer(ctx context.Context, wf state.Workflow, nodes [
 		if err != nil {
 			return false, err
 		}
-		if found && !due.After(time.Now()) {
+		databaseNow, err := e.Store.DatabaseTime(ctx)
+		if err != nil {
+			return false, err
+		}
+		if found && !due.After(databaseNow) {
 			newState := state.StateRunnable
 			ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
 			err := e.Store.ApplyOwnerTransition(ctx, state.OwnerTransitionInput{Lease: ref,
@@ -490,7 +500,7 @@ func (e *Engine) runNode(ctx context.Context, wf state.Workflow, node state.Node
 			}
 			_, err := e.Store.ScheduleTimer(ctx, state.ScheduleTimerInput{Lease: ref, WorkflowID: wf.WorkflowID,
 				NodeID: node.NodeID, Iteration: node.Iteration, ExpectedRevision: wf.Revision,
-				DueAt: time.Now().Add(delay), Purpose: "WORKFLOW_TIMER", ActorID: actorID})
+				Delay: delay, Purpose: "WORKFLOW_TIMER", ActorID: actorID})
 			return err
 		}
 		return e.advanceFromControl(ctx, wf, node, definitionNode, graph, ref, actorID)
@@ -549,7 +559,7 @@ func (e *Engine) startActivity(ctx context.Context, wf state.Workflow, node stat
 	attempt, err := e.Store.CreateAttempt(ctx, state.AttemptInput{Lease: lease, WorkflowID: wf.WorkflowID,
 		NodeID: node.NodeID, Iteration: node.Iteration, ExpectedRevision: wf.Revision,
 		EffectClass: effectClass, LogicalEffectKey: logicalKey, GrantScopeHash: node.NodeID,
-		HeartbeatDeadline: time.Now().Add(e.AttemptLease), ActorID: actorID})
+		DispatchLease: e.AttemptLease, ActorID: actorID})
 	if err != nil {
 		return err
 	}
@@ -647,8 +657,7 @@ func (e *Engine) consumeRecordedResult(ctx context.Context, workflowID string, n
 		NewWorkflowState: state.StateRunnable, ActorID: actorID}
 	if attemptState == state.AttemptFailedRetryable {
 		consume.NewWorkflowState = state.StateWaitingTimer
-		due := time.Now().Add(retryAfter)
-		consume.RetryDueAt = &due
+		consume.RetryAfter = &retryAfter
 	} else if attemptState == state.AttemptFailedFinal {
 		consume.NewWorkflowState = state.StateFailed
 	}
@@ -678,9 +687,13 @@ func (e *Engine) recoverActivity(ctx context.Context, wf state.Workflow, node st
 		}
 		return true, nil
 	}
+	databaseNow, err := e.Store.DatabaseTime(ctx)
+	if err != nil {
+		return false, err
+	}
 	if attempt.State == state.AttemptDispatchable {
 		if e.ExternalActivities {
-			if attempt.HeartbeatDeadline == nil || attempt.HeartbeatDeadline.After(time.Now()) {
+			if attempt.HeartbeatDeadline == nil || attempt.HeartbeatDeadline.After(databaseNow) {
 				return false, nil
 			}
 			_, err := e.Store.TimeoutAttempt(ctx, state.TimeoutInput{Lease: ref, WorkflowID: wf.WorkflowID,
@@ -693,7 +706,7 @@ func (e *Engine) recoverActivity(ctx context.Context, wf state.Workflow, node st
 		}
 		return true, nil
 	}
-	if attempt.State == state.AttemptClaimed && attempt.HeartbeatDeadline != nil && !attempt.HeartbeatDeadline.After(time.Now()) {
+	if attempt.State == state.AttemptClaimed && attempt.HeartbeatDeadline != nil && !attempt.HeartbeatDeadline.After(databaseNow) {
 		_, err := e.Store.TimeoutAttempt(ctx, state.TimeoutInput{Lease: ref, WorkflowID: wf.WorkflowID,
 			NodeID: node.NodeID, Iteration: node.Iteration, AttemptNumber: attempt.AttemptNumber,
 			ExpectedRevision: wf.Revision, ActorID: actorID, DispatchLease: e.AttemptLease})

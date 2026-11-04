@@ -877,6 +877,688 @@
       "command": ["go", "test", "./cmd/runtime", "-run", "^TestK1LifecycleBoundedExit$", "-count=1", "-v"],
       "expected": "stalled shutdown exceeded the 25 second test bound",
       "requires_database": true
+    },
+    {
+      "id": "k2-issuer",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if claims.Issuer != v.config.Issuer {",
+      "new": "if false && (claims.Issuer != v.config.Issuer) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-expiry-required",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if claims.Expiry <= 0 {",
+      "new": "if false && (claims.Expiry <= 0) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-token-audience",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if !hasAudience(claims.Audience, v.config.Audience) {",
+      "new": "if false && (!hasAudience(claims.Audience, v.config.Audience)) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-token-serviceaccount",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if claims.Subject != identity {",
+      "new": "if false && (claims.Subject != identity) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-reviewer-credential",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if err != nil || strings.TrimSpace(string(credential)) == \"\" {",
+      "new": "if false && (err != nil || strings.TrimSpace(string(credential)) == \"\") {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-review-http-status",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK {",
+      "new": "if false && (response.StatusCode != http.StatusCreated && response.StatusCode != http.StatusOK) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-review-authenticated",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if !review.Status.Authenticated || review.Status.Error != \"\" {",
+      "new": "if false && (!review.Status.Authenticated || review.Status.Error != \"\") {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-review-audience",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if !hasAudience(review.Status.Audiences, v.config.Audience) {",
+      "new": "if false && (!hasAudience(review.Status.Audiences, v.config.Audience)) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-review-serviceaccount",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if review.Status.User.Username != identity {",
+      "new": "if false && (review.Status.User.Username != identity) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-config-https",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if err != nil || u.Scheme != \"https\" || u.Host == \"\" || u.User != nil || u.RawQuery != \"\" || u.Fragment != \"\" || (u.Path != \"\" && u.Path != \"/\") {",
+      "new": "if false && (err != nil || u.Scheme != \"https\" || u.Host == \"\" || u.User != nil || u.RawQuery != \"\" || u.Fragment != \"\" || (u.Path != \"\" && u.Path != \"/\")) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityConfiguration$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity configuration guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-config-identity",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if c.Issuer == \"\" || c.Audience == \"\" || c.Namespace == \"\" || c.ServiceAccount == \"\" || strings.ContainsAny(c.Namespace+c.ServiceAccount, \":/ \\t\\r\\n\") {",
+      "new": "if false && (c.Issuer == \"\" || c.Audience == \"\" || c.Namespace == \"\" || c.ServiceAccount == \"\" || strings.ContainsAny(c.Namespace+c.ServiceAccount, \":/ \\t\\r\\n\")) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityConfiguration$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity configuration guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-config-ca",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if !roots.AppendCertsFromPEM(ca) {",
+      "new": "if false && (!roots.AppendCertsFromPEM(ca)) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityConfiguration$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity configuration guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-config-reviewer",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if err != nil || strings.TrimSpace(string(token)) == \"\" {",
+      "new": "if false && (err != nil || strings.TrimSpace(string(token)) == \"\") {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityConfiguration$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity configuration guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-config-enabled",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if enabled != \"enabled\" {",
+      "new": "if false && (enabled != \"enabled\") {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityConfiguration$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity configuration guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-middleware",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "if s.authenticator != nil {",
+      "new": "if false && s.authenticator != nil {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2RouteSetsAndIdentityBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "authenticated approver spoofed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-approver",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "request.ApproverID = identity",
+      "new": "_ = identity // mutation: trust body identity",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2RouteSetsAndIdentityBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "authenticated approver spoofed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-worker",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "request.WorkerID = identity",
+      "new": "_ = identity // mutation: trust body identity",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2RouteSetsAndIdentityBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "authenticated worker spoofed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-operator-routes",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "if s.routes == RoutesCombined || s.routes == RoutesOperator {",
+      "new": "if s.routes == RoutesCombined || s.routes == RoutesOperator || s.routes == RoutesWorkerControl {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2RouteSetsAndIdentityBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "route isolation bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-worker-routes",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "if s.routes == RoutesCombined || s.routes == RoutesWorkerControl {",
+      "new": "if true {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2RouteSetsAndIdentityBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "route isolation bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-public-routes",
+      "kind": "behavioral",
+      "file": "internal/api/server.go",
+      "old": "if s.routes != RoutesWorkerControl && s.routes != RoutesNone {",
+      "new": "if true {",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2RouteSetsAndIdentityBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "route isolation bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-split-listeners",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "if routes != api.RoutesNone {",
+      "new": "if false && routes != api.RoutesNone {",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK2RoleRoutes$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "role route isolation bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-auth-combined",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "if os.Getenv(\"RUNTIME_TOKEN_AUTH\") == \"enabled\" {",
+      "new": "if false && os.Getenv(\"RUNTIME_TOKEN_AUTH\") == \"enabled\" {",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK2RoleRoutes$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "role route isolation bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-timer-sql",
+      "kind": "behavioral",
+      "file": "internal/state/graph.go",
+      "old": "clock_timestamp() + ($5::double precision * interval '1 second')",
+      "new": "clock_timestamp() + (($5::double precision + 30) * interval '1 second')",
+      "command": [
+        "go",
+        "test",
+        "./internal/engine",
+        "-run",
+        "^TestK2SchedulerSkew$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "SQL clock deadline shifted",
+      "requires_database": true
+    },
+    {
+      "id": "k2-dispatch-sql",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "clock_timestamp() + ($7::double precision * interval '1 second')",
+      "new": "clock_timestamp() + (($7::double precision + 30) * interval '1 second')",
+      "command": [
+        "go",
+        "test",
+        "./internal/engine",
+        "-run",
+        "^TestK2SchedulerSkew$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "SQL clock deadline shifted",
+      "requires_database": true
+    },
+    {
+      "id": "k2-retry-sql",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "SELECT clock_timestamp() + ($1::double precision * interval '1 second')",
+      "new": "SELECT clock_timestamp() + (($1::double precision + 30) * interval '1 second')",
+      "command": [
+        "go",
+        "test",
+        "./internal/engine",
+        "-run",
+        "^TestK2SchedulerSkew$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "SQL clock deadline shifted",
+      "requires_database": true
+    },
+    {
+      "id": "k2-replacement-sql",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "clock_timestamp() + ($6::double precision * interval '1 second'), $7, $8)",
+      "new": "clock_timestamp() + (($6::double precision + 30) * interval '1 second'), $7, $8)",
+      "command": [
+        "go",
+        "test",
+        "./internal/engine",
+        "-run",
+        "^TestK2SchedulerSkew$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "SQL clock deadline shifted",
+      "requires_database": true
+    },
+    {
+      "id": "k2-timer-db-precheck",
+      "kind": "behavioral",
+      "file": "internal/engine/engine.go",
+      "old": "if found && !due.After(databaseNow) {",
+      "new": "if found && !due.After(e.Clock().Add(databaseNow.Sub(databaseNow))) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/engine",
+        "-run",
+        "^TestK2SchedulerSkew$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "skew changed outcome",
+      "requires_database": true
+    },
+    {
+      "id": "k2-claimed-db-precheck",
+      "kind": "behavioral",
+      "file": "internal/engine/engine.go",
+      "old": "if attempt.State == state.AttemptClaimed && attempt.HeartbeatDeadline != nil && !attempt.HeartbeatDeadline.After(databaseNow) {",
+      "new": "if attempt.State == state.AttemptClaimed && attempt.HeartbeatDeadline != nil && !attempt.HeartbeatDeadline.After(e.Clock()) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/engine",
+        "-run",
+        "^TestK2SchedulerSkew$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "skew changed outcome",
+      "requires_database": true
+    },
+    {
+      "id": "k2-dispatch-db-precheck",
+      "kind": "behavioral",
+      "file": "internal/engine/engine.go",
+      "old": "if attempt.HeartbeatDeadline == nil || attempt.HeartbeatDeadline.After(databaseNow) {",
+      "new": "if attempt.HeartbeatDeadline == nil || attempt.HeartbeatDeadline.After(e.Clock()) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/engine",
+        "-run",
+        "^TestK2ExternalDispatchSkew$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "skew changed outcome",
+      "requires_database": true
+    },
+    {
+      "id": "k2-worker-projected-token",
+      "kind": "behavioral",
+      "file": "python/workers/control.py",
+      "old": "headers[\"Authorization\"] = f\"Bearer {token}\"",
+      "new": "pass  # mutation: omit projected token",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_worker_identity.py",
+        "-q"
+      ],
+      "expected": "projected token not sent",
+      "requires_database": false
+    },
+    {
+      "id": "k2-bearer-required",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "writeError(w, http.StatusUnauthorized, \"UNAUTHENTICATED\", \"projected token required\", nil)",
+      "new": "next.ServeHTTP(w,r) // mutation: missing bearer accepted",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-verification-required",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "writeError(w, http.StatusUnauthorized, \"UNAUTHENTICATED\", \"token rejected\", nil)",
+      "new": "next.ServeHTTP(w,r) // mutation: rejected token accepted",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-jwt-shape",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "return \"\", errors.New(\"invalid projected token\")",
+      "new": "return \"unverified\", nil // mutation: malformed token accepted",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-jwt-base64",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "raw, err := base64.RawURLEncoding.DecodeString(parts[1])\n\tif err != nil {\n\t\treturn \"\", err",
+      "new": "raw, err := base64.RawURLEncoding.DecodeString(parts[1])\n\tif err != nil {\n\t\treturn \"unverified\", nil",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-jwt-json",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if err := json.Unmarshal(raw, &claims); err != nil {\n\t\treturn \"\", err",
+      "new": "if err := json.Unmarshal(raw, &claims); err != nil {\n\t\treturn \"unverified\", nil",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-review-json",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&review); err != nil {\n\t\treturn \"\", err",
+      "new": "if err := json.NewDecoder(io.LimitReader(response.Body, 1<<20)).Decode(&review); err != nil {\n\t\treturn \"unverified\", nil",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-readiness-write-route",
+      "kind": "behavioral",
+      "file": "cmd/runtime/main.go",
+      "old": "if combined && envOrDefault(\"RUNTIME_ENGINE_MODE\", \"disabled\") == \"readiness\" {",
+      "new": "if envOrDefault(\"RUNTIME_ENGINE_MODE\", \"disabled\") == \"readiness\" {",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK2ReadinessRouteIsolation$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "readiness route isolation bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2-review-redirect",
+      "kind": "behavioral",
+      "file": "internal/api/identity.go",
+      "old": "return errors.New(\"TokenReview redirects forbidden\")",
+      "new": "return nil",
+      "command": [
+        "go",
+        "test",
+        "./internal/api",
+        "-run",
+        "^TestK2IdentityGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "identity guard bypassed",
+      "requires_database": false
     }
   ]
 }

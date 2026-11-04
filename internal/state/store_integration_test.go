@@ -136,7 +136,7 @@ func TestPostgresStateRepository(t *testing.T) {
 		}
 	})
 
-	prepareAt := func(t *testing.T, class EffectClass, effectKey string, deadline time.Time) (Workflow, Attempt) {
+	prepareAt := func(t *testing.T, class EffectClass, effectKey string, deadline time.Duration) (Workflow, Attempt) {
 		t.Helper()
 		workflow := newWorkflow(t, definitionIDs[class])
 		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
@@ -150,7 +150,7 @@ func TestPostgresStateRepository(t *testing.T) {
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: workflow.WorkflowID, NodeID: "root", ExpectedRevision: 2,
 			EffectClass: class, LogicalEffectKey: effectKey, GrantScopeHash: "grant-1",
-			HeartbeatDeadline: deadline, ActorID: "scheduler-test",
+			DispatchLease: deadline, ActorID: "scheduler-test",
 		})
 		if err != nil {
 			t.Fatalf("create attempt: %v", err)
@@ -158,7 +158,7 @@ func TestPostgresStateRepository(t *testing.T) {
 		return workflow, attempt
 	}
 	prepare := func(t *testing.T, class EffectClass, effectKey string) (Workflow, Attempt) {
-		return prepareAt(t, class, effectKey, time.Now().Add(-time.Second))
+		return prepareAt(t, class, effectKey, -time.Second)
 	}
 
 	t.Run("timeout branches and late evidence", func(t *testing.T) {
@@ -401,7 +401,7 @@ func TestPostgresStateRepository(t *testing.T) {
 		_, err = store.CreateAttempt(ctx, AttemptInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: createWorkflow.WorkflowID, NodeID: "root", ExpectedRevision: 2,
-			EffectClass: EffectPure, HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "scheduler-test",
+			EffectClass: EffectPure, DispatchLease: time.Minute, ActorID: "scheduler-test",
 		})
 		if err == nil {
 			t.Fatal("CreateAttempt unexpectedly committed through injected outbox failure")
@@ -437,7 +437,7 @@ func TestPostgresStateRepository(t *testing.T) {
 		timeoutAttempt, err := store.CreateAttempt(ctx, AttemptInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: timeoutWorkflow.WorkflowID, NodeID: "root", ExpectedRevision: 2,
-			EffectClass: EffectPure, HeartbeatDeadline: time.Now().Add(-time.Second), ActorID: "scheduler-test",
+			EffectClass: EffectPure, DispatchLease: -time.Second, ActorID: "scheduler-test",
 		})
 		if err != nil {
 			t.Fatal(err)
@@ -510,13 +510,13 @@ func TestPostgresStateRepository(t *testing.T) {
 		_, err = store.CreateAttempt(ctx, AttemptInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: wrongClassWorkflow.WorkflowID, NodeID: "root", ExpectedRevision: 2,
-			EffectClass: EffectNonCooperating, HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "scheduler-test",
+			EffectClass: EffectNonCooperating, DispatchLease: time.Minute, ActorID: "scheduler-test",
 		})
 		if !errors.Is(err, ErrEffectClassMismatch) {
 			t.Fatalf("wrong effect class error = %v", err)
 		}
 
-		workflow, attempt := prepareAt(t, EffectPure, "", time.Now().Add(-time.Second))
+		workflow, attempt := prepareAt(t, EffectPure, "", -time.Second)
 		const claimLease = 2 * time.Second
 		claim, err := store.ClaimAttempt(ctx, ClaimInput{
 			WorkflowID: workflow.WorkflowID, NodeID: "root", WorkerID: "worker-deadline", RequestID: "request-deadline-" + workflow.WorkflowID,
@@ -558,7 +558,7 @@ func TestPostgresStateRepository(t *testing.T) {
 			t.Fatal("fresh replacement was immediately timeout-eligible")
 		}
 
-		currentWorkflow, currentAttempt := prepareAt(t, EffectPure, "", time.Now().Add(time.Minute))
+		currentWorkflow, currentAttempt := prepareAt(t, EffectPure, "", time.Minute)
 		requestID := "request-current-" + currentWorkflow.WorkflowID
 		firstClaim, err := store.ClaimAttempt(ctx, ClaimInput{WorkflowID: currentWorkflow.WorkflowID, NodeID: "root", WorkerID: "worker-current", RequestID: requestID})
 		if err != nil {
@@ -568,7 +568,7 @@ func TestPostgresStateRepository(t *testing.T) {
 		if err != nil || retryClaim.ClaimToken != firstClaim.ClaimToken || retryClaim.AttemptNumber != currentAttempt.AttemptNumber {
 			t.Fatalf("current claim retry = %+v, err=%v", retryClaim, err)
 		}
-		otherWorkflow, _ := prepareAt(t, EffectPure, "", time.Now().Add(time.Minute))
+		otherWorkflow, _ := prepareAt(t, EffectPure, "", time.Minute)
 		if _, err := store.ClaimAttempt(ctx, ClaimInput{WorkflowID: otherWorkflow.WorkflowID, NodeID: "root", WorkerID: "worker-other", RequestID: requestID}); !errors.Is(err, ErrClaimRequestConflict) {
 			t.Fatalf("cross-workflow request reuse error = %v", err)
 		}
@@ -583,7 +583,7 @@ func TestPostgresStateRepository(t *testing.T) {
 
 	t.Run("concurrent claims and result-timeout races have one winner", func(t *testing.T) {
 		for round := 0; round < 20; round++ {
-			workflow, _ := prepareAt(t, EffectPure, "", time.Now().Add(time.Minute))
+			workflow, _ := prepareAt(t, EffectPure, "", time.Minute)
 			start := make(chan struct{})
 			claimResults := make(chan error, 2)
 			var claimGroup sync.WaitGroup
@@ -617,7 +617,7 @@ func TestPostgresStateRepository(t *testing.T) {
 				t.Fatalf("concurrent claims: successes=%d conflicts=%d", claimSuccesses, claimConflicts)
 			}
 
-			raceWorkflow, raceAttempt := prepareAt(t, EffectPure, "", time.Now().Add(time.Minute))
+			raceWorkflow, raceAttempt := prepareAt(t, EffectPure, "", time.Minute)
 			raceClaim, err := store.ClaimAttempt(ctx, ClaimInput{
 				WorkflowID: raceWorkflow.WorkflowID, NodeID: "root", WorkerID: "race-result-worker",
 				RequestID: "race-result-claim-" + raceWorkflow.WorkflowID, AttemptLease: 10 * time.Millisecond,
@@ -691,7 +691,7 @@ func TestPostgresStateRepository(t *testing.T) {
 	})
 
 	t.Run("result receipts and owner result consumption", func(t *testing.T) {
-		workflow, attempt := prepareAt(t, EffectPure, "", time.Now().Add(time.Minute))
+		workflow, attempt := prepareAt(t, EffectPure, "", time.Minute)
 		claim, err := store.ClaimAttempt(ctx, ClaimInput{WorkflowID: workflow.WorkflowID, NodeID: "root", WorkerID: "worker-result", RequestID: "request-result-" + workflow.WorkflowID})
 		if err != nil {
 			t.Fatal(err)
@@ -760,7 +760,7 @@ func TestPostgresStateRepository(t *testing.T) {
 			t.Fatalf("node result state: accepted=%s current=%v", acceptedResult, currentAttempt)
 		}
 
-		unvalidated, unvalidatedAttempt := prepareAt(t, EffectPure, "", time.Now().Add(time.Minute))
+		unvalidated, unvalidatedAttempt := prepareAt(t, EffectPure, "", time.Minute)
 		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: unvalidated.WorkflowID, ExpectedRevision: 3, NewState: StateSucceeded,
@@ -769,7 +769,7 @@ func TestPostgresStateRepository(t *testing.T) {
 			t.Fatalf("unvalidated success transition error = %v", err)
 		}
 
-		retryWorkflow, retryAttempt := prepareAt(t, EffectPure, "", time.Now().Add(time.Minute))
+		retryWorkflow, retryAttempt := prepareAt(t, EffectPure, "", time.Minute)
 		retryClaim, err := store.ClaimAttempt(ctx, ClaimInput{WorkflowID: retryWorkflow.WorkflowID, NodeID: "root", WorkerID: "worker-retry", RequestID: "request-retry-" + retryWorkflow.WorkflowID})
 		if err != nil {
 			t.Fatal(err)
@@ -780,11 +780,11 @@ func TestPostgresStateRepository(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		due := time.Now().Add(time.Minute)
+		due := time.Minute
 		if _, err := store.ConsumeResult(ctx, ConsumeResultInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: retryWorkflow.WorkflowID, NodeID: "root", AttemptNumber: retryAttempt.AttemptNumber,
-			ExpectedRevision: 4, NewWorkflowState: StateWaitingTimer, RetryDueAt: &due, ActorID: "scheduler-test",
+			ExpectedRevision: 4, NewWorkflowState: StateWaitingTimer, RetryAfter: &due, ActorID: "scheduler-test",
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -829,7 +829,7 @@ func TestPostgresStateRepository(t *testing.T) {
 		replacement, err := store.CreateAttempt(ctx, AttemptInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: retryWorkflow.WorkflowID, NodeID: "root", ExpectedRevision: 7,
-			EffectClass: EffectPure, HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "scheduler-test",
+			EffectClass: EffectPure, DispatchLease: time.Minute, ActorID: "scheduler-test",
 		})
 		if err != nil || replacement.AttemptNumber != 2 {
 			t.Fatalf("retry replacement = %+v, err=%v", replacement, err)
@@ -849,11 +849,11 @@ func TestPostgresStateRepository(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		cooperatingDue := time.Now().Add(-time.Second)
+		cooperatingDue := -time.Second
 		if _, err := store.ConsumeResult(ctx, ConsumeResultInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: cooperatingRetryWorkflow.WorkflowID, NodeID: "root", AttemptNumber: cooperatingRetryAttempt.AttemptNumber,
-			ExpectedRevision: 4, NewWorkflowState: StateWaitingTimer, RetryDueAt: &cooperatingDue, ActorID: "scheduler-test",
+			ExpectedRevision: 4, NewWorkflowState: StateWaitingTimer, RetryAfter: &cooperatingDue, ActorID: "scheduler-test",
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -917,11 +917,11 @@ func TestPostgresStateRepository(t *testing.T) {
 		}); err != nil {
 			t.Fatal(err)
 		}
-		nonCooperatingDue := time.Now().Add(-time.Second)
+		nonCooperatingDue := -time.Second
 		if _, err := store.ConsumeResult(ctx, ConsumeResultInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: nonCooperatingRetryWorkflow.WorkflowID, NodeID: "root", AttemptNumber: nonCooperatingRetryAttempt.AttemptNumber,
-			ExpectedRevision: 4, NewWorkflowState: StateWaitingTimer, RetryDueAt: &nonCooperatingDue, ActorID: "scheduler-test",
+			ExpectedRevision: 4, NewWorkflowState: StateWaitingTimer, RetryAfter: &nonCooperatingDue, ActorID: "scheduler-test",
 		}); err != nil {
 			t.Fatal(err)
 		}
@@ -1073,7 +1073,7 @@ func TestPostgresStateRepository(t *testing.T) {
 		cancelAndCheck(t, EffectCooperating)
 		cancelAndCheck(t, EffectNonCooperating)
 
-		unclaimedWorkflow, unclaimedAttempt := prepareAt(t, EffectPure, "", time.Now().Add(time.Minute))
+		unclaimedWorkflow, unclaimedAttempt := prepareAt(t, EffectPure, "", time.Minute)
 		if err := store.ApplyOwnerTransition(ctx, OwnerTransitionInput{
 			Lease:      LeaseRef{PartitionID: lease.PartitionID, OwnerID: ownerID, Epoch: lease.Epoch},
 			WorkflowID: unclaimedWorkflow.WorkflowID, ExpectedRevision: 3, NewState: StateCanceled,

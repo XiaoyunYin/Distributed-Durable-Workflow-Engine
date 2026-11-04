@@ -41,6 +41,8 @@ def run(command: list[str], cwd: Path, env: dict[str, str]) -> tuple[int, str]:
 
 def case_command(command: list[str], python_exe: str, basetemp: Path) -> list[str]:
     if "pytest" in command:
+        # pytest creates basetemp lazily, but requires its parent to exist.
+        basetemp.parent.mkdir(parents=True, exist_ok=True)
         # Reuse the already-resolved project interpreter, including the legacy
         # uv-run canary case. No nested sync or source-export .venv is needed.
         return [python_exe, "-m", "pytest", *command[command.index("pytest") + 1:],

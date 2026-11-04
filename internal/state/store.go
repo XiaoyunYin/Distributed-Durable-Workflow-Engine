@@ -911,7 +911,7 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 		}
 		if policy.RetriesUsed >= policy.MaxRetries || (policy.TotalDeadlineAt != nil && !policy.TotalDeadlineAt.After(databaseNow)) {
 			input.NewWorkflowState = StateFailed
-			input.RetryDueAt = nil
+			input.RetryAfter = nil
 		} else {
 			policy.RetriesUsed++
 			if _, err := tx.Exec(ctx, `UPDATE engine.retry_policies SET retries_used = $4, updated_at = clock_timestamp() WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
@@ -919,6 +919,14 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 				return ConsumeResult{}, fmt.Errorf("advance retry budget: %w", err)
 			}
 		}
+	}
+	var retryDueAt *time.Time
+	if input.RetryAfter != nil {
+		var due time.Time
+		if err := tx.QueryRow(ctx, `SELECT clock_timestamp() + ($1::double precision * interval '1 second')`, durationSeconds(*input.RetryAfter)).Scan(&due); err != nil {
+			return ConsumeResult{}, err
+		}
+		retryDueAt = &due
 	}
 	var newNodeState WorkflowState
 	switch attemptState {
@@ -931,7 +939,7 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 		if input.NewWorkflowState == StateFailed {
 			newNodeState = StateFailed
 		} else {
-			if input.NewWorkflowState != StateWaitingTimer || input.RetryDueAt == nil {
+			if input.NewWorkflowState != StateWaitingTimer || input.RetryAfter == nil {
 				return ConsumeResult{}, fmt.Errorf("%w: retryable result requires WAITING_TIMER and a due time", ErrInvalidTransition)
 			}
 			newNodeState = StateWaitingTimer
@@ -968,7 +976,7 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 			deadline_at = CASE WHEN $4 = 'WAITING_TIMER' THEN $6::timestamptz ELSE NULL END,
 			revision = revision + 1, updated_at = clock_timestamp()
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
-		input.WorkflowID, input.NodeID, input.Iteration, newNodeState, result, input.RetryDueAt); err != nil {
+		input.WorkflowID, input.NodeID, input.Iteration, newNodeState, result, retryDueAt); err != nil {
 		return ConsumeResult{}, fmt.Errorf("consume node result: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -986,12 +994,12 @@ func (s *Store) ConsumeResult(ctx context.Context, input ConsumeResultInput) (Co
 		&workflow.State, input.NewWorkflowState, "RESULT_CONSUMED"); err != nil {
 		return ConsumeResult{}, err
 	}
-	if attemptState == AttemptFailedRetryable && input.NewWorkflowState == StateWaitingTimer && input.RetryDueAt != nil {
+	if attemptState == AttemptFailedRetryable && input.NewWorkflowState == StateWaitingTimer && input.RetryAfter != nil {
 		if _, err := tx.Exec(ctx, `
 			INSERT INTO engine.timers
 				(timer_id, workflow_id, node_id, iteration, due_at, purpose, owning_revision)
 			VALUES ($1, $2, $3, $4, $5, 'RETRY_BACKOFF', $6)`,
-			NewID(), input.WorkflowID, input.NodeID, input.Iteration, *input.RetryDueAt, newRevision); err != nil {
+			NewID(), input.WorkflowID, input.NodeID, input.Iteration, *retryDueAt, newRevision); err != nil {
 			return ConsumeResult{}, fmt.Errorf("create retry timer: %w", err)
 		}
 	}
@@ -1051,8 +1059,8 @@ func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt,
 	if input.EffectClass != EffectPure && input.EffectClass != EffectCooperating && input.EffectClass != EffectNonCooperating {
 		return Attempt{}, errors.New("invalid activity effect class")
 	}
-	if input.HeartbeatDeadline.IsZero() {
-		input.HeartbeatDeadline = time.Now().Add(DefaultDispatchLease)
+	if input.DispatchLease == 0 {
+		input.DispatchLease = DefaultDispatchLease
 	}
 	tx, err := s.pool.Begin(ctx)
 	if err != nil {
@@ -1153,13 +1161,15 @@ func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt,
 		input.WorkflowID, input.NodeID, input.Iteration).Scan(&attemptNumber); err != nil {
 		return Attempt{}, fmt.Errorf("allocate attempt number: %w", err)
 	}
-	if _, err := tx.Exec(ctx, `
+	var heartbeatDeadline time.Time
+	if err := tx.QueryRow(ctx, `
 		INSERT INTO engine.activity_attempts
 			(workflow_id, node_id, iteration, attempt_number, state, effect_class,
 			 heartbeat_deadline, logical_effect_key, grant_scope_hash)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+		VALUES ($1, $2, $3, $4, $5, $6, clock_timestamp() + ($7::double precision * interval '1 second'), $8, $9)
+		RETURNING heartbeat_deadline`,
 		input.WorkflowID, input.NodeID, input.Iteration, attemptNumber, AttemptDispatchable,
-		authoritativeClass, input.HeartbeatDeadline, nullableString(input.LogicalEffectKey), nullableString(input.GrantScopeHash)); err != nil {
+		authoritativeClass, durationSeconds(input.DispatchLease), nullableString(input.LogicalEffectKey), nullableString(input.GrantScopeHash)).Scan(&heartbeatDeadline); err != nil {
 		return Attempt{}, fmt.Errorf("insert attempt: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -1192,7 +1202,7 @@ func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt,
 	return Attempt{
 		WorkflowID: input.WorkflowID, NodeID: input.NodeID, Iteration: input.Iteration,
 		AttemptNumber: attemptNumber, State: AttemptDispatchable, EffectClass: authoritativeClass,
-		HeartbeatDeadline: &input.HeartbeatDeadline, LogicalEffectKey: input.LogicalEffectKey,
+		HeartbeatDeadline: &heartbeatDeadline, LogicalEffectKey: input.LogicalEffectKey,
 		GrantScopeHash: input.GrantScopeHash, IsCurrent: true,
 	}, nil
 }
@@ -1665,9 +1675,9 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 		INSERT INTO engine.activity_attempts
 			(workflow_id, node_id, iteration, attempt_number, state, effect_class,
 			 heartbeat_deadline, logical_effect_key, grant_scope_hash)
-		VALUES ($1, $2, $3, $4, 'DISPATCHABLE', $5, $6, $7, $8)`,
+		VALUES ($1, $2, $3, $4, 'DISPATCHABLE', $5, clock_timestamp() + ($6::double precision * interval '1 second'), $7, $8)`,
 		input.WorkflowID, input.NodeID, input.Iteration, newAttempt, effectClass,
-		databaseNow.Add(dispatchLease), logicalEffectKey, grantScopeHash); err != nil {
+		durationSeconds(dispatchLease), logicalEffectKey, grantScopeHash); err != nil {
 		return TimeoutResult{}, fmt.Errorf("create replacement attempt: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `
@@ -1912,4 +1922,12 @@ func decodeEffectClasses(raw json.RawMessage) (map[string]EffectClass, error) {
 		}
 	}
 	return classes, nil
+}
+
+// DatabaseTime supplies advisory scheduler prechecks. Transactional mutations
+// still recheck deadlines under their existing locks using the database clock.
+func (s *Store) DatabaseTime(ctx context.Context) (time.Time, error) {
+	var now time.Time
+	err := s.pool.QueryRow(ctx, `SELECT clock_timestamp()`).Scan(&now)
+	return now, err
 }

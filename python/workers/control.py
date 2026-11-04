@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import urllib.error
 import urllib.request
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -46,6 +48,17 @@ class ControlClient:
         headers = {"Content-Type": "application/json"}
         if self.traceparent:
             headers["traceparent"] = self.traceparent
+        token_file = os.environ.get("WORKER_TOKEN_FILE", "")
+        if token_file:
+            try:
+                token = Path(token_file).read_text(encoding="utf-8").strip()
+                if not token:
+                    raise ValueError("empty projected token")
+                headers["Authorization"] = f"Bearer {token}"
+            except (OSError, ValueError) as error:
+                raise ControlError(
+                    401, "TOKEN_UNAVAILABLE", "projected token unavailable"
+                ) from error
         request = urllib.request.Request(
             f"{self.base_url}{path}",
             data=json.dumps(body, separators=(",", ":")).encode(),

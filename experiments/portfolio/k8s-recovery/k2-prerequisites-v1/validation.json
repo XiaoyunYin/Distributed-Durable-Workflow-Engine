@@ -1,0 +1,256 @@
+{
+  "schema": "dur053.k2a-prerequisites.v1",
+  "generated_at_utc": "2026-11-04T21:39:19.343142+00:00",
+  "task": "DUR-053 K2a",
+  "status": "IN_PROGRESS",
+  "handoff_basis": "PROVISIONAL",
+  "branch": "codex/k8s-k2",
+  "base_commit": "2406292fa890096603274cf6bdfb315e83232011",
+  "target_commit": null,
+  "commit_note": "uncommitted; Claude commits",
+  "scope": [
+    "R218",
+    "R222"
+  ],
+  "identity": {
+    "status": "PASS",
+    "evidence": "identity.txt",
+    "verifier": "Kubernetes TokenReview with pinned HTTPS origin/CA, exact issuer, dedicated requested and returned audience, required projected expiry, exact ServiceAccount subject/username",
+    "expiry_authority": "API server (not scheduler clock)",
+    "environment": "TLS local API-server response fixtures; not a Kubernetes deployment/signature campaign"
+  },
+  "skew": {
+    "status": "PASS",
+    "evidence": "skew.txt",
+    "scheduler_offsets_seconds": [
+      -30,
+      30
+    ],
+    "peer_offset": "opposite sign",
+    "database": "native PostgreSQL, 18 existing migrations",
+    "covered": [
+      "timer creation/firing",
+      "initial dispatch",
+      "retry/backoff",
+      "claimed timeout/replacement",
+      "unclaimed redispatch",
+      "takeover",
+      "stale owner/result fencing",
+      "terminal progress"
+    ],
+    "not_run": [
+      "TimeChaos"
+    ]
+  },
+  "full_go_race": {
+    "status": "PASS",
+    "command": "DURABLE_RUN_INTEGRATION=1 DURABLE_REQUIRE_DATABASE=1 go test -race -p 1 -count=1 ./...",
+    "database": "dur053_k2a_full_final2 (fresh, migrated to 18)",
+    "evidence": "go-race.txt",
+    "note": "Final full suite includes strengthened K1 LISTEN-join test and all K2a identity/skew/route tests."
+  },
+  "runtime_identity": {
+    "status": "PASS",
+    "command": "go test -race ./cmd/runtime -run TestK2 -count=1",
+    "evidence": "runtime-identity.txt"
+  },
+  "checks": [
+    {
+      "name": "go-vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "name": "gofmt",
+      "command": [
+        "gofmt",
+        "-l",
+        "<all cmd/internal Go files>"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "name": "ruff-check",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "check",
+        "python",
+        "tests"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "output": "All checks passed!\n"
+    },
+    {
+      "name": "ruff-format",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "format",
+        "--check",
+        "python",
+        "tests"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "output": "69 files already formatted\n"
+    },
+    {
+      "name": "mypy",
+      "command": [
+        "uv",
+        "run",
+        "mypy"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "output": "Success: no issues found in 43 source files\n"
+    },
+    {
+      "name": "pytest",
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "--basetemp",
+        "D:\\coding agent files\\durable-engine\\codex\\k2a\\pytest-final",
+        "-o",
+        "cache_dir=D:\\coding agent files\\durable-engine\\codex\\k2a\\pytest-final-cache"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0\ncachedir: D:\\coding agent files\\durable-engine\\codex\\k2a\\pytest-final-cache\nrootdir: D:\\portfolio-projects\\durable-agent-execution-engine\nconfigfile: pyproject.toml\ntestpaths: tests\nplugins: anyio-4.15.1\ncollected 205 items\n\ntests\\test_dur050_cost_ledger.py .................                       [  8%]\ntests\\test_dur050_pilot_slo.py ................                          [ 16%]\ntests\\test_dur050_window_reconciliation.py ....                          [ 18%]\ntests\\test_dur055_development_guards.py ....                             [ 20%]\ntests\\test_dur055_heldout.py ...........                                 [ 25%]\ntests\\test_dur055_mcp.py .......                                         [ 28%]\ntests\\test_dur055_postgres_integration.py ss                             [ 29%]\ntests\\test_dur056_budget.py ....                                         [ 31%]\ntests\\test_dur056_evaluation.py ..............                           [ 38%]\ntests\\test_dur056_fixtures.py ................                           [ 46%]\ntests\\test_dur056_retrieval.py ............                              [ 52%]\ntests\\test_dur056_scorer.py ...........                                  [ 57%]\ntests\\test_fault_control.py .............                                [ 63%]\ntests\\test_fault_proxy.py .                                              [ 64%]\ntests\\test_imports.py ..                                                 [ 65%]\ntests\\test_incident_agent.py ................                            [ 73%]\ntests\\test_kafka_worker.py ......                                        [ 76%]\ntests\\test_mutation_runner.py ........                                   [ 80%]\ntests\\test_partition_vectors.py ...                                      [ 81%]\ntests\\test_runtime_image_targets.py .                                    [ 81%]\ntests\\test_worker_identity.py .                                          [ 82%]\ntests\\test_worker_kafka_lifecycle.py s                                   [ 82%]\ntests\\test_worker_lifecycle.py .......................                   [ 94%]\ntests\\test_workers.py ............                                       [100%]\n\n=========================== short test summary info ===========================\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:34: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:41: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_worker_kafka_lifecycle.py:24: real Kafka witness requires DURABLE_KAFKA_BROKERS\n======================= 202 passed, 3 skipped in 34.62s =======================\n"
+    },
+    {
+      "name": "identity",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "./internal/api",
+        "-run",
+        "^TestK2",
+        "-count=1",
+        "-v"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "output": "=== RUN   TestK2IdentityGuards\n=== RUN   TestK2IdentityGuards/missing\n=== RUN   TestK2IdentityGuards/malformed\n=== RUN   TestK2IdentityGuards/invalid-base64\n=== RUN   TestK2IdentityGuards/invalid-claims\n=== RUN   TestK2IdentityGuards/wrong-audience\n=== RUN   TestK2IdentityGuards/wrong-ServiceAccount\n=== RUN   TestK2IdentityGuards/wrong-namespace\n=== RUN   TestK2IdentityGuards/wrong-issuer\n=== RUN   TestK2IdentityGuards/expired\n=== RUN   TestK2IdentityGuards/no-expiry\n=== RUN   TestK2IdentityGuards/unauthenticated\n=== RUN   TestK2IdentityGuards/review-error\n=== RUN   TestK2IdentityGuards/empty-review-audience\n=== RUN   TestK2IdentityGuards/wrong-review-audience\n=== RUN   TestK2IdentityGuards/wrong-review-user\n=== RUN   TestK2IdentityGuards/review-unavailable\n=== RUN   TestK2IdentityGuards/review-malformed\n=== RUN   TestK2IdentityGuards/review-redirect\n=== RUN   TestK2IdentityGuards/reviewer-missing\n=== RUN   TestK2IdentityGuards/reviewer-empty\n--- PASS: TestK2IdentityGuards (0.04s)\n    --- PASS: TestK2IdentityGuards/missing (0.00s)\n    --- PASS: TestK2IdentityGuards/malformed (0.00s)\n    --- PASS: TestK2IdentityGuards/invalid-base64 (0.00s)\n    --- PASS: TestK2IdentityGuards/invalid-claims (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-ServiceAccount (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-namespace (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-issuer (0.00s)\n    --- PASS: TestK2IdentityGuards/expired (0.01s)\n    --- PASS: TestK2IdentityGuards/no-expiry (0.00s)\n    --- PASS: TestK2IdentityGuards/unauthenticated (0.00s)\n    --- PASS: TestK2IdentityGuards/review-error (0.00s)\n    --- PASS: TestK2IdentityGuards/empty-review-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-review-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-review-user (0.00s)\n    --- PASS: TestK2IdentityGuards/review-unavailable (0.00s)\n    --- PASS: TestK2IdentityGuards/review-malformed (0.00s)\n    --- PASS: TestK2IdentityGuards/review-redirect (0.00s)\n    --- PASS: TestK2IdentityGuards/reviewer-missing (0.00s)\n    --- PASS: TestK2IdentityGuards/reviewer-empty (0.00s)\n=== RUN   TestK2IdentityConfiguration\n--- PASS: TestK2IdentityConfiguration (0.01s)\n=== RUN   TestK2RouteSetsAndIdentityBinding\n--- PASS: TestK2RouteSetsAndIdentityBinding (0.02s)\nPASS\nok  \tdurable-agent-execution-engine/internal/api\t4.041s\n"
+    },
+    {
+      "name": "skew",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "./internal/engine",
+        "-run",
+        "^TestK2(SchedulerSkew|ExternalDispatchSkew)$",
+        "-count=1",
+        "-v"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "output": "=== RUN   TestK2SchedulerSkew\n=== RUN   TestK2SchedulerSkew/-30s\n=== RUN   TestK2SchedulerSkew/-30s/timer\n=== RUN   TestK2SchedulerSkew/-30s/retry\n=== RUN   TestK2SchedulerSkew/-30s/claimed-timeout\n=== RUN   TestK2SchedulerSkew/30s\n=== RUN   TestK2SchedulerSkew/30s/timer\n=== RUN   TestK2SchedulerSkew/30s/retry\n=== RUN   TestK2SchedulerSkew/30s/claimed-timeout\n--- PASS: TestK2SchedulerSkew (4.61s)\n    --- PASS: TestK2SchedulerSkew/-30s (2.29s)\n        --- PASS: TestK2SchedulerSkew/-30s/timer (0.68s)\n        --- PASS: TestK2SchedulerSkew/-30s/retry (0.77s)\n        --- PASS: TestK2SchedulerSkew/-30s/claimed-timeout (0.81s)\n    --- PASS: TestK2SchedulerSkew/30s (2.32s)\n        --- PASS: TestK2SchedulerSkew/30s/timer (0.68s)\n        --- PASS: TestK2SchedulerSkew/30s/retry (0.78s)\n        --- PASS: TestK2SchedulerSkew/30s/claimed-timeout (0.84s)\n=== RUN   TestK2ExternalDispatchSkew\n=== RUN   TestK2ExternalDispatchSkew/-30s\n=== RUN   TestK2ExternalDispatchSkew/30s\n--- PASS: TestK2ExternalDispatchSkew (1.79s)\n    --- PASS: TestK2ExternalDispatchSkew/-30s (0.88s)\n    --- PASS: TestK2ExternalDispatchSkew/30s (0.91s)\nPASS\nok  \tdurable-agent-execution-engine/internal/engine\t7.989s\n"
+    },
+    {
+      "name": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "output": ""
+    },
+    {
+      "name": "public-links",
+      "command": [
+        "python",
+        "scripts/check-public-links.py"
+      ],
+      "exit_code": 0,
+      "status": "PASS",
+      "output": "Public Markdown link check PASS: 172 local links across 37 Markdown files.\n"
+    }
+  ],
+  "mutation_gate": {
+    "status": "PASS",
+    "command": "bash scripts/mutation-gate.sh <K2a temp output>",
+    "database": "dur053_k2a_gate_final4 (fresh, migrated to 18)",
+    "cases": 98,
+    "new_k2a_cases": 38,
+    "evidence": "mutations.json",
+    "shared_manifest": "mutations/manifest.json",
+    "wrappers": "Bash and PowerShell both delegate to the same manifest/runner; only Bash executed locally"
+  },
+  "skipped": [
+    {
+      "check": "PowerShell 7 mutation wrapper",
+      "reason": "pwsh 7 absent; Bash gate ran instead"
+    },
+    {
+      "check": "Docker/Compose smoke and build",
+      "reason": "Docker control API unreachable in sandbox; native psycopg databases used"
+    },
+    {
+      "check": "DUR055 PostgreSQL pytest fixtures (2)",
+      "reason": "DUR055_TEST_DATABASE_URL not configured"
+    },
+    {
+      "check": "real Kafka Python witness and Go round-trip",
+      "reason": "DURABLE_KAFKA_BROKERS not configured"
+    },
+    {
+      "check": "kind/RBAC/pod port probes, TimeChaos, hosted CI",
+      "reason": "K3+ or committed-target work; not exercised in K2a"
+    }
+  ],
+  "failed_or_aborted_attempts": [
+    "Initial skew invocation skipped because PowerShell execution policy prevented dot-sourcing the temporary environment file; rerun using the generated environment content executed and passed.",
+    "First skew fixture queried a nonexistent timers.created_at column; fixed the oracle to join the persisted owning transition timestamp; all final skew tests passed.",
+    "Initial Ruff check found one long line; formatted it and all final lint/format checks passed.",
+    "Two mutation runs were interrupted while strengthening tests. A third stopped when existing k1-listen-join survived its 25 ms observation window; the test now waits for a bounded deliberate-error pass to finish and holds the listener for one second. No relay production code changed. The final complete fresh-database 98-case gate passed."
+  ],
+  "preflight": {
+    "schema": "dur-046-mutation-results.v1",
+    "status": "PASS",
+    "git_commit": "2406292fa890096603274cf6bdfb315e83232011",
+    "source_basis": "working-tree overlay",
+    "generated_at_utc": "2026-11-04T21:27:25.702449+00:00",
+    "cases": [
+      {
+        "id": "k2-review-redirect",
+        "kind": "behavioral",
+        "status": "PASS",
+        "exit_code": 1,
+        "baseline_status": "PASS",
+        "baseline_output_tail": "tityGuards/wrong-audience\n=== RUN   TestK2IdentityGuards/wrong-ServiceAccount\n=== RUN   TestK2IdentityGuards/wrong-namespace\n=== RUN   TestK2IdentityGuards/wrong-issuer\n=== RUN   TestK2IdentityGuards/expired\n=== RUN   TestK2IdentityGuards/no-expiry\n=== RUN   TestK2IdentityGuards/unauthenticated\n=== RUN   TestK2IdentityGuards/review-error\n=== RUN   TestK2IdentityGuards/empty-review-audience\n=== RUN   TestK2IdentityGuards/wrong-review-audience\n=== RUN   TestK2IdentityGuards/wrong-review-user\n=== RUN   TestK2IdentityGuards/review-unavailable\n=== RUN   TestK2IdentityGuards/review-malformed\n=== RUN   TestK2IdentityGuards/review-redirect\n=== RUN   TestK2IdentityGuards/reviewer-missing\n=== RUN   TestK2IdentityGuards/reviewer-empty\n--- PASS: TestK2IdentityGuards (0.04s)\n    --- PASS: TestK2IdentityGuards/missing (0.00s)\n    --- PASS: TestK2IdentityGuards/malformed (0.00s)\n    --- PASS: TestK2IdentityGuards/invalid-base64 (0.00s)\n    --- PASS: TestK2IdentityGuards/invalid-claims (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-ServiceAccount (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-namespace (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-issuer (0.00s)\n    --- PASS: TestK2IdentityGuards/expired (0.01s)\n    --- PASS: TestK2IdentityGuards/no-expiry (0.00s)\n    --- PASS: TestK2IdentityGuards/unauthenticated (0.00s)\n    --- PASS: TestK2IdentityGuards/review-error (0.00s)\n    --- PASS: TestK2IdentityGuards/empty-review-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-review-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-review-user (0.00s)\n    --- PASS: TestK2IdentityGuards/review-unavailable (0.00s)\n    --- PASS: TestK2IdentityGuards/review-malformed (0.00s)\n    --- PASS: TestK2IdentityGuards/review-redirect (0.00s)\n    --- PASS: TestK2IdentityGuards/reviewer-missing (0.00s)\n    --- PASS: TestK2IdentityGuards/reviewer-empty (0.00s)\nPASS\nok  \tdurable-agent-execution-engine/internal/api\t0.322s\n",
+        "source_sha256": "d9fcfffca66539e1250bd5479c838145f5095fd18e21c8de1e6a635757034dd1",
+        "expected_failure": "identity guard bypassed",
+        "output_tail": "=== RUN   TestK2IdentityGuards\n=== RUN   TestK2IdentityGuards/missing\n=== RUN   TestK2IdentityGuards/malformed\n=== RUN   TestK2IdentityGuards/invalid-base64\n=== RUN   TestK2IdentityGuards/invalid-claims\n=== RUN   TestK2IdentityGuards/wrong-audience\n=== RUN   TestK2IdentityGuards/wrong-ServiceAccount\n=== RUN   TestK2IdentityGuards/wrong-namespace\n=== RUN   TestK2IdentityGuards/wrong-issuer\n=== RUN   TestK2IdentityGuards/expired\n=== RUN   TestK2IdentityGuards/no-expiry\n=== RUN   TestK2IdentityGuards/unauthenticated\n=== RUN   TestK2IdentityGuards/review-error\n=== RUN   TestK2IdentityGuards/empty-review-audience\n=== RUN   TestK2IdentityGuards/wrong-review-audience\n=== RUN   TestK2IdentityGuards/wrong-review-user\n=== RUN   TestK2IdentityGuards/review-unavailable\n=== RUN   TestK2IdentityGuards/review-malformed\n=== RUN   TestK2IdentityGuards/review-redirect\n    identity_test.go:161: identity guard bypassed: TokenReview redirect followed\n=== RUN   TestK2IdentityGuards/reviewer-missing\n=== RUN   TestK2IdentityGuards/reviewer-empty\n--- FAIL: TestK2IdentityGuards (0.05s)\n    --- PASS: TestK2IdentityGuards/missing (0.00s)\n    --- PASS: TestK2IdentityGuards/malformed (0.00s)\n    --- PASS: TestK2IdentityGuards/invalid-base64 (0.00s)\n    --- PASS: TestK2IdentityGuards/invalid-claims (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-ServiceAccount (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-namespace (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-issuer (0.00s)\n    --- PASS: TestK2IdentityGuards/expired (0.01s)\n    --- PASS: TestK2IdentityGuards/no-expiry (0.00s)\n    --- PASS: TestK2IdentityGuards/unauthenticated (0.00s)\n    --- PASS: TestK2IdentityGuards/review-error (0.00s)\n    --- PASS: TestK2IdentityGuards/empty-review-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-review-audience (0.00s)\n    --- PASS: TestK2IdentityGuards/wrong-review-user (0.00s)\n    --- PASS: TestK2IdentityGuards/review-unavailable (0.00s)\n    --- PASS: TestK2IdentityGuards/review-malformed (0.00s)\n    --- FAIL: TestK2IdentityGuards/review-redirect (0.00s)\n    --- PASS: TestK2IdentityGuards/reviewer-missing (0.00s)\n    --- PASS: TestK2IdentityGuards/reviewer-empty (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/api\t3.645s\nFAIL\n"
+      }
+    ]
+  },
+  "additional_validation_notes": [
+    "A parent-context-cancellation fixture approach masked the existing relay drain mutation; it was rejected and replaced with a completed-pass barrier that preserves the original drain assertions.",
+    "The new Python mutation exposed a missing parent directory for nested pytest basetemp; the shared runner now creates the parent, with an executed nested-pytest regression test.",
+    "The redirect mutation initially produced a compile failure because an inline comment swallowed the closure delimiter; the gate rejected that result. The corrected mutation removes only the redirect rejection and must fail semantically."
+  ],
+  "schema_change": false,
+  "cleanup_evidence": "cleanup.json",
+  "review_original_prefix_sha256": "f99965007010dc267ac9b39d2bb2e882a5e9f1556885d74f06ea12d9cad66bef",
+  "source_inventory": "source-sha256.json"
+}

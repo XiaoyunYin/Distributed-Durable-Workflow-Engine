@@ -459,6 +459,14 @@ func k1ReferenceRuntime(t *testing.T) string {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if name == "engine" {
+			// K2 changes only the Store call signatures in this frozen reference.
+			// Retain its pre-K1 lifecycle/control flow and wall-clock prechecks.
+			data = bytes.ReplaceAll(data, []byte("DueAt: time.Now().Add(delay)"), []byte("Delay: delay"))
+			data = bytes.ReplaceAll(data, []byte("HeartbeatDeadline: time.Now().Add(e.AttemptLease)"), []byte("DispatchLease: e.AttemptLease"))
+			data = bytes.ReplaceAll(data, []byte("due := time.Now().Add(retryAfter)"), []byte("due := retryAfter"))
+			data = bytes.ReplaceAll(data, []byte("consume.RetryDueAt"), []byte("consume.RetryAfter"))
+		}
 		if runtime.GOOS == "windows" && name == "runtime-main" {
 			// A test transport for NotifyContext cancellation; POSIX uses real SIGTERM.
 			data = bytes.Replace(data, []byte("defer stop()"), []byte("defer stop(); ctx, cancelSignal := context.WithCancel(ctx); defer cancelSignal(); go func(){ var b [1]byte; _, _ = os.Stdin.Read(b[:]); cancelSignal() }()"), 1)

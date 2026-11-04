@@ -1,0 +1,28 @@
+{
+  "temporary_databases_created": [
+    "dur053_k2a_tests",
+    "dur053_k2a_mutations",
+    "dur053_k2a_full",
+    "dur053_k2a_gate",
+    "dur053_k2a_gate_final",
+    "dur053_k2a_gate_final2",
+    "dur053_k2a_full_final",
+    "dur053_k2a_gate_final3",
+    "dur053_k2a_full_final2",
+    "dur053_k2a_gate_final4"
+  ],
+  "present_before_cleanup": [
+    "dur053_k2a_tests",
+    "dur053_k2a_mutations",
+    "dur053_k2a_full",
+    "dur053_k2a_gate",
+    "dur053_k2a_gate_final",
+    "dur053_k2a_gate_final2",
+    "dur053_k2a_full_final",
+    "dur053_k2a_gate_final3",
+    "dur053_k2a_full_final2",
+    "dur053_k2a_gate_final4"
+  ],
+  "remaining_after_cleanup": [],
+  "all_dropped": true
+}

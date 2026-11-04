@@ -331,8 +331,8 @@ func (s *Store) ScheduleTimer(ctx context.Context, input ScheduleTimerInput) (st
 	started := time.Now()
 	defer s.observeQuery(started)
 	defer s.observeTransaction()
-	if input.WorkflowID == "" || input.NodeID == "" || input.ActorID == "" || input.DueAt.IsZero() {
-		return "", errors.New("timer identity, due time, and actor are required")
+	if input.WorkflowID == "" || input.NodeID == "" || input.ActorID == "" {
+		return "", errors.New("timer identity and actor are required")
 	}
 	if input.Purpose == "" {
 		input.Purpose = "WORKFLOW_TIMER"
@@ -378,10 +378,12 @@ func (s *Store) ScheduleTimer(ctx context.Context, input ScheduleTimerInput) (st
 		return "", fmt.Errorf("node state %s cannot schedule a timer", nodeState)
 	}
 	timerID := NewID()
-	if _, err := tx.Exec(ctx, `
+	var dueAt time.Time
+	if err := tx.QueryRow(ctx, `
 		INSERT INTO engine.timers (timer_id, workflow_id, node_id, iteration, due_at, purpose, owning_revision)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-		timerID, input.WorkflowID, input.NodeID, input.Iteration, input.DueAt, input.Purpose, revision+1); err != nil {
+		VALUES ($1, $2, $3, $4, clock_timestamp() + ($5::double precision * interval '1 second'), $6, $7)
+		RETURNING due_at`,
+		timerID, input.WorkflowID, input.NodeID, input.Iteration, durationSeconds(input.Delay), input.Purpose, revision+1).Scan(&dueAt); err != nil {
 		return "", fmt.Errorf("insert timer: %w", err)
 	}
 	newRevision := revision + 1
@@ -391,7 +393,7 @@ func (s *Store) ScheduleTimer(ctx context.Context, input ScheduleTimerInput) (st
 			revision = revision + 1,
 			updated_at = clock_timestamp()
 		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`,
-		input.WorkflowID, input.NodeID, input.Iteration, input.DueAt); err != nil {
+		input.WorkflowID, input.NodeID, input.Iteration, dueAt); err != nil {
 		return "", fmt.Errorf("set timer node state: %w", err)
 	}
 	if _, err := tx.Exec(ctx, `

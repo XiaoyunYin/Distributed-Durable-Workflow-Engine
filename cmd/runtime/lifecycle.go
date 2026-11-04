@@ -16,6 +16,7 @@ import (
 	"syscall"
 	"time"
 
+	"durable-agent-execution-engine/internal/api"
 	"durable-agent-execution-engine/internal/engine"
 	"durable-agent-execution-engine/internal/faults"
 	"durable-agent-execution-engine/internal/state"
@@ -129,7 +130,7 @@ func lifecycleRoles(value string) (map[string]bool, error) {
 	}
 	for _, role := range strings.Split(value, ",") {
 		switch role {
-		case "api", "scheduler", "relay", "ingestor":
+		case "api", "operator", "worker-control", "scheduler", "relay", "ingestor":
 			roles[role] = true
 		default:
 			return nil, fmt.Errorf("unknown runtime role %q", role)
@@ -141,11 +142,19 @@ func lifecycleRoles(value string) (map[string]bool, error) {
 func serveLifecycle(signalCtx context.Context) error {
 	flags := flag.NewFlagSet("serve", flag.ContinueOnError)
 	addr := flags.String("addr", envOrDefault("RUNTIME_ADDR", "127.0.0.1:8080"), "HTTP listen address")
-	rolesFlag := flags.String("roles", envOrDefault("RUNTIME_ROLES", "combined"), "combined or comma-separated api,scheduler,relay,ingestor")
+	rolesFlag := flags.String("roles", envOrDefault("RUNTIME_ROLES", "combined"), "combined or comma-separated api,operator,worker-control,scheduler,relay,ingestor")
 	if err := flags.Parse(os.Args[1:]); err != nil {
 		return err
 	}
 	roles, err := lifecycleRoles(*rolesFlag)
+	if err != nil {
+		return err
+	}
+	routes, err := lifecycleRoutes(*rolesFlag, roles)
+	if err != nil {
+		return err
+	}
+	reviewer, err := api.AuthenticationFromEnvironment()
 	if err != nil {
 		return err
 	}
@@ -172,8 +181,8 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	var draining atomic.Bool
 	handlerStore := store
-	// Routing restrictions/authentication are K2; roles here control process work.
-	handler := lifecycleHandler(roleName, handlerStore, metrics, tracing, &draining)
+	apiHandler := api.NewServer(store).WithRoutes(routes).WithAuthentication(reviewer).WithTracing(tracing).Handler()
+	handler := lifecycleHandlerWithAPI(roleName, handlerStore, metrics, tracing, &draining, apiHandler, routes == api.RoutesCombined)
 	server := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
@@ -351,4 +360,25 @@ func lifecycleFatalError(mu *sync.Mutex, fatalErr *error) error {
 // Shutdown, unlike Serve, waits for active handlers to return.
 func shutdownHTTP(server *http.Server, ctx context.Context) error {
 	return server.Shutdown(ctx)
+}
+
+// lifecycleRoutes separates operator authority from the worker listener. Background
+// roles expose only health/metrics, including when combined with each other.
+func lifecycleRoutes(value string, roles map[string]bool) (api.RouteSet, error) {
+	if value == "combined" {
+		if os.Getenv("RUNTIME_TOKEN_AUTH") == "enabled" {
+			return "", errors.New("token authentication requires a split HTTP role")
+		}
+		return api.RoutesCombined, nil
+	}
+	routes := api.RoutesNone
+	for role, set := range map[string]api.RouteSet{"api": api.RoutesPublic, "operator": api.RoutesOperator, "worker-control": api.RoutesWorkerControl} {
+		if roles[role] {
+			if routes != api.RoutesNone {
+				return "", errors.New("split HTTP roles require separate listeners/processes")
+			}
+			routes = set
+		}
+	}
+	return routes, nil
 }

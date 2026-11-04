@@ -98,7 +98,7 @@ func TestM2WorkerAPIConcurrencyRetriesAndStaleResult(t *testing.T) {
 		if _, err := store.CreateAttempt(ctx, state.AttemptInput{
 			Lease:      state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch},
 			WorkflowID: workflowID, NodeID: "root", Iteration: 0, ExpectedRevision: 2,
-			EffectClass: state.EffectPure, HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "scheduler",
+			EffectClass: state.EffectPure, DispatchLease: time.Minute, ActorID: "scheduler",
 		}); err != nil {
 			t.Fatal(err)
 		}

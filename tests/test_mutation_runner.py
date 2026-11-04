@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import importlib.util
+import subprocess
+import sys
 from pathlib import Path
 from types import ModuleType
 
@@ -107,3 +109,19 @@ def test_source_fingerprint_detects_restoration_drift(tmp_path: Path) -> None:
     assert runner.source_fingerprint(tmp_path) != original
     source.write_bytes(b"guard=True\n")
     assert runner.source_fingerprint(tmp_path) == original
+
+
+def test_pytest_case_uses_a_nested_basetemp(tmp_path: Path) -> None:
+    runner = load_runner()
+    test_file = tmp_path / "test_nested.py"
+    test_file.write_text(
+        "def test_temp(tmp_path):\n    assert tmp_path.is_dir()\n",
+        encoding="utf-8",
+    )
+    basetemp = tmp_path / "not-created" / "case"
+    command = runner.case_command(
+        ["python", "-m", "pytest", str(test_file), "-q"], sys.executable, basetemp
+    )
+    result = subprocess.run(command, capture_output=True, text=True, check=False)
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 passed" in result.stdout
