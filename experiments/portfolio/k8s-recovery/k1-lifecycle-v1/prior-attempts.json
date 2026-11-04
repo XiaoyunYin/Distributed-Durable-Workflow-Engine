@@ -1,0 +1,642 @@
+[
+  {
+    "record": "validation-initial.json",
+    "description": "Initial proxy DSN harness failure and Windows WSL bash selection failure; not passing evidence.",
+    "started_at_utc": "2026-11-04T16:43:53.512622+00:00",
+    "database": {
+      "isolation": "fresh temporary database; numbered migrations applied via psycopg",
+      "name": "dur053_k1_91fe11c1ef",
+      "migrations_applied": 18,
+      "cleanup": "dropped WITH (FORCE) after checks"
+    },
+    "checks": [
+      {
+        "name": "go-race",
+        "command": [
+          "go",
+          "test",
+          "-race",
+          "-p",
+          "1",
+          "./..."
+        ],
+        "status": "FAIL",
+        "seconds": 364.516,
+        "output_sha256": "141489dbb1df042c270acce95853fc6545744939fa766334161489f69b6e0703",
+        "output_tail": "?   \tdurable-agent-execution-engine/cmd/dur026-benchmark\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/dur026-worker\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/dur027-crash-fixture\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur027-lease\t1.483s\nok  \tdurable-agent-execution-engine/cmd/dur028-checkpoint\t5.788s\n?   \tdurable-agent-execution-engine/cmd/dur034-ablation\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur035-dispatch\t4.884s\n?   \tdurable-agent-execution-engine/cmd/dur041a-isolation\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur043-stale-probe\t1.475s\n?   \tdurable-agent-execution-engine/cmd/dur048-load\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur049-checker\t1.448s\nok  \tdurable-agent-execution-engine/cmd/dur049-db-probe\t1.433s\nok  \tdurable-agent-execution-engine/cmd/dur049-lock-holder\t1.491s\nok  \tdurable-agent-execution-engine/cmd/dur050-fixture\t4.483s\nok  \tdurable-agent-execution-engine/cmd/dur050-loadgen\t2.312s\nok  \tdurable-agent-execution-engine/cmd/dur050-observer\t1.551s\nok  \tdurable-agent-execution-engine/cmd/dur050-sink\t1.286s\n?   \tdurable-agent-execution-engine/cmd/fault-checker\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/fault-fixture\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/local-demo\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/m5-fixture\t[no test files]\n--- FAIL: TestK1DatabaseOutageReadinessAndShutdown (0.11s)\n    lifecycle_integration_test.go:340: ping PostgreSQL: failed to connect to `user= database=`:\n        \t[::1]:5432 (localhost): tls error: server refused TLS connection\n        \t127.0.0.1:5432 (localhost): tls error: server refused TLS connection\n        \t[::1]:5432 (localhost): server error: FATAL: no PostgreSQL user name specified in startup packet (SQLSTATE 28000)\n        \t127.0.0.1:5432 (localhost): server error: FATAL: no PostgreSQL user name specified in startup packet (SQLSTATE 28000)\nFAIL\nFAIL\tdurable-agent-execution-engine/cmd/runtime\t15.253s\nok  \tdurable-agent-execution-engine/internal/api\t6.579s\nok  \tdurable-agent-execution-engine/internal/dur050\t1.252s\nok  \tdurable-agent-execution-engine/internal/effects\t1.371s\nok  \tdurable-agent-execution-engine/internal/engine\t16.396s\nok  \tdurable-agent-execution-engine/internal/faults\t1.249s\nok  \tdurable-agent-execution-engine/internal/incident\t5.720s\nok  \tdurable-agent-execution-engine/internal/invariants\t1.719s\nok  \tdurable-agent-execution-engine/internal/partition\t1.290s\nok  \tdurable-agent-execution-engine/internal/reconciliation\t1.714s\nok  \tdurable-agent-execution-engine/internal/reference\t1.301s\nok  \tdurable-agent-execution-engine/internal/state\t19.520s\nok  \tdurable-agent-execution-engine/internal/telemetry\t2.471s\nok  \tdurable-agent-execution-engine/internal/transport\t6.767s\nFAIL\n"
+      },
+      {
+        "name": "go-vet",
+        "command": [
+          "go",
+          "vet",
+          "./..."
+        ],
+        "status": "PASS",
+        "seconds": 12.89,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_tail": ""
+      },
+      {
+        "name": "ruff-check",
+        "command": [
+          "uv",
+          "run",
+          "ruff",
+          "check",
+          "python",
+          "tests"
+        ],
+        "status": "PASS",
+        "seconds": 0.297,
+        "output_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "output_tail": ""
+      },
+      {
+        "name": "ruff-format",
+        "command": [
+          "uv",
+          "run",
+          "ruff",
+          "format",
+          "--check",
+          "python",
+          "tests"
+        ],
+        "status": "PASS",
+        "seconds": 0.14,
+        "output_sha256": "4cfce4314a68bfd72805ca6ee4c4477596a8626548f54945751eb6fcfa34f996",
+        "output_tail": ""
+      },
+      {
+        "name": "mypy",
+        "command": [
+          "uv",
+          "run",
+          "mypy"
+        ],
+        "status": "PASS",
+        "seconds": 1.188,
+        "output_sha256": "355a435c33a29b8f3f0db0815b88731b7ae35c080fe47fdbc27e9330572711aa",
+        "output_tail": ""
+      },
+      {
+        "name": "pytest",
+        "command": [
+          "uv",
+          "run",
+          "pytest",
+          "--basetemp",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest",
+          "-p",
+          "no:cacheprovider"
+        ],
+        "status": "PASS",
+        "seconds": 62.234,
+        "output_sha256": "91801abdeef26361fea7a637766b997569f98f9a8caa9cd250d15bb904cb84c0",
+        "output_tail": ""
+      },
+      {
+        "name": "mutation-powershell",
+        "command": [
+          "pwsh",
+          "-File",
+          "scripts/mutation-gate.ps1",
+          "-Output",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\dur053-mutations.json"
+        ],
+        "status": "BLOCKED",
+        "seconds": 0.062,
+        "output_sha256": "34d225a739f739fb4d8df7dc1124e10d3595c1685352fa8a404399be5ccecc86",
+        "output_tail": "[WinError 2] \u7cfb\u7edf\u627e\u4e0d\u5230\u6307\u5b9a\u7684\u6587\u4ef6\u3002"
+      },
+      {
+        "name": "mutation-bash",
+        "command": [
+          "bash",
+          "scripts/mutation-gate.sh",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\dur053-mutations.json"
+        ],
+        "status": "FAIL",
+        "seconds": 0.485,
+        "output_sha256": "8559dcbb186be00d3b93c7a7fec02563f958e39be7cb191fa8da6054490896d4",
+        "output_tail": "\ufffdb\ufffd~\ufffd\ufffd\ufffd\u00020 \u0000\n\u0000\n\u0000\u0019\ufffd\ufffd\ufffdN\u0001x:\u0000 \u0000B\u0000a\u0000s\u0000h\u0000/\u0000S\u0000e\u0000r\u0000v\u0000i\u0000c\u0000e\u0000/\u0000C\u0000r\u0000e\u0000a\u0000t\u0000e\u0000I\u0000n\u0000s\u0000t\u0000a\u0000n\u0000c\u0000e\u0000/\u0000E\u0000_\u0000A\u0000C\u0000C\u0000E\u0000S\u0000S\u0000D\u0000E\u0000N\u0000I\u0000E\u0000D\u0000\n\u0000\n\u0000"
+      }
+    ]
+  },
+  {
+    "record": "validation-run2.json",
+    "description": "Reference startup allowance too short; GBK mutation-output decoder failure after 17 detections; not passing evidence.",
+    "started_at_utc": "2026-11-04T16:52:57.146404+00:00",
+    "database": {
+      "isolation": "fresh temporary database; numbered migrations applied via psycopg",
+      "name": "dur053_k1_6cd7e982a5",
+      "migrations_applied": 18,
+      "cleanup": "dropped WITH (FORCE) after checks"
+    },
+    "checks": [
+      {
+        "name": "go-race",
+        "command": [
+          "go",
+          "test",
+          "-race",
+          "-p",
+          "1",
+          "./..."
+        ],
+        "status": "FAIL",
+        "seconds": 112.797,
+        "output_sha256": "dcdafe10469ef7b7f9239ec1949adb79dc912f0933ab69d89330478d28db95c5",
+        "output_tail": "?   \tdurable-agent-execution-engine/cmd/dur026-benchmark\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/dur026-worker\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/dur027-crash-fixture\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur027-lease\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur028-checkpoint\t(cached)\n?   \tdurable-agent-execution-engine/cmd/dur034-ablation\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur035-dispatch\t(cached)\n?   \tdurable-agent-execution-engine/cmd/dur041a-isolation\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur043-stale-probe\t(cached)\n?   \tdurable-agent-execution-engine/cmd/dur048-load\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur049-checker\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur049-db-probe\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur049-lock-holder\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur050-fixture\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur050-loadgen\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur050-observer\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur050-sink\t(cached)\n?   \tdurable-agent-execution-engine/cmd/fault-checker\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/fault-fixture\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/local-demo\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/m5-fixture\t[no test files]\n--- FAIL: TestK1RuntimeSignalCompetingAcquisition (16.49s)\n    --- FAIL: TestK1RuntimeSignalCompetingAcquisition/pre-k1-reference (4.38s)\n        lifecycle_integration_test.go:138: child did not acquire lease\n2026/11/04 08:53:33 WARN scheduler repair scan failed error=\"failed to connect to `user=durable database=dur053_k1_6cd7e982a5`: 127.0.0.1:57264 (127.0.0.1): dial error: dial tcp 127.0.0.1:57264: connectex: No connection could be made because the target machine actively refused it.\"\nFAIL\nFAIL\tdurable-agent-execution-engine/cmd/runtime\t23.760s\nok  \tdurable-agent-execution-engine/internal/api\t3.026s\nok  \tdurable-agent-execution-engine/internal/dur050\t(cached)\nok  \tdurable-agent-execution-engine/internal/effects\t(cached)\nok  \tdurable-agent-execution-engine/internal/engine\t12.101s\nok  \tdurable-agent-execution-engine/internal/faults\t(cached)\nok  \tdurable-agent-execution-engine/internal/incident\t2.162s\nok  \tdurable-agent-execution-engine/internal/invariants\t1.601s\nok  \tdurable-agent-execution-engine/internal/partition\t(cached)\nok  \tdurable-agent-execution-engine/internal/reconciliation\t1.721s\nok  \tdurable-agent-execution-engine/internal/reference\t(cached)\nok  \tdurable-agent-execution-engine/internal/state\t20.425s\nok  \tdurable-agent-execution-engine/internal/telemetry\t(cached)\nok  \tdurable-agent-execution-engine/internal/transport\t3.632s\nFAIL\n"
+      },
+      {
+        "name": "go-vet",
+        "command": [
+          "go",
+          "vet",
+          "./..."
+        ],
+        "status": "PASS",
+        "seconds": 4.391,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_tail": ""
+      },
+      {
+        "name": "ruff-check",
+        "command": [
+          "uv",
+          "run",
+          "ruff",
+          "check",
+          "python",
+          "tests"
+        ],
+        "status": "PASS",
+        "seconds": 0.172,
+        "output_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "output_tail": ""
+      },
+      {
+        "name": "ruff-format",
+        "command": [
+          "uv",
+          "run",
+          "ruff",
+          "format",
+          "--check",
+          "python",
+          "tests"
+        ],
+        "status": "PASS",
+        "seconds": 0.125,
+        "output_sha256": "4cfce4314a68bfd72805ca6ee4c4477596a8626548f54945751eb6fcfa34f996",
+        "output_tail": ""
+      },
+      {
+        "name": "mypy",
+        "command": [
+          "uv",
+          "run",
+          "mypy"
+        ],
+        "status": "PASS",
+        "seconds": 1.36,
+        "output_sha256": "355a435c33a29b8f3f0db0815b88731b7ae35c080fe47fdbc27e9330572711aa",
+        "output_tail": ""
+      },
+      {
+        "name": "pytest",
+        "command": [
+          "uv",
+          "run",
+          "pytest",
+          "--basetemp",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest",
+          "-p",
+          "no:cacheprovider"
+        ],
+        "status": "PASS",
+        "seconds": 58.906,
+        "output_sha256": "9c95082a45b01f307fe084188e07985bd55724f372005c1f44242a008eebca59",
+        "output_tail": ""
+      },
+      {
+        "name": "mutation-powershell",
+        "command": [
+          "pwsh",
+          "-File",
+          "scripts/mutation-gate.ps1",
+          "-Output",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\dur053-mutations.json"
+        ],
+        "status": "BLOCKED",
+        "seconds": 0.047,
+        "output_sha256": "34d225a739f739fb4d8df7dc1124e10d3595c1685352fa8a404399be5ccecc86",
+        "output_tail": "[WinError 2] \u7cfb\u7edf\u627e\u4e0d\u5230\u6307\u5b9a\u7684\u6587\u4ef6\u3002"
+      },
+      {
+        "name": "mutation-bash",
+        "command": [
+          "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+          "scripts/mutation-gate.sh",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\dur053-mutations.json"
+        ],
+        "status": "FAIL",
+        "seconds": 705.203,
+        "output_sha256": "239e0c25e283f9441155d0118c8bdc39d7e90a6aa2288390165c5464b0766cb0",
+        "output_tail": "ng copy of 'scripts/mutation-gate.ps1', LF will be replaced by CRLF the next time Git touches it\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: in the working copy of 'scripts/mutation-gate.ps1', LF will be replaced by CRLF the next time Git touches it\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: in the working copy of 'scripts/mutation-gate.ps1', LF will be replaced by CRLF the next time Git touches it\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: in the working copy of 'scripts/mutation-gate.ps1', LF will be replaced by CRLF the next time Git touches it\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: in the working copy of 'scripts/mutation-gate.ps1', LF will be replaced by CRLF the next time Git touches it\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: in the working copy of 'scripts/mutation-gate.ps1', LF will be replaced by CRLF the next time Git touches it\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: in the working copy of 'scripts/mutation-gate.ps1', LF will be replaced by CRLF the next time Git touches it\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied\nException in thread Thread-35 (_readerthread):\nTraceback (most recent call last):\n  File \"D:\\anaconda3\\Lib\\threading.py\", line 1075, in _bootstrap_inner\n    self.run()\n  File \"D:\\anaconda3\\Lib\\threading.py\", line 1012, in run\n    self._target(*self._args, **self._kwargs)\n  File \"D:\\anaconda3\\Lib\\subprocess.py\", line 1599, in _readerthread\n    buffer.append(fh.read())\n                  ^^^^^^^^^\nUnicodeDecodeError: 'gbk' codec can't decode byte 0x82 in position 462: illegal multibyte sequence\npython-canary-scanner: Python baseline failed or skipped\nNone\nDUR-046 mutation case has no passing, executed baseline; refusing to apply mutation\nPASS api-duplicate-json: mutation was rejected by its named semantic test\nPASS state-event-registry: mutation was rejected by its named semantic test\nPASS state-lease-timeout-classification: mutation was rejected by its named semantic test\nPASS engine-lease-fence: mutation was rejected by its named semantic test\nPASS state-wakeup-lease-lock: mutation was rejected by its named semantic test\nPASS state-current-owner-stale-epoch: mutation was rejected by its named semantic test\nPASS state-approval-resource: mutation was rejected by its named semantic test\nPASS state-effect-argument-hash: mutation was rejected by its named semantic test\nPASS invariants-submission-boundary: mutation was rejected by its named semantic test\nPASS invariants-fault-sequence: mutation was rejected by its named semantic test\nPASS invariants-outbox-state: mutation was rejected by its named semantic test\nPASS engine-graph-entry: mutation was rejected by its named semantic test\nPASS engine-scheduler-trace-link: mutation was rejected by its named semantic test\nPASS dur049-post-boundary-fence-checker: mutation was rejected by its named semantic test\nPASS dur049-stale-attempt-result-checker: mutation was rejected by its named semantic test\nPASS dur049-stale-attempt-result-api-fence: mutation was rejected by its named semantic test\nPASS compose-lock-timeout: configuration tripwire detected the removed setting\n"
+      },
+      {
+        "name": "smoke",
+        "command": [
+          "pwsh",
+          "-File",
+          "scripts/smoke.ps1"
+        ],
+        "status": "BLOCKED",
+        "seconds": 0.032,
+        "output_sha256": "34d225a739f739fb4d8df7dc1124e10d3595c1685352fa8a404399be5ccecc86",
+        "output_tail": "[WinError 2] \u7cfb\u7edf\u627e\u4e0d\u5230\u6307\u5b9a\u7684\u6587\u4ef6\u3002"
+      },
+      {
+        "name": "diff-check",
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "status": "PASS",
+        "seconds": 0.078,
+        "output_sha256": "e34a7ce8b9d064035a0d03e9115a636ddf9e9cca4b5cddb36f85a55c7fbbdd8c",
+        "output_tail": ""
+      },
+      {
+        "name": "public-links",
+        "command": [
+          "python",
+          "scripts/check-public-links.py"
+        ],
+        "status": "PASS",
+        "seconds": 0.281,
+        "output_sha256": "f850a1fadc847478ea8153beddbb845aae352c361677650af6fbb14334bb4d96",
+        "output_tail": ""
+      },
+      {
+        "name": "lifecycle-witness",
+        "command": [
+          "go",
+          "test",
+          "-race",
+          "-p",
+          "1",
+          "./cmd/runtime",
+          "./internal/engine",
+          "./internal/transport",
+          "-run",
+          "^TestK1",
+          "-count=1",
+          "-v"
+        ],
+        "status": "PASS",
+        "seconds": 41.203,
+        "output_sha256": "00645f8e9337a7f9596f7c7e83b0985f577a3319d5bc3ea57a2cb44c4423b1f9",
+        "output_tail": ""
+      },
+      {
+        "name": "rebalance-witness",
+        "command": [
+          "uv",
+          "run",
+          "pytest",
+          "tests/test_worker_lifecycle.py",
+          "--basetemp",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest",
+          "-p",
+          "no:cacheprovider",
+          "-v"
+        ],
+        "status": "PASS",
+        "seconds": 2.484,
+        "output_sha256": "91841f0d15f4cf840cdf4bf9e05a9baa2c4fa692d02a4c8291b4a7289978022d",
+        "output_tail": ""
+      }
+    ]
+  },
+  {
+    "record": "validation-before-legacy.json",
+    "description": "Earlier passing Go/Python checks before exact legacy cleanup restoration.",
+    "started_at_utc": "2026-11-04T17:01:53.044500+00:00",
+    "database": {
+      "isolation": "fresh temporary database; numbered migrations applied via psycopg",
+      "name": "dur053_k1_a16c1f0ed8",
+      "migrations_applied": 18,
+      "cleanup": "dropped WITH (FORCE) after checks"
+    },
+    "checks": [
+      {
+        "name": "go-race",
+        "command": [
+          "go",
+          "test",
+          "-race",
+          "-p",
+          "1",
+          "./..."
+        ],
+        "status": "PASS",
+        "seconds": 115.954,
+        "output_sha256": "f1166732a809521bdbfa735b0fd457e284f02184caf6cd55e7ef11219b0379ee",
+        "output_tail": ""
+      },
+      {
+        "name": "go-vet",
+        "command": [
+          "go",
+          "vet",
+          "./..."
+        ],
+        "status": "PASS",
+        "seconds": 2.515,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_tail": ""
+      },
+      {
+        "name": "ruff-check",
+        "command": [
+          "uv",
+          "run",
+          "ruff",
+          "check",
+          "python",
+          "tests"
+        ],
+        "status": "PASS",
+        "seconds": 0.328,
+        "output_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "output_tail": ""
+      },
+      {
+        "name": "ruff-format",
+        "command": [
+          "uv",
+          "run",
+          "ruff",
+          "format",
+          "--check",
+          "python",
+          "tests"
+        ],
+        "status": "PASS",
+        "seconds": 0.157,
+        "output_sha256": "4cfce4314a68bfd72805ca6ee4c4477596a8626548f54945751eb6fcfa34f996",
+        "output_tail": ""
+      },
+      {
+        "name": "mypy",
+        "command": [
+          "uv",
+          "run",
+          "mypy"
+        ],
+        "status": "PASS",
+        "seconds": 1.5,
+        "output_sha256": "355a435c33a29b8f3f0db0815b88731b7ae35c080fe47fdbc27e9330572711aa",
+        "output_tail": ""
+      },
+      {
+        "name": "pytest",
+        "command": [
+          "uv",
+          "run",
+          "pytest",
+          "--basetemp",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest",
+          "-p",
+          "no:cacheprovider"
+        ],
+        "status": "PASS",
+        "seconds": 60.547,
+        "output_sha256": "1e0eb56644a31f35fbb36168349719bb152d93f319bd9affacafc103cfdd98f4",
+        "output_tail": ""
+      },
+      {
+        "name": "diff-check",
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "status": "PASS",
+        "seconds": 0.093,
+        "output_sha256": "e34a7ce8b9d064035a0d03e9115a636ddf9e9cca4b5cddb36f85a55c7fbbdd8c",
+        "output_tail": ""
+      },
+      {
+        "name": "public-links",
+        "command": [
+          "python",
+          "scripts/check-public-links.py"
+        ],
+        "status": "PASS",
+        "seconds": 0.438,
+        "output_sha256": "f850a1fadc847478ea8153beddbb845aae352c361677650af6fbb14334bb4d96",
+        "output_tail": ""
+      }
+    ]
+  },
+  {
+    "record": "validation-before-startup-guards.json",
+    "description": "Passing Go/Python checks before held-startup-hook deadline guards.",
+    "started_at_utc": "2026-11-04T17:14:53.099281+00:00",
+    "database": {
+      "isolation": "fresh temporary database; numbered migrations applied via psycopg",
+      "name": "dur053_k1_fda0fe25e1",
+      "migrations_applied": 18,
+      "cleanup": "dropped WITH (FORCE) after checks"
+    },
+    "checks": [
+      {
+        "name": "go-race",
+        "command": [
+          "go",
+          "test",
+          "-race",
+          "-p",
+          "1",
+          "./..."
+        ],
+        "status": "PASS",
+        "seconds": 135.203,
+        "output_sha256": "b71558a3cc33ffb7ba102a0ce4ce3905bee0e3584999879edbe88c3c397334f5",
+        "output_tail": ""
+      },
+      {
+        "name": "go-vet",
+        "command": [
+          "go",
+          "vet",
+          "./..."
+        ],
+        "status": "PASS",
+        "seconds": 2.516,
+        "output_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "output_tail": ""
+      },
+      {
+        "name": "ruff-check",
+        "command": [
+          "uv",
+          "run",
+          "ruff",
+          "check",
+          "python",
+          "tests"
+        ],
+        "status": "PASS",
+        "seconds": 0.218,
+        "output_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "output_tail": ""
+      },
+      {
+        "name": "ruff-format",
+        "command": [
+          "uv",
+          "run",
+          "ruff",
+          "format",
+          "--check",
+          "python",
+          "tests"
+        ],
+        "status": "PASS",
+        "seconds": 0.344,
+        "output_sha256": "4cfce4314a68bfd72805ca6ee4c4477596a8626548f54945751eb6fcfa34f996",
+        "output_tail": ""
+      },
+      {
+        "name": "mypy",
+        "command": [
+          "uv",
+          "run",
+          "mypy"
+        ],
+        "status": "PASS",
+        "seconds": 0.906,
+        "output_sha256": "355a435c33a29b8f3f0db0815b88731b7ae35c080fe47fdbc27e9330572711aa",
+        "output_tail": ""
+      },
+      {
+        "name": "pytest",
+        "command": [
+          "uv",
+          "run",
+          "pytest",
+          "--basetemp",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest",
+          "-p",
+          "no:cacheprovider"
+        ],
+        "status": "PASS",
+        "seconds": 45.375,
+        "output_sha256": "f359fcf87ed6b871da26015794c0c41923f350b10ea1b2724f7078a288f52a24",
+        "output_tail": ""
+      },
+      {
+        "name": "diff-check",
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "status": "PASS",
+        "seconds": 0.109,
+        "output_sha256": "e34a7ce8b9d064035a0d03e9115a636ddf9e9cca4b5cddb36f85a55c7fbbdd8c",
+        "output_tail": ""
+      },
+      {
+        "name": "public-links",
+        "command": [
+          "python",
+          "scripts/check-public-links.py"
+        ],
+        "status": "PASS",
+        "seconds": 0.328,
+        "output_sha256": "f850a1fadc847478ea8153beddbb845aae352c361677650af6fbb14334bb4d96",
+        "output_tail": ""
+      }
+    ]
+  },
+  {
+    "record": "validation-gate-54.json",
+    "description": "54-case campaign passed before final legacy/startup changes; final evidence is the 58-case campaign.",
+    "started_at_utc": "2026-11-04T17:10:41.591958+00:00",
+    "database": {
+      "isolation": "fresh temporary database; numbered migrations applied via psycopg",
+      "name": "dur053_k1_5c63fb0e1d",
+      "migrations_applied": 18,
+      "cleanup": "dropped WITH (FORCE) after checks"
+    },
+    "checks": [
+      {
+        "name": "mutation-bash",
+        "command": [
+          "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+          "scripts/mutation-gate.sh",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\dur053-mutations.json"
+        ],
+        "status": "PASS",
+        "seconds": 610.969,
+        "output_sha256": "7e0ee336721841a9db62ed964f1d457feefae08613f84b40060c130e1c3dc48d",
+        "output_tail": ""
+      },
+      {
+        "name": "ruff-check",
+        "command": [
+          "uv",
+          "run",
+          "ruff",
+          "check",
+          "python",
+          "tests"
+        ],
+        "status": "PASS",
+        "seconds": 0.25,
+        "output_sha256": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+        "output_tail": ""
+      },
+      {
+        "name": "ruff-format",
+        "command": [
+          "uv",
+          "run",
+          "ruff",
+          "format",
+          "--check",
+          "python",
+          "tests"
+        ],
+        "status": "PASS",
+        "seconds": 0.14,
+        "output_sha256": "4cfce4314a68bfd72805ca6ee4c4477596a8626548f54945751eb6fcfa34f996",
+        "output_tail": ""
+      },
+      {
+        "name": "pytest",
+        "command": [
+          "uv",
+          "run",
+          "pytest",
+          "--basetemp",
+          "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest",
+          "-p",
+          "no:cacheprovider"
+        ],
+        "status": "PASS",
+        "seconds": 58.141,
+        "output_sha256": "2a0e7ec705b15c291e770fd0b8407f318ba436147523cb4839d4201249adc8fa",
+        "output_tail": ""
+      }
+    ]
+  }
+]

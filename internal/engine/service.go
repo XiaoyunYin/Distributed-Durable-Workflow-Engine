@@ -15,6 +15,8 @@ const schedulerIterationTimeout = 5 * time.Second
 type ServeOptions struct {
 	AfterLeaseAcquired func(context.Context, state.Lease) error
 	Tracing            *telemetry.Tracing
+	Drain              <-chan struct{}
+	LegacyShutdown     bool
 }
 
 // Serve scans one explicit namespace. It never executes activities in the
@@ -31,12 +33,18 @@ func ServeWithOptions(ctx context.Context, store *state.Store, namespace string,
 	runner.ExternalActivities = true
 	runner.AfterLeaseAcquired = options.AfterLeaseAcquired
 	runner.Tracing = options.Tracing
+	runner.LegacyShutdown = options.LegacyShutdown
 	runner.OwnerID, runner.ActorID = state.NewID(), "runtime-scheduler"
 	runner.LeaseTTL, runner.AttemptLease = 15*time.Second, 30*time.Second
 	cursor := ""
 	ticker := time.NewTicker(500 * time.Millisecond)
 	defer ticker.Stop()
 	for {
+		select {
+		case <-options.Drain:
+			return nil
+		default:
+		}
 		scanCtx, scanCancel := context.WithTimeout(ctx, schedulerIterationTimeout)
 		ids, err := store.RuntimeWork(scanCtx, namespace, cursor, 100)
 		scanCancel()
@@ -44,6 +52,11 @@ func ServeWithOptions(ctx context.Context, store *state.Store, namespace string,
 			slog.Warn("scheduler repair scan failed", "error", err)
 		} else {
 			for _, id := range ids {
+				select {
+				case <-options.Drain:
+					return nil
+				default:
+				}
 				cursor = id
 				iterationCtx, iterationCancel := context.WithTimeout(ctx, schedulerIterationTimeout)
 				_, runErr := runner.Run(iterationCtx, id)
@@ -59,6 +72,8 @@ func ServeWithOptions(ctx context.Context, store *state.Store, namespace string,
 			}
 		}
 		select {
+		case <-options.Drain:
+			return nil
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:

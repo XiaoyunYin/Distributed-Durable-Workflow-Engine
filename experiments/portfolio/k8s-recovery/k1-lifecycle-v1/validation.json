@@ -1,0 +1,203 @@
+{
+  "schema": "dur053-k1-lifecycle-validation.v1",
+  "base_commit": "cf10befa896a9843f56fba685d6f0991d22487a1",
+  "target": "uncommitted working tree; Claude commits",
+  "started_at_utc": "2026-11-04T17:24:12.528466+00:00",
+  "host": "Windows; Docker API denied; PowerShell 7 absent",
+  "database": {
+    "isolation": "fresh temporary database; numbered migrations applied via psycopg",
+    "name": "dur053_k1_f69fe7340e",
+    "migrations_applied": 18,
+    "cleanup": "dropped WITH (FORCE) after checks"
+  },
+  "checks": [
+    {
+      "name": "go-race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-p",
+        "1",
+        "./..."
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 104.891,
+      "output": "?   \tdurable-agent-execution-engine/cmd/dur026-benchmark\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/dur026-worker\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/dur027-crash-fixture\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur027-lease\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur028-checkpoint\t(cached)\n?   \tdurable-agent-execution-engine/cmd/dur034-ablation\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur035-dispatch\t(cached)\n?   \tdurable-agent-execution-engine/cmd/dur041a-isolation\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur043-stale-probe\t(cached)\n?   \tdurable-agent-execution-engine/cmd/dur048-load\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/dur049-checker\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur049-db-probe\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur049-lock-holder\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur050-fixture\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur050-loadgen\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur050-observer\t(cached)\nok  \tdurable-agent-execution-engine/cmd/dur050-sink\t(cached)\n?   \tdurable-agent-execution-engine/cmd/fault-checker\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/fault-fixture\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/local-demo\t[no test files]\n?   \tdurable-agent-execution-engine/cmd/m5-fixture\t[no test files]\nok  \tdurable-agent-execution-engine/cmd/runtime\t27.480s\nok  \tdurable-agent-execution-engine/internal/api\t2.795s\nok  \tdurable-agent-execution-engine/internal/dur050\t(cached)\nok  \tdurable-agent-execution-engine/internal/effects\t(cached)\nok  \tdurable-agent-execution-engine/internal/engine\t11.704s\nok  \tdurable-agent-execution-engine/internal/faults\t4.567s\nok  \tdurable-agent-execution-engine/internal/incident\t2.070s\nok  \tdurable-agent-execution-engine/internal/invariants\t1.629s\nok  \tdurable-agent-execution-engine/internal/partition\t(cached)\nok  \tdurable-agent-execution-engine/internal/reconciliation\t1.734s\nok  \tdurable-agent-execution-engine/internal/reference\t(cached)\nok  \tdurable-agent-execution-engine/internal/state\t18.148s\nok  \tdurable-agent-execution-engine/internal/telemetry\t(cached)\nok  \tdurable-agent-execution-engine/internal/transport\t2.844s\n"
+    },
+    {
+      "name": "go-vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 2.125,
+      "output": ""
+    },
+    {
+      "name": "ruff-check",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "check",
+        "python",
+        "tests"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.25,
+      "output": "All checks passed!\n"
+    },
+    {
+      "name": "ruff-format",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "format",
+        "--check",
+        "python",
+        "tests"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.109,
+      "output": "68 files already formatted\n"
+    },
+    {
+      "name": "mypy",
+      "command": [
+        "uv",
+        "run",
+        "mypy"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.954,
+      "output": "Success: no issues found in 43 source files\n"
+    },
+    {
+      "name": "pytest",
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "--basetemp",
+        "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 60.86,
+      "output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0\nrootdir: D:\\portfolio-projects\\durable-agent-execution-engine\nconfigfile: pyproject.toml\ntestpaths: tests\nplugins: anyio-4.15.1\ncollected 203 items\n\ntests\\test_dur050_cost_ledger.py .................                       [  8%]\ntests\\test_dur050_pilot_slo.py ................                          [ 16%]\ntests\\test_dur050_window_reconciliation.py ....                          [ 18%]\ntests\\test_dur055_development_guards.py ....                             [ 20%]\ntests\\test_dur055_heldout.py ...........                                 [ 25%]\ntests\\test_dur055_mcp.py .......                                         [ 29%]\ntests\\test_dur055_postgres_integration.py ss                             [ 30%]\ntests\\test_dur056_budget.py ....                                         [ 32%]\ntests\\test_dur056_evaluation.py ..............                           [ 38%]\ntests\\test_dur056_fixtures.py ................                           [ 46%]\ntests\\test_dur056_retrieval.py ............                              [ 52%]\ntests\\test_dur056_scorer.py ...........                                  [ 58%]\ntests\\test_fault_control.py .............                                [ 64%]\ntests\\test_fault_proxy.py .                                              [ 65%]\ntests\\test_imports.py ..                                                 [ 66%]\ntests\\test_incident_agent.py ................                            [ 73%]\ntests\\test_kafka_worker.py ......                                        [ 76%]\ntests\\test_mutation_runner.py .......                                    [ 80%]\ntests\\test_partition_vectors.py ...                                      [ 81%]\ntests\\test_runtime_image_targets.py .                                    [ 82%]\ntests\\test_worker_kafka_lifecycle.py .                                   [ 82%]\ntests\\test_worker_lifecycle.py .......................                   [ 94%]\ntests\\test_workers.py ............                                       [100%]\n\n=========================== short test summary info ===========================\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:34: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:41: DUR055_TEST_DATABASE_URL is not configured\n======================= 201 passed, 2 skipped in 59.82s =======================\n"
+    },
+    {
+      "name": "mutation-powershell",
+      "command": [
+        "pwsh",
+        "-File",
+        "scripts/mutation-gate.ps1",
+        "-Output",
+        "D:\\coding agent files\\durable-engine\\codex\\k1\\dur053-mutations.json"
+      ],
+      "status": "BLOCKED",
+      "exit_code": null,
+      "seconds": 0.062,
+      "output": "[WinError 2] \u7cfb\u7edf\u627e\u4e0d\u5230\u6307\u5b9a\u7684\u6587\u4ef6\u3002"
+    },
+    {
+      "name": "mutation-bash",
+      "command": [
+        "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+        "scripts/mutation-gate.sh",
+        "D:\\coding agent files\\durable-engine\\codex\\k1\\dur053-mutations.json"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 505.641,
+      "output": "warning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: in the working copy of 'go.mod', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'scripts/mutation-gate.ps1', LF will be replaced by CRLF the next time Git touches it\nwarning: unable to access 'C:\\Users\\yxyfz/.config/git/ignore': Permission denied\nwarning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied\nPASS api-duplicate-json: mutation was rejected by its named semantic test\nPASS state-event-registry: mutation was rejected by its named semantic test\nPASS state-lease-timeout-classification: mutation was rejected by its named semantic test\nPASS engine-lease-fence: mutation was rejected by its named semantic test\nPASS state-wakeup-lease-lock: mutation was rejected by its named semantic test\nPASS state-current-owner-stale-epoch: mutation was rejected by its named semantic test\nPASS state-approval-resource: mutation was rejected by its named semantic test\nPASS state-effect-argument-hash: mutation was rejected by its named semantic test\nPASS invariants-submission-boundary: mutation was rejected by its named semantic test\nPASS invariants-fault-sequence: mutation was rejected by its named semantic test\nPASS invariants-outbox-state: mutation was rejected by its named semantic test\nPASS engine-graph-entry: mutation was rejected by its named semantic test\nPASS engine-scheduler-trace-link: mutation was rejected by its named semantic test\nPASS dur049-post-boundary-fence-checker: mutation was rejected by its named semantic test\nPASS dur049-stale-attempt-result-checker: mutation was rejected by its named semantic test\nPASS dur049-stale-attempt-result-api-fence: mutation was rejected by its named semantic test\nPASS compose-lock-timeout: configuration tripwire detected the removed setting\nPASS python-canary-scanner: mutation was rejected by its named semantic test\nPASS k1-role-wait: mutation was rejected by its named semantic test\nPASS k1-role-force: mutation was rejected by its named semantic test\nPASS k1-http-wait: mutation was rejected by its named semantic test\nPASS k1-ready-db: mutation was rejected by its named semantic test\nPASS k1-ready-drain: mutation was rejected by its named semantic test\nPASS k1-ready-race: mutation was rejected by its named semantic test\nPASS k1-hook-release: mutation was rejected by its named semantic test\nPASS k1-legacy-lease: mutation was rejected by its named semantic test\nPASS k1-scheduler-drain: mutation was rejected by its named semantic test\nPASS k1-listen-join: mutation was rejected by its named semantic test\nPASS k1-relay-drain: mutation was rejected by its named semantic test\nPASS k1-ingestor-drain: mutation was rejected by its named semantic test\nPASS k1-delivery-drain: mutation was rejected by its named semantic test\nPASS k1-claim-drain: mutation was rejected by its named semantic test\nPASS k1-assignment-fence: mutation was rejected by its named semantic test\nPASS k1-http-abort: mutation was rejected by its named semantic test\nPASS k1-http-admission: mutation was rejected by its named semantic test\nPASS k1-http-timeout: mutation was rejected by its named semantic test\nPASS k1-executor-dispatch: mutation was rejected by its named semantic test\nPASS k1-busy-rewind: mutation was rejected by its named semantic test\nPASS k1-abort-result: mutation was rejected by its named semantic test\nPASS k1-abort-heartbeat: mutation was rejected by its named semantic test\nPASS k1-monotonic-abort: mutation was rejected by its named semantic test\nPASS k1-deadline-extension: mutation was rejected by its named semantic test\nPASS k1-executor-bound: mutation was rejected by its named semantic test\nPASS k1-pod-identity: mutation was rejected by its named semantic test\nPASS k1-abort-exit: mutation was rejected by its named semantic test\nPASS k1-worker-ready: mutation was rejected by its named semantic test\nPASS k1-retry-budget: mutation was rejected by its named semantic test\nPASS k1-drain-budget: mutation was rejected by its named semantic test\nPASS k1-role-hard-deadline: mutation was rejected by its named semantic test\nPASS k1-ready-missing-db: mutation was rejected by its named semantic test\nPASS k1-ready-deadline: mutation was rejected by its named semantic test\nPASS k1-role-validation: mutation was rejected by its named semantic test\nPASS k1-legacy-worker: mutation was rejected by its named semantic test\nPASS k1-early-signal: mutation was rejected by its named semantic test\nPASS k1-abort-watchdog: mutation was rejected by its named semantic test\nPASS k1-abort-watchdog-registration: mutation was rejected by its named semantic test\nPASS k1-startup-controller-close: mutation was rejected by its named semantic test\nPASS k1-startup-controller-context: mutation was rejected by its named semantic test\nDUR-046 Linux mutation gate passed.\n"
+    },
+    {
+      "name": "smoke",
+      "command": [
+        "pwsh",
+        "-File",
+        "scripts/smoke.ps1"
+      ],
+      "status": "BLOCKED",
+      "exit_code": null,
+      "seconds": 0.047,
+      "output": "[WinError 2] \u7cfb\u7edf\u627e\u4e0d\u5230\u6307\u5b9a\u7684\u6587\u4ef6\u3002"
+    },
+    {
+      "name": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.125,
+      "output": "warning: in the working copy of 'go.mod', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'scripts/mutation-gate.ps1', LF will be replaced by CRLF the next time Git touches it\n"
+    },
+    {
+      "name": "public-links",
+      "command": [
+        "python",
+        "scripts/check-public-links.py"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.266,
+      "output": "Public Markdown link check PASS: 161 local links across 35 Markdown files.\n"
+    },
+    {
+      "name": "lifecycle-witness",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-p",
+        "1",
+        "./cmd/runtime",
+        "./internal/engine",
+        "./internal/transport",
+        "./internal/faults",
+        "-run",
+        "^TestK1",
+        "-count=1",
+        "-v"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 40.172,
+      "output": "=== RUN   TestK1RuntimeChild\n--- PASS: TestK1RuntimeChild (0.00s)\n=== RUN   TestK1RuntimeSignalCompetingAcquisition\n=== RUN   TestK1RuntimeSignalCompetingAcquisition/drain\n    lifecycle_integration_test.go:210: shutdown order: readiness_503 -> endpoint delay -> scheduler -> relay_and_listener -> ingestor -> http_drain -> store_close\n    lifecycle_integration_test.go:211: committed competing acquisition after signal: 6.0062694s (15s TTL), epoch 7 -> 8\n=== RUN   TestK1RuntimeSignalCompetingAcquisition/legacy\n    lifecycle_integration_test.go:194: pre-K1 legacy parity: lease left to TTL after process exit\n=== RUN   TestK1RuntimeSignalCompetingAcquisition/pre-k1-reference\n    lifecycle_integration_test.go:194: pre-K1 legacy parity: lease left to TTL after process exit\n--- PASS: TestK1RuntimeSignalCompetingAcquisition (16.81s)\n    --- PASS: TestK1RuntimeSignalCompetingAcquisition/drain (6.21s)\n    --- PASS: TestK1RuntimeSignalCompetingAcquisition/legacy (1.42s)\n    --- PASS: TestK1RuntimeSignalCompetingAcquisition/pre-k1-reference (6.89s)\n=== RUN   TestK1PythonDrainResultsAndReplacement\n    lifecycle_integration_test.go:285: Python result accepted during drain before deadline\n    lifecycle_integration_test.go:296: abort and expired heartbeat alone did not make current claim stale\n    lifecycle_integration_test.go:310: aborted Python emitted no result; explicit late result STALE only after committed attempt 2\n--- PASS: TestK1PythonDrainResultsAndReplacement (1.81s)\n=== RUN   TestK1DatabaseOutageReadinessAndShutdown\n2026/11/04 09:35:54 WARN scheduler repair scan failed error=\"failed to connect to `user=durable database=dur053_k1_f69fe7340e`: 127.0.0.1:49764 (127.0.0.1): dial error: dial tcp 127.0.0.1:49764: connectex: No connection could be made because the target machine actively refused it.\"\n    lifecycle_integration_test.go:406: PostgreSQL proxy outage: readiness 503, liveness 200, scheduler/relay+LISTEN joined in 0s\n--- PASS: TestK1DatabaseOutageReadinessAndShutdown (0.08s)\n=== RUN   TestK1ReadinessFreshAndDrain\n--- PASS: TestK1ReadinessFreshAndDrain (0.00s)\n=== RUN   TestK1RoleWaitsForPass\n--- PASS: TestK1RoleWaitsForPass (0.03s)\n=== RUN   TestK1RoleOutageBound\n--- PASS: TestK1RoleOutageBound (0.02s)\n=== RUN   TestK1RoleHardBound\n--- PASS: TestK1RoleHardBound (0.00s)\n=== RUN   TestK1RoleFlags\n--- PASS: TestK1RoleFlags (0.00s)\n=== RUN   TestK1HTTPWaitsForActiveRequest\n--- PASS: TestK1HTTPWaitsForActiveRequest (0.04s)\n=== RUN   TestK1IngestorDrainBeforeReceive\n--- PASS: TestK1IngestorDrainBeforeReceive (0.00s)\n=== RUN   TestK1StartupHookDoesNotBlockDrain\n2026/11/04 09:35:54 INFO runtime started addr=127.0.0.1:49774 roles=api\n2026/11/04 09:35:54 INFO runtime shutdown phase phase=readiness_503\n2026/11/04 09:35:56 INFO runtime shutdown phase phase=scheduler\n2026/11/04 09:35:56 INFO runtime shutdown phase phase=relay_and_listener\n2026/11/04 09:35:56 INFO runtime shutdown phase phase=ingestor\n2026/11/04 09:35:56 INFO runtime shutdown phase phase=http_drain\n2026/11/04 09:35:56 INFO runtime shutdown phase phase=store_close\n--- PASS: TestK1StartupHookDoesNotBlockDrain (2.00s)\nPASS\nok  \tdurable-agent-execution-engine/cmd/runtime\t22.256s\n=== RUN   TestK1LeaseHookReleaseAndLegacyParity\n--- PASS: TestK1LeaseHookReleaseAndLegacyParity (0.24s)\n=== RUN   TestK1SchedulerDrainBeforeScan\n--- PASS: TestK1SchedulerDrainBeforeScan (0.02s)\nPASS\nok  \tdurable-agent-execution-engine/internal/engine\t1.844s\n=== RUN   TestK1RelayDrainJoinsListener\n--- PASS: TestK1RelayDrainJoinsListener (0.10s)\nPASS\nok  \tdurable-agent-execution-engine/internal/transport\t1.631s\n=== RUN   TestK1CanceledControllerDial\n--- PASS: TestK1CanceledControllerDial (0.00s)\nPASS\nok  \tdurable-agent-execution-engine/internal/faults\t1.330s\n"
+    },
+    {
+      "name": "rebalance-witness",
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_worker_lifecycle.py",
+        "--basetemp",
+        "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest",
+        "-p",
+        "no:cacheprovider",
+        "-v"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 2.593,
+      "output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0 -- D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe\nrootdir: D:\\portfolio-projects\\durable-agent-execution-engine\nconfigfile: pyproject.toml\nplugins: anyio-4.15.1\ncollecting ... collected 23 items\n\ntests/test_worker_lifecycle.py::test_drain_before_delivery_leaves_offset_uncommitted PASSED [  4%]\ntests/test_worker_lifecycle.py::test_shutdown_between_disposition_commit_claim[disposition] PASSED [  8%]\ntests/test_worker_lifecycle.py::test_shutdown_between_disposition_commit_claim[commit] PASSED [ 13%]\ntests/test_worker_lifecycle.py::test_delivery_response_loss_retries_same_disposition PASSED [ 17%]\ntests/test_worker_lifecycle.py::test_commit_failure_does_not_claim PASSED [ 21%]\ntests/test_worker_lifecycle.py::test_revoke_during_disposition_fences_offset_and_claim PASSED [ 26%]\ntests/test_worker_lifecycle.py::test_result_accepted_during_drain_before_deadline PASSED [ 30%]\ntests/test_worker_lifecycle.py::test_abort_reports_nothing_and_stops_heartbeats PASSED [ 34%]\ntests/test_worker_lifecycle.py::test_retry_control_abort_and_admission_guards PASSED [ 39%]\ntests/test_worker_lifecycle.py::test_monotonic_deadline_never_extended PASSED [ 43%]\ntests/test_worker_lifecycle.py::test_bounded_executor_has_no_queue PASSED [ 47%]\ntests/test_worker_lifecycle.py::test_abort_exits_process_without_joining_activity PASSED [ 52%]\ntests/test_worker_lifecycle.py::test_worker_identity_metrics_and_readiness PASSED [ 56%]\ntests/test_worker_lifecycle.py::test_consumer_keeps_polling_rebalances_and_closes_before_activity_finishes PASSED [ 60%]\ntests/test_worker_lifecycle.py::test_legacy_flag_uses_pre_k1_consumer_and_no_result_after_signal PASSED [ 65%]\ntests/test_worker_lifecycle.py::test_legacy_trace_matches_frozen_pre_k1_source PASSED [ 69%]\ntests/test_worker_lifecycle.py::test_retries_bounded_during_control_outage PASSED [ 73%]\ntests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[0] PASSED [ 78%]\ntests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[-1] PASSED [ 82%]\ntests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[31] PASSED [ 86%]\ntests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values[nan] PASSED [ 91%]\ntests/test_worker_lifecycle.py::test_signal_handler_registered_before_consumers PASSED [ 95%]\ntests/test_worker_lifecycle.py::test_abort_watchdog_exits_while_startup_hook_blocks PASSED [100%]\n\n============================= 23 passed in 1.94s ==============================\n"
+    }
+  ],
+  "finished_at_utc": "2026-11-04T17:36:11.426622+00:00"
+}

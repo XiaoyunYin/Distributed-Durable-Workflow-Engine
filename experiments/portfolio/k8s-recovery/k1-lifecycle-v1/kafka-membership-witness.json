@@ -1,0 +1,31 @@
+{
+  "scope": "Local real Kafka eager-group membership with barrier activity and stub control, one direct diagnostic comparison; not the protocol-v2 K4 assignment-stall metric.",
+  "command": [
+    "uv",
+    "run",
+    "--no-sync",
+    "pytest",
+    "tests/test_worker_kafka_lifecycle.py",
+    "--basetemp",
+    "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest-kafka",
+    "-p",
+    "no:cacheprovider",
+    "-q",
+    "-s"
+  ],
+  "result": "PASS; 1 passed in 9.63s",
+  "observations": [
+    {
+      "legacy": true,
+      "peer_assigned_before_activity_release": false,
+      "observation_seconds": 4.0,
+      "censoring": "No assignment within observation window; full stall not measured."
+    },
+    {
+      "legacy": false,
+      "peer_assigned_before_activity_release": true,
+      "observation_seconds": 3.125
+    }
+  ],
+  "limits": "One host, barrier stub, no durable sentinel disposition or deployed pod intervention; full pytest reruns also exercised this test, without publishing their captured timing as campaign samples."
+}

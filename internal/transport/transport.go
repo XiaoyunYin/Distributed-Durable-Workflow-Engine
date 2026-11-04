@@ -16,6 +16,7 @@ import (
 	"github.com/segmentio/kafka-go"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
+	"golang.org/x/sync/errgroup"
 )
 
 const (
@@ -154,6 +155,7 @@ type RelayConfig struct {
 	// the poll fallback still owns correctness.
 	OnNotification func()
 	Tracing        *telemetry.Tracing
+	Drain          <-chan struct{}
 }
 
 type Relay struct {
@@ -291,12 +293,22 @@ func (r *Relay) Run(ctx context.Context) error {
 	// outage. RunOnce records row-level failures durably; this loop retries the
 	// scan on the next notification or poll instead of turning an availability
 	// blip into a permanently stopped relay.
+	listenCtx, cancelListen := context.WithCancel(ctx)
+	var listeners errgroup.Group
+	wakeups := r.listen(listenCtx, &listeners)
+	defer func() { cancelListen(); _ = listeners.Wait() }()
+	select {
+	case <-r.Config.Drain:
+		return nil
+	default:
+	}
 	r.runOnceAndReportError(ctx)
 	ticker := time.NewTicker(r.Config.PollInterval)
 	defer ticker.Stop()
-	wakeups := r.listen(ctx)
 	for {
 		select {
+		case <-r.Config.Drain:
+			return nil
 		case <-ctx.Done():
 			return ctx.Err()
 		case <-ticker.C:
@@ -330,20 +342,20 @@ func (r *Relay) ErrorCount() uint64 {
 	return r.runErrors
 }
 
-func (r *Relay) listen(ctx context.Context) <-chan struct{} {
+func (r *Relay) listen(ctx context.Context, group *errgroup.Group) <-chan struct{} {
 	wakeups := make(chan struct{}, 1)
-	go func() {
+	group.Go(func() error {
 		connection, err := r.Store.Pool().Acquire(ctx)
 		if err != nil {
-			return
+			return nil
 		}
 		defer connection.Release()
 		if _, err := connection.Exec(ctx, `LISTEN durable_agent_outbox`); err != nil {
-			return
+			return nil
 		}
 		for {
 			if _, err := connection.Conn().WaitForNotification(ctx); err != nil {
-				return
+				return nil
 			}
 			if r.Config.OnNotification != nil {
 				r.Config.OnNotification()
@@ -353,7 +365,7 @@ func (r *Relay) listen(ctx context.Context) <-chan struct{} {
 			default:
 			}
 		}
-	}()
+	})
 	return wakeups
 }
 

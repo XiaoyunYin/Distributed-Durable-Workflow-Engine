@@ -4,6 +4,7 @@ package faults
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -33,6 +34,11 @@ type message struct {
 // FromEnvironment connects to a controller when DURABLE_FAULT_ENDPOINT is
 // present and otherwise returns nil. The endpoint is host:port.
 func FromEnvironment() (*Client, error) {
+	return FromContext(context.Background())
+}
+
+// FromContext lets process startup cancel a controller connection attempt.
+func FromContext(ctx context.Context) (*Client, error) {
 	endpoint := os.Getenv("DURABLE_FAULT_ENDPOINT")
 	if endpoint == "" {
 		return nil, nil
@@ -46,7 +52,7 @@ func FromEnvironment() (*Client, error) {
 	if err != nil {
 		return nil, fmt.Errorf("invalid DURABLE_FAULT_SEED: %w", err)
 	}
-	connection, err := net.Dial("tcp", endpoint)
+	connection, err := (&net.Dialer{}).DialContext(ctx, "tcp", endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("connect fault controller: %w", err)
 	}

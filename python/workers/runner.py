@@ -79,6 +79,10 @@ class ActivityRunner:
         self.max_workers = max_workers
         self.heartbeat_interval = heartbeat_interval
 
+    def aborted(self) -> bool:
+        check = getattr(self.control, "aborted", None)
+        return bool(check is not None and check())
+
     def run_task(self, task: ActivityTask) -> dict[str, Any]:
         # Resolve before claiming. A configuration error must not create a
         # claimed attempt that can only ever be retried.
@@ -101,6 +105,8 @@ class ActivityRunner:
         def heartbeat_loop() -> None:
             delay = self.heartbeat_interval
             while not stop.wait(delay):
+                if self.aborted():
+                    return
                 try:
                     self.control.heartbeat(
                         task.workflow_id,
@@ -139,6 +145,8 @@ class ActivityRunner:
         finally:
             stop.set()
             heartbeat_thread.join(timeout=max(1.0, self.heartbeat_interval))
+        if self.aborted():
+            raise ControlError(503, "SHUTTING_DOWN", "aborted activity reports no result")
         payload_fingerprint = hashlib.sha256(
             json.dumps(payload, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode(
                 "utf-8"

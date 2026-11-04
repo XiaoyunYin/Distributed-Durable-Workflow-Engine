@@ -181,6 +181,682 @@
       "command": ["uv", "run", "python", "-m", "pytest", "tests/test_incident_agent.py", "-k", "test_adversarial_protocol_has_fixed_redaction_and_counts", "-q"],
       "expected": "negative_control_fired",
       "requires_database": false
+    },
+    {
+      "id": "k1-role-wait",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "\tclose(r.drain)\n\tdefer r.cancel()",
+      "new": "\tclose(r.drain)\n return nil // mutation: skip role join\n\tdefer r.cancel()",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1RoleWaitsForPass$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "shutdown returned before pass released",
+      "requires_database": false
+    },
+    {
+      "id": "k1-role-force",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "\tr.cancel()\n\ttimer.Reset(forced)",
+      "new": "\t// mutation: omit forced cancellation\n\ttimer.Reset(forced)",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1RoleOutageBound$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "role exceeded forced shutdown deadline",
+      "requires_database": false
+    },
+    {
+      "id": "k1-http-wait",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "return server.Shutdown(ctx)",
+      "new": "go server.Shutdown(ctx); return nil",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1HTTPWaitsForActiveRequest$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "HTTP shutdown returned before active request",
+      "requires_database": false
+    },
+    {
+      "id": "k1-ready-db",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "if ping != nil {",
+      "new": "if false && ping != nil {",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1ReadinessFreshAndDrain$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "readiness did not perform fresh DB checks",
+      "requires_database": false
+    },
+    {
+      "id": "k1-ready-drain",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "if draining != nil && draining.Load() {",
+      "new": "if false && draining != nil && draining.Load() {",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1ReadinessFreshAndDrain$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "drain performed unnecessary DB check",
+      "requires_database": false
+    },
+    {
+      "id": "k1-ready-race",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "return draining == nil || !draining.Load()",
+      "new": "return true",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1ReadinessFreshAndDrain$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "readiness missed drain during DB check",
+      "requires_database": false
+    },
+    {
+      "id": "k1-hook-release",
+      "kind": "behavioral",
+      "file": "internal/engine/engine.go",
+      "old": "_ = e.Store.ReleaseLease(releaseCtx, ref)",
+      "new": "if hookPassed { _ = e.Store.ReleaseLease(releaseCtx, ref) }",
+      "command": [
+        "go",
+        "test",
+        "./internal/engine",
+        "-run",
+        "^TestK1LeaseHookReleaseAndLegacyParity$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "hook lease release",
+      "requires_database": true
+    },
+    {
+      "id": "k1-legacy-lease",
+      "kind": "behavioral",
+      "file": "internal/engine/engine.go",
+      "old": "if e.LegacyShutdown && !hookPassed {",
+      "new": "if false && e.LegacyShutdown && !hookPassed {",
+      "command": [
+        "go",
+        "test",
+        "./internal/engine",
+        "-run",
+        "^TestK1LeaseHookReleaseAndLegacyParity$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "hook lease release",
+      "requires_database": true
+    },
+    {
+      "id": "k1-scheduler-drain",
+      "kind": "behavioral",
+      "file": "internal/engine/service.go",
+      "old": "runner.LegacyShutdown = options.LegacyShutdown",
+      "new": "runner.LegacyShutdown = options.LegacyShutdown\n options.Drain = nil",
+      "command": [
+        "go",
+        "test",
+        "./internal/engine",
+        "-run",
+        "^TestK1SchedulerDrainBeforeScan$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "draining scheduler started another scan",
+      "requires_database": true
+    },
+    {
+      "id": "k1-listen-join",
+      "kind": "behavioral",
+      "file": "internal/transport/transport.go",
+      "old": "defer func() { cancelListen(); _ = listeners.Wait() }()",
+      "new": "defer func() { cancelListen() }()",
+      "command": [
+        "go",
+        "test",
+        "./internal/transport",
+        "-run",
+        "^TestK1RelayDrainJoinsListener$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "relay returned before LISTEN joined",
+      "requires_database": true
+    },
+    {
+      "id": "k1-relay-drain",
+      "kind": "behavioral",
+      "file": "internal/transport/transport.go",
+      "old": "listenCtx, cancelListen := context.WithCancel(ctx)",
+      "new": "r.Config.Drain = nil\n listenCtx, cancelListen := context.WithCancel(ctx)",
+      "command": [
+        "go",
+        "test",
+        "./internal/transport",
+        "-run",
+        "^TestK1RelayDrainJoinsListener$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "relay ignored drain or failed to join LISTEN",
+      "requires_database": true
+    },
+    {
+      "id": "k1-ingestor-drain",
+      "kind": "behavioral",
+      "file": "cmd/runtime/scheduler.go",
+      "old": "for ctx.Err() == nil {\n\t\tselect {",
+      "new": "drain = nil\n for ctx.Err() == nil {\n\t\tselect {",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1IngestorDrainBeforeReceive$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "draining ingestor fetched another delivery",
+      "requires_database": false
+    },
+    {
+      "id": "k1-delivery-drain",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "    if lifecycle is not None and not lifecycle.can_start():\n        return None\n    generation",
+      "new": "    if False:\n        return None\n    generation",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_drain_before_delivery_leaves_offset_uncommitted"
+      ],
+      "expected": "drain posted a new delivery",
+      "requires_database": false
+    },
+    {
+      "id": "k1-claim-drain",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "    if lifecycle is not None and not lifecycle.can_start():\n        return None\n    task",
+      "new": "    if False:\n        return None\n    task",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_shutdown_between_disposition_commit_claim"
+      ],
+      "expected": "drain admitted a claim after disposition",
+      "requires_database": false
+    },
+    {
+      "id": "k1-assignment-fence",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "if assignment is not None and not assignment.current(message, generation):",
+      "new": "if False and assignment is not None and not assignment.current(message, generation):",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_revoke_during_disposition_fences_offset_and_claim"
+      ],
+      "expected": "revoked generation committed or claimed",
+      "requires_database": false
+    },
+    {
+      "id": "k1-http-abort",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "while not self.aborted() and time.monotonic() < deadline:",
+      "new": "while time.monotonic() < deadline:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_retry_control_abort_and_admission_guards"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k1-http-admission",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "operation in {\"worker-deliveries\", \"claim\"}",
+      "new": "False",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_retry_control_abort_and_admission_guards"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k1-http-timeout",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "return min(self.timeout, max(0.001, min(budget, deadline - time.monotonic())))",
+      "new": "return self.timeout",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_monotonic_deadline_never_extended"
+      ],
+      "expected": "HTTP timeout exceeds drain deadline",
+      "requires_database": false
+    },
+    {
+      "id": "k1-executor-dispatch",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "return executor.submit(execute)",
+      "new": "execute(); return None",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_consumer_keeps_polling_rebalances_and_closes_before_activity_finishes"
+      ],
+      "expected": "long activity blocked rebalance poll",
+      "requires_database": false
+    },
+    {
+      "id": "k1-busy-rewind",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "consumer.seek(partition, records[0].offset)",
+      "new": "pass # mutation: lose prefetched position",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_consumer_keeps_polling_rebalances_and_closes_before_activity_finishes"
+      ],
+      "expected": "busy rebalance lost fetched position",
+      "requires_database": false
+    },
+    {
+      "id": "k1-abort-result",
+      "kind": "behavioral",
+      "file": "python/workers/runner.py",
+      "old": "if self.aborted():\n            raise ControlError",
+      "new": "if False:\n            raise ControlError",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_abort_reports_nothing_and_stops_heartbeats"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k1-abort-heartbeat",
+      "kind": "behavioral",
+      "file": "python/workers/runner.py",
+      "old": "if self.aborted():\n                    return",
+      "new": "if False:\n                    return",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_abort_reports_nothing_and_stops_heartbeats"
+      ],
+      "expected": "abort emitted heartbeat or result",
+      "requires_database": false
+    },
+    {
+      "id": "k1-monotonic-abort",
+      "kind": "behavioral",
+      "file": "python/workers/lifecycle.py",
+      "old": "if self.drain.is_set() and self.remaining() <= 0:",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_monotonic_deadline_never_extended"
+      ],
+      "expected": "monotonic deadline did not abort",
+      "requires_database": false
+    },
+    {
+      "id": "k1-deadline-extension",
+      "kind": "behavioral",
+      "file": "python/workers/lifecycle.py",
+      "old": "if not self.drain.is_set():",
+      "new": "if True:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_monotonic_deadline_never_extended"
+      ],
+      "expected": "repeated drain extended deadline",
+      "requires_database": false
+    },
+    {
+      "id": "k1-executor-bound",
+      "kind": "behavioral",
+      "file": "python/workers/lifecycle.py",
+      "old": "raise RuntimeError(\"activity executor is full\")",
+      "new": "return threading.Event()",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_bounded_executor_has_no_queue"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k1-pod-identity",
+      "kind": "behavioral",
+      "file": "python/workers/lifecycle.py",
+      "old": "return os.getenv(\"POD_NAME\") or os.getenv(\"WORKER_ID\") or \"worker\"",
+      "new": "return os.getenv(\"WORKER_ID\") or \"worker\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_worker_identity_metrics_and_readiness"
+      ],
+      "expected": "pod-unique",
+      "requires_database": false
+    },
+    {
+      "id": "k1-abort-exit",
+      "kind": "behavioral",
+      "file": "python/workers/__main__.py",
+      "old": "# failure/result or wait for Python's executor atexit hooks (I13).\n            os._exit(0)",
+      "new": "# failure/result or wait for Python's executor atexit hooks (I13).\n            return",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_abort_exits_process_without_joining_activity"
+      ],
+      "expected": "abort failed process exit",
+      "requires_database": false
+    },
+    {
+      "id": "k1-worker-ready",
+      "kind": "behavioral",
+      "file": "python/workers/__main__.py",
+      "old": "and self.lifecycle.drain.is_set()",
+      "new": "and False",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_worker_identity_metrics_and_readiness"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k1-retry-budget",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "while not self.aborted() and time.monotonic() < deadline:",
+      "new": "while not self.aborted():",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_retries_bounded_during_control_outage"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k1-drain-budget",
+      "kind": "behavioral",
+      "file": "python/workers/lifecycle.py",
+      "old": "if not 0 < drain_seconds <= 30:",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_drain_budget_rejects_invalid_values"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k1-role-hard-deadline",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "return errors.New(\"role exceeded forced shutdown deadline\")",
+      "new": "return nil",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1RoleHardBound$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "uncooperative role bypassed hard deadline",
+      "requires_database": false
+    },
+    {
+      "id": "k1-ready-missing-db",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "if ping == nil {\n\t\treturn false\n\t}",
+      "new": "if false && ping == nil {\n\t\treturn false\n\t}",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1ReadinessFreshAndDrain$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "readiness accepted missing database",
+      "requires_database": false
+    },
+    {
+      "id": "k1-ready-deadline",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "context.WithTimeout(ctx, time.Second)",
+      "new": "context.WithCancel(ctx)",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1ReadinessFreshAndDrain$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "readiness probe lacked bounded deadline",
+      "requires_database": false
+    },
+    {
+      "id": "k1-role-validation",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "return nil, fmt.Errorf(\"unknown runtime role %q\", role)",
+      "new": "return roles, nil",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1RoleFlags$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "invalid role accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k1-legacy-worker",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "if lifecycle is not None and not lifecycle.legacy:",
+      "new": "if lifecycle is not None:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_legacy_flag_uses_pre_k1_consumer_and_no_result_after_signal"
+      ],
+      "expected": "legacy flag selected new executor lifecycle",
+      "requires_database": false
+    },
+    {
+      "id": "k1-early-signal",
+      "kind": "behavioral",
+      "file": "python/workers/__main__.py",
+      "old": "if not lifecycle.legacy:",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_signal_handler_registered_before_consumers"
+      ],
+      "expected": "SIGTERM handler missing before consumer startup",
+      "requires_database": false
+    },
+    {
+      "id": "k1-abort-watchdog",
+      "kind": "behavioral",
+      "file": "python/workers/__main__.py",
+      "old": "lifecycle.abort.set()\n            os._exit(0)",
+      "new": "lifecycle.abort.set()\n            return",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_abort_watchdog_exits_while_startup_hook_blocks"
+      ],
+      "expected": "startup hook hid worker abort deadline",
+      "requires_database": false
+    },
+    {
+      "id": "k1-abort-watchdog-registration",
+      "kind": "behavioral",
+      "file": "python/workers/__main__.py",
+      "old": "watchdog = start_abort_watchdog(lifecycle, process_done)",
+      "new": "watchdog = None",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_worker_lifecycle.py::test_abort_watchdog_exits_while_startup_hook_blocks"
+      ],
+      "expected": "startup hook hid worker abort deadline",
+      "requires_database": false
+    },
+    {
+      "id": "k1-startup-controller-close",
+      "kind": "behavioral",
+      "file": "cmd/runtime/lifecycle.go",
+      "old": "case <-ctx.Done():\n\t\t\t\t_ = controller.Close()",
+      "new": "case <-ctx.Done():\n                return nil",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK1StartupHookDoesNotBlockDrain$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "startup hook blocked runtime drain",
+      "requires_database": false
+    },
+    {
+      "id": "k1-startup-controller-context",
+      "kind": "behavioral",
+      "file": "internal/faults/client.go",
+      "old": "(&net.Dialer{}).DialContext(ctx, \"tcp\", endpoint)",
+      "new": "net.Dial(\"tcp\", endpoint)",
+      "command": [
+        "go",
+        "test",
+        "./internal/faults",
+        "-run",
+        "^TestK1CanceledControllerDial$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "canceled startup dial did not stop",
+      "requires_database": false
     }
   ]
 }

@@ -1,0 +1,62 @@
+=== RUN   TestK1RuntimeChild
+--- PASS: TestK1RuntimeChild (0.00s)
+=== RUN   TestK1RuntimeSignalCompetingAcquisition
+=== RUN   TestK1RuntimeSignalCompetingAcquisition/drain
+    lifecycle_integration_test.go:210: shutdown order: readiness_503 -> endpoint delay -> scheduler -> relay_and_listener -> ingestor -> http_drain -> store_close
+    lifecycle_integration_test.go:211: committed competing acquisition after signal: 6.0062694s (15s TTL), epoch 7 -> 8
+=== RUN   TestK1RuntimeSignalCompetingAcquisition/legacy
+    lifecycle_integration_test.go:194: pre-K1 legacy parity: lease left to TTL after process exit
+=== RUN   TestK1RuntimeSignalCompetingAcquisition/pre-k1-reference
+    lifecycle_integration_test.go:194: pre-K1 legacy parity: lease left to TTL after process exit
+--- PASS: TestK1RuntimeSignalCompetingAcquisition (16.81s)
+    --- PASS: TestK1RuntimeSignalCompetingAcquisition/drain (6.21s)
+    --- PASS: TestK1RuntimeSignalCompetingAcquisition/legacy (1.42s)
+    --- PASS: TestK1RuntimeSignalCompetingAcquisition/pre-k1-reference (6.89s)
+=== RUN   TestK1PythonDrainResultsAndReplacement
+    lifecycle_integration_test.go:285: Python result accepted during drain before deadline
+    lifecycle_integration_test.go:296: abort and expired heartbeat alone did not make current claim stale
+    lifecycle_integration_test.go:310: aborted Python emitted no result; explicit late result STALE only after committed attempt 2
+--- PASS: TestK1PythonDrainResultsAndReplacement (1.81s)
+=== RUN   TestK1DatabaseOutageReadinessAndShutdown
+2026/11/04 09:35:54 WARN scheduler repair scan failed error="failed to connect to `user=durable database=dur053_k1_f69fe7340e`: 127.0.0.1:49764 (127.0.0.1): dial error: dial tcp 127.0.0.1:49764: connectex: No connection could be made because the target machine actively refused it."
+    lifecycle_integration_test.go:406: PostgreSQL proxy outage: readiness 503, liveness 200, scheduler/relay+LISTEN joined in 0s
+--- PASS: TestK1DatabaseOutageReadinessAndShutdown (0.08s)
+=== RUN   TestK1ReadinessFreshAndDrain
+--- PASS: TestK1ReadinessFreshAndDrain (0.00s)
+=== RUN   TestK1RoleWaitsForPass
+--- PASS: TestK1RoleWaitsForPass (0.03s)
+=== RUN   TestK1RoleOutageBound
+--- PASS: TestK1RoleOutageBound (0.02s)
+=== RUN   TestK1RoleHardBound
+--- PASS: TestK1RoleHardBound (0.00s)
+=== RUN   TestK1RoleFlags
+--- PASS: TestK1RoleFlags (0.00s)
+=== RUN   TestK1HTTPWaitsForActiveRequest
+--- PASS: TestK1HTTPWaitsForActiveRequest (0.04s)
+=== RUN   TestK1IngestorDrainBeforeReceive
+--- PASS: TestK1IngestorDrainBeforeReceive (0.00s)
+=== RUN   TestK1StartupHookDoesNotBlockDrain
+2026/11/04 09:35:54 INFO runtime started addr=127.0.0.1:49774 roles=api
+2026/11/04 09:35:54 INFO runtime shutdown phase phase=readiness_503
+2026/11/04 09:35:56 INFO runtime shutdown phase phase=scheduler
+2026/11/04 09:35:56 INFO runtime shutdown phase phase=relay_and_listener
+2026/11/04 09:35:56 INFO runtime shutdown phase phase=ingestor
+2026/11/04 09:35:56 INFO runtime shutdown phase phase=http_drain
+2026/11/04 09:35:56 INFO runtime shutdown phase phase=store_close
+--- PASS: TestK1StartupHookDoesNotBlockDrain (2.00s)
+PASS
+ok  	durable-agent-execution-engine/cmd/runtime	22.256s
+=== RUN   TestK1LeaseHookReleaseAndLegacyParity
+--- PASS: TestK1LeaseHookReleaseAndLegacyParity (0.24s)
+=== RUN   TestK1SchedulerDrainBeforeScan
+--- PASS: TestK1SchedulerDrainBeforeScan (0.02s)
+PASS
+ok  	durable-agent-execution-engine/internal/engine	1.844s
+=== RUN   TestK1RelayDrainJoinsListener
+--- PASS: TestK1RelayDrainJoinsListener (0.10s)
+PASS
+ok  	durable-agent-execution-engine/internal/transport	1.631s
+=== RUN   TestK1CanceledControllerDial
+--- PASS: TestK1CanceledControllerDial (0.00s)
+PASS
+ok  	durable-agent-execution-engine/internal/faults	1.330s

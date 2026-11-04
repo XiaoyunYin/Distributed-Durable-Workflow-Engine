@@ -1,0 +1,422 @@
+{
+  "schema": "dur053-k1-lifecycle-manifest.v1",
+  "date": "2026-11-04",
+  "task": "DUR-053 K1",
+  "task_status": "READY_FOR_REVIEW",
+  "handoff_basis": "PROVISIONAL - uncommitted working tree; Claude commits",
+  "base_commit": "cf10befa896a9843f56fba685d6f0991d22487a1",
+  "target_commit": null,
+  "branch": "codex/k8s-k1",
+  "scope": "Process lifecycle only; no Kubernetes deployment, no K3-K8 campaign or capacity/SLO claim.",
+  "checks": [
+    {
+      "name": "go-race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-p",
+        "1",
+        "./..."
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 104.891
+    },
+    {
+      "name": "go-vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 2.125
+    },
+    {
+      "name": "ruff-check",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "check",
+        "python",
+        "tests"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.25
+    },
+    {
+      "name": "ruff-format",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "format",
+        "--check",
+        "python",
+        "tests"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.109
+    },
+    {
+      "name": "mypy",
+      "command": [
+        "uv",
+        "run",
+        "mypy"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.954
+    },
+    {
+      "name": "pytest",
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "--basetemp",
+        "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 60.86
+    },
+    {
+      "name": "mutation-powershell",
+      "command": [
+        "pwsh",
+        "-File",
+        "scripts/mutation-gate.ps1",
+        "-Output",
+        "D:\\coding agent files\\durable-engine\\codex\\k1\\dur053-mutations.json"
+      ],
+      "status": "BLOCKED",
+      "exit_code": null,
+      "seconds": 0.062
+    },
+    {
+      "name": "mutation-bash",
+      "command": [
+        "C:\\Program Files\\Git\\usr\\bin\\bash.exe",
+        "scripts/mutation-gate.sh",
+        "D:\\coding agent files\\durable-engine\\codex\\k1\\dur053-mutations.json"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 505.641
+    },
+    {
+      "name": "smoke",
+      "command": [
+        "pwsh",
+        "-File",
+        "scripts/smoke.ps1"
+      ],
+      "status": "BLOCKED",
+      "exit_code": null,
+      "seconds": 0.047
+    },
+    {
+      "name": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.125
+    },
+    {
+      "name": "public-links",
+      "command": [
+        "python",
+        "scripts/check-public-links.py"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 0.266
+    },
+    {
+      "name": "lifecycle-witness",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-p",
+        "1",
+        "./cmd/runtime",
+        "./internal/engine",
+        "./internal/transport",
+        "./internal/faults",
+        "-run",
+        "^TestK1",
+        "-count=1",
+        "-v"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 40.172
+    },
+    {
+      "name": "rebalance-witness",
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "tests/test_worker_lifecycle.py",
+        "--basetemp",
+        "D:\\coding agent files\\durable-engine\\codex\\k1\\pytest",
+        "-p",
+        "no:cacheprovider",
+        "-v"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "seconds": 2.593
+    }
+  ],
+  "validation": "validation.json",
+  "mutations": {
+    "record": "mutations.json",
+    "total": 58,
+    "new_k1": 40,
+    "behavioral": 57,
+    "configuration_tripwires": 1,
+    "status": "PASS"
+  },
+  "pre_k1_reference": {
+    "commit": "cf10befa896a9843f56fba685d6f0991d22487a1",
+    "files": [
+      {
+        "path": "tests/fixtures/k1-pre-runtime-main.go.txt",
+        "source": "cmd/runtime/main.go",
+        "sha256": "a09de7411301dc8b1c8352288e045e413733051ee26cc1c3b1b67335571a128f"
+      },
+      {
+        "path": "tests/fixtures/k1-pre-scheduler.go.txt",
+        "source": "cmd/runtime/scheduler.go",
+        "sha256": "b77bf0774350ab070825951693a303da02f0f4325ef2e2727fb43968bcd57d45"
+      },
+      {
+        "path": "tests/fixtures/k1-pre-engine.go.txt",
+        "source": "internal/engine/engine.go",
+        "sha256": "463a9fb0b15a7b0963c407ee1d8e19029f35d9e82c6636396e92d964403d3d40"
+      },
+      {
+        "path": "tests/fixtures/k1-pre-service.go.txt",
+        "source": "internal/engine/service.go",
+        "sha256": "641af2f13b0f5dbfe6278b88c6b01fbc2f03dad9c00b84292e02544180c5f667"
+      },
+      {
+        "path": "tests/fixtures/k1-pre-kafka-worker.txt",
+        "source": "python/workers/kafka_worker.py",
+        "sha256": "1f622bf2711d1c858214b1ad99cbb4016caabb2299095e38a757a96d318696c6"
+      }
+    ],
+    "windows_test_seam": "stdin cancels the same NotifyContext path; hosted Linux sends real SIGTERM. Frozen reference main receives this Windows-only test seam at build time."
+  },
+  "runtime_shutdown": {
+    "default": "drain",
+    "roles_flag": "--roles / RUNTIME_ROLES",
+    "combined": "preserves existing RUNTIME_SCHEDULER opt-in",
+    "phases_seconds": {
+      "endpoint_delay": 2,
+      "scheduler_grace": 6,
+      "scheduler_force": 3,
+      "relay_grace": 3,
+      "relay_force": 3,
+      "ingestor_grace": 3,
+      "ingestor_force": 3,
+      "http": 5,
+      "store": 2,
+      "tracing": 1
+    },
+    "legacy": "Original pre-K1 HTTP-return/defer cleanup and hook cleanup budget; campaign-only."
+  },
+  "worker_shutdown": {
+    "default": "drain",
+    "deadline_seconds": 30,
+    "future_termination_grace_seconds": 40,
+    "abort": "Independent watchdog; stop new heartbeats/results, no fabricated failure or voluntary claim release, process exit.",
+    "ordering": "durable disposition -> offset commit -> claim"
+  },
+  "limitations": [
+    "pwsh 7 executable unavailable: PowerShell mutation wrapper and smoke could not run.",
+    "Docker probe: permission denied while trying to connect to npipe:////./pipe/docker_engine; no Compose rebuild/smoke or container control ran.",
+    "DUR055_TEST_DATABASE_URL absent: two unrelated pgvector tests skipped.",
+    "Windows cannot send POSIX SIGTERM; actual SIGTERM path is reserved for Linux service CI.",
+    "K1 findings remain proposed ADDRESSED, not Claude VERIFIED; hosted committed-target CI pending.",
+    "Pre-existing .tmp-pytest-dur056-gate-b-final contents/ACL inaccessible, so not verified as pytest-only and not deleted."
+  ],
+  "files_changed": {
+    "tracked_modified": [
+      "cmd/runtime/main.go",
+      "cmd/runtime/scheduler.go",
+      "go.mod",
+      "internal/engine/engine.go",
+      "internal/engine/service.go",
+      "internal/faults/client.go",
+      "internal/transport/relay_test.go",
+      "internal/transport/transport.go",
+      "mutations/manifest.json",
+      "python/workers/__main__.py",
+      "python/workers/control.py",
+      "python/workers/kafka_worker.py",
+      "python/workers/runner.py",
+      "scripts/mutation-gate.ps1",
+      "scripts/mutation-gate.sh",
+      "scripts/mutation-runner.py",
+      "tests/test_mutation_runner.py"
+    ],
+    "untracked_intended": [
+      "cmd/runtime/legacy.go",
+      "cmd/runtime/lifecycle.go",
+      "cmd/runtime/lifecycle_integration_test.go",
+      "cmd/runtime/lifecycle_test.go",
+      "experiments/portfolio/k8s-recovery/k1-lifecycle-v1/README.md",
+      "experiments/portfolio/k8s-recovery/k1-lifecycle-v1/cleanup.json",
+      "experiments/portfolio/k8s-recovery/k1-lifecycle-v1/kafka-membership-witness.json",
+      "experiments/portfolio/k8s-recovery/k1-lifecycle-v1/manifest.json",
+      "experiments/portfolio/k8s-recovery/k1-lifecycle-v1/mutations.json",
+      "experiments/portfolio/k8s-recovery/k1-lifecycle-v1/prior-attempts.json",
+      "experiments/portfolio/k8s-recovery/k1-lifecycle-v1/resource-cleanup.json",
+      "experiments/portfolio/k8s-recovery/k1-lifecycle-v1/shutdown-witness.log",
+      "experiments/portfolio/k8s-recovery/k1-lifecycle-v1/validation.json",
+      "experiments/portfolio/k8s-recovery/k1-lifecycle-v1/worker-witness.log",
+      "internal/engine/lifecycle_integration_test.go",
+      "internal/faults/lifecycle_test.go",
+      "python/workers/lifecycle.py",
+      "tests/fixtures/k1-pre-engine.go.txt",
+      "tests/fixtures/k1-pre-kafka-worker.txt",
+      "tests/fixtures/k1-pre-runtime-main.go.txt",
+      "tests/fixtures/k1-pre-scheduler.go.txt",
+      "tests/fixtures/k1-pre-service.go.txt",
+      "tests/test_worker_kafka_lifecycle.py",
+      "tests/test_worker_lifecycle.py"
+    ],
+    "ignored_modified": [
+      "PLAN.md",
+      "REVIEW.md",
+      "docs/BUILD_LOG.md",
+      "docs/REVIEW_STATUS.md",
+      "docs/DECISIONS.md",
+      "docs/PROTOCOLS.md"
+    ]
+  },
+  "source_sha256": {
+    "cmd/runtime/legacy.go": "554bce93c74365d881d5e5b1723afdc3057c2786cbbf5d31da7749c2f5e7bbe2",
+    "cmd/runtime/lifecycle.go": "7aad32c57bf63f14b7faf3ad68ad0afd342a8350d9951c8354e971b8d42bc2e5",
+    "cmd/runtime/lifecycle_integration_test.go": "a1ebaefaa12516e2c8ca294a94a64eb11ebae9a6af8b3021fd2a6aa6f791726f",
+    "cmd/runtime/lifecycle_test.go": "de3df7ae5bc0c7b7bb0db708f23e1a491e26002ce06f93f13e6dce61cf05edf7",
+    "cmd/runtime/main.go": "68c5d841f77b6dc6607b90c25d8f83c07a26bae9a2db366cafd6c6b0772bffab",
+    "cmd/runtime/scheduler.go": "565e56480cf37c7d4216f0c2e9c54fd4ea9473750446b08a88301f556f9a952d",
+    "go.mod": "9fc7436f03db18aa479c99c51452230eb801e5c0d770e5507f17db0045bf46fc",
+    "internal/engine/engine.go": "a94153c6a1725be0a88b44b57722956f22ebd645730b5d4384305fdccea9af68",
+    "internal/engine/lifecycle_integration_test.go": "9863617ee7d2d35447d7ed7d791143188581d7f3907af42fafca7cb49ff3508d",
+    "internal/engine/service.go": "f4a1381f3165589fcd8ec8cc813b19dd0b52bed77260ec212d5923344fc84175",
+    "internal/faults/client.go": "8004c534fdfed7c7b21ca38422fb360afa93a5d59852b523a1d959196d4b827e",
+    "internal/faults/lifecycle_test.go": "c8e37732c264549511ccc6cf1d207d9be1922c71538129924bedbb76f68fdfd5",
+    "internal/transport/relay_test.go": "c1edc3be0df7d1771eabdef743e434de9948a00e3fb6f317a8a0a92ae5fd0ec8",
+    "internal/transport/transport.go": "f7e2cb8292257f22ece0de62e6885f8d9c47eb54bb8b818ad4ecfd77ec33f310",
+    "mutations/manifest.json": "39733ffa43b5729e918ac2c489a08c56a2c386eee872ccaec02327199558eb3d",
+    "python/workers/__main__.py": "3d91e24d2513d6ae44f538246ef89d987f550a953c1012e43a1da2be7d6a3f28",
+    "python/workers/control.py": "7d5c5076cbd5ceaad8343fecd8805ae1d57d97e9238aa7d83f5b895f8c0e2e41",
+    "python/workers/kafka_worker.py": "4278971c68cdd2657fb1c04d0b1310f9d734828c6b5aa376f3a64a03b2de43d2",
+    "python/workers/lifecycle.py": "f2be74201d32b7bb00e2389b99d11080875c0d5a8149bea678dc63d65a7c65b9",
+    "python/workers/runner.py": "c0b1577e2d9bcff5d4f8249d84e8c02570efb786b54d6a39180fa3399b59aacd",
+    "scripts/mutation-gate.ps1": "0af91f0ba32b2f6df8758992bd26d09605ede9d19447f979c9405ff07dbd1387",
+    "scripts/mutation-gate.sh": "2fedb487d2bd712412188cd296e9e29514ceb0b382c00a3247e1387f46b26d39",
+    "scripts/mutation-runner.py": "7f1493453466a8d061a35b099c4734aca511b48886e48eb860e13b2586068a63",
+    "tests/fixtures/k1-pre-engine.go.txt": "463a9fb0b15a7b0963c407ee1d8e19029f35d9e82c6636396e92d964403d3d40",
+    "tests/fixtures/k1-pre-kafka-worker.txt": "1f622bf2711d1c858214b1ad99cbb4016caabb2299095e38a757a96d318696c6",
+    "tests/fixtures/k1-pre-runtime-main.go.txt": "a09de7411301dc8b1c8352288e045e413733051ee26cc1c3b1b67335571a128f",
+    "tests/fixtures/k1-pre-scheduler.go.txt": "b77bf0774350ab070825951693a303da02f0f4325ef2e2727fb43968bcd57d45",
+    "tests/fixtures/k1-pre-service.go.txt": "641af2f13b0f5dbfe6278b88c6b01fbc2f03dad9c00b84292e02544180c5f667",
+    "tests/test_mutation_runner.py": "64c8dd8cdca17231b47c25ddba7c54f4dfc87e9049bba4d6d10a4ee018b14c42",
+    "tests/test_worker_kafka_lifecycle.py": "69f2004e091f2a876ed8e95e6d7feaa8b78c732e806e6b97784aeeda85929b40",
+    "tests/test_worker_lifecycle.py": "3ab67240dfd3d644016f6e82e73adf00dc358a39adb38f5990265618f471a468"
+  },
+  "cleanup_record": "cleanup.json",
+  "prior_attempts": "prior-attempts.json",
+  "review_append_integrity": {
+    "original_bytes": 2116236,
+    "original_sha256": "ee563de9b24606c2f1e17a129c42073c0eafc3f0786ff093baa04589cd9d8fa9",
+    "prefix_preserved": true,
+    "lf_only": true
+  },
+  "post_export_checks": [
+    {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": "warning: in the working copy of 'go.mod', LF will be replaced by CRLF the next time Git touches it\nwarning: in the working copy of 'scripts/mutation-gate.ps1', LF will be replaced by CRLF the next time Git touches it\n"
+    },
+    {
+      "command": [
+        "python",
+        "scripts/check-public-links.py"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "stdout": "Public Markdown link check PASS: 169 local links across 36 Markdown files.\n",
+      "stderr": ""
+    },
+    {
+      "command": [
+        "gofmt",
+        "-l",
+        "cmd",
+        "internal"
+      ],
+      "status": "PASS",
+      "exit_code": 0,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "new_text_whitespace_check": "PASS (tracked and intended nonignored new UTF-8 text)",
+  "cleanup_verified": {
+    "owned_root_removed": true,
+    "files_removed": 11703,
+    "directories_removed": 450,
+    "retained_owned_temporary": [],
+    "preexisting_stale_directory_retained": "inaccessible; contents unverified"
+  },
+  "tools": {
+    "go": "go version go1.27.3 windows/amd64",
+    "python": "3.12.7",
+    "uv": "uv 0.9.5 (d5f39331a 2025-10-21)",
+    "kafka-python": "2.2.16",
+    "psycopg": "3.2.13",
+    "pytest": "9.1.1",
+    "ruff": "0.16.7",
+    "mypy": "2.3.1"
+  },
+  "evidence_files": [
+    "README.md",
+    "cleanup.json",
+    "kafka-membership-witness.json",
+    "manifest.json",
+    "mutations.json",
+    "prior-attempts.json",
+    "resource-cleanup.json",
+    "shutdown-witness.log",
+    "validation.json",
+    "worker-witness.log"
+  ],
+  "finalized_at_utc": "2026-11-04T17:52:54.871674+00:00"
+}

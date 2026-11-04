@@ -15,8 +15,7 @@ import (
 )
 
 // Events accelerate the durable repair scan; they are not the source of work.
-func runScheduler(ctx context.Context, store *state.Store, brokers []string, namespace string, tracing *telemetry.Tracing) {
-	wake := make(chan struct{}, 1)
+func schedulerOptions(tracing *telemetry.Tracing) engine.ServeOptions {
 	serveOptions := engine.ServeOptions{Tracing: tracing}
 	if milliseconds, err := strconv.Atoi(os.Getenv("RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS")); err == nil && milliseconds > 0 {
 		hold := time.Duration(milliseconds) * time.Millisecond
@@ -32,17 +31,31 @@ func runScheduler(ctx context.Context, store *state.Store, brokers []string, nam
 		}
 		slog.Warn("scheduler lease observation hold enabled", "duration", hold)
 	}
-	go func() {
-		if err := engine.ServeWithOptions(ctx, store, namespace, wake, serveOptions); err != nil && !errors.Is(err, context.Canceled) {
-			slog.Error("scheduler stopped", "error", err)
-		}
-	}()
+	return serveOptions
+}
+
+func runIngestor(ctx context.Context, drain <-chan struct{}, store *state.Store, brokers []string, wake chan<- struct{}) error {
 	for ctx.Err() == nil {
+		select {
+		case <-drain:
+			return nil
+		default:
+		}
 		source, err := transport.NewKafkaSource(brokers, state.EventTopic, "runtime-schedulers-v1")
 		if err == nil {
 			consumer := transport.NewConsumer(store, source, transport.ConsumerConfig{ConsumerID: "runtime-schedulers-v1"})
 			for ctx.Err() == nil {
-				message, receiveErr := source.Receive(ctx)
+				select {
+				case <-drain:
+					return source.Close()
+				default:
+				}
+				receiveCtx, cancel := context.WithTimeout(ctx, 500*time.Millisecond)
+				message, receiveErr := source.Receive(receiveCtx)
+				cancel()
+				if errors.Is(receiveErr, context.DeadlineExceeded) && ctx.Err() == nil {
+					continue
+				}
 				if receiveErr != nil {
 					err = receiveErr
 					break
@@ -70,9 +83,10 @@ func runScheduler(ctx context.Context, store *state.Store, brokers []string, nam
 			slog.Warn("event consumer restarting", "error", err)
 		}
 		if !schedulerWait(ctx) {
-			return
+			return ctx.Err()
 		}
 	}
+	return ctx.Err()
 }
 
 func schedulerWait(ctx context.Context) bool {

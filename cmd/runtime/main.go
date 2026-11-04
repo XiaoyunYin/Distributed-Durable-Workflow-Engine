@@ -5,30 +5,26 @@ import (
 	"crypto/sha256"
 	"encoding/json"
 	"errors"
-	"flag"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
 	"os"
-	"os/signal"
 	"strconv"
 	"strings"
-	"syscall"
+	"sync/atomic"
 	"time"
 
 	"durable-agent-execution-engine/internal/api"
 	"durable-agent-execution-engine/internal/engine"
-	"durable-agent-execution-engine/internal/faults"
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
 	"durable-agent-execution-engine/internal/telemetry"
-	"durable-agent-execution-engine/internal/transport"
 )
 
 const version = "0.1.0-dev"
 
-func main() {
+func runtimeCommand() {
 	if len(os.Args) > 1 {
 		switch os.Args[1] {
 		case "version":
@@ -43,129 +39,6 @@ func main() {
 		}
 	}
 
-	serve := flag.NewFlagSet("serve", flag.ExitOnError)
-	addr := serve.String("addr", envOrDefault("RUNTIME_ADDR", "127.0.0.1:8080"), "HTTP listen address")
-	_ = serve.Parse(os.Args[1:])
-
-	role := envOrDefault("RUNTIME_ROLE", "runtime")
-	metrics := telemetry.New(role)
-	tracing, tracingErr := telemetry.NewTracing(context.Background(), "durable-runtime-"+role, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
-	if tracingErr != nil {
-		slog.Error("runtime tracing initialization failed", "error", tracingErr)
-		os.Exit(1)
-	}
-	defer func() {
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := tracing.Shutdown(shutdownCtx); err != nil {
-			slog.Warn("runtime tracing shutdown failed", "error", err)
-		}
-	}()
-	handler := newHandlerWithMetrics(role, nil, metrics, tracing)
-	var store *state.Store
-	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
-		databaseContext, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		var err error
-		store, err = state.NewFromURL(databaseContext, databaseURL)
-		cancel()
-		if err != nil {
-			slog.Error("runtime database initialization failed", "error", err)
-			os.Exit(1)
-		}
-		store.SetTelemetry(metrics)
-		defer store.Close()
-		handler = newHandlerWithMetrics(role, store, metrics, tracing)
-	}
-	server := &http.Server{
-		Addr:              *addr,
-		Handler:           handler,
-		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      10 * time.Second,
-		IdleTimeout:       60 * time.Second,
-	}
-	if envOrDefault("RUNTIME_PPROF_ENABLED", "0") == "1" {
-		pprofAddr := envOrDefault("RUNTIME_PPROF_ADDR", "127.0.0.1:6060")
-		pprofServer := &http.Server{Addr: pprofAddr, Handler: pprofHandler(), ReadHeaderTimeout: 2 * time.Second}
-		go func() {
-			if err := pprofServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-				slog.Error("pprof server failed", "error", err)
-			}
-		}()
-		defer func() {
-			shutdownCtx, cancel := context.WithTimeout(context.Background(), time.Second)
-			defer cancel()
-			_ = pprofServer.Shutdown(shutdownCtx)
-		}()
-	}
-
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	if store != nil && envOrDefault("RUNTIME_SCHEDULER", "disabled") == "enabled" {
-		go runScheduler(ctx, store, splitBrokers(os.Getenv("KAFKA_BOOTSTRAP_SERVERS")), envOrDefault("RUNTIME_NAMESPACE", "local-runtime"), tracing)
-	}
-	var broker transport.Broker
-	if store != nil {
-		brokers := splitBrokers(os.Getenv("KAFKA_BOOTSTRAP_SERVERS"))
-		if len(brokers) > 0 {
-			var err error
-			broker, err = transport.NewKafkaBroker(brokers, transport.DefaultTopic)
-			if err != nil {
-				slog.Error("runtime Kafka relay initialization failed", "error", err)
-				os.Exit(1)
-			}
-			relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID(),
-				Tracing: tracing,
-				OnError: func(err error) {
-					metrics.RecordRelayFailure()
-					slog.Warn("runtime Kafka relay pass failed", "error", err)
-				},
-				OnSuccess: func(transport.RelayReport) {
-					// Readiness is a one-time dependency transition, not a
-					// heartbeat. The first successful relay pass is still valid
-					// evidence when startup readiness was not yet observable.
-					metrics.MarkDurableReady()
-				}})
-			go func() {
-				if err := relay.Run(ctx); err != nil && !errors.Is(err, context.Canceled) {
-					slog.Error("runtime Kafka relay stopped", "error", err)
-				}
-			}()
-			defer broker.Close()
-		}
-	}
-	if store != nil && broker != nil {
-		// NewFromURL has already pinged PostgreSQL and Kafka relay construction
-		// has succeeded. This is the one-time durable dependency transition;
-		// the timestamp is never overwritten by a recovery heartbeat.
-		metrics.MarkDurableReady()
-	}
-	if controller, err := faults.FromEnvironment(); err != nil {
-		slog.Error("fault controller initialization failed", "error", err)
-		os.Exit(1)
-	} else if controller != nil {
-		defer controller.Close()
-		if err := controller.Hit("runtime_ready", map[string]any{"role": role}); err != nil {
-			slog.Error("runtime fault boundary failed", "error", err)
-			os.Exit(1)
-		}
-		_ = controller.Emit("released", "runtime_ready", map[string]any{"role": role})
-	}
-
-	go func() {
-		<-ctx.Done()
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		if err := server.Shutdown(shutdownCtx); err != nil {
-			slog.Error("server shutdown failed", "error", err)
-		}
-	}()
-
-	slog.Info("runtime foundation server started", "addr", *addr, "role", role, "version", version)
-	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		slog.Error("runtime server failed", "error", err)
-		os.Exit(1)
-	}
 }
 
 func newHandler(role string) http.Handler {
@@ -177,6 +50,10 @@ func newHandlerWithStore(role string, store *state.Store) http.Handler {
 }
 
 func newHandlerWithMetrics(role string, store *state.Store, metrics *telemetry.Metrics, tracing *telemetry.Tracing) http.Handler {
+	return lifecycleHandler(role, store, metrics, tracing, nil)
+}
+
+func lifecycleHandler(role string, store *state.Store, metrics *telemetry.Metrics, tracing *telemetry.Tracing, draining *atomic.Bool) http.Handler {
 	mux := http.NewServeMux()
 	health := func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -187,7 +64,17 @@ func newHandlerWithMetrics(role string, store *state.Store, metrics *telemetry.M
 		})
 	}
 	mux.HandleFunc("GET /healthz", health)
-	mux.HandleFunc("GET /readyz", health)
+	mux.HandleFunc("GET /readyz", func(w http.ResponseWriter, r *http.Request) {
+		var ping func(context.Context) error
+		if store != nil {
+			ping = store.Pool().Ping
+		}
+		if !runtimeReady(r.Context(), draining, ping) {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		health(w, r)
+	})
 	mux.Handle("GET /metrics", metricsHandler(role, metrics))
 	if store != nil {
 		mux.Handle("/v1/", api.NewServer(store).WithTracing(tracing).Handler())
