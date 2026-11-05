@@ -961,3 +961,37 @@ Thus reviewed tooling must be merged and green on main before a registered
 job can start; evidence/ledger-only commits may reuse that exact-tooling proof.
 This adds validation/refusal, not a campaign run, paid charge, weaker gate,
 changed minimum/formula or extended cap. No workflow is dispatched in this pass.
+
+
+B.2 latency-source clarification (Round 174 / R246, 2026-11-05): the
+scheduled-arrival-to-durable-terminal definition at protocol line 374 uses
+`created_at` from exactly one SUCCEEDED `engine.transition_history` row at the
+workflow's final persisted revision, read from the checker-verified committed
+snapshot. This source applies to the pilot and every K4-K7 latency/SLO metric.
+It supersedes B.2's first-observed upper-bound implementation detail above;
+first-observed polling never determines L when durable timestamps exist.
+Inside the observer pod, bracket `SELECT clock_timestamp()` with observer UTC
+before and after the query, after connecting; persist probes at setup and
+after measured live/offline reconciliation. Add the larger bracket width u to
+every durable-minus-scheduled latency. Both ordered brackets must enclose the
+DB timestamp and bracket the measured window; otherwise fail closed. Retained
+first-observed samples independently require scheduled_at - u <= created_at <=
+first_observed + u. Report max and nearest-rank p99 polling-minus-durable
+differences and actual sampling gaps, without using them to compute L.
+The history timestamp is inserted inside the transaction that subsequently
+commits; it is not a separately measured commit instant. The observer, DB and
+arrival generator share kind's host kernel clock; these probes do not establish
+a cross-host clock-drift guarantee. Missing/duplicate final terminal rows,
+missing probes or a failed clock/polling cross-check block this freeze version.
+All previous protocol bytes, minima, workload/rate formulas, 72 h campaign cap,
+job ceilings, ordering and existing evidence remain unchanged. No registered
+pilot or K4-K7 measurement is claimed by this tooling correction.
+
+
+B.2 conservative reconciliation-deadline clarification (Round 174): the
+existing warmup/measured reconciliation deadlines include witness export,
+live/offline checker verification and the final DB clock probe. A poll or
+verification that returns after its deadline cannot authorize success.
+The measured deadline remains anchored to the final scheduled arrival;
+this grants no extra time or reduced completeness requirement. General
+bounded setup/reset waits likewise reject late predicate success.

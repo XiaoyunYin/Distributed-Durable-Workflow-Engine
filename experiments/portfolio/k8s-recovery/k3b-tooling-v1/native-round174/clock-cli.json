@@ -1,0 +1,17 @@
+{
+  "status": "PASS",
+  "command": [
+    "go",
+    "run",
+    "./cmd/dur049-checker",
+    "-clock-probe"
+  ],
+  "scope": "native Windows executable/JSON/query proof; Windows and Docker VM clocks differ; hosted shared-kernel observer-pod validation remains pending",
+  "observer_encloses_db": true,
+  "shared_kernel_validated": false,
+  "probe": {
+    "observer_before": "2026-11-05T21:49:01.910229Z",
+    "database": "2026-11-05T21:49:01.912084Z",
+    "observer_after": "2026-11-05T21:49:01.91213Z"
+  }
+}

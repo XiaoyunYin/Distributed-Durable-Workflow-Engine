@@ -125,26 +125,28 @@ class PilotDriver(Driver):
             json.loads(self.k("get", "namespace", ns, "-o", "json").stdout),
         )
         self.terminal_observed = {}
-        before = datetime.now(UTC).isoformat()
-        remote = json.loads(
-            self.python(
-                ns,
-                "observer",
-                'import time,json,datetime; print(json.dumps({"utc":datetime.datetime.now('
-                'datetime.timezone.utc).isoformat(),"monotonic_ns":time.monotonic_ns()}))',
-                record=False,
-            )
-        )
-        save(
-            directory / "clock.json",
-            {
-                "host_before": before,
-                "observer": remote,
-                "host_after": datetime.now(UTC).isoformat(),
-            },
-        )
+        self.clock_probe(ns, "setup")
         self.sample(ns, db)
         return ns, db
+
+    def clock_probe(self, ns: str, phase: str) -> None:
+        path = self.output / "clock.json"
+        probes = json.loads(path.read_bytes()) if path.exists() else {}
+        require(phase not in probes, "pilot-clock-probe-no-overwrite")
+        probes[phase] = json.loads(
+            self.k(
+                "-n",
+                ns,
+                "exec",
+                self.pod(ns, "observer")["metadata"]["name"],
+                "--",
+                "/checker",
+                "-clock-probe",
+                record=False,
+                timeout=20,
+            ).stdout
+        )
+        save(path, probes)
 
     def sample(self, ns: str, db: str) -> None:
         pods = json.loads(
@@ -374,6 +376,7 @@ class PilotDriver(Driver):
                 for r in windows[-1]["rows"]
             )
             seconds = min(seconds, 600 - (datetime.now(UTC) - final).total_seconds())
+        deadline = started + seconds
         wanted = {r["workflow_id"] for w in windows for r in w["rows"]}
         while time.monotonic() - started < seconds:
             self.sample(ns, db)
@@ -391,6 +394,8 @@ class PilotDriver(Driver):
                 '"http://"+ip+":8081/witness",timeout=3)) for ip in ' + repr(ips) + "]))",
                 record=False,
             )
+            if time.monotonic() >= deadline:
+                raise TimeoutError("pilot reconciliation observation timed out")
             if inventories != last:
                 quiet_since, last = time.monotonic(), inventories
             if wanted <= self.terminal_observed.keys() and time.monotonic() - quiet_since >= 30:
@@ -423,14 +428,15 @@ class PilotDriver(Driver):
             "-require-terminal",
         ]
         result = self.k(*checker, "-namespace", ns, allowed=True)
-        report = json.loads(result.stdout)
         filename = "checker.json" if label == "measured" else label + "-checker.json"
         (self.output / filename).write_text(result.stdout, encoding="utf-8", newline="\n")
+        require(result.returncode == 0, "pilot-live-checker")
+        report = json.loads(result.stdout)
+        require(report["valid"] is True, "pilot-live-checker")
         raw = trace_document(result.stdout)
         (
             self.output / ("snapshot.json" if label == "measured" else label + "-snapshot.json")
         ).write_text(raw, encoding="utf-8", newline="\n")
-        require(result.returncode == 0 and report["valid"] is True, "pilot-live-checker")
         # Preserve RawMessage snapshot byte spelling; remote_json would normalize it.
         self.k(
             "-n",
@@ -458,6 +464,10 @@ class PilotDriver(Driver):
             offline.returncode == 0 and json.loads(offline.stdout)["valid"] is True,
             "pilot-offline-checker",
         )
+        if label == "measured":
+            self.clock_probe(ns, "measured")
+        if time.monotonic() >= deadline:
+            raise TimeoutError("pilot reconciliation verification timed out")
         return quiet
 
     def pilot(

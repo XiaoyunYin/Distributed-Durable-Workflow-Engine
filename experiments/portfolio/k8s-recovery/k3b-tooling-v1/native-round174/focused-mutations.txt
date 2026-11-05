@@ -1,0 +1,20 @@
+warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+warning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied
+PASS k3b-pilot-live-checker: mutation was rejected by its named semantic test
+PASS k3b-r174-job-before-create: mutation was rejected by its named semantic test
+PASS k3b-r174-unrecorded-failure: mutation was rejected by its named semantic test
+PASS k3b-r174-durable-source: mutation was rejected by its named semantic test
+PASS k3b-r174-history-unique: mutation was rejected by its named semantic test
+PASS k3b-r174-history-final-revision: mutation was rejected by its named semantic test
+PASS k3b-r174-clock-cross-check: mutation was rejected by its named semantic test
+PASS k3b-r174-probe-width: mutation was rejected by its named semantic test
+PASS k3b-r174-probe-larger-bracket: mutation was rejected by its named semantic test
+PASS k3b-r174-probe-db-bracket: mutation was rejected by its named semantic test
+PASS k3b-r174-probe-window: mutation was rejected by its named semantic test
+PASS k3b-r174-probe-at-setup: mutation was rejected by its named semantic test
+PASS k3b-r174-probe-after-measured: mutation was rejected by its named semantic test
+PASS k3b-r174-freeze-ledger-inventory: mutation was rejected by its named semantic test
+PASS k3b-r174-missing-probes: mutation was rejected by its named semantic test
+PASS k3b-r174-freeze-durable-L: mutation was rejected by its named semantic test

@@ -1,0 +1,544 @@
+{
+  "status": "PASS",
+  "scope": [
+    "scripts/dur053_k3.py",
+    "scripts/dur053_k3_policy.py"
+  ],
+  "baseline_findings": [
+    {
+      "cell": null,
+      "code": "SIM112",
+      "end_location": {
+        "column": 47,
+        "row": 293
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 38,
+        "row": 293
+      },
+      "message": "Use capitalized environment variable `IMAGEOS` instead of `ImageOS`",
+      "name": "uncapitalized-environment-variables",
+      "noqa_row": 293,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/uncapitalized-environment-variables"
+    },
+    {
+      "cell": null,
+      "code": "SIM112",
+      "end_location": {
+        "column": 57,
+        "row": 294
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 43,
+        "row": 294
+      },
+      "message": "Use capitalized environment variable `IMAGEVERSION` instead of `ImageVersion`",
+      "name": "uncapitalized-environment-variables",
+      "noqa_row": 294,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/uncapitalized-environment-variables"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 163,
+        "row": 917
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 917
+      },
+      "message": "Line too long (162 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 917,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 104,
+        "row": 1033
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1033
+      },
+      "message": "Line too long (103 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1033,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 271,
+        "row": 1115
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1115
+      },
+      "message": "Line too long (270 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1115,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 475,
+        "row": 1138
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1138
+      },
+      "message": "Line too long (474 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1138,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 333,
+        "row": 1153
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1153
+      },
+      "message": "Line too long (332 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1153,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 145,
+        "row": 1168
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1168
+      },
+      "message": "Line too long (144 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1168,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 120,
+        "row": 1170
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1170
+      },
+      "message": "Line too long (119 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1170,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 179,
+        "row": 1221
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1221
+      },
+      "message": "Line too long (178 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1221,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 281,
+        "row": 1223
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1223
+      },
+      "message": "Line too long (280 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1223,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 175,
+        "row": 1303
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1303
+      },
+      "message": "Line too long (174 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1303,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 110,
+        "row": 1634
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1634
+      },
+      "message": "Line too long (109 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1634,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "B007",
+      "end_location": {
+        "column": 13,
+        "row": 246
+      },
+      "filename": "D:\\coding agent files\\durable-engine\\codex\\r174\\legacy-baseline\\dur053_k3_policy.py",
+      "fix": null,
+      "location": {
+        "column": 9,
+        "row": 246
+      },
+      "message": "Loop control variable `name` not used within loop body",
+      "name": "unused-loop-control-variable",
+      "noqa_row": 246,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/unused-loop-control-variable"
+    }
+  ],
+  "current_findings": [
+    {
+      "cell": null,
+      "code": "SIM112",
+      "end_location": {
+        "column": 47,
+        "row": 311
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 38,
+        "row": 311
+      },
+      "message": "Use capitalized environment variable `IMAGEOS` instead of `ImageOS`",
+      "name": "uncapitalized-environment-variables",
+      "noqa_row": 311,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/uncapitalized-environment-variables"
+    },
+    {
+      "cell": null,
+      "code": "SIM112",
+      "end_location": {
+        "column": 57,
+        "row": 312
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 43,
+        "row": 312
+      },
+      "message": "Use capitalized environment variable `IMAGEVERSION` instead of `ImageVersion`",
+      "name": "uncapitalized-environment-variables",
+      "noqa_row": 312,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/uncapitalized-environment-variables"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 163,
+        "row": 959
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 959
+      },
+      "message": "Line too long (162 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 959,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 104,
+        "row": 1075
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1075
+      },
+      "message": "Line too long (103 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1075,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 271,
+        "row": 1164
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1164
+      },
+      "message": "Line too long (270 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1164,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 475,
+        "row": 1187
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1187
+      },
+      "message": "Line too long (474 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1187,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 333,
+        "row": 1202
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1202
+      },
+      "message": "Line too long (332 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1202,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 145,
+        "row": 1217
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1217
+      },
+      "message": "Line too long (144 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1217,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 120,
+        "row": 1219
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1219
+      },
+      "message": "Line too long (119 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1219,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 179,
+        "row": 1270
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1270
+      },
+      "message": "Line too long (178 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1270,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 281,
+        "row": 1272
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1272
+      },
+      "message": "Line too long (280 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1272,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 175,
+        "row": 1352
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1352
+      },
+      "message": "Line too long (174 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1352,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "E501",
+      "end_location": {
+        "column": 110,
+        "row": 1683
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3.py",
+      "fix": null,
+      "location": {
+        "column": 101,
+        "row": 1683
+      },
+      "message": "Line too long (109 > 100)",
+      "name": "line-too-long",
+      "noqa_row": 1683,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/line-too-long"
+    },
+    {
+      "cell": null,
+      "code": "B007",
+      "end_location": {
+        "column": 13,
+        "row": 246
+      },
+      "filename": "D:\\portfolio-projects\\durable-agent-execution-engine\\scripts\\dur053_k3_policy.py",
+      "fix": null,
+      "location": {
+        "column": 9,
+        "row": 246
+      },
+      "message": "Loop control variable `name` not used within loop body",
+      "name": "unused-loop-control-variable",
+      "noqa_row": 246,
+      "severity": "error",
+      "url": "https://docs.astral.sh/ruff/rules/unused-loop-control-variable"
+    }
+  ],
+  "note": "Supplemental legacy scripts only. Required python/tests plus pilot-script Ruff scope passes separately. Existing findings are compared by filename/rule/message, not shifted line numbers."
+}

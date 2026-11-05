@@ -16,6 +16,7 @@ import shutil
 import subprocess
 import sys
 import tarfile
+import threading
 import time
 import urllib.request
 import zipfile
@@ -23,6 +24,7 @@ from pathlib import Path
 from typing import Any
 
 from dur053_k3_policy import (
+    application_groups_absent,
     application_topics_absent,
     artifact_hashes,
     fresh_output,
@@ -36,7 +38,6 @@ from dur053_k3_policy import (
     stable_worker_sessions,
     supported,
     terminal_report,
-    worker_group_absent,
 )
 from dur053_prerequisites import export_witness, trace_document
 
@@ -201,6 +202,8 @@ class Driver:
         self.databases: set[str] = set()
         self.live_start: float | None = None
         self.sequence = 0
+        self.output_lock = threading.Lock()
+        self.episode_service_ips: dict[str, str] = {}
         self.images: dict[str, str] = {}
         self.addon_images: set[str] = set()
         self.cluster_attempted = False
@@ -219,32 +222,47 @@ class Driver:
             remaining = self.live_reservation - (time.monotonic() - self.live_start)
             require(remaining > 900, "live-job-deadline")
             timeout = min(timeout, remaining - 900)
-        result = subprocess.run(
-            args,
-            cwd=ROOT,
-            env=self.env,
-            input=data,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
-        if record:
+        try:
+            result = subprocess.run(
+                args,
+                cwd=ROOT,
+                env=self.env,
+                input=data,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as error:
+            sequence = self.command_output(error.stdout, error.stderr)
+            raise TimeoutError(f"command-{sequence:03d}-{Path(args[0]).name}-timeout") from error
+        sequence = self.sequence
+        if record or result.returncode != 0:
+            sequence = self.command_output(result.stdout, result.stderr)
+        if not allowed:
+            require(
+                result.returncode == 0,
+                f"command-{sequence:03d}-{Path(args[0]).name}-exit-{result.returncode}",
+            )
+        return result
+
+    def command_output(self, stdout: str | bytes | None, stderr: str | bytes | None) -> int:
+        # Arrivals and safety sampling execute commands concurrently. Allocate
+        # and write together, so each guard identifies its own retained output.
+        with self.output_lock:
             self.sequence += 1
-            text = result.stdout + result.stderr
+            text = "".join(
+                part.decode("utf-8", errors="replace") if isinstance(part, bytes) else part or ""
+                for part in (stdout, stderr)
+            )
             for credential in (self.password, self.demand_token):
                 text = text.replace(credential, "[REDACTED]")
             (self.output / f"command-{self.sequence:03d}.txt").write_text(
                 text, encoding="utf-8", newline="\n"
             )
-        if not allowed:
-            require(
-                result.returncode == 0,
-                f"command-{self.sequence:03d}-{Path(args[0]).name}-exit-{result.returncode}",
-            )
-        return result
+            return self.sequence
 
     def k(self, *args: str, **kwargs: Any) -> subprocess.CompletedProcess[str]:
         return self.command(["kubectl", "--context", "kind-" + CLUSTER, *args], **kwargs)
@@ -697,9 +715,9 @@ class Driver:
     def until(predicate: Any, seconds: float) -> None:
         deadline = time.monotonic() + seconds
         while time.monotonic() < deadline:
-            if predicate():
+            if predicate() and time.monotonic() < deadline:
                 return
-            time.sleep(1)
+            time.sleep(min(1, max(0, deadline - time.monotonic())))
         raise TimeoutError("bounded condition did not become true")
 
     def sql(self, query: str, database: str = "postgres") -> str:
@@ -756,6 +774,23 @@ class Driver:
         database = namespace.replace("-", "_")
         self.demand_token = secrets.token_hex(32)
         path, objects = self.render(arm, addresses)
+        service_names = {o["metadata"]["name"] for o in objects if o["kind"] == "Service"}
+        require(
+            not self.episode_service_ips or set(self.episode_service_ips) == service_names,
+            "episode-service-ip-inventory",
+        )
+        for obj in objects:
+            if obj["kind"] == "Service" and self.episode_service_ips:
+                # A fresh namespace must not invalidate still-cached DNS A
+                # answers. Recreate the frontends at their released addresses;
+                # all Service objects, pods and dependency state remain fresh.
+                obj["spec"]["clusterIP"] = self.episode_service_ips[obj["metadata"]["name"]]
+            if obj["kind"] == "ScaledObject":
+                obj["metadata"].setdefault("annotations", {})[
+                    "autoscaling.keda.sh/paused-scale-in"
+                ] = "true"
+                obj["metadata"]["annotations"]["autoscaling.keda.sh/paused-scale-out"] = "true"
+        self.episode_objects(objects)
         self.databases.add(database)
         self.sql('CREATE DATABASE "' + database + '";')
         # Submission freeze: neither public Deployment nor client exists before both Jobs pass.
@@ -810,13 +845,6 @@ class Driver:
                 timeout=190,
             )
             self.k("-n", namespace, "logs", "job/" + name)
-        for obj in objects:
-            if obj["kind"] == "ScaledObject":
-                obj["metadata"].setdefault("annotations", {})[
-                    "autoscaling.keda.sh/paused-scale-in"
-                ] = "true"
-                obj["metadata"]["annotations"]["autoscaling.keda.sh/paused-scale-out"] = "true"
-        self.episode_objects(objects)
         self.apply({"apiVersion": "v1", "kind": "List", "items": objects})
         for role in (
             "api",
@@ -837,14 +865,28 @@ class Driver:
                 "--timeout=180s",
                 timeout=190,
             )
-        self.k(
-            "-n",
-            namespace,
-            "get",
-            "deployments,pods,services,networkpolicies,pdb,jobs",
-            "-o",
-            "json",
+        resources = json.loads(
+            self.k(
+                "-n", namespace, "get", "deployments,pods,services,networkpolicies,pdb,jobs",
+                "-o", "json",
+            ).stdout
+        )["items"]
+        observed_ips = {
+            o["metadata"]["name"]: o["spec"].get("clusterIP")
+            for o in resources
+            if o["kind"] == "Service" and o["metadata"]["name"] in service_names
+        }
+        require(
+            set(observed_ips) == service_names
+            and all(isinstance(ip, str) and ip not in {"", "None"} for ip in observed_ips.values()),
+            "episode-service-ip-inventory",
         )
+        require(
+            not self.episode_service_ips or observed_ips == self.episode_service_ips,
+            "episode-service-ip-continuity",
+        )
+        self.episode_service_ips = {name: str(ip) for name, ip in observed_ips.items()}
+        save(self.output / (arm + "-service-ips.json"), self.episode_service_ips)
         pods = json.loads(
             self.k("-n", namespace, "get", "pods", "-o", "json", record=False).stdout
         )["items"]
@@ -1063,9 +1105,16 @@ class Driver:
             "--bootstrap-server",
             "localhost:19092",
         ]
-        self.command([*group_command, "--delete", "--group", "runtime-workers-v1"])
+        for group in ("runtime-workers-v1", "runtime-schedulers-v1"):
+            result = self.command([*group_command, "--delete", "--group", group], allowed=True)
+            if result.returncode:
+                # Topic deletion may already have removed an empty group. A
+                # refusal is benign only when an independent listing proves
+                # that exact group absent; never ignore an active-group error.
+                listing = self.command([*group_command, "--list"], record=False).stdout.splitlines()
+                require(group not in listing, "kafka-group-delete-verified")
         self.until(
-            lambda: worker_group_absent(
+            lambda: application_groups_absent(
                 self.command([*group_command, "--list"], record=False).stdout
             ),
             30,

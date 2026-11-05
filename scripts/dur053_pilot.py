@@ -380,29 +380,52 @@ def summarize(directory: Path, *, engineering: bool = False) -> dict[str, Any]:
         for workflow in sample["terminal_ids"]:
             observed.setdefault(workflow, sample["observed_at"])
     require(observed == record["terminal_observed_at"], "pilot-terminal-observation-source")
-    # Database updated_at is sampled after terminal. Persist both DB timestamps
-    # and conservative observer upper bounds; use the latter for cross-clock
-    # uncertainty instead of subtracting worker/scheduler wall clocks.
     latencies = []
     clock = json.loads((directory / "clock.json").read_bytes())
-    before, after, observer = (
-        datetime.fromisoformat(x)
-        for x in (clock["host_before"], clock["host_after"], clock["observer"]["utc"])
-    )
-    require(after >= before, "pilot-observer-clock-order")
-    uncertainty = max(
-        abs((observer - before).total_seconds()), abs((after - observer).total_seconds())
-    )
+    require(set(clock) == {"setup", "measured"}, "pilot-clock-probes-required")
+    widths = []
+    for phase in ("setup", "measured"):
+        before, after, database = (
+            datetime.fromisoformat(clock[phase][key])
+            for key in ("observer_before", "observer_after", "database")
+        )
+        require(after >= before, "pilot-observer-clock-order")
+        require(before <= database <= after, "pilot-db-clock-bracket")
+        widths.append((after - before).total_seconds())
+    uncertainty = max(widths)
+    history = trace["Snapshot"]["engine.transition_history"]["rows"]
+    differences = []
     for row in measured["rows"]:
+        workflow = row["workflow_id"]
+        terminal_rows = [
+            h
+            for h in history
+            if h["workflow_id"] == workflow
+            and h["new_state"] == "SUCCEEDED"
+            and h["revision"] == terminal[workflow]["revision"]
+        ]
+        require(len(terminal_rows) == 1, "pilot-terminal-history-unique")
         scheduled = datetime.fromisoformat(row["scheduled_at"].replace("Z", "+00:00"))
-        observed = datetime.fromisoformat(record["terminal_observed_at"][row["workflow_id"]])
+        durable = datetime.fromisoformat(terminal_rows[0]["created_at"])
+        observed = datetime.fromisoformat(record["terminal_observed_at"][workflow])
+        require(
+            (scheduled - durable).total_seconds() <= uncertainty
+            and (durable - observed).total_seconds() <= uncertainty,
+            "pilot-terminal-clock-cross-check",
+        )
+        require(
+            datetime.fromisoformat(clock["setup"]["observer_after"]) <= scheduled
+            and durable <= datetime.fromisoformat(clock["measured"]["observer_before"]),
+            "pilot-clock-probe-window",
+        )
         latencies.append(
             finite(
-                (observed - scheduled).total_seconds() + uncertainty,
+                (durable - scheduled).total_seconds() + uncertainty,
                 "pilot-terminal-latency",
                 zero=True,
             )
         )
+        differences.append((observed - durable).total_seconds())
     return {
         **reference(busy, count),
         "latencies": latencies,
@@ -411,6 +434,11 @@ def summarize(directory: Path, *, engineering: bool = False) -> dict[str, Any]:
         "arm": record["arm"],
         "index": record["index"],
         "clock_uncertainty_seconds": uncertainty,
+        "latency_source": "transition_history.created_at at final SUCCEEDED revision",
+        "polling_minus_durable_seconds": {
+            "max": max(differences),
+            "p99": sorted(differences)[math.ceil(0.99 * len(differences)) - 1],
+        },
         "maximum_sample_gap_seconds": max(
             (b["monotonic_ns"] - a["monotonic_ns"]) / 1e9
             for a, b in zip(samples, samples[1:], strict=False)

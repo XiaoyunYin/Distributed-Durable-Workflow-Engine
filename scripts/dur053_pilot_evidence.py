@@ -6,6 +6,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import subprocess
 from pathlib import Path
 from typing import Any
@@ -240,6 +241,17 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
     ledger_path = repository / "experiments/portfolio/k8s-recovery/live-time-ledger.json"
     committed_bytes(repository, ledger_path)
     ledger = committed_ledger(ledger_path, repository)
+    available_paths = {
+        (root / "manifest.json").relative_to(repository).as_posix() for root, _ in available
+    }
+    for row in ledger["entries"]:
+        if re.fullmatch(r"k3-pilot-(1a|1b|2|3)(-c[1-9][0-9]*)?", row.get("category", "")):
+            path = (repository / row["artifact"]).resolve()
+            require(
+                path.is_relative_to((repository / EVIDENCE).resolve())
+                and path.relative_to(repository.resolve()).as_posix() in available_paths,
+                "pilot-freeze-ledger-artifact-inventory",
+            )
     cells: dict[tuple[str, int], tuple[Path, dict[str, Any]]] = {}
     hashes = {}
     calibration_roots = []
@@ -356,7 +368,11 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
         },
         "limitations": [
             "single shared host per job; cross-job host variance",
-            "terminal latency uses first-observed terminal upper bounds; sampling error retained",
+            "latency uses committed terminal transition_history.created_at, an in-transaction "
+            "durable terminal timestamp, not a separately measured commit instant; adds the larger "
+            "observer-pod DB-query clock bracket; first-observed polling only cross-checks and "
+            "reports max/p99 polling-minus-durable differences; shared kind kernel clock only, "
+            "no cross-host clock-drift guarantee",
             "not a capacity or sustainable-throughput claim",
         ],
     }

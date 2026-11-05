@@ -89,3 +89,44 @@ Python tests above are in `tests/test_k3b_pilot.py`; existing K3 tests remain in
 production transition validators. Synthetic fixtures and native checks prove
 tooling behavior; only the future committed campaign artifacts can establish
 b/r/L, CPU calibration values or pilot completeness on the registered host.
+
+
+## Round 174 current worktree correction — 2026-11-05
+
+The earlier 487-case/"current" descriptions above refer to the Round 173 source
+Claude committed at a60f765. Those historical artifacts remain unchanged.
+Current validation is [round174-native-validation.json](round174-native-validation.json):
+base a60f7656d1bd92334caedf27a6dfda2ff33b72f1 plus uncommitted corrections,
+with the complete 510-case [Bash result](mutation-round174.json), exact source
+hashes and [native consoles](native-round174/). The full gate uses Git Bash on
+Windows; no Linux-hosted result is claimed. Earlier focused/partial attempts
+are retained and explicitly distinguished from this completed final gate.
+
+R246 uses durable terminal history plus observer-pod DB clock probes, with
+first-observed polling only a cross-check/statistic. R247 finalizes Job env
+before creation; R248 retains failed/timeout command output with safe sequence
+allocation; R249 binds every pilot ledger row to the available evidence tree.
+The full path audit also fixes both Kafka-group resets and late-success
+deadline acceptance. Details and the 70-minute smoke estimate's unmeasured
+allowances are in docs/DUR053_K3B_ROUND174_AUDIT.md.
+
+Go build/vet/DB integration, Ruff check/format, mypy and full pytest pass
+(284 passed, three optional service skips). Native DB clock-source tests use
+independent DB-clock fences: Windows and the Docker VM do not share a kernel.
+Production's strict shared-kernel relation is unchanged; hosted kind proof is
+pending. The synthetic freeze fixture stubs Git retrieval and independent Go
+recheck; actual Go invariant/checker suites run separately. No real pilot,
+calibration, freeze, kind or workflow dispatch ran here, and no commit was made.
+
+The actual database/scratch cleanup is in round174-database-cleanup.json and
+round174-cleanup.json. K3b remains IN_PROGRESS, handoff PROVISIONAL; R245 and
+R246-R249 remain reviewer OPEN pending committed-target/hosted verification.
+
+
+Round 174 observed filesystem cleanup is BLOCKED: automatic approval review
+rejected bulk/path-checked and literal single-file deletion with "blocked
+by policy". No temporary file was removed; the actual Codex-root listing
+is ["r174"]. Eleven task databases were dropped and queried absent.
+round174-cleanup.json and the final REVIEW block explicitly supersede
+earlier planned-removal wording. Source/native checks PASS; the handoff
+remains PROVISIONAL/IN_PROGRESS with this cleanup limitation recorded.

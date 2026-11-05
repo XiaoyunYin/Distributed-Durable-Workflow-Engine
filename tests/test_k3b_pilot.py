@@ -116,9 +116,23 @@ def fixture_run(
             "Snapshot": {
                 "engine.workflow_executions": {
                     "rows": [
-                        {"workflow_id": row["workflow_id"], "state": "SUCCEEDED"} for row in rows
+                        {"workflow_id": row["workflow_id"], "state": "SUCCEEDED", "revision": 3}
+                        for row in rows
                     ]
-                }
+                },
+                "engine.transition_history": {
+                    "rows": [
+                        {
+                            "workflow_id": row["workflow_id"],
+                            "new_state": "SUCCEEDED",
+                            "revision": 3,
+                            "created_at": (
+                                datetime.fromisoformat(row["scheduled_at"]) + timedelta(seconds=1)
+                            ).isoformat(),
+                        }
+                        for row in rows
+                    ]
+                },
             }
         },
     )
@@ -151,9 +165,15 @@ def fixture_run(
     save(
         directory / "clock.json",
         {
-            "host_before": now.isoformat(),
-            "host_after": now.isoformat(),
-            "observer": {"utc": now.isoformat(), "monotonic_ns": 1},
+            phase: {
+                "observer_before": moment.isoformat(),
+                "database": (moment + timedelta(milliseconds=1)).isoformat(),
+                "observer_after": (moment + timedelta(milliseconds=2)).isoformat(),
+            }
+            for phase, moment in (
+                ("setup", now - timedelta(seconds=1)),
+                ("measured", now + timedelta(seconds=20000)),
+            )
         },
     )
     observed_at = (now + timedelta(seconds=10000)).isoformat()
@@ -850,7 +870,7 @@ class K3bPilotTests(unittest.TestCase):
             ):
                 pilot.witness_events(witness)
             clock = json.loads((directory / "clock.json").read_bytes())
-            clock["host_after"] = "2000-01-01T00:00:00+00:00"
+            clock["setup"]["observer_after"] = "2000-01-01T00:00:00+00:00"
             save(directory / "clock.json", clock)
             with self.assertRaisesRegex(
                 ValueError, "pilot-observer-clock-order", msg="pilot guard bypassed observer-clock"
@@ -881,7 +901,13 @@ class K3bPilotTests(unittest.TestCase):
                     if "exec" in args and "/checker" in args:
                         ok = offline_failure and "-snapshot" not in args
                         return subprocess.CompletedProcess(
-                            [], 0 if ok else 1, json.dumps({"valid": ok, "trace": {}})
+                            [],
+                            0 if ok else 1,
+                            json.dumps(
+                                {"valid": True, "trace": {}}
+                                if ok
+                                else {"fatal": "database unavailable"}
+                            ),
                         )
                     return subprocess.CompletedProcess([], 0, "")
 
@@ -988,6 +1014,11 @@ class K3bPilotTests(unittest.TestCase):
                     self.assertEqual(result, evidence.freeze(repository, Path("checker-fixture")))
                 self.assertEqual(result["observed_schedule"]["campaign_episodes"], 438)
                 self.assertEqual(set(result["arms"]), set(pilot.ARMS))
+                self.assertEqual(
+                    {a: result["arms"][a]["L"] for a in pilot.ARMS},
+                    dict.fromkeys(pilot.ARMS, 2.004),
+                    "freeze L must reproduce durable timestamp latencies",
+                )
                 for label, edit in (
                     ("all-cells", lambda: available.pop()),
                     ("duplicate-cell", lambda: available[0][1]["completed"].append("short-0")),
@@ -1005,6 +1036,22 @@ class K3bPilotTests(unittest.TestCase):
                             evidence,
                             "committed_bytes",
                             side_effect=lambda _repo, path: path.read_bytes(),
+                        ),
+                        patch.object(
+                            evidence,
+                            "committed_ledger",
+                            return_value={
+                                "entries": [
+                                    row
+                                    for row in json.loads(ledger_path.read_bytes())["entries"]
+                                    if label != "all-cells"
+                                    or row["artifact"]
+                                    in {
+                                        (p / "manifest.json").relative_to(repository).as_posix()
+                                        for p, _ in available
+                                    }
+                                ]
+                            },
                         ),
                     ):
                         evidence.freeze(repository, Path("checker-fixture"))

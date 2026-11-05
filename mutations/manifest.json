@@ -6071,7 +6071,7 @@
       "id": "k3-command-exit",
       "kind": "behavioral",
       "file": "scripts/dur053_k3.py",
-      "old": "require(\n                result.returncode == 0,\n                f\"command-{self.sequence:03d}-{Path(args[0]).name}-exit-{result.returncode}\",\n            )",
+      "old": "require(\n                result.returncode == 0,\n                f\"command-{sequence:03d}-{Path(args[0]).name}-exit-{result.returncode}\",\n            )",
       "new": "require(True, \"command-exit\")",
       "command": [
         "python",
@@ -7571,7 +7571,7 @@
       "id": "k3b-pilot-live-checker",
       "kind": "behavioral",
       "file": "scripts/dur053_pilot_driver.py",
-      "old": "require(result.returncode == 0 and report[\"valid\"] is True, \"pilot-live-checker\")",
+      "old": "require(result.returncode == 0, \"pilot-live-checker\")",
       "new": "require(True, \"pilot-live-checker\")",
       "command": [
         "python",
@@ -8211,6 +8211,374 @@
         "-q"
       ],
       "expected": "pilot guard bypassed Bash pilot-job input gate",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-job-before-create",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "self.episode_objects(objects)",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_jobs_are_transformed_before_creation_and_remain_immutable",
+        "-q"
+      ],
+      "expected": "episode transform must precede first Job",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-unrecorded-failure",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "if record or result.returncode != 0:",
+      "new": "if record:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_unrecorded_failure_has_its_own_redacted_output",
+        "-q"
+      ],
+      "expected": "failed unrecorded command",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-durable-source",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "(durable - scheduled).total_seconds() + uncertainty,",
+      "new": "(observed - scheduled).total_seconds() + uncertainty,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_durable_latency_probe_and_polling_cross_checks",
+        "-q"
+      ],
+      "expected": "latency must use durable history plus probe width",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-history-unique",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(len(terminal_rows) == 1, \"pilot-terminal-history-unique\")",
+      "new": "require(True, \"pilot-terminal-history-unique\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_durable_latency_probe_and_polling_cross_checks",
+        "-q"
+      ],
+      "expected": "durable latency guard bypassed duplicate",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-history-final-revision",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "and h[\"revision\"] == terminal[workflow][\"revision\"]",
+      "new": "and True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_durable_latency_probe_and_polling_cross_checks",
+        "-q"
+      ],
+      "expected": "durable latency guard bypassed revision",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-clock-cross-check",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "(scheduled - durable).total_seconds() <= uncertainty\n            and (durable - observed).total_seconds() <= uncertainty,",
+      "new": "True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_durable_latency_probe_and_polling_cross_checks",
+        "-q"
+      ],
+      "expected": "durable latency guard bypassed later-than-poll",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-probe-width",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "uncertainty = max(widths)",
+      "new": "uncertainty = 0.0",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_durable_latency_probe_and_polling_cross_checks",
+        "-q"
+      ],
+      "expected": "latency must use durable history plus probe width",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-probe-larger-bracket",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "uncertainty = max(widths)",
+      "new": "uncertainty = widths[0]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_durable_latency_probe_and_polling_cross_checks",
+        "-q"
+      ],
+      "expected": "larger final probe bracket must bound every latency",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-probe-db-bracket",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(before <= database <= after, \"pilot-db-clock-bracket\")",
+      "new": "require(True, \"pilot-db-clock-bracket\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_durable_latency_probe_and_polling_cross_checks",
+        "-q"
+      ],
+      "expected": "clock guard bypassed db-bracket",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-probe-window",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "datetime.fromisoformat(clock[\"setup\"][\"observer_after\"]) <= scheduled\n            and durable <= datetime.fromisoformat(clock[\"measured\"][\"observer_before\"]),",
+      "new": "True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_durable_latency_probe_and_polling_cross_checks",
+        "-q"
+      ],
+      "expected": "clock guard bypassed probe-window",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-probe-at-setup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "self.clock_probe(ns, \"setup\")",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_observer_probe_and_measured_reconciliation_persist",
+        "-q"
+      ],
+      "expected": "setup must persist observer database probe",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-probe-after-measured",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "self.clock_probe(ns, \"measured\")",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_observer_probe_and_measured_reconciliation_persist",
+        "-q"
+      ],
+      "expected": "Expected 'clock_probe' to be called once",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-freeze-ledger-inventory",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n                path.is_relative_to((repository / EVIDENCE).resolve())\n                and path.relative_to(repository.resolve()).as_posix() in available_paths,\n                \"pilot-freeze-ledger-artifact-inventory\",\n            )",
+      "new": "require(True, \"pilot-freeze-ledger-artifact-inventory\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_freeze_rejects_ledger_artifacts_outside_inventory",
+        "-q"
+      ],
+      "expected": "ledger inventory guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-missing-probes",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(set(clock) == {\"setup\", \"measured\"}, \"pilot-clock-probes-required\")",
+      "new": "require(True, \"pilot-clock-probes-required\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_durable_latency_probe_and_polling_cross_checks",
+        "-q"
+      ],
+      "expected": "missing probe guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-freeze-durable-L",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "(durable - scheduled).total_seconds() + uncertainty,",
+      "new": "(observed - scheduled).total_seconds() + uncertainty,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "freeze L must reproduce durable timestamp latencies",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-scheduler-group-delete",
+      "file": "scripts/dur053_k3.py",
+      "old": "for group in (\"runtime-workers-v1\", \"runtime-schedulers-v1\"):",
+      "new": "for group in (\"runtime-workers-v1\",):",
+      "kind": "behavioral",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_reset_clears_both_kafka_groups_before_next_episode",
+        "-q"
+      ],
+      "expected": "both groups must be deleted",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-scheduler-group-absence",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "return worker_group_absent(listing) and \"runtime-schedulers-v1\" not in listing.splitlines()",
+      "new": "return worker_group_absent(listing)",
+      "kind": "behavioral",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_reset_clears_both_kafka_groups_before_next_episode",
+        "-q"
+      ],
+      "expected": "scheduler group must be absent",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-group-delete-refusal",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(group not in listing, \"kafka-group-delete-verified\")",
+      "new": "require(True, \"kafka-group-delete-verified\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_reset_accepts_absent_groups_and_refuses_active_group",
+        "-q"
+      ],
+      "expected": "active group deletion must fail closed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-bounded-wait-deadline",
+      "file": "scripts/dur053_k3.py",
+      "old": "if predicate() and time.monotonic() < deadline:",
+      "new": "if predicate():",
+      "kind": "behavioral",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_bounded_wait_rejects_predicate_success_after_deadline",
+        "-q"
+      ],
+      "expected": "late predicate must not pass",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-reconcile-poll-deadline",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "if time.monotonic() >= deadline:\n                raise TimeoutError(\"pilot reconciliation observation timed out\")",
+      "new": "if False:\n                raise TimeoutError(\"pilot reconciliation observation timed out\")",
+      "kind": "behavioral",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_reconciliation_rejects_late_poll_and_late_verification",
+        "-q"
+      ],
+      "expected": "late reconciliation must fail",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-reconcile-verification-deadline",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "if time.monotonic() >= deadline:\n            raise TimeoutError(\"pilot reconciliation verification timed out\")",
+      "new": "if False:\n            raise TimeoutError(\"pilot reconciliation verification timed out\")",
+      "kind": "behavioral",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_reconciliation_rejects_late_poll_and_late_verification",
+        "-q"
+      ],
+      "expected": "late reconciliation must fail",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-service-ip-reuse",
+      "file": "scripts/dur053_k3.py",
+      "old": "if obj[\"kind\"] == \"Service\" and self.episode_service_ips:",
+      "new": "if False:",
+      "kind": "behavioral",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_namespace_reuse_preserves_cached_service_answers",
+        "-q"
+      ],
+      "expected": "cached Service DNS continuity must allow the next episode",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-r174-service-ip-observation",
+      "file": "scripts/dur053_k3.py",
+      "old": "not self.episode_service_ips or observed_ips == self.episode_service_ips,",
+      "new": "True,",
+      "kind": "behavioral",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_round174.py::Round174Tests::test_namespace_reuse_preserves_cached_service_answers",
+        "-q"
+      ],
+      "expected": "changed observed Service IP must fail closed",
       "requires_database": false
     }
   ]
