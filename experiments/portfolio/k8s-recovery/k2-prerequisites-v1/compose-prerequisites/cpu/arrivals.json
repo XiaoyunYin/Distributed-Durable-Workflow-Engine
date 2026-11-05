@@ -1,0 +1,167 @@
+{
+  "offered": 3,
+  "schema": "dur053.arrivals.v1",
+  "status": "PASS",
+  "namespace": "dur053-k2c-cpu-431a572c",
+  "run_id": "dur053-k2c-cpu-431a572c",
+  "arm": "cpu",
+  "seed": 530004,
+  "rate": 1,
+  "concurrency": 16,
+  "cpu_units": 10000,
+  "rows": [
+    {
+      "sequence": 0,
+      "key": "dur053-dur053-k2c-cpu-431a572c-530004-000000",
+      "workflow_id": "dur053-dur053-k2c-cpu-431a572c-530004-000000",
+      "activity": "dur053.cpu",
+      "scheduled_ns": 0,
+      "lateness_ns": 16150,
+      "send_ns": 16150,
+      "scheduled_at": "2026-11-05T03:37:49.194058361Z",
+      "sent_at": "2026-11-05T03:37:49.194074513Z",
+      "finished_ns": 7725080,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-cpu-431a572c-530004-000000",
+          "namespace": "dur053-k2c-cpu-431a572c",
+          "submission_key": "dur053-dur053-k2c-cpu-431a572c-530004-000000",
+          "payload_hash": "sub-v1:0d0208e172aba9977225024b18a257225800ac6f2c3f8fc21a2c02fcf8aead99",
+          "definition_id": "dur053-dur053-k2c-cpu-431a572c-dur053.cpu",
+          "definition_version": 1,
+          "partition_id": 13,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:37:49.196609Z",
+          "updated_at": "2026-11-05T03:37:49.196609Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-cpu-431a572c-dur053.cpu",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-cpu-431a572c",
+          "sequence": 0
+        },
+        "initial_node_id": "dur053.cpu",
+        "namespace": "dur053-k2c-cpu-431a572c",
+        "payload": {
+          "run_id": "dur053-k2c-cpu-431a572c",
+          "sequence": 0
+        },
+        "submission_key": "dur053-dur053-k2c-cpu-431a572c-530004-000000",
+        "workflow_id": "dur053-dur053-k2c-cpu-431a572c-530004-000000"
+      },
+      "expected": {
+        "digest": "52e5e409cf0bfc76eb1b0d2c4ba4366afd7ec10e3620bc7751782f2ddecea19f",
+        "work_units": 10000
+      }
+    },
+    {
+      "sequence": 1,
+      "key": "dur053-dur053-k2c-cpu-431a572c-530004-000001",
+      "workflow_id": "dur053-dur053-k2c-cpu-431a572c-530004-000001",
+      "activity": "dur053.cpu",
+      "scheduled_ns": 1000000000,
+      "lateness_ns": 135254,
+      "send_ns": 1000135254,
+      "scheduled_at": "2026-11-05T03:37:50.194058361Z",
+      "sent_at": "2026-11-05T03:37:50.19419362Z",
+      "finished_ns": 1003467658,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-cpu-431a572c-530004-000001",
+          "namespace": "dur053-k2c-cpu-431a572c",
+          "submission_key": "dur053-dur053-k2c-cpu-431a572c-530004-000001",
+          "payload_hash": "sub-v1:1b4a2a74e2f9437f64c062d2ca7ca8f636973becb59093cb38c2f03f6fccfcb2",
+          "definition_id": "dur053-dur053-k2c-cpu-431a572c-dur053.cpu",
+          "definition_version": 1,
+          "partition_id": 1,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:37:50.195439Z",
+          "updated_at": "2026-11-05T03:37:50.195439Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-cpu-431a572c-dur053.cpu",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-cpu-431a572c",
+          "sequence": 1
+        },
+        "initial_node_id": "dur053.cpu",
+        "namespace": "dur053-k2c-cpu-431a572c",
+        "payload": {
+          "run_id": "dur053-k2c-cpu-431a572c",
+          "sequence": 1
+        },
+        "submission_key": "dur053-dur053-k2c-cpu-431a572c-530004-000001",
+        "workflow_id": "dur053-dur053-k2c-cpu-431a572c-530004-000001"
+      },
+      "expected": {
+        "digest": "52e5e409cf0bfc76eb1b0d2c4ba4366afd7ec10e3620bc7751782f2ddecea19f",
+        "work_units": 10000
+      }
+    },
+    {
+      "sequence": 2,
+      "key": "dur053-dur053-k2c-cpu-431a572c-530004-000002",
+      "workflow_id": "dur053-dur053-k2c-cpu-431a572c-530004-000002",
+      "activity": "dur053.cpu",
+      "scheduled_ns": 2000000000,
+      "lateness_ns": 173944,
+      "send_ns": 2000173944,
+      "scheduled_at": "2026-11-05T03:37:51.194058361Z",
+      "sent_at": "2026-11-05T03:37:51.194232311Z",
+      "finished_ns": 2004223405,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-cpu-431a572c-530004-000002",
+          "namespace": "dur053-k2c-cpu-431a572c",
+          "submission_key": "dur053-dur053-k2c-cpu-431a572c-530004-000002",
+          "payload_hash": "sub-v1:15a31b1b94d18b4d00f07e83f10117fde8ab422bb88052730e62b5309396f252",
+          "definition_id": "dur053-dur053-k2c-cpu-431a572c-dur053.cpu",
+          "definition_version": 1,
+          "partition_id": 9,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:37:51.195776Z",
+          "updated_at": "2026-11-05T03:37:51.195776Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-cpu-431a572c-dur053.cpu",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-cpu-431a572c",
+          "sequence": 2
+        },
+        "initial_node_id": "dur053.cpu",
+        "namespace": "dur053-k2c-cpu-431a572c",
+        "payload": {
+          "run_id": "dur053-k2c-cpu-431a572c",
+          "sequence": 2
+        },
+        "submission_key": "dur053-dur053-k2c-cpu-431a572c-530004-000002",
+        "workflow_id": "dur053-dur053-k2c-cpu-431a572c-530004-000002"
+      },
+      "expected": {
+        "digest": "52e5e409cf0bfc76eb1b0d2c4ba4366afd7ec10e3620bc7751782f2ddecea19f",
+        "work_units": 10000
+      }
+    }
+  ]
+}

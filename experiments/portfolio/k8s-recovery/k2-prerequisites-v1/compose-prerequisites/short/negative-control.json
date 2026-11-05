@@ -1,0 +1,145 @@
+{
+  "campaign": {
+    "accepted": 10,
+    "accepted_results": 10,
+    "accepted_results_per_executed_non_canceled_iteration": 1,
+    "busy_seconds": 0.809554893,
+    "canceled_iterations": 0,
+    "duplicate_effects": "NOT COVERED (PURE)",
+    "duplicate_executions": 0,
+    "executed_iterations": 10,
+    "executions": [
+      {
+        "canceled": false,
+        "invocations": 1,
+        "iteration": 0,
+        "node_id": "dur048.sleep",
+        "winners": 1,
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000000"
+      },
+      {
+        "canceled": false,
+        "invocations": 1,
+        "iteration": 0,
+        "node_id": "dur048.sleep",
+        "winners": 1,
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000001"
+      },
+      {
+        "canceled": false,
+        "invocations": 1,
+        "iteration": 0,
+        "node_id": "dur048.sleep",
+        "winners": 1,
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000002"
+      },
+      {
+        "canceled": false,
+        "invocations": 1,
+        "iteration": 0,
+        "node_id": "dur048.sleep",
+        "winners": 1,
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000003"
+      },
+      {
+        "canceled": false,
+        "invocations": 1,
+        "iteration": 0,
+        "node_id": "dur048.sleep",
+        "winners": 1,
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000004"
+      },
+      {
+        "canceled": false,
+        "invocations": 1,
+        "iteration": 0,
+        "node_id": "dur048.sleep",
+        "winners": 1,
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000005"
+      },
+      {
+        "canceled": false,
+        "invocations": 1,
+        "iteration": 0,
+        "node_id": "dur048.sleep",
+        "winners": 1,
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000006"
+      },
+      {
+        "canceled": false,
+        "invocations": 1,
+        "iteration": 0,
+        "node_id": "dur048.sleep",
+        "winners": 1,
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000007"
+      },
+      {
+        "canceled": false,
+        "invocations": 1,
+        "iteration": 0,
+        "node_id": "pure.echo",
+        "winners": 1,
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000008"
+      },
+      {
+        "canceled": false,
+        "invocations": 1,
+        "iteration": 0,
+        "node_id": "pure.add",
+        "winners": 1,
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000009"
+      }
+    ],
+    "final_failure_receipts": 0,
+    "intermediate_retryable_receipts": 0,
+    "invariant_outcomes": {
+      "I1": "covered/fail (safety or evidence completeness)",
+      "I10": "not-covered",
+      "I11": "covered/fail (safety or evidence completeness)",
+      "I12": "not-covered",
+      "I13": "not-covered",
+      "I2": "covered/fail (safety or evidence completeness)",
+      "I3": "not-covered",
+      "I4": "covered/fail (safety or evidence completeness)",
+      "I5": "not-covered",
+      "I6": "covered/fail (safety or evidence completeness)",
+      "I7": "not-covered",
+      "I8": "not-covered",
+      "I9": "not-covered"
+    },
+    "invariants_covered": [
+      "I1 submission identity reconciliation",
+      "I2 contiguous atomic history evidence",
+      "I4 stale-result/current-attempt evidence",
+      "I6 history/outbox obligations",
+      "I11 unique terminal history"
+    ],
+    "invariants_not_covered": [
+      "I3 no confirmed takeover/lease-order fault",
+      "I5 no lost-result-response drill",
+      "I7 no independent broker commit-order witness",
+      "I8 PURE: cooperating effects NOT COVERED",
+      "I9 PURE: uncertain non-cooperating effects NOT COVERED",
+      "I10 PURE: approval/grant effects NOT COVERED",
+      "I12 no process clock-skew drill",
+      "I13 no shutdown drill",
+      "cancellation races NOT COVERED",
+      "storage loss NOT COVERED"
+    ],
+    "non_terminal": [],
+    "offered": 10,
+    "reexecuted_seconds": 0,
+    "rejected": 0,
+    "uncertain": 0,
+    "valid": false,
+    "violations": [
+      "incomplete witness export: count/hash/write failure",
+      "incomplete witness export: line count",
+      "unfinished invocation in prerequisites: 23676721-126e-44f0-872f-77ef23c18b5c"
+    ]
+  },
+  "exit_code": 1,
+  "status": "FAIL",
+  "valid": false,
+  "violations": null
+}
