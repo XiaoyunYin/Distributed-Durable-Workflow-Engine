@@ -1,0 +1,23 @@
+{
+  "schema": "dur053.k3b-mutation-coverage.v1",
+  "status": "PASS",
+  "manifest_sha256": "8818429433a889dd1c5d238fad0a60f6f72f77fb41502402ceea1826c1b4ed63",
+  "source_basis": "unchanged implementation source; full gate plus test/manifest-only entry-point supplement",
+  "runs": [
+    {
+      "artifact": "mutation-results-final.json",
+      "sha256": "a2ae74ecbcf233a568000911cc82784a5aa1dd2490acb7777c863b11608d2298",
+      "cases": 484,
+      "basis": "working-tree overlay"
+    },
+    {
+      "artifact": "mutation-entrypoint-supplement.json",
+      "sha256": "7236a09aecaaa0608e00453cfe8a02b30883173927036c42b4b718496db40e5c",
+      "cases": 3,
+      "basis": "working-tree overlay"
+    }
+  ],
+  "current_manifest_cases": 487,
+  "covered_cases": 487,
+  "all_current_case_sources_verified": true
+}

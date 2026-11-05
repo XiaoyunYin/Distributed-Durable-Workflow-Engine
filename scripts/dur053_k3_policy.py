@@ -488,7 +488,7 @@ def artifact_hashes(output: Path) -> dict[str, str]:
     return {
         p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in sorted(output.rglob("*"))
-        if p.is_file() and p.name != "manifest.json"
+        if p.is_file() and p != output / "manifest.json"
     }
 
 

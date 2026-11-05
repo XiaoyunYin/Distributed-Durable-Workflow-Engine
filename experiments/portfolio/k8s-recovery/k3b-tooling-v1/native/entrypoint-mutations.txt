@@ -1,0 +1,13 @@
+.venv/Scripts/python.exe : warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+所在位置 行:2 字符: 487
++ ... txt') -Raw; .venv/Scripts/python.exe -B scripts/mutation-runner.py -- ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: unable...rmission denied:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+ 
+warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+warning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied
+PASS k3b-freeze-cli-no-overwrite: mutation was rejected by its named semantic test
+PASS k3b-powershell-pilot-input: configuration tripwire detected the removed setting
+PASS k3b-bash-pilot-input: configuration tripwire detected the removed setting

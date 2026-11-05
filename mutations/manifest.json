@@ -5411,7 +5411,7 @@
       "id": "k3-artifact-self-hash",
       "kind": "behavioral",
       "file": "scripts/dur053_k3_policy.py",
-      "old": "if p.is_file() and p.name != \"manifest.json\"",
+      "old": "if p.is_file() and p != output / \"manifest.json\"",
       "new": "if p.is_file()",
       "command": [
         "python",
@@ -6237,6 +6237,1980 @@
         "K3DriverTests.test_smoke_without_started_cluster_records_zero_live_seconds"
       ],
       "expected": "1 != 0",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-numeric-finite",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        type(value) in (int, float)\n        and math.isfinite(value)\n        and (value >= 0 if zero else value > 0),\n        label,\n    )",
+      "new": "require(True, label)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-job-name",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(bool(re.fullmatch(r\"k3-pilot-(1a|1b|2|3)(-c[1-9][0-9]*)?\", name)), \"pilot-job-name\")",
+      "new": "require(True, \"pilot-job-name\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_carry_over",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-quantile-population",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(bool(values) and 0 < q <= 1, \"pilot-quantile-population\")",
+      "new": "require(True, \"pilot-quantile-population\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-b-population",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(type(count) is int and count > 0 and bool(busy), \"pilot-b-population\")",
+      "new": "require(True, \"pilot-b-population\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-L-population",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(len(repeats) == 3 and all(len(x) == 200 for x in repeats), \"pilot-L-population\")",
+      "new": "require(True, \"pilot-L-population\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-cell",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(arm in ARMS and type(index) is int and 0 <= index <= 3, \"pilot-cell\")",
+      "new": "require(True, \"pilot-cell\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-job-fit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(elapsed + needed <= min(CEILING, reservation), \"pilot-job-fit\")",
+      "new": "require(True, \"pilot-job-fit\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-ledger-fit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(elapsed + needed <= ledger_remaining, \"pilot-ledger-fit\")",
+      "new": "require(True, \"pilot-ledger-fit\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-carry-time-only",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(bool(pending) and reason == \"pilot-job-fit\" and not started, \"pilot-carry-time-only\")",
+      "new": "require(True, \"pilot-carry-time-only\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_carry_over",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-committed-symlink",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(not path.is_symlink(), \"pilot-committed-symlink\")",
+      "new": "require(True, \"pilot-committed-symlink\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-committed-bytes",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(result.returncode == 0 and result.stdout == path.read_bytes(), \"pilot-committed-bytes\")",
+      "new": "require(True, \"pilot-committed-bytes\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_committed_dependency_bytes",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-artifact-symlinks",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        directory.is_dir()\n        and not directory.is_symlink()\n        and all(not p.is_symlink() for p in directory.rglob(\"*\")),\n        \"pilot-artifact-symlinks\",\n    )",
+      "new": "require(True, \"pilot-artifact-symlinks\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-registered-only",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        manifest[\"schema\"] == \"dur053.k3b.v1\"\n        and manifest[\"budget_scope\"] == \"registered-campaign\"\n        and manifest[\"measurement_claim\"] is True,\n        \"pilot-registered-only\",\n    )",
+      "new": "require(True, \"pilot-registered-only\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_artifact_intake_and_engineering_rejection",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-artifact-hashes",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(manifest[\"artifact_sha256\"] == artifact_hashes(directory), \"pilot-artifact-hashes\")",
+      "new": "require(True, \"pilot-artifact-hashes\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_artifact_intake_and_engineering_rejection",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-artifact-identity",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        all(str(manifest[k]).isdigit() for k in (\"run_id\", \"job_id\")), \"pilot-artifact-identity\"\n    )",
+      "new": "require(True, \"pilot-artifact-identity\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-four-slot-witness",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(len(expected) == 2 and len(set(expected)) == 2, \"pilot-four-slot-witness\")",
+      "new": "require(True, \"pilot-four-slot-witness\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-witness-pods",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        {x[\"inventory\"][\"pod_uid\"] for x in export[\"ledgers\"]} == set(expected)\n        and len(export[\"ledgers\"]) == 2,\n        \"pilot-witness-pods\",\n    )",
+      "new": "require(True, \"pilot-witness-pods\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_witness_and_same_job_hashes",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-witness-pairs",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        len(starts) + len(ends) == len(events) and starts.keys() == ends.keys(),\n        \"pilot-witness-pairs\",\n    )",
+      "new": "require(True, \"pilot-witness-pairs\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_more_evidence_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-witness-coverage",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(seen == workflow_ids, \"pilot-witness-coverage\")",
+      "new": "require(True, \"pilot-witness-coverage\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_witness_and_same_job_hashes",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-window-population",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(bool(windows), \"pilot-window-population\")",
+      "new": "require(True, \"pilot-window-population\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_more_evidence_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-generator-saturation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(not any(x[\"outcome\"] in SATURATION for x in rows), \"pilot-generator-saturation\")",
+      "new": "require(True, \"pilot-generator-saturation\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-arrival-completeness",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        arrivals[\"status\"] == \"PASS\"\n        and arrivals[\"offered\"] == count == len(rows)\n        and all(x[\"outcome\"] == \"ACCEPTED\" for x in rows),\n        \"pilot-arrival-completeness\",\n    )",
+      "new": "require(True, \"pilot-arrival-completeness\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_summary_blocks_bad_windows_and_safety",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-arrival-identities",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(len(ids) == count, \"pilot-arrival-identities\")",
+      "new": "require(True, \"pilot-arrival-identities\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-run-accepted",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(record[\"status\"] == \"PASS\" and not record[\"timed_out\"], \"pilot-run-accepted\")",
+      "new": "require(True, \"pilot-run-accepted\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_summary_blocks_bad_windows_and_safety",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-run-scope",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(record[\"engineering\"] is engineering, \"pilot-run-scope\")",
+      "new": "require(True, \"pilot-run-scope\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_summary_blocks_bad_windows_and_safety",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-fixed-slots",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        record[\"faults\"] == []\n        and record[\"slots\"] == 4\n        and record[\"autoscaling\"] == \"paused-at-two-replicas\",\n        \"pilot-fixed-slots\",\n    )",
+      "new": "require(True, \"pilot-fixed-slots\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_summary_blocks_bad_windows_and_safety",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-window-separation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        not warm_ids.intersection(ids)\n        and record[\"measured_start_ns\"]\n        >= record[\"warmup_reconciled_ns\"]\n        >= record[\"warmup_end_ns\"]\n        >= record[\"warmup_start_ns\"] + (20 if engineering else 120) * 1e9,\n        \"pilot-window-separation\",\n    )",
+      "new": "require(True, \"pilot-window-separation\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_summary_blocks_bad_windows_and_safety",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-window-rates",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        measured[\"rate\"] == record[\"measured_rate\"]\n        and warmup[\"rate\"] == record[\"warmup_rate\"]\n        and measured[\"concurrency\"] == warmup[\"concurrency\"] == CONCURRENCY,\n        \"pilot-window-rates\",\n    )",
+      "new": "require(True, \"pilot-window-rates\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_summary_blocks_bad_windows_and_safety",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-reconciliation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        record[\"warmup_quiet_seconds\"] >= 30\n        and record[\"measured_quiet_seconds\"] >= 30\n        and record[\"reconciliation_timeout_seconds\"] == 600,\n        \"pilot-reconciliation\",\n    )",
+      "new": "require(True, \"pilot-reconciliation\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_summary_blocks_bad_windows_and_safety",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-terminal-completeness",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        set(terminal) == ids | warm_ids\n        and len(workflows) == len(terminal)\n        and all(w[\"state\"] == \"SUCCEEDED\" for w in workflows),\n        \"pilot-terminal-completeness\",\n    )",
+      "new": "require(True, \"pilot-terminal-completeness\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_summary_blocks_bad_windows_and_safety",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-samples-required",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(bool(samples), \"pilot-samples-required\")",
+      "new": "require(True, \"pilot-samples-required\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-terminal-observation-source",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(observed == record[\"terminal_observed_at\"], \"pilot-terminal-observation-source\")",
+      "new": "require(True, \"pilot-terminal-observation-source\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_more_evidence_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-observer-clock-order",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(after >= before, \"pilot-observer-clock-order\")",
+      "new": "require(True, \"pilot-observer-clock-order\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-dependency-accepted-job",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n        manifest[\"status\"] in {\"PASS\", \"CARRY_OVER\"} and manifest[\"cleanup\"][\"status\"] == \"PASS\",\n        \"pilot-dependency-accepted-job\",\n    )",
+      "new": "require(True, \"pilot-dependency-accepted-job\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_dependency_job3_and_carry_over",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-dependency-initial-missing",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(relative in manifest[\"completed\"], \"pilot-dependency-initial-missing\")",
+      "new": "require(True, \"pilot-dependency-initial-missing\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-dependency-cell",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(result[\"arm\"] == arm and result[\"index\"] == 0, \"pilot-dependency-cell\")",
+      "new": "require(True, \"pilot-dependency-cell\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-dependency-br",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(record[\"b\"] == result[\"b\"] and record[\"r\"] == result[\"r\"], \"pilot-dependency-br\")",
+      "new": "require(True, \"pilot-dependency-br\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_precise_dependency_and_file_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-order",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(i < 3 and candidate[\"units\"] == CANDIDATES[i], \"pilot-calibration-order\")",
+      "new": "require(True, \"pilot-calibration-order\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_calibration_selection",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-complete",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n            candidate[\"status\"] == \"PASS\"\n            and candidate[\"discarded\"] == 1\n            and candidate[\"concurrency\"] == 1\n            and candidate[\"timeout_seconds\"] == 120\n            and len(samples) == (3 if engineering else 21),\n            \"pilot-calibration-complete\",\n        )",
+      "new": "require(True, \"pilot-calibration-complete\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_calibration_selection",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-witness-integrity",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n            inv[\"complete\"] is True\n            and inv[\"errors\"] == 0\n            and inv[\"attempted\"] == inv[\"written\"] == len(lines)\n            and data.endswith(b\"\\n\")\n            and hashlib.sha256(data).hexdigest() == inv[\"sha256\"],\n            \"pilot-witness-integrity\",\n        )",
+      "new": "require(True, \"pilot-witness-integrity\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_witness_and_same_job_hashes",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-witness-sequence",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n            rows[0][\"event\"] == \"session\"\n            and all(\n                r[\"sequence\"] == i + 1\n                and r[\"session\"] == inv[\"session\"]\n                and r[\"pod_uid\"] == inv[\"pod_uid\"]\n                for i, r in enumerate(rows)\n            ),\n            \"pilot-witness-sequence\",\n        )",
+      "new": "require(True, \"pilot-witness-sequence\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_more_evidence_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-witness-end",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n            all(\n                start[k] == end[k]\n                for k in (\n                    \"workflow_id\",\n                    \"node_id\",\n                    \"iteration\",\n                    \"attempt_number\",\n                    \"claim_token\",\n                    \"session\",\n                    \"pod_uid\",\n                    \"worker_id\",\n                )\n            )\n            and end[\"outcome\"] == \"SUCCEEDED\",\n            \"pilot-witness-end\",\n        )",
+      "new": "require(True, \"pilot-witness-end\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_more_evidence_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-checker-safety",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n            report[\"valid\"] is True\n            and report[\"campaign\"][\"valid\"] is True\n            and not report[\"non_terminal\"]\n            and not report[\"campaign\"][\"non_terminal\"],\n            \"pilot-checker-safety\",\n        )",
+      "new": "require(True, \"pilot-checker-safety\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_summary_blocks_bad_windows_and_safety",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-sample-time-budget",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n            sample[\"monotonic_ns\"] > previous and sample[\"connections\"] <= 92,\n            \"pilot-sample-time-budget\",\n        )",
+      "new": "require(True, \"pilot-sample-time-budget\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_more_evidence_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-sample-topology",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n            len(pods) == 2\n            and {p[\"metadata\"][\"uid\"] for p in pods} == pod_ids\n            and sample[\"worker_deployment\"][\"spec\"][\"replicas\"] == 2\n            and sample[\"scaledobject\"][\"metadata\"][\"annotations\"].get(\n                \"autoscaling.keda.sh/paused-replicas\"\n            )\n            == \"2\",\n            \"pilot-sample-topology\",\n        )",
+      "new": "require(True, \"pilot-sample-topology\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_more_evidence_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-first-candidate",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(len(candidates) == i + 1, \"pilot-calibration-first-candidate\")",
+      "new": "require(True, \"pilot-calibration-first-candidate\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_calibration_selection",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-sample-worker",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(\n                len(containers) == 1\n                and containers[0][\"resources\"].get(\"limits\")\n                and containers[0][\"resources\"].get(\"requests\")\n                and next(e[\"value\"] for e in containers[0][\"env\"] if e[\"name\"] == \"WORKER_SLOTS\")\n                == \"2\"\n                and pod[\"status\"][\"containerStatuses\"]\n                and all(\n                    c[\"ready\"] is True and c[\"restartCount\"] == 0\n                    for c in pod[\"status\"][\"containerStatuses\"]\n                ),\n                \"pilot-sample-worker\",\n            )",
+      "new": "require(True, \"pilot-sample-worker\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_more_evidence_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-ci-source-inventory",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(bool(paths), \"pilot-ci-source-inventory\")",
+      "new": "require(True, \"pilot-ci-source-inventory\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_ci_and_carry_refusal_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-ci-uncommitted-tooling",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(not untracked.strip(), \"pilot-ci-uncommitted-tooling\")",
+      "new": "require(True, \"pilot-ci-uncommitted-tooling\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_ci_and_carry_refusal_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-no-replay-job",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(not any(m[\"job\"] == name for _, m in available), \"pilot-no-replay-job\")",
+      "new": "require(True, \"pilot-no-replay-job\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_ci_and_carry_refusal_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-same-job-initial-hashes",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n        seal == {k: v for k, v in artifact_hashes(directory).items() if k != \"seal.json\"},\n        \"pilot-same-job-initial-hashes\",\n    )",
+      "new": "require(True, \"pilot-same-job-initial-hashes\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_witness_and_same_job_hashes",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-same-job-br",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(result[\"b\"] == record[\"b\"] and result[\"r\"] == record[\"r\"], \"pilot-same-job-br\")",
+      "new": "require(True, \"pilot-same-job-br\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_more_evidence_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-accepted",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n        calibration[\"status\"] == \"PASS\" and calibration[\"engineering\"] is False,\n        \"pilot-calibration-accepted\",\n    )",
+      "new": "require(True, \"pilot-calibration-accepted\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-seal",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n        json.loads((root / \"calibration-seal.json\").read_bytes())[\"sha256\"]\n        == hashlib.sha256(path.read_bytes()).hexdigest(),\n        \"pilot-calibration-seal\",\n    )",
+      "new": "require(True, \"pilot-calibration-seal\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-selection",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(all(calibration[k] == v for k, v in selection.items()), \"pilot-calibration-selection\")",
+      "new": "require(True, \"pilot-calibration-selection\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-artifacts-missing",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(bool(available), \"pilot-freeze-artifacts-missing\")",
+      "new": "require(True, \"pilot-freeze-artifacts-missing\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_charge_and_freeze_refusals",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-all-cells",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n        set(cells) == {(a, i) for a in (\"short\", \"medium\", \"long\", \"cpu\") for i in range(4)},\n        \"pilot-freeze-all-cells\",\n    )",
+      "new": "require(True, \"pilot-freeze-all-cells\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-cpu-calibration",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n        len(calibration_roots) == 1 and calibration_roots[0] == cells[(\"cpu\", 0)][0],\n        \"pilot-freeze-cpu-calibration\",\n    )",
+      "new": "require(True, \"pilot-freeze-cpu-calibration\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-carry-predecessor",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(len(prior) == 1, \"pilot-carry-predecessor\")",
+      "new": "require(True, \"pilot-carry-predecessor\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_dependency_job3_and_carry_over",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-carry-predecessor-safe",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n            predecessor[\"status\"] == \"CARRY_OVER\"\n            and predecessor[\"cleanup\"][\"status\"] == \"PASS\"\n            and predecessor[\"carry_over\"][\"reason\"] == \"pilot-job-fit\"\n            and predecessor[\"carry_over\"][\"started\"] is False,\n            \"pilot-carry-predecessor-safe\",\n        )",
+      "new": "require(True, \"pilot-carry-predecessor-safe\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_ci_and_carry_refusal_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-carry-order",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(bool(pending) and pending == JOBS[base][-len(pending) :], \"pilot-carry-order\")",
+      "new": "require(True, \"pilot-carry-order\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_ci_and_carry_refusal_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-cross-job-initial-required",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(len(matches) == 1, \"pilot-cross-job-initial-required\")",
+      "new": "require(True, \"pilot-cross-job-initial-required\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_dependency_job3_and_carry_over",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-time-bound",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n            len(candidate[\"invocation_elapsed_seconds\"]) == 22\n            and all(0 < x <= 120 for x in candidate[\"invocation_elapsed_seconds\"]),\n            \"pilot-calibration-time-bound\",\n        )",
+      "new": "require(True, \"pilot-calibration-time-bound\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-witness-source",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n            candidate[\"discarded_busy_seconds\"] == observed[0]\n            and candidate[\"measured_busy_seconds\"] == observed[1:],\n            \"pilot-calibration-witness-source\",\n        )",
+      "new": "require(True, \"pilot-calibration-witness-source\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-independent-checker",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n            result.returncode == 0 and json.loads(result.stdout)[\"valid\"] is True,\n            \"pilot-freeze-independent-checker\",\n        )",
+      "new": "require(True, \"pilot-freeze-independent-checker\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_ci_and_carry_refusal_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-blocking-job",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n            manifest[\"status\"] in {\"PASS\", \"CARRY_OVER\"}\n            and manifest[\"cleanup\"][\"status\"] == \"PASS\",\n            \"pilot-freeze-blocking-job\",\n        )",
+      "new": "require(True, \"pilot-freeze-blocking-job\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_charge_and_freeze_refusals",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-ledger-entry",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n            any(\n                row.get(\"category\") == manifest[\"job\"]\n                and row[\"job_id\"] == manifest[\"job_id\"]\n                and row[\"artifact\"] == (root / \"manifest.json\").relative_to(repository).as_posix()\n                for row in ledger[\"entries\"]\n            ),\n            \"pilot-freeze-ledger-entry\",\n        )",
+      "new": "require(True, \"pilot-freeze-ledger-entry\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-tooling-proof",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n            not manifest.get(\"error\") and manifest[\"ci_proof\"][\"run_id\"].isdigit(),\n            \"pilot-freeze-tooling-proof\",\n        )",
+      "new": "require(True, \"pilot-freeze-tooling-proof\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-environment",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n            manifest[\"artifact_sha256\"].get(\"versions.json\")\n            and manifest[\"artifact_sha256\"].get(\"images.json\"),\n            \"pilot-freeze-environment\",\n        )",
+      "new": "require(True, \"pilot-freeze-environment\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-run-inventory",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n            set(manifest[\"completed\"]) == {p.parent.name for p in root.glob(\"*/record.json\")},\n            \"pilot-freeze-run-inventory\",\n        )",
+      "new": "require(True, \"pilot-freeze-run-inventory\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-ci-job-pagination",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(jobs[\"total_count\"] <= 100, \"pilot-ci-job-pagination\")",
+      "new": "require(True, \"pilot-ci-job-pagination\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_dispatch_and_ci_proof_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-arrival",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n                arrivals[\"offered\"] == 1\n                and arrivals[\"status\"] == \"PASS\"\n                and arrivals[\"concurrency\"] == 1\n                and arrivals[\"cpu_units\"] == candidate[\"units\"],\n                \"pilot-calibration-arrival\",\n            )",
+      "new": "require(True, \"pilot-calibration-arrival\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_and_calibration_guard_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-checker",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(report[\"valid\"] is True, \"pilot-calibration-checker\")",
+      "new": "require(True, \"pilot-calibration-checker\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_and_calibration_guard_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-invocation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(len(values) == 1 and values[0] < 120, \"pilot-calibration-invocation\")",
+      "new": "require(True, \"pilot-calibration-invocation\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_and_calibration_guard_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-duplicate-cell",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(cell not in cells, \"pilot-freeze-duplicate-cell\")",
+      "new": "require(True, \"pilot-freeze-duplicate-cell\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-rates",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n                (record[\"warmup_rate\"], record[\"measured_rate\"]) == expected, \"pilot-freeze-rates\"\n            )",
+      "new": "require(True, \"pilot-freeze-rates\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-cpu-units-image",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n                    record[\"cpu_units\"] == calibration[\"units\"]\n                    and json.loads((current / \"images.json\").read_bytes())[\"worker\"]\n                    == calibration[\"image\"],\n                    \"pilot-freeze-cpu-units-image\",\n                )",
+      "new": "require(True, \"pilot-freeze-cpu-units-image\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-freeze-dependency",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n                    dep[\"manifest_sha256\"]\n                    == hashlib.sha256((root / \"manifest.json\").read_bytes()).hexdigest()\n                    and dep[\"b\"] == initial[\"b\"]\n                    and dep[\"r\"] == initial[\"r\"],\n                    \"pilot-freeze-dependency\",\n                )",
+      "new": "require(True, \"pilot-freeze-dependency\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-before-initial",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(\n                        record[\"calibration_sha256\"]\n                        == hashlib.sha256((current / \"calibration.json\").read_bytes()).hexdigest()\n                        and calibration[\"persisted_ns\"]\n                        == record[\"calibration_persisted_ns\"]\n                        <= record[\"warmup_start_ns\"],\n                        \"pilot-calibration-before-initial\",\n                    )",
+      "new": "require(True, \"pilot-calibration-before-initial\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-observed-four-slots",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "require(\n            all(\n                p[\"status\"].get(\"phase\") == \"Running\"\n                and all(c.get(\"ready\") is True for c in p[\"status\"][\"containerStatuses\"])\n                and len(p[\"spec\"][\"containers\"]) == 1\n                and next(\n                    e[\"value\"]\n                    for e in p[\"spec\"][\"containers\"][0][\"env\"]\n                    if e[\"name\"] == \"WORKER_SLOTS\"\n                )\n                == \"2\"\n                for p in pods\n            ),\n            \"pilot-observed-four-slots\",\n        )",
+      "new": "require(True, \"pilot-observed-four-slots\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_slot_and_pool_observers",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-autoscaler-paused",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "require(\n            scale[\"spec\"][\"replicas\"] == 2\n            and scaler[\"metadata\"][\"annotations\"].get(\"autoscaling.keda.sh/paused-replicas\") == \"2\",\n            \"pilot-autoscaler-paused\",\n        )",
+      "new": "require(True, \"pilot-autoscaler-paused\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_slot_and_pool_observers",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-observed-connection-budget",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "require(connections <= 92, \"pilot-observed-connection-budget\")",
+      "new": "require(True, \"pilot-observed-connection-budget\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_slot_and_pool_observers",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-loadgen-exit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "require(result.returncode == 0, \"pilot-loadgen-exit\")",
+      "new": "require(True, \"pilot-loadgen-exit\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_and_calibration_guard_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-live-checker",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "require(result.returncode == 0 and report[\"valid\"] is True, \"pilot-live-checker\")",
+      "new": "require(True, \"pilot-live-checker\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_checker_and_calibration_failures",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-offline-checker",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "require(\n            offline.returncode == 0 and json.loads(offline.stdout)[\"valid\"] is True,\n            \"pilot-offline-checker\",\n        )",
+      "new": "require(True, \"pilot-offline-checker\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_checker_and_calibration_failures",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-teardown-deadline",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "require(remaining > 0, \"pilot-teardown-deadline\")",
+      "new": "require(True, \"pilot-teardown-deadline\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_teardown_bound_and_workflow_contract",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-timeout",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "require(time.monotonic() - began <= 120, \"pilot-calibration-timeout\")",
+      "new": "require(True, \"pilot-calibration-timeout\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_and_calibration_guard_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-calibration-single-invocation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "require(len(durations) == 1, \"pilot-calibration-single-invocation\")",
+      "new": "require(True, \"pilot-calibration-single-invocation\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_driver_and_calibration_guard_details",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-campaign dispatch required",
+      "kind": "behavioral",
+      "file": "scripts/dur053_campaign.py",
+      "old": "require(os.getenv(\"GITHUB_EVENT_NAME\") == \"workflow_dispatch\", \"campaign dispatch required\")",
+      "new": "require(True, \"campaign dispatch required\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_dispatch_and_ci_proof_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-hosted-only",
+      "kind": "behavioral",
+      "file": "scripts/dur053_campaign.py",
+      "old": "require(bool(os.getenv(\"GITHUB_ACTIONS\")), \"pilot-hosted-only\")",
+      "new": "require(True, \"pilot-hosted-only\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_dispatch_and_ci_proof_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-engineering-ci-only",
+      "kind": "behavioral",
+      "file": "scripts/dur053_campaign.py",
+      "old": "require(\n                name == \"pilot-smoke\"\n                and (\n                    os.getenv(\"GITHUB_EVENT_NAME\") == \"pull_request\"\n                    or (\n                        os.getenv(\"GITHUB_EVENT_NAME\") == \"push\"\n                        and os.getenv(\"GITHUB_REF\") == \"refs/heads/main\"\n                    )\n                ),\n                \"pilot-engineering-ci-only\",\n            )",
+      "new": "require(True, \"pilot-engineering-ci-only\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_dispatch_and_ci_proof_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-engineering-identity",
+      "kind": "behavioral",
+      "file": "scripts/dur053_campaign.py",
+      "old": "require(len(mine) == 1, \"pilot-engineering-identity\")",
+      "new": "require(True, \"pilot-engineering-identity\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_dispatch_and_ci_proof_guards",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-intake-status",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_pilot.py",
+      "old": "require(manifest[\"status\"] in {\"PASS\", \"FAIL\", \"CARRY_OVER\"}, \"pilot-intake-status\")",
+      "new": "require(True, \"pilot-intake-status\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_intake_provenance_and_termination",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-intake-charge",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_pilot.py",
+      "old": "require(\n        manifest[\"registered_live_seconds\"] == CEILING\n        and manifest[\"charged_seconds\"]\n        == live_charge(\n            manifest[\"cleanup\"], not manifest[\"cleanup\"].get(\"no_resources_started\", False), CEILING\n        ),\n        \"pilot-intake-charge\",\n    )",
+      "new": "require(True, \"pilot-intake-charge\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_intake_provenance_and_termination",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-intake-provenance",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_pilot.py",
+      "old": "require(\n        all(\n            len(manifest[k]) == 40 and all(c in \"0123456789abcdef\" for c in manifest[k])\n            for k in (\"head_sha\", \"merge_ref_sha\", \"tree_sha\")\n        ),\n        \"pilot-intake-provenance\",\n    )",
+      "new": "require(True, \"pilot-intake-provenance\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_intake_provenance_and_termination",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-intake-duplicate-job",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_pilot.py",
+      "old": "require(\n        manifest[\"job_id\"] not in {str(x[\"job_id\"]) for x in ledger[\"entries\"]},\n        \"pilot-intake-duplicate-job\",\n    )",
+      "new": "require(True, \"pilot-intake-duplicate-job\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_artifact_intake_and_engineering_rejection",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-intake-existing",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_pilot.py",
+      "old": "require(not target.exists(), \"pilot-intake-existing\")",
+      "new": "require(True, \"pilot-intake-existing\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_intake_provenance_and_termination",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-interrupted-symlinks",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_pilot.py",
+      "old": "require(\n        not source.is_symlink() and all(not p.is_symlink() for p in source.rglob(\"*\")),\n        \"pilot-interrupted-symlinks\",\n    )",
+      "new": "require(True, \"pilot-interrupted-symlinks\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_intake_provenance_and_termination",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-interrupted-actions",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_pilot.py",
+      "old": "require(\n        job[\"run_id\"] == run[\"id\"]\n        and job[\"name\"] == \"DUR-053 campaign\"\n        and run[\"event\"] == \"workflow_dispatch\"\n        and run[\"run_attempt\"] == 1\n        and job[\"conclusion\"] in {\"cancelled\", \"timed_out\", \"failure\"},\n        \"pilot-interrupted-actions\",\n    )",
+      "new": "require(True, \"pilot-interrupted-actions\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_intake_provenance_and_termination",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-interrupted-existing",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_pilot.py",
+      "old": "require(not target.exists(), \"pilot-interrupted-existing\")",
+      "new": "require(True, \"pilot-interrupted-existing\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_intake_provenance_and_termination",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-interrupted-commit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_pilot.py",
+      "old": "require(commit[\"sha\"] == run[\"head_sha\"], \"pilot-interrupted-commit\")",
+      "new": "require(True, \"pilot-interrupted-commit\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_intake_provenance_and_termination",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pilot-intake-duplicate-job-1",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_pilot.py",
+      "old": "require(\n        str(job[\"id\"]) not in {str(e[\"job_id\"]) for e in ledger[\"entries\"]},\n        \"pilot-intake-duplicate-job\",\n    )",
+      "new": "require(True, \"pilot-intake-duplicate-job\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_intake_provenance_and_termination",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-nearest-rank-ceiling",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "math.ceil(q * len(clean))",
+      "new": "math.floor(q * len(clean))",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b-zero-sleep-denominator",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": " / count\n",
+      "new": " / len([x for x in busy if x > 0])\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-reference-rate-four-slots",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "\"r\": 4 / max(b, 0.01)",
+      "new": "\"r\": 2 / max(b, 0.01)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-slo-round-up-millisecond",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "math.ceil(1000 * 2 * max(nearest_rank(x, 0.99) for x in repeats))",
+      "new": "math.floor(1000 * 2 * max(nearest_rank(x, 0.99) for x in repeats))",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-both-reconciliation-reservations",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "200 / measured + 600 + 600 + 60",
+      "new": "200 / measured + 600 + 60",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-worst-case-calibration-reservation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "CALIBRATION_RESERVATION = 3 * 22 * 120",
+      "new": "CALIBRATION_RESERVATION = 22 * 120",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_arithmetic_and_admission",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-incomplete-calibration-refusal",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "raise ValueError(\"K3 guard: pilot-calibration-incomplete\")",
+      "new": "return {\"units\": 1000000, \"limitation\": \"unaccepted\"}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_calibration_selection",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-missing-ci-proof-refusal",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "raise ValueError(\"K3 guard: pilot-ci-proof-missing\")",
+      "new": "return {\"run_id\": \"0\", \"head_sha\": \"unproven\"}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_ci_proof_and_engineering_boundary",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-history-live-job-names",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "re.fullmatch(r\"k3-pilot-(1a|1b|2|3)(-c[1-9][0-9]*)?\", name)",
+      "new": "re.fullmatch(r\"UNRECOGNIZED\", name)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_campaign_history_names",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-full-termination-charge",
+      "kind": "behavioral",
+      "file": "scripts/dur053_campaign.py",
+      "old": "    return reservation\n",
+      "new": "    return 1\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_charge_and_freeze_refusals",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-checker-window-metadata",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"invalid campaign window metadata\")",
+      "new": "// mutation: skip window metadata",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3bPilotWindows$",
+        "-count=1"
+      ],
+      "expected": "pilot window guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-checker-window-extra",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"campaign windows exceed combined arrivals\")",
+      "new": "// mutation: omit extra-window refusal",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3bPilotWindows$",
+        "-count=1"
+      ],
+      "expected": "pilot window guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-checker-window-identity",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"campaign window bytes differ from combined arrivals\")",
+      "new": "// mutation: omit window identity refusal",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3bPilotWindows$",
+        "-count=1"
+      ],
+      "expected": "pilot window guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-checker-window-missing",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"campaign windows do not cover combined arrivals\")",
+      "new": "// mutation: omit missing-window refusal",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3bPilotWindows$",
+        "-count=1"
+      ],
+      "expected": "pilot window guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-checker-window-sequence",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "a.Sequence != sequences[i]",
+      "new": "a.Sequence != i",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3bPilotWindows$",
+        "-count=1"
+      ],
+      "expected": "arrival identity duplicate or incomplete",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-checker-window-rate",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "rates[i] <= 0 || math.IsNaN(rates[i]) || math.IsInf(rates[i], 0) || a.ScheduledNS != int64(float64(sequences[i])*1e9/rates[i])",
+      "new": "rates[i] <= 0 || math.IsNaN(rates[i]) || math.IsInf(rates[i], 0)",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3bPilotWindows$",
+        "-count=1"
+      ],
+      "expected": "pilot window guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-absolute-observer-cadence",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_driver.py",
+      "old": "return max(0.0, started + tick - time.monotonic())",
+      "new": "return 1.0",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_poll_cadence_and_unperformed_refusal",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed poll-cadence",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-ci-tested-push-tree",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "if run.get(\"event\") != \"push\" or run.get(\"head_branch\") != \"main\":\n                continue",
+      "new": "if False:\n                continue",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_ci_proof_uses_tested_push_commit",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed tested-push-tree",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-freeze-cli-no-overwrite",
+      "kind": "behavioral",
+      "file": "scripts/dur053_freeze.py",
+      "old": "require(not target.exists(), \"pilot-freeze-no-overwrite\")",
+      "new": "require(True, \"pilot-freeze-no-overwrite\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_cli_refuses_overwrite",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed freeze-cli-overwrite",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-powershell-pilot-input",
+      "kind": "configuration_tripwire",
+      "file": "scripts/dur053-kubernetes.ps1",
+      "old": "if ($Scenario -eq \"pilot\" -and -not $PilotJob) { throw",
+      "new": "if ($false) { throw",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_shell_pilot_job_input_gates",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed PowerShell pilot-job input gate",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-bash-pilot-input",
+      "kind": "configuration_tripwire",
+      "file": "scripts/dur053-k3.sh",
+      "old": ": \"${job:?registered pilot job required}\"",
+      "new": ": \"${job}\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_shell_pilot_job_input_gates",
+        "-q"
+      ],
+      "expected": "pilot guard bypassed Bash pilot-job input gate",
       "requires_database": false
     }
   ]

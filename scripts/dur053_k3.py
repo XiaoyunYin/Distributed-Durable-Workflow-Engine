@@ -10,6 +10,7 @@ import io
 import json
 import os
 import platform
+import re
 import secrets
 import shutil
 import subprocess
@@ -86,6 +87,12 @@ def github(path: str) -> Any:
         return json.load(response)
 
 
+def campaign_job_name(name: str) -> bool:
+    return name in {"DUR-053 campaign", "campaign"} or bool(
+        re.fullmatch(r"k3-pilot-(1a|1b|2|3)(-c[1-9][0-9]*)?", name)
+    )
+
+
 def job_identity_and_history() -> tuple[str, set[str], str]:
     """Campaign dispatch history only; engineering smoke never calls this."""
     require(
@@ -114,7 +121,7 @@ def job_identity_and_history() -> tuple[str, set[str], str]:
                 require(jobs["total_count"] <= 100, "history-complete")
                 for job in jobs["jobs"]:
                     if (
-                        job["name"] in {"DUR-053 campaign", "campaign"}
+                        campaign_job_name(job["name"])
                         and job["conclusion"] != "skipped"
                     ):
                         prior.add(str(job["id"]))
@@ -183,6 +190,7 @@ def configure_calico(objects: list[Any], kind: dict[str, Any]) -> None:
 class Driver:
     def __init__(self, output: Path, scratch: Path) -> None:
         self.output, self.scratch = output, scratch
+        self.live_reservation = LIVE_RESERVATION
         self.env = dict(os.environ)
         self.env.update({key: str(scratch) for key in ("TMP", "TEMP", "TMPDIR", "GOTMPDIR")})
         self.env["KUBECONFIG"] = str(scratch / "kubeconfig")
@@ -208,7 +216,7 @@ class Driver:
         record: bool = True,
     ) -> subprocess.CompletedProcess[str]:
         if self.live_start is not None:
-            remaining = LIVE_RESERVATION - (time.monotonic() - self.live_start)
+            remaining = self.live_reservation - (time.monotonic() - self.live_start)
             require(remaining > 900, "live-job-deadline")
             timeout = min(timeout, remaining - 900)
         result = subprocess.run(
@@ -440,7 +448,8 @@ class Driver:
         self.k("apply", "--server-side", "-f", str(path), timeout=300)
 
     def cluster(self) -> dict[str, str]:
-        self.live_start = time.monotonic()
+        if self.live_start is None:
+            self.live_start = time.monotonic()
         self.cluster_attempted = True
         save(
             self.output / "startup-limits.json",
@@ -448,7 +457,7 @@ class Driver:
                 "calico_rollout_seconds": CALICO_ROLLOUT_SECONDS,
                 "node_ready_seconds": NODE_READY_SECONDS,
                 "keda_rollout_seconds": KEDA_ROLLOUT_SECONDS,
-                "live_ceiling_seconds": LIVE_RESERVATION,
+                "live_ceiling_seconds": self.live_reservation,
                 "diagnostic_reserve_seconds": 300,
                 "teardown_reserve_seconds": 600,
             },
@@ -739,7 +748,10 @@ class Driver:
             record=record,
         ).stdout.strip()
 
-    def batch(self, arm: str, addresses: dict[str, str]) -> None:
+    def episode_objects(self, objects: list[dict[str, Any]]) -> None:
+        """Pilot overrides only registered duration, CPU units and scaler pause."""
+
+    def setup_episode(self, arm: str, addresses: dict[str, str]) -> tuple[str, str, str, set[str]]:
         namespace = "dur053-kind" if arm == "kind" else "dur053-baseline"
         database = namespace.replace("-", "_")
         self.demand_token = secrets.token_hex(32)
@@ -804,6 +816,7 @@ class Driver:
                     "autoscaling.keda.sh/paused-scale-in"
                 ] = "true"
                 obj["metadata"]["annotations"]["autoscaling.keda.sh/paused-scale-out"] = "true"
+        self.episode_objects(objects)
         self.apply({"apiVersion": "v1", "kind": "List", "items": objects})
         for role in (
             "api",
@@ -855,6 +868,10 @@ class Driver:
         stable_worker_sessions(expected_workers, initial_workers)
         save(self.output / (arm + "-running-images.json"), image_status)
         obs = self.pod(namespace, "observer")["metadata"]["name"]
+        return namespace, database, obs, expected_workers
+
+    def batch(self, arm: str, addresses: dict[str, str]) -> None:
+        namespace, database, obs, expected_workers = self.setup_episode(arm, addresses)
         self.k(
             "-n",
             namespace,
@@ -1020,6 +1037,9 @@ class Driver:
         if arm == "kind":
             self.probes(namespace)
         self.k("-n", namespace, "get", "scaledobject,hpa,events,pods,jobs", "-o", "json")
+        self.reset_episode(namespace, database)
+
+    def reset_episode(self, namespace: str, database: str) -> None:
         self.k("delete", "namespace", namespace, "--wait=true", "--timeout=120s", timeout=130)
         self.drop(database)
         self.topics("--delete")

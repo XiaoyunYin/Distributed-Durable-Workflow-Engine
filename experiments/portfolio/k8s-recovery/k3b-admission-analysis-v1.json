@@ -1,0 +1,53 @@
+{
+  "schema": "dur053.k3b-admission-analysis.v1",
+  "date": "2026-11-05",
+  "base_commit": "1370d3bf0aafe6e56679345f5716b3d4499f5131",
+  "status": "PROPOSED_AMENDMENT_REQUIRED",
+  "measurement_claim": false,
+  "live_resources_started": false,
+  "new_ledger_charge_seconds": 0,
+  "basis": "Registered planning rates, not observed b/r or a pilot result. Warmup is reconciled before measured arrivals, so each of twelve runs has two separate 600-second reconciliation reservations.",
+  "arms": [
+    {
+      "arm": "short",
+      "runs": 4,
+      "initial_rate": 1,
+      "planning_reference_rate": 50,
+      "warmup_seconds": 480,
+      "measured_windows_seconds": 224,
+      "final_scheduled_arrival_offsets_seconds": 222.88,
+      "reconciliation_reservations_seconds": 4800,
+      "reset_export_seconds": 240
+    },
+    {
+      "arm": "medium",
+      "runs": 4,
+      "initial_rate": 0.2,
+      "planning_reference_rate": 1,
+      "warmup_seconds": 480,
+      "measured_windows_seconds": 2200,
+      "final_scheduled_arrival_offsets_seconds": 2189,
+      "reconciliation_reservations_seconds": 4800,
+      "reset_export_seconds": 240
+    },
+    {
+      "arm": "cpu",
+      "runs": 4,
+      "initial_rate": 1,
+      "planning_reference_rate": 4,
+      "warmup_seconds": 480,
+      "measured_windows_seconds": 500,
+      "final_scheduled_arrival_offsets_seconds": 497.5,
+      "reconciliation_reservations_seconds": 4800,
+      "reset_export_seconds": 240
+    }
+  ],
+  "job_reserve_seconds": 600,
+  "without_setup_reset_or_calibration_seconds": 19364,
+  "with_300_setup_and_720_reset_export_seconds": 20384,
+  "using_final_arrival_offsets_without_overhead_seconds": 19349.38,
+  "live_ceiling_seconds": 18900,
+  "existing_expected_duration_schedule_reproduced": true,
+  "proposal_registered": false,
+  "proposal": "Split original job 1 into job 1a (short and medium, eight runs) and job 1b (CPU calibration and four CPU runs). Preserve job 2 long initial and job 3 long repeats. Planning reservation estimates: 14364, 6920 plus bounded CPU calibration, 11280, 15840 seconds respectively. Recompute against observed rates and actual overhead before admission; retain refusal and unperformed cells if they cannot fit. One extra cluster setup adds 300 seconds to the expected-duration schedule, not a new budget."
+}

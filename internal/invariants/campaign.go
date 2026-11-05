@@ -32,17 +32,18 @@ type Arrival struct {
 }
 
 type Arrivals struct {
-	Offered     int       `json:"offered"`
-	Schema      string    `json:"schema"`
-	Status      string    `json:"status"`
-	Namespace   string    `json:"namespace"`
-	RunID       string    `json:"run_id"`
-	Arm         string    `json:"arm"`
-	Seed        int64     `json:"seed"`
-	Rate        float64   `json:"rate"`
-	Concurrency int       `json:"concurrency"`
-	CPUUnits    int       `json:"cpu_units"`
-	Rows        []Arrival `json:"rows"`
+	Offered     int        `json:"offered"`
+	Schema      string     `json:"schema"`
+	Status      string     `json:"status"`
+	Namespace   string     `json:"namespace"`
+	RunID       string     `json:"run_id"`
+	Arm         string     `json:"arm"`
+	Seed        int64      `json:"seed"`
+	Rate        float64    `json:"rate"`
+	Concurrency int        `json:"concurrency"`
+	CPUUnits    int        `json:"cpu_units"`
+	Rows        []Arrival  `json:"rows"`
+	Windows     []Arrivals `json:"windows,omitempty"`
 }
 
 type WitnessInventory struct {
@@ -176,13 +177,43 @@ func CheckCampaign(t Trace, arrivals Arrivals, witness WitnessExport) CampaignRe
 	}
 	keys := map[string]bool{}
 	workflows := map[string]bool{}
+	sequences, rates := make([]int, len(arrivals.Rows)), make([]float64, len(arrivals.Rows))
+	for i := range arrivals.Rows {
+		sequences[i], rates[i] = i, arrivals.Rate
+	}
+	if len(arrivals.Windows) > 0 {
+		position := 0
+		windowIDs := map[string]bool{}
+		for _, window := range arrivals.Windows {
+			if len(window.Windows) != 0 || window.Offered != len(window.Rows) || window.Offered < 1 || window.Schema != "dur053.arrivals.v1" || window.Status != "PASS" || window.Namespace != arrivals.Namespace || window.Arm != arrivals.Arm || window.Concurrency != arrivals.Concurrency || window.CPUUnits != arrivals.CPUUnits || windowIDs[window.RunID] {
+				fail("invalid campaign window metadata")
+			}
+			windowIDs[window.RunID] = true
+			for i, row := range window.Rows {
+				if position >= len(arrivals.Rows) {
+					fail("campaign windows exceed combined arrivals")
+					break
+				}
+				want, _ := json.Marshal(row)
+				got, _ := json.Marshal(arrivals.Rows[position])
+				if !bytes.Equal(want, got) {
+					fail("campaign window bytes differ from combined arrivals")
+				}
+				sequences[position], rates[position] = i, window.Rate
+				position++
+			}
+		}
+		if position != len(arrivals.Rows) {
+			fail("campaign windows do not cover combined arrivals")
+		}
+	}
 	for i, a := range arrivals.Rows {
-		if a.Sequence != i || a.Key == "" || keys[a.Key] || workflows[a.WorkflowID] {
+		if a.Sequence != sequences[i] || a.Key == "" || keys[a.Key] || workflows[a.WorkflowID] {
 			fail("arrival identity duplicate or incomplete")
 		}
 		keys[a.Key] = true
 		workflows[a.WorkflowID] = true
-		if arrivals.Rate <= 0 || math.IsNaN(arrivals.Rate) || math.IsInf(arrivals.Rate, 0) || a.ScheduledNS != int64(float64(i)*1e9/arrivals.Rate) || a.ScheduledAt.IsZero() || a.SendNS == nil || a.SentAt == nil || a.FinishedNS == nil || *a.SendNS < a.ScheduledNS || *a.FinishedNS < *a.SendNS || a.LatenessNS != *a.SendNS-a.ScheduledNS || !json.Valid(a.Request) || !json.Valid(a.Response) {
+		if rates[i] <= 0 || math.IsNaN(rates[i]) || math.IsInf(rates[i], 0) || a.ScheduledNS != int64(float64(sequences[i])*1e9/rates[i]) || a.ScheduledAt.IsZero() || a.SendNS == nil || a.SentAt == nil || a.FinishedNS == nil || *a.SendNS < a.ScheduledNS || *a.FinishedNS < *a.SendNS || a.LatenessNS != *a.SendNS-a.ScheduledNS || !json.Valid(a.Request) || !json.Valid(a.Response) {
 			fail("arrival schedule/send/response evidence incomplete")
 		}
 		s, found := durable[a.Key]

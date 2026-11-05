@@ -807,3 +807,157 @@ prevents trustworthy accounting. The current K3b stub still refuses all live
 measurement scenarios after the ledger gate. Neither the 259200 s cap, the
 18900 s campaign-job ceiling, the episode families/minima, nor the reserved
 3600 s acceptance smoke changes. No campaign or measurement ran for this fix.
+
+
+## Amendment B.2 - R245 full pilot reservations and dependencies (2026-11-05)
+
+Authority: D035, REVIEW.md Round 172/R245 items 1-6, with item 1's dependency
+sentence replaced by the Round 173 ruling. This is append-only and registered
+before any calibration or pilot. Earlier amendment text and amendment-b-schedule.json
+remain byte-identical. This text supersedes their conflicting K3 job partition
+and reservation statements only. All values below are planning, not measurements.
+
+1. **Jobs and dependencies.** Jobs are `k3-pilot-1a` (short initial + 3 repeats,
+   then medium initial + 3 repeats), `k3-pilot-1b` (CPU calibration, then CPU
+   initial + 3 repeats), `k3-pilot-2` (long initial), `k3-pilot-3` (three long
+   repeats). Ledger categories and dispatch inputs use these names.
+   Before same-job repeats, persist the initial run's complete arrivals, witness,
+   snapshots, checker verdicts and derived b/r in the job artifact and record
+   their byte hashes. Before every repeat re-verify those hashes and every
+   initial-run acceptance condition, applying b/r unchanged. Such same-job
+   repeats do not require an intervening repository commit. Cross-job repeats
+   (k3-pilot-3 and cross-job repeats in any -cN carry-over job) require the
+   accepted initial artifact and b/r in the committed repository, verified by
+   hash before any live resource. No repeat starts after a failed, timed-out,
+   saturated, incomplete or unsafe initial. Freeze independently verifies
+   initials, repeats and calibration from committed artifacts only. Persist and
+   seal the same-job CPU calibration record in 1b's artifact before CPU initial;
+   freeze verifies it. The campaign job cannot commit its own evidence.
+2. **Admission.** Each pilot run reserves 120 s warmup + measured window +
+   600 s after warmup + 600 s after measured arrivals + 60 s reset/export.
+   Each job adds 300 s setup and 600 s reserve. Use planning rates without
+   committed b/r and committed b/r otherwise. Recompute before every run using
+   actual elapsed time and the persisted accepted b/r when it has become
+   available in-job. At planning rates the original twelve-run job needs
+   20384 s before calibration and is refused. Jobs 1a/1b/2/3 need respectively
+   14364/14840/11280/15840 s. No job starts unless its registered full windows,
+   both reconciliation deadlines, setup and reserve fit the 18900 s ceiling
+   and remaining cumulative ledger budget.
+3. **Carry-over.** A pilot run that per-run admission refuses only for lack of
+   remaining job time (never a failed, timed-out, saturated, incomplete or unsafe
+   run) moves unchanged, in registered order, to a follow-up job named
+   `<job>-cN`, which gets a fresh cluster, the same gates and its own setup
+   charge. A job that cannot start even its first run at the full reservation
+   refuses and is reported unperformed. This is a mechanical rule from b/r and
+   elapsed time, never from SLO or latency outcomes. Retain the predecessor's
+   committed hashed pending suffix, never re-execute completed cells.
+4. **CPU calibration.** Candidates 10000, 100000, 1000000, ascending. Per
+   candidate: 1 discarded warm invocation, then 21 sequential measured
+   invocations at concurrency 1 on the pinned image, no faults, each with a
+   120 s timeout. Duration is witnessed monotonic slot-busy time, the same
+   source as b. The measured median is the 11th of 21. Stop at the first
+   candidate whose median is at least 1 s; otherwise select 1000000 and record
+   that no candidate reached 1 s. Any timeout or failure blocks the CPU arm and
+   is retained. Reserve the worst case 3 * 22 * 120 = 7920 s; 1b's full
+   planning reservation is 14840 s. Persist the sealed calibration record before
+   CPU initial starts and independently verify the underlying witness at freeze.
+5. **Schedule.** `python scripts/dur053_schedule.py --amendment b2` reproduces
+   amendment-b2-schedule.json: 16 jobs, 438 episodes, 225283.5 s expected.
+   Calibration has no measured expected duration; full admission separately
+   reserves 7920 s and charges actual calibration time against the ledger.
+   No expected-time estimate authorizes live admission. The old schedule is
+   retained unchanged.
+6. **Unchanged.** Hard cumulative 72 h cap, live ceiling 18900 s/job, 350 min
+   workflow timeout, 600 s floor, 438 episodes, 200 measured arrivals AND
+   completions, all warmup/rate/L formulas, family order K3 -> K4 -> K6 -> K5 ->
+   K7, engineering-smoke exclusion and full-reservation charging when termination
+   prevents trustworthy accounting remain in force. Four fixed worker slots,
+   no pilot faults; hold two worker replicas with ScaledObject paused at two
+   and retain observed slot/resource/connection samples.
+
+### Round 173 conservative interpretations used by tooling
+
+Ambiguities are resolved toward more reservation, more refusal and more retained
+evidence, never a weaker gate, minimum or formula. Stop only when no conservative
+reading exists or it would make a registered cell impossible. Record further
+interpretations here and in the handoff.
+
+- Reserve the full 18900 s against the ledger for each dispatch, including a
+  carry-over, even when its computed job-fit requirement is smaller. Trustworthy
+  verified teardown permits the actual rounded-up charge; otherwise charge the
+  full reservation. No-resource refusal has the existing one-second minimum.
+- Count live setup from the build registry (the first owned resource), retaining
+  build/setup overruns in actual elapsed admission. Command execution also keeps
+  a 300 s diagnostics reserve in addition to the 600 s teardown reserve.
+- Require successful hosted CI with byte-identical committed tooling and its
+  pilot-smoke job before dispatch. Evidence/ledger-only commits may use that
+  proof; changed tooling requires a new proof. PR engineering pilot-smoke uses
+  the same execution path, short/CPU arms, 20 s warmup, 10 measured arrivals,
+  one repeat, and reduced calibration (one discarded + three measured per
+  candidate). It has budget_scope engineering-validation, charged_seconds 0,
+  measurement_claim false and cannot be accepted by intake/dependencies/freeze.
+- Include the 30 s quiet period and verification overhead inside each calibration
+  invocation's 120 s bound; stop on an overrun. Preserve all invocation witnesses.
+- Require all offered pilot arrivals accepted and all accepted workflows successful;
+  retain rejection/uncertainty instead of selecting an accepted-only pilot.
+  Report conservative first-observed terminal latency upper bounds, retaining
+  DB timestamps, observed clocks and sampling gaps. Never infer a finish from
+  configured sleep or from worker wall-clock subtraction.
+- A committed failed or interrupted pilot job blocks this freeze version. No
+  automatic replacement or selection among nicer runs exists. A correction
+  requires retained failed evidence and a reviewed versioned new freeze.
+
+
+### B.2 evidence and implementation clarifications (Round 173 conservative rule)
+
+- Preserve warmup and measured arrivals as distinct absolute schedules. The
+  checker additionally accepts their explicit union as a non-recursive windows
+  array, verifies byte-equivalent concatenation and each window's schedule,
+  then reconciles all durable submissions and witness rows. No arrival is
+  re-timestamped to invent one continuous schedule. Measured pilot b/p99 use
+  only the measured identities; warmup stays in completeness/safety checks.
+- Observe fixed slots, resources, connections and terminal identities with a
+  nominal 1 s polling interval, retain actual monotonic sample times and maximum
+  gaps, and fail observer access or a changed/restarted worker session. Preserve
+  the clock probe bracketing observer UTC with host UTC; terminal upper bounds
+  include that uncertainty and are tied to the first retained terminal sample.
+  Persisted database timestamps remain in snapshots. This is an explicitly
+  bounded observation estimate, not an exact commit-clock claim or SLO tuning.
+- Calibration's 120 s bound includes all its quiet/verification overhead. The
+  measured closeout's 600 s floor is measured from the final scheduled arrival,
+  so a slow final HTTP response never grants an additional timeout. Teardown
+  commands share one deadline of at most 600 s and cannot overrun the live
+  ceiling; inability to verify teardown blocks acceptance and consumes the
+  full reservation. There is no silent retry or automatic dispatch.
+- Assign pilot episode seeds 530001+i in the B.2 job order: short initial and
+  repeats, medium initial and repeats, CPU initial and repeats, long initial
+  and repeats. Warmup/measured submission keys also include disjoint window
+  run IDs. Calibration has distinct deterministic invocation IDs/seeds and
+  never contributes pilot workflows or fault-comparison samples.
+- The offline freeze includes the schedule recheck using observed b/r/L and,
+  conservatively, the larger of CPU calibration median and CPU initial mean
+  busy duration. Calibration's actual time is ledger charged, with no invented
+  expected calibration duration. This estimate grants no later-family admission;
+  the per-job windows/timeouts, cumulative cap and unperformed-cell rules still
+  apply, without reducing a cell, speeding initial arrivals or changing order.
+
+
+B.2 implementation detail: observer polls target absolute one-second deadlines,
+so RPC duration consumes the interval instead of adding a one-second sleep after
+every poll. Actual sample times/gaps remain evidence. Every refusal or carry-over
+manifest explicitly lists unstarted/unperformed cell identities and the reason;
+a failed started cell retains its own failure record and is never relabelled as
+an unstarted time-only carry-over. These retain evidence without changing any
+registered workload, deadline, minimum, formula or budget.
+
+
+B.2 conservative CI-proof clarification: a pull_request run can check out a
+merge tree while the Actions run identifies the PR head. Therefore registered
+admission accepts its byte-identical tooling proof only from successful CI on
+an immutable main-branch push, including a successful pilot-smoke job. The same
+uncharged engineering pilot-smoke also runs on main pushes, with the same
+parameters and exclusions. PR smoke remains mandatory engineering validation.
+Thus reviewed tooling must be merged and green on main before a registered
+job can start; evidence/ledger-only commits may reuse that exact-tooling proof.
+This adds validation/refusal, not a campaign run, paid charge, weaker gate,
+changed minimum/formula or extended cap. No workflow is dispatched in this pass.
