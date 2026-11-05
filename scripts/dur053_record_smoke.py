@@ -28,9 +28,21 @@ def record(source: Path, repository: Path = ROOT) -> Path:
     ledger = json.loads(ledger_path.read_text())
     ledger_check(ledger, 1, set())
     require(job not in {e["job_id"] for e in ledger["entries"]}, "intake-duplicate-job")
+    require(
+        not any(e.get("category") == "k3-acceptance-smoke" for e in ledger["entries"]),
+        "intake-single-acceptance",
+    )
     target = repository / "experiments/portfolio/k8s-recovery/k3-smoke-v1" / run
-    charge = manifest.get("charged_seconds", manifest["registered_live_seconds"])
-    require(type(charge) is int and 0 < charge <= 18900, "intake-charge")
+    charge = manifest["elapsed_live_seconds"]
+    require(type(charge) is int and 0 < charge <= 3600, "intake-charge")
+    require(
+        manifest["status"] == "PASS"
+        and manifest["cleanup"]["status"] == "PASS"
+        and manifest["budget_scope"] == "engineering-validation"
+        and manifest["charged_seconds"] == 0
+        and manifest["measurement_claim"] is False,
+        "intake-acceptance-evidence",
+    )
     require(
         sum(e["charged_seconds"] for e in ledger["entries"]) + charge <= 259200,
         "intake-total-budget",
@@ -41,6 +53,7 @@ def record(source: Path, repository: Path = ROOT) -> Path:
     }
     row.update(
         charged_seconds=charge,
+        category="k3-acceptance-smoke",
         artifact_sha256=hashlib.sha256(raw).hexdigest(),
         artifact=(target / "manifest.json").relative_to(repository).as_posix(),
     )

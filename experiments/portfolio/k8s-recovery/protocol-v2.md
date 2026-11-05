@@ -765,3 +765,45 @@ evictions only. Smoke temporarily prevents replica changes to retain witness ses
 while testing KEDA polling; it is no scaling comparison or SLO freeze. K3b/K5
 must remove that smoke annotations and verify the registered fallback and HPA
 behavior under their own frozen campaign settings before measurement.
+
+
+## Amendment B.1 - Engineering validation and registered campaign accounting (2026-11-05)
+
+Authority: D035 and the explicit Round 165 R240 correction. This append-only
+amendment supersedes Amendment B's charging and admission rules for engineering
+CI smoke. The 72 h cap bounds the registered campaign; iterative engineering
+smoke produces no reported measurement numbers and must not consume the margin
+reserved for registered experiment cells.
+
+A `ci.yml` pull_request smoke is engineering validation: no campaign charge,
+no ledger or prior-run history admission check, and no measurement claim.
+Current-job provenance may be read from the public Actions endpoint; it is not
+a history gate and requires no Actions read permission. Package and smoke CI
+jobs have contents:read only. Success, failure, cancellation and subsequent PR
+pushes do not create ledger debt. These engineering artifacts retain their
+observed setup-through-teardown duration for diagnosis and possible selection;
+`charged_seconds=0` and `measurement_claim=false` describe their CI status.
+The bounded 3600 s smoke execution ceiling and teardown verification still apply.
+
+Only `dur053-campaign.yml` workflow_dispatch jobs and one registered K3
+acceptance smoke are charged and gated by the cumulative ledger. The acceptance
+smoke is the successful run whose byte-identical artifact Claude commits as K3
+evidence. Intake permits one such selection, requires successful cleanup, and
+charges its actual rounded-up setup-through-verified-teardown duration (at most
+the existing 3600 s reservation). The ledger identifies this entry as
+`k3-acceptance-smoke`; it does not rewrite the engineering artifact's zero charge.
+Selection is a correctness acceptance record, not a pilot, SLO freeze, capacity
+measurement or reported performance result. No other engineering run is selected
+or charged, and failure run 41993310305 remains an engineering failure.
+
+Campaign jobs remain serialized in `dur053-live-ledger` with
+cancel-in-progress:false. Before dispatch can start live resources, committed
+artifact/ledger validation and complete prior campaign-job history are required;
+a missing prior entry or unavailable history fails closed. History includes
+both the original `campaign` job name and `DUR-053 campaign`, excludes CI smoke,
+and refuses automatic rerun attempts. Campaign failures and replacements retain
+Amendment B's actual-time charge or full registered reservation when termination
+prevents trustworthy accounting. The current K3b stub still refuses all live
+measurement scenarios after the ledger gate. Neither the 259200 s cap, the
+18900 s campaign-job ceiling, the episode families/minima, nor the reserved
+3600 s acceptance smoke changes. No campaign or measurement ran for this fix.

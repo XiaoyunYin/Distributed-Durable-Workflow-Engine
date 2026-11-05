@@ -24,9 +24,7 @@ from typing import Any
 from dur053_k3_policy import (
     application_topics_absent,
     artifact_hashes,
-    committed_ledger,
     fresh_output,
-    ledger_check,
     matched_arms,
     package_policy,
     postgres_budget_setting,
@@ -44,10 +42,12 @@ from dur053_prerequisites import export_witness, trace_document
 ROOT = Path(__file__).resolve().parents[1]
 K8S = ROOT / "deploy/k8s"
 LOCK = json.loads((K8S / "tools.lock.json").read_text(encoding="utf-8"))
-LEDGER = ROOT / "experiments/portfolio/k8s-recovery/live-time-ledger.json"
 CLUSTER = "dur053-k3a"
 LABEL = "dur053.k3a=owned"
 LIVE_RESERVATION = 3600
+CALICO_ROLLOUT_SECONDS = 600
+NODE_READY_SECONDS = 300
+KEDA_ROLLOUT_SECONDS = 300
 
 
 def save(path: Path, value: Any) -> None:
@@ -67,7 +67,11 @@ def github(path: str) -> Any:
     request = urllib.request.Request(
         "https://api.github.com/" + path,
         headers={
-            "Authorization": "Bearer " + os.environ["GH_TOKEN"],
+            **(
+                {"Authorization": "Bearer " + os.environ["GH_TOKEN"]}
+                if os.getenv("GH_TOKEN")
+                else {}
+            ),
             "Accept": "application/vnd.github+json",
             "X-GitHub-Api-Version": "2022-11-28",
         },
@@ -77,6 +81,7 @@ def github(path: str) -> Any:
 
 
 def job_identity_and_history() -> tuple[str, set[str], str]:
+    """Campaign dispatch history only; engineering smoke never calls this."""
     require(
         bool(os.getenv("GITHUB_ACTIONS")) and bool(os.getenv("GH_TOKEN")), "hosted-actions-required"
     )
@@ -85,13 +90,13 @@ def job_identity_and_history() -> tuple[str, set[str], str]:
     mine = [
         j
         for j in github(f"repos/{repo}/actions/runs/{run}/jobs?per_page=100")["jobs"]
-        if j["name"] == "DUR-053 kind smoke"
+        if j["name"] == "DUR-053 campaign"
     ]
     require(
         len(mine) == 1 and os.environ.get("GITHUB_RUN_ATTEMPT") == "1", "no-automatic-replacement"
     )
     prior: set[str] = set()
-    for workflow in ("ci.yml",):
+    for workflow in ("dur053-campaign.yml",):
         for page in range(1, 101):
             runs = github(
                 f"repos/{repo}/actions/workflows/{workflow}/runs?per_page=100&page={page}"
@@ -102,13 +107,71 @@ def job_identity_and_history() -> tuple[str, set[str], str]:
                 jobs = github(f"repos/{repo}/actions/runs/{row['id']}/jobs?filter=all&per_page=100")
                 require(jobs["total_count"] <= 100, "history-complete")
                 for job in jobs["jobs"]:
-                    if job["name"] == "DUR-053 kind smoke" and job["conclusion"] != "skipped":
+                    if (
+                        job["name"] in {"DUR-053 campaign", "campaign"}
+                        and job["conclusion"] != "skipped"
+                    ):
                         prior.add(str(job["id"]))
             if len(runs) < 100:
                 break
         else:
             raise ValueError("K3 guard: history pagination incomplete")
     return str(mine[0]["id"]), prior, current["head_sha"]
+
+
+def lock_addon_images(objects: list[Any], registered: list[str]) -> set[str]:
+    images: set[str] = set()
+
+    def visit(value: Any) -> None:
+        if isinstance(value, list):
+            for item in value:
+                visit(item)
+        elif isinstance(value, dict):
+            if isinstance(value.get("image"), str):
+                source = value["image"]
+                candidates = {key: LOCK["images"][key] for key in registered}
+                require(source in candidates or source in candidates.values(), "addon-image-lock")
+                pinned = candidates.get(source, source)
+                require(
+                    "@sha256:" in pinned and len(pinned.rsplit("@sha256:", 1)[1]) == 64,
+                    "addon-image-digest",
+                )
+                value["image"], value["imagePullPolicy"] = pinned, "Never"
+                images.add(pinned)
+            for item in list(value.values()):
+                visit(item)
+
+    visit(objects)
+    require(images == {LOCK["images"][key] for key in registered}, "addon-image-inventory")
+    return images
+
+
+def configure_calico(objects: list[Any], kind: dict[str, Any]) -> None:
+    require(kind["networking"]["disableDefaultCNI"] is True, "calico-exclusive-cni")
+    cidr = kind["networking"]["podSubnet"]
+    for obj in objects:
+        if obj and obj["kind"] == "ConfigMap" and obj["metadata"]["name"] == "calico-config":
+            obj["data"]["calico_backend"] = "vxlan"
+        if obj and obj["kind"] == "DaemonSet" and obj["metadata"]["name"] == "calico-node":
+            container = next(
+                c
+                for c in obj["spec"]["template"]["spec"]["containers"]
+                if c["name"] == "calico-node"
+            )
+            values = {
+                "CLUSTER_TYPE": "k8s",
+                "CALICO_IPV4POOL_CIDR": cidr,
+                "CALICO_IPV4POOL_IPIP": "Never",
+                "CALICO_IPV4POOL_VXLAN": "Always",
+            }
+            container["env"] = [e for e in container["env"] if e["name"] not in values]
+            container["env"].extend({"name": key, "value": value} for key, value in values.items())
+            # Match upstream's VXLAN-only manifest: no BIRD/BGP health dependency.
+            for probe in ("readinessProbe", "livenessProbe"):
+                command = container[probe]["exec"]["command"]
+                container[probe]["exec"]["command"] = [
+                    a for a in command if not a.startswith("-bird")
+                ]
 
 
 class Driver:
@@ -124,6 +187,8 @@ class Driver:
         self.live_start: float | None = None
         self.sequence = 0
         self.images: dict[str, str] = {}
+        self.addon_images: set[str] = set()
+        self.cluster_attempted = False
         self.password, self.demand_token = secrets.token_hex(32), secrets.token_hex(32)
 
     def command(
@@ -137,8 +202,8 @@ class Driver:
     ) -> subprocess.CompletedProcess[str]:
         if self.live_start is not None:
             remaining = LIVE_RESERVATION - (time.monotonic() - self.live_start)
-            require(remaining > 600, "live-job-deadline")
-            timeout = min(timeout, remaining - 600)
+            require(remaining > 900, "live-job-deadline")
+            timeout = min(timeout, remaining - 900)
         result = subprocess.run(
             args,
             cwd=ROOT,
@@ -310,17 +375,77 @@ class Driver:
         )
         return path, objects
 
-    def addon(self, name: str) -> None:
+    def prepare_addon(self, name: str) -> None:
+        import yaml
+
         tool = LOCK["addons"][name]
         data = download(tool["url"], tool["sha256"]).decode()
-        for source, pinned in LOCK["images"].items():
-            data = data.replace("image: " + source + "\n", "image: " + pinned + "\n")
-        path = self.scratch / (name + ".yaml")
-        path.write_text(data)
+        objects = list(yaml.safe_load_all(data))
+        images = lock_addon_images(objects, tool["images"])
+        self.addon_images.update(images)
+        if name == "calico":
+            configure_calico(objects, json.loads((K8S / "kind-cluster.yaml").read_text()))
+        # Retain the exact applied manifest, including pool/backend and pull policy.
+        path = self.output / (name + ".yaml")
+        path.write_text(yaml.safe_dump_all(objects), encoding="utf-8", newline="\n")
+
+    def preload_addons(self) -> None:
+        for index, image in enumerate(sorted(self.addon_images)):
+            source = next(key for key, value in LOCK["images"].items() if value == image)
+            self.command(["docker", "pull", "--platform=linux/amd64", image], timeout=300)
+            self.command(["docker", "tag", image, source])
+            archive = self.scratch / f"addon-{index}.tar"
+            self.command(["docker", "save", "--output", str(archive), source], timeout=180)
+
+    def load_addons(self) -> None:
+        for index, image in enumerate(sorted(self.addon_images)):
+            source = next(key for key, value in LOCK["images"].items() if value == image)
+            canonical = source.rsplit(":", 1)[0] + "@" + image.split("@", 1)[1]
+            archive = self.scratch / f"addon-{index}.tar"
+            self.command(
+                ["kind", "load", "image-archive", "--name", CLUSTER, str(archive)], timeout=180
+            )
+            # Docker archives retain tags, not registry index aliases. Bind the
+            # verified host pull to the exact digest reference used by the pods.
+            self.command(
+                [
+                    "docker",
+                    "exec",
+                    CLUSTER + "-control-plane",
+                    "ctr",
+                    "--namespace",
+                    "k8s.io",
+                    "images",
+                    "tag",
+                    "--force",
+                    source,
+                    canonical,
+                ]
+            )
+            self.command(
+                ["docker", "exec", CLUSTER + "-control-plane", "crictl", "inspecti", image]
+            )
+            archive.unlink()
+        save(self.output / "addon-images.json", sorted(self.addon_images))
+
+    def addon(self, name: str) -> None:
+        path = self.output / (name + ".yaml")
         self.k("apply", "--server-side", "-f", str(path), timeout=300)
 
     def cluster(self) -> dict[str, str]:
         self.live_start = time.monotonic()
+        self.cluster_attempted = True
+        save(
+            self.output / "startup-limits.json",
+            {
+                "calico_rollout_seconds": CALICO_ROLLOUT_SECONDS,
+                "node_ready_seconds": NODE_READY_SECONDS,
+                "keda_rollout_seconds": KEDA_ROLLOUT_SECONDS,
+                "live_ceiling_seconds": LIVE_RESERVATION,
+                "diagnostic_reserve_seconds": 300,
+                "teardown_reserve_seconds": 600,
+            },
+        )
         existing_network = self.command(
             ["docker", "network", "inspect", "kind"], allowed=True, record=False
         )
@@ -383,16 +508,27 @@ class Driver:
                 timeout=180,
             )
         self.command(["docker", "exec", node, "ctr", "--namespace", "k8s.io", "images", "ls"])
+        self.load_addons()
+        # A fresh cluster disables kindnet; fail visibly if that contract drifts.
+        kindnet = json.loads(self.k("-n", "kube-system", "get", "ds", "-o", "json").stdout)
+        require(not any(o["metadata"]["name"] == "kindnet" for o in kindnet["items"]), "no-kindnet")
         self.addon("calico")
-        self.k("wait", "node", "--all", "--for=condition=Ready", "--timeout=240s", timeout=250)
         self.k(
             "-n",
             "kube-system",
             "rollout",
             "status",
             "daemonset/calico-node",
-            "--timeout=240s",
-            timeout=250,
+            f"--timeout={CALICO_ROLLOUT_SECONDS}s",
+            timeout=CALICO_ROLLOUT_SECONDS + 10,
+        )
+        self.k(
+            "wait",
+            "node",
+            "--all",
+            "--for=condition=Ready",
+            f"--timeout={NODE_READY_SECONDS}s",
+            timeout=NODE_READY_SECONDS + 10,
         )
         self.addon("keda")
         for dep in LOCK["addons"]["keda"]["deployments"]:
@@ -402,8 +538,8 @@ class Driver:
                 "rollout",
                 "status",
                 "deployment/" + dep,
-                "--timeout=180s",
-                timeout=190,
+                f"--timeout={KEDA_ROLLOUT_SECONDS}s",
+                timeout=KEDA_ROLLOUT_SECONDS + 10,
             )
         self.k("get", "pods", "-A", "-o", "json")
         return self.dependencies()
@@ -1164,6 +1300,116 @@ class Driver:
         )
         self.databases.discard(database)
 
+    def diagnostics(self) -> None:
+        """Best effort, independent of the expired work deadline; never raise."""
+        directory = self.output / "diagnostics"
+        directory.mkdir(exist_ok=True)
+        deadline = time.monotonic() + 300
+        index: list[dict[str, Any]] = []
+
+        def capture(name: str, args: list[str]) -> str:
+            entry: dict[str, Any] = {"file": name + ".txt", "argv": args}
+            text = ""
+            try:
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    raise TimeoutError("diagnostic total deadline exhausted")
+                result = subprocess.run(
+                    args,
+                    cwd=ROOT,
+                    env=self.env,
+                    capture_output=True,
+                    text=True,
+                    encoding="utf-8",
+                    errors="replace",
+                    timeout=min(10, remaining),
+                    check=False,
+                )
+                entry["exit_code"] = result.returncode
+                text = result.stdout + result.stderr
+            except Exception as error:
+                entry["error"] = str(error)
+                if isinstance(error, subprocess.TimeoutExpired):
+                    for partial in (error.stdout, error.stderr):
+                        if partial:
+                            text += (
+                                partial.decode(errors="replace")
+                                if isinstance(partial, bytes)
+                                else partial
+                            )
+                text += "\n" + str(error)
+            for credential in (self.password, self.demand_token):
+                text = text.replace(credential, "[REDACTED]")
+            (directory / entry["file"]).write_text(text, encoding="utf-8", newline="\n")
+            index.append(entry)
+            return text
+
+        k = ["kubectl", "--context", "kind-" + CLUSTER, "--request-timeout=8s"]
+        for name, args in (
+            ("nodes-wide", ["get", "nodes", "-o", "wide"]),
+            ("nodes-describe", ["describe", "node"]),
+            ("pods-wide", ["get", "pods", "-A", "-o", "wide"]),
+            ("events", ["get", "events", "-A", "--sort-by=.metadata.creationTimestamp"]),
+        ):
+            capture(name, [*k, *args])
+        node = ["docker", "exec", CLUSTER + "-control-plane"]
+        capture("containerd-images", [*node, "ctr", "--namespace", "k8s.io", "images", "ls"])
+        capture("cri-images", [*node, "crictl", "images"])
+        capture(
+            "cni-config",
+            [
+                *node,
+                "sh",
+                "-c",
+                "ls -la /etc/cni/net.d; cat /etc/cni/net.d/*.conflist /etc/cni/net.d/*.conf",
+            ],
+        )
+        capture("kubelet", [*node, "journalctl", "-u", "kubelet", "--no-pager", "-n", "300"])
+        pods = capture("pods-json", [*k, "get", "pods", "-A", "-o", "json"])
+        try:
+            for pod in json.loads(pods)["items"]:
+                ready = any(
+                    c["type"] == "Ready" and c["status"] == "True"
+                    for c in pod.get("status", {}).get("conditions", [])
+                )
+                if ready:
+                    continue
+                ns, name = pod["metadata"]["namespace"], pod["metadata"]["name"]
+                prefix = ns + "--" + name
+                capture(prefix + "-describe", [*k, "-n", ns, "describe", "pod", name])
+                spec = pod["spec"]
+                for container in (
+                    spec.get("initContainers", [])
+                    + spec.get("containers", [])
+                    + spec.get("ephemeralContainers", [])
+                ):
+                    for previous in (False, True):
+                        capture(
+                            prefix
+                            + "--"
+                            + container["name"]
+                            + ("-previous" if previous else "-current"),
+                            [
+                                *k,
+                                "-n",
+                                ns,
+                                "logs",
+                                name,
+                                "-c",
+                                container["name"],
+                                "--timestamps=true",
+                                "--tail=300",
+                                "--limit-bytes=131072",
+                                *(["--previous"] if previous else []),
+                            ],
+                        )
+        except Exception as error:
+            index.append({"error": "pod inventory: " + str(error)})
+        save(
+            directory / "index.json",
+            {"total_timeout_seconds": 300, "command_timeout_seconds": 10, "commands": index},
+        )
+
     def cleanup(self) -> dict[str, Any]:
         started, self.live_start = self.live_start, None
         if (
@@ -1172,7 +1418,7 @@ class Driver:
             and not self.databases
             and started is None
         ):
-            return {"status": "PASS", "no_resources_started": True, "charged_seconds": 0}
+            return {"status": "PASS", "no_resources_started": True, "elapsed_live_seconds": 0}
         errors = []
         if (self.scratch / "kubeconfig").exists():
             for ns in ("dur053-kind", "dur053-baseline"):
@@ -1250,7 +1496,7 @@ class Driver:
             "owned_containers": [],
             "owned_nodes": [],
             "databases_remaining": [],
-            "charged_seconds": max(1, int(time.monotonic() - started) + 1) if started else 0,
+            "elapsed_live_seconds": max(1, int(time.monotonic() - started) + 1) if started else 0,
         }
 
 
@@ -1271,7 +1517,10 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
             "GitHub shared-runner noise",
             "no SLO freeze or pilot result",
         ],
-        "registered_live_seconds": LIVE_RESERVATION if scenario == "smoke" else 0,
+        "registered_live_seconds": 0,
+        "live_ceiling_seconds": LIVE_RESERVATION if scenario == "smoke" else 0,
+        "budget_scope": "engineering-validation",
+        "measurement_claim": False,
     }
     save(output / "manifest.json", manifest)
     try:
@@ -1300,13 +1549,6 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
             require(len(mine) == 1, "job-provenance")
             manifest["job_id"] = str(mine[0]["id"])
         manifest["head_sha"] = os.getenv("DUR053_HEAD_SHA", manifest["merge_ref_sha"])
-        if scenario == "smoke":
-            job, prior, head = job_identity_and_history()
-            manifest["job_id"], manifest["event_head_sha"] = job, head
-            manifest["ledger_remaining_after_reservation"] = ledger_check(
-                committed_ledger(LEDGER), LIVE_RESERVATION, prior
-            )
-            manifest["ledger_sha256"] = hashlib.sha256(LEDGER.read_bytes()).hexdigest()
         d.command(
             [
                 sys.executable,
@@ -1365,10 +1607,14 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
                 )
         else:
             d.build()
+            for name, addon in LOCK["addons"].items():
+                if addon["installed_in_k3a"]:
+                    d.prepare_addon(name)
             _, treatment = d.render("kind")
             _, baseline = d.render("kind-baseline")
             matched_arms(treatment, baseline)
             if scenario == "smoke":
+                d.preload_addons()
                 for arm in ("kind", "kind-baseline"):
                     shutil.rmtree(scratch / ("package-" + arm))
                     (output / (arm + ".yaml")).rename(output / (arm + "-unbound-endpoints.yaml"))
@@ -1381,6 +1627,11 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
             str(error).replace(d.password, "[REDACTED]").replace(d.demand_token, "[REDACTED]")
         )
         if d.live_start is not None:
+            if d.cluster_attempted:
+                try:
+                    d.diagnostics()
+                except Exception as diagnostic_error:
+                    manifest["diagnostic_error"] = str(diagnostic_error)
             # Diagnostics cannot suppress the final manifest or cleanup.
             for ns in ("dur053-kind", "dur053-baseline"):
                 try:
@@ -1407,11 +1658,12 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
         scratch_ownership(scratch, scratch_root)
         shutil.rmtree(scratch)
         manifest["scratch_removed"] = not scratch.exists()
-        manifest["charged_seconds"] = (
-            max(1, manifest["cleanup"].get("charged_seconds", LIVE_RESERVATION))
+        manifest["elapsed_live_seconds"] = (
+            max(1, manifest["cleanup"].get("elapsed_live_seconds", LIVE_RESERVATION))
             if scenario == "smoke"
             else 0
         )
+        manifest["charged_seconds"] = 0
         manifest["artifact_sha256"] = artifact_hashes(output)
         save(output / "manifest.json", manifest)
     return 0 if manifest["status"] == "PASS" else 1

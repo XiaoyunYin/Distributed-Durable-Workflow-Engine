@@ -5427,7 +5427,7 @@
       "id": "k3-live-job-deadline",
       "kind": "behavioral",
       "file": "scripts/dur053_k3.py",
-      "old": "require(remaining > 600, \"live-job-deadline\")",
+      "old": "require(remaining > 900, \"live-job-deadline\")",
       "new": "require(True, 'live-job-deadline')",
       "command": [
         "python",
@@ -5525,7 +5525,7 @@
       "id": "k3-committed-ledger-provenance",
       "kind": "behavioral",
       "file": "scripts/dur053_k3_policy.py",
-      "old": "require(\n            all(\n                str(manifest[key]) == str(row[key])\n                for key in (\"run_id\", \"job_id\", \"head_sha\", \"merge_ref_sha\", \"tree_sha\", \"status\")\n            )\n            and manifest.get(\"charged_seconds\", manifest[\"registered_live_seconds\"])\n            == row[\"charged_seconds\"],\n            \"committed-ledger-provenance\",\n        )",
+      "old": "require(\n            all(\n                str(manifest[key]) == str(row[key])\n                for key in (\"run_id\", \"job_id\", \"head_sha\", \"merge_ref_sha\", \"tree_sha\", \"status\")\n            )\n            and (\n                manifest[\"elapsed_live_seconds\"]\n                if row.get(\"category\") == \"k3-acceptance-smoke\"\n                else manifest.get(\"charged_seconds\", manifest[\"registered_live_seconds\"])\n            )\n            == row[\"charged_seconds\"],\n            \"committed-ledger-provenance\",\n        )",
       "new": "require(True, 'committed-ledger-provenance')",
       "command": [
         "python",
@@ -5621,7 +5621,7 @@
       "id": "k3-intake-charge",
       "kind": "behavioral",
       "file": "scripts/dur053_record_smoke.py",
-      "old": "require(type(charge) is int and 0 < charge <= 18900, \"intake-charge\")",
+      "old": "require(type(charge) is int and 0 < charge <= 3600, \"intake-charge\")",
       "new": "require(True, 'intake-charge')",
       "command": [
         "python",
@@ -6081,6 +6081,134 @@
         "-q"
       ],
       "expected": "acceptance guard bypassed command-exit",
+      "requires_database": false
+    },
+    {
+      "id": "k3-addon-digest-rewrite",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "value[\"image\"], value[\"imagePullPolicy\"] = pinned, \"Never\"",
+      "new": "value[\"image\"], value[\"imagePullPolicy\"] = source, \"Never\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_repairs.py::K3RepairTests::test_addon_image_lock",
+        "-q"
+      ],
+      "expected": "addon digest rewrite bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3-addon-no-pull",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "value[\"image\"], value[\"imagePullPolicy\"] = pinned, \"Never\"",
+      "new": "value[\"image\"], value[\"imagePullPolicy\"] = pinned, \"Always\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_repairs.py::K3RepairTests::test_addon_image_lock",
+        "-q"
+      ],
+      "expected": "addon digest rewrite bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3-addon-lock-enforcement",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(source in candidates or source in candidates.values(), \"addon-image-lock\")",
+      "new": "require(True, \"addon-image-lock\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_repairs.py::K3RepairTests::test_addon_image_lock",
+        "-q"
+      ],
+      "expected": "addon image lock bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3-engineering-ledger-scope",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "        manifest[\"head_sha\"] = os.getenv(\"DUR053_HEAD_SHA\", manifest[\"merge_ref_sha\"])",
+      "new": "        from dur053_campaign import campaign_gate\n        if scenario == \"smoke\":\n            campaign_gate()\n        manifest[\"head_sha\"] = os.getenv(\"DUR053_HEAD_SHA\", manifest[\"merge_ref_sha\"])",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_repairs.py::K3RepairTests::test_pr_smoke_does_not_read_ledger_or_history",
+        "-q"
+      ],
+      "expected": "PR ledger scope bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3-engineering-charge-scope",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "manifest[\"charged_seconds\"] = 0",
+      "new": "manifest[\"charged_seconds\"] = LIVE_RESERVATION",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_repairs.py::K3RepairTests::test_pr_smoke_does_not_read_ledger_or_history",
+        "-q"
+      ],
+      "expected": "PR charge scope bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3-campaign-prior-evidence",
+      "kind": "behavioral",
+      "file": "scripts/dur053_campaign.py",
+      "old": "ledger_check(committed_ledger(LEDGER), 18900, prior)",
+      "new": "ledger_check(committed_ledger(LEDGER), 18900, set())",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_repairs.py::K3RepairTests::test_dispatch_missing_prior_entry",
+        "-q"
+      ],
+      "expected": "campaign ledger scope bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3-intake-single-acceptance",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_smoke.py",
+      "old": "require(\n        not any(e.get(\"category\") == \"k3-acceptance-smoke\" for e in ledger[\"entries\"]),\n        \"intake-single-acceptance\",\n    )",
+      "new": "require(True, \"intake-single-acceptance\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py::K3PolicyTests::test_evidence_intake",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed intake-single-acceptance",
+      "requires_database": false
+    },
+    {
+      "id": "k3-intake-acceptance-evidence",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_smoke.py",
+      "old": "require(\n        manifest[\"status\"] == \"PASS\"\n        and manifest[\"cleanup\"][\"status\"] == \"PASS\"\n        and manifest[\"budget_scope\"] == \"engineering-validation\"\n        and manifest[\"charged_seconds\"] == 0\n        and manifest[\"measurement_claim\"] is False,\n        \"intake-acceptance-evidence\",\n    )",
+      "new": "require(True, \"intake-acceptance-evidence\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py::K3PolicyTests::test_evidence_intake",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed intake-acceptance-evidence",
       "requires_database": false
     }
   ]

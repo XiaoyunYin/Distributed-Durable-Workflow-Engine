@@ -48,19 +48,34 @@
         "keda-admission",
         "keda-metrics-apiserver",
         "keda-operator"
+      ],
+      "images": [
+        "ghcr.io/kedacore/keda-admission-webhooks:2.18.0",
+        "ghcr.io/kedacore/keda-metrics-apiserver:2.18.0",
+        "ghcr.io/kedacore/keda:2.18.0"
       ]
     },
     "calico": {
       "version": "3.29.3",
       "url": "https://raw.githubusercontent.com/projectcalico/calico/v3.29.3/manifests/calico.yaml",
       "sha256": "9a575859428b822a224dedafc4238555b6b0f910f2abf12983f20f871860914e",
-      "installed_in_k3a": true
+      "installed_in_k3a": true,
+      "images": [
+        "docker.io/calico/cni:v3.29.3",
+        "docker.io/calico/kube-controllers:v3.29.3",
+        "docker.io/calico/node:v3.29.3"
+      ]
     },
     "chaos": {
       "version": "2.7.2",
       "url": "https://raw.githubusercontent.com/chaos-mesh/chaos-mesh/v2.7.2/manifests/crd.yaml",
       "sha256": "525b208362a1b5dddf14b1cde951d5802c25c981e0abc542ee2e86766b5ed63f",
-      "installed_in_k3a": false
+      "installed_in_k3a": false,
+      "images": [
+        "ghcr.io/chaos-mesh/chaos-daemon:v2.7.2",
+        "ghcr.io/chaos-mesh/chaos-dashboard:v2.7.2",
+        "ghcr.io/chaos-mesh/chaos-mesh:v2.7.2"
+      ]
     }
   },
   "node": "kindest/node:v1.32.2@sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f",

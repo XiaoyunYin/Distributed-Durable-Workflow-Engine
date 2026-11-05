@@ -284,12 +284,12 @@ class K3PolicyTests(unittest.TestCase):
                 if path.endswith("/runs/10"):
                     return {"created_at": "2026-11-04", "head_sha": "head"}
                 if "/runs/10/jobs" in path:
-                    return {"jobs": [{"id": 15, "name": "DUR-053 kind smoke"}]}
+                    return {"jobs": [{"id": 15, "name": "DUR-053 campaign"}]}
                 if "/runs?" in path:
                     return {"workflow_runs": [{"id": 9, "created_at": "2026-11-03"}]}
                 return {
                     "total_count": 1,
-                    "jobs": [{"id": 14, "name": "DUR-053 kind smoke", "conclusion": "failure"}],
+                    "jobs": [{"id": 14, "name": "DUR-053 campaign", "conclusion": "failure"}],
                 }
 
             with patch.object(driver, "github", side_effect=api):
@@ -341,9 +341,13 @@ class K3PolicyTests(unittest.TestCase):
                 "head_sha": "a" * 40,
                 "merge_ref_sha": "b" * 40,
                 "tree_sha": "c" * 40,
-                "status": "FAIL",
-                "registered_live_seconds": 3600,
-                "charged_seconds": 10,
+                "status": "PASS",
+                "registered_live_seconds": 0,
+                "charged_seconds": 0,
+                "elapsed_live_seconds": 10,
+                "budget_scope": "engineering-validation",
+                "measurement_claim": False,
+                "cleanup": {"status": "PASS"},
                 "artifact_sha256": {},
             }
             (source / "manifest.json").write_text(json.dumps(manifest))
@@ -385,6 +389,8 @@ class K3PolicyTests(unittest.TestCase):
             "intake-existing-run",
             "intake-charge",
             "intake-total-budget",
+            "intake-single-acceptance",
+            "intake-acceptance-evidence",
         ):
             with tempfile.TemporaryDirectory() as tmp:
                 repo, source, manifest = setup(Path(tmp))
@@ -397,15 +403,35 @@ class K3PolicyTests(unittest.TestCase):
                     manifest["run_id"] = "../unsafe"
                 elif guard == "intake-duplicate-job":
                     existing = intake.record(source, repo)
-                    import shutil
-
-                    shutil.rmtree(existing)
+                    # A prior campaign job with this ID isolates duplicate-ID
+                    # protection from the separate single-acceptance guard.
+                    prior = existing.with_name("prior-campaign")
+                    existing.rename(prior)
+                    prior_manifest = prior / "manifest.json"
+                    previous = json.loads(prior_manifest.read_text())
+                    previous["charged_seconds"] = 10
+                    prior_manifest.write_text(json.dumps(previous))
+                    ledger = json.loads(ledger_path.read_text())
+                    row = ledger["entries"][0]
+                    row.pop("category")
+                    row["artifact"] = prior_manifest.relative_to(repo).as_posix()
+                    row["artifact_sha256"] = hashlib.sha256(prior_manifest.read_bytes()).hexdigest()
+                    ledger_path.write_text(json.dumps(ledger))
+                    policy.committed_ledger(ledger_path, repo)
                 elif guard == "intake-existing-run":
                     (repo / "experiments/portfolio/k8s-recovery/k3-smoke-v1/10").mkdir(parents=True)
+                elif guard == "intake-single-acceptance":
+                    intake.record(source, repo)
+                    manifest["run_id"] = "11"
+                    ledger = json.loads(ledger_path.read_text())
+                    ledger["entries"][0]["job_id"] = "19"
+                    ledger_path.write_text(json.dumps(ledger))
+                elif guard == "intake-acceptance-evidence":
+                    manifest["status"] = "FAIL"
                 elif guard == "intake-charge":
-                    manifest["charged_seconds"] = -1
+                    manifest["elapsed_live_seconds"] = -1
                 elif guard == "intake-total-budget":
-                    manifest["charged_seconds"] = 18900
+                    manifest["elapsed_live_seconds"] = 3600
                     ledger = json.loads(ledger_path.read_text())
                     ledger["entries"] = [
                         {
@@ -420,6 +446,9 @@ class K3PolicyTests(unittest.TestCase):
                         }
                         for i in range(1, 14)
                     ]
+                    ledger["entries"].append(
+                        {**ledger["entries"][0], "job_id": "99", "charged_seconds": 12000}
+                    )
                     ledger_path.write_text(json.dumps(ledger))
                 (source / "manifest.json").write_text(json.dumps(manifest))
                 if guard == "intake-no-symlinks":

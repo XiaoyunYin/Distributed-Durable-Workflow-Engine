@@ -423,9 +423,7 @@ jobs:
     timeout-minutes: 35
     permissions:
       contents: read
-      actions: read
     env:
-      GH_TOKEN: ${{ github.token }}
       DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - name: Check out exact merge-ref source
@@ -450,12 +448,7 @@ jobs:
     timeout-minutes: 70
     permissions:
       contents: read
-      actions: read
-    concurrency:
-      group: dur053-live-ledger
-      cancel-in-progress: false
     env:
-      GH_TOKEN: ${{ github.token }}
       DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
       - name: Check out exact merge-ref source

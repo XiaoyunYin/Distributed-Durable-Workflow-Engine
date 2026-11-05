@@ -235,7 +235,7 @@ class K3DriverTests(unittest.TestCase):
             if path.endswith("/runs/10"):
                 return {"created_at": "2026-11-04", "head_sha": "head"}
             if "/runs/10/jobs" in path:
-                return {"jobs": [{"id": 15, "name": "DUR-053 kind smoke"}]}
+                return {"jobs": [{"id": 15, "name": "DUR-053 campaign"}]}
             if "/runs?" in path:
                 return {"workflow_runs": [{"id": 9, "created_at": "2026-11-03"}]}
             return {"total_count": 101, "jobs": []}
@@ -259,7 +259,7 @@ class K3DriverTests(unittest.TestCase):
                         {"created_at": "2026-11-04", "head_sha": "head"}
                         if path.endswith("/runs/10")
                         else (
-                            {"jobs": [{"id": 15, "name": "DUR-053 kind smoke"}]}
+                            {"jobs": [{"id": 15, "name": "DUR-053 campaign"}]}
                             if "/runs/10/jobs" in path
                             else {"workflow_runs": []}
                         )
@@ -287,10 +287,13 @@ class K3DriverTests(unittest.TestCase):
                 ),
                 patch.object(driver.Driver, "install"),
                 patch.object(driver.Driver, "build"),
+                patch.object(driver.Driver, "prepare_addon"),
                 patch.object(driver.Driver, "render", return_value=(root / "unused", [])),
                 patch.object(driver, "matched_arms"),
                 patch.object(
-                    driver.Driver, "cleanup", return_value={"status": "PASS", "charged_seconds": 0}
+                    driver.Driver,
+                    "cleanup",
+                    return_value={"status": "PASS", "elapsed_live_seconds": 0},
                 ),
             ):
                 code = driver.run("package-check", root / "output", root / "scratch")

@@ -15,11 +15,13 @@ on:
         options: [short, medium, long, cpu]
 permissions:
   contents: read
+  actions: read
 concurrency:
   group: dur053-live-ledger
   cancel-in-progress: false
 jobs:
   campaign:
+    name: DUR-053 campaign
     runs-on: ubuntu-24.04
     timeout-minutes: 350
     steps:
@@ -29,6 +31,7 @@ jobs:
       - name: Validate ledger and refuse unimplemented measurement
         shell: bash
         env:
+          GH_TOKEN: ${{ github.token }}
           DUR053_SCENARIO: ${{ inputs.scenario }}
           DUR053_ARM: ${{ inputs.arm }}
         run: |

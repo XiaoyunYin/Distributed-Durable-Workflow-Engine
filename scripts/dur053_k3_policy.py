@@ -419,7 +419,11 @@ def committed_ledger(path: Path, repository: Path = ROOT) -> dict[str, Any]:
                 str(manifest[key]) == str(row[key])
                 for key in ("run_id", "job_id", "head_sha", "merge_ref_sha", "tree_sha", "status")
             )
-            and manifest.get("charged_seconds", manifest["registered_live_seconds"])
+            and (
+                manifest["elapsed_live_seconds"]
+                if row.get("category") == "k3-acceptance-smoke"
+                else manifest.get("charged_seconds", manifest["registered_live_seconds"])
+            )
             == row["charged_seconds"],
             "committed-ledger-provenance",
         )
