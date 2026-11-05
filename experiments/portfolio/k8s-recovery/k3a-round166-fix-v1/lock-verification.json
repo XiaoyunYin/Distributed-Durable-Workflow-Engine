@@ -1,0 +1,140 @@
+{
+  "authentication": "Anonymous registry Bearer challenge flow; token values intentionally not retained.",
+  "commands": [
+    "python scripts/dur053_lock_check.py",
+    "For each docker.io/calico/{cni,kube-controllers,node}:v3.29.3: anonymous HEAD https://registry-1.docker.io/v2/calico/<name>/manifests/v3.29.3; obtain an anonymous Bearer token from the registry WWW-Authenticate realm (auth.docker.io); Accept: application/vnd.oci.image.index.v1+json, application/vnd.docker.distribution.manifest.list.v2+json, application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json",
+    "For every lock.images entry and lock.node: anonymous HEAD /v2/<repository>/manifests/<sha256-digest> with OCI index, Docker manifest-list, OCI image-manifest, and Docker v2 manifest Accept types."
+  ],
+  "locked_digest_checks": [
+    {
+      "digest": "sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c",
+      "http_status": 200,
+      "name": "docker.io/calico/cni:v3.29.3",
+      "ok": true,
+      "reference": "docker.io/calico/cni:v3.29.3@sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c",
+      "registry": "registry-1.docker.io",
+      "registry_digest_header": "sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c",
+      "repository": "calico/cni"
+    },
+    {
+      "digest": "sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703",
+      "http_status": 200,
+      "name": "docker.io/calico/kube-controllers:v3.29.3",
+      "ok": true,
+      "reference": "docker.io/calico/kube-controllers:v3.29.3@sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703",
+      "registry": "registry-1.docker.io",
+      "registry_digest_header": "sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703",
+      "repository": "calico/kube-controllers"
+    },
+    {
+      "digest": "sha256:eed399f2a727cfc1f374ab5c9cda6123c207e794ed8dc66c7eb6d8db412669e1",
+      "http_status": 200,
+      "name": "docker.io/calico/node:v3.29.3",
+      "ok": true,
+      "reference": "docker.io/calico/node:v3.29.3@sha256:eed399f2a727cfc1f374ab5c9cda6123c207e794ed8dc66c7eb6d8db412669e1",
+      "registry": "registry-1.docker.io",
+      "registry_digest_header": "sha256:eed399f2a727cfc1f374ab5c9cda6123c207e794ed8dc66c7eb6d8db412669e1",
+      "repository": "calico/node"
+    },
+    {
+      "digest": "sha256:9608d9b5145262b90aafd96cd60e36633d9163f5a80d485aa6ca51c6a194f5eb",
+      "http_status": 200,
+      "name": "ghcr.io/chaos-mesh/chaos-daemon:v2.7.2",
+      "ok": true,
+      "reference": "ghcr.io/chaos-mesh/chaos-daemon:v2.7.2@sha256:9608d9b5145262b90aafd96cd60e36633d9163f5a80d485aa6ca51c6a194f5eb",
+      "registry": "ghcr.io",
+      "registry_digest_header": "sha256:9608d9b5145262b90aafd96cd60e36633d9163f5a80d485aa6ca51c6a194f5eb",
+      "repository": "chaos-mesh/chaos-daemon"
+    },
+    {
+      "digest": "sha256:11cdbbc479b3256109a5b990bc3564e8e97bb648b5b7c36624574833055d22b5",
+      "http_status": 200,
+      "name": "ghcr.io/chaos-mesh/chaos-dashboard:v2.7.2",
+      "ok": true,
+      "reference": "ghcr.io/chaos-mesh/chaos-dashboard:v2.7.2@sha256:11cdbbc479b3256109a5b990bc3564e8e97bb648b5b7c36624574833055d22b5",
+      "registry": "ghcr.io",
+      "registry_digest_header": "sha256:11cdbbc479b3256109a5b990bc3564e8e97bb648b5b7c36624574833055d22b5",
+      "repository": "chaos-mesh/chaos-dashboard"
+    },
+    {
+      "digest": "sha256:8bc853c7414c8a2eb06b5cb8add9987332ddebd5a8f154beb9b98974214d3f7c",
+      "http_status": 200,
+      "name": "ghcr.io/chaos-mesh/chaos-mesh:v2.7.2",
+      "ok": true,
+      "reference": "ghcr.io/chaos-mesh/chaos-mesh:v2.7.2@sha256:8bc853c7414c8a2eb06b5cb8add9987332ddebd5a8f154beb9b98974214d3f7c",
+      "registry": "ghcr.io",
+      "registry_digest_header": "sha256:8bc853c7414c8a2eb06b5cb8add9987332ddebd5a8f154beb9b98974214d3f7c",
+      "repository": "chaos-mesh/chaos-mesh"
+    },
+    {
+      "digest": "sha256:95f923ff25e397519ae2d1ce98efd565d4c431dbfff087e065605c3d4eb1b1fa",
+      "http_status": 200,
+      "name": "ghcr.io/kedacore/keda-admission-webhooks:2.18.0",
+      "ok": true,
+      "reference": "ghcr.io/kedacore/keda-admission-webhooks:2.18.0@sha256:95f923ff25e397519ae2d1ce98efd565d4c431dbfff087e065605c3d4eb1b1fa",
+      "registry": "ghcr.io",
+      "registry_digest_header": "sha256:95f923ff25e397519ae2d1ce98efd565d4c431dbfff087e065605c3d4eb1b1fa",
+      "repository": "kedacore/keda-admission-webhooks"
+    },
+    {
+      "digest": "sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4",
+      "http_status": 200,
+      "name": "ghcr.io/kedacore/keda-metrics-apiserver:2.18.0",
+      "ok": true,
+      "reference": "ghcr.io/kedacore/keda-metrics-apiserver:2.18.0@sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4",
+      "registry": "ghcr.io",
+      "registry_digest_header": "sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4",
+      "repository": "kedacore/keda-metrics-apiserver"
+    },
+    {
+      "digest": "sha256:fe551cf11fbf720af72ad37da041dd7bc73f7eed81ca55cc0d2507d52e1d24a2",
+      "http_status": 200,
+      "name": "ghcr.io/kedacore/keda:2.18.0",
+      "ok": true,
+      "reference": "ghcr.io/kedacore/keda:2.18.0@sha256:fe551cf11fbf720af72ad37da041dd7bc73f7eed81ca55cc0d2507d52e1d24a2",
+      "registry": "ghcr.io",
+      "registry_digest_header": "sha256:fe551cf11fbf720af72ad37da041dd7bc73f7eed81ca55cc0d2507d52e1d24a2",
+      "repository": "kedacore/keda"
+    },
+    {
+      "digest": "sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f",
+      "http_status": 200,
+      "name": "kind node",
+      "ok": true,
+      "reference": "kindest/node:v1.32.2@sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f",
+      "registry": "registry-1.docker.io",
+      "registry_digest_header": "sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f",
+      "repository": "kindest/node"
+    }
+  ],
+  "recorded_at_utc": "2026-11-05T11:06:34.554199+00:00",
+  "schema": "dur053.k3a.registry-lock-verification.v1",
+  "source_head": "ad21a7783e3c2997359ff8f29350ca6ca5e55db3",
+  "status": "PASS",
+  "tag_index_digest_checks": [
+    {
+      "http_status": 200,
+      "image": "docker.io/calico/cni:v3.29.3",
+      "locked_digest": "sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c",
+      "matches_lock": true,
+      "tag": "v3.29.3",
+      "tag_index_digest": "sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c"
+    },
+    {
+      "http_status": 200,
+      "image": "docker.io/calico/kube-controllers:v3.29.3",
+      "locked_digest": "sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703",
+      "matches_lock": true,
+      "tag": "v3.29.3",
+      "tag_index_digest": "sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703"
+    },
+    {
+      "http_status": 200,
+      "image": "docker.io/calico/node:v3.29.3",
+      "locked_digest": "sha256:eed399f2a727cfc1f374ab5c9cda6123c207e794ed8dc66c7eb6d8db412669e1",
+      "matches_lock": true,
+      "tag": "v3.29.3",
+      "tag_index_digest": "sha256:eed399f2a727cfc1f374ab5c9cda6123c207e794ed8dc66c7eb6d8db412669e1"
+    }
+  ]
+}

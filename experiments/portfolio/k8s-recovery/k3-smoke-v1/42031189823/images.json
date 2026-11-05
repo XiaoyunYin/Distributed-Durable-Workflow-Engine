@@ -1,0 +1,4 @@
+{
+  "runtime": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+  "worker": "localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6"
+}

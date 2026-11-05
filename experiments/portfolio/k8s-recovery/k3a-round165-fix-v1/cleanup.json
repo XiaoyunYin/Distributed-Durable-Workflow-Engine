@@ -1,0 +1,18 @@
+{
+  "codex_root_listing": [],
+  "databases_dropped_and_queried_absent": [
+    "dur053_k3afix_race",
+    "dur053_k3afix_env",
+    "dur053_k3afix_mutation",
+    "dur053_k3afix_mutation_final"
+  ],
+  "observed_at_utc": "2026-11-05T09:56:22.125094+00:00",
+  "removed_directories_including_target": 3765,
+  "removed_files": 27990,
+  "removed_target": "D:\\coding agent files\\durable-engine\\codex\\k3a-fix",
+  "resolved_target_parent_verified": "D:\\coding agent files\\durable-engine\\codex",
+  "schema": "dur053.round165.cleanup.v1",
+  "status": "PASS",
+  "task_database_prefixes_remaining": [],
+  "temporary_files_outside_task_root_created": false
+}

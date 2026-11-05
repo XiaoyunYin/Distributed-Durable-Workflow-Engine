@@ -1,0 +1,97 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.34kB done
+#1 DONE 0.0s
+
+#2 [internal] load metadata for docker.io/library/golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5
+#2 DONE 0.0s
+
+#3 [auth] library/python:pull token for registry-1.docker.io
+#3 DONE 0.0s
+
+#4 [internal] load metadata for docker.io/library/python:3.12.7-slim-bookworm@sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d
+#4 DONE 0.3s
+
+#5 [internal] load .dockerignore
+#5 transferring context: 165B done
+#5 DONE 0.0s
+
+#6 [build 1/7] FROM docker.io/library/golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5
+#6 DONE 0.0s
+
+#7 [internal] load build context
+#7 transferring context: 628.30kB 0.0s done
+#7 DONE 0.0s
+
+#8 [build 4/7] COPY cmd ./cmd
+#8 CACHED
+
+#9 [build 2/7] WORKDIR /src
+#9 CACHED
+
+#10 [build 3/7] COPY go.mod go.sum ./
+#10 CACHED
+
+#11 [build 6/7] COPY migrations ./migrations
+#11 CACHED
+
+#12 [build 5/7] COPY internal ./internal
+#12 CACHED
+
+#13 [build 7/7] RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/runtime ./cmd/runtime  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/dur053-migrate  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/loadgen ./cmd/dur053-loadgen  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/checker ./cmd/dur049-checker
+#13 CACHED
+
+#14 [worker 1/7] FROM docker.io/library/python:3.12.7-slim-bookworm@sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d
+#14 resolve docker.io/library/python:3.12.7-slim-bookworm@sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d done
+#14 sha256:1c44018d7eb40488f29e7c6ad4991d3200507e14dca71b94fe61011815e98155 1.75kB / 1.75kB done
+#14 sha256:e35f80b558775b0903c34523ef3422645c10e06a66b151f228acf9cf8b862f66 5.17kB / 5.17kB done
+#14 sha256:bc0965b23a04fe7f2d9fb20f597008fcf89891de1c705ffc1c80483a1f098e4f 8.39MB / 28.23MB 0.1s
+#14 sha256:5e739003c33414360cf2cec9452e1935b1bfcae79f279c33009bf4c0d5596f52 3.32MB / 3.32MB 0.1s done
+#14 sha256:5f86e0092844f78afa84a3b63059ea82e82fa93a28eedde55386370d924e8cf3 6.29MB / 13.63MB 0.1s
+#14 sha256:46271edb89aec00565d974118707aaded82928c7ea7cb0a2bcc94b1f17e17e3d 0B / 249B 0.1s
+#14 sha256:60d9996b6a8a3689d36db740b49f4327be3be09a21122bd02fb8895abb38b50d 9.12kB / 9.12kB done
+#14 sha256:bc0965b23a04fe7f2d9fb20f597008fcf89891de1c705ffc1c80483a1f098e4f 28.23MB / 28.23MB 0.3s
+#14 sha256:5f86e0092844f78afa84a3b63059ea82e82fa93a28eedde55386370d924e8cf3 13.63MB / 13.63MB 0.2s done
+#14 sha256:46271edb89aec00565d974118707aaded82928c7ea7cb0a2bcc94b1f17e17e3d 249B / 249B 0.1s done
+#14 sha256:bc0965b23a04fe7f2d9fb20f597008fcf89891de1c705ffc1c80483a1f098e4f 28.23MB / 28.23MB 0.3s done
+#14 extracting sha256:bc0965b23a04fe7f2d9fb20f597008fcf89891de1c705ffc1c80483a1f098e4f 0.1s
+#14 extracting sha256:bc0965b23a04fe7f2d9fb20f597008fcf89891de1c705ffc1c80483a1f098e4f 0.6s done
+#14 extracting sha256:5e739003c33414360cf2cec9452e1935b1bfcae79f279c33009bf4c0d5596f52 0.1s done
+#14 extracting sha256:5f86e0092844f78afa84a3b63059ea82e82fa93a28eedde55386370d924e8cf3 0.1s
+#14 extracting sha256:5f86e0092844f78afa84a3b63059ea82e82fa93a28eedde55386370d924e8cf3 0.3s done
+#14 extracting sha256:46271edb89aec00565d974118707aaded82928c7ea7cb0a2bcc94b1f17e17e3d
+#14 extracting sha256:46271edb89aec00565d974118707aaded82928c7ea7cb0a2bcc94b1f17e17e3d done
+#14 DONE 1.3s
+
+#15 [worker 2/7] WORKDIR /app
+#15 DONE 0.1s
+
+#16 [worker 3/7] COPY requirements-worker.txt ./
+#16 DONE 0.0s
+
+#17 [worker 4/7] RUN pip install --no-cache-dir --require-hashes -r requirements-worker.txt
+#17 0.967 Collecting kafka-python==2.2.16 (from -r requirements-worker.txt (line 3))
+#17 0.997   Downloading kafka_python-2.2.16-py2.py3-none-any.whl (309 kB)
+#17 1.021 Installing collected packages: kafka-python
+#17 1.166 Successfully installed kafka-python-2.2.16
+#17 1.167 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable.It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+#17 1.250 
+#17 1.250 [notice] A new release of pip is available: 24.2 -> 26.3
+#17 1.250 [notice] To update, run: pip install --upgrade pip
+#17 DONE 1.3s
+
+#18 [worker 5/7] COPY python ./python
+#18 DONE 0.0s
+
+#19 [worker 6/7] COPY --from=build /out/loadgen /loadgen
+#19 DONE 0.0s
+
+#20 [worker 7/7] COPY --from=build /out/checker /checker
+#20 DONE 0.0s
+
+#21 exporting to image
+#21 exporting layers 0.0s done
+#21 writing image sha256:bd62a95d90567ef30314dca4a1f2333eff2adf572b663da4a447acdff734b10e done
+#21 naming to localhost:5001/dur053-worker:candidate done
+#21 DONE 0.0s

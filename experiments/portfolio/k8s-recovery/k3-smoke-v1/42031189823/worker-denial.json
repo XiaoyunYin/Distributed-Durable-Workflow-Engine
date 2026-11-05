@@ -1,0 +1,12 @@
+{
+  "auth": {
+    "demand": 401,
+    "operator": 401
+  },
+  "network": {
+    "demand": "DENIED",
+    "operator": "DENIED"
+  },
+  "operator_observer_status": "404",
+  "temporary_allows_removed": true
+}

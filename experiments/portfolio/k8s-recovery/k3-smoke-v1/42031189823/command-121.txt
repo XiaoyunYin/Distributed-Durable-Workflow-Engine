@@ -1,0 +1,2 @@
+activity compatibility PASS
+Defaulted container "compatibility" out of: compatibility, candidate-worker-registry (init)

@@ -1,0 +1,4 @@
+activity registry parity PASS: fixture=False, cpu=False
+activity registry parity PASS: fixture=True, cpu=False
+activity registry parity PASS: fixture=False, cpu=True
+activity registry parity PASS: fixture=True, cpu=True

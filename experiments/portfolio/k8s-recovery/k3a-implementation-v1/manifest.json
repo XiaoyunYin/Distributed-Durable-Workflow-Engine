@@ -1,0 +1,20 @@
+{
+  "schema": "dur053.k3a.native-artifacts.v1",
+  "status": "NATIVE_PASS_CI_PENDING",
+  "artifact_sha256": {
+    "cleanup.json": "ff224bc1ee9b9be2246725063af61a234eb73b884ff34255db94932d29e56d9b",
+    "go-race.txt": "3c222894884b91ed5d9d824f9d29a0f36cc51dba69bb9f7cdf9d76cb2e99e71c",
+    "go-vet.txt": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "gofmt.txt": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+    "migrate-fresh.txt": "f10f9db439e79f2380a3b7cd1ce877979c51f90d452758a030b88f9fe83891d6",
+    "mutations.json": "2cb2b0eda2e4b96439c72196c70f81df384d5a8d492aee9e7bd599e1f31d8b64",
+    "mypy.txt": "522d7b3a15704213950b7053c882b6ddd0c41149631300ce6c1933d21b5971c3",
+    "pytest.txt": "ce7f8b4fc2a806b67f92d8bcb4bd48e8644bc996299bb770b6c3afa57c60efbf",
+    "README.md": "2ffec397427e1eaa4f2e06c4959f165c04190204a29dbd13095d0843edbc1dae",
+    "registry.txt": "5b7b7452be915c8c54a1775e213d3b1a9dcec18600b6fd50a0ebd08d23f82b83",
+    "ruff-format.txt": "7586f3a0d458f21b4bd49fa3262806c13262c3000e0b29a6e9ec969c0419b2ab",
+    "ruff.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "source-sha256.json": "d9eb09407e09e2ba7decd1891257be0de94548a34bfc76b08216e7b0675f9cc1",
+    "validation.json": "0b219877384194ade0a0eeb168948847a1ed7ea586536600419c2091d5f7476f"
+  }
+}

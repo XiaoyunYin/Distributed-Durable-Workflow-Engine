@@ -1,0 +1,2008 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: dur053-baseline
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  name: api
+  namespace: dur053-baseline
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  name: compatibility
+  namespace: dur053-baseline
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  name: demand
+  namespace: dur053-baseline
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  name: migrate
+  namespace: dur053-baseline
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  name: observer
+  namespace: dur053-baseline
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  name: operator
+  namespace: dur053-baseline
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  name: relay
+  namespace: dur053-baseline
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  name: scheduler
+  namespace: dur053-baseline
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  name: worker
+  namespace: dur053-baseline
+---
+apiVersion: v1
+automountServiceAccountToken: false
+kind: ServiceAccount
+metadata:
+  name: worker-control
+  namespace: dur053-baseline
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: dur053-tokenreview
+rules:
+- apiGroups:
+  - authentication.k8s.io
+  resources:
+  - tokenreviews
+  verbs:
+  - create
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: dur053-tokenreview
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: dur053-tokenreview
+subjects:
+- kind: ServiceAccount
+  name: api
+  namespace: dur053-baseline
+- kind: ServiceAccount
+  name: operator
+  namespace: dur053-baseline
+- kind: ServiceAccount
+  name: worker-control
+  namespace: dur053-baseline
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: dur053-baseline
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: api
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demand
+  namespace: dur053-baseline
+spec:
+  ports:
+  - name: http
+    port: 8091
+    targetPort: http
+  selector:
+    app: demand
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka
+  namespace: dur053-baseline
+spec:
+  ports:
+  - name: tcp
+    port: 19092
+    targetPort: 19092
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: operator
+  namespace: dur053-baseline
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: operator
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: dur053-baseline
+spec:
+  ports:
+  - name: tcp
+    port: 5432
+    targetPort: 5432
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: relay
+  namespace: dur053-baseline
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: relay
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: scheduler
+  namespace: dur053-baseline
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: scheduler
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+  namespace: dur053-baseline
+spec:
+  ports:
+  - name: http
+    port: 8081
+    targetPort: http
+  selector:
+    app: worker
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker-control
+  namespace: dur053-baseline
+spec:
+  ports:
+  - name: http
+    port: 8080
+    targetPort: http
+  selector:
+    app: worker-control
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: witness
+  namespace: dur053-baseline
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+  namespace: dur053-baseline
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: api
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: api
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: RUNTIME_SHUTDOWN_MODE
+          value: legacy
+        - name: RUNTIME_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: url
+              name: campaign-db
+        - name: DUR048_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR049_RECORD_LEASE_ACQUISITIONS
+          value: "1"
+        - name: RUNTIME_ROLES
+          value: api
+        - name: RUNTIME_ROLE
+          value: api
+        - name: RUNTIME_ADDR
+          value: 0.0.0.0:8080
+        - name: RUNTIME_DB_MAX_CONNS
+          value: "4"
+        - name: RUNTIME_TOKEN_AUTH
+          value: enabled
+        - name: RUNTIME_TOKEN_REVIEW_URL
+          value: https://kubernetes.default.svc
+        - name: RUNTIME_TOKEN_REVIEW_CA
+          value: /identity/ca.crt
+        - name: RUNTIME_TOKEN_REVIEW_TOKEN_FILE
+          value: /identity/reviewer
+        - name: RUNTIME_TOKEN_ISSUER
+          value: https://kubernetes.default.svc.cluster.local
+        - name: RUNTIME_TOKEN_AUDIENCE
+          value: durable-client
+        - name: RUNTIME_TOKEN_SERVICE_ACCOUNT
+          value: observer
+        - name: RUNTIME_TOKEN_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        name: api
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /readyz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        volumeMounts:
+        - mountPath: /tmp
+          name: scratch
+        - mountPath: /identity
+          name: identity
+          readOnly: true
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: api
+      terminationGracePeriodSeconds: 40
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app: api
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+      volumes:
+      - emptyDir: {}
+        name: scratch
+      - name: identity
+        projected:
+          defaultMode: 420
+          sources:
+          - serviceAccountToken:
+              audience: https://kubernetes.default.svc.cluster.local
+              expirationSeconds: 3600
+              path: reviewer
+          - configMap:
+              items:
+              - key: ca.crt
+                path: ca.crt
+              name: kube-root-ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demand
+  namespace: dur053-baseline
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: demand
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: demand
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: RUNTIME_SHUTDOWN_MODE
+          value: legacy
+        - name: RUNTIME_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: url
+              name: campaign-db
+        - name: DUR048_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR049_RECORD_LEASE_ACQUISITIONS
+          value: "1"
+        - name: RUNTIME_ROLES
+          value: demand
+        - name: RUNTIME_ROLE
+          value: demand
+        - name: RUNTIME_ADDR
+          value: 0.0.0.0:8091
+        - name: RUNTIME_DB_MAX_CONNS
+          value: "2"
+        - name: RUNTIME_TOKEN_AUTH
+          value: enabled
+        - name: RUNTIME_DEMAND_BEARER_TOKEN_FILE
+          value: /bearer/token
+        image: localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        name: demand
+        ports:
+        - containerPort: 8091
+          name: http
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /readyz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        volumeMounts:
+        - mountPath: /tmp
+          name: scratch
+        - mountPath: /bearer
+          name: bearer
+          readOnly: true
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: demand
+      terminationGracePeriodSeconds: 40
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app: demand
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+      volumes:
+      - emptyDir: {}
+        name: scratch
+      - name: bearer
+        secret:
+          secretName: campaign-demand
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: observer
+  namespace: dur053-baseline
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: observer
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: observer
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - command:
+        - python
+        - -c
+        - import time; time.sleep(86400)
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: PYTHONDONTWRITEBYTECODE
+          value: "1"
+        - name: DUR048_ACTIVITY_DELAY_MS
+          value: "100"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: WORKER_SLOTS
+          value: "2"
+        - name: WORKER_DRAIN_SECONDS
+          value: "30"
+        - name: CONTROL_API_URL
+          value: http://worker-control:8080
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: ""
+        - name: WORKER_TOKEN_FILE
+          value: /identity/token
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: url
+              name: campaign-db
+        - name: DUR048_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        image: localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+        imagePullPolicy: Never
+        name: observer
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /tmp
+          name: scratch
+        - mountPath: /identity
+          name: identity
+          readOnly: true
+        - mountPath: /evidence
+          name: evidence
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: observer
+      terminationGracePeriodSeconds: 40
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app: observer
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+      volumes:
+      - emptyDir: {}
+        name: scratch
+      - name: identity
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: durable-client
+              expirationSeconds: 3600
+              path: token
+          - serviceAccountToken:
+              audience: durable-operator
+              expirationSeconds: 3600
+              path: operator
+      - emptyDir: {}
+        name: evidence
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: operator
+  namespace: dur053-baseline
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: operator
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: operator
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: RUNTIME_SHUTDOWN_MODE
+          value: legacy
+        - name: RUNTIME_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: url
+              name: campaign-db
+        - name: DUR048_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR049_RECORD_LEASE_ACQUISITIONS
+          value: "1"
+        - name: RUNTIME_ROLES
+          value: operator
+        - name: RUNTIME_ROLE
+          value: operator
+        - name: RUNTIME_ADDR
+          value: 0.0.0.0:8080
+        - name: RUNTIME_DB_MAX_CONNS
+          value: "2"
+        - name: RUNTIME_TOKEN_AUTH
+          value: enabled
+        - name: RUNTIME_TOKEN_REVIEW_URL
+          value: https://kubernetes.default.svc
+        - name: RUNTIME_TOKEN_REVIEW_CA
+          value: /identity/ca.crt
+        - name: RUNTIME_TOKEN_REVIEW_TOKEN_FILE
+          value: /identity/reviewer
+        - name: RUNTIME_TOKEN_ISSUER
+          value: https://kubernetes.default.svc.cluster.local
+        - name: RUNTIME_TOKEN_AUDIENCE
+          value: durable-operator
+        - name: RUNTIME_TOKEN_SERVICE_ACCOUNT
+          value: observer
+        - name: RUNTIME_TOKEN_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        name: operator
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /readyz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        volumeMounts:
+        - mountPath: /tmp
+          name: scratch
+        - mountPath: /identity
+          name: identity
+          readOnly: true
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: operator
+      terminationGracePeriodSeconds: 40
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app: operator
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+      volumes:
+      - emptyDir: {}
+        name: scratch
+      - name: identity
+        projected:
+          defaultMode: 420
+          sources:
+          - serviceAccountToken:
+              audience: https://kubernetes.default.svc.cluster.local
+              expirationSeconds: 3600
+              path: reviewer
+          - configMap:
+              items:
+              - key: ca.crt
+                path: ca.crt
+              name: kube-root-ca.crt
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: relay
+  namespace: dur053-baseline
+spec:
+  replicas: 1
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: relay
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: relay
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: RUNTIME_SHUTDOWN_MODE
+          value: legacy
+        - name: RUNTIME_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: url
+              name: campaign-db
+        - name: DUR048_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR049_RECORD_LEASE_ACQUISITIONS
+          value: "1"
+        - name: RUNTIME_ROLES
+          value: relay
+        - name: RUNTIME_ROLE
+          value: relay
+        - name: RUNTIME_ADDR
+          value: 0.0.0.0:8080
+        - name: RUNTIME_DB_MAX_CONNS
+          value: "3"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: kafka:19092
+        image: localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        name: relay
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /readyz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        volumeMounts:
+        - mountPath: /tmp
+          name: scratch
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: relay
+      terminationGracePeriodSeconds: 40
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app: relay
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+      volumes:
+      - emptyDir: {}
+        name: scratch
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: scheduler
+  namespace: dur053-baseline
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: scheduler
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: scheduler
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: RUNTIME_SHUTDOWN_MODE
+          value: legacy
+        - name: RUNTIME_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: url
+              name: campaign-db
+        - name: DUR048_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR049_RECORD_LEASE_ACQUISITIONS
+          value: "1"
+        - name: RUNTIME_ROLES
+          value: scheduler,ingestor
+        - name: RUNTIME_ROLE
+          value: scheduler
+        - name: RUNTIME_ADDR
+          value: 0.0.0.0:8080
+        - name: RUNTIME_DB_MAX_CONNS
+          value: "6"
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: kafka:19092
+        image: localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        name: scheduler
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /readyz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        volumeMounts:
+        - mountPath: /tmp
+          name: scratch
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: scheduler
+      terminationGracePeriodSeconds: 40
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app: scheduler
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+      volumes:
+      - emptyDir: {}
+        name: scratch
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  namespace: dur053-baseline
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: worker
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: worker
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: WORKER_DRAIN_MODE
+          value: legacy
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: PYTHONDONTWRITEBYTECODE
+          value: "1"
+        - name: DUR048_ACTIVITY_DELAY_MS
+          value: "100"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: WORKER_SLOTS
+          value: "2"
+        - name: WORKER_DRAIN_SECONDS
+          value: "30"
+        - name: CONTROL_API_URL
+          value: http://worker-control:8080
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: kafka:19092
+        - name: WORKER_TOKEN_FILE
+          value: /identity/token
+        - name: DUR053_WITNESS_DIR
+          value: /witness/$(POD_NAME)
+        image: localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        name: worker
+        ports:
+        - containerPort: 8081
+          name: http
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /readyz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+          requests:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        volumeMounts:
+        - mountPath: /tmp
+          name: scratch
+        - mountPath: /identity
+          name: identity
+          readOnly: true
+        - mountPath: /witness
+          name: witness
+      initContainers:
+      - command:
+        - python
+        - -c
+        - import os; os.makedirs(os.environ["DUR053_WITNESS_DIR"],exist_ok=True)
+        env:
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_UID
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.uid
+        - name: PYTHONDONTWRITEBYTECODE
+          value: "1"
+        - name: DUR048_ACTIVITY_DELAY_MS
+          value: "100"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: WORKER_SLOTS
+          value: "2"
+        - name: WORKER_DRAIN_SECONDS
+          value: "30"
+        - name: CONTROL_API_URL
+          value: http://worker-control:8080
+        - name: KAFKA_BOOTSTRAP_SERVERS
+          value: kafka:19092
+        - name: WORKER_TOKEN_FILE
+          value: /identity/token
+        - name: DUR053_WITNESS_DIR
+          value: /witness/$(POD_NAME)
+        image: localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+        imagePullPolicy: Never
+        name: witness-directory
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 512Mi
+          requests:
+            cpu: 200m
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /witness
+          name: witness
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: worker
+      terminationGracePeriodSeconds: 40
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app: worker
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+      volumes:
+      - emptyDir: {}
+        name: scratch
+      - name: identity
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: durable-worker-control
+              expirationSeconds: 3600
+              path: token
+      - name: witness
+        persistentVolumeClaim:
+          claimName: witness
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker-control
+  namespace: dur053-baseline
+spec:
+  replicas: 2
+  revisionHistoryLimit: 2
+  selector:
+    matchLabels:
+      app: worker-control
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+    type: RollingUpdate
+  template:
+    metadata:
+      labels:
+        app: worker-control
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - env:
+        - name: RUNTIME_SHUTDOWN_MODE
+          value: legacy
+        - name: RUNTIME_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: url
+              name: campaign-db
+        - name: DUR048_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR049_RECORD_LEASE_ACQUISITIONS
+          value: "1"
+        - name: RUNTIME_ROLES
+          value: worker-control
+        - name: RUNTIME_ROLE
+          value: worker-control
+        - name: RUNTIME_ADDR
+          value: 0.0.0.0:8080
+        - name: RUNTIME_DB_MAX_CONNS
+          value: "4"
+        - name: RUNTIME_TOKEN_AUTH
+          value: enabled
+        - name: RUNTIME_TOKEN_REVIEW_URL
+          value: https://kubernetes.default.svc
+        - name: RUNTIME_TOKEN_REVIEW_CA
+          value: /identity/ca.crt
+        - name: RUNTIME_TOKEN_REVIEW_TOKEN_FILE
+          value: /identity/reviewer
+        - name: RUNTIME_TOKEN_ISSUER
+          value: https://kubernetes.default.svc.cluster.local
+        - name: RUNTIME_TOKEN_AUDIENCE
+          value: durable-worker-control
+        - name: RUNTIME_TOKEN_SERVICE_ACCOUNT
+          value: worker
+        - name: RUNTIME_TOKEN_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        image: localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+        imagePullPolicy: Never
+        livenessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        name: worker-control
+        ports:
+        - containerPort: 8080
+          name: http
+        readinessProbe:
+          failureThreshold: 2
+          httpGet:
+            path: /readyz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        startupProbe:
+          failureThreshold: 60
+          httpGet:
+            path: /healthz
+            port: http
+          periodSeconds: 2
+          timeoutSeconds: 2
+        volumeMounts:
+        - mountPath: /tmp
+          name: scratch
+        - mountPath: /identity
+          name: identity
+          readOnly: true
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: worker-control
+      terminationGracePeriodSeconds: 40
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app: worker-control
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: ScheduleAnyway
+      volumes:
+      - emptyDir: {}
+        name: scratch
+      - name: identity
+        projected:
+          defaultMode: 420
+          sources:
+          - serviceAccountToken:
+              audience: https://kubernetes.default.svc.cluster.local
+              expirationSeconds: 3600
+              path: reviewer
+          - configMap:
+              items:
+              - key: ca.crt
+                path: ca.crt
+              name: kube-root-ca.crt
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api
+  namespace: dur053-baseline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: api
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: demand
+  namespace: dur053-baseline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: demand
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: operator
+  namespace: dur053-baseline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: operator
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: relay
+  namespace: dur053-baseline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: relay
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: scheduler
+  namespace: dur053-baseline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: scheduler
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: worker
+  namespace: dur053-baseline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: worker
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: worker-control
+  namespace: dur053-baseline
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: worker-control
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: compatibility
+  namespace: dur053-baseline
+spec:
+  activeDeadlineSeconds: 180
+  backoffLimit: 0
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      labels:
+        app: compatibility
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - command:
+        - /runtime
+        - compatibility-check
+        - --worker-registry
+        - /registry/worker.json
+        env:
+        - name: RUNTIME_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: url
+              name: campaign-db
+        - name: DUR048_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR049_RECORD_LEASE_ACQUISITIONS
+          value: "1"
+        image: localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+        imagePullPolicy: Never
+        name: compatibility
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /registry
+          name: registry
+          readOnly: true
+      initContainers:
+      - command:
+        - python
+        - -c
+        - import json; from workers.registry import default_registry; open("/registry/worker.json","w").write(json.dumps(default_registry().manifest()))
+        env:
+        - name: DUR048_ACTIVITY_DELAY_MS
+          value: "100"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        image: localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+        imagePullPolicy: Never
+        name: candidate-worker-registry
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+        volumeMounts:
+        - mountPath: /registry
+          name: registry
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: compatibility
+      terminationGracePeriodSeconds: 40
+      volumes:
+      - emptyDir: {}
+        name: registry
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+  namespace: dur053-baseline
+spec:
+  activeDeadlineSeconds: 180
+  backoffLimit: 0
+  completions: 1
+  parallelism: 1
+  template:
+    metadata:
+      labels:
+        app: migrate
+    spec:
+      automountServiceAccountToken: false
+      containers:
+      - command:
+        - /migrate
+        env:
+        - name: RUNTIME_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: DATABASE_URL
+          valueFrom:
+            secretKeyRef:
+              key: url
+              name: campaign-db
+        - name: DUR048_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR053_ALLOW_FIXTURE_ACTIVITY
+          value: "1"
+        - name: DUR049_RECORD_LEASE_ACQUISITIONS
+          value: "1"
+        image: localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+        imagePullPolicy: Never
+        name: migrate
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 64Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: true
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 65532
+        runAsGroup: 65532
+        runAsNonRoot: true
+        runAsUser: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccountName: migrate
+      terminationGracePeriodSeconds: 40
+---
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: worker-demand
+  namespace: dur053-baseline
+spec:
+  advanced:
+    horizontalPodAutoscalerConfig:
+      behavior:
+        scaleDown:
+          policies:
+          - periodSeconds: 30
+            type: Pods
+            value: 1
+          selectPolicy: Min
+          stabilizationWindowSeconds: 60
+        scaleUp:
+          policies:
+          - periodSeconds: 30
+            type: Pods
+            value: 1
+          selectPolicy: Min
+          stabilizationWindowSeconds: 0
+  cooldownPeriod: 60
+  fallback:
+    failureThreshold: 3
+    replicas: 2
+  maxReplicaCount: 4
+  minReplicaCount: 1
+  pollingInterval: 5
+  scaleTargetRef:
+    name: worker
+  triggers:
+  - authenticationRef:
+      name: campaign-demand
+    metadata:
+      authMode: bearer
+      format: json
+      targetValue: "2"
+      unsafeSsl: "false"
+      url: http://demand.dur053-baseline.svc.cluster.local:8091/v1/demand
+      valueLocation: demand
+    metricType: AverageValue
+    type: metrics-api
+---
+apiVersion: keda.sh/v1alpha1
+kind: TriggerAuthentication
+metadata:
+  name: campaign-demand
+  namespace: dur053-baseline
+spec:
+  secretTargetRef:
+  - key: token
+    name: campaign-demand
+    parameter: token
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-egress
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.4/32
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 10.96.0.1/32
+    - ipBlock:
+        cidr: 172.18.0.2/32
+  podSelector:
+    matchLabels:
+      app: api
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api-ingress
+  namespace: dur053-baseline
+spec:
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: observer
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app: api
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: compatibility-egress
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.4/32
+  podSelector:
+    matchLabels:
+      app: compatibility
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny
+  namespace: dur053-baseline
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demand-egress
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.4/32
+  podSelector:
+    matchLabels:
+      app: demand
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: demand-ingress
+  namespace: dur053-baseline
+spec:
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: keda
+      podSelector:
+        matchLabels:
+          app: keda-operator
+    ports:
+    - port: 8091
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app: demand
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dns
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 53
+      protocol: UDP
+    - port: 53
+      protocol: TCP
+    to:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: kube-system
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+  podSelector: {}
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: migrate-egress
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.4/32
+  podSelector:
+    matchLabels:
+      app: migrate
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: observer-egress
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - podSelector:
+        matchLabels:
+          app: api
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - podSelector:
+        matchLabels:
+          app: operator
+  - ports:
+    - port: 8081
+      protocol: TCP
+    to:
+    - podSelector:
+        matchLabels:
+          app: worker
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.4/32
+  podSelector:
+    matchLabels:
+      app: observer
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: operator-egress
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.4/32
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 10.96.0.1/32
+    - ipBlock:
+        cidr: 172.18.0.2/32
+  podSelector:
+    matchLabels:
+      app: operator
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: operator-ingress
+  namespace: dur053-baseline
+spec:
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: observer
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app: operator
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: relay-egress
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.4/32
+  - ports:
+    - port: 19092
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.5/32
+  podSelector:
+    matchLabels:
+      app: relay
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: scheduler-egress
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.4/32
+  - ports:
+    - port: 19092
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.5/32
+  podSelector:
+    matchLabels:
+      app: scheduler
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-control-egress
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 5432
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.4/32
+  - ports:
+    - port: 443
+      protocol: TCP
+    - port: 6443
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 10.96.0.1/32
+    - ipBlock:
+        cidr: 172.18.0.2/32
+  podSelector:
+    matchLabels:
+      app: worker-control
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-control-ingress
+  namespace: dur053-baseline
+spec:
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: worker
+    ports:
+    - port: 8080
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app: worker-control
+  policyTypes:
+  - Ingress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-egress
+  namespace: dur053-baseline
+spec:
+  egress:
+  - ports:
+    - port: 19092
+      protocol: TCP
+    to:
+    - ipBlock:
+        cidr: 172.18.0.5/32
+  - ports:
+    - port: 8080
+      protocol: TCP
+    to:
+    - podSelector:
+        matchLabels:
+          app: worker-control
+  podSelector:
+    matchLabels:
+      app: worker
+  policyTypes:
+  - Egress
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: worker-ingress
+  namespace: dur053-baseline
+spec:
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: observer
+    ports:
+    - port: 8081
+      protocol: TCP
+  podSelector:
+    matchLabels:
+      app: worker
+  policyTypes:
+  - Ingress

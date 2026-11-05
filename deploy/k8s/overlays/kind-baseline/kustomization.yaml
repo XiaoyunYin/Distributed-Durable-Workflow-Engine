@@ -1,0 +1,80 @@
+{
+  "apiVersion": "kustomize.config.k8s.io/v1beta1",
+  "kind": "Kustomization",
+  "namespace": "dur053-baseline",
+  "resources": [
+    "../../base"
+  ],
+  "patches": [
+    {
+      "target": {
+        "kind": "Namespace",
+        "name": "dur053-kind"
+      },
+      "patch": "[{\"op\": \"replace\", \"path\": \"/metadata/name\", \"value\": \"dur053-baseline\"}]"
+    },
+    {
+      "target": {
+        "kind": "Deployment",
+        "name": "api"
+      },
+      "patch": "{\"apiVersion\": \"apps/v1\", \"kind\": \"Deployment\", \"metadata\": {\"name\": \"api\"}, \"spec\": {\"template\": {\"spec\": {\"containers\": [{\"name\": \"api\", \"env\": [{\"name\": \"RUNTIME_SHUTDOWN_MODE\", \"value\": \"legacy\"}]}]}}}}"
+    },
+    {
+      "target": {
+        "kind": "Deployment",
+        "name": "operator"
+      },
+      "patch": "{\"apiVersion\": \"apps/v1\", \"kind\": \"Deployment\", \"metadata\": {\"name\": \"operator\"}, \"spec\": {\"template\": {\"spec\": {\"containers\": [{\"name\": \"operator\", \"env\": [{\"name\": \"RUNTIME_SHUTDOWN_MODE\", \"value\": \"legacy\"}]}]}}}}"
+    },
+    {
+      "target": {
+        "kind": "Deployment",
+        "name": "worker-control"
+      },
+      "patch": "{\"apiVersion\": \"apps/v1\", \"kind\": \"Deployment\", \"metadata\": {\"name\": \"worker-control\"}, \"spec\": {\"template\": {\"spec\": {\"containers\": [{\"name\": \"worker-control\", \"env\": [{\"name\": \"RUNTIME_SHUTDOWN_MODE\", \"value\": \"legacy\"}]}]}}}}"
+    },
+    {
+      "target": {
+        "kind": "Deployment",
+        "name": "scheduler"
+      },
+      "patch": "{\"apiVersion\": \"apps/v1\", \"kind\": \"Deployment\", \"metadata\": {\"name\": \"scheduler\"}, \"spec\": {\"template\": {\"spec\": {\"containers\": [{\"name\": \"scheduler\", \"env\": [{\"name\": \"RUNTIME_SHUTDOWN_MODE\", \"value\": \"legacy\"}]}]}}}}"
+    },
+    {
+      "target": {
+        "kind": "Deployment",
+        "name": "relay"
+      },
+      "patch": "{\"apiVersion\": \"apps/v1\", \"kind\": \"Deployment\", \"metadata\": {\"name\": \"relay\"}, \"spec\": {\"template\": {\"spec\": {\"containers\": [{\"name\": \"relay\", \"env\": [{\"name\": \"RUNTIME_SHUTDOWN_MODE\", \"value\": \"legacy\"}]}]}}}}"
+    },
+    {
+      "target": {
+        "kind": "Deployment",
+        "name": "demand"
+      },
+      "patch": "{\"apiVersion\": \"apps/v1\", \"kind\": \"Deployment\", \"metadata\": {\"name\": \"demand\"}, \"spec\": {\"template\": {\"spec\": {\"containers\": [{\"name\": \"demand\", \"env\": [{\"name\": \"RUNTIME_SHUTDOWN_MODE\", \"value\": \"legacy\"}]}]}}}}"
+    },
+    {
+      "target": {
+        "kind": "Deployment",
+        "name": "worker"
+      },
+      "patch": "{\"apiVersion\": \"apps/v1\", \"kind\": \"Deployment\", \"metadata\": {\"name\": \"worker\"}, \"spec\": {\"template\": {\"spec\": {\"containers\": [{\"name\": \"worker\", \"env\": [{\"name\": \"WORKER_DRAIN_MODE\", \"value\": \"legacy\"}]}]}}}}"
+    },
+    {
+      "target": {
+        "kind": "ScaledObject",
+        "name": "worker-demand"
+      },
+      "patch": "[{\"op\": \"replace\", \"path\": \"/spec/triggers/0/metadata/url\", \"value\": \"http://demand.dur053-baseline.svc.cluster.local:8091/v1/demand\"}]"
+    },
+    {
+      "target": {
+        "kind": "ClusterRoleBinding",
+        "name": "dur053-tokenreview"
+      },
+      "patch": "[{\"op\": \"replace\", \"path\": \"/subjects/0/namespace\", \"value\": \"dur053-baseline\"}, {\"op\": \"replace\", \"path\": \"/subjects/1/namespace\", \"value\": \"dur053-baseline\"}, {\"op\": \"replace\", \"path\": \"/subjects/2/namespace\", \"value\": \"dur053-baseline\"}]"
+    }
+  ]
+}

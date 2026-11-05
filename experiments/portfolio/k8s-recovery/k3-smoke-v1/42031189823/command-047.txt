@@ -1,0 +1,1 @@
+docker.io/calico/kube-controllers@sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703

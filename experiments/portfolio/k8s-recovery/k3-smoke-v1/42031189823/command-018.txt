@@ -1,0 +1,16 @@
+docker.io/calico/cni@sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c: Pulling from calico/cni
+f51b4c75aff4: Pulling fs layer
+5cddefffcd65: Pulling fs layer
+4f4fb700ef54: Pulling fs layer
+4f4fb700ef54: Verifying Checksum
+4f4fb700ef54: Download complete
+f51b4c75aff4: Verifying Checksum
+f51b4c75aff4: Download complete
+f51b4c75aff4: Pull complete
+5cddefffcd65: Verifying Checksum
+5cddefffcd65: Download complete
+5cddefffcd65: Pull complete
+4f4fb700ef54: Pull complete
+Digest: sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c
+Status: Downloaded newer image for calico/cni@sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c
+docker.io/calico/cni:v3.29.3@sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c

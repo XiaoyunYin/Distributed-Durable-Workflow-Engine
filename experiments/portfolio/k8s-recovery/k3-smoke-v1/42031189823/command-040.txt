@@ -1,0 +1,59 @@
+localhost:5001/dur053 runtime@sha256:5ad	fetching image content	
+Pulling from OCI Registry (localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 runtime@sha256:5ad	fetching image content	
+└──manifest (5adbe7113373)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+Pulling from OCI Registry (localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 runtime@sha256:5ad	fetching image content	
+└──manifest (5adbe7113373)              	waiting    	|[32m[0m--------------------------------------|	
+   └──config (3d9bf5755471)             	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+Pulling from OCI Registry (localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 runtime@sha256:5ad	fetching image content	
+└──manifest (5adbe7113373)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (3d9bf5755471)             	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fbd2e0e6faf1)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+Pulling from OCI Registry (localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 runtime@sha256:5ad	fetching image content	
+└──manifest (5adbe7113373)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (3d9bf5755471)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (fbd2e0e6faf1)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (89647e8d1fa1)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+Pulling from OCI Registry (localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 runtime@sha256:5ad	fetching image content	
+└──manifest (5adbe7113373)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (3d9bf5755471)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (fbd2e0e6faf1)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   └──layer (89647e8d1fa1)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+Pulling from OCI Registry (localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2)	elapsed: 0.3 s	total:  23.7 M	(77.7 MiB/s)	
+localhost:5001/dur053 runtime@sha256:5ad	fetching image content	
+└──manifest (5adbe7113373)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (3d9bf5755471)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (fbd2e0e6faf1)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   └──layer (89647e8d1fa1)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+application/vnd.docker.distribution.manifest.v2+json sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+Pulling from OCI Registry (localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2)	elapsed: 0.3 s	total:  23.8 M	(78.1 MiB/s)	
+localhost:5001/dur053 runtime@sha256:5ad	fetching image content	
+└──manifest (5adbe7113373)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──config (3d9bf5755471)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (fbd2e0e6faf1)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   └──layer (89647e8d1fa1)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+application/vnd.docker.distribution.manifest.v2+json sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+Pulling from OCI Registry (localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2)	elapsed: 0.3 s	total:  23.8 M	(78.1 MiB/s)	
+localhost:5001/dur053 runtime@sha256:5ad	fetching image content	
+└──manifest (5adbe7113373)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──config (3d9bf5755471)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (fbd2e0e6faf1)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   └──layer (89647e8d1fa1)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+application/vnd.docker.distribution.manifest.v2+json sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+Pulling from OCI Registry (localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2)	elapsed: 0.3 s	total:  23.8 M	(78.1 MiB/s)	
+localhost:5001/dur053 runtime@sha256:5ad	saved	
+└──manifest (5adbe7113373)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──config (3d9bf5755471)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (fbd2e0e6faf1)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   └──layer (89647e8d1fa1)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+application/vnd.docker.distribution.manifest.v2+json sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2
+Pulling from OCI Registry (localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2)	elapsed: 0.3 s	total:  23.8 M	(78.0 MiB/s)	

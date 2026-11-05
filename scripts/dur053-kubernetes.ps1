@@ -6,6 +6,22 @@ param(
     [string]$OutputRoot
 )
 $ErrorActionPreference = "Stop"
+if ($Context -eq "kind") {
+    if ($Scenario -notin @("package-check", "smoke", "cleanup")) { throw "K3b: scenario is not implemented." }
+    if (-not $OutputRoot) { throw "Kind scenarios require a fresh -OutputRoot outside the repository." }
+    $kindScratch = if ($IsWindows) { "D:\coding agent files\durable-engine\codex\k3a" } else {
+        if (-not $env:RUNNER_TEMP) { throw "RUNNER_TEMP is required." }
+        Join-Path $env:RUNNER_TEMP "dur053-k3a"
+    }
+    New-Item -ItemType Directory -Force -Path $kindScratch | Out-Null
+    $env:TMP = $kindScratch
+    $env:TEMP = $kindScratch
+    $env:TMPDIR = $kindScratch
+    $env:PYTHONDONTWRITEBYTECODE = "1"
+    & bash "$PSScriptRoot/dur053-k3.sh" $Scenario $OutputRoot $kindScratch
+    if ($LASTEXITCODE -ne 0) { throw "DUR-053 K3a FAIL; see retained evidence." }
+    return
+}
 if ($Context -ne "compose" -or $Scenario -ne "prerequisites") {
     throw "Only -Context compose -Scenario prerequisites is implemented in K2."
 }

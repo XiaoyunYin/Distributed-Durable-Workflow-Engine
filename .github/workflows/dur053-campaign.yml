@@ -1,0 +1,47 @@
+name: DUR-053 registered campaigns
+on:
+  workflow_dispatch:
+    inputs:
+      scenario:
+        description: Registered scenario (K3b and later; currently refused)
+        required: true
+        default: pilot
+        type: string
+      arm:
+        description: Registered workload arm
+        required: true
+        default: short
+        type: choice
+        options: [short, medium, long, cpu]
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: dur053-live-ledger
+  cancel-in-progress: false
+jobs:
+  campaign:
+    name: DUR-053 campaign
+    runs-on: ubuntu-24.04
+    timeout-minutes: 350
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Validate ledger and refuse unimplemented measurement
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DUR053_SCENARIO: ${{ inputs.scenario }}
+          DUR053_ARM: ${{ inputs.arm }}
+        run: |
+          set -euo pipefail
+          export TMP="$RUNNER_TEMP" TEMP="$RUNNER_TEMP" TMPDIR="$RUNNER_TEMP" PYTHONDONTWRITEBYTECODE=1
+          python3 scripts/dur053_campaign.py --output "$RUNNER_TEMP/dur053-campaign"
+      - name: Retain refusal evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dur053-campaign-${{ github.run_id }}
+          path: ${{ runner.temp }}/dur053-campaign/
+          if-no-files-found: error

@@ -1,0 +1,3 @@
+networkpolicy.networking.k8s.io "smoke-auth-operator" deleted
+networkpolicy.networking.k8s.io "smoke-auth-demand" deleted
+networkpolicy.networking.k8s.io "smoke-egress" deleted

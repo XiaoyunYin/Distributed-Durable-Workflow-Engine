@@ -1,0 +1,1 @@
+deployment "keda-metrics-apiserver" successfully rolled out

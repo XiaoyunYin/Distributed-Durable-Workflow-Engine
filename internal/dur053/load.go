@@ -12,7 +12,9 @@ import (
 	"math"
 	"net/http"
 	"net/url"
+	"os"
 	"regexp"
+	"strings"
 	"sync"
 	"time"
 
@@ -23,16 +25,17 @@ import (
 var idPattern = regexp.MustCompile(`^[a-zA-Z0-9-]{1,64}$`)
 
 type Config struct {
-	URL         string
-	Namespace   string
-	RunID       string
-	Arm         string
-	Seed        int64
-	Rate        float64
-	Count       int
-	Concurrency int
-	CPUUnits    int
-	Timeout     time.Duration
+	BearerTokenFile string
+	URL             string
+	Namespace       string
+	RunID           string
+	Arm             string
+	Seed            int64
+	Rate            float64
+	Count           int
+	Concurrency     int
+	CPUUnits        int
+	Timeout         time.Duration
 }
 
 func (c Config) Validate() error {
@@ -138,13 +141,21 @@ func (realClock) Wait(ctx context.Context, at time.Time) error {
 
 type Sender func(context.Context, []byte) (int, []byte, error)
 
-func HTTP(client *http.Client, url string) Sender {
+func HTTP(client *http.Client, url string) Sender { return HTTPWithToken(client, url, "") }
+func HTTPWithToken(client *http.Client, url, tokenFile string) Sender {
 	return func(ctx context.Context, body []byte) (int, []byte, error) {
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, url+"/v1/workflows", bytes.NewReader(body))
 		if err != nil {
 			return 0, nil, err
 		}
 		req.Header.Set("Content-Type", "application/json")
+		if tokenFile != "" {
+			data, e := os.ReadFile(tokenFile)
+			if e != nil || strings.TrimSpace(string(data)) == "" {
+				return 0, nil, fmt.Errorf("campaign token unavailable")
+			}
+			req.Header.Set("Authorization", "Bearer "+strings.TrimSpace(string(data)))
+		}
 		response, err := client.Do(req)
 		if err != nil {
 			return 0, nil, err
@@ -158,7 +169,7 @@ func HTTP(client *http.Client, url string) Sender {
 	}
 }
 func Run(ctx context.Context, c Config, planned invariants.Arrivals) invariants.Arrivals {
-	return RunWithClock(ctx, c, planned, realClock{}, HTTP(&http.Client{Timeout: c.Timeout, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, c.URL))
+	return RunWithClock(ctx, c, planned, realClock{}, HTTPWithToken(&http.Client{Timeout: c.Timeout, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, c.URL, c.BearerTokenFile))
 }
 
 // RunWithClock never waits for a response or a free slot in its schedule loop.

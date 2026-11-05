@@ -1,0 +1,123 @@
+{
+  "info": {
+    "chainID": "sha256:b3780a5f3330c62bddaf1597bd34a37b8e3d892f0c36506cfd7180dbeb567bf6",
+    "imageSpec": {
+      "architecture": "amd64",
+      "config": {
+        "Entrypoint": [
+          "/usr/bin/kube-controllers"
+        ],
+        "Env": [
+          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        ],
+        "Labels": {
+          "description": "Calico Kubernetes controllers monitor the Kubernetes API and perform actions based on cluster state",
+          "maintainer": "maintainers@tigera.io",
+          "name": "Calico Kubernetes controllers",
+          "release": "1",
+          "summary": "Calico Kubernetes controllers monitor the Kubernetes API and perform actions based on cluster state",
+          "vendor": "Project Calico",
+          "version": "v3.29.3"
+        },
+        "User": "999",
+        "WorkingDir": "/"
+      },
+      "created": "2025-03-25T16:42:47.99500542Z",
+      "history": [
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-19T17:39:17.823208192Z",
+          "created_by": "COPY / / # buildkit"
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "ARG GIT_VERSION=v3.29.3",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "LABEL description=Calico Kubernetes controllers monitor the Kubernetes API and perform actions based on cluster state",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "LABEL maintainer=maintainers@tigera.io",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "LABEL name=Calico Kubernetes controllers",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "LABEL release=1",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "LABEL summary=Calico Kubernetes controllers monitor the Kubernetes API and perform actions based on cluster state",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "LABEL vendor=Project Calico",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "LABEL version=v3.29.3",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "COPY / / # buildkit"
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "USER 999",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:42:47.99500542Z",
+          "created_by": "ENTRYPOINT [\"/usr/bin/kube-controllers\"]",
+          "empty_layer": true
+        }
+      ],
+      "os": "linux",
+      "rootfs": {
+        "diff_ids": [
+          "sha256:37c1775e03026c635ff011c7c47d721aff77e8d4b7d61422539563a3e0e0ee3e",
+          "sha256:9ad9e3f4f50f7d9fe222699b04d43c08f22ca43bdb7e52c69c3beb9a90a5ce1e"
+        ],
+        "type": "layers"
+      }
+    }
+  },
+  "status": {
+    "id": "sha256:4e982138231b3653a012db4f21ed5e7be69afd5f553dba38cf7e88f0ed740b94",
+    "pinned": false,
+    "repoDigests": [
+      "docker.io/calico/kube-controllers@sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703"
+    ],
+    "repoTags": [
+      "docker.io/calico/kube-controllers:v3.29.3"
+    ],
+    "size": "82446446",
+    "uid": {
+      "value": "999"
+    },
+    "username": ""
+  }
+}

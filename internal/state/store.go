@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strconv"
 	"time"
 
 	"durable-agent-execution-engine/internal/partition"
@@ -46,7 +47,27 @@ func NewDemandFromURL(ctx context.Context, databaseURL string) (*Store, error) {
 	return newFromURL(ctx, databaseURL, 2, true)
 }
 
+// NewCheckerFromURL isolates exports from demand's latency contract. A finite
+// caller deadline bounds the entire scan, including connection acquisition.
+func NewCheckerFromURL(ctx context.Context, databaseURL string) (*Store, error) {
+	deadline, ok := ctx.Deadline()
+	if !ok || time.Until(deadline) < time.Millisecond {
+		return nil, errors.New("checker requires a positive export deadline")
+	}
+	return newFromURLConfig(ctx, databaseURL, 2, true, func(config *pgxpool.Config) {
+		budget := strconv.FormatInt(time.Until(deadline).Milliseconds(), 10) + "ms"
+		config.ConnConfig.RuntimeParams["statement_timeout"] = budget
+		config.ConnConfig.RuntimeParams["idle_in_transaction_session_timeout"] = budget
+		config.ConnConfig.RuntimeParams["default_transaction_isolation"] = "repeatable read"
+		config.ConnConfig.RuntimeParams["application_name"] = "durable-checker"
+	})
+}
+
 func newFromURL(ctx context.Context, databaseURL string, maxConns int32, readOnly bool) (*Store, error) {
+	return newFromURLConfig(ctx, databaseURL, maxConns, readOnly, nil)
+}
+
+func newFromURLConfig(ctx context.Context, databaseURL string, maxConns int32, readOnly bool, configure func(*pgxpool.Config)) (*Store, error) {
 	ledgerSetting := os.Getenv("DUR049_RECORD_LEASE_ACQUISITIONS")
 	if ledgerSetting != "" && ledgerSetting != "0" && ledgerSetting != "1" {
 		return nil, fmt.Errorf("DUR049_RECORD_LEASE_ACQUISITIONS must be 0 or 1, got %q", ledgerSetting)
@@ -64,6 +85,14 @@ func newFromURL(ctx context.Context, databaseURL string, maxConns int32, readOnl
 		return nil, fmt.Errorf("parse database URL: %w", err)
 	}
 	config.MaxConns = maxConns
+	// Explicit role pool settings leave absent/default Compose behavior unchanged.
+	if !readOnly && maxConns == 8 && os.Getenv("RUNTIME_DB_MAX_CONNS") != "" {
+		value, err := strconv.Atoi(os.Getenv("RUNTIME_DB_MAX_CONNS"))
+		if err != nil || value < 1 || value > 8 {
+			return nil, errors.New("RUNTIME_DB_MAX_CONNS must be in 1..8")
+		}
+		config.MaxConns = int32(value)
+	}
 	config.ConnConfig.RuntimeParams = map[string]string{
 		"lock_timeout":                        postgresLockTimeout,
 		"statement_timeout":                   postgresStatementTimeout,
@@ -76,6 +105,12 @@ func newFromURL(ctx context.Context, databaseURL string, maxConns int32, readOnl
 		config.ConnConfig.RuntimeParams["default_transaction_read_only"] = "on"
 		config.ConnConfig.RuntimeParams["statement_timeout"] = "2s"
 		config.ConnConfig.RuntimeParams["application_name"] = "durable-demand"
+	}
+	if os.Getenv("RUNTIME_DB_MAX_CONNS") != "" && !readOnly && maxConns == 8 {
+		config.ConnConfig.RuntimeParams["application_name"] = "durable-" + os.Getenv("RUNTIME_ROLE")
+	}
+	if configure != nil {
+		configure(config)
 	}
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {

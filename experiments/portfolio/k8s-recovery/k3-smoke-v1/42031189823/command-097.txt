@@ -1,0 +1,2 @@
+{"operator": "DENIED", "demand": "DENIED"}
+Defaulted container "worker" out of: worker, witness-directory (init)

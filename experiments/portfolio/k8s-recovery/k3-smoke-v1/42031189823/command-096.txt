@@ -1,0 +1,131 @@
+{
+    "apiVersion": "keda.sh/v1alpha1",
+    "kind": "ScaledObject",
+    "metadata": {
+        "annotations": {
+            "autoscaling.keda.sh/paused-scale-in": "true",
+            "autoscaling.keda.sh/paused-scale-out": "true",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"keda.sh/v1alpha1\",\"kind\":\"ScaledObject\",\"metadata\":{\"annotations\":{\"autoscaling.keda.sh/paused-scale-in\":\"true\",\"autoscaling.keda.sh/paused-scale-out\":\"true\"},\"name\":\"worker-demand\",\"namespace\":\"dur053-kind\"},\"spec\":{\"advanced\":{\"horizontalPodAutoscalerConfig\":{\"behavior\":{\"scaleDown\":{\"policies\":[{\"periodSeconds\":30,\"type\":\"Pods\",\"value\":1}],\"selectPolicy\":\"Min\",\"stabilizationWindowSeconds\":60},\"scaleUp\":{\"policies\":[{\"periodSeconds\":30,\"type\":\"Pods\",\"value\":1}],\"selectPolicy\":\"Min\",\"stabilizationWindowSeconds\":0}}}},\"cooldownPeriod\":60,\"fallback\":{\"failureThreshold\":3,\"replicas\":2},\"maxReplicaCount\":4,\"minReplicaCount\":1,\"pollingInterval\":5,\"scaleTargetRef\":{\"name\":\"worker\"},\"triggers\":[{\"authenticationRef\":{\"name\":\"campaign-demand\"},\"metadata\":{\"authMode\":\"bearer\",\"format\":\"json\",\"targetValue\":\"2\",\"unsafeSsl\":\"false\",\"url\":\"http://demand.dur053-kind.svc.cluster.local:8091/v1/demand\",\"valueLocation\":\"demand\"},\"metricType\":\"AverageValue\",\"type\":\"metrics-api\"}]}}\n"
+        },
+        "creationTimestamp": "2026-11-05T12:58:15Z",
+        "finalizers": [
+            "finalizer.keda.sh"
+        ],
+        "generation": 2,
+        "labels": {
+            "scaledobject.keda.sh/name": "worker-demand"
+        },
+        "name": "worker-demand",
+        "namespace": "dur053-kind",
+        "resourceVersion": "1429",
+        "uid": "47d74a26-0c2e-4146-9c37-7f8b2aaf6e19"
+    },
+    "spec": {
+        "advanced": {
+            "horizontalPodAutoscalerConfig": {
+                "behavior": {
+                    "scaleDown": {
+                        "policies": [
+                            {
+                                "periodSeconds": 30,
+                                "type": "Pods",
+                                "value": 1
+                            }
+                        ],
+                        "selectPolicy": "Min",
+                        "stabilizationWindowSeconds": 60
+                    },
+                    "scaleUp": {
+                        "policies": [
+                            {
+                                "periodSeconds": 30,
+                                "type": "Pods",
+                                "value": 1
+                            }
+                        ],
+                        "selectPolicy": "Min",
+                        "stabilizationWindowSeconds": 0
+                    }
+                }
+            },
+            "scalingModifiers": {}
+        },
+        "cooldownPeriod": 60,
+        "fallback": {
+            "behavior": "static",
+            "failureThreshold": 3,
+            "replicas": 2
+        },
+        "maxReplicaCount": 4,
+        "minReplicaCount": 1,
+        "pollingInterval": 5,
+        "scaleTargetRef": {
+            "name": "worker"
+        },
+        "triggers": [
+            {
+                "authenticationRef": {
+                    "name": "campaign-demand"
+                },
+                "metadata": {
+                    "authMode": "bearer",
+                    "format": "json",
+                    "targetValue": "2",
+                    "unsafeSsl": "false",
+                    "url": "http://demand.dur053-kind.svc.cluster.local:8091/v1/demand",
+                    "valueLocation": "demand"
+                },
+                "metricType": "AverageValue",
+                "type": "metrics-api"
+            }
+        ]
+    },
+    "status": {
+        "authenticationsTypes": "campaign-demand",
+        "conditions": [
+            {
+                "message": "ScaledObject is defined correctly and is ready for scaling",
+                "reason": "ScaledObjectReady",
+                "status": "True",
+                "type": "Ready"
+            },
+            {
+                "message": "Scaling is not performed because triggers are not active",
+                "reason": "ScalerNotActive",
+                "status": "False",
+                "type": "Active"
+            },
+            {
+                "message": "No fallbacks are active on this scaled object",
+                "reason": "NoFallbackFound",
+                "status": "False",
+                "type": "Fallback"
+            },
+            {
+                "message": "ScaledObject is paused",
+                "reason": "ScaledObjectPaused",
+                "status": "True",
+                "type": "Paused"
+            }
+        ],
+        "externalMetricNames": [
+            "s0-metric-api-demand"
+        ],
+        "health": {
+            "s0-metric-api-demand": {
+                "numberOfFailures": 0,
+                "status": "Happy"
+            }
+        },
+        "hpaName": "keda-hpa-worker-demand",
+        "originalReplicaCount": 2,
+        "scaleTargetGVKR": {
+            "group": "apps",
+            "kind": "Deployment",
+            "resource": "deployments",
+            "version": "v1"
+        },
+        "scaleTargetKind": "apps/v1.Deployment",
+        "triggersTypes": "metrics-api"
+    }
+}

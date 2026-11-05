@@ -584,3 +584,226 @@ remove the dedicated kind cluster, campaign dependency containers/networks and
 volumes after verified export; record retained evidence and resource inventory.
 README/claim map updates wait for verified results. Claude alone updates the
 three external career files from verified milestone evidence.
+
+
+## Amendment B (registered before any pilot or measurement, 2026-11-04)
+
+Authority: D035 and the user campaign-host decision recorded in REVIEW.md
+Round 161 addendum, reaffirmed by the K3a task. This append-only amendment
+supersedes only the host, cluster reuse, job partition, evidence-transfer and
+connection-allocation details below. Amendment A's workload, episode minima,
+family order K3 -> K4 -> K6 -> K5 -> K7, SLO derivation, fault confirmation,
+checker independence, stopping rules and 72 h hard limit remain in force.
+K3a implements packaging and smoke only. All pilots, calibration and SLO freeze
+are K3b; no pilot execution or result is authorized by a K3a smoke verdict.
+
+### Host, tools and limitations
+
+The campaign host is single-host kind on a GitHub-hosted ubuntu-24.04 runner.
+This replaces Docker Desktop/WSL2 because the approved host cannot execute the
+required downloaded tools. Each job records ImageOS and ImageVersion, observed
+vCPU count, /proc/meminfo, kernel, Docker/Python versions and exact application
+image digests. GitHub's hosted image label is mutable: the observed image
+version is evidence, not a claim that GitHub lets this workflow pin an immutable
+runner VM. Source, node, tools and add-ons are pinned independently.
+
+[Tool lock](../../../deploy/k8s/tools.lock.json) pins kind 0.27.0,
+kubectl 1.32.2, Kustomize 5.6.0, kubeconform 0.6.7, KEDA 2.18.0,
+Calico 3.29.3, Chaos Mesh 2.7.2, node/dependency images, release archive
+checksums, add-on manifest checksums and image digests. The driver verifies
+bytes before execution. Chaos Mesh is registered only; K3a does not install or
+exercise it. Kubernetes and KEDA schemas are vendored and hash checked; strict
+kubeconform validation never skips an unknown CRD. Application images are built
+from the candidate tree in CI, pushed to an ephemeral loopback registry, loaded
+into kind's containerd by the manifest digest and deployed by that digest with
+imagePullPolicy Never. The package-check scenario binds the same built digests
+into both Kustomize overlays in scratch; unbound source image markers cannot
+pass policy or be deployed by the driver. This avoids inventing a future image
+digest before a build.
+
+PostgreSQL and Kafka are separate Docker containers on the kind network,
+outside Kubernetes. Selector-less Services and explicit Endpoints use inspected
+container IPv4 addresses. All engine pools, fresh database isolation and Kafka
+consumer/group reset rules still apply. Calico replaces kind's default CNI;
+merely rendering a NetworkPolicy is insufficient. Smoke must show an allowed
+positive connection and failed worker-to-operator/demand connections, including
+an ingress-only test with explicit temporary egress, followed by independent
+HTTP 401 tests using the worker's real projected credential. Temporary probe
+allows are deleted and the registered policy restored. No untrusted worker
+receives the campaign bearer secret.
+
+Shared runner scheduling, CPU frequency, image updates and co-tenancy add noise.
+Every result remains single-host lifecycle/correctness evidence. No capacity,
+independent-host availability/HA, EKS, storage-loss, or production-readiness
+claim follows. Different jobs are different host allocations; never interpret
+cross-job timing as a paired host-controlled capacity comparison.
+
+### Job limit and recomputed schedule
+
+Live time per job is capped at 18900 s (5 h 15 min), leaving 45 min inside
+GitHub's six-hour limit for image build, export/upload and bounded teardown.
+The campaign workflow has a 350 min overall timeout. K3a smoke instead reserves
+3600 s live, with a 70 min job timeout. The live deadline includes setup and
+cleanup, with at least 600 s left for bounded closeout/teardown. A job unable
+to fit its registered windows, reconciliation timeout and this reserve refuses
+to start. Pilot reservations use their registered initial rate and nominal
+duration, then
+the observed b/r when available. Before L exists, use the existing 600 s
+reconciliation floor as the pilot closeout timeout (all D <= 45 s, so 4D <=
+180 s); a timeout still blocks freezing. This makes the previously unspecified
+pre-SLO deadline finite without changing measured-run timeouts. After the SLO
+freeze, K3b recomputes measured-family reservations from frozen b/r/L before
+measurement admission. A duration estimate is never a timeout exemption.
+
+Every live job gets a fresh kind cluster. This supersedes one cluster per
+family when a family spans jobs, because families exceed the host job limit.
+Episodes within a job still use a fresh engine database/namespace and reset
+Kafka group/data. Preserve matched pairs inside a job and alternate their
+order as already registered. Split only at the listed episode/pair boundaries;
+never split one pilot run or one fault episode. Persist the initial pilot's
+measured b/r before a repeat job and apply it unchanged; fresh clusters/runners
+between repeats add host variance and are disclosed. A longer measured pilot
+that cannot fit one job is unperformed; do not lower its 200-completion minimum
+or accelerate the initial arrival rate to squeeze it in.
+
+The long pilot is 20580 s before reset/setup and cannot fit one job. Its
+initial run is 9195 s; its three repeats total 11385 s. The twelve non-long
+pilot runs get the first job, the long initial run a second job, and its three
+repeats a third job. This also leaves room for their
+full 600 s pre-SLO closeout deadlines at the planning rates. [Reproducible schedule](amendment-b-schedule.json) is generated by
+`scripts/dur053_schedule.py`: next-fit packing in the registered family order,
+300 s setup per job, 60 s per episode reset/export, and at least 600 s unused
+at the ceiling when packing expected durations. Those 600 s are slack within
+the ceiling, not an additional promise about reconciliation. All values here
+are planning estimates, not observed live times.
+
+| Family | Jobs | Expected seconds per job (includes setup and episode reset) |
+| --- | ---: | --- |
+| K3 | 3 | 5768.4, 9555.0, 11865.0 |
+| K4 | 5 | 18244.6, 18272.4, 17520.0, 17910.1, 8102.0 |
+| K6 | 3 | 17928.0, 18075.0, 10175.0 |
+| K5 | 3 | 18119.0, 18035.0, 17504.0 |
+| K7 | 1 | 12600.0 |
+
+Amendment A's 188893.5 s episode subtotal and 438 episodes are unchanged.
+Fifteen setups replace five: 15*300 = 4500 s, an increase of 3000 s.
+Reset/export is still 438*60 = 26280 s. Preserve the other 1710 s validation
+allowance conservatively, and add one K3a smoke reservation of 3600 s:
+188893.5 + 4500 + 26280 + 1710 + 3600 = **224983.5 s = 62.4954 h**.
+Remaining planning margin is 34216.5 s = 9.5046 h below the unchanged 72 h cap.
+Additional failed/smoke/replacement jobs spend this margin; it is not renewed
+on a PR or family boundary. On K7 NO-GO, subtract its 11100 s episode time,
+1200 s resets and one 300 s setup; no new cells are funded with that saving.
+
+### Durable budget and evidence transfer
+
+[Live ledger](live-time-ledger.json) is the cumulative repository record, with
+limit_seconds=259200. Before a smoke/live job starts any cluster, tooling checks
+registered live duration against remaining budget and rejects missing, duplicate,
+negative or incomplete ledger entries. Jobs are serialized in the shared
+`dur053-live-ledger` concurrency group. Before another smoke run, all preceding
+non-skipped smoke job IDs returned by Actions history must have committed ledger
+entries. API/history errors fail closed; rerun attempts are refused. K3b must
+extend this history check to its new live job names before implementing them.
+The dispatch stub currently starts no resources and refuses every measurement
+scenario with K3b, even if budget is available.
+
+Each entry carries run ID, numeric job ID, PR head SHA, checked-out merge-ref
+SHA, merge-ref tree SHA, artifact manifest hash, PASS/FAIL status and charged
+live seconds. Charge elapsed setup-through-verified-teardown time rounded up, with a conservative one-second minimum for a refused attempt that starts no resources.
+If termination prevents a trustworthy end time or artifact, charge the entire
+registered reservation; missing evidence can never refund time. Failures and
+invalid runs are retained. The runner has contents:read and cannot commit or
+reset its own ledger. Claude downloads with `gh run download <run-id>`, checks
+artifact hashes/provenance and appends the ledger record before another live
+job. The job refuses to proceed until that evidence is committed; this is a
+fail-closed automation dependency under D035, not a human approval gate.
+
+All scenarios take a new -OutputRoot outside the checkout, CI uses RUNNER_TEMP,
+and existing directories are refused before any tool runs. Artifacts include a
+PASS/FAIL manifest, versions, digests, recorded commands, checks, raw snapshot,
+arrivals, external witness, coverage and cleanup; artifact hashes exclude the
+manifest itself to avoid a self-hash cycle. Claude commits smoke artifacts
+byte-for-byte under `k3-smoke-v1/<run-id>/`, recording numeric job ID, head SHA
+and merge-ref tree identity. Failed evidence is retained, never automatically
+rerun or overwritten. A source-only package result is not a smoke result.
+
+### Role pools and same-image baseline
+
+The new explicit split reserves pools for public API, operator and worker
+control separately. This supersedes the old combined API allocation while
+remaining within PostgreSQL max_connections=100. The budget checker uses the
+rendered worst-case surge counts and the registered future clients, not only
+steady-state counts. Both lifecycle arms have identical role/image topology;
+only the two registered legacy flags change behavior. The namespace changes
+only isolate the two runs and their bearer Secrets. They are sequential,
+with treatment namespace/database removed before baseline starts.
+
+| Client | Steady + surge | Pool | Maximum |
+| --- | --- | ---: | ---: |
+| Public API | 2 + 1 | 4 | 12 |
+| Operator | 1 + 1 | 2 | 4 |
+| Worker-control | 2 + 1 | 4 | 12 |
+| Scheduler + ingestor | 2 + 1 | 6 shared | 18 |
+| Relay | 1 + 1 | 3 + 1 LISTEN | 8 |
+| Demand | 1 + 1 | 2 read-only | 4 |
+| Migrate, compatibility, loadgen, checker | 1 each | 2 each | 8 |
+| Future monitor / sink grant reader / hook | bounded | 2 / 4 / 2 total | 8 |
+| Workers / KEDA / observer HTTP inventory | bounded | 0 | 0 |
+| Total applications | | | 74 |
+| Reserved + administration | | | 8 |
+| Remaining headroom | | | 18 |
+
+Compatibility runs as a required pre-rollout Job on the exact runtime image,
+with registry exported by its exact candidate worker initContainer. No public
+submission Deployment/client exists until migrate and compatibility Jobs pass.
+K3a supports fresh-namespace installation only; in-place upgrade/rollback and
+surviving-old-image admission are refused/unimplemented campaign scenarios,
+not an inferred compatibility guarantee. Runtime drain worst-case ~32 s and
+worker abort 30 s fit the unchanged 40 s termination grace. PDBs constrain
+evictions only. Smoke temporarily prevents replica changes to retain witness sessions
+while testing KEDA polling; it is no scaling comparison or SLO freeze. K3b/K5
+must remove that smoke annotations and verify the registered fallback and HPA
+behavior under their own frozen campaign settings before measurement.
+
+
+## Amendment B.1 - Engineering validation and registered campaign accounting (2026-11-05)
+
+Authority: D035 and the explicit Round 165 R240 correction. This append-only
+amendment supersedes Amendment B's charging and admission rules for engineering
+CI smoke. The 72 h cap bounds the registered campaign; iterative engineering
+smoke produces no reported measurement numbers and must not consume the margin
+reserved for registered experiment cells.
+
+A `ci.yml` pull_request smoke is engineering validation: no campaign charge,
+no ledger or prior-run history admission check, and no measurement claim.
+Current-job provenance may be read from the public Actions endpoint; it is not
+a history gate and requires no Actions read permission. Package and smoke CI
+jobs have contents:read only. Success, failure, cancellation and subsequent PR
+pushes do not create ledger debt. These engineering artifacts retain their
+observed setup-through-teardown duration for diagnosis and possible selection;
+`charged_seconds=0` and `measurement_claim=false` describe their CI status.
+The bounded 3600 s smoke execution ceiling and teardown verification still apply.
+
+Only `dur053-campaign.yml` workflow_dispatch jobs and one registered K3
+acceptance smoke are charged and gated by the cumulative ledger. The acceptance
+smoke is the successful run whose byte-identical artifact Claude commits as K3
+evidence. Intake permits one such selection, requires successful cleanup, and
+charges its actual rounded-up setup-through-verified-teardown duration (at most
+the existing 3600 s reservation). The ledger identifies this entry as
+`k3-acceptance-smoke`; it does not rewrite the engineering artifact's zero charge.
+Selection is a correctness acceptance record, not a pilot, SLO freeze, capacity
+measurement or reported performance result. No other engineering run is selected
+or charged, and failure run 41993310305 remains an engineering failure.
+
+Campaign jobs remain serialized in `dur053-live-ledger` with
+cancel-in-progress:false. Before dispatch can start live resources, committed
+artifact/ledger validation and complete prior campaign-job history are required;
+a missing prior entry or unavailable history fails closed. History includes
+both the original `campaign` job name and `DUR-053 campaign`, excludes CI smoke,
+and refuses automatic rerun attempts. Campaign failures and replacements retain
+Amendment B's actual-time charge or full registered reservation when termination
+prevents trustworthy accounting. The current K3b stub still refuses all live
+measurement scenarios after the ledger gate. Neither the 259200 s cap, the
+18900 s campaign-job ceiling, the episode families/minima, nor the reserved
+3600 s acceptance smoke changes. No campaign or measurement ran for this fix.

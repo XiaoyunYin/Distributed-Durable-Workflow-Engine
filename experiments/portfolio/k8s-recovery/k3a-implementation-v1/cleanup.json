@@ -1,0 +1,19 @@
+{
+  "status": "PASS",
+  "date": "2026-11-05",
+  "databases_dropped": [
+    "dur053_k3a_race",
+    "dur053_k3a_mutation",
+    "dur053_k3a_mutation_closeout"
+  ],
+  "remaining_owned_database_prefix": [],
+  "scratch_resolved": "D:\\coding agent files\\durable-engine\\codex\\k3a",
+  "removed_files": 14979,
+  "removed_directories": 1197,
+  "scratch_absent": true,
+  "codex_root": "D:\\coding agent files\\durable-engine\\codex",
+  "codex_root_listing": [],
+  "no_local_cluster_created": true,
+  "preexisting_inaccessible_repository_temp": "untouched; not created by this task",
+  "actual_validation_db_credential_uri_scan": "no hits"
+}

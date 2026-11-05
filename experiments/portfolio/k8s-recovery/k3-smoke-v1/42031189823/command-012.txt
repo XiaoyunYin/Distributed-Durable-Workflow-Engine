@@ -1,0 +1,27 @@
+The push refers to repository [localhost:5001/dur053-worker]
+f0be2013bff2: Preparing
+6150944b23be: Preparing
+155626f7101d: Preparing
+e2f170fa98c3: Preparing
+4b7b4f87a9af: Preparing
+dfcf80f9a0cf: Preparing
+bcb1fd95c1b2: Preparing
+f8e017cbad7d: Preparing
+8e6dac73b295: Preparing
+c0f1022b22a9: Preparing
+dfcf80f9a0cf: Waiting
+bcb1fd95c1b2: Waiting
+f8e017cbad7d: Waiting
+8e6dac73b295: Waiting
+c0f1022b22a9: Waiting
+4b7b4f87a9af: Pushed
+155626f7101d: Pushed
+dfcf80f9a0cf: Pushed
+bcb1fd95c1b2: Pushed
+e2f170fa98c3: Pushed
+8e6dac73b295: Pushed
+f0be2013bff2: Pushed
+6150944b23be: Pushed
+f8e017cbad7d: Pushed
+c0f1022b22a9: Pushed
+candidate: digest: sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6 size: 2414

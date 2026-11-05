@@ -1,0 +1,19 @@
+{
+  "schema": "dur053.live-ledger.v1",
+  "limit_seconds": 259200,
+  "entries": [
+    {
+      "run_id": "42031189823",
+      "job_id": "127257760404",
+      "head_sha": "d234a584b4792f27d2d41927c16077fb0b2e0a6f",
+      "merge_ref_sha": "e01780824c4630690a029ea8720e9ebdfe460b97",
+      "tree_sha": "d5c9874ff5a61addaa142dbcb31e57ce5a9a2e45",
+      "status": "PASS",
+      "charged_seconds": 386,
+      "category": "k3-acceptance-smoke",
+      "artifact_sha256": "cb741766cb1b8826d1f55e1cfcd09263c7fa01bcc3a09501434f1b715ac4a2df",
+      "artifact": "experiments/portfolio/k8s-recovery/k3-smoke-v1/42031189823/manifest.json"
+    }
+  ],
+  "note": "Entries record charged live time; Claude appends charges from downloaded CI artifacts before another live job."
+}

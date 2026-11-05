@@ -1,0 +1,111 @@
+{
+  "schema": "dur053.tools.v1",
+  "runner": "ubuntu-24.04",
+  "tools": {
+    "kind": {
+      "version": "0.27.0",
+      "url": "https://kind.sigs.k8s.io/dl/v0.27.0/kind-linux-amd64",
+      "sha256": "a6875aaea358acf0ac07786b1a6755d08fd640f4c79b7a2e46681cc13f49a04b",
+      "member": null
+    },
+    "kubectl": {
+      "version": "1.32.2",
+      "url": "https://dl.k8s.io/release/v1.32.2/bin/linux/amd64/kubectl",
+      "sha256": "4f6a959dcc5b702135f8354cc7109b542a2933c46b808b248a214c1f69f817ea",
+      "member": null
+    },
+    "kustomize": {
+      "version": "5.6.0",
+      "url": "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv5.6.0/kustomize_v5.6.0_linux_amd64.tar.gz",
+      "sha256": "54e4031ddc4e7fc59e408da29e7c646e8e57b8088c51b84b3df0864f47b5148f",
+      "member": "kustomize"
+    },
+    "kubeconform": {
+      "version": "0.6.7",
+      "url": "https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz",
+      "sha256": "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73",
+      "member": "kubeconform"
+    }
+  },
+  "images": {
+    "docker.io/calico/cni:v3.29.3": "docker.io/calico/cni:v3.29.3@sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c",
+    "docker.io/calico/kube-controllers:v3.29.3": "docker.io/calico/kube-controllers:v3.29.3@sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703",
+    "docker.io/calico/node:v3.29.3": "docker.io/calico/node:v3.29.3@sha256:eed399f2a727cfc1f374ab5c9cda6123c207e794ed8dc66c7eb6d8db412669e1",
+    "ghcr.io/chaos-mesh/chaos-daemon:v2.7.2": "ghcr.io/chaos-mesh/chaos-daemon:v2.7.2@sha256:9608d9b5145262b90aafd96cd60e36633d9163f5a80d485aa6ca51c6a194f5eb",
+    "ghcr.io/chaos-mesh/chaos-dashboard:v2.7.2": "ghcr.io/chaos-mesh/chaos-dashboard:v2.7.2@sha256:11cdbbc479b3256109a5b990bc3564e8e97bb648b5b7c36624574833055d22b5",
+    "ghcr.io/chaos-mesh/chaos-mesh:v2.7.2": "ghcr.io/chaos-mesh/chaos-mesh:v2.7.2@sha256:8bc853c7414c8a2eb06b5cb8add9987332ddebd5a8f154beb9b98974214d3f7c",
+    "ghcr.io/kedacore/keda-admission-webhooks:2.18.0": "ghcr.io/kedacore/keda-admission-webhooks:2.18.0@sha256:95f923ff25e397519ae2d1ce98efd565d4c431dbfff087e065605c3d4eb1b1fa",
+    "ghcr.io/kedacore/keda-metrics-apiserver:2.18.0": "ghcr.io/kedacore/keda-metrics-apiserver:2.18.0@sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4",
+    "ghcr.io/kedacore/keda:2.18.0": "ghcr.io/kedacore/keda:2.18.0@sha256:fe551cf11fbf720af72ad37da041dd7bc73f7eed81ca55cc0d2507d52e1d24a2"
+  },
+  "addons": {
+    "keda": {
+      "version": "2.18.0",
+      "url": "https://github.com/kedacore/keda/releases/download/v2.18.0/keda-2.18.0.yaml",
+      "sha256": "1f1de559c2fe795f4077ccd54d6669138710d365dad6fe55ffd4a8d7dcd0ba60",
+      "installed_in_k3a": true,
+      "deployments": [
+        "keda-admission",
+        "keda-metrics-apiserver",
+        "keda-operator"
+      ],
+      "images": [
+        "ghcr.io/kedacore/keda-admission-webhooks:2.18.0",
+        "ghcr.io/kedacore/keda-metrics-apiserver:2.18.0",
+        "ghcr.io/kedacore/keda:2.18.0"
+      ]
+    },
+    "calico": {
+      "version": "3.29.3",
+      "url": "https://raw.githubusercontent.com/projectcalico/calico/v3.29.3/manifests/calico.yaml",
+      "sha256": "9a575859428b822a224dedafc4238555b6b0f910f2abf12983f20f871860914e",
+      "installed_in_k3a": true,
+      "images": [
+        "docker.io/calico/cni:v3.29.3",
+        "docker.io/calico/kube-controllers:v3.29.3",
+        "docker.io/calico/node:v3.29.3"
+      ]
+    },
+    "chaos": {
+      "version": "2.7.2",
+      "url": "https://raw.githubusercontent.com/chaos-mesh/chaos-mesh/v2.7.2/manifests/crd.yaml",
+      "sha256": "525b208362a1b5dddf14b1cde951d5802c25c981e0abc542ee2e86766b5ed63f",
+      "installed_in_k3a": false,
+      "images": [
+        "ghcr.io/chaos-mesh/chaos-daemon:v2.7.2",
+        "ghcr.io/chaos-mesh/chaos-dashboard:v2.7.2",
+        "ghcr.io/chaos-mesh/chaos-mesh:v2.7.2"
+      ]
+    }
+  },
+  "node": "kindest/node:v1.32.2@sha256:f226345927d7e348497136874b6d207e0b32cc52154ad8323129352923a3142f",
+  "postgres": "postgres:18.6-bookworm@sha256:1c59e2c3c818eaa0f0628f695b36e7c9e362d6b219b36a54a32df645cbd7e1af",
+  "kafka": "apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837",
+  "actions": {
+    "actions/checkout": "11bd71901bbe5b1630ceea73d27597364c9af683",
+    "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02"
+  },
+  "schema_source": "https://raw.githubusercontent.com/yannh/kubernetes-json-schema/86d045595d3f93b703bbf439cf9eb4bd6830d58f/v1.32.2-standalone-strict/",
+  "schemas": {
+    "networkpolicy-networking-v1.json": "68f66caa6cb28841e7ab6b2b1cf5ac56085d50730a3813e538dd9204529b5b04",
+    "deployment-apps-v1.json": "ff11051296e9b618c3a1b120ba34c41f1d39bee1fd925ab3dfe14dfcea7be4ed",
+    "job-batch-v1.json": "8460596a5425451a6d2763419d819a1ace94b9a89d2745cc4c0fe3bbbdc9cb59",
+    "poddisruptionbudget-policy-v1.json": "9f72ca6ac7baa59ce19de22e9817b0ec91ae3f061343acd212c70c511a40e10b",
+    "clusterrole-rbac-v1.json": "0777f91c4fa08bd3989b6db8c59dad0429a63dec8f59e883ff55c947a14d0d5f",
+    "clusterrolebinding-rbac-v1.json": "e2d0471b444cf7ea4fd69d7eba1b16e06215503bfbc650450c2b6ad9b40f863c",
+    "scaledobject-keda-v1alpha1.json": "c05c185ba0f348e74ad3f2087e2c46cffe629bd1aa6ad2b224538a17803a651c",
+    "triggerauthentication-keda-v1alpha1.json": "88ec027be4465a1f061e1ba7c3d248f1fcba41d13bafc83a15218e76733f550f",
+    "namespace-v1.json": "99301bb4ecb85094c9708ee076b5bdcc23465a1352dd0f1d9189e39d2fbeeac3",
+    "serviceaccount-v1.json": "dd71e8bcb8514b858b41757f8c52389440d40ffe5631880cc7f3dce6afab64b5",
+    "configmap-v1.json": "14bf6e296c189e0414464c734c384a53dd2e0aae12589b030340f6079e7473b4",
+    "service-v1.json": "e831ca1c514e4e9798869639949694663deec8f3fd94b489e345aec5a309c13f",
+    "endpoints-v1.json": "bf66862b260dad0d30d6ee6f956b55dfd5767762d2e10d71ecd8cea7be0b6b74",
+    "persistentvolumeclaim-v1.json": "8e4bbff7592cf8bd140905f829aa8067ce4fdc2c16e6a79ca5d8c2efc3c08384"
+  },
+  "pyyaml": {
+    "version": "6.0.2",
+    "url": "https://files.pythonhosted.org/packages/b9/2b/614b4752f2e127db5cc206abc23a8c19678e92b23c3db30fc86ab731d3bd/PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
+    "sha256": "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476"
+  },
+  "registry": "registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373"
+}

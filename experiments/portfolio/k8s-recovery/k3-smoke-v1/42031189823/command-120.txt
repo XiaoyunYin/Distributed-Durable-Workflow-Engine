@@ -1,0 +1,1 @@
+job.batch/compatibility condition met

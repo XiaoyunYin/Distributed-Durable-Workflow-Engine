@@ -1,0 +1,151 @@
+{
+  "base_commit": "10236e320bdb0bca26c86c62403e464de222ae15",
+  "branch": "codex/k8s-k3",
+  "campaign_ledger_changed": false,
+  "campaign_measurement_claim": false,
+  "checks": [
+    {
+      "command": "go vet ./...",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "gofmt -l cmd internal migrations/embed.go",
+      "output": "empty",
+      "status": "PASS"
+    },
+    {
+      "command": "DURABLE_RUN_INTEGRATION=1 go test -race -p 1 -count=1 ./...",
+      "database": "fresh migrated dur053_k3afix_race; URL environment",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "DURABLE_RUN_INTEGRATION=1 DURABLE_REQUIRE_DATABASE=1 go test -race -p 1 -count=1 ./...",
+      "database": "fresh migrated dur053_k3afix_env; scratch checkout .env only, DURABLE_DATABASE_URL absent; repository .env untouched",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "DURABLE_REQUIRE_DATABASE=1 go test -race -count=1 -v ./cmd/dur053-migrate (RUN_INTEGRATION and URL absent; scratch .env only)",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "go test -v -count=1 ./cmd/dur053-migrate (no integration flags)",
+      "expected_skip": "migration DB test; URL helper unit regression passes",
+      "status": "PASS"
+    },
+    {
+      "command": "uv run ruff check python tests",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "uv run ruff format --check python tests",
+      "exit_code": 0,
+      "files": 75,
+      "status": "PASS"
+    },
+    {
+      "command": "uv run mypy",
+      "exit_code": 0,
+      "files": 44,
+      "status": "PASS"
+    },
+    {
+      "command": "uv run pytest --basetemp <task-root>/pytest-delivery -p no:cacheprovider",
+      "exit_code": 0,
+      "passed": 243,
+      "skipped": 3,
+      "status": "PASS"
+    },
+    {
+      "basis": "single final-source snapshot, verified restored baseline, not a union",
+      "command": "bash scripts/mutation-gate.sh <task-root>/bash-final-results.json",
+      "detected": 362,
+      "exit_code": 0,
+      "status": "PASS",
+      "total": 362
+    },
+    {
+      "command": "git diff --check",
+      "exit_code": 0,
+      "status": "PASS"
+    },
+    {
+      "command": "python scripts/check-public-links.py",
+      "exit_code": 0,
+      "local_links": 181,
+      "markdown_files": 42,
+      "status": "PASS"
+    },
+    {
+      "command": "checksum-pinned Calico/KEDA download and rendered image lock validation",
+      "locked_images": 6,
+      "status": "PASS"
+    },
+    {
+      "command": "new guard and provenance fixture calibrations",
+      "scope": "all 8 new guards, duplicate-job and provenance guard",
+      "status": "PASS"
+    }
+  ],
+  "cleanup": {
+    "artifact": "cleanup.json",
+    "sha256": "4e7acfa7f781b6af42831002e5995d380ee7a6230a6a2f24f1e9ad02e31912b9",
+    "status": "PASS"
+  },
+  "cluster_run": "NOT RUN",
+  "failed_approaches": [
+    "First .env-only full Go attempt passed migrate but failed two worker tests because uv tried a blocked global Python install directory; fresh DB rerun with explicit existing project interpreter passed.",
+    "Single-acceptance and duplicate-job fixtures initially overlapped; isolated distinct run/output paths and valid prior campaign provenance.",
+    "Provenance fixture initially omitted mocking newly introduced add-on preparation, allowing a later missing-YAML error to hide guard removal; corrected fixture and recalibrated.",
+    "Obsolete full mutation snapshots were intentionally stopped (exit 15) while correcting fixtures; none count as completed gates. Final 362-case Bash run is the sole full-gate result."
+  ],
+  "handoff_basis": "PROVISIONAL; uncommitted; Claude commits and pushes",
+  "migrations": 19,
+  "mutation_artifact": {
+    "path": "mutation-results.json",
+    "sha256": "ac993680679d33efb64e260b30e6ff1b83823ec77420066d65fd59a15b75e850"
+  },
+  "optional_checks": [
+    {
+      "baseline": "same 14 on exact 10236e3 copies; no new finding",
+      "command": "Ruff on four scripts beyond required python/tests scope",
+      "findings": 14,
+      "status": "PREEXISTING_FAILURE"
+    }
+  ],
+  "pilot": "NOT RUN (K3b)",
+  "r239_diagnosis": "41993310305 lacks root-cause evidence. Existing kind CIDR/default-CNI settings were compatible; fixed public add-on pulls, implicit Calico pool and IPIP/BGP startup dependencies, node-before-CNI order and insufficient waits; next artifact records actual node/pod/runtime diagnosis.",
+  "recorded_at_utc": "2026-11-05T09:54:52.637773+00:00",
+  "review_original_prefix_bytes": 2215789,
+  "review_original_prefix_sha256": "0acb13e04a75d76a287ddcf2bf22880bfe59654de998fdd82b36d1867150af2a",
+  "schema": "dur053.round165.native.v1",
+  "skips": [
+    "2 optional DUR055 PostgreSQL cases: DUR055_TEST_DATABASE_URL absent",
+    "1 Kafka witness case: DURABLE_KAFKA_BROKERS absent",
+    "Docker/kind/kubectl and PowerShell 7 execution unavailable locally; real deployed service/cluster proof is hosted CI-only",
+    "Two consecutive green PR pushes without ledger commits and exact committed-target Claude review remain pending"
+  ],
+  "source_inputs": {
+    ".github/workflows/ci.yml": "18978c42510e477feed73cf81a993a96306901bae0db72f587d974ec25e43238",
+    ".github/workflows/dur053-campaign.yml": "6d593e019a872fb733867b5974d80939545fff7e51887993eef50429c76d9538",
+    "cmd/dur053-migrate/main_test.go": "b6e04da5d8754fd67ca5b9ae577dfc8f7e754ab8362bd9c35c031433dc02272d",
+    "deploy/k8s/tools.lock.json": "4b5ae8cd92d748dd31be15d57da72b4cf6d5f2e54a98013368faaf156b86d439",
+    "experiments/portfolio/k8s-recovery/protocol-v2.md": "3ae4ba6fc7666c1ec8a1c6c6f66ce60876d5248d7384eb187308e8e5a51c7eb1",
+    "mutations/manifest.json": "4cc9ee61ef1a18886b1d56a519ed60f40341c73b9e0ae7f6d1da743649b1b987",
+    "scripts/dur053_campaign.py": "d2df74c940d79a4d9afe225ed1e6bc379f48effcfcef24b7be278e56ee032636",
+    "scripts/dur053_k3.py": "545d7b215f1c26766b4e45514e6a300e16c2056056ab4d98b0b63a25e6c82aa8",
+    "scripts/dur053_k3_policy.py": "1d13747e10881b32f443f4181802df1bca150303a254023dd8247937e9be3ce0",
+    "scripts/dur053_record_smoke.py": "9c942a8730ec3db5ede0823eb0af0797cb1e3f299c6439ff8b7adf2304526e74",
+    "tests/test_k3_driver.py": "3fb947d0ae3a716f5093c861ece0a06a54959a013bccb4ebb947d7968177f10a",
+    "tests/test_k3_package.py": "73c0c2ad4af1b25bce8a6c8811dee9bcd167660bb2985b1626ba10f2cc9d1c79",
+    "tests/test_k3_repairs.py": "7e6ae01d9c27cf73d0b13336cb136eccf050238a81cbe5db192cd2e1a0351f26"
+  },
+  "status": "NATIVE_PASS_CI_PENDING",
+  "target_commit": null,
+  "task": "K3a Round 165 R238/R239/R240",
+  "task_status": "IN_PROGRESS"
+}

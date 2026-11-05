@@ -17,11 +17,36 @@ import (
 // by row count: PostgreSQL/context errors abort the entire export, never a prefix.
 // Raw table counts/hashes and the checker projections share the same snapshot.
 func Load(ctx context.Context, store *state.Store, ids []string) (Trace, error) {
+	return loadSelected(ctx, store, ids, "", nil)
+}
+
+// LoadNamespace selects IDs and all raw/projection evidence in one snapshot.
+func LoadNamespace(ctx context.Context, store *state.Store, namespace string) (Trace, error) {
+	if namespace == "" {
+		return Trace{}, fmt.Errorf("snapshot requires namespace")
+	}
+	return loadSelected(ctx, store, nil, namespace, nil)
+}
+
+func loadSelected(ctx context.Context, store *state.Store, ids []string, namespace string, afterIDs func()) (Trace, error) {
 	tx, err := store.Pool().BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
 	if err != nil {
 		return Trace{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
+	if namespace != "" {
+		rows, e := tx.Query(ctx, `SELECT workflow_id FROM engine.workflow_executions WHERE namespace=$1 ORDER BY workflow_id`, namespace)
+		if e != nil {
+			return Trace{}, e
+		}
+		ids, err = pgx.CollectRows(rows, pgx.RowTo[string])
+		if err != nil {
+			return Trace{}, err
+		}
+	}
+	if afterIDs != nil {
+		afterIDs()
+	}
 	trace, err := loadSnapshot(ctx, tx, ids)
 	if err != nil {
 		return Trace{}, err

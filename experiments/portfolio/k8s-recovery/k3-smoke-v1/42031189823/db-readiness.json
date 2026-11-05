@@ -1,0 +1,15 @@
+{
+  "after": {
+    "/healthz": 200,
+    "/readyz": 200
+  },
+  "before": {
+    "/healthz": 200,
+    "/readyz": 200
+  },
+  "during": {
+    "/healthz": 200,
+    "/readyz": 503
+  },
+  "pod_uid": "6cf905c5-654c-4c5e-ac30-d60a6051b562"
+}

@@ -1,0 +1,8 @@
+{
+  "calico_rollout_seconds": 600,
+  "diagnostic_reserve_seconds": 300,
+  "keda_rollout_seconds": 300,
+  "live_ceiling_seconds": 3600,
+  "node_ready_seconds": 300,
+  "teardown_reserve_seconds": 600
+}

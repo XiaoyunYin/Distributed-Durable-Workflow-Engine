@@ -1,0 +1,212 @@
+{
+  "schema": "dur053.k3a.implementation.v1",
+  "status": "NATIVE_PASS_CI_PENDING",
+  "base_commit": "0296ac59d90732c38d3f4a4f71ec82cb60dabc63",
+  "target_commit": null,
+  "handoff_basis": "PROVISIONAL, uncommitted; Claude commits",
+  "branch": "codex/k8s-k3",
+  "cluster_run": "NOT RUN",
+  "pilot": "NOT RUN (K3b)",
+  "checks": [
+    {
+      "check": "go-vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit_code": 0,
+      "seconds": 5.0
+    },
+    {
+      "check": "go-race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-p",
+        "1",
+        "-count=1",
+        "./..."
+      ],
+      "exit_code": 0,
+      "seconds": 279.5
+    },
+    {
+      "check": "gofmt",
+      "command": [
+        "gofmt",
+        "-l",
+        "cmd",
+        "internal",
+        "migrations/embed.go"
+      ],
+      "exit_code": 0,
+      "seconds": 0.078
+    },
+    {
+      "check": "ruff-check",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "ruff",
+        "check",
+        "python",
+        "tests"
+      ],
+      "exit_code": 0,
+      "seconds": 0.141
+    },
+    {
+      "check": "ruff-format",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "ruff",
+        "format",
+        "--check",
+        "python",
+        "tests"
+      ],
+      "exit_code": 0,
+      "seconds": 0.094
+    },
+    {
+      "check": "mypy",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "mypy"
+      ],
+      "exit_code": 0,
+      "seconds": 0.969
+    },
+    {
+      "check": "pytest",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "pytest",
+        "--basetemp",
+        "D:\\coding agent files\\durable-engine\\codex\\k3a\\pytest-final",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "exit_code": 0,
+      "seconds": 41.718
+    },
+    {
+      "check": "registry",
+      "command": [
+        "uv",
+        "run",
+        "--no-sync",
+        "python",
+        "scripts/check-activity-registry.py"
+      ],
+      "exit_code": 0,
+      "seconds": 17.532
+    },
+    {
+      "check": "public-links",
+      "command": [
+        "python",
+        "scripts/check-public-links.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.406
+    },
+    {
+      "check": "diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 0.078
+    }
+  ],
+  "final_python": {
+    "ruff": "PASS",
+    "format": "PASS",
+    "mypy": "PASS, 44 files",
+    "pytest": "236 passed, 3 skipped",
+    "unit_package_driver": "16 tests PASS"
+  },
+  "mutations": {
+    "status": "PASS",
+    "unique_cases": 354,
+    "source_hashes_match_final_tree": true,
+    "full_bash_run_cases": 329,
+    "focused_runs": [
+      108,
+      21
+    ],
+    "monolithic_final_manifest": "CI pending; no claim of one native 354-case run"
+  },
+  "static_checks": [
+    "59 source resources validate against pinned schemas",
+    "Linux Kustomize/kubeconform archive checksum and member checks",
+    "Calico and KEDA release image replacement checks",
+    "original CI jobs and triggers preserved",
+    "new actions use exact commit SHAs",
+    "PowerShell syntax and Bash syntax PASS",
+    "original REVIEW and protocol byte prefixes preserved"
+  ],
+  "skips": [
+    "two DUR055_TEST_DATABASE_URL optional cases",
+    "one DURABLE_KAFKA_BROKERS optional case",
+    "Docker/image build, Kustomize/kubeconform execution, kind, Calico, TokenReview/RBAC and KEDA run only in CI",
+    "pilot, calibration, SLO freeze and later measurement scenarios are K3b or later"
+  ],
+  "limitations": [
+    "single host, one kind node; no HA or capacity result",
+    "witness PVC is node local; node-drain/replacement evidence is not claimed",
+    "fresh-namespace install only; in-place promotion/rollback unimplemented",
+    "runner VM image label is mutable; ImageVersion and observed CPU/RAM are recorded in CI",
+    "smoke pauses replica changes while preserving KEDA polls; fallback/scaling measurement remains later work"
+  ],
+  "final_structure_checks": {
+    "status": "PASS",
+    "checks": [
+      {
+        "check": "diff-check",
+        "exit_code": 0,
+        "output": ""
+      },
+      {
+        "check": "public-links",
+        "exit_code": 0,
+        "output": "Public Markdown link check PASS: 181 local links across 42 Markdown files.\n"
+      }
+    ],
+    "new_file_whitespace_count": 53,
+    "source_inventory_match": true,
+    "original_review_protocol_prefixes": true,
+    "review_lf_only": true
+  },
+  "cleanup": {
+    "status": "PASS",
+    "date": "2026-11-05",
+    "databases_dropped": [
+      "dur053_k3a_race",
+      "dur053_k3a_mutation",
+      "dur053_k3a_mutation_closeout"
+    ],
+    "remaining_owned_database_prefix": [],
+    "scratch_resolved": "D:\\coding agent files\\durable-engine\\codex\\k3a",
+    "removed_files": 14979,
+    "removed_directories": 1197,
+    "scratch_absent": true,
+    "codex_root": "D:\\coding agent files\\durable-engine\\codex",
+    "codex_root_listing": [],
+    "no_local_cluster_created": true,
+    "preexisting_inaccessible_repository_temp": "untouched; not created by this task",
+    "actual_validation_db_credential_uri_scan": "no hits"
+  }
+}
