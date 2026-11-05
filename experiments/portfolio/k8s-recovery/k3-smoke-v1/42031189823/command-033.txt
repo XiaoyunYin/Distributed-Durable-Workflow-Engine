@@ -1,0 +1,19 @@
+ghcr.io/kedacore/keda@sha256:fe551cf11fbf720af72ad37da041dd7bc73f7eed81ca55cc0d2507d52e1d24a2: Pulling from kedacore/keda
+fd4aa3667332: Already exists
+bfb59b82a9b6: Already exists
+017886f7e176: Already exists
+62de241dac5f: Already exists
+2780920e5dbf: Already exists
+7c12895b777b: Already exists
+3214acf345c0: Already exists
+5664b15f108b: Already exists
+045fc1c20da8: Already exists
+4aa0ea1413d3: Already exists
+da7816fa955e: Already exists
+ddf74a63f7d8: Already exists
+90f1e557fe7b: Pulling fs layer
+90f1e557fe7b: Download complete
+90f1e557fe7b: Pull complete
+Digest: sha256:fe551cf11fbf720af72ad37da041dd7bc73f7eed81ca55cc0d2507d52e1d24a2
+Status: Downloaded newer image for ghcr.io/kedacore/keda@sha256:fe551cf11fbf720af72ad37da041dd7bc73f7eed81ca55cc0d2507d52e1d24a2
+ghcr.io/kedacore/keda:2.18.0@sha256:fe551cf11fbf720af72ad37da041dd7bc73f7eed81ca55cc0d2507d52e1d24a2

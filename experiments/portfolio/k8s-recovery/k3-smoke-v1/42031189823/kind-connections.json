@@ -1,0 +1,4 @@
+{
+  "max_connections": 100,
+  "observed": "durable-relay|2\ndurable-operator|1\npsql|1\ndurable-api|2\n|8\ndurable-worker-control|2\ndurable-scheduler|2\ndurable-demand|1"
+}

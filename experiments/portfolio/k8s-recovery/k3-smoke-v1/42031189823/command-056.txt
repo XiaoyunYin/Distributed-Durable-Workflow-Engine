@@ -1,0 +1,1 @@
+ghcr.io/kedacore/keda-metrics-apiserver@sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4

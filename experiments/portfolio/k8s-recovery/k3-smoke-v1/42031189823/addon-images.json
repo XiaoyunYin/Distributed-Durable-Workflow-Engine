@@ -1,0 +1,8 @@
+[
+  "docker.io/calico/cni:v3.29.3@sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c",
+  "docker.io/calico/kube-controllers:v3.29.3@sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703",
+  "docker.io/calico/node:v3.29.3@sha256:eed399f2a727cfc1f374ab5c9cda6123c207e794ed8dc66c7eb6d8db412669e1",
+  "ghcr.io/kedacore/keda-admission-webhooks:2.18.0@sha256:95f923ff25e397519ae2d1ce98efd565d4c431dbfff087e065605c3d4eb1b1fa",
+  "ghcr.io/kedacore/keda-metrics-apiserver:2.18.0@sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4",
+  "ghcr.io/kedacore/keda:2.18.0@sha256:fe551cf11fbf720af72ad37da041dd7bc73f7eed81ca55cc0d2507d52e1d24a2"
+]

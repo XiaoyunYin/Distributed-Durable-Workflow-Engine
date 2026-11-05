@@ -1,0 +1,6 @@
+{
+  "max_connections": 100,
+  "maximum_application_connections": 74,
+  "reserved_and_admin": 8,
+  "status": "PASS"
+}

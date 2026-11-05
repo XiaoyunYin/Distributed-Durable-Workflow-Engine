@@ -1,0 +1,1 @@
+namespace "dur053-kind" deleted

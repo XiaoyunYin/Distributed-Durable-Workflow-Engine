@@ -1,0 +1,1 @@
+ghcr.io/kedacore/keda-admission-webhooks@sha256:95f923ff25e397519ae2d1ce98efd565d4c431dbfff087e065605c3d4eb1b1fa

@@ -1,0 +1,2 @@
+{"operator": 401, "demand": 401}
+Defaulted container "worker" out of: worker, witness-directory (init)

@@ -1,0 +1,115 @@
+{
+  "info": {
+    "chainID": "sha256:55c8cc0817d5128b2372fb799235750c10d753fc23543c605ef65dd4ae80c9b1",
+    "imageSpec": {
+      "architecture": "amd64",
+      "config": {
+        "ArgsEscaped": true,
+        "Cmd": [
+          "start_runit"
+        ],
+        "Env": [
+          "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "SVDIR=/etc/service/enabled"
+        ],
+        "Labels": {
+          "description": "Calico node handles networking and policy for Calico",
+          "maintainer": "maintainers@tigera.io",
+          "name": "Calico node",
+          "release": "1",
+          "summary": "Calico node handles networking and policy for Calico",
+          "vendor": "Project Calico",
+          "version": "v3.29.3"
+        },
+        "WorkingDir": "/"
+      },
+      "created": "2025-03-25T16:47:38.663756479Z",
+      "history": [
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "ARG GIT_VERSION=v3.29.3",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "ENV SVDIR=/etc/service/enabled",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "LABEL description=Calico node handles networking and policy for Calico",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "LABEL maintainer=maintainers@tigera.io",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "LABEL name=Calico node",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "LABEL release=1",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "LABEL summary=Calico node handles networking and policy for Calico",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "LABEL vendor=Project Calico",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "LABEL version=v3.29.3",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "COPY / / # buildkit"
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:47:38.663756479Z",
+          "created_by": "CMD [\"start_runit\"]",
+          "empty_layer": true
+        }
+      ],
+      "os": "linux",
+      "rootfs": {
+        "diff_ids": [
+          "sha256:55c8cc0817d5128b2372fb799235750c10d753fc23543c605ef65dd4ae80c9b1"
+        ],
+        "type": "layers"
+      }
+    }
+  },
+  "status": {
+    "id": "sha256:042163432abcec06b8077b24973b223a5f4cfdb35d85c3816f5d07a13d51afae",
+    "pinned": false,
+    "repoDigests": [
+      "docker.io/calico/node@sha256:eed399f2a727cfc1f374ab5c9cda6123c207e794ed8dc66c7eb6d8db412669e1"
+    ],
+    "repoTags": [
+      "docker.io/calico/node:v3.29.3"
+    ],
+    "size": "380379732",
+    "username": ""
+  }
+}

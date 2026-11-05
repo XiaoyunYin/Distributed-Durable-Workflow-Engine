@@ -1,0 +1,20 @@
+ghcr.io/kedacore/keda-metrics-apiserver@sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4: Pulling from kedacore/keda-metrics-apiserver
+fd4aa3667332: Already exists
+bfb59b82a9b6: Already exists
+017886f7e176: Already exists
+62de241dac5f: Already exists
+2780920e5dbf: Already exists
+7c12895b777b: Already exists
+3214acf345c0: Already exists
+5664b15f108b: Already exists
+045fc1c20da8: Already exists
+4aa0ea1413d3: Already exists
+da7816fa955e: Already exists
+ddf74a63f7d8: Already exists
+14e02401cc88: Pulling fs layer
+14e02401cc88: Verifying Checksum
+14e02401cc88: Download complete
+14e02401cc88: Pull complete
+Digest: sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4
+Status: Downloaded newer image for ghcr.io/kedacore/keda-metrics-apiserver@sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4
+ghcr.io/kedacore/keda-metrics-apiserver:2.18.0@sha256:c6f0eb5551d60fd0434ee75218ddf2fe4cb41a6b82fc2b50fa5a3f15f9a662b4

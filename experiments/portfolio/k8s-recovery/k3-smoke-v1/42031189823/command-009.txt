@@ -1,0 +1,6 @@
+The push refers to repository [localhost:5001/dur053-runtime]
+01a20f5ecb00: Preparing
+92a4ff9b1abe: Preparing
+92a4ff9b1abe: Pushed
+01a20f5ecb00: Pushed
+candidate: digest: sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2 size: 739

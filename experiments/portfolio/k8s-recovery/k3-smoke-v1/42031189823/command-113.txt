@@ -1,0 +1,1 @@
+Deletion of requested consumer groups ('runtime-workers-v1') was successful.

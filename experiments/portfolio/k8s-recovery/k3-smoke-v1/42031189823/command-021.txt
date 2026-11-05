@@ -1,0 +1,9 @@
+docker.io/calico/kube-controllers@sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703: Pulling from calico/kube-controllers
+f51b4c75aff4: Already exists
+80ab110f47d4: Pulling fs layer
+80ab110f47d4: Verifying Checksum
+80ab110f47d4: Download complete
+80ab110f47d4: Pull complete
+Digest: sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703
+Status: Downloaded newer image for calico/kube-controllers@sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703
+docker.io/calico/kube-controllers:v3.29.3@sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703

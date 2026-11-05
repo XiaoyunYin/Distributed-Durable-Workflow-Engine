@@ -1,0 +1,133 @@
+#0 building with "default" instance using docker driver
+
+#1 [internal] load build definition from Dockerfile
+#1 transferring dockerfile: 1.34kB done
+#1 DONE 0.0s
+
+#2 [auth] library/golang:pull token for registry-1.docker.io
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5
+#3 DONE 0.3s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 165B done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 1.45MB 0.0s done
+#5 DONE 0.0s
+
+#6 [build 1/7] FROM docker.io/library/golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5
+#6 resolve docker.io/library/golang:1.27.3-bookworm@sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 done
+#6 sha256:8a051559ff62acdfa1af9916c3c67673d946bb71f81cb8f30c565fa647cb6a77 8.39MB / 48.52MB 0.1s
+#6 sha256:55f3510f14ae1203443980e2b03e3c4adb950f89becd0189ad5032562ef49ea0 6.29MB / 23.87MB 0.1s
+#6 sha256:972b4110ba0f47539a975c31e52c64765e1ff19f2d74469ae4a595c6676e80a5 6.53kB / 6.53kB done
+#6 sha256:fea12ba16096adec0f699ce1c4da2154d320450e56c1f63671f95d2a3551c77b 2.32kB / 2.32kB done
+#6 sha256:e0774ebe198a660f05b03dbafdbe7c806e1dbee8ac7dbff38f8a1b9865a0442a 3.06kB / 3.06kB done
+#6 sha256:e0959ba39613fdd89ed3679cb0483740e954fcc9d3e68d882e6f27130ac124e0 7.34MB / 64.43MB 0.1s
+#6 sha256:8a051559ff62acdfa1af9916c3c67673d946bb71f81cb8f30c565fa647cb6a77 18.87MB / 48.52MB 0.2s
+#6 sha256:55f3510f14ae1203443980e2b03e3c4adb950f89becd0189ad5032562ef49ea0 16.78MB / 23.87MB 0.2s
+#6 sha256:e0959ba39613fdd89ed3679cb0483740e954fcc9d3e68d882e6f27130ac124e0 16.78MB / 64.43MB 0.2s
+#6 sha256:8a051559ff62acdfa1af9916c3c67673d946bb71f81cb8f30c565fa647cb6a77 38.80MB / 48.52MB 0.4s
+#6 sha256:55f3510f14ae1203443980e2b03e3c4adb950f89becd0189ad5032562ef49ea0 23.87MB / 23.87MB 0.3s done
+#6 sha256:e0959ba39613fdd89ed3679cb0483740e954fcc9d3e68d882e6f27130ac124e0 36.70MB / 64.43MB 0.4s
+#6 sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 3.15MB / 92.63MB 0.4s
+#6 sha256:8a051559ff62acdfa1af9916c3c67673d946bb71f81cb8f30c565fa647cb6a77 48.52MB / 48.52MB 0.5s
+#6 sha256:e0959ba39613fdd89ed3679cb0483740e954fcc9d3e68d882e6f27130ac124e0 47.19MB / 64.43MB 0.5s
+#6 sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 16.78MB / 92.63MB 0.5s
+#6 sha256:8a051559ff62acdfa1af9916c3c67673d946bb71f81cb8f30c565fa647cb6a77 48.52MB / 48.52MB 0.5s done
+#6 sha256:e0959ba39613fdd89ed3679cb0483740e954fcc9d3e68d882e6f27130ac124e0 56.62MB / 64.43MB 0.6s
+#6 sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 24.12MB / 92.63MB 0.6s
+#6 extracting sha256:8a051559ff62acdfa1af9916c3c67673d946bb71f81cb8f30c565fa647cb6a77 0.1s
+#6 sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b 6.29MB / 71.15MB 0.6s
+#6 sha256:e0959ba39613fdd89ed3679cb0483740e954fcc9d3e68d882e6f27130ac124e0 64.43MB / 64.43MB 0.7s done
+#6 sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 32.51MB / 92.63MB 0.7s
+#6 sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b 16.78MB / 71.15MB 0.7s
+#6 sha256:c42ec79d38f93118e728683ce7bb8ffbfa2b4406713e0c670e53ac974b2794cd 0B / 126B 0.7s
+#6 sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b 24.12MB / 71.15MB 0.8s
+#6 sha256:c42ec79d38f93118e728683ce7bb8ffbfa2b4406713e0c670e53ac974b2794cd 126B / 126B 0.7s done
+#6 sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 32B / 32B 0.8s done
+#6 sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 44.04MB / 92.63MB 0.9s
+#6 sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b 36.70MB / 71.15MB 0.9s
+#6 sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 51.38MB / 92.63MB 1.0s
+#6 sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b 47.19MB / 71.15MB 1.0s
+#6 sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 62.91MB / 92.63MB 1.1s
+#6 sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b 56.62MB / 71.15MB 1.1s
+#6 sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b 66.06MB / 71.15MB 1.2s
+#6 sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 90.18MB / 92.63MB 1.4s
+#6 sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b 71.15MB / 71.15MB 1.3s done
+#6 sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 92.63MB / 92.63MB 1.5s done
+#6 extracting sha256:8a051559ff62acdfa1af9916c3c67673d946bb71f81cb8f30c565fa647cb6a77 1.0s done
+#6 extracting sha256:55f3510f14ae1203443980e2b03e3c4adb950f89becd0189ad5032562ef49ea0 0.1s
+#6 extracting sha256:55f3510f14ae1203443980e2b03e3c4adb950f89becd0189ad5032562ef49ea0 0.3s done
+#6 extracting sha256:e0959ba39613fdd89ed3679cb0483740e954fcc9d3e68d882e6f27130ac124e0 0.1s
+#6 extracting sha256:e0959ba39613fdd89ed3679cb0483740e954fcc9d3e68d882e6f27130ac124e0 1.1s done
+#6 extracting sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 0.1s
+#6 extracting sha256:68f2074ab7fd11f602b2218e3c94fb7870f11631e99647e34b8d6ab97ad04076 1.2s done
+#6 extracting sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b 0.1s
+#6 extracting sha256:82e0bb27ae78502103ed383ed33346f88a83943fb7bd93977850d5890ee8fb3b 2.3s done
+#6 extracting sha256:c42ec79d38f93118e728683ce7bb8ffbfa2b4406713e0c670e53ac974b2794cd
+#6 extracting sha256:c42ec79d38f93118e728683ce7bb8ffbfa2b4406713e0c670e53ac974b2794cd done
+#6 extracting sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 done
+#6 DONE 6.7s
+
+#7 [build 2/7] WORKDIR /src
+#7 DONE 3.2s
+
+#8 [build 3/7] COPY go.mod go.sum ./
+#8 DONE 0.0s
+
+#9 [build 4/7] COPY cmd ./cmd
+#9 DONE 0.0s
+
+#10 [build 5/7] COPY internal ./internal
+#10 DONE 0.0s
+
+#11 [build 6/7] COPY migrations ./migrations
+#11 DONE 0.0s
+
+#12 [build 7/7] RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/runtime ./cmd/runtime  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/dur053-migrate  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/loadgen ./cmd/dur053-loadgen  && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/checker ./cmd/dur049-checker
+#12 0.091 go: downloading golang.org/x/sync v0.23.0
+#12 0.105 go: downloading go.opentelemetry.io/otel v1.45.0
+#12 0.106 go: downloading go.opentelemetry.io/otel/trace v1.45.0
+#12 0.145 go: downloading go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.45.0
+#12 0.158 go: downloading go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0
+#12 0.355 go: downloading go.opentelemetry.io/otel/sdk v1.45.0
+#12 0.360 go: downloading github.com/segmentio/kafka-go v0.4.49
+#12 0.363 go: downloading github.com/jackc/pgx/v5 v5.9.2
+#12 0.467 go: downloading github.com/go-logr/logr v1.4.4
+#12 0.467 go: downloading go.opentelemetry.io/otel/metric v1.45.0
+#12 0.477 go: downloading go.opentelemetry.io/proto/otlp v1.11.0
+#12 0.480 go: downloading google.golang.org/genproto/googleapis/rpc v0.0.0-20260803160001-6ac0973c030d
+#12 0.484 go: downloading google.golang.org/grpc v1.83.1
+#12 0.668 go: downloading google.golang.org/protobuf v1.36.11
+#12 0.673 go: downloading github.com/google/uuid v1.6.0
+#12 0.673 go: downloading golang.org/x/sys v0.48.0
+#12 0.680 go: downloading github.com/jackc/pgpassfile v1.0.0
+#12 0.688 go: downloading github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761
+#12 0.692 go: downloading golang.org/x/text v0.42.0
+#12 0.698 go: downloading github.com/jackc/puddle/v2 v2.2.2
+#12 0.722 go: downloading github.com/cespare/xxhash/v2 v2.3.0
+#12 0.733 go: downloading github.com/go-logr/stdr v1.2.2
+#12 0.743 go: downloading go.opentelemetry.io/auto/sdk v1.2.1
+#12 0.759 go: downloading github.com/cenkalti/backoff/v5 v5.0.3
+#12 0.771 go: downloading github.com/grpc-ecosystem/grpc-gateway/v2 v2.29.0
+#12 0.896 go: downloading golang.org/x/net v0.60.0
+#12 0.924 go: downloading google.golang.org/genproto/googleapis/api v0.0.0-20260803160001-6ac0973c030d
+#12 1.030 go: downloading github.com/klauspost/compress v1.15.9
+#12 1.030 go: downloading github.com/pierrec/lz4/v4 v4.1.15
+#12 DONE 22.1s
+
+#13 [runtime 1/2] COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+#13 DONE 0.0s
+
+#14 [runtime 2/2] COPY --from=build /out/ /
+#14 DONE 0.0s
+
+#15 exporting to image
+#15 exporting layers 0.1s done
+#15 writing image sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34
+#15 writing image sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34 done
+#15 naming to localhost:5001/dur053-runtime:candidate done
+#15 DONE 0.1s

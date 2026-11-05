@@ -1,0 +1,450 @@
+[
+  {
+    "containers": [
+      {
+        "containerID": "containerd://7e728e0e0d69c089b6290a7d0cafc17dff808b5377a44ca2d68ee9dd7d5032a4",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "api",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:15Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          },
+          {
+            "mountPath": "/identity",
+            "name": "identity",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          }
+        ]
+      }
+    ],
+    "name": "api-6dcfcb4cf6-6n6nr",
+    "uid": "6cf905c5-654c-4c5e-ac30-d60a6051b562"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://c165e22ebfd6154574b81967e526e0d243af9012d2f77de60f46ac48aa5a95f2",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "api",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:16Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          },
+          {
+            "mountPath": "/identity",
+            "name": "identity",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          }
+        ]
+      }
+    ],
+    "name": "api-6dcfcb4cf6-wwr6s",
+    "uid": "7400c631-573a-4037-89ac-f0383f000dd8"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://7219acd692a546cf050420b78cf84fc0764cdda0c3d8e4c207019d3bb1ceee1f",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "compatibility",
+        "ready": false,
+        "restartCount": 0,
+        "started": false,
+        "state": {
+          "terminated": {
+            "containerID": "containerd://7219acd692a546cf050420b78cf84fc0764cdda0c3d8e4c207019d3bb1ceee1f",
+            "exitCode": 0,
+            "finishedAt": "2026-11-05T12:58:10Z",
+            "reason": "Completed",
+            "startedAt": "2026-11-05T12:58:10Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/registry",
+            "name": "registry",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          }
+        ]
+      }
+    ],
+    "name": "compatibility-vcj4h",
+    "uid": "ef6c10ca-f65f-4ca2-9332-8abd90109049"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://3e70a274feb0c852da97cd79adfdcf4ce2bf88b3a54421f37345832ccc28e362",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "demand",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:16Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          },
+          {
+            "mountPath": "/bearer",
+            "name": "bearer",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          }
+        ]
+      }
+    ],
+    "name": "demand-848445dbbf-tpsmw",
+    "uid": "361bff9e-a5d9-4cb9-84a1-251aff4c2260"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://e4f1faac99e393aecb15e339599bcb94a47aa8e8edeb54d95810fbf5e40c17cb",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "migrate",
+        "ready": false,
+        "restartCount": 0,
+        "started": false,
+        "state": {
+          "terminated": {
+            "containerID": "containerd://e4f1faac99e393aecb15e339599bcb94a47aa8e8edeb54d95810fbf5e40c17cb",
+            "exitCode": 0,
+            "finishedAt": "2026-11-05T12:58:07Z",
+            "reason": "Completed",
+            "startedAt": "2026-11-05T12:58:06Z"
+          }
+        }
+      }
+    ],
+    "name": "migrate-rdchq",
+    "uid": "9bf3e759-ede3-41b0-bd18-80c90717605d"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://460ed6c0428701ef82f1103ea0c3481118f9c29f83bf9947786a1b76a9ab2ee1",
+        "image": "sha256:bd62a95d90567ef30314dca4a1f2333eff2adf572b663da4a447acdff734b10e",
+        "imageID": "localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6",
+        "lastState": {},
+        "name": "observer",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:15Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          },
+          {
+            "mountPath": "/identity",
+            "name": "identity",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          },
+          {
+            "mountPath": "/evidence",
+            "name": "evidence"
+          }
+        ]
+      }
+    ],
+    "name": "observer-769cfbd78d-vxc4c",
+    "uid": "14b908e1-c573-4c0a-a9c2-7848231a3fc7"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://9a1833fd0556d9d4244eae72cf47e99a4c16324dd275b12dbec866669f939360",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "operator",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:16Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          },
+          {
+            "mountPath": "/identity",
+            "name": "identity",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          }
+        ]
+      }
+    ],
+    "name": "operator-796bcc798c-ncz48",
+    "uid": "e5ff7ee9-ce27-4d02-90b0-c29d56cf3256"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://163d3029a6f968256f996b11b0b1f3869299cde4cd5cc1e51894c9deb80bad5a",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "relay",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:16Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          }
+        ]
+      }
+    ],
+    "name": "relay-fcc56794d-xld7f",
+    "uid": "efff3368-97bc-4586-9872-e7b30e22632a"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://659f6bc3016d4cccefd9df747490d6ad35836b993255616cb251d3ee0fa941e9",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "scheduler",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:16Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          }
+        ]
+      }
+    ],
+    "name": "scheduler-5c68ddf77d-c4srz",
+    "uid": "445dac91-70f5-4201-9f47-73d461b5cb5e"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://3d3f9dc10d861d09abe9a216faf9bc7ccc1a8c682d098b868cd3c25557ce2515",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "scheduler",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:16Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          }
+        ]
+      }
+    ],
+    "name": "scheduler-5c68ddf77d-nrtrs",
+    "uid": "b7d2e158-b6a0-4ced-a2a0-4aaaa99b7b9e"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://221e55ca97a687e0ae9cde7ec0de2fc8f22671da1b91365af6418c0ab56afda2",
+        "image": "sha256:bd62a95d90567ef30314dca4a1f2333eff2adf572b663da4a447acdff734b10e",
+        "imageID": "localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6",
+        "lastState": {},
+        "name": "worker",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:19Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          },
+          {
+            "mountPath": "/identity",
+            "name": "identity",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          },
+          {
+            "mountPath": "/witness",
+            "name": "witness"
+          }
+        ]
+      }
+    ],
+    "name": "worker-5585575589-szm8m",
+    "uid": "35c2b053-9b27-4d05-958a-72822a9bcfcf"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://b2878fe7fd2c6b2098604203aa2705b95a1c8dd579c846ef26a44bd3f8a6883a",
+        "image": "sha256:bd62a95d90567ef30314dca4a1f2333eff2adf572b663da4a447acdff734b10e",
+        "imageID": "localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6",
+        "lastState": {},
+        "name": "worker",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:19Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          },
+          {
+            "mountPath": "/identity",
+            "name": "identity",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          },
+          {
+            "mountPath": "/witness",
+            "name": "witness"
+          }
+        ]
+      }
+    ],
+    "name": "worker-5585575589-vcfj9",
+    "uid": "63fc5fd0-c802-4cd3-863f-f5e744c7aecc"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://37a796e094e894714a708fd82992bc3155c6ed8cca1a64becf8eb7715675c5f6",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "worker-control",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:16Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          },
+          {
+            "mountPath": "/identity",
+            "name": "identity",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          }
+        ]
+      }
+    ],
+    "name": "worker-control-6ff8f789bf-bfn65",
+    "uid": "6dbae722-147e-49ca-bf6d-c6420039adb5"
+  },
+  {
+    "containers": [
+      {
+        "containerID": "containerd://baec19952d06162b9faaca6eda34d59b13e38f3ab63c7828f929e9199e2cb74a",
+        "image": "sha256:3d9bf57554715211fbaafca8806b5aaf2c8dae5cc25b3657387b5bfc18d26b34",
+        "imageID": "localhost:5001/dur053-runtime@sha256:5adbe7113373deb8ed4d075f931d64e96814f541a4910565f526e01c6934dfc2",
+        "lastState": {},
+        "name": "worker-control",
+        "ready": true,
+        "restartCount": 0,
+        "started": true,
+        "state": {
+          "running": {
+            "startedAt": "2026-11-05T12:58:16Z"
+          }
+        },
+        "volumeMounts": [
+          {
+            "mountPath": "/tmp",
+            "name": "scratch"
+          },
+          {
+            "mountPath": "/identity",
+            "name": "identity",
+            "readOnly": true,
+            "recursiveReadOnly": "Disabled"
+          }
+        ]
+      }
+    ],
+    "name": "worker-control-6ff8f789bf-gs4gj",
+    "uid": "6e756ae1-26ac-498b-be20-4ceb56c4afe0"
+  }
+]

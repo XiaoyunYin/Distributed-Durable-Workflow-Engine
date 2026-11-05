@@ -1,0 +1,311 @@
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   └──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (5f86e0092844)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (834e6089f59c)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (7884ae5f66df)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.0 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (7884ae5f66df)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (8861e2a39409)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.1 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (7884ae5f66df)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8861e2a39409)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.1 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (7884ae5f66df)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8861e2a39409)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.1 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (7884ae5f66df)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8861e2a39409)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.1 s	total:   0.0 B	(0.0 B/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (7884ae5f66df)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8861e2a39409)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  13.0 M	(42.8 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (8861e2a39409)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  13.0 M	(42.8 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  13.0 M	(42.8 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  13.8 M	(45.3 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  13.8 M	(45.2 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5e739003c334)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  41.6 M	(136.6 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5e739003c334)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (46271edb89ae)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  44.7 M	(146.9 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5e739003c334)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (46271edb89ae)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (173ccf5c34f2)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  44.7 M	(146.9 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5e739003c334)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (46271edb89ae)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (173ccf5c34f2)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (c8e2e67eb781)              	waiting    	|[32m[0m--------------------------------------|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  44.9 M	(147.3 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5e739003c334)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (46271edb89ae)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (173ccf5c34f2)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (c8e2e67eb781)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   └──layer (fe8aabc42e28)              	waiting    	|[32m[0m--------------------------------------|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  51.2 M	(168.0 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	waiting    	|[32m[0m--------------------------------------|	
+   ├──config (bd62a95d9056)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5e739003c334)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (46271edb89ae)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (173ccf5c34f2)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (c8e2e67eb781)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   └──layer (fe8aabc42e28)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  57.3 M	(188.1 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	fetching image content	
+└──manifest (324513992392)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──config (bd62a95d9056)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5e739003c334)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (46271edb89ae)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (173ccf5c34f2)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (c8e2e67eb781)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   └──layer (fe8aabc42e28)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.3 s	total:  57.3 M	(188.0 MiB/s)	
+localhost:5001/dur053 worker@sha256:3245	saved	
+└──manifest (324513992392)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──config (bd62a95d9056)             	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5f86e0092844)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8cf9fb7a0b56)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (5e739003c334)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (46271edb89ae)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (834e6089f59c)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (7884ae5f66df)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (8861e2a39409)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (173ccf5c34f2)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   ├──layer (c8e2e67eb781)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+   └──layer (fe8aabc42e28)              	complete   	|[32m++++++++++++++++++++++++++++++++++++++[0m|	
+application/vnd.docker.distribution.manifest.v2+json sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6
+Pulling from OCI Registry (localhost:5001/dur053-worker@sha256:3245139923920711af2d6c9cefdd4ef947a5c673ded4e51b902ad62162b4edc6)	elapsed: 0.9 s	total:  57.3 M	(62.8 MiB/s)	

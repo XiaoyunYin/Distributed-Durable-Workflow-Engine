@@ -1,0 +1,126 @@
+{
+  "info": {
+    "chainID": "sha256:1eb31cd9c726d7a91e2afb4afc5ab13a9ec30b62e87aa0e2c95cac9295972937",
+    "imageSpec": {
+      "architecture": "amd64",
+      "config": {
+        "ArgsEscaped": true,
+        "Cmd": [
+          "/opt/cni/bin/install"
+        ],
+        "Env": [
+          "PATH=/opt/cni/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+        ],
+        "Labels": {
+          "description": "Calico Networking for CNI includes a CNI networking plugin and CNI IPAM plugin",
+          "maintainer": "maintainers@tigera.io",
+          "name": "Calico Networking for CNI",
+          "release": "1",
+          "summary": "Calico Networking for CNI",
+          "vendor": "Project Calico",
+          "version": "v3.29.3"
+        },
+        "WorkingDir": "/opt/cni/bin"
+      },
+      "created": "2025-03-25T16:40:12.537010197Z",
+      "history": [
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-19T17:39:17.823208192Z",
+          "created_by": "COPY / / # buildkit"
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.529689105Z",
+          "created_by": "ARG GIT_VERSION=v3.29.3",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.529689105Z",
+          "created_by": "LABEL description=Calico Networking for CNI includes a CNI networking plugin and CNI IPAM plugin",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.529689105Z",
+          "created_by": "LABEL maintainer=maintainers@tigera.io",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.529689105Z",
+          "created_by": "LABEL name=Calico Networking for CNI",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.529689105Z",
+          "created_by": "LABEL release=1",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.529689105Z",
+          "created_by": "LABEL summary=Calico Networking for CNI",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.529689105Z",
+          "created_by": "LABEL vendor=Project Calico",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.529689105Z",
+          "created_by": "LABEL version=v3.29.3",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.529689105Z",
+          "created_by": "ENV PATH=/opt/cni/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+          "empty_layer": true
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.529689105Z",
+          "created_by": "COPY / / # buildkit"
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.537010197Z",
+          "created_by": "WORKDIR /opt/cni/bin"
+        },
+        {
+          "comment": "buildkit.dockerfile.v0",
+          "created": "2025-03-25T16:40:12.537010197Z",
+          "created_by": "CMD [\"/opt/cni/bin/install\"]",
+          "empty_layer": true
+        }
+      ],
+      "os": "linux",
+      "rootfs": {
+        "diff_ids": [
+          "sha256:37c1775e03026c635ff011c7c47d721aff77e8d4b7d61422539563a3e0e0ee3e",
+          "sha256:ac1e39af291cfc5ddcfa90b546decfba8e54e62928e97790414a14fcbb01fb3f",
+          "sha256:5f70bf18a086007016e948b04aed3b82103a36bea41755b6cddfaf10ace3c6ef"
+        ],
+        "type": "layers"
+      }
+    }
+  },
+  "status": {
+    "id": "sha256:a140d04be1bc987bae0a1b9159e1dcb85751c448830efbdb3494207cf602b2d9",
+    "pinned": false,
+    "repoDigests": [
+      "docker.io/calico/cni@sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c"
+    ],
+    "repoTags": [
+      "docker.io/calico/cni:v3.29.3"
+    ],
+    "size": "219814233",
+    "username": ""
+  }
+}
