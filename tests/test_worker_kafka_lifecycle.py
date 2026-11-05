@@ -18,6 +18,41 @@ from workers.lifecycle import WorkerLifecycle
 from workers.runner import ActivityRunner
 
 
+def _measure_unblocked_assignment(brokers: list[str], topic: str, admin: KafkaAdminClient) -> float:
+    """Measure a fresh consumer group's assignment latency on the local broker."""
+    control_topic = topic + "-control"
+    admin.create_topics([NewTopic(control_topic, num_partitions=2, replication_factor=1)])
+    assigned = threading.Event()
+
+    def observe() -> None:
+        consumer = KafkaConsumer(
+            control_topic,
+            bootstrap_servers=brokers,
+            group_id=control_topic,
+            enable_auto_commit=False,
+            auto_offset_reset="latest",
+        )
+        try:
+            deadline = time.monotonic() + 60
+            while time.monotonic() < deadline and not assigned.is_set():
+                consumer.poll(timeout_ms=100, max_records=1)
+                if consumer.assignment():
+                    assigned.set()
+        finally:
+            consumer.close(autocommit=False, timeout_ms=1000)
+
+    started = time.monotonic()
+    thread = threading.Thread(target=observe, daemon=True)
+    thread.start()
+    try:
+        assert assigned.wait(60), "unblocked control peer was not assigned within 60 s"
+        return time.monotonic() - started
+    finally:
+        thread.join(3)
+        admin.delete_topics([control_topic])
+        assert not thread.is_alive(), "control peer observer did not stop"
+
+
 def test_real_kafka_assignment_during_long_activity(monkeypatch: pytest.MonkeyPatch) -> None:
     brokers = os.getenv("DURABLE_KAFKA_BROKERS")
     if not brokers:
@@ -28,13 +63,21 @@ def test_real_kafka_assignment_during_long_activity(monkeypatch: pytest.MonkeyPa
     source = Path(__file__).with_name("fixtures") / "k1-pre-kafka-worker.txt"
     exec(compile(source.read_bytes(), str(source), "exec"), reference.__dict__)
     admin = KafkaAdminClient(bootstrap_servers=brokers.split(","), request_timeout_ms=10000)
+    broker_list = brokers.split(",")
     witnesses: list[dict[str, Any]] = []
     try:
         for legacy, module in [(True, reference), (False, current)]:
             topic = "dur053-k1-" + uuid.uuid4().hex
             admin.create_topics([NewTopic(topic, num_partitions=2, replication_factor=1)])
             lifecycle = WorkerLifecycle(legacy=legacy)
-            entered, release = threading.Event(), threading.Event()
+            entered, release, activity_timed_out = (
+                threading.Event(),
+                threading.Event(),
+                threading.Event(),
+            )
+            observation_window = 60.0 if not legacy else 0.0
+            barrier_seconds = [0.0]
+            activity_deadline = [0.0]
             monkeypatch.setattr(module, "TASK_TOPIC", topic)
             monkeypatch.setattr(module, "GROUP", topic)
 
@@ -43,9 +86,15 @@ def test_real_kafka_assignment_during_long_activity(monkeypatch: pytest.MonkeyPa
                 _task: Any,
                 activity_entered: threading.Event = entered,
                 activity_release: threading.Event = release,
+                timed_out: threading.Event = activity_timed_out,
+                activity_barrier_seconds: list[float] = barrier_seconds,
+                deadline: list[float] = activity_deadline,
             ) -> dict[str, Any]:
+                deadline[0] = time.monotonic() + activity_barrier_seconds[0]
                 activity_entered.set()
-                assert activity_release.wait(12), "activity barrier timed out"
+                if not activity_release.wait(activity_barrier_seconds[0]):
+                    timed_out.set()
+                    raise AssertionError("activity barrier timed out")
                 return {}
 
             def post(
@@ -77,8 +126,12 @@ def test_real_kafka_assignment_during_long_activity(monkeypatch: pytest.MonkeyPa
             peer_stop, peer_assigned = threading.Event(), threading.Event()
             peer_thread = None
             try:
+                control_join_seconds = _measure_unblocked_assignment(broker_list, topic, admin)
+                if legacy:
+                    observation_window = max(5.0, 3.0 * control_join_seconds)
+                barrier_seconds[0] = observation_window + 30.0
                 producer.send(topic, b"barrier", partition=0).get(timeout=10)
-                assert entered.wait(10), "first worker did not enter activity"
+                assert entered.wait(60), "first worker did not enter activity within 60 s"
 
                 def observe_peer(
                     peer_topic: str = topic,
@@ -103,15 +156,27 @@ def test_real_kafka_assignment_during_long_activity(monkeypatch: pytest.MonkeyPa
                 peer_thread = threading.Thread(target=observe_peer, daemon=True)
                 started = time.monotonic()
                 peer_thread.start()
-                assigned_before_release = peer_assigned.wait(4)
+                assigned_before_release = peer_assigned.wait(observation_window)
                 elapsed = time.monotonic() - started
+                activity_held = (
+                    entered.is_set()
+                    and not release.is_set()
+                    and not activity_timed_out.is_set()
+                    and time.monotonic() < activity_deadline[0]
+                )
                 witnesses.append(
                     {
                         "legacy": legacy,
+                        "control_join_seconds": round(control_join_seconds, 3),
+                        "observation_window_seconds": round(observation_window, 3),
+                        "activity_barrier_seconds": round(barrier_seconds[0], 3),
                         "peer_assigned_before_activity_release": assigned_before_release,
+                        "activity_held_when_observation_ended": activity_held,
+                        "activity_timed_out": activity_timed_out.is_set(),
                         "observation_seconds": round(elapsed, 3),
                     }
                 )
+                assert activity_held, f"activity was not held through observation: {witnesses}"
                 assert assigned_before_release != legacy, (
                     f"unexpected eager assignment witness: {witnesses}"
                 )
