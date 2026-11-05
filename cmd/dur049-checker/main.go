@@ -118,31 +118,21 @@ func main() {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 	defer cancel()
-	store, err := state.NewDemandFromURL(ctx, *databaseURL)
+	store, err := state.NewCheckerFromURL(ctx, *databaseURL)
 	if err != nil {
 		fatal(err)
 	}
 	defer store.Close()
+	var trace invariants.Trace
 	if *namespace != "" {
-		rows, e := store.Pool().Query(ctx, `SELECT workflow_id FROM engine.workflow_executions WHERE namespace=$1 ORDER BY workflow_id`, *namespace)
-		if e != nil {
-			fatal(e)
-		}
+		trace, err = invariants.LoadNamespace(ctx, store, *namespace)
 		ids = nil
-		for rows.Next() {
-			var id string
-			if e := rows.Scan(&id); e != nil {
-				fatal(e)
-			}
-			ids = append(ids, id)
+		for _, workflow := range trace.Workflows {
+			ids = append(ids, workflow.WorkflowID)
 		}
-		e = rows.Err()
-		rows.Close()
-		if e != nil {
-			fatal(e)
-		}
+	} else {
+		trace, err = invariants.Load(ctx, store, ids)
 	}
-	trace, err := invariants.Load(ctx, store, ids)
 	if err != nil {
 		fatal(err)
 	}

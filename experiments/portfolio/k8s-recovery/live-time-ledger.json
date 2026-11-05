@@ -1,0 +1,6 @@
+{
+  "schema": "dur053.live-ledger.v1",
+  "limit_seconds": 259200,
+  "entries": [],
+  "note": "No K3 live run recorded. Claude appends charges from downloaded CI artifacts before another live job."
+}

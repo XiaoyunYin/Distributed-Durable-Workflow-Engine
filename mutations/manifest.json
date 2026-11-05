@@ -4332,6 +4332,1756 @@
       ],
       "expected": "closed-pool cleanup leaked fixture",
       "requires_database": true
+    },
+    {
+      "id": "k3-role-topology",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(set(deployments) == ROLES, \"role-topology\")",
+      "new": "require(True, 'role-topology')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe role-topology",
+      "requires_database": false
+    },
+    {
+      "id": "k3-no-committed-secret",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(not any(o[\"kind\"] == \"Secret\" for o in objects), \"no-committed-secret\")",
+      "new": "require(True, 'no-committed-secret')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe no-committed-secret",
+      "requires_database": false
+    },
+    {
+      "id": "k3-default-deny",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        policies.get(\"default-deny\") == {\"podSelector\": {}, \"policyTypes\": [\"Ingress\", \"Egress\"]},\n        \"default-deny\",\n    )",
+      "new": "require(True, 'default-deny')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe default-deny",
+      "requires_database": false
+    },
+    {
+      "id": "k3-rbac-tokenreview",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        rules\n        == [\n            {\n                \"apiGroups\": [\"authentication.k8s.io\"],\n                \"resources\": [\"tokenreviews\"],\n                \"verbs\": [\"create\"],\n            }\n        ],\n        \"rbac-tokenreview\",\n    )",
+      "new": "require(True, 'rbac-tokenreview')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe rbac-tokenreview",
+      "requires_database": false
+    },
+    {
+      "id": "k3-rbac-subjects",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        {s[\"name\"] for s in binding[\"subjects\"]} == AUTH\n        and all(\n            s[\"kind\"] == \"ServiceAccount\"\n            and s[\"namespace\"]\n            == next(o[\"metadata\"][\"name\"] for o in objects if o[\"kind\"] == \"Namespace\")\n            for s in binding[\"subjects\"]\n        ),\n        \"rbac-subjects\",\n    )",
+      "new": "require(True, 'rbac-subjects')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe rbac-subjects",
+      "requires_database": false
+    },
+    {
+      "id": "k3-demand-network-boundary",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        policies[\"demand-ingress\"][\"ingress\"]\n        == [\n            {\n                \"from\": [\n                    {\n                        \"namespaceSelector\": {\n                            \"matchLabels\": {\"kubernetes.io/metadata.name\": \"keda\"}\n                        },\n                        \"podSelector\": {\"matchLabels\": {\"app\": \"keda-operator\"}},\n                    }\n                ],\n                \"ports\": [{\"protocol\": \"TCP\", \"port\": 8091}],\n            }\n        ],\n        \"demand-network-boundary\",\n    )",
+      "new": "require(True, 'demand-network-boundary')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe demand-network-boundary",
+      "requires_database": false
+    },
+    {
+      "id": "k3-network-policy-set",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        set(policies)\n        == {\n            \"default-deny\",\n            \"dns\",\n            \"demand-ingress\",\n            *(n + \"-ingress\" for n in expected),\n            *(n + \"-egress\" for n in ROLES | {\"migrate\", \"compatibility\"}),\n        },\n        \"network-policy-set\",\n    )",
+      "new": "require(True, 'network-policy-set')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe network-policy-set",
+      "requires_database": false
+    },
+    {
+      "id": "k3-candidate-worker-image",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        compat[\"initContainers\"][0][\"image\"]\n        == deployments[\"worker\"][\"spec\"][\"template\"][\"spec\"][\"containers\"][0][\"image\"]\n        and \"default_registry\" in \" \".join(compat[\"initContainers\"][0][\"command\"]),\n        \"candidate-worker-image\",\n    )",
+      "new": "require(True, 'candidate-worker-image')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe candidate-worker-image",
+      "requires_database": false
+    },
+    {
+      "id": "k3-scaler-bounds",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        so[\"minReplicaCount\"] == 1\n        and so[\"maxReplicaCount\"] == 4\n        and so[\"pollingInterval\"] == 5\n        and so[\"fallback\"] == {\"failureThreshold\": 3, \"replicas\": 2},\n        \"scaler-bounds\",\n    )",
+      "new": "require(True, 'scaler-bounds')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe scaler-bounds",
+      "requires_database": false
+    },
+    {
+      "id": "k3-scaler-auth-metric",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        trigger\n        == {\n            \"type\": \"metrics-api\",\n            \"metricType\": \"AverageValue\",\n            \"metadata\": {\n                \"url\": \"http://demand.\"\n                + by[(\"ScaledObject\", \"worker-demand\")][\"metadata\"].get(\"namespace\", \"dur053-kind\")\n                + \".svc.cluster.local:8091/v1/demand\",\n                \"format\": \"json\",\n                \"valueLocation\": \"demand\",\n                \"targetValue\": \"2\",\n                \"authMode\": \"bearer\",\n                \"unsafeSsl\": \"false\",\n            },\n            \"authenticationRef\": {\"name\": \"campaign-demand\"},\n        },\n        \"scaler-auth-metric\",\n    )",
+      "new": "require(True, 'scaler-auth-metric')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe scaler-auth-metric",
+      "requires_database": false
+    },
+    {
+      "id": "k3-scaler-secret",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        by[(\"TriggerAuthentication\", \"campaign-demand\")][\"spec\"]\n        == {\"secretTargetRef\": [{\"parameter\": \"token\", \"name\": \"campaign-demand\", \"key\": \"token\"}]},\n        \"scaler-secret\",\n    )",
+      "new": "require(True, 'scaler-secret')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe scaler-secret",
+      "requires_database": false
+    },
+    {
+      "id": "k3-connection-budget",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        budget[\"max_connections\"] == 100 and budget[\"reserved_and_admin\"] == 8 and total + 8 <= 100,\n        \"connection-budget\",\n    )",
+      "new": "require(True, 'connection-budget')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe connection-budget",
+      "requires_database": false
+    },
+    {
+      "id": "k3-matched-arms",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(normalize(treatment, False) == normalize(baseline, True), \"matched-arms\")",
+      "new": "require(True, 'matched-arms')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "matched arm drift accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k3-ledger-schema",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        ledger.get(\"schema\") == \"dur053.live-ledger.v1\" and ledger.get(\"limit_seconds\") == 259200,\n        \"ledger-schema\",\n    )",
+      "new": "require(True, 'ledger-schema')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "ledger guard bypassed ledger-schema",
+      "requires_database": false
+    },
+    {
+      "id": "k3-job-live-ceiling",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(type(registered) is int and 0 < registered <= 18900, \"job-live-ceiling\")",
+      "new": "require(True, 'job-live-ceiling')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "ledger guard bypassed job-live-ceiling",
+      "requires_database": false
+    },
+    {
+      "id": "k3-uncommitted-live-evidence",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(prior_jobs <= seen, \"uncommitted-live-evidence\")",
+      "new": "require(True, 'uncommitted-live-evidence')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "ledger guard bypassed uncommitted-live-evidence",
+      "requires_database": false
+    },
+    {
+      "id": "k3-ledger-budget",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(spent + registered <= 259200, \"ledger-budget\")",
+      "new": "require(True, 'ledger-budget')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "ledger guard bypassed ledger-budget",
+      "requires_database": false
+    },
+    {
+      "id": "k3-k3b-scenario-not-implemented",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(scenario in {\"package-check\", \"smoke\", \"cleanup\"}, \"K3b: scenario not implemented\")",
+      "new": "require(True, 'K3b: scenario not implemented')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "unimplemented scenario accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k3-evidence-outside-checkout",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(not output.resolve().is_relative_to(ROOT), \"evidence-outside-checkout\")",
+      "new": "require(True, 'evidence-outside-checkout')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "repository output accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k3-token-automount",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(pod.get(\"automountServiceAccountToken\") is False, \"token-automount\")",
+      "new": "require(True, 'token-automount')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe token-automount",
+      "requires_database": false
+    },
+    {
+      "id": "k3-role-serviceaccount",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            pod[\"serviceAccountName\"] == name\n            and by[(\"ServiceAccount\", name)].get(\"automountServiceAccountToken\") is False,\n            \"role-serviceaccount\",\n        )",
+      "new": "require(True, 'role-serviceaccount')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe role-serviceaccount",
+      "requires_database": false
+    },
+    {
+      "id": "k3-host-isolation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            not any(pod.get(x) for x in (\"hostNetwork\", \"hostPID\", \"hostIPC\")), \"host-isolation\"\n        )",
+      "new": "require(True, 'host-isolation')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe host-isolation",
+      "requires_database": false
+    },
+    {
+      "id": "k3-pod-security",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            pod[\"securityContext\"]\n            == {\n                \"runAsNonRoot\": True,\n                \"runAsUser\": 65532,\n                \"runAsGroup\": 65532,\n                \"fsGroup\": 65532,\n                \"seccompProfile\": {\"type\": \"RuntimeDefault\"},\n            },\n            \"pod-security\",\n        )",
+      "new": "require(True, 'pod-security')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe pod-security",
+      "requires_database": false
+    },
+    {
+      "id": "k3-drain-budget",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(pod.get(\"terminationGracePeriodSeconds\") == 40, \"drain-budget\")",
+      "new": "require(True, 'drain-budget')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe drain-budget",
+      "requires_database": false
+    },
+    {
+      "id": "k3-topology-spread",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(bool(pod.get(\"topologySpreadConstraints\")), \"topology-spread\")",
+      "new": "require(True, 'topology-spread')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe topology-spread",
+      "requires_database": false
+    },
+    {
+      "id": "k3-surge-budget",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            spec[\"replicas\"] == budget[\"role_replicas\"][name]\n            and spec[\"strategy\"][\"rollingUpdate\"]\n            == {\"maxSurge\": budget[\"max_surges\"][name], \"maxUnavailable\": 0},\n            \"surge-budget\",\n        )",
+      "new": "require(True, 'surge-budget')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe surge-budget",
+      "requires_database": false
+    },
+    {
+      "id": "k3-no-hostpath",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(not any(\"hostPath\" in v for v in volumes.values()), \"no-hostpath\")",
+      "new": "require(True, 'no-hostpath')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe no-hostpath",
+      "requires_database": false
+    },
+    {
+      "id": "k3-network-coverage",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            policies.get(name + \"-egress\", {}).get(\"podSelector\") == {\"matchLabels\": {\"app\": name}},\n            \"network-coverage\",\n        )",
+      "new": "require(True, 'network-coverage')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe network-coverage",
+      "requires_database": false
+    },
+    {
+      "id": "k3-ingress-selector",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            policies[target + \"-ingress\"][\"podSelector\"] == {\"matchLabels\": {\"app\": target}},\n            \"ingress-selector\",\n        )",
+      "new": "require(True, 'ingress-selector')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe ingress-selector",
+      "requires_database": false
+    },
+    {
+      "id": "k3-network-boundary",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            policies[target + \"-ingress\"][\"ingress\"]\n            == [\n                {\n                    \"from\": [{\"podSelector\": {\"matchLabels\": {\"app\": source}}}],\n                    \"ports\": [{\"protocol\": \"TCP\", \"port\": port}],\n                }\n            ],\n            \"network-boundary\",\n        )",
+      "new": "require(True, 'network-boundary')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe network-boundary",
+      "requires_database": false
+    },
+    {
+      "id": "k3-job-bounds",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            job[\"backoffLimit\"] == 0\n            and job[\"parallelism\"] == 1\n            and job[\"activeDeadlineSeconds\"] == 180,\n            \"job-bounds\",\n        )",
+      "new": "require(True, 'job-bounds')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe job-bounds",
+      "requires_database": false
+    },
+    {
+      "id": "k3-job-security",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            pod[\"serviceAccountName\"] == name\n            and pod.get(\"automountServiceAccountToken\") is False\n            and pod[\"securityContext\"][\"runAsNonRoot\"] is True,\n            \"job-security\",\n        )",
+      "new": "require(True, 'job-security')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe job-security",
+      "requires_database": false
+    },
+    {
+      "id": "k3-candidate-runtime-image",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            pod[\"containers\"][0][\"image\"]\n            == deployments[\"api\"][\"spec\"][\"template\"][\"spec\"][\"containers\"][0][\"image\"],\n            \"candidate-runtime-image\",\n        )",
+      "new": "require(True, 'candidate-runtime-image')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe candidate-runtime-image",
+      "requires_database": false
+    },
+    {
+      "id": "k3-scaler-behavior",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            so[\"advanced\"][\"horizontalPodAutoscalerConfig\"][\"behavior\"][direction]\n            == {\n                \"stabilizationWindowSeconds\": stabilization,\n                \"policies\": [{\"type\": \"Pods\", \"value\": 1, \"periodSeconds\": 30}],\n                \"selectPolicy\": \"Min\",\n            },\n            \"scaler-behavior\",\n        )",
+      "new": "require(True, 'scaler-behavior')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe scaler-behavior",
+      "requires_database": false
+    },
+    {
+      "id": "k3-ledger-identity",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(job not in seen and str(job).isdigit(), \"ledger-identity\")",
+      "new": "require(True, 'ledger-identity')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "ledger guard bypassed ledger-identity",
+      "requires_database": false
+    },
+    {
+      "id": "k3-ledger-provenance",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            all(\n                row.get(k)\n                for k in (\n                    \"run_id\",\n                    \"head_sha\",\n                    \"merge_ref_sha\",\n                    \"tree_sha\",\n                    \"artifact_sha256\",\n                    \"status\",\n                )\n            ),\n            \"ledger-provenance\",\n        )",
+      "new": "require(True, 'ledger-provenance')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "ledger guard bypassed ledger-provenance",
+      "requires_database": false
+    },
+    {
+      "id": "k3-ledger-duration",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            type(row[\"charged_seconds\"]) is int and 0 < row[\"charged_seconds\"] <= 18900,\n            \"ledger-duration\",\n        )",
+      "new": "require(True, 'ledger-duration')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "ledger guard bypassed ledger-duration",
+      "requires_database": false
+    },
+    {
+      "id": "k3-image-digest",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                bool(DIGEST.fullmatch(c[\"image\"])) and \"0\" * 64 not in c[\"image\"], \"image-digest\"\n            )",
+      "new": "require(True, 'image-digest')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe image-digest",
+      "requires_database": false
+    },
+    {
+      "id": "k3-loaded-image",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(c.get(\"imagePullPolicy\") == \"Never\", \"loaded-image\")",
+      "new": "require(True, 'loaded-image')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe loaded-image",
+      "requires_database": false
+    },
+    {
+      "id": "k3-container-security",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                c[\"securityContext\"]\n                == {\n                    \"allowPrivilegeEscalation\": False,\n                    \"readOnlyRootFilesystem\": True,\n                    \"capabilities\": {\"drop\": [\"ALL\"]},\n                },\n                \"container-security\",\n            )",
+      "new": "require(True, 'container-security')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe container-security",
+      "requires_database": false
+    },
+    {
+      "id": "k3-resource-bounds",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                set(c.get(\"resources\", {})) == {\"requests\", \"limits\"}\n                and all(set(v) == {\"cpu\", \"memory\"} for v in c[\"resources\"].values()),\n                \"resource-bounds\",\n            )",
+      "new": "require(True, 'resource-bounds')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe resource-bounds",
+      "requires_database": false
+    },
+    {
+      "id": "k3-explicit-pool",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(env.get(\"RUNTIME_DB_MAX_CONNS\") == {\"value\": str(pool)}, \"explicit-pool\")",
+      "new": "require(True, 'explicit-pool')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe explicit-pool",
+      "requires_database": false
+    },
+    {
+      "id": "k3-route-role",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                env[\"RUNTIME_ROLES\"]\n                == {\"value\": \"scheduler,ingestor\" if name == \"scheduler\" else name},\n                \"route-role\",\n            )",
+      "new": "require(True, 'route-role')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe route-role",
+      "requires_database": false
+    },
+    {
+      "id": "k3-engine-namespace",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                env[\"RUNTIME_NAMESPACE\"]\n                == {\"valueFrom\": {\"fieldRef\": {\"fieldPath\": \"metadata.namespace\"}}},\n                \"engine-namespace\",\n            )",
+      "new": "require(True, 'engine-namespace')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe engine-namespace",
+      "requires_database": false
+    },
+    {
+      "id": "k3-pdb",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require((\"PodDisruptionBudget\", name) in by, \"pdb\")",
+      "new": "require(True, 'pdb')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe pdb",
+      "requires_database": false
+    },
+    {
+      "id": "k3-auth-enabled",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(env.get(\"RUNTIME_TOKEN_AUTH\") == {\"value\": \"enabled\"}, \"auth-enabled\")",
+      "new": "require(True, 'auth-enabled')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe auth-enabled",
+      "requires_database": false
+    },
+    {
+      "id": "k3-reviewer-projection",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                env[\"RUNTIME_TOKEN_REVIEW_TOKEN_FILE\"] == {\"value\": \"/identity/reviewer\"}\n                and volumes[\"identity\"][\"projected\"][\"sources\"][0][\"serviceAccountToken\"][\n                    \"expirationSeconds\"\n                ]\n                == 3600,\n                \"reviewer-projection\",\n            )",
+      "new": "require(True, 'reviewer-projection')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe reviewer-projection",
+      "requires_database": false
+    },
+    {
+      "id": "k3-identity-boundary",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                env[\"RUNTIME_TOKEN_AUDIENCE\"] == {\"value\": audience}\n                and env[\"RUNTIME_TOKEN_SERVICE_ACCOUNT\"]\n                == {\"value\": \"worker\" if name == \"worker-control\" else \"observer\"},\n                \"identity-boundary\",\n            )",
+      "new": "require(True, 'identity-boundary')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe identity-boundary",
+      "requires_database": false
+    },
+    {
+      "id": "k3-worker-projection",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                volumes[\"identity\"][\"projected\"][\"sources\"]\n                == [\n                    {\n                        \"serviceAccountToken\": {\n                            \"audience\": \"durable-worker-control\",\n                            \"expirationSeconds\": 3600,\n                            \"path\": \"token\",\n                        }\n                    }\n                ],\n                \"worker-projection\",\n            )",
+      "new": "require(True, 'worker-projection')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe worker-projection",
+      "requires_database": false
+    },
+    {
+      "id": "k3-demand-secret-file",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                env[\"RUNTIME_DEMAND_BEARER_TOKEN_FILE\"] == {\"value\": \"/bearer/token\"}\n                and volumes[\"bearer\"].get(\"secret\") == {\"secretName\": \"campaign-demand\"},\n                \"demand-secret-file\",\n            )",
+      "new": "require(True, 'demand-secret-file')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe demand-secret-file",
+      "requires_database": false
+    },
+    {
+      "id": "k3-bounded-egress",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(bool(rule.get(\"to\")) and bool(rule.get(\"ports\")), \"bounded-egress\")",
+      "new": "require(True, 'bounded-egress')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe bounded-egress",
+      "requires_database": false
+    },
+    {
+      "id": "k3-job-images-security",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                bool(DIGEST.fullmatch(c[\"image\"]))\n                and c[\"securityContext\"][\"readOnlyRootFilesystem\"]\n                and c[\"securityContext\"][\"capabilities\"] == {\"drop\": [\"ALL\"]},\n                \"job-images-security\",\n            )",
+      "new": "require(True, 'job-images-security')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe job-images-security",
+      "requires_database": false
+    },
+    {
+      "id": "k3-probe-semantics",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                    c.get(key, {}).get(\"httpGet\") == {\"path\": path, \"port\": \"http\"},\n                    \"probe-semantics\",\n                )",
+      "new": "require(True, 'probe-semantics')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe probe-semantics",
+      "requires_database": false
+    },
+    {
+      "id": "k3-legacy-flags",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                    flags == ([{\"name\": flag, \"value\": \"legacy\"}] if legacy else []), \"legacy-flags\"\n                )",
+      "new": "require(True, 'legacy-flags')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "legacy flags missing accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k3-external-endpoint-mask",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n                        ipaddress.ip_network(peer[\"ipBlock\"][\"cidr\"]).prefixlen == 32,\n                        \"external-endpoint-mask\",\n                    )",
+      "new": "require(True, 'external-endpoint-mask')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "policy accepted unsafe external-endpoint-mask",
+      "requires_database": false
+    },
+    {
+      "id": "k3-checker-timeout",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "config.ConnConfig.RuntimeParams[\"statement_timeout\"] = budget",
+      "new": "config.ConnConfig.RuntimeParams[\"statement_timeout\"] = \"2s\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3CheckerSnapshot$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "checker export timeout bypassed",
+      "requires_database": true
+    },
+    {
+      "id": "k3-checker-pool",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "newFromURLConfig(ctx, databaseURL, 2, true, func(config",
+      "new": "newFromURLConfig(ctx, databaseURL, 3, true, func(config",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3CheckerSnapshot$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "checker connection budget bypassed",
+      "requires_database": true
+    },
+    {
+      "id": "k3-checker-readonly",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "newFromURLConfig(ctx, databaseURL, 2, true, func(config",
+      "new": "newFromURLConfig(ctx, databaseURL, 2, false, func(config",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3CheckerSnapshot$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "checker read-only bypassed",
+      "requires_database": true
+    },
+    {
+      "id": "k3-checker-isolation",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "config.ConnConfig.RuntimeParams[\"default_transaction_isolation\"] = \"repeatable read\"",
+      "new": "config.ConnConfig.RuntimeParams[\"default_transaction_isolation\"] = \"read committed\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3CheckerSnapshot$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "checker isolation bypassed",
+      "requires_database": true
+    },
+    {
+      "id": "k3-snapshot-race",
+      "kind": "behavioral",
+      "file": "internal/invariants/snapshot.go",
+      "old": "pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly}",
+      "new": "pgx.TxOptions{IsoLevel: pgx.ReadCommitted, AccessMode: pgx.ReadOnly}",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3CheckerSnapshot$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "namespace snapshot raw rows raced",
+      "requires_database": true
+    },
+    {
+      "id": "k3-role-pool",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "config.MaxConns = int32(value)",
+      "new": "config.MaxConns = 8",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK3RolePool$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "role pool bound bypassed",
+      "requires_database": true
+    },
+    {
+      "id": "k3-role-pool-validation",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "err != nil || value < 1 || value > 8",
+      "new": "err != nil || value < 0 || value > 9",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK3RolePool$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "invalid role pool accepted",
+      "requires_database": true
+    },
+    {
+      "id": "k3-client-token-send",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "req.Header.Set(\"Authorization\", \"Bearer \"+strings.TrimSpace(string(data)))",
+      "new": "req.Header.Set(\"Authorization\", \"invalid\")",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK3CampaignToken$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign token not sent or rotated",
+      "requires_database": false
+    },
+    {
+      "id": "k3-client-token-missing",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "if e != nil || strings.TrimSpace(string(data)) == \"\" {",
+      "new": "if false { _ = e",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK3CampaignToken$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign unreadable token guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3-download-checksum",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(hashlib.sha256(data).hexdigest() == sha256, \"download-checksum\")",
+      "new": "require(True, \"download-checksum\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "checksum mismatch accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k3-existing-output",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "    require(not output.exists(), \"existing-output\")\n    require(not output.resolve().is_relative_to(ROOT), \"evidence-outside-checkout\")\n    output.mkdir(parents=True, exist_ok=False)",
+      "new": "    require(not output.resolve().is_relative_to(ROOT), \"evidence-outside-checkout\")\n    output.mkdir(parents=True, exist_ok=True)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "existing output accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k3-artifact-self-hash",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "if p.is_file() and p.name != \"manifest.json\"",
+      "new": "if p.is_file()",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "manifest.json",
+      "requires_database": false
+    },
+    {
+      "id": "k3-live-job-deadline",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(remaining > 600, \"live-job-deadline\")",
+      "new": "require(True, 'live-job-deadline')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "live deadline accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k3-cleanup-verified",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(\n            clusters.returncode == containers.returncode == nodes.returncode == 0\n            and CLUSTER not in clusters.stdout.splitlines()\n            and not (containers.stdout + nodes.stdout).strip()\n            and not self.databases\n            and not errors,\n            \"cleanup-verified\",\n        )",
+      "new": "require(True, 'cleanup-verified')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "cleanup accepted live resources",
+      "requires_database": false
+    },
+    {
+      "id": "k3-no-automatic-replacement",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(\n        len(mine) == 1 and os.environ.get(\"GITHUB_RUN_ATTEMPT\") == \"1\", \"no-automatic-replacement\"\n    )",
+      "new": "require(True, 'no-automatic-replacement')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "rerun attempt accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k3-checker-requires-budget",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "if !ok || time.Until(deadline) < time.Millisecond {",
+      "new": "if false { _ = ok",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3CheckerRequiresBudget$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "checker budget guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3-committed-ledger-artifact",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            artifact.is_relative_to(repository.resolve()) and artifact.is_file(),\n            \"committed-ledger-artifact\",\n        )",
+      "new": "require(True, 'committed-ledger-artifact')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed committed-ledger-artifact",
+      "requires_database": false
+    },
+    {
+      "id": "k3-committed-ledger-hash",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(hashlib.sha256(raw).hexdigest() == row[\"artifact_sha256\"], \"committed-ledger-hash\")",
+      "new": "require(True, 'committed-ledger-hash')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed committed-ledger-hash",
+      "requires_database": false
+    },
+    {
+      "id": "k3-committed-ledger-provenance",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n            all(\n                str(manifest[key]) == str(row[key])\n                for key in (\"run_id\", \"job_id\", \"head_sha\", \"merge_ref_sha\", \"tree_sha\", \"status\")\n            )\n            and manifest.get(\"charged_seconds\", manifest[\"registered_live_seconds\"])\n            == row[\"charged_seconds\"],\n            \"committed-ledger-provenance\",\n        )",
+      "new": "require(True, 'committed-ledger-provenance')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed committed-ledger-provenance",
+      "requires_database": false
+    },
+    {
+      "id": "k3-intake-smoke-schema",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_smoke.py",
+      "old": "require(\n        manifest[\"schema\"] == \"dur053.k3a.v1\" and manifest[\"scenario\"] == \"smoke\",\n        \"intake-smoke-schema\",\n    )",
+      "new": "require(True, 'intake-smoke-schema')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed intake-smoke-schema",
+      "requires_database": false
+    },
+    {
+      "id": "k3-intake-artifact-hashes",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_smoke.py",
+      "old": "require(manifest[\"artifact_sha256\"] == artifact_hashes(source), \"intake-artifact-hashes\")",
+      "new": "require(True, 'intake-artifact-hashes')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed intake-artifact-hashes",
+      "requires_database": false
+    },
+    {
+      "id": "k3-intake-no-symlinks",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_smoke.py",
+      "old": "require(all(not p.is_symlink() for p in source.rglob(\"*\")), \"intake-no-symlinks\")",
+      "new": "require(True, 'intake-no-symlinks')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed intake-no-symlinks",
+      "requires_database": false
+    },
+    {
+      "id": "k3-intake-run-identity",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_smoke.py",
+      "old": "require(run.isdigit() and job.isdigit(), \"intake-run-identity\")",
+      "new": "require(True, 'intake-run-identity')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed intake-run-identity",
+      "requires_database": false
+    },
+    {
+      "id": "k3-intake-duplicate-job",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_smoke.py",
+      "old": "require(job not in {e[\"job_id\"] for e in ledger[\"entries\"]}, \"intake-duplicate-job\")",
+      "new": "require(True, 'intake-duplicate-job')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed intake-duplicate-job",
+      "requires_database": false
+    },
+    {
+      "id": "k3-intake-charge",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_smoke.py",
+      "old": "require(type(charge) is int and 0 < charge <= 18900, \"intake-charge\")",
+      "new": "require(True, 'intake-charge')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed intake-charge",
+      "requires_database": false
+    },
+    {
+      "id": "k3-intake-total-budget",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_smoke.py",
+      "old": "require(\n        sum(e[\"charged_seconds\"] for e in ledger[\"entries\"]) + charge <= 259200,\n        \"intake-total-budget\",\n    )",
+      "new": "require(True, 'intake-total-budget')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed intake-total-budget",
+      "requires_database": false
+    },
+    {
+      "id": "k3-intake-existing-run",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_smoke.py",
+      "old": "shutil.copytree(source, target)",
+      "new": "shutil.copytree(source, target, dirs_exist_ok=True)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "evidence guard bypassed intake-existing-run",
+      "requires_database": false
+    },
+    {
+      "id": "k3-role-pool-attribution",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "config.ConnConfig.RuntimeParams[\"application_name\"] = \"durable-\" + os.Getenv(\"RUNTIME_ROLE\")",
+      "new": "config.ConnConfig.RuntimeParams[\"application_name\"] = \"unattributed\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK3RolePool$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "role pool attribution bypassed",
+      "requires_database": true
+    },
+    {
+      "id": "k3-stable-worker-sessions",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        len(expected) == 2\n        and {p[\"metadata\"][\"uid\"] for p in pods} == expected\n        and all(bool(p[\"status\"].get(\"containerStatuses\")) for p in pods)\n        and all(c[\"restartCount\"] == 0 for p in pods for c in p[\"status\"][\"containerStatuses\"]),\n        \"stable-worker-sessions\",\n    )",
+      "new": "require(True, 'stable-worker-sessions')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "worker session completeness bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3-single-witness-session",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(files == [inventory[\"file\"]], \"single-witness-session\")",
+      "new": "require(True, 'single-witness-session')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "unattested witness session accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k3-application-topics-absent",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "return not {\"durable-agent.tasks.v1\", \"durable-agent.events.v1\"}.intersection(\n        listing.splitlines()\n    )",
+      "new": "return True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "old task topic ignored",
+      "requires_database": false
+    },
+    {
+      "id": "k3-worker-group-absent",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "return \"runtime-workers-v1\" not in listing.splitlines()",
+      "new": "return True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_package.py",
+        "-q"
+      ],
+      "expected": "old worker group ignored",
+      "requires_database": false
+    },
+    {
+      "id": "k3-hosted-actions-required",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(\n        bool(os.getenv(\"GITHUB_ACTIONS\")) and bool(os.getenv(\"GH_TOKEN\")), \"hosted-actions-required\"\n    )",
+      "new": "require(True, 'hosted-actions-required')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed hosted-actions-required",
+      "requires_database": false
+    },
+    {
+      "id": "k3-runner-python-platform",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(\n            sys.version_info[:2] == (3, 12) and platform.machine() == \"x86_64\",\n            \"runner-python-platform\",\n        )",
+      "new": "require(True, 'runner-python-platform')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed runner-python-platform",
+      "requires_database": false
+    },
+    {
+      "id": "k3-runner-image-observed",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(\n            versions[\"ImageVersion\"] and versions[\"ImageOS\"] == \"ubuntu24\", \"runner-image-observed\"\n        )",
+      "new": "require(True, 'runner-image-observed')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed runner-image-observed",
+      "requires_database": false
+    },
+    {
+      "id": "k3-networkpolicy-enforced",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(denied == {\"operator\": \"DENIED\", \"demand\": \"DENIED\"}, \"networkpolicy-enforced\")",
+      "new": "require(True, 'networkpolicy-enforced')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed networkpolicy-enforced",
+      "requires_database": false
+    },
+    {
+      "id": "k3-worker-auth-denied",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(auth == {\"operator\": 401, \"demand\": 401}, \"worker-auth-denied\")",
+      "new": "require(True, 'worker-auth-denied')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed worker-auth-denied",
+      "requires_database": false
+    },
+    {
+      "id": "k3-operator-authorized-read",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(operator_positive == \"404\", \"operator-authorized-read\")",
+      "new": "require(True, 'operator-authorized-read')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed operator-authorized-read",
+      "requires_database": false
+    },
+    {
+      "id": "k3-db-outage-readiness",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(\n            before == {\"/healthz\": 200, \"/readyz\": 200}\n            and during == {\"/healthz\": 200, \"/readyz\": 503},\n            \"db-outage-readiness\",\n        )",
+      "new": "require(True, 'db-outage-readiness')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed db-outage-readiness",
+      "requires_database": false
+    },
+    {
+      "id": "k3-outage-no-restart",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(\n            current[\"metadata\"][\"uid\"] == pod[\"metadata\"][\"uid\"]\n            and current[\"status\"][\"containerStatuses\"][0][\"restartCount\"]\n            == pod[\"status\"][\"containerStatuses\"][0][\"restartCount\"],\n            \"outage-no-restart\",\n        )",
+      "new": "require(True, 'outage-no-restart')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed outage-no-restart",
+      "requires_database": false
+    },
+    {
+      "id": "k3-drain-readiness",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(proc.returncode == 0 and 200 in rows and 503 in rows, \"drain-readiness\")",
+      "new": "require(True, 'drain-readiness')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed drain-readiness",
+      "requires_database": false
+    },
+    {
+      "id": "k3-database-drop-verified",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(\n            self.sql(\"SELECT count(*) FROM pg_database WHERE datname='\" + database + \"';\") == \"0\",\n            \"database-drop-verified\",\n        )",
+      "new": "require(True, 'database-drop-verified')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed database-drop-verified",
+      "requires_database": false
+    },
+    {
+      "id": "k3-schema-checksum",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(\n                hashlib.sha256((K8S / \"schemas\" / filename).read_bytes()).hexdigest() == digest,\n                \"schema-checksum\",\n            )",
+      "new": "require(True, 'schema-checksum')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed schema-checksum",
+      "requires_database": false
+    },
+    {
+      "id": "k3-built-image-digest",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(len(refs) == 1 and \"@sha256:\" in refs[0], \"built-image-digest\")",
+      "new": "require(True, 'built-image-digest')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed built-image-digest",
+      "requires_database": false
+    },
+    {
+      "id": "k3-owned-network-cleanup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(remaining_network.returncode != 0, \"owned-network-cleanup\")",
+      "new": "require(True, 'owned-network-cleanup')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed owned-network-cleanup",
+      "requires_database": false
+    },
+    {
+      "id": "k3-job-provenance",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(len(mine) == 1, \"job-provenance\")",
+      "new": "require(True, 'job-provenance')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed job-provenance",
+      "requires_database": false
+    },
+    {
+      "id": "k3-history-complete",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(jobs[\"total_count\"] <= 100, \"history-complete\")",
+      "new": "require(True, 'history-complete')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed history-complete",
+      "requires_database": false
+    },
+    {
+      "id": "k3-running-image-digest",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        all(\n            c[\"imageID\"].split(\"@\")[-1] in {v.split(\"@\")[-1] for v in images.values()}\n            for p in status\n            for c in p[\"containers\"]\n        ),\n        \"running-image-digest\",\n    )",
+      "new": "require(True, 'running-image-digest')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed running-image-digest",
+      "requires_database": false
+    },
+    {
+      "id": "k3-terminal-checker",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(report[\"valid\"] is True, \"terminal-checker\")",
+      "new": "require(True, 'terminal-checker')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed terminal-checker",
+      "requires_database": false
+    },
+    {
+      "id": "k3-postgres-budget-setting",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(value == 100, \"postgres-budget-setting\")",
+      "new": "require(True, 'postgres-budget-setting')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed postgres-budget-setting",
+      "requires_database": false
+    },
+    {
+      "id": "k3-scratch-ownership",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3_policy.py",
+      "old": "require(\n        scratch.resolve().parent == root.resolve() and scratch.name.startswith(\"kind-\"),\n        \"scratch-ownership\",\n    )",
+      "new": "require(True, 'scratch-ownership')",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed scratch-ownership",
+      "requires_database": false
+    },
+    {
+      "id": "k3-network-failure-classification",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "except TimeoutError: results[host]=\"DENIED\"",
+      "new": "except (TimeoutError,OSError): results[host]=\"DENIED\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "non-policy network failure accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k3-command-exit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "require(\n                result.returncode == 0,\n                f\"command-{self.sequence:03d}-{Path(args[0]).name}-exit-{result.returncode}\",\n            )",
+      "new": "require(True, \"command-exit\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3_driver.py",
+        "-q"
+      ],
+      "expected": "acceptance guard bypassed command-exit",
+      "requires_database": false
     }
   ]
 }

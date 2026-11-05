@@ -415,3 +415,61 @@ jobs:
           name: dur053-k2-prerequisites
           path: ${{ runner.temp }}/dur053-k2-prerequisites/
           if-no-files-found: error
+
+  k3-package:
+    name: DUR-053 package check
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out exact merge-ref source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Run package-check
+        shell: pwsh
+        run: ./scripts/dur053-kubernetes.ps1 -Context kind -Scenario package-check -OutputRoot (Join-Path $env:RUNNER_TEMP "dur053-k3-package")
+      - name: Retain evidence including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dur053-k3-package-${{ github.run_id }}
+          path: ${{ runner.temp }}/dur053-k3-package/
+          if-no-files-found: error
+          retention-days: 30
+  k3-smoke:
+    name: DUR-053 kind smoke
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    permissions:
+      contents: read
+      actions: read
+    concurrency:
+      group: dur053-live-ledger
+      cancel-in-progress: false
+    env:
+      GH_TOKEN: ${{ github.token }}
+      DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Check out exact merge-ref source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Run smoke
+        shell: pwsh
+        run: ./scripts/dur053-kubernetes.ps1 -Context kind -Scenario smoke -OutputRoot (Join-Path $env:RUNNER_TEMP "dur053-k3-smoke")
+      - name: Retain evidence including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dur053-k3-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/dur053-k3-smoke/
+          if-no-files-found: error
+          retention-days: 30

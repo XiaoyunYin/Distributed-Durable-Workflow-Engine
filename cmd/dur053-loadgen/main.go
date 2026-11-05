@@ -13,6 +13,7 @@ import (
 
 func main() {
 	var c dur053.Config
+	flag.StringVar(&c.BearerTokenFile, "token-file", os.Getenv("DUR053_CLIENT_TOKEN_FILE"), "rotating pod-bound client credential")
 	flag.StringVar(&c.URL, "url", "http://127.0.0.1:8080", "submission URL")
 	flag.StringVar(&c.Namespace, "namespace", "", "fresh campaign namespace")
 	flag.StringVar(&c.RunID, "run-id", "", "immutable run ID")

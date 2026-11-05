@@ -1,0 +1,3282 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "Namespace",
+      "metadata": {
+        "name": "dur053-kind"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "api"
+      },
+      "automountServiceAccountToken": false
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "operator"
+      },
+      "automountServiceAccountToken": false
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "worker-control"
+      },
+      "automountServiceAccountToken": false
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "scheduler"
+      },
+      "automountServiceAccountToken": false
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "relay"
+      },
+      "automountServiceAccountToken": false
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "demand"
+      },
+      "automountServiceAccountToken": false
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "worker"
+      },
+      "automountServiceAccountToken": false
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "observer"
+      },
+      "automountServiceAccountToken": false
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "migrate"
+      },
+      "automountServiceAccountToken": false
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "ServiceAccount",
+      "metadata": {
+        "name": "compatibility"
+      },
+      "automountServiceAccountToken": false
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRole",
+      "metadata": {
+        "name": "dur053-tokenreview"
+      },
+      "rules": [
+        {
+          "apiGroups": [
+            "authentication.k8s.io"
+          ],
+          "resources": [
+            "tokenreviews"
+          ],
+          "verbs": [
+            "create"
+          ]
+        }
+      ]
+    },
+    {
+      "apiVersion": "rbac.authorization.k8s.io/v1",
+      "kind": "ClusterRoleBinding",
+      "metadata": {
+        "name": "dur053-tokenreview"
+      },
+      "roleRef": {
+        "apiGroup": "rbac.authorization.k8s.io",
+        "kind": "ClusterRole",
+        "name": "dur053-tokenreview"
+      },
+      "subjects": [
+        {
+          "kind": "ServiceAccount",
+          "name": "api",
+          "namespace": "dur053-kind"
+        },
+        {
+          "kind": "ServiceAccount",
+          "name": "operator",
+          "namespace": "dur053-kind"
+        },
+        {
+          "kind": "ServiceAccount",
+          "name": "worker-control",
+          "namespace": "dur053-kind"
+        }
+      ]
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "api"
+      },
+      "spec": {
+        "replicas": 2,
+        "revisionHistoryLimit": 2,
+        "strategy": {
+          "type": "RollingUpdate",
+          "rollingUpdate": {
+            "maxSurge": 1,
+            "maxUnavailable": 0
+          }
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "api"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "api"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "api",
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "fsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 40,
+            "containers": [
+              {
+                "name": "api",
+                "image": "dur053/runtime:UNBOUND",
+                "imagePullPolicy": "Never",
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "256Mi"
+                  }
+                },
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8080
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "RUNTIME_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "campaign-db",
+                        "key": "url"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DUR048_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR049_RECORD_LEASE_ACQUISITIONS",
+                    "value": "1"
+                  },
+                  {
+                    "name": "RUNTIME_ROLES",
+                    "value": "api"
+                  },
+                  {
+                    "name": "RUNTIME_ROLE",
+                    "value": "api"
+                  },
+                  {
+                    "name": "RUNTIME_ADDR",
+                    "value": "0.0.0.0:8080"
+                  },
+                  {
+                    "name": "RUNTIME_DB_MAX_CONNS",
+                    "value": "4"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_AUTH",
+                    "value": "enabled"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_REVIEW_URL",
+                    "value": "https://kubernetes.default.svc"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_REVIEW_CA",
+                    "value": "/identity/ca.crt"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_REVIEW_TOKEN_FILE",
+                    "value": "/identity/reviewer"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_ISSUER",
+                    "value": "https://kubernetes.default.svc.cluster.local"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_AUDIENCE",
+                    "value": "durable-client"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_SERVICE_ACCOUNT",
+                    "value": "observer"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "scratch",
+                    "mountPath": "/tmp"
+                  },
+                  {
+                    "name": "identity",
+                    "mountPath": "/identity",
+                    "readOnly": true
+                  }
+                ],
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 60
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/readyz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "scratch",
+                "emptyDir": {}
+              },
+              {
+                "name": "identity",
+                "projected": {
+                  "defaultMode": 420,
+                  "sources": [
+                    {
+                      "serviceAccountToken": {
+                        "audience": "https://kubernetes.default.svc.cluster.local",
+                        "expirationSeconds": 3600,
+                        "path": "reviewer"
+                      }
+                    },
+                    {
+                      "configMap": {
+                        "name": "kube-root-ca.crt",
+                        "items": [
+                          {
+                            "key": "ca.crt",
+                            "path": "ca.crt"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "topologySpreadConstraints": [
+              {
+                "maxSkew": 1,
+                "topologyKey": "kubernetes.io/hostname",
+                "whenUnsatisfiable": "ScheduleAnyway",
+                "labelSelector": {
+                  "matchLabels": {
+                    "app": "api"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "api"
+      },
+      "spec": {
+        "selector": {
+          "app": "api"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8080,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "policy/v1",
+      "kind": "PodDisruptionBudget",
+      "metadata": {
+        "name": "api"
+      },
+      "spec": {
+        "minAvailable": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "api"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "operator"
+      },
+      "spec": {
+        "replicas": 1,
+        "revisionHistoryLimit": 2,
+        "strategy": {
+          "type": "RollingUpdate",
+          "rollingUpdate": {
+            "maxSurge": 1,
+            "maxUnavailable": 0
+          }
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "operator"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "operator"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "operator",
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "fsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 40,
+            "containers": [
+              {
+                "name": "operator",
+                "image": "dur053/runtime:UNBOUND",
+                "imagePullPolicy": "Never",
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "256Mi"
+                  }
+                },
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8080
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "RUNTIME_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "campaign-db",
+                        "key": "url"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DUR048_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR049_RECORD_LEASE_ACQUISITIONS",
+                    "value": "1"
+                  },
+                  {
+                    "name": "RUNTIME_ROLES",
+                    "value": "operator"
+                  },
+                  {
+                    "name": "RUNTIME_ROLE",
+                    "value": "operator"
+                  },
+                  {
+                    "name": "RUNTIME_ADDR",
+                    "value": "0.0.0.0:8080"
+                  },
+                  {
+                    "name": "RUNTIME_DB_MAX_CONNS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_AUTH",
+                    "value": "enabled"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_REVIEW_URL",
+                    "value": "https://kubernetes.default.svc"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_REVIEW_CA",
+                    "value": "/identity/ca.crt"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_REVIEW_TOKEN_FILE",
+                    "value": "/identity/reviewer"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_ISSUER",
+                    "value": "https://kubernetes.default.svc.cluster.local"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_AUDIENCE",
+                    "value": "durable-operator"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_SERVICE_ACCOUNT",
+                    "value": "observer"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "scratch",
+                    "mountPath": "/tmp"
+                  },
+                  {
+                    "name": "identity",
+                    "mountPath": "/identity",
+                    "readOnly": true
+                  }
+                ],
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 60
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/readyz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "scratch",
+                "emptyDir": {}
+              },
+              {
+                "name": "identity",
+                "projected": {
+                  "defaultMode": 420,
+                  "sources": [
+                    {
+                      "serviceAccountToken": {
+                        "audience": "https://kubernetes.default.svc.cluster.local",
+                        "expirationSeconds": 3600,
+                        "path": "reviewer"
+                      }
+                    },
+                    {
+                      "configMap": {
+                        "name": "kube-root-ca.crt",
+                        "items": [
+                          {
+                            "key": "ca.crt",
+                            "path": "ca.crt"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "topologySpreadConstraints": [
+              {
+                "maxSkew": 1,
+                "topologyKey": "kubernetes.io/hostname",
+                "whenUnsatisfiable": "ScheduleAnyway",
+                "labelSelector": {
+                  "matchLabels": {
+                    "app": "operator"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "operator"
+      },
+      "spec": {
+        "selector": {
+          "app": "operator"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8080,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "policy/v1",
+      "kind": "PodDisruptionBudget",
+      "metadata": {
+        "name": "operator"
+      },
+      "spec": {
+        "minAvailable": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "operator"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "worker-control"
+      },
+      "spec": {
+        "replicas": 2,
+        "revisionHistoryLimit": 2,
+        "strategy": {
+          "type": "RollingUpdate",
+          "rollingUpdate": {
+            "maxSurge": 1,
+            "maxUnavailable": 0
+          }
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "worker-control"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "worker-control"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "worker-control",
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "fsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 40,
+            "containers": [
+              {
+                "name": "worker-control",
+                "image": "dur053/runtime:UNBOUND",
+                "imagePullPolicy": "Never",
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "256Mi"
+                  }
+                },
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8080
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "RUNTIME_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "campaign-db",
+                        "key": "url"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DUR048_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR049_RECORD_LEASE_ACQUISITIONS",
+                    "value": "1"
+                  },
+                  {
+                    "name": "RUNTIME_ROLES",
+                    "value": "worker-control"
+                  },
+                  {
+                    "name": "RUNTIME_ROLE",
+                    "value": "worker-control"
+                  },
+                  {
+                    "name": "RUNTIME_ADDR",
+                    "value": "0.0.0.0:8080"
+                  },
+                  {
+                    "name": "RUNTIME_DB_MAX_CONNS",
+                    "value": "4"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_AUTH",
+                    "value": "enabled"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_REVIEW_URL",
+                    "value": "https://kubernetes.default.svc"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_REVIEW_CA",
+                    "value": "/identity/ca.crt"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_REVIEW_TOKEN_FILE",
+                    "value": "/identity/reviewer"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_ISSUER",
+                    "value": "https://kubernetes.default.svc.cluster.local"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_AUDIENCE",
+                    "value": "durable-worker-control"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_SERVICE_ACCOUNT",
+                    "value": "worker"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "scratch",
+                    "mountPath": "/tmp"
+                  },
+                  {
+                    "name": "identity",
+                    "mountPath": "/identity",
+                    "readOnly": true
+                  }
+                ],
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 60
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/readyz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "scratch",
+                "emptyDir": {}
+              },
+              {
+                "name": "identity",
+                "projected": {
+                  "defaultMode": 420,
+                  "sources": [
+                    {
+                      "serviceAccountToken": {
+                        "audience": "https://kubernetes.default.svc.cluster.local",
+                        "expirationSeconds": 3600,
+                        "path": "reviewer"
+                      }
+                    },
+                    {
+                      "configMap": {
+                        "name": "kube-root-ca.crt",
+                        "items": [
+                          {
+                            "key": "ca.crt",
+                            "path": "ca.crt"
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "topologySpreadConstraints": [
+              {
+                "maxSkew": 1,
+                "topologyKey": "kubernetes.io/hostname",
+                "whenUnsatisfiable": "ScheduleAnyway",
+                "labelSelector": {
+                  "matchLabels": {
+                    "app": "worker-control"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "worker-control"
+      },
+      "spec": {
+        "selector": {
+          "app": "worker-control"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8080,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "policy/v1",
+      "kind": "PodDisruptionBudget",
+      "metadata": {
+        "name": "worker-control"
+      },
+      "spec": {
+        "minAvailable": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "worker-control"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "scheduler"
+      },
+      "spec": {
+        "replicas": 2,
+        "revisionHistoryLimit": 2,
+        "strategy": {
+          "type": "RollingUpdate",
+          "rollingUpdate": {
+            "maxSurge": 1,
+            "maxUnavailable": 0
+          }
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "scheduler"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "scheduler"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "scheduler",
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "fsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 40,
+            "containers": [
+              {
+                "name": "scheduler",
+                "image": "dur053/runtime:UNBOUND",
+                "imagePullPolicy": "Never",
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "256Mi"
+                  }
+                },
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8080
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "RUNTIME_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "campaign-db",
+                        "key": "url"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DUR048_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR049_RECORD_LEASE_ACQUISITIONS",
+                    "value": "1"
+                  },
+                  {
+                    "name": "RUNTIME_ROLES",
+                    "value": "scheduler,ingestor"
+                  },
+                  {
+                    "name": "RUNTIME_ROLE",
+                    "value": "scheduler"
+                  },
+                  {
+                    "name": "RUNTIME_ADDR",
+                    "value": "0.0.0.0:8080"
+                  },
+                  {
+                    "name": "RUNTIME_DB_MAX_CONNS",
+                    "value": "6"
+                  },
+                  {
+                    "name": "KAFKA_BOOTSTRAP_SERVERS",
+                    "value": "kafka:19092"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "scratch",
+                    "mountPath": "/tmp"
+                  }
+                ],
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 60
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/readyz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "scratch",
+                "emptyDir": {}
+              }
+            ],
+            "topologySpreadConstraints": [
+              {
+                "maxSkew": 1,
+                "topologyKey": "kubernetes.io/hostname",
+                "whenUnsatisfiable": "ScheduleAnyway",
+                "labelSelector": {
+                  "matchLabels": {
+                    "app": "scheduler"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "scheduler"
+      },
+      "spec": {
+        "selector": {
+          "app": "scheduler"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8080,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "policy/v1",
+      "kind": "PodDisruptionBudget",
+      "metadata": {
+        "name": "scheduler"
+      },
+      "spec": {
+        "minAvailable": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "scheduler"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "relay"
+      },
+      "spec": {
+        "replicas": 1,
+        "revisionHistoryLimit": 2,
+        "strategy": {
+          "type": "RollingUpdate",
+          "rollingUpdate": {
+            "maxSurge": 1,
+            "maxUnavailable": 0
+          }
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "relay"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "relay"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "relay",
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "fsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 40,
+            "containers": [
+              {
+                "name": "relay",
+                "image": "dur053/runtime:UNBOUND",
+                "imagePullPolicy": "Never",
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "256Mi"
+                  }
+                },
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8080
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "RUNTIME_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "campaign-db",
+                        "key": "url"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DUR048_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR049_RECORD_LEASE_ACQUISITIONS",
+                    "value": "1"
+                  },
+                  {
+                    "name": "RUNTIME_ROLES",
+                    "value": "relay"
+                  },
+                  {
+                    "name": "RUNTIME_ROLE",
+                    "value": "relay"
+                  },
+                  {
+                    "name": "RUNTIME_ADDR",
+                    "value": "0.0.0.0:8080"
+                  },
+                  {
+                    "name": "RUNTIME_DB_MAX_CONNS",
+                    "value": "3"
+                  },
+                  {
+                    "name": "KAFKA_BOOTSTRAP_SERVERS",
+                    "value": "kafka:19092"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "scratch",
+                    "mountPath": "/tmp"
+                  }
+                ],
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 60
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/readyz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "scratch",
+                "emptyDir": {}
+              }
+            ],
+            "topologySpreadConstraints": [
+              {
+                "maxSkew": 1,
+                "topologyKey": "kubernetes.io/hostname",
+                "whenUnsatisfiable": "ScheduleAnyway",
+                "labelSelector": {
+                  "matchLabels": {
+                    "app": "relay"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "relay"
+      },
+      "spec": {
+        "selector": {
+          "app": "relay"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8080,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "policy/v1",
+      "kind": "PodDisruptionBudget",
+      "metadata": {
+        "name": "relay"
+      },
+      "spec": {
+        "minAvailable": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "relay"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "demand"
+      },
+      "spec": {
+        "replicas": 1,
+        "revisionHistoryLimit": 2,
+        "strategy": {
+          "type": "RollingUpdate",
+          "rollingUpdate": {
+            "maxSurge": 1,
+            "maxUnavailable": 0
+          }
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "demand"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "demand"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "demand",
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "fsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 40,
+            "containers": [
+              {
+                "name": "demand",
+                "image": "dur053/runtime:UNBOUND",
+                "imagePullPolicy": "Never",
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "256Mi"
+                  }
+                },
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8091
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "RUNTIME_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "campaign-db",
+                        "key": "url"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DUR048_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR049_RECORD_LEASE_ACQUISITIONS",
+                    "value": "1"
+                  },
+                  {
+                    "name": "RUNTIME_ROLES",
+                    "value": "demand"
+                  },
+                  {
+                    "name": "RUNTIME_ROLE",
+                    "value": "demand"
+                  },
+                  {
+                    "name": "RUNTIME_ADDR",
+                    "value": "0.0.0.0:8091"
+                  },
+                  {
+                    "name": "RUNTIME_DB_MAX_CONNS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "RUNTIME_TOKEN_AUTH",
+                    "value": "enabled"
+                  },
+                  {
+                    "name": "RUNTIME_DEMAND_BEARER_TOKEN_FILE",
+                    "value": "/bearer/token"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "scratch",
+                    "mountPath": "/tmp"
+                  },
+                  {
+                    "name": "bearer",
+                    "mountPath": "/bearer",
+                    "readOnly": true
+                  }
+                ],
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 60
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/readyz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "scratch",
+                "emptyDir": {}
+              },
+              {
+                "name": "bearer",
+                "secret": {
+                  "secretName": "campaign-demand"
+                }
+              }
+            ],
+            "topologySpreadConstraints": [
+              {
+                "maxSkew": 1,
+                "topologyKey": "kubernetes.io/hostname",
+                "whenUnsatisfiable": "ScheduleAnyway",
+                "labelSelector": {
+                  "matchLabels": {
+                    "app": "demand"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "demand"
+      },
+      "spec": {
+        "selector": {
+          "app": "demand"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8091,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "policy/v1",
+      "kind": "PodDisruptionBudget",
+      "metadata": {
+        "name": "demand"
+      },
+      "spec": {
+        "minAvailable": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "demand"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "worker"
+      },
+      "spec": {
+        "replicas": 2,
+        "revisionHistoryLimit": 2,
+        "strategy": {
+          "type": "RollingUpdate",
+          "rollingUpdate": {
+            "maxSurge": 1,
+            "maxUnavailable": 0
+          }
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "worker"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "worker"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "worker",
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "fsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 40,
+            "containers": [
+              {
+                "name": "worker",
+                "image": "dur053/worker:UNBOUND",
+                "imagePullPolicy": "Never",
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "200m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "512Mi"
+                  }
+                },
+                "ports": [
+                  {
+                    "name": "http",
+                    "containerPort": 8081
+                  }
+                ],
+                "env": [
+                  {
+                    "name": "POD_NAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.name"
+                      }
+                    }
+                  },
+                  {
+                    "name": "POD_UID",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.uid"
+                      }
+                    }
+                  },
+                  {
+                    "name": "PYTHONDONTWRITEBYTECODE",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR048_ACTIVITY_DELAY_MS",
+                    "value": "100"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "WORKER_SLOTS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "WORKER_DRAIN_SECONDS",
+                    "value": "30"
+                  },
+                  {
+                    "name": "CONTROL_API_URL",
+                    "value": "http://worker-control:8080"
+                  },
+                  {
+                    "name": "KAFKA_BOOTSTRAP_SERVERS",
+                    "value": "kafka:19092"
+                  },
+                  {
+                    "name": "WORKER_TOKEN_FILE",
+                    "value": "/identity/token"
+                  },
+                  {
+                    "name": "DUR053_WITNESS_DIR",
+                    "value": "/witness/$(POD_NAME)"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "scratch",
+                    "mountPath": "/tmp"
+                  },
+                  {
+                    "name": "identity",
+                    "mountPath": "/identity",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "witness",
+                    "mountPath": "/witness"
+                  }
+                ],
+                "startupProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 60
+                },
+                "livenessProbe": {
+                  "httpGet": {
+                    "path": "/healthz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                },
+                "readinessProbe": {
+                  "httpGet": {
+                    "path": "/readyz",
+                    "port": "http"
+                  },
+                  "periodSeconds": 2,
+                  "timeoutSeconds": 2,
+                  "failureThreshold": 2
+                }
+              }
+            ],
+            "volumes": [
+              {
+                "name": "scratch",
+                "emptyDir": {}
+              },
+              {
+                "name": "identity",
+                "projected": {
+                  "sources": [
+                    {
+                      "serviceAccountToken": {
+                        "audience": "durable-worker-control",
+                        "expirationSeconds": 3600,
+                        "path": "token"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "witness",
+                "persistentVolumeClaim": {
+                  "claimName": "witness"
+                }
+              }
+            ],
+            "topologySpreadConstraints": [
+              {
+                "maxSkew": 1,
+                "topologyKey": "kubernetes.io/hostname",
+                "whenUnsatisfiable": "ScheduleAnyway",
+                "labelSelector": {
+                  "matchLabels": {
+                    "app": "worker"
+                  }
+                }
+              }
+            ],
+            "initContainers": [
+              {
+                "name": "witness-directory",
+                "image": "dur053/worker:UNBOUND",
+                "imagePullPolicy": "Never",
+                "command": [
+                  "python",
+                  "-c",
+                  "import os; os.makedirs(os.environ[\"DUR053_WITNESS_DIR\"],exist_ok=True)"
+                ],
+                "env": [
+                  {
+                    "name": "POD_NAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.name"
+                      }
+                    }
+                  },
+                  {
+                    "name": "POD_UID",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.uid"
+                      }
+                    }
+                  },
+                  {
+                    "name": "PYTHONDONTWRITEBYTECODE",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR048_ACTIVITY_DELAY_MS",
+                    "value": "100"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "WORKER_SLOTS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "WORKER_DRAIN_SECONDS",
+                    "value": "30"
+                  },
+                  {
+                    "name": "CONTROL_API_URL",
+                    "value": "http://worker-control:8080"
+                  },
+                  {
+                    "name": "KAFKA_BOOTSTRAP_SERVERS",
+                    "value": "kafka:19092"
+                  },
+                  {
+                    "name": "WORKER_TOKEN_FILE",
+                    "value": "/identity/token"
+                  },
+                  {
+                    "name": "DUR053_WITNESS_DIR",
+                    "value": "/witness/$(POD_NAME)"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "witness",
+                    "mountPath": "/witness"
+                  }
+                ],
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "200m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "512Mi"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "worker"
+      },
+      "spec": {
+        "selector": {
+          "app": "worker"
+        },
+        "ports": [
+          {
+            "name": "http",
+            "port": 8081,
+            "targetPort": "http"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "policy/v1",
+      "kind": "PodDisruptionBudget",
+      "metadata": {
+        "name": "worker"
+      },
+      "spec": {
+        "minAvailable": 1,
+        "selector": {
+          "matchLabels": {
+            "app": "worker"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "observer"
+      },
+      "spec": {
+        "replicas": 1,
+        "revisionHistoryLimit": 2,
+        "strategy": {
+          "type": "RollingUpdate",
+          "rollingUpdate": {
+            "maxSurge": 1,
+            "maxUnavailable": 0
+          }
+        },
+        "selector": {
+          "matchLabels": {
+            "app": "observer"
+          }
+        },
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "observer"
+            }
+          },
+          "spec": {
+            "serviceAccountName": "observer",
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "fsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 40,
+            "containers": [
+              {
+                "name": "observer",
+                "image": "dur053/worker:UNBOUND",
+                "imagePullPolicy": "Never",
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "128Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "512Mi"
+                  }
+                },
+                "command": [
+                  "python",
+                  "-c",
+                  "import time; time.sleep(86400)"
+                ],
+                "env": [
+                  {
+                    "name": "POD_NAME",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.name"
+                      }
+                    }
+                  },
+                  {
+                    "name": "POD_UID",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.uid"
+                      }
+                    }
+                  },
+                  {
+                    "name": "PYTHONDONTWRITEBYTECODE",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR048_ACTIVITY_DELAY_MS",
+                    "value": "100"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "WORKER_SLOTS",
+                    "value": "2"
+                  },
+                  {
+                    "name": "WORKER_DRAIN_SECONDS",
+                    "value": "30"
+                  },
+                  {
+                    "name": "CONTROL_API_URL",
+                    "value": "http://worker-control:8080"
+                  },
+                  {
+                    "name": "KAFKA_BOOTSTRAP_SERVERS",
+                    "value": ""
+                  },
+                  {
+                    "name": "WORKER_TOKEN_FILE",
+                    "value": "/identity/token"
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "campaign-db",
+                        "key": "url"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DUR048_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "scratch",
+                    "mountPath": "/tmp"
+                  },
+                  {
+                    "name": "identity",
+                    "mountPath": "/identity",
+                    "readOnly": true
+                  },
+                  {
+                    "name": "evidence",
+                    "mountPath": "/evidence"
+                  }
+                ]
+              }
+            ],
+            "volumes": [
+              {
+                "name": "scratch",
+                "emptyDir": {}
+              },
+              {
+                "name": "identity",
+                "projected": {
+                  "sources": [
+                    {
+                      "serviceAccountToken": {
+                        "audience": "durable-client",
+                        "expirationSeconds": 3600,
+                        "path": "token"
+                      }
+                    },
+                    {
+                      "serviceAccountToken": {
+                        "audience": "durable-operator",
+                        "expirationSeconds": 3600,
+                        "path": "operator"
+                      }
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "evidence",
+                "emptyDir": {}
+              }
+            ],
+            "topologySpreadConstraints": [
+              {
+                "maxSkew": 1,
+                "topologyKey": "kubernetes.io/hostname",
+                "whenUnsatisfiable": "ScheduleAnyway",
+                "labelSelector": {
+                  "matchLabels": {
+                    "app": "observer"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "PersistentVolumeClaim",
+      "metadata": {
+        "name": "witness"
+      },
+      "spec": {
+        "accessModes": [
+          "ReadWriteOnce"
+        ],
+        "resources": {
+          "requests": {
+            "storage": "1Gi"
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "metadata": {
+        "name": "migrate"
+      },
+      "spec": {
+        "backoffLimit": 0,
+        "activeDeadlineSeconds": 180,
+        "parallelism": 1,
+        "completions": 1,
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "migrate"
+            }
+          },
+          "spec": {
+            "restartPolicy": "Never",
+            "serviceAccountName": "migrate",
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "fsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 40,
+            "containers": [
+              {
+                "name": "migrate",
+                "image": "dur053/runtime:UNBOUND",
+                "imagePullPolicy": "Never",
+                "command": [
+                  "/migrate"
+                ],
+                "env": [
+                  {
+                    "name": "RUNTIME_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "campaign-db",
+                        "key": "url"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DUR048_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR049_RECORD_LEASE_ACQUISITIONS",
+                    "value": "1"
+                  }
+                ],
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "256Mi"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "batch/v1",
+      "kind": "Job",
+      "metadata": {
+        "name": "compatibility"
+      },
+      "spec": {
+        "backoffLimit": 0,
+        "activeDeadlineSeconds": 180,
+        "parallelism": 1,
+        "completions": 1,
+        "template": {
+          "metadata": {
+            "labels": {
+              "app": "compatibility"
+            }
+          },
+          "spec": {
+            "restartPolicy": "Never",
+            "serviceAccountName": "compatibility",
+            "automountServiceAccountToken": false,
+            "securityContext": {
+              "runAsNonRoot": true,
+              "runAsUser": 65532,
+              "runAsGroup": 65532,
+              "fsGroup": 65532,
+              "seccompProfile": {
+                "type": "RuntimeDefault"
+              }
+            },
+            "terminationGracePeriodSeconds": 40,
+            "containers": [
+              {
+                "name": "compatibility",
+                "image": "dur053/runtime:UNBOUND",
+                "imagePullPolicy": "Never",
+                "command": [
+                  "/runtime",
+                  "compatibility-check",
+                  "--worker-registry",
+                  "/registry/worker.json"
+                ],
+                "env": [
+                  {
+                    "name": "RUNTIME_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "campaign-db",
+                        "key": "url"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DUR048_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  },
+                  {
+                    "name": "DUR049_RECORD_LEASE_ACQUISITIONS",
+                    "value": "1"
+                  }
+                ],
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "256Mi"
+                  }
+                },
+                "volumeMounts": [
+                  {
+                    "name": "registry",
+                    "mountPath": "/registry",
+                    "readOnly": true
+                  }
+                ]
+              }
+            ],
+            "volumes": [
+              {
+                "name": "registry",
+                "emptyDir": {}
+              }
+            ],
+            "initContainers": [
+              {
+                "name": "candidate-worker-registry",
+                "image": "dur053/worker:UNBOUND",
+                "imagePullPolicy": "Never",
+                "command": [
+                  "python",
+                  "-c",
+                  "import json; from workers.registry import default_registry; open(\"/registry/worker.json\",\"w\").write(json.dumps(default_registry().manifest()))"
+                ],
+                "env": [
+                  {
+                    "name": "DUR048_ACTIVITY_DELAY_MS",
+                    "value": "100"
+                  },
+                  {
+                    "name": "DUR053_ALLOW_FIXTURE_ACTIVITY",
+                    "value": "1"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "registry",
+                    "mountPath": "/registry"
+                  }
+                ],
+                "securityContext": {
+                  "allowPrivilegeEscalation": false,
+                  "readOnlyRootFilesystem": true,
+                  "capabilities": {
+                    "drop": [
+                      "ALL"
+                    ]
+                  }
+                },
+                "resources": {
+                  "requests": {
+                    "cpu": "100m",
+                    "memory": "64Mi"
+                  },
+                  "limits": {
+                    "cpu": "1000m",
+                    "memory": "256Mi"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "postgres"
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "tcp",
+            "port": 5432,
+            "targetPort": 5432
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Service",
+      "metadata": {
+        "name": "kafka"
+      },
+      "spec": {
+        "ports": [
+          {
+            "name": "tcp",
+            "port": 19092,
+            "targetPort": 19092
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "default-deny"
+      },
+      "spec": {
+        "podSelector": {},
+        "policyTypes": [
+          "Ingress",
+          "Egress"
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "dns"
+      },
+      "spec": {
+        "podSelector": {},
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "namespaceSelector": {
+                  "matchLabels": {
+                    "kubernetes.io/metadata.name": "kube-system"
+                  }
+                },
+                "podSelector": {
+                  "matchLabels": {
+                    "k8s-app": "kube-dns"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "UDP",
+                "port": 53
+              },
+              {
+                "protocol": "TCP",
+                "port": 53
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "api-egress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "api"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.1/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 5432
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.3/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.4/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 443
+              },
+              {
+                "protocol": "TCP",
+                "port": 6443
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "operator-egress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "operator"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.1/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 5432
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.3/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.4/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 443
+              },
+              {
+                "protocol": "TCP",
+                "port": 6443
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "worker-control-egress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "worker-control"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.1/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 5432
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.3/32"
+                }
+              },
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.4/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 443
+              },
+              {
+                "protocol": "TCP",
+                "port": 6443
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "scheduler-egress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "scheduler"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.1/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 5432
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.2/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 19092
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "relay-egress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "relay"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.1/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 5432
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.2/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 19092
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "demand-egress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "demand"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.1/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 5432
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "worker-egress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "worker"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.2/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 19092
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "worker-control"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8080
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "observer-egress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "observer"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "api"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8080
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "operator"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8080
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "worker"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8081
+              }
+            ]
+          },
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.1/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 5432
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "migrate-egress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "migrate"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.1/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 5432
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "compatibility-egress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "compatibility"
+          }
+        },
+        "policyTypes": [
+          "Egress"
+        ],
+        "egress": [
+          {
+            "to": [
+              {
+                "ipBlock": {
+                  "cidr": "192.0.2.1/32"
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 5432
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "api-ingress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "api"
+          }
+        },
+        "policyTypes": [
+          "Ingress"
+        ],
+        "ingress": [
+          {
+            "from": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "observer"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8080
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "operator-ingress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "operator"
+          }
+        },
+        "policyTypes": [
+          "Ingress"
+        ],
+        "ingress": [
+          {
+            "from": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "observer"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8080
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "worker-control-ingress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "worker-control"
+          }
+        },
+        "policyTypes": [
+          "Ingress"
+        ],
+        "ingress": [
+          {
+            "from": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "worker"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8080
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "worker-ingress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "worker"
+          }
+        },
+        "policyTypes": [
+          "Ingress"
+        ],
+        "ingress": [
+          {
+            "from": [
+              {
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "observer"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8081
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "networking.k8s.io/v1",
+      "kind": "NetworkPolicy",
+      "metadata": {
+        "name": "demand-ingress"
+      },
+      "spec": {
+        "podSelector": {
+          "matchLabels": {
+            "app": "demand"
+          }
+        },
+        "policyTypes": [
+          "Ingress"
+        ],
+        "ingress": [
+          {
+            "from": [
+              {
+                "namespaceSelector": {
+                  "matchLabels": {
+                    "kubernetes.io/metadata.name": "keda"
+                  }
+                },
+                "podSelector": {
+                  "matchLabels": {
+                    "app": "keda-operator"
+                  }
+                }
+              }
+            ],
+            "ports": [
+              {
+                "protocol": "TCP",
+                "port": 8091
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "keda.sh/v1alpha1",
+      "kind": "TriggerAuthentication",
+      "metadata": {
+        "name": "campaign-demand"
+      },
+      "spec": {
+        "secretTargetRef": [
+          {
+            "parameter": "token",
+            "name": "campaign-demand",
+            "key": "token"
+          }
+        ]
+      }
+    },
+    {
+      "apiVersion": "keda.sh/v1alpha1",
+      "kind": "ScaledObject",
+      "metadata": {
+        "name": "worker-demand"
+      },
+      "spec": {
+        "scaleTargetRef": {
+          "name": "worker"
+        },
+        "pollingInterval": 5,
+        "cooldownPeriod": 60,
+        "minReplicaCount": 1,
+        "maxReplicaCount": 4,
+        "fallback": {
+          "failureThreshold": 3,
+          "replicas": 2
+        },
+        "advanced": {
+          "horizontalPodAutoscalerConfig": {
+            "behavior": {
+              "scaleUp": {
+                "stabilizationWindowSeconds": 0,
+                "policies": [
+                  {
+                    "type": "Pods",
+                    "value": 1,
+                    "periodSeconds": 30
+                  }
+                ],
+                "selectPolicy": "Min"
+              },
+              "scaleDown": {
+                "stabilizationWindowSeconds": 60,
+                "policies": [
+                  {
+                    "type": "Pods",
+                    "value": 1,
+                    "periodSeconds": 30
+                  }
+                ],
+                "selectPolicy": "Min"
+              }
+            }
+          }
+        },
+        "triggers": [
+          {
+            "type": "metrics-api",
+            "metricType": "AverageValue",
+            "metadata": {
+              "url": "http://demand.dur053-kind.svc.cluster.local:8091/v1/demand",
+              "format": "json",
+              "valueLocation": "demand",
+              "targetValue": "2",
+              "authMode": "bearer",
+              "unsafeSsl": "false"
+            },
+            "authenticationRef": {
+              "name": "campaign-demand"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}
