@@ -216,7 +216,8 @@ jobs:
   services:
     name: PostgreSQL, Kafka, and deployed smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    # Green runs took 35-41 min; run 42041712735 was cancelled at 45 min when the PowerShell mutation gate grew from 14 to 20 min. 75 min is about 1.8x the observed maximum.
+    timeout-minutes: 75
     steps:
       - name: Check out source
         uses: actions/checkout@v4
