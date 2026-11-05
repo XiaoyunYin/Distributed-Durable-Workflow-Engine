@@ -108,14 +108,11 @@ func TestK2ReferencedVersionsGate(t *testing.T) {
 			t.Fatalf("malformed version gate bypassed: %s", raw)
 		}
 	}
+	// Restore before t.Cleanup even when the negative-control assertion exits
+	// through t.Fatal. Otherwise its workflow leaks into later backlog tests.
+	defer reopenK2FixturePool(t, ctx, store)
 	store.pool.Close()
 	if err := store.CheckActivityCompatibility(ctx, ns, candidate); err == nil {
 		t.Fatal("registry DB failure accepted")
 	}
-	// Reopen for fixture cleanup after deliberately exercising a closed pool.
-	replacement, err := NewFromURL(ctx, integrationDatabaseURL(t))
-	if err != nil {
-		t.Fatal(err)
-	}
-	store.pool = replacement.pool
 }

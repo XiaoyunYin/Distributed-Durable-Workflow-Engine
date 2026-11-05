@@ -47,16 +47,18 @@ def main() -> None:
             parser.error("both candidate manifests required")
         check(json.loads(args.runtime.read_text()), json.loads(args.worker.read_text()))
     else:
-        for fixture in (False, True):
+        for fixture, cpu in ((False, False), (True, False), (False, True), (True, True)):
             env = dict(os.environ)
             env["DUR048_ALLOW_FIXTURE_ACTIVITY"] = "1" if fixture else "0"
             env["DUR048_ACTIVITY_DELAY_MS"] = "1" if fixture else "0"
             env["DUR050_ENABLE_SHA256_ACTIVITY"] = "0"
+            env["DUR053_ALLOW_FIXTURE_ACTIVITY"] = "1" if cpu else "0"
+            env["DUR053_CPU_WORK_UNITS"] = "10000"
             env["PYTHONPATH"] = "python"
             runtime = subprocess.check_output(["go", "run", "./cmd/runtime", "activity-registry"], env=env)
             worker = subprocess.check_output([sys.executable, "-m", "workers", "activity-registry"], env=env)
             check(json.loads(runtime), json.loads(worker))
-            print(f"activity registry parity PASS: fixture={fixture}")
+            print(f"activity registry parity PASS: fixture={fixture}, cpu={cpu}")
 
 
 if __name__ == "__main__":

@@ -48,3 +48,13 @@ otherwise preserved. The final check results are in validation-k2b.json;
 mutation detections in mutations-k2b.json and cleanup in cleanup-k2b.json.
 No K2c checker/witness, CPU activity, open-loop generator, Compose proof or
 prerequisite CLI implementation is included. No cluster or scaler ran here.
+
+
+## K2c checker, witness, CPU and workload prerequisites
+
+[K2c design and exact pending Compose command](k2c-design.md) describes the last
+K2 implementation part at base d243aa8. K2a and K2b were accepted by Claude
+Rounds 159 and 161; full K2 exact-target review/CI is pending. Files suffixed
+k2c record this pass's actual native checks separately from historical parts.
+K2 remains IN_PROGRESS; PROVISIONAL, uncommitted; Claude commits. The Compose
+proof is pending Claude's run; no Compose/Kubernetes result is claimed here.

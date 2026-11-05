@@ -13,7 +13,7 @@ func TestK2SchedulerSkew(t *testing.T) {
 	for _, skew := range []time.Duration{-30 * time.Second, 30 * time.Second} {
 		t.Run(skew.String(), func(t *testing.T) {
 			ctx, store := openM1Database(t)
-			defer store.Close()
+			t.Cleanup(store.Close)
 			fixture := func(graph string) (string, state.Lease) {
 				def := "k2-clock-" + state.NewID()
 				id, lease := createM1Workflow(t, ctx, store, def, graph, `{"root":"PURE_ACTIVITY"}`)

@@ -2808,6 +2808,1530 @@
       ],
       "expected": "unreadable demand bearer startup guard bypassed",
       "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-1",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"arrival manifest incomplete\")",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-2",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"arrival schedule/send/response evidence incomplete\")",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-3",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"raw snapshot accepted-count reconciliation failed\")",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-4",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"raw snapshot accepted identity missing from projection\")",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-5",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"snapshot includes wrong namespace\")",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-6",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"arrival identity duplicate or incomplete\")",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-7",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"submission key maps to unexpected workflow\")",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-8",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"accepted workflow missing from durable submissions: \" + a.WorkflowID)",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-9",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"extra durable accepted submission: \" + key)",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-10",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"uncertain submission unresolved: \" + a.Key)",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-11",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"rejected/unsent arrival found durably accepted\")",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-12",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"prerequisites require every offered arrival accepted\")",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-13",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"accepted workflows remain non-terminal\")",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-14",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"unexpected unsuccessful terminal workflow: \" + h.WorkflowID)",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-15",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"unexpected accepted activity result: \" + n.WorkflowID)",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-campaign-16",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"missing accepted activity result: \" + k)",
+      "new": "_ = \"removed completeness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign completeness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-1",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"incomplete witness export: count/hash/write failure\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-2",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"missing expected witness pod inventory\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-3",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"invalid expected witness pod inventory\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-4",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"missing witness pod export: \" + pod)",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-5",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"unexpected or duplicate witness session\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-6",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"incomplete witness export: line count\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-7",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"invalid witness JSON\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-8",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"incomplete witness event identity or sequence\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-9",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"missing witness session header\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-10",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"incomplete invocation identity\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-11",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"duplicate invocation ID\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-12",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"duplicate invocation end\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-13",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"unknown witness event\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-14",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"invocation does not match engine claim: \" + id)",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-15",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"unfinished invocation in prerequisites: \" + id)",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-16",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"invocation end identity/time mismatch\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-17",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"invocation end without start\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-18",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"claimed attempt missing invocation witness: \" + key)",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-19",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"result lacks externally executed iteration\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-20",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"accepted result receipt/history reconciliation failed\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-21",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"receipt history has no matching accepted result\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-22",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"unexpected unsuccessful result receipt\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-23",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"executed non-canceled iteration does not have exactly one winning successful result\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-24",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "fail(\"no external execution witness\")",
+      "new": "_ = \"removed witness guard\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "witness guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-duplicate-execution-metric",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "r.DuplicateExecutions += m.Invocations - 1",
+      "new": "r.DuplicateExecutions += 0",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "duplicate execution metric guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-reexecution-metric",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "r.ReexecutedSeconds += float64(end.MonotonicNS-e.MonotonicNS) / 1e9",
+      "new": "r.ReexecutedSeconds += float64(end.MonotonicNS-e.MonotonicNS) * 0",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cWitnessGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "duplicate execution metric guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-snapshot-tables",
+      "kind": "behavioral",
+      "file": "internal/invariants/snapshot.go",
+      "old": "if _, ok := t.Snapshot[name]; !ok {",
+      "new": "if _, ok := t.Snapshot[name]; !ok && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cSnapshotGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "snapshot required-table guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-snapshot-count",
+      "kind": "behavioral",
+      "file": "internal/invariants/snapshot.go",
+      "old": "table.Count != len(table.Rows)",
+      "new": "false",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cSnapshotGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "snapshot count guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-snapshot-hash",
+      "kind": "behavioral",
+      "file": "internal/invariants/snapshot.go",
+      "old": "!strings.EqualFold(table.SHA256, hex.EncodeToString(sum[:]))",
+      "new": "false && (!strings.EqualFold(table.SHA256, hex.EncodeToString(sum[:])))",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cSnapshotGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "snapshot hash guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-accepted-history",
+      "kind": "behavioral",
+      "file": "internal/invariants/snapshot.go",
+      "old": "if !ok {\n\t\t\t*violations = append(*violations, \"accepted workflow missing history: \"+s.WorkflowID)",
+      "new": "if !ok && false {\n\t\t\t*violations = append(*violations, \"accepted workflow missing history: \"+s.WorkflowID)",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cMissingTerminal$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "missing terminal workflow passed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-history-no-cap",
+      "kind": "behavioral",
+      "file": "internal/invariants/snapshot.go",
+      "old": "ORDER BY workflow_id,revision`",
+      "new": "ORDER BY workflow_id,revision LIMIT 1000`",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cHistory1001$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "history snapshot incomplete",
+      "requires_database": true
+    },
+    {
+      "id": "k2c-cpu-runtime-optin",
+      "kind": "behavioral",
+      "file": "internal/state/registry.go",
+      "old": "os.Getenv(\"DUR053_ALLOW_FIXTURE_ACTIVITY\") == \"1\"",
+      "new": "true",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK2cCPURegistry$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "CPU fixture opt-in guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-cpu-worker-optin",
+      "kind": "behavioral",
+      "file": "python/workers/registry.py",
+      "old": "if cpu_enabled == \"1\":",
+      "new": "if True:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-cpu-worker-bound",
+      "kind": "behavioral",
+      "file": "python/workers/registry.py",
+      "old": "if not 1 <= units <= 1_000_000:",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-cpu-worker-setting",
+      "kind": "behavioral",
+      "file": "python/workers/registry.py",
+      "old": "if cpu_enabled not in {\"0\", \"1\"}:",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-write-failure",
+      "kind": "behavioral",
+      "file": "python/workers/witness.py",
+      "old": "self.errors += 1",
+      "new": "self.errors += 0",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-fsync",
+      "kind": "behavioral",
+      "file": "python/workers/witness.py",
+      "old": "os.fsync(ledger.fileno())",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "witness durability guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-start",
+      "kind": "behavioral",
+      "file": "python/workers/witness.py",
+      "old": "self._append({**invocation, \"event\": \"start\"})",
+      "new": "self._append({**invocation, \"event\": \"omitted\"})",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-end",
+      "kind": "behavioral",
+      "file": "python/workers/runner.py",
+      "old": "witness.end(invocation, attempt_state)",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-no-coordinated-omission",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "requests.Add(1)",
+      "new": "requests.Wait()\n\t\trequests.Add(1)",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cNoCoordinatedOmission$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "completion blocked scheduled arrival",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-no-backfill",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "row.Outcome = \"CAPACITY_MISSED\"\n\t\t\tcontinue",
+      "new": "row.Outcome = \"CAPACITY_MISSED\"\n\t\t\trequests.Wait()\n\t\t\tslots <- struct{}{}",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cCapacityNeverBackfills$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "saturated generator backfilled or hid arrival loss",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-absolute-schedule",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "float64(i) * float64(time.Second) / rate",
+      "new": "float64(i) * float64(time.Duration(float64(time.Second) / rate))",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cAbsoluteSchedule$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "absolute schedule drift",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-late-no-backfill",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "i+1 < len(result.Rows) && !now.Before(t0.Add(Offset(i+1, c.Rate)))",
+      "new": "false && (i+1 < len(result.Rows) && !now.Before(t0.Add(Offset(i+1, c.Rate))))",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cLateArrivalsNeverBackfill$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "late generator replayed expired arrivals",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-activity-mix",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "if i%10 == 8 {",
+      "new": "if i%10 == 7 {",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cAbsoluteSchedule$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "workload mix guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-http-response",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "response.Workflow.ID != row.WorkflowID",
+      "new": "false",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cResponseManifest$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "submission response evidence guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-submission-failure",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "result.Status = \"FAIL\"",
+      "new": "result.Status = \"PASS\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cResponseManifest$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "submission response evidence guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-short-write",
+      "kind": "behavioral",
+      "file": "python/workers/witness.py",
+      "old": "if ledger.write(encoded) != len(encoded):",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-written-count",
+      "kind": "behavioral",
+      "file": "python/workers/witness.py",
+      "old": "self.written += 1",
+      "new": "self.written += 0",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-attempted-count",
+      "kind": "behavioral",
+      "file": "python/workers/witness.py",
+      "old": "self.attempted += 1",
+      "new": "self.attempted += 0",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-witness-hash",
+      "kind": "behavioral",
+      "file": "python/workers/witness.py",
+      "old": "self.digest.update(encoded)",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-cpu-digest",
+      "kind": "behavioral",
+      "file": "python/workers/registry.py",
+      "old": "digest = hashlib.sha256(digest).digest()",
+      "new": "digest = hashlib.sha256(digest + b\"changed\").digest()",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-coverage-list",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "r.InvariantsCovered, r.InvariantsNotCovered, r.InvariantOutcomes = PureCoverage()",
+      "new": "r.InvariantsCovered, r.InvariantsNotCovered, r.InvariantOutcomes = PureCoverage()\n r.InvariantsNotCovered=nil",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignWitness$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "valid campaign rejected/metrics missing",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-driver-registry",
+      "kind": "behavioral",
+      "file": "scripts/dur053_prerequisites.py",
+      "old": "raise RuntimeError(\"actual campaign image activity registry mismatch\")",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "episode fail-closed guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-driver-load-checker",
+      "kind": "behavioral",
+      "file": "scripts/dur053_prerequisites.py",
+      "old": "raise RuntimeError(\"load/checker completeness or safety proof failed\")",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "episode fail-closed guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-driver-negative-control",
+      "kind": "behavioral",
+      "file": "scripts/dur053_prerequisites.py",
+      "old": "raise RuntimeError(\"incomplete-export negative control passed\")",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "episode fail-closed guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-driver-cleanup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_prerequisites.py",
+      "old": "if not cleanup[\"database_dropped\"] or not cleanup[\"resources_removed\"]:",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "episode fail-closed guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-driver-quiet-interval",
+      "kind": "behavioral",
+      "file": "scripts/dur053_prerequisites.py",
+      "old": "quiet_since, last = time.monotonic(), fingerprint",
+      "new": "quiet_since, last = quiet_since, fingerprint",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "witness quiet interval guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-driver-terminal",
+      "kind": "behavioral",
+      "file": "scripts/dur053_prerequisites.py",
+      "old": "if all_terminal and time.monotonic() - quiet_since >= 30:",
+      "new": "if time.monotonic() - quiet_since >= 30:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-snapshot-revision",
+      "kind": "behavioral",
+      "file": "internal/invariants/snapshot.go",
+      "old": "if !ok || h.Revision != wf.Revision || h.NewState != wf.State || count != wf.Revision {",
+      "new": "if false && (!ok || h.Revision != wf.Revision || h.NewState != wf.State || count != wf.Revision) {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cHistory1001$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "truncated history passed",
+      "requires_database": true
+    },
+    {
+      "id": "k2c-nonterminal-report",
+      "kind": "behavioral",
+      "file": "internal/invariants/snapshot.go",
+      "old": "pending = append(pending, s.WorkflowID)",
+      "new": "pending = append(pending, s.WorkflowID)[:0]",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cMissingTerminal$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "non-terminal accepted work silently omitted",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-config-bound",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "if c.Rate <= 0 || math.IsNaN(c.Rate) || math.IsInf(c.Rate, 0) || c.Rate > 100000 || c.Count < 1 || c.Count > 1000000 || c.Concurrency < 1 || c.Concurrency > 1024 || c.Timeout <= 0 || c.CPUUnits < 1 || c.CPUUnits > 1000000 || !idPattern.MatchString(c.RunID) || c.Namespace == \"\"",
+      "new": "if false && (c.Rate <= 0 || math.IsNaN(c.Rate) || math.IsInf(c.Rate, 0) || c.Rate > 100000 || c.Count < 1 || c.Count > 1000000 || c.Concurrency < 1 || c.Concurrency > 1024 || c.Timeout <= 0 || c.CPUUnits < 1 || c.CPUUnits > 1000000 || !idPattern.MatchString(c.RunID) || c.Namespace == \"\")",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cConfigGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign configuration guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-config-url-window",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "if err != nil || parsed.Host == \"\" || (parsed.Scheme != \"http\" && parsed.Scheme != \"https\") || float64(c.Count)/c.Rate > 72*3600",
+      "new": "if false && (err != nil || parsed.Host == \"\" || (parsed.Scheme != \"http\" && parsed.Scheme != \"https\") || float64(c.Count)/c.Rate > 72*3600)",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cConfigGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign configuration guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-config-arm",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "return fmt.Errorf(\"invalid arm\")",
+      "new": "return nil",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cConfigGuards$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "campaign configuration guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-cpu-arm",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "if arm == \"cpu\" {",
+      "new": "if arm == \"cpu\" && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cAbsoluteSchedule$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "workload mix guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-result-ratio",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "ratio := float64(r.AcceptedResults) / float64(n)",
+      "new": "ratio := float64(r.AcceptedResults) * 0 / float64(n)",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cCampaignWitness$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "valid campaign rejected/metrics missing",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-tied-starts",
+      "kind": "behavioral",
+      "file": "internal/invariants/campaign.go",
+      "old": "e.InvocationID != first[k]",
+      "new": "e.Timestamp.UnixNano() > firstAt[k]",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK2cTiedWitnessStarts$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "tied execution metric guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-delayed-send-deadline",
+      "kind": "behavioral",
+      "file": "internal/dur053/load.go",
+      "old": "row.Sequence+1 < len(result.Rows) && !start.Before(t0.Add(Offset(row.Sequence+1, c.Rate)))",
+      "new": "false && (row.Sequence+1 < len(result.Rows) && !start.Before(t0.Add(Offset(row.Sequence+1, c.Rate))))",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK2cDelayedSendDeadline$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expired sender backfilled or fabricated send time",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-snapshot-byte-preservation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_prerequisites.py",
+      "old": "return document[value_start:value_end] + \"\\n\"",
+      "new": "return json.dumps(_value, sort_keys=True) + \"\\n\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "snapshot bytes changed during export",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-snapshot-member-required",
+      "kind": "behavioral",
+      "file": "scripts/dur053_prerequisites.py",
+      "old": "raise RuntimeError(\"missing top-level trace\")",
+      "new": "return \"\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-offline-report-byte-preservation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_prerequisites.py",
+      "old": "offline.stdout, encoding=\"utf-8\", newline=\"\\n\"",
+      "new": "json.dumps(json.loads(offline.stdout), sort_keys=True), encoding=\"utf-8\", newline=\"\\n\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_dur053_witness.py",
+        "-q"
+      ],
+      "expected": "checker report bytes changed during export",
+      "requires_database": false
+    },
+    {
+      "id": "k2c-closed-pool-fixture-cleanup",
+      "kind": "behavioral",
+      "file": "internal/state/k2_cleanup_test.go",
+      "old": "store.pool = replacement.pool",
+      "new": "replacement.Close()",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK2cClosedPoolCleanup$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "closed-pool cleanup leaked fixture",
+      "requires_database": true
     }
   ]
 }

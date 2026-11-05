@@ -21,6 +21,9 @@ func RuntimeRegistry() []ActivityVersion {
 	if os.Getenv("DUR048_ALLOW_FIXTURE_ACTIVITY") == "1" {
 		entries = append(entries, ActivityVersion{"dur048.sleep", "v1"})
 	}
+	if os.Getenv("DUR053_ALLOW_FIXTURE_ACTIVITY") == "1" {
+		entries = append(entries, ActivityVersion{"dur053.cpu", "v1"})
+	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	return entries
 }

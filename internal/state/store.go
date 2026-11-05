@@ -34,6 +34,12 @@ func NewFromURL(ctx context.Context, databaseURL string) (*Store, error) {
 	return newFromURL(ctx, databaseURL, 8, false)
 }
 
+// NewCampaignFromURL bounds the campaign fixture writer to its registered
+// two-connection budget. Default runtime/Compose pools remain unchanged.
+func NewCampaignFromURL(ctx context.Context, databaseURL string) (*Store, error) {
+	return newFromURL(ctx, databaseURL, 2, false)
+}
+
 // NewDemandFromURL uses two connections, read-only transactions and a 2 s
 // server-side statement limit as well as each operation's context deadline.
 func NewDemandFromURL(ctx context.Context, databaseURL string) (*Store, error) {

@@ -1,0 +1,7 @@
+{
+  "status": "PASS",
+  "yaml_syntax": "override and CI parsed",
+  "default_compose_byte_identical_to_base": true,
+  "powershell_syntax": "PASS using Windows PowerShell parser; PowerShell 7 execution pending",
+  "compose_execution": "PENDING CLAUDE"
+}

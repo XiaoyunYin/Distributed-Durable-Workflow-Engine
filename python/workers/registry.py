@@ -46,6 +46,21 @@ def default_registry() -> ActivityRegistry:
     registry.register(
         "pure.add", "v1", lambda value: sum(value) if isinstance(value, list) else value
     )
+    cpu_enabled = os.getenv("DUR053_ALLOW_FIXTURE_ACTIVITY", "0")
+    if cpu_enabled not in {"0", "1"}:
+        raise ValueError("DUR053_ALLOW_FIXTURE_ACTIVITY must be 0 or 1")
+    if cpu_enabled == "1":
+        units = int(os.getenv("DUR053_CPU_WORK_UNITS", "10000"))
+        if not 1 <= units <= 1_000_000:
+            raise ValueError("DUR053_CPU_WORK_UNITS must be between 1 and 1000000")
+
+        def cpu_work(_value: Any) -> dict[str, Any]:
+            digest = bytes(32)
+            for _ in range(units):
+                digest = hashlib.sha256(digest).digest()
+            return {"digest": digest.hex(), "work_units": units}
+
+        registry.register("dur053.cpu", "v1", cpu_work)
     # Opt-in fixture activity used only by the deployed DUR-048 recovery
     # episode. Normal deployments leave the delay at zero.
     delay_ms = int(os.getenv("DUR048_ACTIVITY_DELAY_MS", "0"))

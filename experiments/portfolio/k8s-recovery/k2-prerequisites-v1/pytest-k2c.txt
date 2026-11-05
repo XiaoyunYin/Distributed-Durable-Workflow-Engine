@@ -1,0 +1,40 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\portfolio-projects\durable-agent-execution-engine
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1
+collected 221 items
+
+tests\test_activity_registry.py ...                                      [  1%]
+tests\test_dur050_cost_ledger.py .................                       [  9%]
+tests\test_dur050_pilot_slo.py ................                          [ 16%]
+tests\test_dur050_window_reconciliation.py ....                          [ 18%]
+tests\test_dur053_witness.py .............                               [ 23%]
+tests\test_dur055_development_guards.py ....                             [ 25%]
+tests\test_dur055_heldout.py ...........                                 [ 30%]
+tests\test_dur055_mcp.py .......                                         [ 33%]
+tests\test_dur055_postgres_integration.py ss                             [ 34%]
+tests\test_dur056_budget.py ....                                         [ 36%]
+tests\test_dur056_evaluation.py ..............                           [ 42%]
+tests\test_dur056_fixtures.py ................                           [ 50%]
+tests\test_dur056_retrieval.py ............                              [ 55%]
+tests\test_dur056_scorer.py ...........                                  [ 60%]
+tests\test_fault_control.py .............                                [ 66%]
+tests\test_fault_proxy.py .                                              [ 66%]
+tests\test_imports.py ..                                                 [ 67%]
+tests\test_incident_agent.py ................                            [ 75%]
+tests\test_kafka_worker.py ......                                        [ 77%]
+tests\test_mutation_runner.py ........                                   [ 81%]
+tests\test_partition_vectors.py ...                                      [ 82%]
+tests\test_runtime_image_targets.py .                                    [ 83%]
+tests\test_worker_identity.py .                                          [ 83%]
+tests\test_worker_kafka_lifecycle.py s                                   [ 84%]
+tests\test_worker_lifecycle.py .......................                   [ 94%]
+tests\test_workers.py ............                                       [100%]
+
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_dur055_postgres_integration.py:34: DUR055_TEST_DATABASE_URL is not configured
+SKIPPED [1] tests\test_dur055_postgres_integration.py:41: DUR055_TEST_DATABASE_URL is not configured
+SKIPPED [1] tests\test_worker_kafka_lifecycle.py:24: real Kafka witness requires DURABLE_KAFKA_BROKERS
+======================= 218 passed, 3 skipped in 49.28s =======================
