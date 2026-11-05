@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import importlib.util
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -112,6 +113,46 @@ def test_prerequisites_driver_failure_is_retained_and_cleaned(
     assert list(scratch.iterdir()) == []
     with pytest.raises(FileExistsError):
         driver.run(output, scratch)
+
+
+def test_existing_prerequisites_output_is_refused_before_docker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    driver = load_driver()
+    output, scratch = tmp_path / "existing-evidence", tmp_path / "scratch"
+    output.mkdir()
+    sentinel = output / "sentinel"
+    sentinel.write_text("preserve")
+    calls: list[list[str]] = []
+    monkeypatch.setattr(driver, "execute", lambda command, _env: calls.append(command))
+
+    with pytest.raises(FileExistsError):
+        driver.run(output, scratch)
+
+    assert calls == []
+    assert sentinel.read_text() == "preserve"
+    assert not scratch.exists()
+
+
+def test_prerequisites_output_root_forwarded_and_ci_artifact_matches() -> None:
+    root = Path(__file__).resolve().parents[1]
+    entrypoint = (root / "scripts/dur053-kubernetes.ps1").read_text(encoding="utf-8")
+    workflow = (root / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    job = re.split(
+        r"\n  [a-z][a-z0-9-]*:\n",
+        workflow.split("\n  k2-prerequisites:\n", 1)[1],
+        maxsplit=1,
+    )[0]
+
+    assert "[string]$OutputRoot" in entrypoint
+    assert '@("--output", $OutputRoot)' in entrypoint
+    assert "-OutputRoot $evidence" in job
+    assert '$env:RUNNER_TEMP "dur053-k2-prerequisites"' in job
+    assert "if: always()" in job
+    assert "name: dur053-k2-prerequisites" in job
+    assert "path: ${{ runner.temp }}/dur053-k2-prerequisites/" in job
+    assert "if-no-files-found: error" in job
+    assert "k2-prerequisites-v1/compose-prerequisites" not in job
 
 
 def test_witness_short_write_and_fsync(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

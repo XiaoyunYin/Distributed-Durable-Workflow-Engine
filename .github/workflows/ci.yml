@@ -405,11 +405,13 @@ jobs:
           version: '0.9.5'
       - name: Prove chosen workloads, witness and checker closeout
         shell: pwsh
-        run: ./scripts/dur053-kubernetes.ps1 -Context compose -Scenario prerequisites
+        run: |
+          $evidence = Join-Path $env:RUNNER_TEMP "dur053-k2-prerequisites"
+          ./scripts/dur053-kubernetes.ps1 -Context compose -Scenario prerequisites -OutputRoot $evidence
       - name: Retain prerequisite evidence including failures
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: dur053-k2-prerequisites
-          path: experiments/portfolio/k8s-recovery/k2-prerequisites-v1/compose-prerequisites/
+          path: ${{ runner.temp }}/dur053-k2-prerequisites/
           if-no-files-found: error

@@ -2,7 +2,8 @@
 [CmdletBinding()]
 param(
     [ValidateSet("compose", "kind")][string]$Context = "compose",
-    [string]$Scenario = "prerequisites"
+    [string]$Scenario = "prerequisites",
+    [string]$OutputRoot
 )
 $ErrorActionPreference = "Stop"
 if ($Context -ne "compose" -or $Scenario -ne "prerequisites") {
@@ -28,7 +29,9 @@ try {
     $env:GOCACHE = Join-Path $scratch "go-cache"
     $env:UV_NO_CACHE = "1"
     $env:PYTHONDONTWRITEBYTECODE = "1"
-    & uv run python "$PSScriptRoot/dur053_prerequisites.py" --scratch-root $scratch
+    $driverArgs = @("--scratch-root", $scratch)
+    if ($OutputRoot) { $driverArgs += @("--output", $OutputRoot) }
+    & uv run python "$PSScriptRoot/dur053_prerequisites.py" @driverArgs
     if ($LASTEXITCODE -ne 0) { throw "DUR-053 Compose prerequisites FAIL; see the evidence manifest." }
 } finally {
     if ($createdScratch -and $scratch -and (Test-Path -LiteralPath $scratch) -and @(Get-ChildItem -LiteralPath $scratch -Force).Count -eq 0) {
