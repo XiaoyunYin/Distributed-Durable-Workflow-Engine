@@ -12,6 +12,7 @@ from typing import Any, Protocol
 
 from workers.control import Claim, ControlClient, ControlError
 from workers.registry import ActivityRegistry
+from workers.witness import configured_witness
 
 LOG = logging.getLogger(__name__)
 
@@ -135,6 +136,22 @@ class ActivityRunner:
             target=heartbeat_loop, name="activity-heartbeat", daemon=True
         )
         heartbeat_thread.start()
+        witness = configured_witness()
+        invocation = None
+        if witness is not None:
+            invocation = witness.begin(
+                {
+                    "workflow_id": task.workflow_id,
+                    "node_id": task.node_id,
+                    "iteration": task.iteration,
+                    "attempt_number": claim.attempt_number,
+                    "claim_token": claim.claim_token,
+                    "worker_id": task.worker_id,
+                    "activity_name": task.activity_name,
+                    "activity_version": task.activity_version,
+                }
+            )
+        attempt_state = "ABORTED"
         try:
             payload = activity(task.input)
         except Exception as error:
@@ -143,6 +160,8 @@ class ActivityRunner:
         else:
             attempt_state = "SUCCEEDED"
         finally:
+            if witness is not None and invocation is not None:
+                witness.end(invocation, attempt_state)
             stop.set()
             heartbeat_thread.join(timeout=max(1.0, self.heartbeat_interval))
         if self.aborted():

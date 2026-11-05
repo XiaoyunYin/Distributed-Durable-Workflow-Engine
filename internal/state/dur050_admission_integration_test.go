@@ -201,7 +201,7 @@ func TestDUR050AdmissionPendingOutboxCapIsConcurrentAndScoped(t *testing.T) {
 	}
 	if _, err := store.CreateAttempt(ctx, AttemptInput{Lease: LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch},
 		WorkflowID: acceptedInputs[0].WorkflowID, NodeID: "root", ExpectedRevision: 2, EffectClass: EffectPure,
-		HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "dur050-test"}); err != nil {
+		DispatchLease: time.Minute, ActorID: "dur050-test"}); err != nil {
 		t.Fatalf("internal transition at the submission admission threshold: %v", err)
 	}
 	unchanged, err := store.GetWorkflow(ctx, acceptedInputs[0].WorkflowID)
@@ -328,7 +328,7 @@ FOR EACH ROW EXECUTE FUNCTION engine.%s()`, triggerName, functionName)
 			<-start
 			_, err := store.CreateAttempt(ctx, AttemptInput{Lease: LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch},
 				WorkflowID: input.WorkflowID, NodeID: "root", ExpectedRevision: 2, EffectClass: EffectPure,
-				HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "dur050-concurrency-test"})
+				DispatchLease: time.Minute, ActorID: "dur050-concurrency-test"})
 			results <- transitionResult{workflowID: input.WorkflowID, err: err}
 		}(input, lease)
 	}
@@ -437,7 +437,7 @@ func TestDUR050AdmissionSlotsReleaseOnTerminalPathsAndRemainDuringReconciliation
 	}
 	attempt, err := store.CreateAttempt(ctx, AttemptInput{Lease: LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch},
 		WorkflowID: succeeded.WorkflowID, NodeID: "root", ExpectedRevision: succeeded.Revision + 1,
-		EffectClass: EffectPure, HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "dur050-test"})
+		EffectClass: EffectPure, DispatchLease: time.Minute, ActorID: "dur050-test"})
 	if err != nil {
 		t.Fatalf("create succeeded activity attempt: %v", err)
 	}

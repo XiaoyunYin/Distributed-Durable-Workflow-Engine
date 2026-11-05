@@ -131,7 +131,7 @@ func main() {
 		if _, err := store.ScheduleTimer(ctx, state.ScheduleTimerInput{
 			Lease:      state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch},
 			WorkflowID: workflowID, NodeID: "root", Iteration: 0, ExpectedRevision: 1,
-			DueAt: time.Now().Add(-time.Second), Purpose: "WORKFLOW_TIMER", ActorID: "m5-campaign",
+			Delay: -time.Second, Purpose: "WORKFLOW_TIMER", ActorID: "m5-campaign",
 		}); err != nil {
 			panic(err)
 		}
@@ -226,7 +226,7 @@ func main() {
 				return "m5-effect-" + identity
 			}
 			return ""
-		}(), HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "m5-campaign",
+		}(), DispatchLease: time.Minute, ActorID: "m5-campaign",
 	})
 	if err != nil {
 		panic(err)

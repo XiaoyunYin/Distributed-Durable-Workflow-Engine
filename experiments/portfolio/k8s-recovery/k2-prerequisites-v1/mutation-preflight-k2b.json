@@ -1,0 +1,251 @@
+{
+  "schema": "dur-046-mutation-results.v1",
+  "status": "PASS",
+  "git_commit": "c36a2dd0d794d17b918c18dab19c7d6cdcfb5314",
+  "source_basis": "working-tree overlay",
+  "generated_at_utc": "2026-11-04T23:04:53.718602+00:00",
+  "cases": [
+    {
+      "id": "k2b-referenced-version",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2ReferencedVersionsGate\n--- PASS: TestK2ReferencedVersionsGate (0.19s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.557s\n",
+      "source_sha256": "8a12a776303e4749a557ba90d017288dddf1a06c440e8d0449f1a4101bbd361f",
+      "expected_failure": "referenced version gate bypassed",
+      "output_tail": "=== RUN   TestK2ReferencedVersionsGate\n    registry_test.go:76: referenced version gate bypassed: RUNNABLE\n--- FAIL: TestK2ReferencedVersionsGate (0.09s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t4.318s\nFAIL\n"
+    },
+    {
+      "id": "k2b-all-nonterminal-states",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2ReferencedVersionsGate\n--- PASS: TestK2ReferencedVersionsGate (0.17s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.503s\n",
+      "source_sha256": "8a12a776303e4749a557ba90d017288dddf1a06c440e8d0449f1a4101bbd361f",
+      "expected_failure": "referenced version gate bypassed",
+      "output_tail": "=== RUN   TestK2ReferencedVersionsGate\n    registry_test.go:76: referenced version gate bypassed: WAITING_ACTIVITY\n--- FAIL: TestK2ReferencedVersionsGate (0.10s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t3.586s\nFAIL\n"
+    },
+    {
+      "id": "k2b-referenced-json",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2ReferencedVersionsGate\n--- PASS: TestK2ReferencedVersionsGate (0.25s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.685s\n",
+      "source_sha256": "8a12a776303e4749a557ba90d017288dddf1a06c440e8d0449f1a4101bbd361f",
+      "expected_failure": "malformed version gate bypassed",
+      "output_tail": "=== RUN   TestK2ReferencedVersionsGate\n    registry_test.go:108: malformed version gate bypassed: []\n--- FAIL: TestK2ReferencedVersionsGate (0.16s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t3.798s\nFAIL\n"
+    },
+    {
+      "id": "k2b-referenced-null",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2ReferencedVersionsGate\n--- PASS: TestK2ReferencedVersionsGate (0.18s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.567s\n",
+      "source_sha256": "8a12a776303e4749a557ba90d017288dddf1a06c440e8d0449f1a4101bbd361f",
+      "expected_failure": "malformed version gate bypassed",
+      "output_tail": "=== RUN   TestK2ReferencedVersionsGate\n    registry_test.go:108: malformed version gate bypassed: null\n--- FAIL: TestK2ReferencedVersionsGate (0.19s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t3.691s\nFAIL\n"
+    },
+    {
+      "id": "k2b-compatibility-namespace",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2ReferencedVersionsGate\n--- PASS: TestK2ReferencedVersionsGate (0.17s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.564s\n",
+      "source_sha256": "8a12a776303e4749a557ba90d017288dddf1a06c440e8d0449f1a4101bbd361f",
+      "expected_failure": "compatibility namespace guard bypassed",
+      "output_tail": "=== RUN   TestK2ReferencedVersionsGate\n    registry_test.go:100: compatibility namespace guard bypassed\n--- FAIL: TestK2ReferencedVersionsGate (0.15s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t3.709s\nFAIL\n"
+    },
+    {
+      "id": "k2b-pre-rollout-parity",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2PreRolloutCommand\n--- PASS: TestK2PreRolloutCommand (0.08s)\nPASS\nok  \tdurable-agent-execution-engine/cmd/runtime\t0.403s\n",
+      "source_sha256": "b64f55e884e0e641f3cdeeb952070eff63c13bcda11e689e281be7d0cb4a0088",
+      "expected_failure": "pre-rollout parity guard bypassed",
+      "output_tail": "=== RUN   TestK2PreRolloutCommand\n    registry_test.go:56: pre-rollout parity guard bypassed: null\n--- FAIL: TestK2PreRolloutCommand (0.05s)\nFAIL\nFAIL\tdurable-agent-execution-engine/cmd/runtime\t3.281s\nFAIL\n"
+    },
+    {
+      "id": "k2b-pre-rollout-live-versions",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2PreRolloutCommand\n--- PASS: TestK2PreRolloutCommand (0.15s)\nPASS\nok  \tdurable-agent-execution-engine/cmd/runtime\t0.475s\n",
+      "source_sha256": "b64f55e884e0e641f3cdeeb952070eff63c13bcda11e689e281be7d0cb4a0088",
+      "expected_failure": "pre-rollout live version guard bypassed",
+      "output_tail": "=== RUN   TestK2PreRolloutCommand\n    registry_test.go:80: pre-rollout live version guard bypassed\n--- FAIL: TestK2PreRolloutCommand (0.08s)\nFAIL\nFAIL\tdurable-agent-execution-engine/cmd/runtime\t0.386s\nFAIL\n"
+    },
+    {
+      "id": "k2b-pre-rollout-config",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2CandidateRegistryCommand\n--- PASS: TestK2CandidateRegistryCommand (0.00s)\nPASS\nok  \tdurable-agent-execution-engine/cmd/runtime\t0.368s\n",
+      "source_sha256": "b64f55e884e0e641f3cdeeb952070eff63c13bcda11e689e281be7d0cb4a0088",
+      "expected_failure": "pre-rollout required configuration bypassed",
+      "output_tail": "=== RUN   TestK2CandidateRegistryCommand\n    registry_test.go:29: pre-rollout required configuration bypassed\n--- FAIL: TestK2CandidateRegistryCommand (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/cmd/runtime\t3.872s\nFAIL\n"
+    },
+    {
+      "id": "k2b-ci-set-equality",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "...                                                                      [100%]\n3 passed in 0.11s\n",
+      "source_sha256": "36d522bc2764041e6a045546809b5e4b77499894e710cb5501a1964f1df4abdb",
+      "expected_failure": "DID NOT RAISE",
+      "output_tail": "ersed(good)))\n        for invalid in (\n            None,\n            [],\n            {},\n            [{\"name\": \"\", \"version\": \"v1\"}],\n            [{\"name\": \"pure.echo\", \"version\": 1}],\n            [{\"name\": \"pure.echo\", \"version\": \"v1\", \"extra\": 1}],\n            [good[0], good[0]],\n        ):\n            with pytest.raises(ValueError):\n                CHECK.registry_set(invalid)\n        for bad in (\n            None,\n            [],\n            {},\n            [good[0]],\n            [*good, good[0]],\n            [{\"name\": \"pure.echo\", \"version\": \"v2\"}, good[1]],\n            [*good, {\"name\": \"extra\", \"version\": \"v1\"}],\n            [{\"name\": \"\", \"version\": \"v1\"}],\n            [{\"name\": \"pure.echo\", \"version\": 1}],\n            [{\"name\": \"pure.echo\", \"version\": \"v1\", \"extra\": 1}],\n        ):\n>           with pytest.raises(ValueError):\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^\nE           Failed: DID NOT RAISE ValueError\n\ntests\\test_activity_registry.py:47: Failed\n_________________ test_worker_manifest_is_effective_registry __________________\n\nmonkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001B38E9F3500>\n\n    def test_worker_manifest_is_effective_registry(monkeypatch: pytest.MonkeyPatch) -> None:\n        monkeypatch.setenv(\"DUR048_ACTIVITY_DELAY_MS\", \"0\")\n        monkeypatch.setenv(\"DUR050_ENABLE_SHA256_ACTIVITY\", \"0\")\n        registry = default_registry()\n        assert registry.manifest() == [\n            {\"name\": \"pure.add\", \"version\": \"v1\"},\n            {\"name\": \"pure.echo\", \"version\": \"v1\"},\n        ]\n        registry.register(\"pure.echo\", \"v2\", lambda value: value)\n        assert {\"name\": \"pure.echo\", \"version\": \"v2\"} in registry.manifest()\n        monkeypatch.setenv(\"DUR048_ACTIVITY_DELAY_MS\", \"1\")\n        assert {\"name\": \"dur048.sleep\", \"version\": \"v1\"} in default_registry().manifest()\n        # R223 remains deferred: this existing legacy opt-in must fail compatibility.\n        monkeypatch.setenv(\"DUR050_ENABLE_SHA256_ACTIVITY\", \"1\")\n>       with pytest.raises(ValueError, match=\"registry mismatch\"):\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE       Failed: DID NOT RAISE ValueError\n\ntests\\test_activity_registry.py:67: Failed\n_________________ test_registry_cli_rejects_mismatched_images _________________\n\ntmp_path = WindowsPath('D:/coding agent files/durable-engine/codex/k2b/dur046-mutation-sjsyjfub/pytest/k2b-ci-set-equality/test_registry_cli_rejects_mism0')\n\n    def test_registry_cli_rejects_mismatched_images(tmp_path: Path) -> None:\n        runtime, worker = tmp_path / \"runtime.json\", tmp_path / \"worker.json\"\n        runtime.write_text('[{\"name\":\"pure.echo\",\"version\":\"v1\"}]')\n        worker.write_text('[{\"name\":\"pure.echo\",\"version\":\"v2\"}]')\n        result = subprocess.run(\n            [\n                sys.executable,\n                str(ROOT / \"scripts/check-activity-registry.py\"),\n                \"--runtime\",\n                str(runtime),\n                \"--worker\",\n                str(worker),\n            ],\n            capture_output=True,\n            text=True,\n            check=False,\n            env={**os.environ, \"PYTHONDONTWRITEBYTECODE\": \"1\"},\n        )\n>       assert result.returncode != 0, \"registry CLI mismatch guard bypassed\"\nE       AssertionError: registry CLI mismatch guard bypassed\nE       assert 0 != 0\nE        +  where 0 = CompletedProcess(args=['D:\\\\portfolio-projects\\\\durable-agent-execution-engine\\\\.venv\\\\Scripts\\\\python.exe', 'D:\\\\codi...yjfub\\\\pytest\\\\k2b-ci-set-equality\\\\test_registry_cli_rejects_mism0\\\\worker.json'], returncode=0, stdout='', stderr='').returncode\n\ntests\\test_activity_registry.py:89: AssertionError\n=========================== short test summary info ===========================\nFAILED tests/test_activity_registry.py::test_registry_check_rejects_every_mismatch\nFAILED tests/test_activity_registry.py::test_worker_manifest_is_effective_registry\nFAILED tests/test_activity_registry.py::test_registry_cli_rejects_mismatched_images\n3 failed in 0.18s\n"
+    },
+    {
+      "id": "k2b-ci-nonempty",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "...                                                                      [100%]\n3 passed in 0.11s\n",
+      "source_sha256": "36d522bc2764041e6a045546809b5e4b77499894e710cb5501a1964f1df4abdb",
+      "expected_failure": "DID NOT RAISE",
+      "output_tail": "F..                                                                      [100%]\n================================== FAILURES ===================================\n_________________ test_registry_check_rejects_every_mismatch __________________\n\n    def test_registry_check_rejects_every_mismatch() -> None:\n        good = [{\"name\": \"pure.echo\", \"version\": \"v1\"}, {\"name\": \"pure.add\", \"version\": \"v1\"}]\n        CHECK.check(good, list(reversed(good)))\n        for invalid in (\n            None,\n            [],\n            {},\n            [{\"name\": \"\", \"version\": \"v1\"}],\n            [{\"name\": \"pure.echo\", \"version\": 1}],\n            [{\"name\": \"pure.echo\", \"version\": \"v1\", \"extra\": 1}],\n            [good[0], good[0]],\n        ):\n>           with pytest.raises(ValueError):\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^\nE           Failed: DID NOT RAISE ValueError\n\ntests\\test_activity_registry.py:33: Failed\n=========================== short test summary info ===========================\nFAILED tests/test_activity_registry.py::test_registry_check_rejects_every_mismatch\n1 failed, 2 passed in 0.27s\n"
+    },
+    {
+      "id": "k2b-ci-shape",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "...                                                                      [100%]\n3 passed in 0.13s\n",
+      "source_sha256": "36d522bc2764041e6a045546809b5e4b77499894e710cb5501a1964f1df4abdb",
+      "expected_failure": "DID NOT RAISE",
+      "output_tail": "F..                                                                      [100%]\n================================== FAILURES ===================================\n_________________ test_registry_check_rejects_every_mismatch __________________\n\n    def test_registry_check_rejects_every_mismatch() -> None:\n        good = [{\"name\": \"pure.echo\", \"version\": \"v1\"}, {\"name\": \"pure.add\", \"version\": \"v1\"}]\n        CHECK.check(good, list(reversed(good)))\n        for invalid in (\n            None,\n            [],\n            {},\n            [{\"name\": \"\", \"version\": \"v1\"}],\n            [{\"name\": \"pure.echo\", \"version\": 1}],\n            [{\"name\": \"pure.echo\", \"version\": \"v1\", \"extra\": 1}],\n            [good[0], good[0]],\n        ):\n>           with pytest.raises(ValueError):\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^\nE           Failed: DID NOT RAISE ValueError\n\ntests\\test_activity_registry.py:33: Failed\n=========================== short test summary info ===========================\nFAILED tests/test_activity_registry.py::test_registry_check_rejects_every_mismatch\n1 failed, 2 passed in 0.16s\n"
+    },
+    {
+      "id": "k2b-ci-name",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "...                                                                      [100%]\n3 passed in 0.09s\n",
+      "source_sha256": "36d522bc2764041e6a045546809b5e4b77499894e710cb5501a1964f1df4abdb",
+      "expected_failure": "DID NOT RAISE",
+      "output_tail": "F..                                                                      [100%]\n================================== FAILURES ===================================\n_________________ test_registry_check_rejects_every_mismatch __________________\n\n    def test_registry_check_rejects_every_mismatch() -> None:\n        good = [{\"name\": \"pure.echo\", \"version\": \"v1\"}, {\"name\": \"pure.add\", \"version\": \"v1\"}]\n        CHECK.check(good, list(reversed(good)))\n        for invalid in (\n            None,\n            [],\n            {},\n            [{\"name\": \"\", \"version\": \"v1\"}],\n            [{\"name\": \"pure.echo\", \"version\": 1}],\n            [{\"name\": \"pure.echo\", \"version\": \"v1\", \"extra\": 1}],\n            [good[0], good[0]],\n        ):\n>           with pytest.raises(ValueError):\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^\nE           Failed: DID NOT RAISE ValueError\n\ntests\\test_activity_registry.py:33: Failed\n=========================== short test summary info ===========================\nFAILED tests/test_activity_registry.py::test_registry_check_rejects_every_mismatch\n1 failed, 2 passed in 0.14s\n"
+    },
+    {
+      "id": "k2b-ci-version",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "...                                                                      [100%]\n3 passed in 0.08s\n",
+      "source_sha256": "36d522bc2764041e6a045546809b5e4b77499894e710cb5501a1964f1df4abdb",
+      "expected_failure": "DID NOT RAISE",
+      "output_tail": "F..                                                                      [100%]\n================================== FAILURES ===================================\n_________________ test_registry_check_rejects_every_mismatch __________________\n\n    def test_registry_check_rejects_every_mismatch() -> None:\n        good = [{\"name\": \"pure.echo\", \"version\": \"v1\"}, {\"name\": \"pure.add\", \"version\": \"v1\"}]\n        CHECK.check(good, list(reversed(good)))\n        for invalid in (\n            None,\n            [],\n            {},\n            [{\"name\": \"\", \"version\": \"v1\"}],\n            [{\"name\": \"pure.echo\", \"version\": 1}],\n            [{\"name\": \"pure.echo\", \"version\": \"v1\", \"extra\": 1}],\n            [good[0], good[0]],\n        ):\n>           with pytest.raises(ValueError):\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^\nE           Failed: DID NOT RAISE ValueError\n\ntests\\test_activity_registry.py:33: Failed\n=========================== short test summary info ===========================\nFAILED tests/test_activity_registry.py::test_registry_check_rejects_every_mismatch\n1 failed, 2 passed in 0.16s\n"
+    },
+    {
+      "id": "k2b-ci-duplicate",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "...                                                                      [100%]\n3 passed in 0.09s\n",
+      "source_sha256": "36d522bc2764041e6a045546809b5e4b77499894e710cb5501a1964f1df4abdb",
+      "expected_failure": "DID NOT RAISE",
+      "output_tail": "F..                                                                      [100%]\n================================== FAILURES ===================================\n_________________ test_registry_check_rejects_every_mismatch __________________\n\n    def test_registry_check_rejects_every_mismatch() -> None:\n        good = [{\"name\": \"pure.echo\", \"version\": \"v1\"}, {\"name\": \"pure.add\", \"version\": \"v1\"}]\n        CHECK.check(good, list(reversed(good)))\n        for invalid in (\n            None,\n            [],\n            {},\n            [{\"name\": \"\", \"version\": \"v1\"}],\n            [{\"name\": \"pure.echo\", \"version\": 1}],\n            [{\"name\": \"pure.echo\", \"version\": \"v1\", \"extra\": 1}],\n            [good[0], good[0]],\n        ):\n>           with pytest.raises(ValueError):\n                 ^^^^^^^^^^^^^^^^^^^^^^^^^\nE           Failed: DID NOT RAISE ValueError\n\ntests\\test_activity_registry.py:33: Failed\n=========================== short test summary info ===========================\nFAILED tests/test_activity_registry.py::test_registry_check_rejects_every_mismatch\n1 failed, 2 passed in 0.20s\n"
+    },
+    {
+      "id": "k2b-migration-up-activity_attempts_demand",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2DemandMigrationRollback\n--- PASS: TestK2DemandMigrationRollback (0.05s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.407s\n",
+      "source_sha256": "083a40f9d7805307d93ab31e251a063d5db9ef63ce02c7a330cd4fe599f6abab",
+      "expected_failure": "additive migration rollback violated",
+      "output_tail": "=== RUN   TestK2DemandMigrationRollback\n    demand_integration_test.go:241: additive migration rollback violated: attempts=false workflows=true version=true want=true err=<nil>\n--- FAIL: TestK2DemandMigrationRollback (0.04s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t0.384s\nFAIL\n"
+    },
+    {
+      "id": "k2b-migration-up-workflow_executions_demand",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2DemandMigrationRollback\n--- PASS: TestK2DemandMigrationRollback (0.03s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.430s\n",
+      "source_sha256": "083a40f9d7805307d93ab31e251a063d5db9ef63ce02c7a330cd4fe599f6abab",
+      "expected_failure": "additive migration rollback violated",
+      "output_tail": "=== RUN   TestK2DemandMigrationRollback\n    demand_integration_test.go:241: additive migration rollback violated: attempts=true workflows=false version=true want=true err=<nil>\n--- FAIL: TestK2DemandMigrationRollback (0.03s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t0.420s\nFAIL\n"
+    },
+    {
+      "id": "k2b-migration-down-activity_attempts_demand",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2DemandMigrationRollback\n--- PASS: TestK2DemandMigrationRollback (0.03s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.358s\n",
+      "source_sha256": "e1aa9e261c162745358bd7944693e68fead00422b7099b0051a075ef3479db80",
+      "expected_failure": "additive migration rollback violated",
+      "output_tail": "=== RUN   TestK2DemandMigrationRollback\n    demand_integration_test.go:235: additive migration rollback violated: attempts=true workflows=false version=false want=false err=<nil>\n--- FAIL: TestK2DemandMigrationRollback (0.02s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t0.384s\nFAIL\n"
+    },
+    {
+      "id": "k2b-migration-down-workflow_executions_demand",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2DemandMigrationRollback\n--- PASS: TestK2DemandMigrationRollback (0.04s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.361s\n",
+      "source_sha256": "e1aa9e261c162745358bd7944693e68fead00422b7099b0051a075ef3479db80",
+      "expected_failure": "additive migration rollback violated",
+      "output_tail": "=== RUN   TestK2DemandMigrationRollback\n    demand_integration_test.go:235: additive migration rollback violated: attempts=false workflows=true version=false want=false err=<nil>\n--- FAIL: TestK2DemandMigrationRollback (0.03s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t0.366s\nFAIL\n"
+    },
+    {
+      "id": "k2b-runtime-version",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2RegistryParity\n--- PASS: TestK2RegistryParity (0.00s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.334s\n",
+      "source_sha256": "b83801f48ddc64b2f50d2dbe29188fdd25a6e78210ab2818f2c6c38ca14d3624",
+      "expected_failure": "runtime version guard bypassed",
+      "output_tail": "=== RUN   TestK2RegistryParity\n    registry_test.go:39: runtime version guard bypassed\n--- FAIL: TestK2RegistryParity (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t3.548s\nFAIL\n"
+    },
+    {
+      "id": "k2b-runtime-name",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2RegistryParity\n--- PASS: TestK2RegistryParity (0.00s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.329s\n",
+      "source_sha256": "b83801f48ddc64b2f50d2dbe29188fdd25a6e78210ab2818f2c6c38ca14d3624",
+      "expected_failure": "runtime version guard bypassed",
+      "output_tail": "=== RUN   TestK2RegistryParity\n    registry_test.go:39: runtime version guard bypassed\n--- FAIL: TestK2RegistryParity (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t3.264s\nFAIL\n"
+    },
+    {
+      "id": "k2b-runtime-pure",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2RegistryParity\n--- PASS: TestK2RegistryParity (0.00s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.327s\n",
+      "source_sha256": "b83801f48ddc64b2f50d2dbe29188fdd25a6e78210ab2818f2c6c38ca14d3624",
+      "expected_failure": "effect class guard bypassed",
+      "output_tail": "=== RUN   TestK2RegistryParity\n    registry_test.go:50: effect class guard bypassed\n--- FAIL: TestK2RegistryParity (0.00s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t3.375s\nFAIL\n"
+    },
+    {
+      "id": "k2b-compatibility-db-error",
+      "kind": "behavioral",
+      "status": "PASS",
+      "exit_code": 1,
+      "baseline_status": "PASS",
+      "baseline_output_tail": "=== RUN   TestK2ReferencedVersionsGate\n--- PASS: TestK2ReferencedVersionsGate (0.17s)\nPASS\nok  \tdurable-agent-execution-engine/internal/state\t0.554s\n",
+      "source_sha256": "8a12a776303e4749a557ba90d017288dddf1a06c440e8d0449f1a4101bbd361f",
+      "expected_failure": "registry DB failure accepted",
+      "output_tail": "=== RUN   TestK2ReferencedVersionsGate\n    registry_test.go:113: registry DB failure accepted\n    demand_integration_test.go:46: closed pool\n    demand_integration_test.go:49: closed pool\n--- FAIL: TestK2ReferencedVersionsGate (0.17s)\nFAIL\nFAIL\tdurable-agent-execution-engine/internal/state\t3.688s\nFAIL\n"
+    }
+  ]
+}

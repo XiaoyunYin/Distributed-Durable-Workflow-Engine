@@ -1,0 +1,2 @@
+activity registry parity PASS: fixture=False
+activity registry parity PASS: fixture=True

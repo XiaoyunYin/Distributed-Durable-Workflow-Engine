@@ -1,0 +1,521 @@
+{
+  "offered": 10,
+  "schema": "dur053.arrivals.v1",
+  "status": "PASS",
+  "namespace": "dur053-k2c-short-e04d3dfe",
+  "run_id": "dur053-k2c-short-e04d3dfe",
+  "arm": "short",
+  "seed": 530001,
+  "rate": 1,
+  "concurrency": 16,
+  "cpu_units": 10000,
+  "rows": [
+    {
+      "sequence": 0,
+      "key": "dur053-dur053-k2c-short-e04d3dfe-530001-000000",
+      "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000000",
+      "activity": "dur048.sleep",
+      "scheduled_ns": 0,
+      "lateness_ns": 17653,
+      "send_ns": 17653,
+      "scheduled_at": "2026-11-05T03:31:28.7204627Z",
+      "sent_at": "2026-11-05T03:31:28.72048036Z",
+      "finished_ns": 6695764,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000000",
+          "namespace": "dur053-k2c-short-e04d3dfe",
+          "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000000",
+          "payload_hash": "sub-v1:9b2768b21c583369a51c390b4877abd045a146f7f5302d68923b70f8e6824ac8",
+          "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+          "definition_version": 1,
+          "partition_id": 6,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:31:28.722855Z",
+          "updated_at": "2026-11-05T03:31:28.722855Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 0
+        },
+        "initial_node_id": "dur048.sleep",
+        "namespace": "dur053-k2c-short-e04d3dfe",
+        "payload": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 0
+        },
+        "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000000",
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000000"
+      },
+      "expected": {
+        "run_id": "dur053-k2c-short-e04d3dfe",
+        "sequence": 0
+      }
+    },
+    {
+      "sequence": 1,
+      "key": "dur053-dur053-k2c-short-e04d3dfe-530001-000001",
+      "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000001",
+      "activity": "dur048.sleep",
+      "scheduled_ns": 1000000000,
+      "lateness_ns": 652774,
+      "send_ns": 1000652774,
+      "scheduled_at": "2026-11-05T03:31:29.7204627Z",
+      "sent_at": "2026-11-05T03:31:29.721115317Z",
+      "finished_ns": 1006970431,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000001",
+          "namespace": "dur053-k2c-short-e04d3dfe",
+          "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000001",
+          "payload_hash": "sub-v1:28cbee73713c1c5fd557fec628c1bab7921f56a5b81444e135b2fc014cf13f2b",
+          "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+          "definition_version": 1,
+          "partition_id": 12,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:31:29.723318Z",
+          "updated_at": "2026-11-05T03:31:29.723318Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 1
+        },
+        "initial_node_id": "dur048.sleep",
+        "namespace": "dur053-k2c-short-e04d3dfe",
+        "payload": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 1
+        },
+        "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000001",
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000001"
+      },
+      "expected": {
+        "run_id": "dur053-k2c-short-e04d3dfe",
+        "sequence": 1
+      }
+    },
+    {
+      "sequence": 2,
+      "key": "dur053-dur053-k2c-short-e04d3dfe-530001-000002",
+      "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000002",
+      "activity": "dur048.sleep",
+      "scheduled_ns": 2000000000,
+      "lateness_ns": 119060,
+      "send_ns": 2000119060,
+      "scheduled_at": "2026-11-05T03:31:30.7204627Z",
+      "sent_at": "2026-11-05T03:31:30.720581759Z",
+      "finished_ns": 2003297847,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000002",
+          "namespace": "dur053-k2c-short-e04d3dfe",
+          "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000002",
+          "payload_hash": "sub-v1:21ce5478393983501b0e48abcdea34800aa2041e049ba3f663e4b95af19c4579",
+          "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+          "definition_version": 1,
+          "partition_id": 6,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:31:30.721824Z",
+          "updated_at": "2026-11-05T03:31:30.721824Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 2
+        },
+        "initial_node_id": "dur048.sleep",
+        "namespace": "dur053-k2c-short-e04d3dfe",
+        "payload": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 2
+        },
+        "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000002",
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000002"
+      },
+      "expected": {
+        "run_id": "dur053-k2c-short-e04d3dfe",
+        "sequence": 2
+      }
+    },
+    {
+      "sequence": 3,
+      "key": "dur053-dur053-k2c-short-e04d3dfe-530001-000003",
+      "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000003",
+      "activity": "dur048.sleep",
+      "scheduled_ns": 3000000000,
+      "lateness_ns": 146675,
+      "send_ns": 3000146675,
+      "scheduled_at": "2026-11-05T03:31:31.7204627Z",
+      "sent_at": "2026-11-05T03:31:31.720609377Z",
+      "finished_ns": 3003297956,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000003",
+          "namespace": "dur053-k2c-short-e04d3dfe",
+          "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000003",
+          "payload_hash": "sub-v1:c5695a3ca8e7b76f139c1150fe65769b076a4a015c1eaa9ae36ea6a75d3f855f",
+          "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+          "definition_version": 1,
+          "partition_id": 15,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:31:31.721957Z",
+          "updated_at": "2026-11-05T03:31:31.721957Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 3
+        },
+        "initial_node_id": "dur048.sleep",
+        "namespace": "dur053-k2c-short-e04d3dfe",
+        "payload": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 3
+        },
+        "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000003",
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000003"
+      },
+      "expected": {
+        "run_id": "dur053-k2c-short-e04d3dfe",
+        "sequence": 3
+      }
+    },
+    {
+      "sequence": 4,
+      "key": "dur053-dur053-k2c-short-e04d3dfe-530001-000004",
+      "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000004",
+      "activity": "dur048.sleep",
+      "scheduled_ns": 4000000000,
+      "lateness_ns": 721831,
+      "send_ns": 4000721831,
+      "scheduled_at": "2026-11-05T03:31:32.7204627Z",
+      "sent_at": "2026-11-05T03:31:32.721184203Z",
+      "finished_ns": 4005279180,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000004",
+          "namespace": "dur053-k2c-short-e04d3dfe",
+          "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000004",
+          "payload_hash": "sub-v1:499032ad62f624c2dab72967bec2259b24430dd3bb385056ba1c39e666650f6f",
+          "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+          "definition_version": 1,
+          "partition_id": 8,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:31:32.722831Z",
+          "updated_at": "2026-11-05T03:31:32.722831Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 4
+        },
+        "initial_node_id": "dur048.sleep",
+        "namespace": "dur053-k2c-short-e04d3dfe",
+        "payload": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 4
+        },
+        "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000004",
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000004"
+      },
+      "expected": {
+        "run_id": "dur053-k2c-short-e04d3dfe",
+        "sequence": 4
+      }
+    },
+    {
+      "sequence": 5,
+      "key": "dur053-dur053-k2c-short-e04d3dfe-530001-000005",
+      "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000005",
+      "activity": "dur048.sleep",
+      "scheduled_ns": 5000000000,
+      "lateness_ns": 283475,
+      "send_ns": 5000283475,
+      "scheduled_at": "2026-11-05T03:31:33.7204627Z",
+      "sent_at": "2026-11-05T03:31:33.720746175Z",
+      "finished_ns": 5005386060,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000005",
+          "namespace": "dur053-k2c-short-e04d3dfe",
+          "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000005",
+          "payload_hash": "sub-v1:7a04ff8fa49a84da31b176fd9c0dcca0124f87748ae29a96c99c23438b286a71",
+          "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+          "definition_version": 1,
+          "partition_id": 12,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:31:33.723297Z",
+          "updated_at": "2026-11-05T03:31:33.723297Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 5
+        },
+        "initial_node_id": "dur048.sleep",
+        "namespace": "dur053-k2c-short-e04d3dfe",
+        "payload": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 5
+        },
+        "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000005",
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000005"
+      },
+      "expected": {
+        "run_id": "dur053-k2c-short-e04d3dfe",
+        "sequence": 5
+      }
+    },
+    {
+      "sequence": 6,
+      "key": "dur053-dur053-k2c-short-e04d3dfe-530001-000006",
+      "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000006",
+      "activity": "dur048.sleep",
+      "scheduled_ns": 6000000000,
+      "lateness_ns": 162748,
+      "send_ns": 6000162748,
+      "scheduled_at": "2026-11-05T03:31:34.7204627Z",
+      "sent_at": "2026-11-05T03:31:34.720625448Z",
+      "finished_ns": 6003468725,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000006",
+          "namespace": "dur053-k2c-short-e04d3dfe",
+          "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000006",
+          "payload_hash": "sub-v1:c133c1c3bfa2b6b5d2f299cc925d2ec1c6cc573324143296b968d6a01f6600fb",
+          "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+          "definition_version": 1,
+          "partition_id": 8,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:31:34.721913Z",
+          "updated_at": "2026-11-05T03:31:34.721913Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 6
+        },
+        "initial_node_id": "dur048.sleep",
+        "namespace": "dur053-k2c-short-e04d3dfe",
+        "payload": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 6
+        },
+        "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000006",
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000006"
+      },
+      "expected": {
+        "run_id": "dur053-k2c-short-e04d3dfe",
+        "sequence": 6
+      }
+    },
+    {
+      "sequence": 7,
+      "key": "dur053-dur053-k2c-short-e04d3dfe-530001-000007",
+      "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000007",
+      "activity": "dur048.sleep",
+      "scheduled_ns": 7000000000,
+      "lateness_ns": 158733,
+      "send_ns": 7000158733,
+      "scheduled_at": "2026-11-05T03:31:35.7204627Z",
+      "sent_at": "2026-11-05T03:31:35.720621448Z",
+      "finished_ns": 7003350450,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000007",
+          "namespace": "dur053-k2c-short-e04d3dfe",
+          "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000007",
+          "payload_hash": "sub-v1:f4c3c51b52c5f197042d737a367ad7bcf6c3ebd564b151976c60eeb2051d6790",
+          "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+          "definition_version": 1,
+          "partition_id": 15,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:31:35.721907Z",
+          "updated_at": "2026-11-05T03:31:35.721907Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-short-e04d3dfe-dur048.sleep",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 7
+        },
+        "initial_node_id": "dur048.sleep",
+        "namespace": "dur053-k2c-short-e04d3dfe",
+        "payload": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 7
+        },
+        "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000007",
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000007"
+      },
+      "expected": {
+        "run_id": "dur053-k2c-short-e04d3dfe",
+        "sequence": 7
+      }
+    },
+    {
+      "sequence": 8,
+      "key": "dur053-dur053-k2c-short-e04d3dfe-530001-000008",
+      "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000008",
+      "activity": "pure.echo",
+      "scheduled_ns": 8000000000,
+      "lateness_ns": 430724,
+      "send_ns": 8000430724,
+      "scheduled_at": "2026-11-05T03:31:36.7204627Z",
+      "sent_at": "2026-11-05T03:31:36.720893427Z",
+      "finished_ns": 8004128021,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000008",
+          "namespace": "dur053-k2c-short-e04d3dfe",
+          "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000008",
+          "payload_hash": "sub-v1:df62bf68180796a2970f96964a6575cc02fe747507854fc7d18d3f3164cf95fb",
+          "definition_id": "dur053-dur053-k2c-short-e04d3dfe-pure.echo",
+          "definition_version": 1,
+          "partition_id": 3,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:31:36.722208Z",
+          "updated_at": "2026-11-05T03:31:36.722208Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-short-e04d3dfe-pure.echo",
+        "definition_version": 1,
+        "initial_input": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 8
+        },
+        "initial_node_id": "pure.echo",
+        "namespace": "dur053-k2c-short-e04d3dfe",
+        "payload": {
+          "run_id": "dur053-k2c-short-e04d3dfe",
+          "sequence": 8
+        },
+        "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000008",
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000008"
+      },
+      "expected": {
+        "run_id": "dur053-k2c-short-e04d3dfe",
+        "sequence": 8
+      }
+    },
+    {
+      "sequence": 9,
+      "key": "dur053-dur053-k2c-short-e04d3dfe-530001-000009",
+      "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000009",
+      "activity": "pure.add",
+      "scheduled_ns": 9000000000,
+      "lateness_ns": 161852,
+      "send_ns": 9000161852,
+      "scheduled_at": "2026-11-05T03:31:37.7204627Z",
+      "sent_at": "2026-11-05T03:31:37.720624557Z",
+      "finished_ns": 9005538004,
+      "http_status": 201,
+      "outcome": "ACCEPTED",
+      "response": {
+        "workflow": {
+          "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000009",
+          "namespace": "dur053-k2c-short-e04d3dfe",
+          "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000009",
+          "payload_hash": "sub-v1:a535add8d7e9cea8275bb97429bdceae4338ff90ca0f2aab449770a0bd9c4b41",
+          "definition_id": "dur053-dur053-k2c-short-e04d3dfe-pure.add",
+          "definition_version": 1,
+          "partition_id": 11,
+          "state": "RUNNABLE",
+          "revision": 1,
+          "created_at": "2026-11-05T03:31:37.72232Z",
+          "updated_at": "2026-11-05T03:31:37.72232Z"
+        },
+        "created": true
+      },
+      "request": {
+        "actor_id": "dur053-loadgen",
+        "definition_id": "dur053-dur053-k2c-short-e04d3dfe-pure.add",
+        "definition_version": 1,
+        "initial_input": [
+          2,
+          3
+        ],
+        "initial_node_id": "pure.add",
+        "namespace": "dur053-k2c-short-e04d3dfe",
+        "payload": [
+          2,
+          3
+        ],
+        "submission_key": "dur053-dur053-k2c-short-e04d3dfe-530001-000009",
+        "workflow_id": "dur053-dur053-k2c-short-e04d3dfe-530001-000009"
+      },
+      "expected": 5
+    }
+  ]
+}

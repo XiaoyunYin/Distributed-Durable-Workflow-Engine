@@ -24,7 +24,7 @@ func TestM4CheckpointRetryAndApprovalPersistence(t *testing.T) {
 	}
 	attempt, err := store.CreateAttempt(ctx, AttemptInput{
 		Lease: leaseRef(lease), WorkflowID: workflowID, NodeID: "root", ExpectedRevision: 2,
-		EffectClass: EffectPure, HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "m4-scheduler",
+		EffectClass: EffectPure, DispatchLease: time.Minute, ActorID: "m4-scheduler",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -340,7 +340,7 @@ func TestM4RetryBudgetExhaustionStopsLoop(t *testing.T) {
 	}
 	attempt, err := store.CreateAttempt(ctx, AttemptInput{
 		Lease: leaseRef(lease), WorkflowID: workflowID, NodeID: "root", ExpectedRevision: 2,
-		EffectClass: EffectPure, ActorID: "scheduler", HeartbeatDeadline: time.Now().Add(time.Minute),
+		EffectClass: EffectPure, ActorID: "scheduler", DispatchLease: time.Minute,
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -364,11 +364,11 @@ func TestM4RetryBudgetExhaustionStopsLoop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	retryDue := time.Now().Add(time.Minute)
+	retryDue := time.Minute
 	consumed, err := store.ConsumeResult(ctx, ConsumeResultInput{
 		Lease: leaseRef(lease), WorkflowID: workflowID, NodeID: "root", Iteration: 0,
 		AttemptNumber: attempt.AttemptNumber, ExpectedRevision: workflow.Revision,
-		NewWorkflowState: StateWaitingTimer, RetryDueAt: &retryDue, ActorID: "scheduler",
+		NewWorkflowState: StateWaitingTimer, RetryAfter: &retryDue, ActorID: "scheduler",
 	})
 	if err != nil || consumed.Workflow.State != StateFailed || consumed.NodeState != StateFailed {
 		t.Fatalf("exhausted retry consumption = %+v, err=%v", consumed, err)
@@ -389,7 +389,7 @@ func TestM4NonCooperatingTimeoutIsReconciliationOnly(t *testing.T) {
 	attempt, err := store.CreateAttempt(ctx, AttemptInput{
 		Lease: leaseRef(lease), WorkflowID: workflowID, NodeID: "root", ExpectedRevision: 2,
 		EffectClass: EffectNonCooperating, LogicalEffectKey: workflowID + ":root:0", GrantScopeHash: "scope",
-		HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "scheduler",
+		DispatchLease: time.Minute, ActorID: "scheduler",
 	})
 	if err != nil {
 		t.Fatal(err)

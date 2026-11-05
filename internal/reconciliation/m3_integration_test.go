@@ -41,7 +41,7 @@ func TestM3ReconcilerRecoversExpiredAttempt(t *testing.T) {
 	}
 	attempt, err := store.CreateAttempt(ctx, state.AttemptInput{Lease: ref, WorkflowID: workflowID,
 		NodeID: "root", Iteration: 0, ExpectedRevision: workflow.Revision,
-		EffectClass: state.EffectPure, HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "reconciler-test"})
+		EffectClass: state.EffectPure, DispatchLease: time.Minute, ActorID: "reconciler-test"})
 	if err != nil {
 		t.Fatal(err)
 	}

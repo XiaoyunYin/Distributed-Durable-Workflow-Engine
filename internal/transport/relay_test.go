@@ -41,8 +41,12 @@ func TestK1RelayDrainJoinsListener(t *testing.T) {
 	defer store.Close()
 	entered, release := make(chan struct{}), make(chan struct{})
 	var once sync.Once
+	passDone := make(chan struct{})
+	var passOnce sync.Once
+	invalidPartition := int16(-1)
 	drain := make(chan struct{})
-	relay := NewRelay(store, &MemoryBroker{}, RelayConfig{Drain: drain, OnNotification: func() { once.Do(func() { close(entered) }); <-release }})
+	relay := NewRelay(store, &MemoryBroker{}, RelayConfig{Drain: drain, PartitionID: &invalidPartition, PollInterval: time.Hour,
+		OnError: func(error) { passOnce.Do(func() { close(passDone) }) }, OnNotification: func() { once.Do(func() { close(entered) }); <-release }})
 	runCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
 	done := make(chan error, 1)
@@ -64,12 +68,23 @@ func TestK1RelayDrainJoinsListener(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 listening:
+	// The deliberate invalid-partition pass reports its completion without
+	// processing an unbounded amount of shared-database outbox work. Keep the
+	// parent context alive so both drain selection and listener join are tested.
+	select {
+	case <-passDone:
+	case <-time.After(time.Second):
+		close(release)
+		cancel()
+		<-done
+		t.Fatal("relay initial pass did not finish")
+	}
 	close(drain)
 	select {
 	case <-done:
 		close(release)
 		t.Fatal("relay returned before LISTEN joined")
-	case <-time.After(25 * time.Millisecond):
+	case <-time.After(time.Second):
 	}
 	close(release)
 	select {

@@ -115,7 +115,7 @@ func main() {
 	}
 	attempt, err := store.CreateAttempt(ctx, state.AttemptInput{
 		Lease: ref, WorkflowID: workflowID, NodeID: "root", Iteration: 0, ExpectedRevision: workflow.Revision,
-		EffectClass: state.EffectPure, HeartbeatDeadline: time.Now().Add(2 * ttl), ActorID: "dur027-fixture",
+		EffectClass: state.EffectPure, DispatchLease: 2 * ttl, ActorID: "dur027-fixture",
 	})
 	if err != nil {
 		panic(fmt.Sprintf("create attempt: %v", err))

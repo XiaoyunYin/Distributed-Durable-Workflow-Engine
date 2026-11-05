@@ -5,7 +5,6 @@ package invariants
 
 import (
 	"bytes"
-	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -150,7 +149,21 @@ type ConsumerOffsetRecord struct {
 	NextOffset int64
 }
 
+type WorkflowRecord struct {
+	WorkflowID string
+	State      string
+	Revision   int64
+}
+
+type SnapshotTable struct {
+	Count  int               `json:"count"`
+	SHA256 string            `json:"sha256"`
+	Rows   []json.RawMessage `json:"rows"`
+}
+
 type Trace struct {
+	Workflows       []WorkflowRecord
+	Snapshot        map[string]SnapshotTable `json:",omitempty"`
 	History         []HistoryRecord
 	Results         []AcceptedResult
 	Submissions     []SubmissionRecord
@@ -168,194 +181,9 @@ type Trace struct {
 }
 
 type Verdict struct {
-	Valid      bool
-	Violations []string
-}
-
-// Load reads the evidence used by the M1 checker. It intentionally maps rows
-// into checker-owned structs before validation, so Check cannot accidentally
-// reuse a production transition decision.
-func Load(ctx context.Context, store *state.Store, workflowIDs []string) (Trace, error) {
-	var trace Trace
-	for _, workflowID := range workflowIDs {
-		workflow, err := store.GetWorkflow(ctx, workflowID)
-		if err != nil {
-			return Trace{}, err
-		}
-		history, err := store.ListHistory(ctx, workflowID, 0, 1000)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, record := range history {
-			oldState := ""
-			if record.OldState != nil {
-				oldState = string(*record.OldState)
-			}
-			trace.History = append(trace.History, HistoryRecord{WorkflowID: workflowID,
-				Revision: record.Revision, ActorKind: record.ActorKind, SchedulerEpoch: record.SchedulerEpoch,
-				OldState: oldState, NewState: string(record.NewState), Reason: record.Reason})
-		}
-		nodes, err := store.ListNodes(ctx, workflowID)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, node := range nodes {
-			if len(node.AcceptedResult) != 0 {
-				trace.Results = append(trace.Results, AcceptedResult{WorkflowID: workflowID,
-					NodeID: node.NodeID, Iteration: node.Iteration, Accepted: true})
-			}
-		}
-		attempts, err := store.ListAttempts(ctx, workflowID)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, attempt := range attempts {
-			trace.Attempts = append(trace.Attempts, AttemptRecord{
-				WorkflowID: attempt.WorkflowID, NodeID: attempt.NodeID, Iteration: attempt.Iteration,
-				AttemptNumber: attempt.AttemptNumber, State: string(attempt.State), ClaimToken: attempt.ClaimToken,
-				WorkerID: attempt.WorkerID, WorkerRequestID: attempt.WorkerRequestID,
-				Outcome: attempt.OutcomeDisposition, IsCurrent: attempt.IsCurrent,
-				ResultRecorded: len(attempt.Result) != 0,
-			})
-		}
-		outbox, err := store.ListOutbox(ctx, workflowID, 10000)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, event := range outbox {
-			trace.Outbox = append(trace.Outbox, OutboxRecord{
-				WorkflowID: event.WorkflowID, EventID: event.EventID,
-				AggregateRevision: event.AggregateRevision, EventType: event.EventType,
-				Topic:        event.Topic,
-				PublishState: string(event.PublishState), PayloadValid: json.Valid(event.Payload),
-			})
-		}
-		inbox, err := store.ListInboxForWorkflow(ctx, workflowID, 10000)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, message := range inbox {
-			trace.Inbox = append(trace.Inbox, InboxRecord{ConsumerID: message.ConsumerID,
-				EventID: message.EventID, Topic: message.Topic, Partition: message.Partition,
-				Offset: message.Offset, Disposition: string(message.Disposition)})
-		}
-		wakeups, err := store.ListWakeups(ctx, workflowID, 10000)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, wakeup := range wakeups {
-			trace.Wakeups = append(trace.Wakeups, WakeupRecord{WorkflowID: wakeup.WorkflowID,
-				EventID: wakeup.EventID, PartitionID: wakeup.PartitionID, State: string(wakeup.State)})
-		}
-		reconciliationItems, err := store.ListReconciliationItemsForWorkflow(ctx, workflowID, 10000)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, item := range reconciliationItems {
-			trace.Reconciliation = append(trace.Reconciliation, ReconciliationRecord{
-				WorkflowID: item.WorkflowID, Kind: string(item.Kind), Reference: item.Reference, Status: item.Status})
-		}
-		checkpoints, err := store.ListCheckpoints(ctx, workflowID)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, checkpoint := range checkpoints {
-			trace.Checkpoints = append(trace.Checkpoints, CheckpointRecord{
-				WorkflowID: checkpoint.WorkflowID, NodeID: checkpoint.NodeID,
-				Iteration: checkpoint.Iteration, Sequence: checkpoint.Sequence,
-				SchemaVersion: checkpoint.SchemaVersion, SourceAttempt: checkpoint.SourceAttempt,
-				PayloadValid: json.Valid(checkpoint.Payload), PayloadHash: checkpoint.PayloadHash,
-			})
-		}
-		effects, err := store.ListEffectRecords(ctx, workflowID)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, effect := range effects {
-			trace.Effects = append(trace.Effects, EffectRecordSnapshot{
-				WorkflowID: effect.WorkflowID, IntentID: effect.IntentID, LogicalEffectKey: effect.LogicalEffectKey,
-				ArgumentHash: effect.ArgumentHash, AttemptNumber: effect.AttemptNumber,
-				GrantScopeHash: effect.GrantScopeHash, ResourceID: effect.ResourceID, Outcome: effect.Outcome,
-				ReceiptPresent: len(effect.Receipt) != 0,
-			})
-		}
-		calls, err := store.ListEffectCallAttempts(ctx, workflowID)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, call := range calls {
-			trace.EffectCalls = append(trace.EffectCalls, EffectCallRecord{
-				WorkflowID: call.WorkflowID, LogicalEffectKey: call.LogicalEffectKey,
-				ArgumentHash: call.ArgumentHash, AttemptNumber: call.AttemptNumber,
-				RequestID: call.RequestID, Outcome: call.Outcome,
-			})
-		}
-		approvals, err := store.ListApprovalIntents(ctx, workflowID)
-		if err != nil {
-			return Trace{}, err
-		}
-		for _, approval := range approvals {
-			canonicalArgumentHash, _ := canonicalJSONHash(approval.CanonicalArguments)
-			trace.Approvals = append(trace.Approvals, ApprovalRecord{
-				IntentID: approval.IntentID, WorkflowID: approval.WorkflowID,
-				NodeID: approval.NodeID, Iteration: approval.Iteration,
-				ProposalHash: approval.ProposalHash, Target: approval.Target,
-				ArgumentsValid: json.Valid(approval.CanonicalArguments), CanonicalArgumentHash: canonicalArgumentHash,
-				ExpectedResourceRevision: approval.ExpectedResourceRevision,
-				Decision:                 approval.Decision, DispatchStatus: approval.DispatchStatus,
-				GrantScopeHash: approval.GrantScopeHash, GrantToken: approval.GrantToken,
-			})
-		}
-		timerRows, err := store.Pool().Query(ctx, `
-			SELECT workflow_id, node_id, iteration, purpose, consumed_at IS NOT NULL
-			FROM engine.timers WHERE workflow_id = $1 ORDER BY timer_id`, workflowID)
-		if err != nil {
-			return Trace{}, err
-		}
-		for timerRows.Next() {
-			var timer TimerRecord
-			if err := timerRows.Scan(&timer.WorkflowID, &timer.NodeID, &timer.Iteration, &timer.Purpose, &timer.Consumed); err != nil {
-				timerRows.Close()
-				return Trace{}, err
-			}
-			trace.Timers = append(trace.Timers, timer)
-		}
-		if err := timerRows.Err(); err != nil {
-			timerRows.Close()
-			return Trace{}, err
-		}
-		timerRows.Close()
-		trace.Submissions = append(trace.Submissions, SubmissionRecord{Namespace: workflow.Namespace,
-			Key: workflow.SubmissionKey, Hash: workflow.PayloadHash, WorkflowID: workflowID})
-	}
-	globalItems, err := store.ListGlobalReconciliationItems(ctx, 10000)
-	if err != nil {
-		return Trace{}, err
-	}
-	for _, item := range globalItems {
-		trace.Reconciliation = append(trace.Reconciliation, ReconciliationRecord{
-			WorkflowID: item.WorkflowID, Kind: string(item.Kind), Reference: item.Reference, Status: item.Status})
-	}
-	offsetRows, err := store.Pool().Query(ctx, `
-		SELECT consumer_id, topic, kafka_partition, next_offset
-		FROM engine.consumer_offsets`)
-	if err != nil {
-		return Trace{}, err
-	}
-	for offsetRows.Next() {
-		var offset ConsumerOffsetRecord
-		if err := offsetRows.Scan(&offset.ConsumerID, &offset.Topic, &offset.Partition, &offset.NextOffset); err != nil {
-			offsetRows.Close()
-			return Trace{}, err
-		}
-		trace.ConsumerOffsets = append(trace.ConsumerOffsets, offset)
-	}
-	if err := offsetRows.Err(); err != nil {
-		offsetRows.Close()
-		return Trace{}, err
-	}
-	offsetRows.Close()
-	return trace, nil
+	Valid       bool
+	Violations  []string
+	NonTerminal []string `json:"non_terminal"`
 }
 
 func Check(trace Trace) Verdict {
@@ -366,7 +194,8 @@ func Check(trace Trace) Verdict {
 	checkOwnershipAndAttempts(trace.History, trace.Attempts, &violations)
 	checkTransport(trace, &violations)
 	checkM4(trace, &violations)
-	return Verdict{Valid: len(violations) == 0, Violations: violations}
+	pending := reconcileSubmissions(trace, &violations)
+	return Verdict{Valid: len(violations) == 0, Violations: violations, NonTerminal: pending}
 }
 
 // canonicalJSONHash intentionally duplicates the small canonicalization rule

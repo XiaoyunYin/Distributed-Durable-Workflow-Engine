@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"durable-agent-execution-engine/internal/api"
 	"durable-agent-execution-engine/internal/engine"
 	"durable-agent-execution-engine/internal/faults"
 	"durable-agent-execution-engine/internal/state"
@@ -28,6 +29,21 @@ func legacyServe(ctx context.Context) {
 		os.Exit(1)
 	}
 
+	// Demand did not exist before K2; it has one identical read-only process
+	// in both campaign arms. Legacy lifecycle flags affect the application roles.
+	if roles["demand"] {
+		if err := serveLifecycle(ctx); err != nil {
+			slog.Error("demand stopped", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
+	routes, routeErr := lifecycleRoutes(*rolesValue, roles)
+	reviewer, authErr := api.AuthenticationFromEnvironment()
+	if routeErr != nil || authErr != nil {
+		slog.Error("invalid HTTP identity/route configuration", "route_error", routeErr, "auth_error", authErr)
+		os.Exit(1)
+	}
 	role := envOrDefault("RUNTIME_ROLE", "runtime")
 	metrics := telemetry.New(role)
 	tracing, tracingErr := telemetry.NewTracing(context.Background(), "durable-runtime-"+role, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
@@ -57,6 +73,7 @@ func legacyServe(ctx context.Context) {
 		defer store.Close()
 		handler = newHandlerWithMetrics(role, store, metrics, tracing)
 	}
+	handler = lifecycleHandlerWithAPI(role, store, metrics, tracing, nil, api.NewServer(store).WithRoutes(routes).WithAuthentication(reviewer).WithTracing(tracing).Handler(), routes == api.RoutesCombined)
 	server := &http.Server{
 		Addr:              *addr,
 		Handler:           handler,

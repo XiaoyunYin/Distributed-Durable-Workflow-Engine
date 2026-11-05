@@ -40,7 +40,6 @@ type Metrics struct {
 	querySecondsBits       atomic.Uint64
 	lockWaitCount          atomic.Uint64
 	lockWaitSecondsBits    atomic.Uint64
-	backlogAgeSecondsBits  atomic.Uint64
 }
 
 // New returns a registry whose only label is the bounded runtime role.
@@ -135,12 +134,6 @@ func (m *Metrics) RecordLockWait(duration time.Duration) {
 	addFloat(&m.lockWaitSecondsBits, duration.Seconds())
 }
 
-func (m *Metrics) SetBacklogAge(age time.Duration) {
-	if m != nil {
-		storeFloat(&m.backlogAgeSecondsBits, age.Seconds())
-	}
-}
-
 func (m *Metrics) WorkerStarted() {
 	if m != nil {
 		m.workerActive.Add(1)
@@ -189,7 +182,6 @@ type Snapshot struct {
 	QuerySeconds          float64
 	LockWaitCount         uint64
 	LockWaitSeconds       float64
-	BacklogAgeSeconds     float64
 }
 
 func (m *Metrics) Snapshot() Snapshot {
@@ -205,8 +197,7 @@ func (m *Metrics) Snapshot() Snapshot {
 		DBTransactions: m.dbTransactions.Load(), DBQueries: m.dbQueries.Load(),
 		WorkerActive: m.workerActive.Load(), WorkerCompleted: m.workerCompleted.Load(),
 		QueryCount: m.queryCount.Load(), QuerySeconds: loadFloat(&m.querySecondsBits),
-		LockWaitCount: m.lockWaitCount.Load(), LockWaitSeconds: loadFloat(&m.lockWaitSecondsBits),
-		BacklogAgeSeconds: loadFloat(&m.backlogAgeSecondsBits)}
+		LockWaitCount: m.lockWaitCount.Load(), LockWaitSeconds: loadFloat(&m.lockWaitSecondsBits)}
 }
 
 func (m *Metrics) Render() string {
@@ -237,7 +228,6 @@ func (m *Metrics) Render() string {
 	writeCounter("durable_db_query_seconds_total", "Cumulative database query seconds.", s.QuerySeconds)
 	writeCounter("durable_db_lock_wait_seconds_total", "Cumulative database lock-wait seconds.", s.LockWaitSeconds)
 	writeCounter("durable_db_lock_waits_total", "Database lock waits observed.", s.LockWaitCount)
-	writeGauge("durable_reconciliation_oldest_age_seconds", "Age of the oldest reconciliation obligation.", s.BacklogAgeSeconds)
 	return b.String()
 }
 

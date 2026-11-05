@@ -427,7 +427,7 @@ func TestM1FanoutCancellationRace(t *testing.T) {
 			}
 			attempt, err := store.CreateAttempt(ctx, state.AttemptInput{Lease: ref, WorkflowID: workflowID, NodeID: "right",
 				Iteration: 0, ExpectedRevision: wf.Revision, EffectClass: state.EffectNonCooperating,
-				LogicalEffectKey: workflowID + ":right", GrantScopeHash: "grant", HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "test"})
+				LogicalEffectKey: workflowID + ":right", GrantScopeHash: "grant", DispatchLease: time.Minute, ActorID: "test"})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -557,7 +557,7 @@ func TestM1ConcurrentBranchCompletionCreatesJoinOnce(t *testing.T) {
 		}
 		attempt, err := store.CreateAttempt(ctx, state.AttemptInput{Lease: ref, WorkflowID: workflowID,
 			NodeID: nodeID, Iteration: 0, ExpectedRevision: wf.Revision, EffectClass: state.EffectPure,
-			HeartbeatDeadline: time.Now().Add(time.Minute), ActorID: "test"})
+			DispatchLease: time.Minute, ActorID: "test"})
 		if err != nil {
 			t.Fatal(err)
 		}

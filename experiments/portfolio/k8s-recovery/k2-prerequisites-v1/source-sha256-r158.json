@@ -1,0 +1,13 @@
+{
+  "internal/api/identity.go": "a26d41038f749cddf213dff9ddd3e57909e4f4fa1d486ec0e8d50a96c996ecc2",
+  "internal/api/server.go": "681b9f4851ff65e0f9ebd632ae0052215d123f12bea6bd19218f75049173decf",
+  "internal/api/identity_test.go": "1b2aaee33d6a09091122577f372700f75cd1e696383112558faa78a3d2b781a7",
+  "mutations/manifest.json": "9913ac48dbed3b58843ded82ed40b9cb1b85afef616ef0d2083a018e2944da81",
+  "docs/PROTOCOLS.md": "0fb0ca74031dff5f14bd6745c61a4ce43e028b4012beda236c5558e5ce58234d",
+  "docs/DECISIONS.md": "f0ed9de8c7976f2a27ae869701d30737a42b03c1c199af4ece20432e4fba94e4",
+  "docs/BUILD_LOG.md": "fc0153c5850788afa93e6f179667adc6be207b76ae4ea520da363fd8df6ccf7a",
+  "docs/REVIEW_STATUS.md": "249cddff92ea811e1c1e811f77cb9cb0505ef420487a89ad8fca00d8b108de6b",
+  "PLAN.md": "06cb8204e3fcb8ea934bb26c92f9703b563ef5db0eca5f3c26b94062a4595cf3",
+  "REVIEW.md": "35c3f9b70b75897581014b1514d4c2358ef3de513b651e02c822b630902a7415",
+  "experiments\\portfolio\\k8s-recovery\\k2-prerequisites-v1\\README.md": "c47f19cb45cb22454607ae6156e1eeaf050cd5da63fd2f24398a5db1bf1d73cf"
+}

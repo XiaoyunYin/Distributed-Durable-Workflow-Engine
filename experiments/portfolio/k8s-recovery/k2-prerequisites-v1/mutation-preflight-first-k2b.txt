@@ -1,0 +1,41 @@
+uv : warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+所在位置 行:21 字符: 190
++ ... TABASE_URL; uv run --no-sync python scripts/mutation-runner.py --work ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpecified: (warning: unable...rmission denied:String) [], RemoteException
+    + FullyQualifiedErrorId : NativeCommandError
+
+warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+warning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied
+{
+  "id": "k2b-referenced-version",
+  "kind": "behavioral",
+  "status": "FAIL",
+  "exit_code": 1,
+  "baseline_status": "PASS",
+  "baseline_output_tail": "=== RUN   TestK2ReferencedVersionsGate\n--- PASS: TestK2ReferencedVersionsGate (0.21s)\nPASS
+\nok  \tdurable-agent-execution-engine/internal/state\t0.527s\n",
+  "source_sha256": "8a12a776303e4749a557ba90d017288dddf1a06c440e8d0449f1a4101bbd361f",
+  "expected_failure": "referenced version gate bypassed",
+  "output_tail": "# durable-agent-execution-engine/internal/state [durable-agent-execution-engine/internal/state.test]\
+ninternal\\state\\registry.go:67:2: declared and not used: supported\nFAIL\tdurable-agent-execution-engine/internal/sta
+te [build failed]\nFAIL\n"
+}
+PASS k2b-http-demand-error: mutation was rejected by its named semantic test
+PASS k2b-http-demand-timestamp: mutation was rejected by its named semantic test
+PASS k2b-http-demand-freshness: mutation was rejected by its named semantic test
+PASS k2b-http-demand-config: mutation was rejected by its named semantic test
+PASS k2b-demand-only-route: mutation was rejected by its named semantic test
+PASS k2b-demand-submission-denied: mutation was rejected by its named semantic test
+PASS k2b-demand-auth: mutation was rejected by its named semantic test
+PASS k2b-demand-isolated-process: mutation was rejected by its named semantic test
+PASS k2b-demand-startup-config: mutation was rejected by its named semantic test
+PASS k2b-demand-runtime-wiring: mutation was rejected by its named semantic test
+PASS k2b-misleading-gauge-removed: mutation was rejected by its named semantic test
+PASS k2b-registry-empty: mutation was rejected by its named semantic test
+PASS k2b-registry-name: mutation was rejected by its named semantic test
+PASS k2b-registry-version: mutation was rejected by its named semantic test
+PASS k2b-registry-duplicate: mutation was rejected by its named semantic test
+PASS k2b-registry-extra-worker: mutation was rejected by its named semantic test
+PASS k2b-registry-same-count-mismatch: mutation was rejected by its named semantic test

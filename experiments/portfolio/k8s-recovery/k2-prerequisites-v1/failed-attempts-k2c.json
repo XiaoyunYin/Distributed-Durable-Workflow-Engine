@@ -1,0 +1,30 @@
+{
+  "status": "historical failed attempts; final passing run is mutations-k2c.json",
+  "attempts": [
+    {
+      "stage": "test fixture",
+      "issue": "1001-row history fixture omitted its frozen partition-map value",
+      "fix": "derive the required partition from workflow identity; the production fence was preserved"
+    },
+    {
+      "stage": "environment",
+      "issue": "default Bash resolved to unavailable WSL launcher (E_ACCESSDENIED)",
+      "fix": "invoke installed Git Bash explicitly"
+    },
+    {
+      "stage": "mutation",
+      "issue": "k2c-late-no-backfill survived in the earlier source snapshot",
+      "fix": "distinguish expired dispatch from expired sender; do not fabricate actual send stamps; strengthen regression/guard mutation checks"
+    },
+    {
+      "stage": "offline snapshot export",
+      "issue": "Python sorted JSON re-encoding altered row-hash inputs",
+      "fix": "preserve original top-level raw trace and raw checker reports; byte/order/escape/number regression and mutations"
+    },
+    {
+      "stage": "restored mutation baseline",
+      "issue": "all 242 then-current guards rejected, but restored backlog baseline found a leaked closed-pool compatibility fixture",
+      "fix": "defer pool restoration before the negative assertion; independently clean deliberate child leaks; close clock pools after fixture cleanups; no backlog assertion weakened"
+    }
+  ]
+}

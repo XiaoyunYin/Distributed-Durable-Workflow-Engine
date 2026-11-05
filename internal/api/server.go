@@ -56,10 +56,20 @@ type Server struct {
 	repository       Repository
 	workerConsumerID string
 	tracing          *telemetry.Tracing
+	routes           RouteSet
+	authenticator    *TokenReviewer
+	demandAuth       *DemandBearerAuthenticator
+	demandRepository DemandRepository
+	demandNamespace  string
 }
 
 func NewServer(repository Repository) *Server {
 	return &Server{repository: repository, workerConsumerID: "runtime-workers-v1"}
+}
+
+func (s *Server) WithDemandAuthentication(authenticator *DemandBearerAuthenticator) *Server {
+	s.demandAuth = authenticator
+	return s
 }
 
 func (s *Server) WithTracing(tracing *telemetry.Tracing) *Server {
@@ -69,23 +79,40 @@ func (s *Server) WithTracing(tracing *telemetry.Tracing) *Server {
 
 func (s *Server) Handler() http.Handler {
 	mux := http.NewServeMux()
-	mux.HandleFunc("POST /v1/workflows", s.createWorkflow)
-	mux.HandleFunc("POST /v1/worker-deliveries", s.workerDelivery)
-	mux.HandleFunc("GET /v1/workflows/{workflowID}", s.getWorkflow)
-	mux.HandleFunc("GET /v1/workflows/{workflowID}/history", s.getHistory)
-	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/claim", s.claimAttempt)
-	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/heartbeat", s.heartbeatAttempt)
-	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/result", s.recordResult)
-	mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/approval", s.createApproval)
-	mux.HandleFunc("POST /v1/approvals/{intentID}/decision", s.recordApprovalDecision)
-	mux.HandleFunc("POST /v1/approvals/{intentID}/apply", s.applyApproval)
-	mux.HandleFunc("POST /v1/workflows/{workflowID}/cancel-request", s.requestCancellation)
-	mux.HandleFunc("POST /v1/cancellations/{requestID}/apply", s.applyCancellation)
+	if s.routes == RoutesCombined || s.routes == RoutesPublic || s.routes == RoutesOperator {
+		mux.HandleFunc("POST /v1/workflows", s.createWorkflow)
+		mux.HandleFunc("GET /v1/workflows/{workflowID}", s.getWorkflow)
+		mux.HandleFunc("GET /v1/workflows/{workflowID}/history", s.getHistory)
+	}
+	if s.routes == RoutesCombined || s.routes == RoutesWorkerControl {
+		mux.HandleFunc("POST /v1/worker-deliveries", s.workerDelivery)
+		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/claim", s.claimAttempt)
+		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/heartbeat", s.heartbeatAttempt)
+		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/result", s.recordResult)
+	}
+	if s.routes == RoutesCombined || s.routes == RoutesOperator {
+		mux.HandleFunc("POST /v1/workflows/{workflowID}/nodes/{nodeID}/iterations/{iteration}/approval", s.createApproval)
+		mux.HandleFunc("POST /v1/approvals/{intentID}/decision", s.recordApprovalDecision)
+		mux.HandleFunc("POST /v1/approvals/{intentID}/apply", s.applyApproval)
+		mux.HandleFunc("POST /v1/workflows/{workflowID}/cancel-request", s.requestCancellation)
+		mux.HandleFunc("POST /v1/cancellations/{requestID}/apply", s.applyCancellation)
+	}
+	if s.routes == RoutesDemand {
+		mux.HandleFunc("GET /v1/demand", s.durableDemand)
+	}
 	mux.HandleFunc("/v1/", func(w http.ResponseWriter, _ *http.Request) {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "route was not found", nil)
 	})
+	var handler http.Handler = mux
+	if s.routes == RoutesDemand {
+		if s.demandAuth != nil {
+			handler = s.demandAuth.middleware(handler)
+		}
+	} else if s.authenticator != nil {
+		handler = s.authenticator.middleware(handler)
+	}
 	if s.tracing == nil {
-		return mux
+		return handler
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := telemetry.ExtractHTTP(r)
@@ -94,7 +121,7 @@ func (s *Server) Handler() http.Handler {
 			attribute.String("url.path", r.URL.Path))
 		defer span.End()
 		next := r.WithContext(ctx)
-		mux.ServeHTTP(w, next)
+		handler.ServeHTTP(w, next)
 	})
 }
 
@@ -218,6 +245,9 @@ func (s *Server) claimAttempt(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
 	}
+	if identity := authenticatedIdentity(r.Context()); identity != "" {
+		request.WorkerID = identity
+	}
 	if request.WorkerID == "" || request.RequestID == "" || request.AttemptLeaseMS < 0 || request.ExpectedAttempt < 0 {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "worker_id, request_id, and a non-negative attempt_lease_ms are required", nil)
 		return
@@ -323,6 +353,9 @@ func (s *Server) createApproval(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
 	}
+	if identity := authenticatedIdentity(r.Context()); identity != "" {
+		request.ActorID = identity
+	}
 	if request.OwnerID == "" || request.Epoch <= 0 || request.ActorID == "" {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "lease and actor identity are required", nil)
 		return
@@ -350,6 +383,9 @@ func (s *Server) recordApprovalDecision(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
 	}
+	if identity := authenticatedIdentity(r.Context()); identity != "" {
+		request.ApproverID = identity
+	}
 	if request.ApproverID == "" || request.ProposalHash == "" {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "approver_id and proposal_hash are required", nil)
 		return
@@ -375,6 +411,9 @@ func (s *Server) applyApproval(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
+	}
+	if identity := authenticatedIdentity(r.Context()); identity != "" {
+		request.ActorID = identity
 	}
 	if request.WorkflowID == "" || request.NodeID == "" || request.OwnerID == "" || request.Epoch <= 0 || request.IntentID == "" || request.ActorID == "" {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "workflow, node, intent, lease, and actor identity are required", nil)
@@ -426,6 +465,9 @@ func (s *Server) applyCancellation(w http.ResponseWriter, r *http.Request) {
 	if err := decodeJSON(w, r, &request); err != nil {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", err.Error(), nil)
 		return
+	}
+	if identity := authenticatedIdentity(r.Context()); identity != "" {
+		request.ActorID = identity
 	}
 	if request.OwnerID == "" || request.Epoch <= 0 || request.ActorID == "" {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "lease and actor identity are required", nil)
@@ -513,6 +555,9 @@ func (s *Server) createWorkflow(w http.ResponseWriter, r *http.Request) {
 	}
 	if request.WorkflowID == "" {
 		request.WorkflowID = state.NewID()
+	}
+	if identity := authenticatedIdentity(r.Context()); identity != "" {
+		request.ActorID = identity
 	}
 	if request.ActorID == "" {
 		request.ActorID = "client"

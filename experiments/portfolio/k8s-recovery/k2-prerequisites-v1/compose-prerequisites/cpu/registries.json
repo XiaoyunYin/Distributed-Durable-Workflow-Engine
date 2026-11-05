@@ -1,0 +1,38 @@
+{
+  "runtime": [
+    {
+      "name": "dur048.sleep",
+      "version": "v1"
+    },
+    {
+      "name": "dur053.cpu",
+      "version": "v1"
+    },
+    {
+      "name": "pure.add",
+      "version": "v1"
+    },
+    {
+      "name": "pure.echo",
+      "version": "v1"
+    }
+  ],
+  "worker": [
+    {
+      "name": "dur048.sleep",
+      "version": "v1"
+    },
+    {
+      "name": "dur053.cpu",
+      "version": "v1"
+    },
+    {
+      "name": "pure.add",
+      "version": "v1"
+    },
+    {
+      "name": "pure.echo",
+      "version": "v1"
+    }
+  ]
+}

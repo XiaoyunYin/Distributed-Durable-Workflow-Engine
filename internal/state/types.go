@@ -238,7 +238,7 @@ type ScheduleTimerInput struct {
 	NodeID           string
 	Iteration        int
 	ExpectedRevision int64
-	DueAt            time.Time
+	Delay            time.Duration
 	Purpose          string
 	ActorID          string
 }
@@ -291,11 +291,9 @@ type AttemptInput struct {
 	EffectClass      EffectClass
 	LogicalEffectKey string
 	GrantScopeHash   string
-	// HeartbeatDeadline is the initial dispatch deadline. ClaimAttempt replaces
-	// it with a fresh worker lease; timeout redispatches and replacements also
-	// arm a fresh dispatch deadline.
-	HeartbeatDeadline time.Time
-	ActorID           string
+	// DispatchLease is measured from the database clock, never scheduler time.
+	DispatchLease time.Duration
+	ActorID       string
 }
 
 type Attempt struct {
@@ -438,7 +436,7 @@ type ConsumeResultInput struct {
 	AttemptNumber    int64
 	ExpectedRevision int64
 	NewWorkflowState WorkflowState
-	RetryDueAt       *time.Time
+	RetryAfter       *time.Duration
 	ActorID          string
 }
 

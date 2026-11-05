@@ -19,10 +19,12 @@ func TestMetricsRenderUsesBoundedRegistry(t *testing.T) {
 	m.RecordResultAccepted()
 	m.RecordDBQuery(2 * time.Millisecond)
 	m.RecordLockWait(time.Millisecond)
-	m.SetBacklogAge(3 * time.Second)
 	m.WorkerStarted()
 	m.WorkerFinished()
 	rendered := m.Render()
+	if strings.Contains(rendered, "durable_reconciliation_oldest_age_seconds") {
+		t.Fatal("removed misleading gauge exported")
+	}
 	for _, name := range []string{
 		"durable_runtime_durable_ready_timestamp_seconds",
 		"durable_scheduler_lease_acquisitions_total",
@@ -30,7 +32,6 @@ func TestMetricsRenderUsesBoundedRegistry(t *testing.T) {
 		"durable_worker_results_accepted_total",
 		"durable_db_query_seconds_total",
 		"durable_db_lock_wait_seconds_total",
-		"durable_reconciliation_oldest_age_seconds",
 	} {
 		if !strings.Contains(rendered, name) {
 			t.Fatalf("metrics output lacks %q:\n%s", name, rendered)

@@ -1,0 +1,208 @@
+{
+  "scope": "DUR-053 K2b R224 and R226 only",
+  "base_commit": "c36a2dd0d794d17b918c18dab19c7d6cdcfb5314",
+  "target_commit": null,
+  "branch": "codex/k8s-k2",
+  "task_status": "IN_PROGRESS",
+  "handoff_basis": "PROVISIONAL",
+  "source_basis": "uncommitted; Claude commits",
+  "status": "PASS",
+  "checks": [
+    {
+      "name": "vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit_code": 0,
+      "seconds": 2.69,
+      "output_artifact": "vet-k2b.txt"
+    },
+    {
+      "name": "gofmt",
+      "command": [
+        "gofmt",
+        "-l",
+        "cmd",
+        "internal"
+      ],
+      "exit_code": 0,
+      "seconds": 0.09,
+      "output_artifact": "gofmt-k2b.txt"
+    },
+    {
+      "name": "race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-p",
+        "1",
+        "-count=1",
+        "./..."
+      ],
+      "exit_code": 0,
+      "seconds": 229.86,
+      "output_artifact": "race-k2b.txt"
+    },
+    {
+      "name": "registry",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "scripts/check-activity-registry.py"
+      ],
+      "exit_code": 0,
+      "seconds": 2.36,
+      "output_artifact": "registry-k2b.txt"
+    },
+    {
+      "name": "ruff",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "check",
+        "python",
+        "tests"
+      ],
+      "exit_code": 0,
+      "seconds": 0.12,
+      "output_artifact": "ruff-k2b.txt"
+    },
+    {
+      "name": "ruff-format",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "format",
+        "--check",
+        "python",
+        "tests"
+      ],
+      "exit_code": 0,
+      "seconds": 0.09,
+      "output_artifact": "ruff-format-k2b.txt"
+    },
+    {
+      "name": "mypy",
+      "command": [
+        "uv",
+        "run",
+        "mypy"
+      ],
+      "exit_code": 0,
+      "seconds": 0.72,
+      "output_artifact": "mypy-k2b.txt"
+    },
+    {
+      "name": "pytest",
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "--basetemp",
+        "D:\\coding agent files\\durable-engine\\codex\\k2b\\pytest-full",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "exit_code": 0,
+      "seconds": 51.44,
+      "output_artifact": "pytest-k2b.txt"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 0.09,
+      "output_artifact": "diff-k2b.txt",
+      "after_record_finalization": true
+    },
+    {
+      "name": "links",
+      "command": [
+        "python",
+        "scripts/check-public-links.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.23,
+      "output_artifact": "links-k2b.txt",
+      "after_record_finalization": true
+    }
+  ],
+  "mutation_gate": {
+    "command": [
+      "bash",
+      "scripts/mutation-gate.sh",
+      "D:\\coding agent files\\durable-engine\\codex\\k2b\\mutations.json"
+    ],
+    "exit_code": 0,
+    "duration_seconds": 1466.03,
+    "status": "PASS",
+    "detected": 158,
+    "total": 158,
+    "new_cases": 52,
+    "database": "dur053_k2b_mutation",
+    "source_basis": "working-tree overlay",
+    "output_artifact": "mutations-k2b.json"
+  },
+  "environment": "environment-k2b.json",
+  "source_hashes": "source-sha256-k2b.json",
+  "temporary_root": "D:\\coding agent files\\durable-engine\\codex\\k2b",
+  "temporary_databases": [
+    "dur053_k2b_race",
+    "dur053_k2b_mutation"
+  ],
+  "schema_change": "additive migration 19, two indexes only; transactional down/up index/ledger rollback test",
+  "ci_existing_steps_unchanged": true,
+  "review_original_prefix_bytes": 2159429,
+  "review_original_prefix_sha256": "a01b62698e8fb842a6400b775252f2055448595308b3784c104615e6b23a362a",
+  "review_append_only_preserved": true,
+  "review_append_lf_ascii": true,
+  "skipped_or_unavailable": [
+    {
+      "check": "pytest optional integrations",
+      "reason": "205 passed, 3 skipped: two require DUR055_TEST_DATABASE_URL; one requires DURABLE_KAFKA_BROKERS."
+    },
+    {
+      "check": "Go real Kafka integration",
+      "reason": "DURABLE_KAFKA_BROKERS not configured; database integrations required and enabled."
+    },
+    {
+      "check": "Docker/Compose and PowerShell 7 gates",
+      "reason": "Unavailable in sandbox; task-directed native PostgreSQL access and Bash mutation gate used."
+    },
+    {
+      "check": "kind, KEDA/fallback, real TokenReview/RBAC/NetworkPolicy and hosted CI",
+      "reason": "Not run; deployment/scaler wiring and actual rollout freeze are K3 work. No in-cluster result claimed."
+    },
+    {
+      "check": "K2c checker/witness, CPU, open-loop generator, Compose proof and dur053-kubernetes.ps1",
+      "reason": "Explicitly excluded from this task; unstarted."
+    }
+  ],
+  "known_limits": [
+    "Exact demand aggregate grows with eligible work; cost bounded by query/acquisition deadlines and supporting indexes, not row truncation.",
+    "Pre-rollout compatibility requires controller-enforced submission freeze and candidate image manifests; no atomic admission lock or version-aware dispatch.",
+    "Native mixed-registry test uses the pre-K2b default handler set and test-only candidate extension, not an archived old container rollout.",
+    "K2a pod-bound policy is unchanged; K3 must implement/test KEDA credential delivery/rotation before scaler use."
+  ],
+  "failed_or_corrected_attempts": [
+    "The first patch tool write failed; native Python file edits in the authorized workspace succeeded.",
+    "PowerShell script execution policy prevented dot-sourcing the task environment; evaluating the known local environment text established the required temporary/cache paths.",
+    "Initial fixtures omitted computed partition IDs and queried a nonexistent result_receipts table; corrected to the frozen partition map and actual persisted activity_attempts results before final checks.",
+    "Initial test file had an unused Go import and Ruff formatting issue; corrected before final checks.",
+    "A local notes script used the Windows default codec; restored its reversible encoding conversion and used explicit UTF-8. REVIEW bytes were untouched until the final append.",
+    "The timeout guard test now gives its outer deadline 4 s while asserting completion before 3 s, avoiding a timing-edge false negative for removal of the production 2 s bound. Full required checks were rerun on fresh databases after this test change.",
+    "The first full mutation gate stopped at k2b-http-demand-error because removing err from its only expression produced an unused-variable build error, which was correctly not counted as detection. The mutation now retains err in a disabled condition; The first focused preflight likewise refused an unused supported map after the referenced-version guard was removed; that mutation now retains its expression in a disabled condition. Remaining cases were preflighted before a complete fresh-DB rerun.",
+    "An initial manifest-generation assertion found an ambiguous text patch; narrowed its match before running the gate. The inherited public-route mutation was updated for the equivalent new explicit allowlist condition."
+  ],
+  "cleanup_evidence": "cleanup-k2b.json"
+}

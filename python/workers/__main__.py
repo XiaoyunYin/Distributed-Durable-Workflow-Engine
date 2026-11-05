@@ -15,6 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from workers import __version__
 from workers.lifecycle import WorkerLifecycle, worker_identity
+from workers.witness import configured_witness
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -22,6 +23,17 @@ class HealthHandler(BaseHTTPRequestHandler):
     """Process health; this is not a claim that dependencies are available."""
 
     def do_GET(self) -> None:  # noqa: N802 - BaseHTTPRequestHandler API
+        if self.path == "/witness":
+            witness = configured_witness()
+            body = json.dumps(
+                witness.inventory() if witness is not None else {"complete": False}
+            ).encode()
+            self.send_response(200 if witness is not None else 503)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path == "/metrics" and self.lifecycle is not None:
             body = self.lifecycle.render().encode()
             self.send_response(200)
@@ -69,6 +81,7 @@ def run() -> None:
         raise ValueError("WORKER_DRAIN_MODE must be drain or legacy")
     lifecycle = WorkerLifecycle(float(os.getenv("WORKER_DRAIN_SECONDS", "30")), mode == "legacy")
     HealthHandler.lifecycle = lifecycle
+    configured_witness()
     process_done = threading.Event()
     watchdog = start_abort_watchdog(lifecycle, process_done)
     stopping = lifecycle.drain
@@ -212,7 +225,10 @@ def main() -> None:
         return
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "command", choices=("run", "healthcheck", "version"), nargs="?", default="run"
+        "command",
+        choices=("run", "healthcheck", "version", "activity-registry"),
+        nargs="?",
+        default="run",
     )
     args = parser.parse_args()
 
@@ -220,6 +236,10 @@ def main() -> None:
         run()
     elif args.command == "healthcheck":
         healthcheck()
+    elif args.command == "activity-registry":
+        from workers.registry import default_registry
+
+        print(json.dumps(default_registry().manifest()))
     else:
         print(__version__)
 

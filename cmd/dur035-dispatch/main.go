@@ -692,7 +692,7 @@ func scheduleActivity(ctx context.Context, store *state.Store, workflowID, actor
 		return state.Attempt{}, err
 	}
 	return store.CreateAttempt(ctx, state.AttemptInput{Lease: ref, WorkflowID: workflowID, NodeID: "activity", Iteration: 0,
-		ExpectedRevision: wf.Revision, EffectClass: state.EffectPure, HeartbeatDeadline: time.Now().Add(attemptLease), ActorID: actorID})
+		ExpectedRevision: wf.Revision, EffectClass: state.EffectPure, DispatchLease: attemptLease, ActorID: actorID})
 }
 
 func runCase(ctx context.Context, store *state.Store, metrics *telemetry.Metrics, selected arm, repeat int, seed int64, workerBinary string) (runReport, error) {

@@ -54,6 +54,10 @@ func newHandlerWithMetrics(role string, store *state.Store, metrics *telemetry.M
 }
 
 func lifecycleHandler(role string, store *state.Store, metrics *telemetry.Metrics, tracing *telemetry.Tracing, draining *atomic.Bool) http.Handler {
+	return lifecycleHandlerWithAPI(role, store, metrics, tracing, draining, api.NewServer(store).WithTracing(tracing).Handler(), true)
+}
+
+func lifecycleHandlerWithAPI(role string, store *state.Store, metrics *telemetry.Metrics, tracing *telemetry.Tracing, draining *atomic.Bool, apiHandler http.Handler, combined bool) http.Handler {
 	mux := http.NewServeMux()
 	health := func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -77,8 +81,8 @@ func lifecycleHandler(role string, store *state.Store, metrics *telemetry.Metric
 	})
 	mux.Handle("GET /metrics", metricsHandler(role, metrics))
 	if store != nil {
-		mux.Handle("/v1/", api.NewServer(store).WithTracing(tracing).Handler())
-		if envOrDefault("RUNTIME_ENGINE_MODE", "disabled") == "readiness" {
+		mux.Handle("/v1/", apiHandler)
+		if combined && envOrDefault("RUNTIME_ENGINE_MODE", "disabled") == "readiness" {
 			mux.Handle("POST /internal/readiness/run", readinessHandler(store, metrics, role))
 		}
 	}

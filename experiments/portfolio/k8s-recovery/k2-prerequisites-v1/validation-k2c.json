@@ -1,0 +1,190 @@
+{
+  "schema": "dur053.k2c.validation.v1",
+  "base_commit": "d243aa849ad23255bd70c5c4750106a3e6dafb20",
+  "target_commit": null,
+  "branch": "codex/k8s-k2",
+  "handoff_basis": "PROVISIONAL",
+  "task_status": "IN_PROGRESS",
+  "status": "PASS (native checks only; Compose proof pending)",
+  "checks": [
+    {
+      "name": "vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit_code": 0,
+      "seconds": 3.42,
+      "output_artifact": "vet-k2c.txt"
+    },
+    {
+      "name": "gofmt",
+      "command": [
+        "gofmt",
+        "-l",
+        "cmd",
+        "internal"
+      ],
+      "exit_code": 0,
+      "seconds": 0.16,
+      "output_artifact": "gofmt-k2c.txt"
+    },
+    {
+      "name": "race",
+      "command": [
+        "go",
+        "test",
+        "-race",
+        "-p",
+        "1",
+        "-count=1",
+        "./..."
+      ],
+      "exit_code": 0,
+      "seconds": 269.31,
+      "output_artifact": "race-k2c.txt"
+    },
+    {
+      "name": "ruff",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "check",
+        "python",
+        "tests"
+      ],
+      "exit_code": 0,
+      "seconds": 0.17,
+      "output_artifact": "ruff-k2c.txt"
+    },
+    {
+      "name": "format",
+      "command": [
+        "uv",
+        "run",
+        "ruff",
+        "format",
+        "--check",
+        "python",
+        "tests"
+      ],
+      "exit_code": 0,
+      "seconds": 0.38,
+      "output_artifact": "format-k2c.txt"
+    },
+    {
+      "name": "mypy",
+      "command": [
+        "uv",
+        "run",
+        "mypy"
+      ],
+      "exit_code": 0,
+      "seconds": 1.09,
+      "output_artifact": "mypy-k2c.txt"
+    },
+    {
+      "name": "pytest",
+      "command": [
+        "uv",
+        "run",
+        "pytest",
+        "--basetemp",
+        "D:\\coding agent files\\durable-engine\\codex\\k2c\\pytest-full",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "exit_code": 0,
+      "seconds": 50.45,
+      "output_artifact": "pytest-k2c.txt"
+    },
+    {
+      "name": "registry",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "scripts/check-activity-registry.py"
+      ],
+      "exit_code": 0,
+      "seconds": 11.34,
+      "output_artifact": "registry-k2c.txt"
+    },
+    {
+      "name": "mutation-clean",
+      "command": [
+        "C:/Program Files/Git/bin/bash.exe",
+        "scripts/mutation-gate.sh",
+        "D:\\coding agent files\\durable-engine\\codex\\k2c\\mutations-clean-k2c.json"
+      ],
+      "exit_code": 0,
+      "seconds": 2160.62,
+      "output_artifact": "mutation-clean-k2c.txt"
+    },
+    {
+      "name": "diff",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 0.08,
+      "output_artifact": "diff-k2c.txt"
+    },
+    {
+      "name": "links",
+      "command": [
+        "python",
+        "scripts/check-public-links.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.2,
+      "output_artifact": "links-k2c.txt"
+    }
+  ],
+  "mutation_cases": 246,
+  "new_k2c_mutations": 87,
+  "pytest": {
+    "passed": 218,
+    "skipped": 3,
+    "reasons": [
+      "two optional DUR055 PostgreSQL tests require DUR055_TEST_DATABASE_URL",
+      "real Kafka worker fixture requires DURABLE_KAFKA_BROKERS"
+    ]
+  },
+  "database": {
+    "migrations": 19,
+    "race": "dur053_k2c_race",
+    "mutation": "dur053_k2c_mutation_clean",
+    "type": "fresh migrated native PostgreSQL databases"
+  },
+  "skipped": [
+    "Docker/Compose unavailable in sandbox",
+    "PowerShell 7 runtime unavailable; Windows PowerShell syntax parser only",
+    "hosted CI requires Claude commit/push; none authorized here",
+    "kind, KEDA, faults, clock injection, CPU calibration and measured campaigns belong to later milestones"
+  ],
+  "compose_status": "PENDING CLAUDE RUN",
+  "compose_command": "pwsh -File scripts/dur053-kubernetes.ps1 -Context compose -Scenario prerequisites",
+  "deviations": [
+    "Git Bash used explicitly after the default WSL Bash launcher denied access",
+    "Any transport error fails the clean prerequisite even when uncertainty can be durably reconciled",
+    "No Compose proof is claimed; source/negative controls are native tests only"
+  ],
+  "limitations": [
+    "Host-backed witness is independent of engine state, not independent-host storage or adversarially trusted instrumentation",
+    "No-fault prerequisite rejects dead/missing inventories and unfinished invocation intervals; later fault arms require old-session and observed-exit evidence",
+    "PURE: duplicate effects/approvals, cancellation races and storage loss NOT COVERED"
+  ],
+  "review_original_prefix": {
+    "length": 2176455,
+    "sha256": "8a3ccdf5fa5fe4fa7a33e0cd252b937a9f1250e5894f43c7951443bb74c18d9f",
+    "cr": 0,
+    "preserved": true,
+    "new_headings_ascii": true,
+    "lf_only": true
+  }
+}

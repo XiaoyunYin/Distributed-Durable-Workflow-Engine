@@ -1,0 +1,29 @@
+{
+  "status": "PASS",
+  "task_temp_root": "D:\\coding agent files\\durable-engine\\codex\\k2a-fix",
+  "task_temp_root_exists": false,
+  "removed_files": 10754,
+  "removed_directories": 455,
+  "codex_root": "D:\\coding agent files\\durable-engine\\codex",
+  "codex_root_listing": [],
+  "codex_root_empty": true,
+  "databases": {
+    "created": [
+      "dur053_k2afix_race",
+      "dur053_k2afix_mutation"
+    ],
+    "creation_events": [
+      "initial race DB",
+      "initial mutation DB",
+      "race DB recreated before full suite",
+      "mutation DB recreated before final gate"
+    ],
+    "present_before_cleanup": [
+      "dur053_k2afix_race",
+      "dur053_k2afix_mutation"
+    ],
+    "remaining_after_cleanup": [],
+    "all_dropped": true
+  },
+  "retained": "Intended source changes, engineering/review records and durable evidence only"
+}

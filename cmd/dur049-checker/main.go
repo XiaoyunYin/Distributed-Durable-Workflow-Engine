@@ -10,18 +10,24 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"durable-agent-execution-engine/internal/invariants"
 	"durable-agent-execution-engine/internal/state"
 )
 
 type report struct {
-	Status      string            `json:"status"`
-	WorkflowIDs []string          `json:"workflow_ids,omitempty"`
-	Trace       *invariants.Trace `json:"trace,omitempty"`
-	Valid       bool              `json:"valid"`
-	Violations  []string          `json:"violations,omitempty"`
-	Fence       *fenceReport      `json:"fence,omitempty"`
+	InvariantsCovered    []string                   `json:"invariants_covered"`
+	InvariantsNotCovered []string                   `json:"invariants_not_covered"`
+	InvariantOutcomes    map[string]string          `json:"invariant_outcomes"`
+	NonTerminal          []string                   `json:"non_terminal"`
+	Campaign             *invariants.CampaignReport `json:"campaign,omitempty"`
+	Status               string                     `json:"status"`
+	WorkflowIDs          []string                   `json:"workflow_ids,omitempty"`
+	Trace                *invariants.Trace          `json:"trace,omitempty"`
+	Valid                bool                       `json:"valid"`
+	Violations           []string                   `json:"violations,omitempty"`
+	Fence                *fenceReport               `json:"fence,omitempty"`
 }
 
 type fenceReport struct {
@@ -43,7 +49,53 @@ func main() {
 	recoveryRevision := flag.Int64("recovery-revision", 0, "TIMEOUT_REPLACEMENT revision that establishes the recovered owner boundary")
 	recoveryEpoch := flag.Int64("recovery-epoch", 0, "epoch at the first new-owner acquisition")
 	staleAttemptNumber := flag.Int64("stale-attempt-number", 0, "old attempt number that must remain unrecorded and non-current")
+	campaignPath := flag.String("arrivals", "", "DUR-053 arrival manifest; requires witness-export")
+	witnessPath := flag.String("witness-export", "", "external worker witness export")
+	namespace := flag.String("namespace", "", "export every durable submission in this namespace")
+	requireTerminal := flag.Bool("require-terminal", false, "fail on non-terminal accepted work")
 	flag.Parse()
+	if (*campaignPath == "") != (*witnessPath == "") {
+		fatal(fmt.Errorf("arrivals and witness-export required together"))
+	}
+	emit := func(trace invariants.Trace, ids []string) bool {
+		verdict, fence := check(trace, *preFaultRevision, *recoveryRevision, *recoveryEpoch, *staleAttemptNumber)
+		if *requireTerminal && len(verdict.NonTerminal) > 0 {
+			verdict.Violations = append(verdict.Violations, "accepted work is non-terminal")
+			verdict.Valid = false
+		}
+		covered, missing, outcomes := invariants.PureCoverage()
+		result := report{Status: status(verdict.Valid), WorkflowIDs: ids, Trace: &trace, Valid: verdict.Valid, Violations: verdict.Violations, Fence: fence, NonTerminal: verdict.NonTerminal, InvariantsCovered: covered, InvariantsNotCovered: missing, InvariantOutcomes: outcomes}
+		// Legacy reports do not claim a PURE campaign's reconciliation coverage.
+		for key := range outcomes {
+			outcomes[key] = "not-covered (legacy trace check only)"
+		}
+		result.InvariantsCovered = []string{"supplied history/results/submission/attempt/transport structural checks"}
+		result.InvariantsNotCovered = append(missing, "campaign-wide submission and external witness reconciliation NOT COVERED without -arrivals")
+		if *campaignPath != "" {
+			var arrivals invariants.Arrivals
+			var witness invariants.WitnessExport
+			read := func(path string, target any) {
+				b, e := os.ReadFile(path)
+				if e != nil {
+					fatal(e)
+				}
+				if e = json.Unmarshal(b, target); e != nil {
+					fatal(e)
+				}
+			}
+			read(*campaignPath, &arrivals)
+			read(*witnessPath, &witness)
+			campaign := invariants.CheckCampaign(trace, arrivals, witness)
+			result.Campaign = &campaign
+			result.Valid = result.Valid && campaign.Valid
+			result.Status = status(result.Valid)
+			result.InvariantsCovered = campaign.InvariantsCovered
+			result.InvariantsNotCovered = campaign.InvariantsNotCovered
+			result.InvariantOutcomes = campaign.InvariantOutcomes
+		}
+		write(result)
+		return result.Valid
+	}
 
 	if *snapshotPath != "" {
 		data, err := os.ReadFile(*snapshotPath)
@@ -54,30 +106,47 @@ func main() {
 		if err := json.Unmarshal(data, &trace); err != nil {
 			fatal(err)
 		}
-		verdict, fence := check(trace, *preFaultRevision, *recoveryRevision, *recoveryEpoch, *staleAttemptNumber)
-		write(report{Status: status(verdict.Valid), Trace: &trace, Valid: verdict.Valid, Violations: verdict.Violations, Fence: fence})
-		if !verdict.Valid {
+		if !emit(trace, nil) {
 			os.Exit(1)
 		}
 		return
 	}
 
 	ids := splitIDs(*workflowIDs)
-	if len(ids) == 0 || *databaseURL == "" {
+	if (len(ids) == 0 && *namespace == "") || *databaseURL == "" {
 		fatal(fmt.Errorf("workflow-ids and database-url are required for live export"))
 	}
-	store, err := state.NewFromURL(context.Background(), *databaseURL)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	defer cancel()
+	store, err := state.NewDemandFromURL(ctx, *databaseURL)
 	if err != nil {
 		fatal(err)
 	}
 	defer store.Close()
-	trace, err := invariants.Load(context.Background(), store, ids)
+	if *namespace != "" {
+		rows, e := store.Pool().Query(ctx, `SELECT workflow_id FROM engine.workflow_executions WHERE namespace=$1 ORDER BY workflow_id`, *namespace)
+		if e != nil {
+			fatal(e)
+		}
+		ids = nil
+		for rows.Next() {
+			var id string
+			if e := rows.Scan(&id); e != nil {
+				fatal(e)
+			}
+			ids = append(ids, id)
+		}
+		e = rows.Err()
+		rows.Close()
+		if e != nil {
+			fatal(e)
+		}
+	}
+	trace, err := invariants.Load(ctx, store, ids)
 	if err != nil {
 		fatal(err)
 	}
-	verdict, fence := check(trace, *preFaultRevision, *recoveryRevision, *recoveryEpoch, *staleAttemptNumber)
-	write(report{Status: status(verdict.Valid), WorkflowIDs: ids, Trace: &trace, Valid: verdict.Valid, Violations: verdict.Violations, Fence: fence})
-	if !verdict.Valid {
+	if !emit(trace, ids) {
 		os.Exit(1)
 	}
 }

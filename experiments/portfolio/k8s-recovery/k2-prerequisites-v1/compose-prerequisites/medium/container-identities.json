@@ -1,0 +1,134 @@
+{
+  "runtime-a": {
+    "Created": "2026-11-05T03:32:28.657063811Z",
+    "Id": "64ab6dd9f5eb3c3d9e41e34f7a883d4b66c640d527f766cd094ac890c40dbd29",
+    "Image": "sha256:eb82f063036049ced76863a05f7bf29422c11bef47606422ea0fafa79d2d9435",
+    "state": {
+      "Dead": false,
+      "Error": "",
+      "ExitCode": 0,
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "Health": {
+        "FailingStreak": 0,
+        "Log": [
+          {
+            "End": "2026-11-05T03:32:38.053096596Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-05T03:32:37.997420169Z"
+          },
+          {
+            "End": "2026-11-05T03:32:43.096160835Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-05T03:32:43.054036073Z"
+          }
+        ],
+        "Status": "healthy"
+      },
+      "OOMKilled": false,
+      "Paused": false,
+      "Pid": 28814,
+      "Restarting": false,
+      "Running": true,
+      "StartedAt": "2026-11-05T03:32:32.8507418Z",
+      "Status": "running"
+    }
+  },
+  "runtime-b": {
+    "Created": "2026-11-05T03:32:28.656998617Z",
+    "Id": "22c7ab4dca19f5083c80934d1d3179bb8532639761fd16c8f09c5537750d40c1",
+    "Image": "sha256:eb82f063036049ced76863a05f7bf29422c11bef47606422ea0fafa79d2d9435",
+    "state": {
+      "Dead": false,
+      "Error": "",
+      "ExitCode": 0,
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "Health": {
+        "FailingStreak": 0,
+        "Log": [
+          {
+            "End": "2026-11-05T03:32:38.038674028Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-05T03:32:37.987445718Z"
+          },
+          {
+            "End": "2026-11-05T03:32:43.083627411Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-05T03:32:43.039269119Z"
+          }
+        ],
+        "Status": "healthy"
+      },
+      "OOMKilled": false,
+      "Paused": false,
+      "Pid": 28812,
+      "Restarting": false,
+      "Running": true,
+      "StartedAt": "2026-11-05T03:32:32.850200773Z",
+      "Status": "running"
+    }
+  },
+  "worker-a": {
+    "Created": "2026-11-05T03:32:28.667103075Z",
+    "Id": "d45a84269361e56ead6eb1d8aa2cd3ee47c1e5231adfc6eb42d6da39a6eace97",
+    "Image": "sha256:e96cafa7bf02569be28ef4533df004692ef7a3c747373cf5b9147581c60105e8",
+    "state": {
+      "Dead": false,
+      "Error": "",
+      "ExitCode": 0,
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "Health": {
+        "FailingStreak": 0,
+        "Log": [
+          {
+            "End": "2026-11-05T03:32:44.106624168Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-05T03:32:43.640081164Z"
+          }
+        ],
+        "Status": "healthy"
+      },
+      "OOMKilled": false,
+      "Paused": false,
+      "Pid": 29474,
+      "Restarting": false,
+      "Running": true,
+      "StartedAt": "2026-11-05T03:32:38.506266818Z",
+      "Status": "running"
+    }
+  },
+  "worker-b": {
+    "Created": "2026-11-05T03:32:28.667167305Z",
+    "Id": "4e6d6989bd76f7ba6d29af0f8927115bd0b954bc5e15e411b0470f1ca6b70f12",
+    "Image": "sha256:e96cafa7bf02569be28ef4533df004692ef7a3c747373cf5b9147581c60105e8",
+    "state": {
+      "Dead": false,
+      "Error": "",
+      "ExitCode": 0,
+      "FinishedAt": "0001-01-01T00:00:00Z",
+      "Health": {
+        "FailingStreak": 0,
+        "Log": [
+          {
+            "End": "2026-11-05T03:32:44.100819276Z",
+            "ExitCode": 0,
+            "Output": "",
+            "Start": "2026-11-05T03:32:43.648072089Z"
+          }
+        ],
+        "Status": "healthy"
+      },
+      "OOMKilled": false,
+      "Paused": false,
+      "Pid": 29466,
+      "Restarting": false,
+      "Running": true,
+      "StartedAt": "2026-11-05T03:32:38.499449421Z",
+      "Status": "running"
+    }
+  }
+}

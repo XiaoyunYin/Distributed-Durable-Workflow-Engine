@@ -188,6 +188,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check.ps1
 
+      - name: Check effective activity registry parity
+        shell: bash
+        run: uv run python scripts/check-activity-registry.py
+
       - name: Run Go race tests
         shell: pwsh
         run: go test -race ./...
@@ -378,3 +382,36 @@ jobs:
           if (Test-Path -LiteralPath .env) {
             docker compose --env-file .env -f deploy/local/compose.yaml down --volumes --remove-orphans
           }
+
+  k2-prerequisites:
+    name: DUR-053 Compose prerequisites
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.27.3
+          cache: true
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+      - name: Prove chosen workloads, witness and checker closeout
+        shell: pwsh
+        run: |
+          $evidence = Join-Path $env:RUNNER_TEMP "dur053-k2-prerequisites"
+          ./scripts/dur053-kubernetes.ps1 -Context compose -Scenario prerequisites -OutputRoot $evidence
+      - name: Retain prerequisite evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dur053-k2-prerequisites
+          path: ${{ runner.temp }}/dur053-k2-prerequisites/
+          if-no-files-found: error
