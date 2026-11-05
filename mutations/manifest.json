@@ -2177,8 +2177,8 @@
       "id": "k2b-demand-only-route",
       "kind": "behavioral",
       "file": "internal/api/server.go",
-      "old": "if s.routes == RoutesDemand {",
-      "new": "if s.routes == RoutesDemand || s.routes == RoutesPublic {",
+      "old": "if s.routes == RoutesDemand {\n\t\tmux.HandleFunc(\"GET /v1/demand\", s.durableDemand)\n\t}",
+      "new": "if s.routes == RoutesDemand || s.routes == RoutesPublic {\n\t\tmux.HandleFunc(\"GET /v1/demand\", s.durableDemand)\n\t}",
       "command": [
         "go",
         "test",
@@ -2213,18 +2213,18 @@
       "id": "k2b-demand-auth",
       "kind": "behavioral",
       "file": "internal/api/server.go",
-      "old": "handler = s.authenticator.middleware(handler)",
-      "new": "if s.routes != RoutesDemand { handler = s.authenticator.middleware(handler) }",
+      "old": "if s.routes == RoutesDemand {\n\t\tif s.demandAuth != nil {\n\t\t\thandler = s.demandAuth.middleware(handler)\n\t\t}",
+      "new": "if false && s.routes == RoutesDemand {\n\t\tif s.demandAuth != nil {\n\t\t\thandler = s.demandAuth.middleware(handler)\n\t\t}",
       "command": [
         "go",
         "test",
         "./internal/api",
         "-run",
-        "^TestK2DemandAuthentication$",
+        "^TestK2DemandBearerAuthentication$",
         "-count=1",
         "-v"
       ],
-      "expected": "demand auth guard bypassed",
+      "expected": "demand bearer guard bypassed",
       "requires_database": false
     },
     {
@@ -2790,6 +2790,24 @@
       ],
       "expected": "registry DB failure accepted",
       "requires_database": true
+    },
+    {
+      "id": "k2b-demand-secret-startup",
+      "kind": "behavioral",
+      "file": "internal/api/demand_auth.go",
+      "old": "if _, err := auth.readSecret(); err != nil {",
+      "new": "if _, err := auth.readSecret(); err != nil && false {",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK2DemandConfiguredSecretMustBeReadableAtStartup$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "unreadable demand bearer startup guard bypassed",
+      "requires_database": false
     }
   ]
 }

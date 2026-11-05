@@ -7,9 +7,13 @@ DUR-053 K2 IN_PROGRESS. R224 and R226 are proposed ADDRESSED, not VERIFIED.
 ## Demand
 
 `RUNTIME_ROLES=demand` serves only `GET /v1/demand` as a business route on
-port 8091, with a configured engine namespace. K2a authentication protects
-it when enabled, using the dedicated KEDA audience and ServiceAccount.
-Unbound, missing or worker credentials are rejected. The process has a
+port 8091, with a configured engine namespace. The in-cluster demand role must
+set `RUNTIME_TOKEN_AUTH=enabled`; there is no auth-off in-cluster default. A
+campaign-scoped static bearer Secret is mounted at
+`RUNTIME_DEMAND_BEARER_TOKEN_FILE`; a missing/unreadable/empty
+secret fails startup, and requests reread the mounted file for rotation. Missing,
+wrong and empty bearer values receive 401 before querying. Other listeners keep
+K2a pod-bound TokenReview. The process has a
 read-only two-connection pool; pool acquisition and query share a 2 s bound.
 Database failure is HTTP 503, with no scalar in the error body. Samples are
 not cached. A missing timestamp or response taking over 5 s is an error.
@@ -38,9 +42,13 @@ KEDA's reserved mapping is `metrics-api`, `metricType: AverageValue`,
 `format: json`, `valueLocation: demand`, `targetValue: "2"`, bearer auth,
 minimum 1 and maximum 4 workers. Registered fallback is 2 replicas after
 3 failed polls, with 5 s polling and protocol-v2 stabilization/rate limits.
-This is a response contract, not measured scaler behavior. K3 must freeze and
-test the actual KEDA version, pod-bound bearer credential rotation, RBAC and
-NetworkPolicy. Official references: [Metrics API](https://keda.sh/docs/2.18/scalers/metrics-api/),
+This is a response contract, not measured scaler behavior. The
+`metrics-api` trigger uses `authMode: bearer` and a namespaced
+`TriggerAuthentication.secretTargetRef` mapping parameter `token` to the
+campaign Secret's `token` key. Generate a high-entropy secret per campaign,
+rotate the Kubernetes Secret and projected file, and verify the polls before
+retiring the old value. K3 must freeze/test the actual KEDA version and add a
+NetworkPolicy restricting ingress on 8091 to the KEDA operator. Official references: [Metrics API](https://keda.sh/docs/2.18/scalers/metrics-api/),
 [ScaledObject](https://keda.sh/docs/2.18/reference/scaledobject-spec/).
 
 ## Registry compatibility

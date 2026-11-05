@@ -3,7 +3,10 @@ package api
 import (
 	"context"
 	"errors"
+	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -77,27 +80,73 @@ func TestK2DemandHTTP(t *testing.T) {
 		}
 	}
 }
-func TestK2DemandAuthentication(t *testing.T) {
-	reviewer, fixture := identityFixture(t)
-	reviewer.config.ServiceAccount = "keda"
-	fixture.username = "system:serviceaccount:engine:keda"
+func TestK2DemandBearerAuthentication(t *testing.T) {
+	secretPath := filepath.Join(t.TempDir(), "campaign-token")
+	oldSecret := "old-campaign-secret-0123456789abcdef"
+	newSecret := "new-campaign-secret-0123456789abcdef"
+	if err := os.WriteFile(secretPath, []byte(oldSecret+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RUNTIME_DEMAND_BEARER_TOKEN_FILE", secretPath)
+	auth, err := NewDemandBearerAuthenticatorFromEnvironment()
+	if err != nil {
+		t.Fatal(err)
+	}
 	f := &demandFixture{}
-	handler := NewServer(nil).WithRoutes(RoutesDemand).WithDemand(f, "campaign").WithAuthentication(reviewer).Handler()
-	for _, entry := range []struct {
-		subject string
-		want    int
-	}{{"", 401}, {"system:serviceaccount:engine:worker", 401}, {fixture.username, 200}} {
+	handler := NewServer(nil).WithRoutes(RoutesDemand).WithDemand(f, "campaign").WithDemandAuthentication(auth).Handler()
+	request := func(token string, includeHeader bool) *httptest.ResponseRecorder {
 		r := httptest.NewRequest("GET", "/v1/demand", nil)
-		if entry.subject != "" {
-			r.Header.Set("Authorization", "Bearer "+projectedToken("https://cluster.example", entry.subject, "durable-worker", time.Now().Add(time.Hour).Unix()))
+		if includeHeader {
+			r.Header.Set("Authorization", "Bearer "+token)
 		}
 		w := httptest.NewRecorder()
 		handler.ServeHTTP(w, r)
-		if w.Code != entry.want {
-			t.Fatalf("demand auth guard bypassed: subject=%s status=%d body=%s", entry.subject, w.Code, w.Body)
+		return w
+	}
+	for _, entry := range []struct {
+		token string
+		set   bool
+	}{{"", false}, {"", true}, {"wrong-campaign-secret-0123456789abcdef", true}} {
+		if response := request(entry.token, entry.set); response.Code != http.StatusUnauthorized {
+			t.Fatalf("demand bearer guard bypassed: token=%q status=%d", entry.token, response.Code)
 		}
 	}
-	if f.calls != 1 {
-		t.Fatalf("demand auth guard bypassed: DB called %d times", f.calls)
+	if f.calls != 0 {
+		t.Fatalf("rejected demand credentials reached DB: %d calls", f.calls)
+	}
+	if response := request(oldSecret, true); response.Code != http.StatusOK || f.calls != 1 {
+		t.Fatalf("valid demand bearer rejected: status=%d calls=%d body=%s", response.Code, f.calls, response.Body)
+	}
+	if err := os.WriteFile(secretPath, []byte(newSecret+"\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if response := request(oldSecret, true); response.Code != http.StatusUnauthorized || f.calls != 1 {
+		t.Fatalf("rotated-out bearer accepted: status=%d calls=%d", response.Code, f.calls)
+	}
+	if response := request(newSecret, true); response.Code != http.StatusOK || f.calls != 2 {
+		t.Fatalf("rotated-in bearer rejected: status=%d calls=%d body=%s", response.Code, f.calls, response.Body)
+	}
+	if err := os.Remove(secretPath); err != nil {
+		t.Fatal(err)
+	}
+	if response := request(newSecret, true); response.Code != http.StatusUnauthorized || f.calls != 2 {
+		t.Fatalf("unavailable rotated secret did not fail closed: status=%d calls=%d", response.Code, f.calls)
+	}
+}
+
+func TestK2DemandBearerConfiguration(t *testing.T) {
+	for _, contents := range [][]byte{nil, []byte("short")} {
+		path := filepath.Join(t.TempDir(), "campaign-token")
+		if err := os.WriteFile(path, contents, 0600); err != nil {
+			t.Fatal(err)
+		}
+		t.Setenv("RUNTIME_DEMAND_BEARER_TOKEN_FILE", path)
+		if _, err := NewDemandBearerAuthenticatorFromEnvironment(); err == nil {
+			t.Fatal("demand bearer configuration guard bypassed")
+		}
+	}
+	t.Setenv("RUNTIME_DEMAND_BEARER_TOKEN_FILE", filepath.Join(t.TempDir(), "missing"))
+	if _, err := NewDemandBearerAuthenticatorFromEnvironment(); err == nil {
+		t.Fatal("unreadable demand bearer configuration accepted")
 	}
 }

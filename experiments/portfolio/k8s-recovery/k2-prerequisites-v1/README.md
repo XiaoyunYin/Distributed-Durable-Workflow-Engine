@@ -42,7 +42,9 @@ K2 remains IN_PROGRESS and the handoff is PROVISIONAL.
 
 [Demand and registry contract/evidence](demand-registry-k2b.md) describes only
 R224/R226. Files suffixed `k2b` record this pass, separately from historical
-K2a and Round 158 results. The final check results are in validation-k2b.json;
+K2a and Round 158 results. Round 160's uncommitted failed-attempt logs were
+normalized by stripping trailing spaces only; their captured command output was
+otherwise preserved. The final check results are in validation-k2b.json;
 mutation detections in mutations-k2b.json and cleanup in cleanup-k2b.json.
 No K2c checker/witness, CPU activity, open-loop generator, Compose proof or
 prerequisite CLI implementation is included. No cluster or scaler ran here.

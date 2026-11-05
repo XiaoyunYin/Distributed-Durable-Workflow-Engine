@@ -179,9 +179,25 @@ func serveLifecycle(signalCtx context.Context) error {
 	if roles["demand"] && (os.Getenv("DATABASE_URL") == "" || os.Getenv("RUNTIME_NAMESPACE") == "") {
 		return errors.New("demand requires DATABASE_URL and RUNTIME_NAMESPACE")
 	}
-	reviewer, err := api.AuthenticationFromEnvironment()
-	if err != nil {
-		return err
+	var reviewer *api.TokenReviewer
+	var demandAuth *api.DemandBearerAuthenticator
+	if routes == api.RoutesDemand {
+		authSetting := os.Getenv("RUNTIME_TOKEN_AUTH")
+		if authSetting == "" || authSetting == "disabled" {
+			// Local and Compose demand behavior remains auth-disabled by default.
+		} else if authSetting == "enabled" {
+			demandAuth, err = api.NewDemandBearerAuthenticatorFromEnvironment()
+			if err != nil {
+				return err
+			}
+		} else {
+			return errors.New("RUNTIME_TOKEN_AUTH must be enabled or disabled")
+		}
+	} else {
+		reviewer, err = api.AuthenticationFromEnvironment()
+		if err != nil {
+			return err
+		}
 	}
 	roleName := envOrDefault("RUNTIME_ROLE", "runtime")
 	metrics := telemetry.New(roleName)
@@ -210,7 +226,8 @@ func serveLifecycle(signalCtx context.Context) error {
 	}
 	var draining atomic.Bool
 	handlerStore := store
-	apiHandler := api.NewServer(store).WithRoutes(routes).WithAuthentication(reviewer).WithTracing(tracing).WithDemand(store, os.Getenv("RUNTIME_NAMESPACE")).Handler()
+	apiServer := api.NewServer(store).WithRoutes(routes).WithAuthentication(reviewer).WithDemandAuthentication(demandAuth).WithTracing(tracing).WithDemand(store, os.Getenv("RUNTIME_NAMESPACE"))
+	apiHandler := apiServer.Handler()
 	handler := lifecycleHandlerWithAPI(roleName, handlerStore, metrics, tracing, &draining, apiHandler, routes == api.RoutesCombined)
 	server := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	listener, err := net.Listen("tcp", *addr)

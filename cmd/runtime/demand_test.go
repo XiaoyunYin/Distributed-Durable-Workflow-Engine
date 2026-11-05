@@ -6,6 +6,8 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -68,6 +70,7 @@ func TestK2DemandStartupConfiguration(t *testing.T) {
 	defer func() { os.Args = saved }()
 	os.Args = []string{"runtime", "--roles", "demand", "--addr", "127.0.0.1:0"}
 	t.Setenv("RUNTIME_TOKEN_AUTH", "disabled")
+	t.Setenv("RUNTIME_DEMAND_BEARER_TOKEN_FILE", "")
 	for _, entry := range []struct{ db, namespace string }{{"", ""}, {"", "campaign"}, {"postgresql://invalid:invalid@127.0.0.1:1/absent?sslmode=disable", ""}} {
 		t.Setenv("DATABASE_URL", entry.db)
 		t.Setenv("RUNTIME_NAMESPACE", entry.namespace)
@@ -76,5 +79,31 @@ func TestK2DemandStartupConfiguration(t *testing.T) {
 		if err := serveLifecycle(ctx); err == nil || err.Error() != "demand requires DATABASE_URL and RUNTIME_NAMESPACE" {
 			t.Fatalf("demand startup guard bypassed: %v", err)
 		}
+	}
+}
+
+func TestK2DemandConfiguredSecretMustBeReadableAtStartup(t *testing.T) {
+	saved := os.Args
+	defer func() { os.Args = saved }()
+	os.Args = []string{"runtime", "--roles", "demand", "--addr", "127.0.0.1:0"}
+	t.Setenv("RUNTIME_TOKEN_AUTH", "enabled")
+	t.Setenv("DATABASE_URL", "postgresql://invalid:invalid@127.0.0.1:1/absent?sslmode=disable")
+	t.Setenv("RUNTIME_NAMESPACE", "campaign")
+	t.Setenv("RUNTIME_DEMAND_BEARER_TOKEN_FILE", "")
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	if err := serveLifecycle(ctx); err == nil || !strings.Contains(err.Error(), "RUNTIME_DEMAND_BEARER_TOKEN_FILE") {
+		t.Fatalf("missing demand bearer startup guard bypassed: %v", err)
+	}
+	secretPath := filepath.Join(t.TempDir(), "unreadable")
+	if err := os.WriteFile(secretPath, []byte("valid-looking-campaign-secret-0123456789"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Remove(secretPath); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("RUNTIME_DEMAND_BEARER_TOKEN_FILE", secretPath)
+	if err := serveLifecycle(ctx); err == nil || !strings.Contains(err.Error(), "demand bearer secret unavailable") {
+		t.Fatalf("unreadable demand bearer startup guard bypassed: %v", err)
 	}
 }

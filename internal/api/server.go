@@ -58,12 +58,18 @@ type Server struct {
 	tracing          *telemetry.Tracing
 	routes           RouteSet
 	authenticator    *TokenReviewer
+	demandAuth       *DemandBearerAuthenticator
 	demandRepository DemandRepository
 	demandNamespace  string
 }
 
 func NewServer(repository Repository) *Server {
 	return &Server{repository: repository, workerConsumerID: "runtime-workers-v1"}
+}
+
+func (s *Server) WithDemandAuthentication(authenticator *DemandBearerAuthenticator) *Server {
+	s.demandAuth = authenticator
+	return s
 }
 
 func (s *Server) WithTracing(tracing *telemetry.Tracing) *Server {
@@ -98,7 +104,11 @@ func (s *Server) Handler() http.Handler {
 		writeError(w, http.StatusNotFound, "NOT_FOUND", "route was not found", nil)
 	})
 	var handler http.Handler = mux
-	if s.authenticator != nil {
+	if s.routes == RoutesDemand {
+		if s.demandAuth != nil {
+			handler = s.demandAuth.middleware(handler)
+		}
+	} else if s.authenticator != nil {
 		handler = s.authenticator.middleware(handler)
 	}
 	if s.tracing == nil {
