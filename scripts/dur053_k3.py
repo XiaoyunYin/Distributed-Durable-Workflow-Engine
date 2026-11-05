@@ -63,6 +63,12 @@ def download(url: str, sha256: str) -> bytes:
     return data
 
 
+def elapsed_live_seconds(scenario: str, cluster_started: bool, cleanup_seconds: int) -> int:
+    if scenario != "smoke" or not cluster_started:
+        return 0
+    return max(1, cleanup_seconds)
+
+
 def github(path: str) -> Any:
     request = urllib.request.Request(
         "https://api.github.com/" + path,
@@ -183,6 +189,7 @@ class Driver:
         self.env["PATH"] = str(scratch / "bin") + os.pathsep + self.env["PATH"]
         self.created: set[str] = set()
         self.kind_network_created = False
+        self.cluster_started = False
         self.databases: set[str] = set()
         self.live_start: float | None = None
         self.sequence = 0
@@ -466,6 +473,7 @@ class Driver:
             ],
             timeout=300,
         )
+        self.cluster_started = True
         self.command(["docker", "network", "connect", "kind", CLUSTER + "-registry"])
         node = CLUSTER + "-control-plane"
         self.command(
@@ -1521,6 +1529,7 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
         "live_ceiling_seconds": LIVE_RESERVATION if scenario == "smoke" else 0,
         "budget_scope": "engineering-validation",
         "measurement_claim": False,
+        "cluster_started": False,
     }
     save(output / "manifest.json", manifest)
     try:
@@ -1619,6 +1628,7 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
                     shutil.rmtree(scratch / ("package-" + arm))
                     (output / (arm + ".yaml")).rename(output / (arm + "-unbound-endpoints.yaml"))
                 addresses = d.cluster()
+                manifest["cluster_started"] = d.cluster_started
                 for arm in ("kind", "kind-baseline"):
                     d.batch(arm, addresses)
         manifest["status"] = "PASS"
@@ -1658,10 +1668,11 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
         scratch_ownership(scratch, scratch_root)
         shutil.rmtree(scratch)
         manifest["scratch_removed"] = not scratch.exists()
-        manifest["elapsed_live_seconds"] = (
-            max(1, manifest["cleanup"].get("elapsed_live_seconds", LIVE_RESERVATION))
-            if scenario == "smoke"
-            else 0
+        manifest["cluster_started"] = d.cluster_started
+        manifest["elapsed_live_seconds"] = elapsed_live_seconds(
+            scenario,
+            d.cluster_started,
+            manifest["cleanup"].get("elapsed_live_seconds", LIVE_RESERVATION),
         )
         manifest["charged_seconds"] = 0
         manifest["artifact_sha256"] = artifact_hashes(output)

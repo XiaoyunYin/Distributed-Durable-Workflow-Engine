@@ -6210,6 +6210,34 @@
       ],
       "expected": "evidence guard bypassed intake-acceptance-evidence",
       "requires_database": false
+    },
+    {
+      "id": "k3-registry-lock-requires-http-200",
+      "kind": "behavioral",
+      "file": "scripts/dur053_lock_check.py",
+      "old": "\"ok\": status == 200,",
+      "new": "\"ok\": status != 200,  # mutation: accept missing image manifests",
+      "command": [
+        "python",
+        "tests/test_k3_lock_check.py",
+        "RegistryLockCheckTests.test_existing_digest_passes"
+      ],
+      "expected": "good digest was rejected",
+      "requires_database": false
+    },
+    {
+      "id": "k3-smoke-no-cluster-zero-live-seconds",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k3.py",
+      "old": "if scenario != \"smoke\" or not cluster_started:\n        return 0",
+      "new": "if scenario != \"smoke\":\n        return 0  # mutation: charge smoke when cluster never started",
+      "command": [
+        "python",
+        "tests/test_k3_driver.py",
+        "K3DriverTests.test_smoke_without_started_cluster_records_zero_live_seconds"
+      ],
+      "expected": "1 != 0",
+      "requires_database": false
     }
   ]
 }

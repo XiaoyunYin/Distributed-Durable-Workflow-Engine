@@ -28,9 +28,9 @@
     }
   },
   "images": {
-    "docker.io/calico/cni:v3.29.3": "docker.io/calico/cni:v3.29.3@sha256:9f7401318d8f7cde0a9f9bb05e40205454bb19c065a30d3021d423392b0ccc33",
-    "docker.io/calico/kube-controllers:v3.29.3": "docker.io/calico/kube-controllers:v3.29.3@sha256:8deef55ca7b16c05c1092a8d60bce6f9580266d9e3e00197095925a7145a7d4a",
-    "docker.io/calico/node:v3.29.3": "docker.io/calico/node:v3.29.3@sha256:37e317354bd8b9199196c1dfee0d0c75aa4e561aaae2de3bf6477aa37c5f4791",
+    "docker.io/calico/cni:v3.29.3": "docker.io/calico/cni:v3.29.3@sha256:53f826d3f565a6635b4d58ea4fcfdc0e7ea418ffd4dbb495b4c801074e6eb99c",
+    "docker.io/calico/kube-controllers:v3.29.3": "docker.io/calico/kube-controllers:v3.29.3@sha256:5516ab776c38525fcc985a3030b4f2fd472da68b4170601c23bf6887bfdce703",
+    "docker.io/calico/node:v3.29.3": "docker.io/calico/node:v3.29.3@sha256:eed399f2a727cfc1f374ab5c9cda6123c207e794ed8dc66c7eb6d8db412669e1",
     "ghcr.io/chaos-mesh/chaos-daemon:v2.7.2": "ghcr.io/chaos-mesh/chaos-daemon:v2.7.2@sha256:9608d9b5145262b90aafd96cd60e36633d9163f5a80d485aa6ca51c6a194f5eb",
     "ghcr.io/chaos-mesh/chaos-dashboard:v2.7.2": "ghcr.io/chaos-mesh/chaos-dashboard:v2.7.2@sha256:11cdbbc479b3256109a5b990bc3564e8e97bb648b5b7c36624574833055d22b5",
     "ghcr.io/chaos-mesh/chaos-mesh:v2.7.2": "ghcr.io/chaos-mesh/chaos-mesh:v2.7.2@sha256:8bc853c7414c8a2eb06b5cb8add9987332ddebd5a8f154beb9b98974214d3f7c",

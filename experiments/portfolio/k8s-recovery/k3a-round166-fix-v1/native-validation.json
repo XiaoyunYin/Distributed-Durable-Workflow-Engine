@@ -1,0 +1,92 @@
+{
+  "base_commit": "ad21a7783e3c2997359ff8f29350ca6ca5e55db3",
+  "branch": "codex/k8s-k3",
+  "checks": [
+    {
+      "command": "go build ./...",
+      "status": "PASS"
+    },
+    {
+      "command": "go vet ./...",
+      "status": "PASS"
+    },
+    {
+      "command": "uv run ruff check python tests",
+      "status": "PASS"
+    },
+    {
+      "command": "uv run ruff format --check python tests",
+      "status": "PASS"
+    },
+    {
+      "command": "uv run ruff check python tests scripts/dur053_lock_check.py tests/test_k3_driver.py",
+      "status": "PASS"
+    },
+    {
+      "command": "uv run ruff format --check python tests scripts/dur053_lock_check.py tests/test_k3_driver.py",
+      "status": "PASS"
+    },
+    {
+      "command": "uv run mypy",
+      "result": "44 source files",
+      "status": "PASS"
+    },
+    {
+      "command": "uv run pytest -p no:cacheprovider",
+      "result": "246 passed, 3 skipped",
+      "status": "PASS"
+    },
+    {
+      "command": "bash scripts/mutation-gate.sh <scratch>/mutation-results.json",
+      "result": "364/364 cases detected; first run exposed and corrected an expected-message typo in the new elapsed-time mutation",
+      "runner": "C:\\Program Files\\Git\\bin\\bash.exe",
+      "status": "PASS"
+    },
+    {
+      "command": "python scripts/dur053_lock_check.py --output <scratch>/lock-report.json",
+      "result": "10 digest checks returned HTTP 200",
+      "status": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "status": "PASS"
+    }
+  ],
+  "cleanup": {
+    "codex_root_listing_observed_after_cleanup": [],
+    "listing_observed_at_utc": "2026-11-05T11:59:23.428151+00:00",
+    "scratch_target": "D:\\coding agent files\\durable-engine\\codex\\round166-r239-tmp",
+    "scratch_target_removed": true,
+    "temporary_database": "dur053_r239_mutation",
+    "temporary_database_absence_verified": true
+  },
+  "mutation_database": {
+    "drop_verified": true,
+    "migrations_applied": 19,
+    "name": "dur053_r239_mutation"
+  },
+  "notes": [
+    "An initial full pytest invocation used the default Go build-cache location and had nine Go subprocess failures; rerunning with GOCACHE and GOTMPDIR under the authorized scratch directory passed the full suite.",
+    "The first mutation-gate invocation used the Windows WSL bash launcher and failed with E_ACCESSDENIED before the gate started. The full gate passed under Git Bash.",
+    "No hosted CI run was started from this uncommitted handoff."
+  ],
+  "recorded_at_utc": "2026-11-05T11:57:24.222643+00:00",
+  "registry_evidence": "lock-verification.json",
+  "schema": "dur053.k3a.native-validation.v1",
+  "skipped": [
+    {
+      "check": "local kind/cluster validation",
+      "reason": "Explicitly excluded by task; no cluster was started."
+    },
+    {
+      "check": "two DUR-055 PostgreSQL integration tests",
+      "reason": "DUR055_TEST_DATABASE_URL is not configured."
+    },
+    {
+      "check": "real Kafka lifecycle integration",
+      "reason": "DURABLE_KAFKA_BROKERS is not configured."
+    }
+  ],
+  "target_commit": null,
+  "worktree": "uncommitted"
+}

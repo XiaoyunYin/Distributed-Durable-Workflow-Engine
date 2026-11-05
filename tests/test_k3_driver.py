@@ -20,6 +20,11 @@ import dur053_k3_policy as policy  # noqa: E402
 
 
 class K3DriverTests(unittest.TestCase):
+    def test_smoke_without_started_cluster_records_zero_live_seconds(self) -> None:
+        self.assertEqual(driver.elapsed_live_seconds("smoke", False, 1), 0)
+        self.assertEqual(driver.elapsed_live_seconds("smoke", True, 0), 1)
+        self.assertEqual(driver.elapsed_live_seconds("package-check", True, 90), 0)
+
     def test_acceptance_guards(self) -> None:
         good_images = {"runtime": "runtime@sha256:" + "a" * 64}
         policy.running_image_digests(
