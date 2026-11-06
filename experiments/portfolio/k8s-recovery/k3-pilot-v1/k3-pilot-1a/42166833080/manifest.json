@@ -1,0 +1,122 @@
+{
+  "artifact_sha256": {
+    "commands.jsonl": "0e7e383064c7d5f1ecb3a9ff89689a1aa256bd24c1e845792ebf81ffab9aacc1"
+  },
+  "budget_scope": "registered-campaign",
+  "charged_seconds": 1,
+  "cleanup": {
+    "elapsed_live_seconds": 0,
+    "no_resources_started": true,
+    "status": "PASS"
+  },
+  "completed": [],
+  "dependencies": {},
+  "elapsed_live_seconds": 0,
+  "error": "K3 guard: pilot-committed-bytes",
+  "head_sha": "280cdd8482654ed64b274b6404452f6a7e0f2b5b",
+  "job": "k3-pilot-1a",
+  "job_id": "127725150943",
+  "limitations": [
+    "single GitHub-hosted shared runner per job",
+    "no capacity or HA claim"
+  ],
+  "live_ceiling_seconds": 18900,
+  "measurement_claim": true,
+  "merge_ref_sha": "280cdd8482654ed64b274b6404452f6a7e0f2b5b",
+  "planned": [
+    [
+      "short",
+      0
+    ],
+    [
+      "short",
+      1
+    ],
+    [
+      "short",
+      2
+    ],
+    [
+      "short",
+      3
+    ],
+    [
+      "medium",
+      0
+    ],
+    [
+      "medium",
+      1
+    ],
+    [
+      "medium",
+      2
+    ],
+    [
+      "medium",
+      3
+    ]
+  ],
+  "registered_live_seconds": 18900,
+  "remaining_after_max_job_reservation": 239914,
+  "run_id": "42166833080",
+  "runner_identity": {
+    "GITHUB_REPOSITORY": "XiaoyunYin/Distributed-Durable-Workflow-Engine",
+    "RUNNER_ARCH": "X64",
+    "RUNNER_NAME": "GitHub Actions 1000000925",
+    "RUNNER_OS": "Linux"
+  },
+  "schema": "dur053.k3b.v1",
+  "status": "FAIL",
+  "tree_sha": "3604adf7d7f6f39ce0eb1cbdf3e90258ec715f15",
+  "unperformed": [
+    {
+      "arm": "short",
+      "index": 0,
+      "reason": "K3 guard: pilot-committed-bytes",
+      "started": false
+    },
+    {
+      "arm": "short",
+      "index": 1,
+      "reason": "K3 guard: pilot-committed-bytes",
+      "started": false
+    },
+    {
+      "arm": "short",
+      "index": 2,
+      "reason": "K3 guard: pilot-committed-bytes",
+      "started": false
+    },
+    {
+      "arm": "short",
+      "index": 3,
+      "reason": "K3 guard: pilot-committed-bytes",
+      "started": false
+    },
+    {
+      "arm": "medium",
+      "index": 0,
+      "reason": "K3 guard: pilot-committed-bytes",
+      "started": false
+    },
+    {
+      "arm": "medium",
+      "index": 1,
+      "reason": "K3 guard: pilot-committed-bytes",
+      "started": false
+    },
+    {
+      "arm": "medium",
+      "index": 2,
+      "reason": "K3 guard: pilot-committed-bytes",
+      "started": false
+    },
+    {
+      "arm": "medium",
+      "index": 3,
+      "reason": "K3 guard: pilot-committed-bytes",
+      "started": false
+    }
+  ]
+}

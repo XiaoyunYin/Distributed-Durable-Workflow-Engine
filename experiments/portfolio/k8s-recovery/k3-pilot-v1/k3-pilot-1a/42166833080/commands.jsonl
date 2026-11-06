@@ -1,0 +1,2 @@
+{"args": ["git", "rev-parse", "HEAD"], "ended_monotonic_ns": 17346301777, "returncode": 0, "started_monotonic_ns": 17344489543}
+{"args": ["git", "rev-parse", "HEAD^{tree}"], "ended_monotonic_ns": 17347926379, "returncode": 0, "started_monotonic_ns": 17346391251}
