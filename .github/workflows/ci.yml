@@ -188,6 +188,12 @@ jobs:
         shell: pwsh
         run: ./scripts/check.ps1
 
+      - name: Verify real checkout pilot admission prefix
+        shell: bash
+        env:
+          DUR053_REQUIRE_CLEAN_TOOLING: "1"
+        run: uv run pytest -q tests/test_k3b_admission.py::AdmissionTests::test_real_checkout_tooling_inventory
+
       - name: Check effective activity registry parity
         shell: bash
         run: uv run python scripts/check-activity-registry.py

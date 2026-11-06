@@ -1,0 +1,124 @@
+{
+  "schema": "dur053.k3b.round181-native-validation.v1",
+  "generated_at_utc": "2026-11-06T05:35:05.943180+00:00",
+  "base_commit": "280cdd8482654ed64b274b6404452f6a7e0f2b5b",
+  "target_commit": null,
+  "branch": "codex/k8s-k3b-r253",
+  "handoff_basis": "PROVISIONAL, uncommitted",
+  "task_status": "IN_PROGRESS",
+  "platform": "Windows-11-10.0.26200-SP0",
+  "checks": [
+    {
+      "command": "go build ./...",
+      "result": "PASS"
+    },
+    {
+      "command": "go vet ./...",
+      "result": "PASS"
+    },
+    {
+      "command": "go test ./...",
+      "result": "PASS; no fresh service-backed integration configured"
+    },
+    {
+      "command": ".venv\\Scripts\\python.exe -m pytest -q --basetemp \"D:\\coding agent files\\durable-engine\\codex\\r181\\pytest-final\" -o cache_dir=\"D:\\coding agent files\\durable-engine\\codex\\r181\\pytest-cache\"",
+      "result": "293 passed, 3 skipped, 64 subtests passed in 82.72s"
+    },
+    {
+      "command": "python -m ruff check python tests scripts/dur053_pilot.py scripts/dur053_pilot_evidence.py",
+      "result": "PASS"
+    },
+    {
+      "command": "python -m ruff format --check python tests scripts/dur053_pilot.py scripts/dur053_pilot_evidence.py",
+      "result": "PASS; 83 files already formatted"
+    },
+    {
+      "command": "python -m mypy",
+      "result": "PASS; 44 source files"
+    },
+    {
+      "command": "bash scripts/mutation-gate.sh <scratch output>; PYTHON=<scratch wrapper appending --manifest selected-mutations.json>",
+      "result": "PASS; 7/7 selected affected/new cases plus both Go baselines; native Git Bash only",
+      "evidence": "round181-mutations-native.json"
+    },
+    {
+      "command": "manifest patch-site uniqueness over all cases",
+      "result": "PASS; all 520 patch sites have exactly one match"
+    },
+    {
+      "command": "real repository local admission prefix in full pytest",
+      "result": "PASS; actual dirty checkout correctly refuses before API"
+    },
+    {
+      "command": "clean full real-repository snapshot + in-memory raw-equality mutant",
+      "result": {
+        "status": "PASS",
+        "baseline": "PASS",
+        "raw_equality_mutation": "KILLED",
+        "test": "test_real_checkout_tooling_inventory",
+        "basis": "clean full real-repository working-tree snapshot; in-memory mutant; Windows",
+        "tooling_roots": 16
+      }
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS before final record append; final handoff rechecks"
+    }
+  ],
+  "optional_skips": [
+    "DUR055_TEST_DATABASE_URL unset: 2 PostgreSQL tests",
+    "DURABLE_KAFKA_BROKERS unset: real Kafka witness"
+  ],
+  "unavailable": [
+    "WSL enumeration returns E_ACCESSDENIED; genuine Linux gate unavailable",
+    "Hosted PR/Ubuntu clean-checkout test and mutation proof not run; workflow dispatch forbidden",
+    "No fresh PostgreSQL/Kafka integration; no task database created",
+    "Go race not rerun: no Go/concurrency code changed",
+    "No kind, live campaign or actual freeze"
+  ],
+  "real_artifact_intake_dry_run": {
+    "run_id": "42166833080",
+    "job_id": "127725150943",
+    "charged_seconds": 1,
+    "manifest_sha256": "195d117534469916f24e783ca9c96f927330d9f0e848462ed7f0cacf5924f883",
+    "accepted_as_pre_start_refusal": true,
+    "source_unchanged": true,
+    "repository_ledger_unchanged": true,
+    "basis": "record(source, scratch_repository) only; no repository evidence intake"
+  },
+  "failed_or_superseded_attempts": [
+    "Initial targeted test: 31 passed, 1 failed because the new scratch-ledger fixture omitted mkdir; fixed the fixture, then full suites passed.",
+    "First selected mutation attempt rejected malformed legacy freeze mutation with IndentationError, not a kill. Corrected condition-only patch and reran all seven. A subsequent successful run preceded a test-mock/selector refinement; final recorded seven-case run tests the refined sources."
+  ],
+  "caller_audit": [
+    "campaign: ledger and each ledger artifact manifest",
+    "read_artifact: manifest and every hashed payload; dependencies/artifacts consume this",
+    "tooling_inventory: every tracked TOOLING path, returning HEAD blobs",
+    "freeze: ledger; artifacts already call read_artifact"
+  ],
+  "conservative_readings": [
+    "Three prior refusals block next same-name dispatch; only one/two allow replay, including -cN",
+    "Nonempty unique valid planned cells; unperformed in planned order and every started is literal false",
+    "Strict zero/one integers, exact cleanup, nonempty parseable commands with literal git argv[0]",
+    "No subdirectory including empty unknown directories, or calibration/seal files",
+    "Include .gitattributes among CI-proof tooling"
+  ],
+  "source_sha256": {
+    ".gitattributes": "e86d98e787331b0f4d06f96141116e6a337480fa405e12995c59c979d4d8b975",
+    ".github/workflows/ci.yml": "2c3160b0954beeaad65ada2f155df5ef84f46411fdb750e1556f52f203bf770d",
+    "scripts/dur053_pilot.py": "8052513ca59971c4e34fb70161e72681543a8cd8a084c2c773372417d005c925",
+    "scripts/dur053_pilot_evidence.py": "ff66d38e8f0b2ba576801463958685abb8de700fe20b31aab4f8b7a27d3c2803",
+    "tests/test_k3b_pilot.py": "bc7b4fe5b55e6dab509da9ac4705eb49c92b125cd01276b63820cb508e32f62b",
+    "tests/test_k3b_admission.py": "9f6020e9461bb55a455704556f11734a2d8fa5c822957b968567967fe7b9c669",
+    "mutations/manifest.json": "10b6e60d4ecb37a326f1744a49ba27ee3380088c0c517bafef1077febd18eabe",
+    "experiments/portfolio/k8s-recovery/protocol-v2.md": "9f5deb032df111767f803056d6d10d7c860a5588da56882156c9e7828f0f9661"
+  },
+  "cleanup": {
+    "status": "BLOCKED",
+    "reason": "Automatic approval review rejected the path-checked native PowerShell deletion of task-owned r181 with blocked by policy before execution. No alternate deletion attempted. A combined cleanup-record shell update was also rejected before execution; these records were updated using apply_patch.",
+    "task_databases_created": 0,
+    "databases_to_drop": 0,
+    "observed_codex_root_listing": ["r174", "r175", "r181", "r252", "r252-round177"],
+    "preexisting_directories_untouched": ["r174", "r175", "r252", "r252-round177"]
+  }
+}

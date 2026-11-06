@@ -351,6 +351,59 @@ def fixture_calibration(root: Path) -> None:
     )
 
 
+def fixture_refusal(root: Path, *, job: str = "k3-pilot-1a", run: str = "42166833080") -> dict:
+    """Handwritten registered admission-refusal shape; no downloaded evidence."""
+    root.mkdir(parents=True, exist_ok=True)
+    commands = [
+        {
+            "args": ["git", "rev-parse", revision],
+            "returncode": 0,
+            "started_monotonic_ns": 1,
+            "ended_monotonic_ns": 2,
+        }
+        for revision in ("HEAD", "HEAD^{tree}")
+    ]
+    (root / "commands.jsonl").write_bytes(
+        ("\n".join(json.dumps(row) for row in commands) + "\n").encode()
+    )
+    m = {
+        "schema": "dur053.k3b.v1",
+        "job": job,
+        "run_id": run,
+        "job_id": "127725150943",
+        "head_sha": "280cdd8482654ed64b274b6404452f6a7e0f2b5b",
+        "merge_ref_sha": "280cdd8482654ed64b274b6404452f6a7e0f2b5b",
+        "tree_sha": "3604adf7d7f6f39ce0eb1cbdf3e90258ec715f15",
+        "registered_live_seconds": 18900,
+        "live_ceiling_seconds": 18900,
+        "remaining_after_max_job_reservation": 239914,
+        "charged_seconds": 1,
+        "elapsed_live_seconds": 0,
+        "cleanup": {"status": "PASS", "no_resources_started": True, "elapsed_live_seconds": 0},
+        "status": "FAIL",
+        "budget_scope": "registered-campaign",
+        "measurement_claim": True,
+        "completed": [],
+        "dependencies": {},
+        "error": "K3 guard: pilot-committed-bytes",
+        "planned": [list(cell) for cell in pilot.JOBS[pilot.job_base(job)]],
+        "unperformed": [
+            {"arm": a, "index": i, "started": False, "reason": "K3 guard: pilot-committed-bytes"}
+            for a, i in pilot.JOBS[pilot.job_base(job)]
+        ],
+        "limitations": ["single GitHub-hosted shared runner per job", "no capacity or HA claim"],
+        "runner_identity": {
+            "RUNNER_OS": "Linux",
+            "RUNNER_ARCH": "X64",
+            "RUNNER_NAME": "fixture",
+            "GITHUB_REPOSITORY": "fixture/repo",
+        },
+        "artifact_sha256": artifact_hashes(root),
+    }
+    save(root / "manifest.json", m)
+    return m
+
+
 class K3bPilotTests(unittest.TestCase):
     def test_freeze_cli_refuses_overwrite(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -400,13 +453,9 @@ class K3bPilotTests(unittest.TestCase):
                 patch.object(
                     evidence.subprocess,
                     "run",
-                    side_effect=[
-                        subprocess.CompletedProcess([], 0, b"go.mod\0"),
-                        subprocess.CompletedProcess([], 0, b""),
-                        subprocess.CompletedProcess([], 0, b"source"),
-                    ],
+                    return_value=subprocess.CompletedProcess([], 0, b"source"),
                 ),
-                patch.object(evidence, "committed_bytes", return_value=b"source"),
+                patch.object(evidence, "tooling_inventory", return_value={"go.mod": b"source"}),
                 patch.object(
                     evidence,
                     "github",
@@ -603,13 +652,9 @@ class K3bPilotTests(unittest.TestCase):
             patch.object(
                 evidence.subprocess,
                 "run",
-                side_effect=[
-                    subprocess.CompletedProcess([], 0, b"go.mod\0"),
-                    subprocess.CompletedProcess([], 0, b""),
-                    subprocess.CompletedProcess([], 0, b"source"),
-                ],
+                return_value=subprocess.CompletedProcess([], 0, b"source"),
             ),
-            patch.object(evidence, "committed_bytes", return_value=b"source"),
+            patch.object(evidence, "tooling_inventory", return_value={"go.mod": b"source"}),
             patch.object(
                 evidence,
                 "github",
@@ -966,6 +1011,9 @@ class K3bPilotTests(unittest.TestCase):
                 manifest["artifact_sha256"] = artifact_hashes(root)
                 save(root / "manifest.json", manifest)
                 available.append((root, manifest))
+            refusal_root = repository / pilot.EVIDENCE / "k3-pilot-1a" / "42166833080"
+            refusal = fixture_refusal(refusal_root)
+            available.append((refusal_root, refusal))
             with (
                 patch.object(evidence, "artifacts", return_value=available),
                 patch.object(evidence, "recheck"),
@@ -1013,6 +1061,25 @@ class K3bPilotTests(unittest.TestCase):
                 ):
                     self.assertEqual(result, evidence.freeze(repository, Path("checker-fixture")))
                 self.assertEqual(result["observed_schedule"]["campaign_episodes"], 438)
+                self.assertEqual(
+                    result["pre_start_refusals"],
+                    [{"run_id": "42166833080", "job_id": "127725150943", "job": "k3-pilot-1a"}],
+                )
+                refusal_path = (refusal_root / "manifest.json").relative_to(repository).as_posix()
+                self.assertIn(refusal_path, result["source_artifacts"])
+                self.assertNotIn(
+                    refusal_root.relative_to(repository).as_posix(), result["environments"]
+                )
+                for edit in (
+                    lambda m: m.update(charged_seconds=2),
+                    lambda m: m["unperformed"][0].update(started=True),
+                ):
+                    bad = copy.deepcopy(refusal)
+                    edit(bad)
+                    available[-1] = (refusal_root, bad)
+                    with self.assertRaisesRegex(ValueError, "pilot-freeze-blocking-job"):
+                        evidence.freeze(repository, Path("checker-fixture"))
+                available[-1] = (refusal_root, refusal)
                 self.assertEqual(set(result["arms"]), set(pilot.ARMS))
                 self.assertEqual(
                     {a: result["arms"][a]["L"] for a in pilot.ARMS},
@@ -1122,7 +1189,7 @@ class K3bPilotTests(unittest.TestCase):
                     for key in ("b", "r", "L", "arrival_concurrency_cap"):
                         self.assertEqual(observed["arms"]["cpu"][key], result["arms"]["cpu"][key])
                 for label, edit in (
-                    ("all-cells", lambda: available.pop()),
+                    ("all-cells", lambda: available.pop(3)),
                     ("duplicate-cell", lambda: available[0][1]["completed"].append("short-0")),
                     ("tooling-proof", lambda: available[0][1].update(error="failed")),
                     (
@@ -1201,14 +1268,14 @@ class K3bPilotTests(unittest.TestCase):
                     path.write_bytes(original)
                     if "rates" in label:
                         arrivals_path.write_bytes(original_arrivals)
-                current_manifest = available[-1][0] / "manifest.json"
+                current_manifest = available[3][0] / "manifest.json"
                 original = current_manifest.read_bytes()
                 value = json.loads(original)
                 value["dependencies"]["long"]["b"] = 999
                 save(current_manifest, value)
                 ledger_original = ledger_path.read_bytes()
                 ledger_value = json.loads(ledger_original)
-                ledger_value["entries"][-1]["artifact_sha256"] = hashlib.sha256(
+                ledger_value["entries"][3]["artifact_sha256"] = hashlib.sha256(
                     current_manifest.read_bytes()
                 ).hexdigest()
                 save(ledger_path, ledger_value)
@@ -1759,7 +1826,15 @@ class K3bPilotTests(unittest.TestCase):
                 subprocess.CompletedProcess([], 0, b"different", b""),
             ):
                 with (
-                    patch.object(pilot.subprocess, "run", return_value=result),
+                    patch.object(
+                        pilot.subprocess,
+                        "run",
+                        side_effect=[
+                            result,
+                            subprocess.CompletedProcess([], 0, b"expected", b""),
+                            subprocess.CompletedProcess([], 0, b"expected", b""),
+                        ],
+                    ),
                     self.assertRaises(ValueError, msg="pilot guard bypassed committed-bytes"),
                 ):
                     pilot.committed_bytes(root, path)
@@ -1859,6 +1934,7 @@ class K3bPilotTests(unittest.TestCase):
                 "run",
                 side_effect=[
                     subprocess.CompletedProcess([], 0, b"go.mod\0", b""),
+                    subprocess.CompletedProcess([], 0, b"", b""),
                     subprocess.CompletedProcess([], 0, b"", b""),
                 ],
             ),

@@ -6403,8 +6403,8 @@
       "id": "k3b-pilot-committed-bytes",
       "kind": "behavioral",
       "file": "scripts/dur053_pilot.py",
-      "old": "require(result.returncode == 0 and result.stdout == path.read_bytes(), \"pilot-committed-bytes\")",
-      "new": "require(True, \"pilot-committed-bytes\")",
+      "old": "normalized.returncode == head.returncode == 0 and normalized.stdout == head.stdout",
+      "new": "True",
       "command": [
         "python",
         "-m",
@@ -7027,8 +7027,8 @@
       "id": "k3b-pilot-no-replay-job",
       "kind": "behavioral",
       "file": "scripts/dur053_pilot_evidence.py",
-      "old": "require(not any(m[\"job\"] == name for _, m in available), \"pilot-no-replay-job\")",
-      "new": "require(True, \"pilot-no-replay-job\")",
+      "old": "all(pre_start_refusal(p, m) for p, m in previous)",
+      "new": "True",
       "command": [
         "python",
         "-m",
@@ -7283,16 +7283,16 @@
       "id": "k3b-pilot-freeze-blocking-job",
       "kind": "behavioral",
       "file": "scripts/dur053_pilot_evidence.py",
-      "old": "require(\n            manifest[\"status\"] in {\"PASS\", \"CARRY_OVER\"}\n            and manifest[\"cleanup\"][\"status\"] == \"PASS\",\n            \"pilot-freeze-blocking-job\",\n        )",
-      "new": "require(True, \"pilot-freeze-blocking-job\")",
+      "old": "root in refusals\n            or (\n                manifest[\"status\"] in {\"PASS\", \"CARRY_OVER\"}\n                and manifest[\"cleanup\"][\"status\"] == \"PASS\"\n            )",
+      "new": "True",
       "command": [
         "python",
         "-m",
         "pytest",
-        "tests/test_k3b_pilot.py::K3bPilotTests::test_charge_and_freeze_refusals",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
         "-q"
       ],
-      "expected": "pilot guard bypassed",
+      "expected": "pilot-freeze-blocking-job",
       "requires_database": false
     },
     {
@@ -8675,6 +8675,70 @@
         "-q"
       ],
       "expected": "repeat overload disclosure missing",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-normalized-git-content",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot.py",
+      "old": "require(result.returncode == 0, \"pilot-committed-bytes\")",
+      "new": "require(result.returncode == 0 and result.stdout == path.read_bytes(), \"pilot-committed-bytes\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_admission.py::AdmissionTests::test_normalized_committed_content",
+        "-q"
+      ],
+      "expected": "pilot-committed-bytes",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pre-start-unstarted",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "and row.get(\"started\") is False",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_admission.py::AdmissionTests::test_pre_start_definition",
+        "-q"
+      ],
+      "expected": "pre-start defining field bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pre-start-command-allowlist",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "and command[\"args\"][0] in {\"git\"}",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_admission.py::AdmissionTests::test_pre_start_definition",
+        "-q"
+      ],
+      "expected": "pre-start command allowlist bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-pre-start-replay-bound",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "require(len(previous) < 3, \"pilot-pre-start-replay-limit\")",
+      "new": "require(True, \"pilot-pre-start-replay-limit\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_admission.py::AdmissionTests::test_pre_start_replay_bound",
+        "-q"
+      ],
+      "expected": "pre-start replay bound bypassed",
       "requires_database": false
     }
   ]
