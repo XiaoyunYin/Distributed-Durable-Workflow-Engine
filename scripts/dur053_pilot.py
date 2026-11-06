@@ -148,12 +148,28 @@ def select_cpu(candidates: list[dict[str, Any]], *, engineering: bool = False) -
 
 
 def committed_bytes(repository: Path, path: Path) -> bytes:
-    relative = path.resolve().relative_to(repository.resolve()).as_posix()
     require(not path.is_symlink(), "pilot-committed-symlink")
+    relative = path.resolve().relative_to(repository.resolve()).as_posix()
+    normalized = subprocess.run(
+        ["git", "hash-object", "--path=" + relative, "--", str(path.resolve())],
+        cwd=repository,
+        capture_output=True,
+        check=False,
+    )
+    head = subprocess.run(
+        ["git", "rev-parse", "HEAD:" + relative],
+        cwd=repository,
+        capture_output=True,
+        check=False,
+    )
+    require(
+        normalized.returncode == head.returncode == 0 and normalized.stdout == head.stdout,
+        "pilot-committed-bytes",
+    )
     result = subprocess.run(
         ["git", "show", "HEAD:" + relative], cwd=repository, capture_output=True, check=False
     )
-    require(result.returncode == 0 and result.stdout == path.read_bytes(), "pilot-committed-bytes")
+    require(result.returncode == 0, "pilot-committed-bytes")
     return result.stdout
 
 

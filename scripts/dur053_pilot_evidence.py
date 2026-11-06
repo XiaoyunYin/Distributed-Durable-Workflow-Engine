@@ -26,6 +26,7 @@ from dur053_pilot import (
 )
 
 TOOLING = [
+    ".gitattributes",
     "scripts",
     "migrations",
     "requirements-worker.txt",
@@ -44,14 +45,13 @@ TOOLING = [
 ]
 
 
-def ci_proof(repository: Path) -> dict[str, Any]:
-    """Green CI proves this committed tooling, even after ledger-only commits."""
+def tooling_inventory(repository: Path) -> dict[str, bytes]:
+    """Local admission prefix: clean tracked tooling, returned as HEAD blob bytes."""
     listing = subprocess.run(
         ["git", "ls-files", "-z", "--", *TOOLING], cwd=repository, capture_output=True, check=True
     ).stdout
     paths = [p.decode() for p in listing.split(b"\0") if p]
     require(bool(paths), "pilot-ci-source-inventory")
-    current = {p: committed_bytes(repository, repository / p) for p in paths}
     untracked = subprocess.run(
         ["git", "ls-files", "--others", "--exclude-standard", "--", *TOOLING],
         cwd=repository,
@@ -59,6 +59,19 @@ def ci_proof(repository: Path) -> dict[str, Any]:
         check=True,
     ).stdout
     require(not untracked.strip(), "pilot-ci-uncommitted-tooling")
+    status = subprocess.run(
+        ["git", "status", "--porcelain=v1", "-z", "--untracked-files=all", "--", *TOOLING],
+        cwd=repository,
+        capture_output=True,
+        check=True,
+    ).stdout
+    require(not status, "pilot-ci-uncommitted-tooling")
+    return {p: committed_bytes(repository, repository / p) for p in paths}
+
+
+def ci_proof(repository: Path) -> dict[str, Any]:
+    """Green CI proves this committed tooling, even after ledger-only commits."""
+    current = tooling_inventory(repository)
     repo = os.environ["GITHUB_REPOSITORY"]
     for page in range(1, 101):
         runs = github(
@@ -107,6 +120,71 @@ def artifacts(repository: Path) -> list[tuple[Path, dict[str, Any]]]:
     ]
 
 
+def pre_start_refusal(directory: Path, manifest: dict[str, Any]) -> bool:
+    """B.3 content classification; callers first verify the committed artifact."""
+    if (
+        manifest.get("status") != "FAIL"
+        or manifest.get("cleanup")
+        != {"status": "PASS", "no_resources_started": True, "elapsed_live_seconds": 0}
+        or manifest["cleanup"]["no_resources_started"] is not True
+        or type(manifest["cleanup"]["elapsed_live_seconds"]) is not int
+        or type(manifest.get("elapsed_live_seconds")) is not int
+        or manifest["elapsed_live_seconds"] != 0
+        or type(manifest.get("charged_seconds")) is not int
+        or manifest["charged_seconds"] != 1
+        or manifest.get("completed") != []
+    ):
+        return False
+    planned, unperformed = manifest.get("planned"), manifest.get("unperformed")
+    if (
+        not isinstance(planned, list)
+        or not planned
+        or not all(
+            isinstance(cell, list)
+            and len(cell) == 2
+            and isinstance(cell[0], str)
+            and cell[0] in {"short", "medium", "long", "cpu"}
+            and type(cell[1]) is int
+            and 0 <= cell[1] <= 3
+            for cell in planned
+        )
+        or len({tuple(cell) for cell in planned}) != len(planned)
+        or not isinstance(unperformed, list)
+        or len(unperformed) != len(planned)
+        or not all(
+            isinstance(row, dict)
+            and row.get("started") is False
+            and [row.get("arm"), row.get("index")] == cell
+            and type(row.get("index")) is int
+            for row, cell in zip(unperformed, planned, strict=True)
+        )
+    ):
+        return False
+    # Refuse all subdirectories (including empty ones), plus root calibration/seal
+    # files. An unrecognised evidence layout gets the ordinary FAIL treatment.
+    if any(
+        p.is_dir() or p.is_symlink() or "calibration" in p.name or "seal" in p.name
+        for p in directory.rglob("*")
+    ):
+        return False
+    if manifest.get("artifact_sha256") != artifact_hashes(directory):
+        return False
+    try:
+        commands = [
+            json.loads(line) for line in (directory / "commands.jsonl").read_bytes().splitlines()
+        ]
+    except (OSError, ValueError):
+        return False
+    return bool(commands) and all(
+        isinstance(command, dict)
+        and isinstance(command.get("args"), list)
+        and bool(command["args"])
+        and all(isinstance(arg, str) for arg in command["args"])
+        and command["args"][0] in {"git"}
+        for command in commands
+    )
+
+
 def dependency_plan(
     repository: Path, name: str
 ) -> tuple[list[tuple[str, int]], dict[str, Any], dict[str, Any] | None]:
@@ -127,7 +205,12 @@ def dependency_plan(
         )
         pending = [tuple(x) for x in predecessor["carry_over"]["cells"]]
         require(bool(pending) and pending == JOBS[base][-len(pending) :], "pilot-carry-order")
-    require(not any(m["job"] == name for _, m in available), "pilot-no-replay-job")
+    previous = [(p, m) for p, m in available if m["job"] == name]
+    require(
+        all(pre_start_refusal(p, m) for p, m in previous),
+        "pilot-no-replay-job",
+    )
+    require(len(previous) < 3, "pilot-pre-start-replay-limit")
     initials = {}
     for arm in {a for a, i in pending if i > 0 and (a, 0) not in pending}:
         matches = [(p, m) for p, m in available if f"{arm}-0" in m["completed"]]
@@ -232,10 +315,14 @@ def recheck(directory: Path, checker: Path) -> None:
 def freeze(repository: Path, checker: Path) -> dict[str, Any]:
     available = artifacts(repository)
     require(bool(available), "pilot-freeze-artifacts-missing")
-    for _root, manifest in available:
+    refusals = {root for root, m in available if pre_start_refusal(root, m)}
+    for root, manifest in available:
         require(
-            manifest["status"] in {"PASS", "CARRY_OVER"}
-            and manifest["cleanup"]["status"] == "PASS",
+            root in refusals
+            or (
+                manifest["status"] in {"PASS", "CARRY_OVER"}
+                and manifest["cleanup"]["status"] == "PASS"
+            ),
             "pilot-freeze-blocking-job",
         )
     ledger_path = repository / "experiments/portfolio/k8s-recovery/live-time-ledger.json"
@@ -265,6 +352,11 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
             ),
             "pilot-freeze-ledger-entry",
         )
+        hashes[(root / "manifest.json").relative_to(repository).as_posix()] = hashlib.sha256(
+            (root / "manifest.json").read_bytes()
+        ).hexdigest()
+        if root in refusals:
+            continue
         require(
             not manifest.get("error") and manifest["ci_proof"]["run_id"].isdigit(),
             "pilot-freeze-tooling-proof",
@@ -279,9 +371,6 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
             set(manifest["completed"]) == {p.parent.name for p in root.glob("*/record.json")},
             "pilot-freeze-run-inventory",
         )
-        hashes[(root / "manifest.json").relative_to(repository).as_posix()] = hashlib.sha256(
-            (root / "manifest.json").read_bytes()
-        ).hexdigest()
         if (root / "calibration.json").exists():
             verify_calibration(root)
             calibration_roots.append(root)
@@ -374,6 +463,11 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
     return {
         "schema": "dur053.k3-freeze.v1",
         "source_artifacts": hashes,
+        "pre_start_refusals": [
+            {"run_id": m["run_id"], "job_id": m["job_id"], "job": m["job"]}
+            for root, m in available
+            if root in refusals
+        ],
         "arms": arms,
         "observed_schedule": observed_plan(
             arms, max(calibration["median_busy_seconds"], arms["cpu"]["b"])
@@ -390,6 +484,7 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
                 },
             }
             for root, m in available
+            if root not in refusals
         },
         "limitations": [
             "single shared host per job; cross-job host variance",

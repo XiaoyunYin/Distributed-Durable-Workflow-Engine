@@ -903,7 +903,8 @@ interpretations here and in the handoff.
   Report conservative first-observed terminal latency upper bounds, retaining
   DB timestamps, observed clocks and sampling gaps. Never infer a finish from
   configured sleep or from worker wall-clock subtraction.
-- A committed failed or interrupted pilot job blocks this freeze version. No
+- A committed failed or interrupted pilot job, except a content-defined B.3
+  pre-start refusal, blocks this freeze version. No
   automatic replacement or selection among nicer runs exists. A correction
   requires retained failed evidence and a reviewed versioned new freeze.
 
@@ -995,3 +996,57 @@ verification that returns after its deadline cannot authorize success.
 The measured deadline remains anchored to the final scheduled arrival;
 this grants no extra time or reduced completeness requirement. General
 bounded setup/reset waits likewise reject late predicate success.
+
+
+## Amendment B.3 - retained pre-start admission refusals (Round 180 authorization)
+
+Claude authorized this mechanical recovery rule under D035 in Round 180.
+Classification depends only on the immutable, hash-verified artifact content,
+never the error label, Actions conclusion, or a manually supplied override.
+
+1. A pre-start refusal has `status == "FAIL"`, exactly
+   `cleanup == {"status": "PASS", "no_resources_started": true,
+   "elapsed_live_seconds": 0}`, top-level `elapsed_live_seconds == 0`,
+   `charged_seconds == 1`, and `completed == []`. Its `unperformed` covers
+   exactly every `planned` cell, each with `started: false`. There is no run,
+   calibration or seal directory. `commands.jsonl` contains only commands whose
+   argv[0] is in the explicit allowlist `{git}`. Every other artifact is an
+   ordinary FAIL, subject to all existing blocking rules.
+2. Retain every refusal under `EVIDENCE/<job>/<run_id>/` with its one-second
+   ledger charge. It counts in campaign history; intake rejects nothing new.
+3. A pre-start refusal contributes no cell and does not block freeze v1. Freeze
+   still requires its committed evidence directory and ledger entry, verifies
+   all hashes and the content definition, includes its manifest hash among
+   source artifacts, and lists each refusal by job name, run ID and job ID in
+   `pre_start_refusals`. Only these artifacts skip the `ci_proof`,
+   `versions.json` and `images.json` requirements. All other acceptance and
+   completeness checks remain in force.
+4. A same-name dispatch (including a `-cN` name) is permitted only if every
+   previous artifact with that name is a pre-start refusal. The bound is three
+   pre-start refusals per exact job name: after three have been retained, the
+   next dispatch refuses with `pilot-pre-start-replay-limit` and stops. Any
+   ordinary FAIL or interrupted artifact still forbids same-name replay.
+   Carry-over predecessor and initial-dependency checks remain unchanged.
+5. These rules change no cap, ceiling, reservation, minimum, formula or cell.
+   No automatic dispatch, measurement replacement or outcome selection is
+   authorized. The first refusal (42166833080, job 127725150943) must be recorded
+   by Claude after this correction lands, before another dispatch.
+
+### B.3 conservative interpretations (Round 173 standing instruction)
+
+Round 180's validation wording could allow a fourth dispatch after three
+refusals; its correction instead bounds refusals at three. Use the stricter
+bound: replay after one or two refusals, refuse after three (and after four
+if such evidence is encountered). Require nonempty unique valid planned cells,
+matching unperformed cells in planned order, strict integer zero/one charges
+and timings, a nonempty parseable command log, literal `git` as argv[0], and no
+subdirectories at all (even empty/unknown ones) or calibration/seal files. Missing
+or malformed evidence receives ordinary FAIL treatment; it is still retained.
+There is no permissive path or executable-basename normalization.
+
+Git-content admission applies Git's path attributes to checkout files and
+compares their object IDs with HEAD, returning HEAD blob bytes. CI compares
+HEAD and tested-run blobs and refuses untracked or status-reported tooling
+changes. `.gitattributes` is included in that tooling inventory because it
+controls normalization. Raw artifact hashes remain raw: committed pilot evidence
+roots have `-text` attributes, including the engineering tooling evidence root.

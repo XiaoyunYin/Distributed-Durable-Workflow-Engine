@@ -10,3 +10,7 @@
 *.csv text eol=lf
 *.md text eol=lf
 *.ps1 text eol=crlf
+
+# Immutable pilot evidence is hashed as raw artifact bytes.
+experiments/portfolio/k8s-recovery/k3-pilot-v1/** -text
+experiments/portfolio/k8s-recovery/k3b-tooling-v1/** -text
