@@ -1,0 +1,35 @@
+{
+  "schema": "dur053.round174-cleanup.v1",
+  "status": "BLOCKED",
+  "observed_at_utc": "2026-11-05T23:46:02.420985+00:00",
+  "scratch_directory": "D:\\coding agent files\\durable-engine\\codex",
+  "owned_directory": "D:\\coding agent files\\durable-engine\\codex\\r174",
+  "observed_listing": [
+    "r174"
+  ],
+  "files_remaining": 16073,
+  "directories_remaining": 502,
+  "files_removed": 0,
+  "root_and_reparse_checks": "PASS before attempted cleanup; all enumerated paths stayed under exact owned root",
+  "automatic_approval_review": {
+    "rejections": 3,
+    "action": "owned temporary-file deletion",
+    "stated_reason": "blocked by policy"
+  },
+  "script_file_execution": "Denied by local PowerShell execution policy before execution",
+  "policy_changes": 0,
+  "permission_changes": 0,
+  "database_cleanup": "round174-database-cleanup.json",
+  "database_status": "PASS",
+  "database_cleanup_sha256": "9adfdd546436fdafea6f5ec83c232c5cdfbb7250f652cd7bc80d610e7c48e4b0",
+  "original_review_prefix_preserved": true,
+  "original_review_prefix_sha256": "9fdceaeb7ff4348b56c2569eb3f32a1bdd5cbdd20358dcd624de2131c871b883",
+  "original_review_prefix_bytes": 2323663,
+  "review_cr_characters": 0,
+  "review_sha256": "7e2cc689084aa2a3bc9ca117f1713f234bb049362b747170500477a21cb20404",
+  "branch": "codex/k8s-k3b",
+  "head": "a60f7656d1bd92334caedf27a6dfda2ff33b72f1",
+  "commits_created": 0,
+  "kind_runs": 0,
+  "workflow_dispatches": 0
+}

@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 
 CEILING = 18900
@@ -60,5 +61,135 @@ def plan() -> dict:
     }
 
 
+def plan_b2() -> dict:
+    """B.2 adds a setup, without rewriting the Amendment B registration."""
+    result = plan()
+    result["jobs"][:3] = [
+        {
+            "family": "K3",
+            "job": "k3-pilot-1a",
+            "expected_seconds": 4424.4,
+            "episodes": 8,
+            "units": ["short-pilot", "medium-pilot"],
+        },
+        {
+            "family": "K3",
+            "job": "k3-pilot-1b",
+            "expected_seconds": 1644,
+            "episodes": 4,
+            "units": ["CPU-pilot"],
+        },
+        {
+            "family": "K3",
+            "job": "k3-pilot-2",
+            "expected_seconds": 9555,
+            "episodes": 1,
+            "units": ["long-initial"],
+        },
+        {
+            "family": "K3",
+            "job": "k3-pilot-3",
+            "expected_seconds": 11865,
+            "episodes": 3,
+            "units": ["long-repeats"],
+        },
+    ]
+    result["expected_family_seconds"] = round(sum(j["expected_seconds"] for j in result["jobs"]), 1)
+    result["expected_total_seconds"] = round(result["expected_family_seconds"] + 1710 + 3600, 1)
+    result["calibration_note"] = (
+        "Expected schedule preserves the registered validation allowance; calibration has no "
+        "measured expectation. Admission separately reserves its full 7920 s worst case. "
+        "Actual calibration time spends the ledger; expected durations never authorize admission."
+    )
+    return result
+
+
+def observed_plan(arms: dict, cpu_duration: float) -> dict:
+    """Recheck every registered family using frozen b/r/L, without authorizing it."""
+    durations = {"short": 0.1, "medium": 5, "long": 45, "cpu": cpu_duration}
+    regular, steps, timeout = {}, {}, {}
+    for arm, duration in durations.items():
+        r, L = arms[arm]["r"], arms[arm]["L"]
+        window = max(180, (20 if arm == "long" else 60) / (0.5 * r))
+        regular[arm] = 120 + window + duration + 30
+        v = max(120, 4 * duration)
+        steps[arm] = 120 + 3 * v + max(0, 60 - 1.75 * r * v) / (0.25 * r) + duration + 30
+        timeout[arm] = max(600, 10 * L, 4 * duration)
+    # Preserve Amendment B.2's cells, minimum counts, pair boundaries and family order.
+    source = plan_b2()
+    units = []
+    for job in source["jobs"]:
+        for name in job["units"]:
+            family = job["family"]
+            if family == "K3":
+                arm = {"CPU": "cpu"}.get(name.split("-")[0], name.split("-")[0])
+                indices = (
+                    [0]
+                    if name == "long-initial"
+                    else ([1, 2, 3] if name == "long-repeats" else range(4))
+                )
+                d, r = durations[arm], arms[arm]["r"]
+                seconds = sum(
+                    120
+                    + 200 / (1 / max(1, d) if i == 0 and arm != "cpu" else 1 if i == 0 else 0.5 * r)
+                    + d
+                    + 30
+                    for i in indices
+                )
+                count = len(indices)
+                reserved = sum(
+                    120
+                    + 200 / (1 / max(1, d) if i == 0 and arm != "cpu" else 1 if i == 0 else 0.5 * r)
+                    + 1200
+                    + 60
+                    for i in indices
+                )
+            else:
+                arm = (
+                    "cpu"
+                    if "cpu" in name
+                    else (
+                        "long"
+                        if "long" in name
+                        else "short"
+                        if "short" in name or "hook" in name
+                        else "medium"
+                    )
+                )
+                count = 2 if "pair" in name else 1
+                seconds = count * (steps[arm] if "step" in name else regular[arm])
+                # Confirmation extensions and complete reconciliation timeout are reserved.
+                reserved = (
+                    seconds
+                    - count * (durations[arm] + 30)
+                    + count * (2 * arms[arm]["L"] + timeout[arm] + 60)
+                )
+            units.append(
+                {
+                    "family": family,
+                    "unit": name,
+                    "episodes": count,
+                    "expected_seconds": seconds + count * 60,
+                    "full_window_reservation_seconds": reserved,
+                    "fits_fresh_job": reserved + 300 + 600 <= CEILING,
+                }
+            )
+    return {
+        "schema": "dur053.observed-schedule.v1",
+        "busy_time_sensitivity": {
+            arm: {"initial_b": values["b"], "max_repeat_b": values["max_repeat_b"]}
+            for arm, values in arms.items()
+            if "max_repeat_b" in values
+        },
+        "units": units,
+        "campaign_episodes": sum(x["episodes"] for x in units),
+        "reconciliation_timeout_seconds": timeout,
+        "note": "Admission still requires full job packing, ledger and history gates. "
+        "Calibration has no invented expected duration; actual ledger time includes it.",
+    }
+
+
 if __name__ == "__main__":
-    print(json.dumps(plan(), indent=2))
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--amendment", choices=["b", "b2"], default="b")
+    print(json.dumps(plan_b2() if parser.parse_args().amendment == "b2" else plan(), indent=2))

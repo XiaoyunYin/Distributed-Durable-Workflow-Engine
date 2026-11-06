@@ -1,0 +1,242 @@
+{
+  "schema": "dur053.k3b.round175-native-validation.v1",
+  "generated_at_utc": "2026-11-06T01:37:55.161116+00:00",
+  "base_commit": "cd17761ba2a9e6ffdad33abc8980dc2aa3a6e639",
+  "target_commit": null,
+  "branch": "codex/k8s-k3b",
+  "handoff_basis": "PROVISIONAL, uncommitted",
+  "task_status": "IN_PROGRESS",
+  "native_status": "PASS with explicitly recorded optional-service skips",
+  "platform": "Windows/amd64; Git Bash gate is native Windows, not Linux execution",
+  "versions": {
+    "go": "1.27.3",
+    "python": "3.12.7",
+    "ruff": "0.16.7",
+    "mypy": "2.3.1"
+  },
+  "checks": [
+    {
+      "name": "go-build",
+      "command": [
+        "go",
+        "build",
+        "./..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 26.906
+    },
+    {
+      "name": "go-vet",
+      "command": [
+        "go",
+        "vet",
+        "./..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 8.094
+    },
+    {
+      "name": "go-test",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-count=1",
+        "./..."
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 160.047
+    },
+    {
+      "name": "go-window-test",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestK3bPilotWindows$",
+        "-v",
+        "-count=1"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 4.594
+    },
+    {
+      "name": "ruff-check",
+      "command": [
+        "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "check",
+        "python",
+        "tests",
+        "scripts/dur053_pilot_evidence.py",
+        "scripts/dur053_schedule.py",
+        "scripts/go_platform_filenames.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.094
+    },
+    {
+      "name": "ruff-format",
+      "command": [
+        "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+        "-m",
+        "ruff",
+        "format",
+        "--check",
+        "python",
+        "tests",
+        "scripts/dur053_pilot_evidence.py",
+        "scripts/dur053_schedule.py",
+        "scripts/go_platform_filenames.py"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.093
+    },
+    {
+      "name": "mypy",
+      "command": [
+        "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+        "-m",
+        "mypy"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.719
+    },
+    {
+      "name": "pytest",
+      "command": [
+        "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+        "-m",
+        "pytest",
+        "--basetemp",
+        "D:\\coding agent files\\durable-engine\\codex\\r175\\pytest-full",
+        "-p",
+        "no:cacheprovider"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 87.438
+    },
+    {
+      "name": "git-diff-check",
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "elapsed_seconds": 0.062
+    }
+  ],
+  "expanded_ruff": {
+    "status": "PASS",
+    "files_formatted": 87,
+    "scope": [
+      "python",
+      "tests",
+      "scripts/dur053_pilot.py",
+      "scripts/dur053_pilot_evidence.py",
+      "scripts/dur053_campaign.py",
+      "scripts/dur053_record_pilot.py",
+      "scripts/dur053_freeze.py",
+      "scripts/dur053_schedule.py",
+      "scripts/go_platform_filenames.py"
+    ],
+    "commands": [
+      "ruff check <scope>",
+      "ruff format --check <scope>"
+    ],
+    "legacy_runner_comparison": "same five pre-existing Ruff diagnostics as HEAD; no new diagnostics"
+  },
+  "pytest": {
+    "passed": 287,
+    "skipped": 3,
+    "skip_reasons": [
+      "two DUR-055 pgvector database tests: local server lacks vector extension; final DUR055_TEST_DATABASE_URL unset",
+      "real Kafka witness: DURABLE_KAFKA_BROKERS unset"
+    ],
+    "earlier_attempt": "287 passed, one skipped, two setup errors when explicitly enabling unavailable pgvector; preserved in pytest-initial.txt"
+  },
+  "mutation": {
+    "name": "mutation",
+    "command": [
+      "C:/Program Files/Git/bin/bash.exe",
+      "scripts/mutation-gate.sh",
+      "D:\\coding agent files\\durable-engine\\codex\\r175\\mutation-round175.json"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 3662.672,
+    "cases": 516,
+    "added_cases": 6,
+    "all_named_baselines": "PASS",
+    "all_mutations": "PASS",
+    "restored_baseline": "PASS",
+    "all_source_hashes_match": true,
+    "result": "mutation-round175.json",
+    "source_verification": "native-round175/mutation-source-verification.json"
+  },
+  "extra_checks": {
+    "renamed_go_gofmt": "PASS; no output",
+    "public_markdown_links": "Public Markdown link check PASS: 190 local links across 43 Markdown files."
+  },
+  "earlier_attempts": [
+    "PowerShell execution policy denied env.ps1; initial commands continued without its scratch/cache settings and made incidental repo caches. Python child launcher corrected all later environments.",
+    "Initial DB-setup status print queried closed connection after all three DBs were created/migrated; actual fresh DB-backed Go tests then passed.",
+    "Default Bash resolved inaccessible WSL and failed before gate execution; explicit Git Bash used thereafter.",
+    "Initial Ruff B023 loop-binding diagnostics fixed; full Ruff checks then passed.",
+    "Two early Git Bash attempts interrupted for fixture binding/suffix edge correction and new-line lint cleanup; neither is counted as a passing gate. Only the final complete 516-case result is current."
+  ],
+  "limitations": [
+    "Linux execution not available: future hosted PR-head services job must be green and log --- PASS: TestK3bPilotWindows in its mutation baseline. No Linux proof claimed.",
+    "No workflow dispatch, local kind, registered pilot/calibration or real freeze performed. Prior run 42132244312 proves engineering pilot smoke only; its services job failed R250.",
+    "Go race not rerun: no Go concurrency or production Go behavior changed; the Go change is a test-file rename.",
+    "Real Go Kafka round-trip and Python Kafka witness unavailable; pgvector setup failure and optional skips preserved.",
+    "Freeze reconstruction uses synthetic fixtures, mocked Git/artifact retrieval and independent-Go recheck, with injected busy summaries/rates to isolate strict disclosure branches; it is not measured pilot evidence.",
+    "Read-only hosted disclosure recomputation is engineering scope and not freeze input.",
+    "Filesystem cleanup BLOCKED by automatic approval review; owned r175 and incidental repo caches remain. Pre-existing r174/pytest-full untouched."
+  ],
+  "cleanup": {
+    "status": "BLOCKED",
+    "evidence": "round175-cleanup.json",
+    "database_status": "PASS",
+    "database_evidence": "round175-database-cleanup.json",
+    "observed_listing": [
+      "r174",
+      "r175"
+    ]
+  },
+  "evidence_sha256": {
+    "native-round175/git-diff-check.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round175/go-build.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round175/go-test.txt": "5c67222444c1c18e198f828843a6e87b8a877f40bf01907108bc274ca417fdf7",
+    "native-round175/go-vet.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round175/go-window-test.txt": "8e01e61d90d60a991a0777a93a265f0da6a9d17c190df1c1299b89caa05240bf",
+    "native-round175/legacy-runner-ruff-comparison.json": "374afb9a18a95cef72e1eebe696f92e57d0b97093120e47b05cdad084155d836",
+    "native-round175/mutation-command.json": "ac006fd62705bcc8ccfa722b70d48eaff15dc639d841158934032fc27ddf532f",
+    "native-round175/mutation-console.txt": "0c4e59859e6d68490c79a9366ea6979d4a44f82cbe7701ab2ff7e3fbc95d642c",
+    "native-round175/mutation-source-verification.json": "8f79911d3368cefd35ab33660d888a15d4ec18fff38bc16bfc42bd80b8013deb",
+    "native-round175/mypy.txt": "522d7b3a15704213950b7053c882b6ddd0c41149631300ce6c1933d21b5971c3",
+    "native-round175/native-results-initial.json": "76bafb0cb144e306147af8285186e46f3846c2c6c3fe65e70dd3029fa7248125",
+    "native-round175/protected-inputs.json": "417abfe974663e6642fec530e6ed5268d8757f0bc6a5db083248f113a5b70f96",
+    "native-round175/public-links.txt": "b4f340915697af1a4147229da8a182cd111aa70ead5d8fe418b555b057a83350",
+    "native-round175/pytest-initial.txt": "8fb44f949a44655c347da7d7bbcebcfe72fd5ff94d66e00dbd5e2c7f5244d633",
+    "native-round175/pytest.txt": "fc8ea49730e3cd50a49ab5d32345309834c497518a329f75a366e30c3596a862",
+    "native-round175/python-results.json": "d4fc4d6736b2fb52007524b8875189a116ada1a48381008e3b7c6bff6ed86216",
+    "native-round175/review-append-verification.json": "48c83ee3981f4b4e70ab7189939d79a6fc3d81226e5051d5c04ffa442f987c54",
+    "native-round175/ruff-check-initial.txt": "0a90bf5842b5294ae35620f33aeadf69ce05a5996c09ebf6fc3d0c8a0ca84039",
+    "native-round175/ruff-check.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "native-round175/ruff-expanded.txt": "2417463117352c0eff0a0181e2e95794c1279896a2bc9afa4d36484ec6cb9b0f",
+    "native-round175/ruff-format.txt": "e5d285e654af339bd79aedd43f7389a16ff483c0cdb5376a5926eb5a93d4a4d4",
+    "native-round175/source-sha256.json": "a5dc730a04ab60c1cf0a64a5e9b1cbc0537e4786623d81189512e04c2af8dc75",
+    "mutation-round175.json": "8810e0a9c051a8b2c34e7049730a063da20d83d99e6b4290c430ff4cd77298ea",
+    "round175-cleanup.json": "e52d26f4126ee54f37e980583bb7271bf7d92d9f12802b4b7436b6dee0fb700a",
+    "round175-database-cleanup.json": "41d8f16c1a271ef6d86c1846a76c79e8061d721974a04acbd65861c91da32b35",
+    "round175-hosted-disclosure.json": "4cde3228116f63f6e6b6f4c4c79cfb7ebc0dc31910a86ab8912ec4790314865e"
+  },
+  "review_append_only": true,
+  "review_CR_count": 0,
+  "protected_inputs_unchanged": true,
+  "downloaded_record_hashes_unchanged": true
+}

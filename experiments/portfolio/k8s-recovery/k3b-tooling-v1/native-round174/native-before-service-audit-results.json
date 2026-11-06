@@ -1,0 +1,37 @@
+[
+  {
+    "check": "go-build",
+    "exit_code": 0,
+    "seconds": 12.032
+  },
+  {
+    "check": "go-vet",
+    "exit_code": 0,
+    "seconds": 2.438
+  },
+  {
+    "check": "go-test",
+    "exit_code": 0,
+    "seconds": 125.844
+  },
+  {
+    "check": "ruff-check",
+    "exit_code": 0,
+    "seconds": 0.171
+  },
+  {
+    "check": "ruff-format",
+    "exit_code": 0,
+    "seconds": 0.125
+  },
+  {
+    "check": "mypy",
+    "exit_code": 0,
+    "seconds": 0.938
+  },
+  {
+    "check": "pytest",
+    "exit_code": 0,
+    "seconds": 47.734
+  }
+]

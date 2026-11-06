@@ -454,6 +454,10 @@ def worker_group_absent(listing: str) -> bool:
     return "runtime-workers-v1" not in listing.splitlines()
 
 
+def application_groups_absent(listing: str) -> bool:
+    return worker_group_absent(listing) and "runtime-schedulers-v1" not in listing.splitlines()
+
+
 def running_image_digests(status: list[dict[str, Any]], images: dict[str, str]) -> None:
     require(
         all(
@@ -488,7 +492,7 @@ def artifact_hashes(output: Path) -> dict[str, str]:
     return {
         p.relative_to(output).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
         for p in sorted(output.rglob("*"))
-        if p.is_file() and p.name != "manifest.json"
+        if p.is_file() and p != output / "manifest.json"
     }
 
 

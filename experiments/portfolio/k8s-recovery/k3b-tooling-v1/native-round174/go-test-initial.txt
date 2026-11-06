@@ -1,0 +1,78 @@
+?   	durable-agent-execution-engine/cmd/dur026-benchmark	[no test files]
+?   	durable-agent-execution-engine/cmd/dur026-worker	[no test files]
+?   	durable-agent-execution-engine/cmd/dur027-crash-fixture	[no test files]
+ok  	durable-agent-execution-engine/cmd/dur027-lease	0.414s
+ok  	durable-agent-execution-engine/cmd/dur028-checkpoint	0.347s
+?   	durable-agent-execution-engine/cmd/dur034-ablation	[no test files]
+ok  	durable-agent-execution-engine/cmd/dur035-dispatch	0.329s
+?   	durable-agent-execution-engine/cmd/dur041a-isolation	[no test files]
+ok  	durable-agent-execution-engine/cmd/dur043-stale-probe	0.427s
+?   	durable-agent-execution-engine/cmd/dur048-load	[no test files]
+ok  	durable-agent-execution-engine/cmd/dur049-checker	5.003s
+ok  	durable-agent-execution-engine/cmd/dur049-db-probe	0.377s
+ok  	durable-agent-execution-engine/cmd/dur049-lock-holder	0.343s
+ok  	durable-agent-execution-engine/cmd/dur050-fixture	0.305s
+ok  	durable-agent-execution-engine/cmd/dur050-loadgen	1.259s
+ok  	durable-agent-execution-engine/cmd/dur050-observer	0.545s
+ok  	durable-agent-execution-engine/cmd/dur050-sink	0.257s
+?   	durable-agent-execution-engine/cmd/dur053-loadgen	[no test files]
+ok  	durable-agent-execution-engine/cmd/dur053-migrate	2.408s
+?   	durable-agent-execution-engine/cmd/fault-checker	[no test files]
+?   	durable-agent-execution-engine/cmd/fault-fixture	[no test files]
+?   	durable-agent-execution-engine/cmd/local-demo	[no test files]
+?   	durable-agent-execution-engine/cmd/m5-fixture	[no test files]
+2026/11/05 12:59:48 INFO runtime started addr=127.0.0.1:63246 roles=demand
+2026/11/05 12:59:48 INFO runtime shutdown phase phase=readiness_503
+2026/11/05 12:59:50 INFO runtime shutdown phase phase=scheduler
+2026/11/05 12:59:50 INFO runtime shutdown phase phase=relay_and_listener
+2026/11/05 12:59:50 INFO runtime shutdown phase phase=ingestor
+2026/11/05 12:59:50 INFO runtime shutdown phase phase=http_drain
+2026/11/05 12:59:50 INFO runtime shutdown phase phase=store_close
+--- FAIL: TestK1RuntimeSignalCompetingAcquisition (37.87s)
+    --- FAIL: TestK1RuntimeSignalCompetingAcquisition/pre-k1-reference (28.58s)
+        lifecycle_integration_test.go:150: child did not acquire lease: 
+--- FAIL: TestK1PythonDrainResultsAndReplacement (70.65s)
+    lifecycle_integration_test.go:275: Python drain: exit status 1 Traceback (most recent call last):
+          File "<stdin>", line 18, in <module>
+          File "D:\portfolio-projects\durable-agent-execution-engine\python\workers\runner.py", line 175, in run_task
+            receipt = self.control.result(
+                      ^^^^^^^^^^^^^^^^^^^^
+          File "D:\portfolio-projects\durable-agent-execution-engine\python\workers\control.py", line 166, in result
+            return self._post(self._path(workflow_id, node_id, iteration, "result"), body)
+                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+          File "D:\portfolio-projects\durable-agent-execution-engine\python\workers\kafka_worker.py", line 104, in _post
+            raise ControlError(503, "SHUTTING_DOWN", "worker is stopping")
+        workers.control.ControlError: SHUTTING_DOWN: worker is stopping
+        
+        During handling of the above exception, another exception occurred:
+        
+        Traceback (most recent call last):
+          File "<stdin>", line 21, in <module>
+        AssertionError
+2026/11/05 13:02:10 WARN scheduler repair scan failed error="failed to connect to `user=durable database=dur053_r174_integration`: 127.0.0.1:49245 (127.0.0.1): dial error: dial tcp 127.0.0.1:49245: connectex: No connection could be made because the target machine actively refused it."
+2026/11/05 13:02:12 ERROR runtime fault boundary failed error="read fault command: read tcp 127.0.0.1:54838->127.0.0.1:54836: use of closed network connection"
+2026/11/05 13:02:12 INFO runtime started addr=127.0.0.1:54837 roles=api
+2026/11/05 13:02:12 INFO runtime shutdown phase phase=readiness_503
+2026/11/05 13:02:14 INFO runtime shutdown phase phase=scheduler
+2026/11/05 13:02:14 INFO runtime shutdown phase phase=relay_and_listener
+2026/11/05 13:02:14 INFO runtime shutdown phase phase=ingestor
+2026/11/05 13:02:14 INFO runtime shutdown phase phase=http_drain
+2026/11/05 13:02:14 INFO runtime shutdown phase phase=store_close
+FAIL
+FAIL	durable-agent-execution-engine/cmd/runtime	208.648s
+ok  	durable-agent-execution-engine/internal/api	9.366s
+ok  	durable-agent-execution-engine/internal/dur050	0.255s
+ok  	durable-agent-execution-engine/internal/dur053	1.305s
+ok  	durable-agent-execution-engine/internal/effects	0.363s
+ok  	durable-agent-execution-engine/internal/engine	18.209s
+ok  	durable-agent-execution-engine/internal/faults	0.317s
+ok  	durable-agent-execution-engine/internal/incident	1.016s
+ok  	durable-agent-execution-engine/internal/invariants	3.472s
+ok  	durable-agent-execution-engine/internal/partition	0.227s
+ok  	durable-agent-execution-engine/internal/reconciliation	0.729s
+ok  	durable-agent-execution-engine/internal/reference	0.248s
+ok  	durable-agent-execution-engine/internal/state	20.247s
+ok  	durable-agent-execution-engine/internal/telemetry	1.409s
+ok  	durable-agent-execution-engine/internal/transport	2.032s
+?   	durable-agent-execution-engine/migrations	[no test files]
+FAIL

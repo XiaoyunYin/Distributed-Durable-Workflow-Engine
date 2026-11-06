@@ -2,17 +2,11 @@ name: DUR-053 registered campaigns
 on:
   workflow_dispatch:
     inputs:
-      scenario:
-        description: Registered scenario (K3b and later; currently refused)
+      job:
+        description: k3-pilot-1a/1b/2/3 or the exact committed carry-over name (<job>-cN)
         required: true
-        default: pilot
+        default: k3-pilot-1a
         type: string
-      arm:
-        description: Registered workload arm
-        required: true
-        default: short
-        type: choice
-        options: [short, medium, long, cpu]
 permissions:
   contents: read
   actions: read
@@ -28,17 +22,17 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           persist-credentials: false
-      - name: Validate ledger and refuse unimplemented measurement
+          fetch-depth: 0
+      - name: Admit and execute registered pilot job
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          DUR053_SCENARIO: ${{ inputs.scenario }}
-          DUR053_ARM: ${{ inputs.arm }}
+          DUR053_PILOT_JOB: ${{ inputs.job }}
         run: |
           set -euo pipefail
           export TMP="$RUNNER_TEMP" TEMP="$RUNNER_TEMP" TMPDIR="$RUNNER_TEMP" PYTHONDONTWRITEBYTECODE=1
-          python3 scripts/dur053_campaign.py --output "$RUNNER_TEMP/dur053-campaign"
-      - name: Retain refusal evidence
+          python3 scripts/dur053_campaign.py --job "$DUR053_PILOT_JOB" --output "$RUNNER_TEMP/dur053-campaign" --scratch-root "$RUNNER_TEMP/dur053-campaign-scratch"
+      - name: Retain complete and failed evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:

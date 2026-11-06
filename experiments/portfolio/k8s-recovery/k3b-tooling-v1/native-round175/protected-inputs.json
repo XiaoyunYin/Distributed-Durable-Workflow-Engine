@@ -1,0 +1,11 @@
+{
+  "experiments/portfolio/k8s-recovery/protocol-v2.md": "e3dfc6d0d745c194002bf73c4abacf086c209044dff29d39ab715cf62e1dad1d",
+  "experiments/portfolio/k8s-recovery/live-time-ledger.json": "35dab8ea00214db146751a3410d02356efd694a1e854a3baebb3696d3a707edd",
+  "experiments/portfolio/k8s-recovery/amendment-b-schedule.json": "b140085ebb75cad2e750e7604dd764c4e452b868b221b57a3867fae2cf72607b",
+  "experiments/portfolio/k8s-recovery/amendment-b2-schedule.json": "e072b7fe5c0201f075d314b251f318a7315a34de791245fe19a9205f08ad65e4",
+  "REVIEW_prefix": {
+    "bytes": 2349804,
+    "sha256": "1e1a7f2655c26dec1c701627c5935ef3a7ef5318d40cc4b48bc4f04e89a5a75b",
+    "CR": 0
+  }
+}

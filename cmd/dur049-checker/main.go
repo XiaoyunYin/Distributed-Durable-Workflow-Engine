@@ -53,7 +53,16 @@ func main() {
 	witnessPath := flag.String("witness-export", "", "external worker witness export")
 	namespace := flag.String("namespace", "", "export every durable submission in this namespace")
 	requireTerminal := flag.Bool("require-terminal", false, "fail on non-terminal accepted work")
+	clockProbe := flag.Bool("clock-probe", false, "bracket a database clock query with observer UTC")
 	flag.Parse()
+	if *clockProbe {
+		probe, err := databaseClockProbe(*databaseURL)
+		if err != nil {
+			fatal(err)
+		}
+		write(probe)
+		return
+	}
 	if (*campaignPath == "") != (*witnessPath == "") {
 		fatal(fmt.Errorf("arrivals and witness-export required together"))
 	}
@@ -199,7 +208,7 @@ func status(valid bool) string {
 	return "FAIL"
 }
 
-func write(value report) {
+func write(value any) {
 	if err := json.NewEncoder(os.Stdout).Encode(value); err != nil {
 		fatal(err)
 	}

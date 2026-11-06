@@ -1,0 +1,39 @@
+?   	durable-agent-execution-engine/cmd/dur026-benchmark	[no test files]
+?   	durable-agent-execution-engine/cmd/dur026-worker	[no test files]
+?   	durable-agent-execution-engine/cmd/dur027-crash-fixture	[no test files]
+ok  	durable-agent-execution-engine/cmd/dur027-lease	1.375s
+ok  	durable-agent-execution-engine/cmd/dur028-checkpoint	1.356s
+?   	durable-agent-execution-engine/cmd/dur034-ablation	[no test files]
+ok  	durable-agent-execution-engine/cmd/dur035-dispatch	1.374s
+?   	durable-agent-execution-engine/cmd/dur041a-isolation	[no test files]
+ok  	durable-agent-execution-engine/cmd/dur043-stale-probe	1.366s
+?   	durable-agent-execution-engine/cmd/dur048-load	[no test files]
+ok  	durable-agent-execution-engine/cmd/dur049-checker	1.390s
+ok  	durable-agent-execution-engine/cmd/dur049-db-probe	1.334s
+ok  	durable-agent-execution-engine/cmd/dur049-lock-holder	1.434s
+ok  	durable-agent-execution-engine/cmd/dur050-fixture	1.379s
+ok  	durable-agent-execution-engine/cmd/dur050-loadgen	2.265s
+ok  	durable-agent-execution-engine/cmd/dur050-observer	1.446s
+ok  	durable-agent-execution-engine/cmd/dur050-sink	1.250s
+?   	durable-agent-execution-engine/cmd/dur053-loadgen	[no test files]
+ok  	durable-agent-execution-engine/cmd/dur053-migrate	1.994s
+?   	durable-agent-execution-engine/cmd/fault-checker	[no test files]
+?   	durable-agent-execution-engine/cmd/fault-fixture	[no test files]
+?   	durable-agent-execution-engine/cmd/local-demo	[no test files]
+?   	durable-agent-execution-engine/cmd/m5-fixture	[no test files]
+ok  	durable-agent-execution-engine/cmd/runtime	49.453s
+ok  	durable-agent-execution-engine/internal/api	10.419s
+ok  	durable-agent-execution-engine/internal/dur050	1.192s
+ok  	durable-agent-execution-engine/internal/dur053	2.972s
+ok  	durable-agent-execution-engine/internal/effects	1.333s
+ok  	durable-agent-execution-engine/internal/engine	18.627s
+ok  	durable-agent-execution-engine/internal/faults	1.220s
+ok  	durable-agent-execution-engine/internal/incident	1.928s
+ok  	durable-agent-execution-engine/internal/invariants	4.777s
+ok  	durable-agent-execution-engine/internal/partition	1.197s
+ok  	durable-agent-execution-engine/internal/reconciliation	1.565s
+ok  	durable-agent-execution-engine/internal/reference	1.255s
+ok  	durable-agent-execution-engine/internal/state	20.943s
+ok  	durable-agent-execution-engine/internal/telemetry	2.443s
+ok  	durable-agent-execution-engine/internal/transport	3.162s
+?   	durable-agent-execution-engine/migrations	[no test files]

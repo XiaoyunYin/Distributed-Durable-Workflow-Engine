@@ -1,0 +1,324 @@
+{
+  "schema": "dur053.k3b-round174-native.v1",
+  "generated_at_utc": "2026-11-05T23:40:13.047367+00:00",
+  "status": "PASS",
+  "task_status": "IN_PROGRESS",
+  "handoff_basis": "PROVISIONAL",
+  "base_commit": "a60f7656d1bd92334caedf27a6dfda2ff33b72f1",
+  "target_commit": null,
+  "branch": "codex/k8s-k3b",
+  "source_basis": "uncommitted working-tree overlay",
+  "budget_scope": "engineering-validation",
+  "charged_seconds": 0,
+  "kind_runs": 0,
+  "workflow_dispatches": 0,
+  "registered_calibrations": 0,
+  "registered_pilots": 0,
+  "host": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python": "3.12.7 | packaged by Anaconda, Inc. | (main, Oct  4 2024, 13:17:27) [MSC v.1929 64 bit (AMD64)]",
+    "go": "go version go1.27.3 windows/amd64",
+    "shell": "Git Bash on Windows; not a Linux-hosted gate claim",
+    "gomaxprocs": "2"
+  },
+  "checks": [
+    {
+      "check": "go-build",
+      "exit_code": 0,
+      "seconds": 16.562
+    },
+    {
+      "check": "go-vet",
+      "exit_code": 0,
+      "seconds": 3.922
+    },
+    {
+      "check": "go-test",
+      "exit_code": 0,
+      "seconds": 134.688
+    },
+    {
+      "check": "ruff-check",
+      "exit_code": 0,
+      "seconds": 0.218
+    },
+    {
+      "check": "ruff-format",
+      "exit_code": 0,
+      "seconds": 0.125
+    },
+    {
+      "check": "mypy",
+      "exit_code": 0,
+      "seconds": 0.938
+    },
+    {
+      "check": "pytest",
+      "exit_code": 0,
+      "seconds": 59.875
+    },
+    {
+      "check": "mutation-gate",
+      "exit_code": 0,
+      "seconds": 2957.625
+    },
+    {
+      "check": "git-diff-check",
+      "exit_code": 0,
+      "evidence": "native-round174/git-diff-check.txt"
+    }
+  ],
+  "pytest": {
+    "passed": 284,
+    "skipped": 3,
+    "reasons": [
+      "DUR055_TEST_DATABASE_URL not configured (2)",
+      "DURABLE_KAFKA_BROKERS not configured (1)"
+    ]
+  },
+  "ruff": {
+    "required_scope": "python tests and pilot/campaign/intake/freeze/schedule scripts",
+    "formatted_files": 86,
+    "supplemental_legacy_scope": "dur053_k3.py, dur053_k3_policy.py",
+    "baseline_findings": 14,
+    "current_findings": 14,
+    "comparison": "unchanged rule/message counts; see legacy-ruff.json"
+  },
+  "mypy": {
+    "configured_source_files": 44
+  },
+  "mutation": {
+    "cases": 510,
+    "added_cases": 23,
+    "all_named_baselines": "PASS",
+    "all_mutations": "PASS",
+    "result": "mutation-round174.json",
+    "source_hashes_match": true
+  },
+  "attempts": [
+    {
+      "scope": "initial full Go integration",
+      "outcome": "FAIL: two existing runtime lifecycle timing tests; retained in go-test-initial.txt. No runtime code/test/deadline changes; sequential fresh-DB reruns passed. Exact host timing cause not established."
+    },
+    {
+      "scope": "first Bash launch",
+      "outcome": "WSL shim E_ACCESSDENIED before script execution; restarted with explicit Git Bash. Diagnostic decoded from UTF-16 into UTF-8."
+    },
+    {
+      "scope": "earlier focused mutation run",
+      "outcome": "PASS 16 cases on earlier pre-group-audit source; retained for history, not used as final coverage."
+    },
+    {
+      "scope": "earlier 502-case full gate",
+      "outcome": "INTERRUPTED/SUPERSEDED for scheduler-group audit fix; partial log includes interrupted vet baseline failure. No passing full-gate result claimed."
+    },
+    {
+      "scope": "earlier 505-case full gate",
+      "outcome": "INTERRUPTED/SUPERSEDED for late-success deadline audit fix; partial log retained. Its source fingerprint is gate-source-before-deadline-audit.json, not the final source."
+    },
+    {
+      "scope": "native DB probe clock assumption",
+      "outcome": "FAIL: Windows observer and Docker Linux VM do not share a kernel; DB was 0.63 ms beyond host after-bound. Test corrected to independently fence DB query time with DB-clock queries; injected foreign-clock preservation test added. Production strict shared-kernel refusal is unchanged."
+    },
+    {
+      "scope": "earlier 508-case full gate",
+      "outcome": "INTERRUPTED/SUPERSEDED at 439 printed PASS cases for consecutive-namespace Service DNS continuity; old snapshot/partial log retained, not counted as completed."
+    },
+    {
+      "scope": "final 510-case full Bash gate",
+      "outcome": "PASS on gate-source.json snapshot; all current case hashes match unchanged final files."
+    }
+  ],
+  "databases": [
+    "dur053_r174_integration",
+    "dur053_r174_pytest",
+    "dur053_r174_mutation",
+    "dur053_r174_integration_final",
+    "dur053_r174_mutation_final",
+    "dur053_r174_integration_audit_final",
+    "dur053_r174_pytest_audit_final",
+    "dur053_r174_mutation_audit_final",
+    "dur053_r174_integration_deadline_final",
+    "dur053_r174_pytest_deadline_final",
+    "dur053_r174_mutation_deadline_final"
+  ],
+  "final_databases": {
+    "go": "dur053_r174_integration_deadline_final",
+    "pytest": "dur053_r174_pytest_deadline_final",
+    "mutation": "dur053_r174_mutation_deadline_final"
+  },
+  "clock_cli": {
+    "status": "PASS",
+    "command": [
+      "go",
+      "run",
+      "./cmd/dur049-checker",
+      "-clock-probe"
+    ],
+    "scope": "native Windows executable/JSON/query proof; Windows and Docker VM clocks differ; hosted shared-kernel observer-pod validation remains pending",
+    "observer_encloses_db": true,
+    "shared_kernel_validated": false,
+    "probe": {
+      "observer_before": "2026-11-05T21:49:01.910229Z",
+      "database": "2026-11-05T21:49:01.912084Z",
+      "observer_after": "2026-11-05T21:49:01.91213Z"
+    }
+  },
+  "protected_sha256": {
+    "experiments/portfolio/k8s-recovery/live-time-ledger.json": "35dab8ea00214db146751a3410d02356efd694a1e854a3baebb3696d3a707edd",
+    "experiments/portfolio/k8s-recovery/k3b-admission-analysis-v1.json": "4b2c2cad43df29daf19fe9c2079418f0ecf000922fca6e50c5648ed9fdb5c675",
+    "experiments/portfolio/k8s-recovery/amendment-b-schedule.json": "b140085ebb75cad2e750e7604dd764c4e452b868b221b57a3867fae2cf72607b"
+  },
+  "preserved_prefixes": {
+    "REVIEW.md": {
+      "bytes": 2323663,
+      "sha256": "9fdceaeb7ff4348b56c2569eb3f32a1bdd5cbdd20358dcd624de2131c871b883",
+      "preserved": true,
+      "current_cr_characters": 0
+    },
+    "experiments/portfolio/k8s-recovery/protocol-v2.md": {
+      "bytes": 67644,
+      "sha256": "18f92e015d1d8fc7ac0db858ac257d6064109a00b2b362fd4c4fc154f28d82f0",
+      "preserved": true,
+      "current_cr_characters": 0
+    }
+  },
+  "source_sha256": {
+    "cmd/dur049-checker/clock.go": "7d3f88c09c21c8b9adf1f8fb7a67f911224443554e769a5f3805bbfec2408680",
+    "cmd/dur049-checker/clock_test.go": "8c4d4cf5c2fe8da82d601f0e23078762c2e14c76ef998b3a3665663eabddd9a4",
+    "cmd/dur049-checker/main.go": "beb01fa8cf75727545eafa586c827b6cf1c07ac96cff73475d0775c14028e10d",
+    "cmd/runtime/lifecycle.go": "4d2868ee7eabf597f61030f0f9dc01199ec85e610e24cd777c19ae19f233479f",
+    "cmd/runtime/main.go": "16e0665c27d8cbb8640561baf3c9e77df8e0d9585d22c69fccd58df12e37a4f5",
+    "cmd/runtime/registry.go": "b64f55e884e0e641f3cdeeb952070eff63c13bcda11e689e281be7d0cb4a0088",
+    "cmd/runtime/scheduler.go": "565e56480cf37c7d4216f0c2e9c54fd4ea9473750446b08a88301f556f9a952d",
+    "deploy/local/compose.yaml": "5dd0bf93f9ed9d0b7ceaf153ac08fad13fabf42f3ac4b24a44bf5b53182ad350",
+    "experiments/portfolio/k8s-recovery/protocol-v2.md": "e3dfc6d0d745c194002bf73c4abacf086c209044dff29d39ab715cf62e1dad1d",
+    "internal/api/demand.go": "402d1adadd7ecb62c93461a90b310852b910d1dd52cc191f2305d136480976b6",
+    "internal/api/demand_auth.go": "f1679adcf3268ca273c0a8e59fad9ce04bc11e7f938ea04f31c164ff486965b5",
+    "internal/api/identity.go": "270b286d9be5fb1de30e73456e1615a9ca0be836208035e267518fd53125a63c",
+    "internal/api/server.go": "2f4fa28629cad3b7a829886e075b0b69de385de6b9be8f937b49fea0ffb5512a",
+    "internal/dur053/load.go": "f098102dfab03d6b41b2d480cae1aa401cd902fe4fa4d62bdefa266956d3be50",
+    "internal/engine/engine.go": "4ac79fd389bc62c6effe03cfc7b91d2deb2f4037f6814670609af2126c70f3f1",
+    "internal/engine/service.go": "f4a1381f3165589fcd8ec8cc813b19dd0b52bed77260ec212d5923344fc84175",
+    "internal/faults/client.go": "8004c534fdfed7c7b21ca38422fb360afa93a5d59852b523a1d959196d4b827e",
+    "internal/invariants/campaign.go": "ef8ed4716fc2e40c064ad2abfcce01fb3799cf2205d6aecfc5911f515d5b060d",
+    "internal/invariants/m5.go": "e4a6c3ab5098054dbe482f59244cd6433486d7af099906c7b34f0e65439af628",
+    "internal/invariants/snapshot.go": "f8d4ce3af57190240d1b156df801b3e524515664db10340fe5bf0f45d77e839a",
+    "internal/state/demand.go": "a4d8f0672b09e877329921a96ab8f806e1a7df0d672a8af90a2b64fab0c630cf",
+    "internal/state/graph.go": "53e38485f8babc3937aa3e7fae4a149dfebe1233bce248e071f46ae0b9dab883",
+    "internal/state/k2_cleanup_test.go": "38685e29b83ce07d948a85df069ee3c774ab45dd6fc91e298e4745cb0ec1b44e",
+    "internal/state/m3.go": "9dea3cd3b5dcb81924d203b7e5c1453e9e66b26d5173b169f1b3af6524329656",
+    "internal/state/m4.go": "30cb89cb116a336cb986919dc0ce0775b65aa3be4b4c06a2b847a2e1c50be5c7",
+    "internal/state/registry.go": "11d2821fd5a7cc46751281b7a3a08b33348d72e0fc6eb28e42ab31302af58a6f",
+    "internal/state/runtime.go": "b83801f48ddc64b2f50d2dbe29188fdd25a6e78210ab2818f2c6c38ca14d3624",
+    "internal/state/store.go": "6be141c1257af59564264746ce4026125ef1e022fc4cf5fb7e0e5baa1b7a25e6",
+    "internal/telemetry/metrics.go": "a2dfd9f3e29b3387c8c60f84121e2fb4ebb76153905b6072fee3ee110b9dd76e",
+    "internal/transport/transport.go": "f7e2cb8292257f22ece0de62e6885f8d9c47eb54bb8b818ad4ecfd77ec33f310",
+    "migrations/000019_k2_demand.down.sql": "e1aa9e261c162745358bd7944693e68fead00422b7099b0051a075ef3479db80",
+    "migrations/000019_k2_demand.up.sql": "083a40f9d7805307d93ab31e251a063d5db9ef63ce02c7a330cd4fe599f6abab",
+    "mutations/manifest.json": "adf19fcff253b242d70e2585ee628892992627269c26c2a0fc62461ba8dc4b48",
+    "python/incident_agent/redaction.py": "86a715ae55177bfc45b102328a5d48b52e02b7aeca860029ff0a7ffccc222b45",
+    "python/workers/__main__.py": "dc8d5599619132ca86db48234476d65531047ec7dea2badd602a526b8608472b",
+    "python/workers/control.py": "618774b1dd521977cb5fb0cea72445422cc0294fed465103db1ad0c1bc09d0e0",
+    "python/workers/kafka_worker.py": "4278971c68cdd2657fb1c04d0b1310f9d734828c6b5aa376f3a64a03b2de43d2",
+    "python/workers/lifecycle.py": "f2be74201d32b7bb00e2389b99d11080875c0d5a8149bea678dc63d65a7c65b9",
+    "python/workers/registry.py": "bd7171687b3632180deff9c498a7d0eb263ec23adc9c0ee1f44c0d9304577f4f",
+    "python/workers/runner.py": "13f57cfc0ea4e5db707acd0eaed7203d501c9da9213c1aff2d5bc816833e5944",
+    "python/workers/witness.py": "22c02743f29683ababd645fee5a9a1fd2160ceccc31dcb9f63b2dfab50e29d78",
+    "scripts/check-activity-registry.py": "9e5ee06767ed217dad748b6a7fffb5ff48a1217019f900261878baab2c989944",
+    "scripts/dur053-k3.sh": "ca6e974d8056c6b5d4971266f6960407047cd67fa3a7f5964277791b5ea3774f",
+    "scripts/dur053-kubernetes.ps1": "a3c8e415dfeb433791ba4ff0523a261c97f32860fcb0a93947f2fbfe9ff19570",
+    "scripts/dur053_campaign.py": "b1c780a7df86c92aa2412e36af261504b2b3ab8130bc9acdf669f4815edaf5bf",
+    "scripts/dur053_freeze.py": "f565f87e254d250a5bfcac1f6244010a53a0b156370c20c783e9777935db79df",
+    "scripts/dur053_k3.py": "fcbffe844843623d7d442b5807b2c94eae593c340febf75c5f98467659370077",
+    "scripts/dur053_k3_policy.py": "d80044dcde94070ecd781368e11a22d28e2fae00f1b6e6b9f549eab19bda7329",
+    "scripts/dur053_lock_check.py": "a4d7a3c7641f9918204f11fb2fa70fbd75a388752c91da7082c9f89be1c97df3",
+    "scripts/dur053_pilot.py": "b14e2e3e222abc03fe93ac0ff598af85e565fbfeb4733469abde34679d068118",
+    "scripts/dur053_pilot_driver.py": "02745503a400821d39f9659ecbf44571e23733905fcd66278ed13680093e9d65",
+    "scripts/dur053_pilot_evidence.py": "cd0efbdde74d6dfa81ddf8c6102d05a63f3795a07c87bf9c4a60615ed9434c69",
+    "scripts/dur053_prerequisites.py": "209d222e8a207168181aa650455338d92f60c46fb4dd869269d913c23700db0e",
+    "scripts/dur053_record_pilot.py": "6b03a192d27277046c79cd79694bf9a7f9055efd44e81cf24483d8fd3aec6484",
+    "scripts/dur053_record_smoke.py": "9c942a8730ec3db5ede0823eb0af0797cb1e3f299c6439ff8b7adf2304526e74",
+    "tests/test_k3_round174.py": "25b858c3d505b10d7db666eb5b657350d66da600977f31e52d0bbaa4dc4063d4",
+    "tests/test_k3b_pilot.py": "e2a811b4e27da20c4d64c0b7da8d9a1a0fd3c993308ab0a790a281a79f7e09a1"
+  },
+  "artifacts_sha256": {
+    "native-round174/clock-cli.json": "c2ced1b9f625cc0e283fdb6f7c92ecb9e0cf0b5c734f17b15bb6c0256ec8eb2f",
+    "native-round174/clock-cli.txt": "91e1516d719ee392baa710bda4a7cc1fe7ab55f0a7ac63bd2faa4809ec58d119",
+    "native-round174/focused-mutations.txt": "8d1861a87b071453a18db62a34a274efe2feefbfa55b7ab27b83ffd7b11a1acf",
+    "native-round174/focused-results.json": "0e00fc0000e895afead7b2998d915a435879445c4452f89d3cb5157048955a4e",
+    "native-round174/gate-results.json": "a7f4ed280b7d2dee1f0324b554c691780a4495b869eda924563f2f500611316e",
+    "native-round174/gate-source-before-deadline-audit.json": "850c875fe615b26ff955466704f0ce06cc9198e18a2adb30ceceb5eec23a6440",
+    "native-round174/gate-source-before-service-audit.json": "638904c68acdc512c201d573aca001f7fc5d89608877635f3b15319ea498cd76",
+    "native-round174/gate-source.json": "1abe20ebc9df9cddf95a54eae40ffc4aa448f24126214926d918ed03ac863649",
+    "native-round174/go-build-before-deadline-audit.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-build-before-group-audit.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-build-before-service-audit.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-build-clock-assumption.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-build-initial.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-build.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-test-before-deadline-audit.txt": "6756b51a7e073bcfd260997cbc4fce8fbd185161350c4c1e01e4a2b6972b5448",
+    "native-round174/go-test-before-group-audit.txt": "b16c0bc0b3e15e8d6a4f9f7d2870b05c9057b7ea889f0362b761af268e5ac0f9",
+    "native-round174/go-test-before-service-audit.txt": "02dc6d05d55a62898d1c9a9f56127be737007e2f5cc4e0873627a123897ed9ee",
+    "native-round174/go-test-clock-assumption.txt": "6e9c5bf9fbe8805ef5ab0c04c3c795c8e232b1a9caef68e047befbc58a67e737",
+    "native-round174/go-test-initial.txt": "6f753158acdf785fde958d37c55c2dc8aff4e89fe1717b489a86538b37f3e34b",
+    "native-round174/go-test.txt": "bd04714e2d414bd6114d014fccbdabb0832b56e4a216eadf7eb48aab92c7e994",
+    "native-round174/go-vet-before-deadline-audit.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-vet-before-group-audit.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-vet-before-service-audit.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-vet-clock-assumption.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-vet-initial.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/go-vet.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native-round174/legacy-ruff.json": "e72a5552fd1f54d238f522c1c5a2f5519588a7dcb803da448283a1f0f66ea9a9",
+    "native-round174/mutation-gate-before-deadline-audit.txt": "6ea1cf12bfbcfe4e76a33f8c9c60229b323606f58678fd6b418397ab78e4c873",
+    "native-round174/mutation-gate-before-group-audit.txt": "55cddc98033d1188da8be7fba08c3c3c9e55ab089720ed7e5621e93e2609f98e",
+    "native-round174/mutation-gate-before-service-audit.txt": "23c8ca96dd35956ca336031a8c65b1a998974470a7439b029b574bbcaa580af1",
+    "native-round174/mutation-gate-launcher-initial.txt": "6ec3ba7d5cb17e83a6ea50639c634ea33bf180a087e86273e29c1faa027ee457",
+    "native-round174/mutation-gate.txt": "ae143673d111135eae8e888498123f36e547de1458081fd89a17966470b9f250",
+    "native-round174/mypy-before-deadline-audit.txt": "522d7b3a15704213950b7053c882b6ddd0c41149631300ce6c1933d21b5971c3",
+    "native-round174/mypy-before-group-audit.txt": "522d7b3a15704213950b7053c882b6ddd0c41149631300ce6c1933d21b5971c3",
+    "native-round174/mypy-before-service-audit.txt": "522d7b3a15704213950b7053c882b6ddd0c41149631300ce6c1933d21b5971c3",
+    "native-round174/mypy.txt": "522d7b3a15704213950b7053c882b6ddd0c41149631300ce6c1933d21b5971c3",
+    "native-round174/native-before-deadline-audit-results.json": "37643abc34add687372c6e458c2b5bc5d8d08a9ccf8d6a9814af8c1b4b0ed920",
+    "native-round174/native-before-group-audit-results.json": "f8e65f6f3c3975a1b89f150af3a0de02aafc9fe56c32c7e9801ef4bad6ab3906",
+    "native-round174/native-before-service-audit-results.json": "34fd2e38e4d77b09e42f61e6005dc4a3e0f712652002ff8ce0a087b2e4bb385c",
+    "native-round174/native-clock-assumption-results.json": "c52cd7e3da6d4018bba416f9ee09234e1fc6c8d92a3ad7f88ea59e1274b6d423",
+    "native-round174/native-initial-results.json": "9320f518e3388c27c24553b0ca06707f7c93d2bf4a9811b4628b8926b864b487",
+    "native-round174/native-results.json": "9e98e909ef78b2bc19033c7d794c8a04ab1fba901784cdf12c6d09e230c2a86e",
+    "native-round174/pytest-before-deadline-audit.txt": "e4c69d43fe8e160dab341b00336b3f49c85c352dc113078a6b8971e743b1128b",
+    "native-round174/pytest-before-group-audit.txt": "40dc000fdb8af4c95b1f151cf7608aacae71179118a0ee5cbab6a07515bec7a6",
+    "native-round174/pytest-before-service-audit.txt": "3cec12acb4fccf3f13773476c14c6cf92098e839f43a4fa1adc104fdef3d4619",
+    "native-round174/pytest.txt": "541005b24236615b3c46098daba693bd56a0767dd87ad45488a8621cdb9160f1",
+    "native-round174/ruff-check-before-deadline-audit.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "native-round174/ruff-check-before-group-audit.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "native-round174/ruff-check-before-service-audit.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "native-round174/ruff-check.txt": "82b3e6a6c090a57601d22943bd23fca9218d1031dbe5a7b754092f9a156b4f18",
+    "native-round174/ruff-format-before-deadline-audit.txt": "4ff47a71933cda9dac7b68bef86276a56fbcd69c7a3ec166850d7042addad6ea",
+    "native-round174/ruff-format-before-group-audit.txt": "4ff47a71933cda9dac7b68bef86276a56fbcd69c7a3ec166850d7042addad6ea",
+    "native-round174/ruff-format-before-service-audit.txt": "4ff47a71933cda9dac7b68bef86276a56fbcd69c7a3ec166850d7042addad6ea",
+    "native-round174/ruff-format.txt": "4ff47a71933cda9dac7b68bef86276a56fbcd69c7a3ec166850d7042addad6ea",
+    "native-round174/git-diff-check.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "mutation_result_sha256": "d55ac2beaaf1388999344b69131c3b369193617284534afacffc37c897e69dc6",
+  "limitations": [
+    "Hosted pilot smoke remains pending; no live window or measured latency/SLO result.",
+    "Native Windows/Docker VM clocks differ: CLI proof reports their relation; it does not prove the hosted kind shared-kernel relation.",
+    "Real Go Kafka round-trip integration is not enabled: DURABLE_KAFKA_BROKERS is unset; PostgreSQL-backed integration is enabled.",
+    "Go race detector not rerun: new Go code is synchronous clock-query code; concurrency fixes are Python and have deterministic threaded regression coverage.",
+    "Freeze-L reconstruction uses synthetic fixture bytes, mocked Git byte retrieval and mocked independent-Go recheck; actual committed pilot artifacts do not exist yet. The Go invariant/checker suites run separately.",
+    "Cleanup is recorded separately after database drop and observed scratch removal.",
+    "Temporary-file removal is blocked by automatic approval review; no temporary files were removed and Codex root listing is [\"r174\"]. All 11 task databases are dropped."
+  ],
+  "cleanup": {
+    "status": "BLOCKED",
+    "evidence": "round174-cleanup.json",
+    "sha256": "0719057968f912bfc2b98f736eccbc56e37b489466b936cf05f30371c403db29",
+    "database_status": "PASS",
+    "database_evidence": "round174-database-cleanup.json",
+    "database_sha256": "9adfdd546436fdafea6f5ec83c232c5cdfbb7250f652cd7bc80d610e7c48e4b0",
+    "observed_listing": [
+      "r174"
+    ]
+  },
+  "postgres_server_version": "18.6 (Debian 18.6-1.pgdg12+2)"
+}

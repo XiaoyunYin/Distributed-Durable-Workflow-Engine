@@ -1,0 +1,17 @@
+[
+  {
+    "check": "go-build",
+    "exit_code": 0,
+    "seconds": 21.813
+  },
+  {
+    "check": "go-vet",
+    "exit_code": 0,
+    "seconds": 6.89
+  },
+  {
+    "check": "go-test",
+    "exit_code": 1,
+    "seconds": 319.86
+  }
+]

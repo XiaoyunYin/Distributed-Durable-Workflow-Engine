@@ -452,6 +452,35 @@ jobs:
           path: ${{ runner.temp }}/dur053-k3-package/
           if-no-files-found: error
           retention-days: 30
+  k3-pilot-smoke:
+    name: DUR-053 pilot smoke
+    # Push CI proves the immutable tested checkout, avoiding PR head/merge-tree ambiguity.
+    if: github.event_name == 'pull_request' || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    permissions:
+      contents: read
+    env:
+      DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - name: Check out exact merge-ref source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Exercise identical pilot path with engineering parameters
+        shell: bash
+        run: |
+          set -euo pipefail
+          export TMP="$RUNNER_TEMP" TEMP="$RUNNER_TEMP" TMPDIR="$RUNNER_TEMP" PYTHONDONTWRITEBYTECODE=1
+          python3 scripts/dur053_campaign.py --job pilot-smoke --output "$RUNNER_TEMP/dur053-pilot-smoke" --scratch-root "$RUNNER_TEMP/dur053-pilot-smoke-scratch"
+      - name: Retain engineering pilot evidence including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dur053-pilot-smoke-${{ github.run_id }}
+          path: ${{ runner.temp }}/dur053-pilot-smoke/
+          if-no-files-found: error
+          retention-days: 30
   k3-smoke:
     name: DUR-053 kind smoke
     if: github.event_name == 'pull_request'

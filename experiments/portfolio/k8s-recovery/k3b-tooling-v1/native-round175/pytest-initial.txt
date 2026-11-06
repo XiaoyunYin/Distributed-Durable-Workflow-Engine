@@ -1,0 +1,343 @@
+============================= test session starts =============================
+platform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0
+rootdir: D:\portfolio-projects\durable-agent-execution-engine
+configfile: pyproject.toml
+testpaths: tests
+plugins: anyio-4.15.1
+collected 290 items
+
+tests\test_activity_registry.py ...                                      [  1%]
+tests\test_dur050_cost_ledger.py .................                       [  6%]
+tests\test_dur050_pilot_slo.py ................                          [ 12%]
+tests\test_dur050_window_reconciliation.py ....                          [ 13%]
+tests\test_dur053_witness.py ...............                             [ 18%]
+tests\test_dur055_development_guards.py ....                             [ 20%]
+tests\test_dur055_heldout.py ...........                                 [ 24%]
+tests\test_dur055_mcp.py .......                                         [ 26%]
+tests\test_dur055_postgres_integration.py EE                             [ 27%]
+tests\test_dur056_budget.py ....                                         [ 28%]
+tests\test_dur056_evaluation.py ..............                           [ 33%]
+tests\test_dur056_fixtures.py ................                           [ 38%]
+tests\test_dur056_retrieval.py ............                              [ 43%]
+tests\test_dur056_scorer.py ...........                                  [ 46%]
+tests\test_fault_control.py .............                                [ 51%]
+tests\test_fault_proxy.py .                                              [ 51%]
+tests\test_go_platform_filenames.py ..                                   [ 52%]
+tests\test_imports.py ..                                                 [ 53%]
+tests\test_incident_agent.py ................                            [ 58%]
+tests\test_k3_driver.py ......                                           [ 60%]
+tests\test_k3_lock_check.py ..                                           [ 61%]
+tests\test_k3_package.py ...........                                     [ 65%]
+tests\test_k3_repairs.py .......                                         [ 67%]
+tests\test_k3_round174.py ...........                                    [ 71%]
+tests\test_k3_workflow.py .                                              [ 71%]
+tests\test_k3b_pilot.py ..........................                       [ 80%]
+tests\test_kafka_worker.py ......                                        [ 82%]
+tests\test_mutation_runner.py .........                                  [ 85%]
+tests\test_partition_vectors.py ...                                      [ 86%]
+tests\test_runtime_image_targets.py .                                    [ 87%]
+tests\test_worker_identity.py .                                          [ 87%]
+tests\test_worker_kafka_lifecycle.py s                                   [ 87%]
+tests\test_worker_lifecycle.py .......................                   [ 95%]
+tests\test_workers.py ............                                       [100%]
+
+=================================== ERRORS ====================================
+_______ ERROR at setup of test_postgresql_fts_uses_tsvector_and_ts_rank _______
+
+connection = <psycopg.Connection [IDLE] (host=127.0.0.1 user=durable database=dur053_r175_pytest) at 0x1b214370b60>
+root = WindowsPath('D:/portfolio-projects/durable-agent-execution-engine')
+
+    def apply_migrations(connection: psycopg.Connection[Any], root: Path) -> None:
+        """Apply only the bootstrap/source-store/study migrations to the isolated DB."""
+    
+        migrations = (
+            (1, root / "migrations/000001_bootstrap.up.sql"),
+            (14, root / "migrations/000014_m6_incident_source_corpus.up.sql"),
+            (19, root / "migrations/dur055/000019_real_embeddings.up.sql"),
+        )
+        for version, path in migrations:
+            if not path.is_file():
+                raise RetrievalStudyError(f"required migration is missing: {path}")
+            if version == 1:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT to_regclass('engine.schema_migrations') AS relation")
+                    exists = _required_row(cursor)["relation"] is not None
+                applied = False
+                if exists:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT EXISTS (SELECT 1 FROM engine.schema_migrations WHERE version=1)"
+                        )
+                        applied = bool(_required_row(cursor)["exists"])
+            elif version == 19:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT to_regclass('dur055.schema_migrations') AS relation")
+                    exists = _required_row(cursor)["relation"] is not None
+                applied = False
+                if exists:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT EXISTS (SELECT 1 FROM dur055.schema_migrations WHERE version=19)"
+                        )
+                        applied = bool(_required_row(cursor)["exists"])
+            else:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT EXISTS (SELECT 1 FROM engine.schema_migrations WHERE version = %s)",
+                        (version,),
+                    )
+                    applied = bool(_required_row(cursor)["exists"])
+            if not applied:
+                try:
+                    with connection.cursor() as cursor:
+>                       cursor.execute(path.read_text(encoding="utf-8"))
+
+python\incident_agent\dur055_retrieval.py:218: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 user=durable database=dur053_r175_pytest) at 0x1b21455d610>
+query = 'BEGIN;\n\n-- DUR-055 gets a separate versioned embedding table. The existing M6/DUR-029\n-- 64-dimensional determinis...ion)\n);\n\nINSERT INTO dur055.schema_migrations (version) VALUES (19)\nON CONFLICT (version) DO NOTHING;\n\nCOMMIT;\n'
+params = None, prepare = None, binary = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.FeatureNotSupported: extension "vector" is not available
+E           HINT:  The extension must first be installed on the system where PostgreSQL is running.
+
+.venv\Lib\site-packages\psycopg\cursor.py:97: FeatureNotSupported
+
+The above exception was the direct cause of the following exception:
+
+    @pytest.fixture
+    def dur055_database() -> Any:
+        dsn = os.environ.get("DUR055_TEST_DATABASE_URL")
+        if not dsn:
+            pytest.skip("DUR055_TEST_DATABASE_URL is not configured")
+        connection = connect(dsn)
+>       apply_migrations(connection, Path(__file__).parents[1])
+
+tests\test_dur055_postgres_integration.py:25: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+connection = <psycopg.Connection [IDLE] (host=127.0.0.1 user=durable database=dur053_r175_pytest) at 0x1b214370b60>
+root = WindowsPath('D:/portfolio-projects/durable-agent-execution-engine')
+
+    def apply_migrations(connection: psycopg.Connection[Any], root: Path) -> None:
+        """Apply only the bootstrap/source-store/study migrations to the isolated DB."""
+    
+        migrations = (
+            (1, root / "migrations/000001_bootstrap.up.sql"),
+            (14, root / "migrations/000014_m6_incident_source_corpus.up.sql"),
+            (19, root / "migrations/dur055/000019_real_embeddings.up.sql"),
+        )
+        for version, path in migrations:
+            if not path.is_file():
+                raise RetrievalStudyError(f"required migration is missing: {path}")
+            if version == 1:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT to_regclass('engine.schema_migrations') AS relation")
+                    exists = _required_row(cursor)["relation"] is not None
+                applied = False
+                if exists:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT EXISTS (SELECT 1 FROM engine.schema_migrations WHERE version=1)"
+                        )
+                        applied = bool(_required_row(cursor)["exists"])
+            elif version == 19:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT to_regclass('dur055.schema_migrations') AS relation")
+                    exists = _required_row(cursor)["relation"] is not None
+                applied = False
+                if exists:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT EXISTS (SELECT 1 FROM dur055.schema_migrations WHERE version=19)"
+                        )
+                        applied = bool(_required_row(cursor)["exists"])
+            else:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT EXISTS (SELECT 1 FROM engine.schema_migrations WHERE version = %s)",
+                        (version,),
+                    )
+                    applied = bool(_required_row(cursor)["exists"])
+            if not applied:
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute(path.read_text(encoding="utf-8"))
+                except psycopg.Error as error:
+                    connection.rollback()
+>                   raise RetrievalStudyError(f"migration {version} failed: {error}") from error
+E                   incident_agent.dur055_retrieval.RetrievalStudyError: migration 19 failed: extension "vector" is not available
+E                   HINT:  The extension must first be installed on the system where PostgreSQL is running.
+
+python\incident_agent\dur055_retrieval.py:221: RetrievalStudyError
+_ ERROR at setup of test_pgvector_hnsw_dense_query_returns_1536_dimension_rows _
+
+connection = <psycopg.Connection [IDLE] (host=127.0.0.1 user=durable database=dur053_r175_pytest) at 0x1b2143d06b0>
+root = WindowsPath('D:/portfolio-projects/durable-agent-execution-engine')
+
+    def apply_migrations(connection: psycopg.Connection[Any], root: Path) -> None:
+        """Apply only the bootstrap/source-store/study migrations to the isolated DB."""
+    
+        migrations = (
+            (1, root / "migrations/000001_bootstrap.up.sql"),
+            (14, root / "migrations/000014_m6_incident_source_corpus.up.sql"),
+            (19, root / "migrations/dur055/000019_real_embeddings.up.sql"),
+        )
+        for version, path in migrations:
+            if not path.is_file():
+                raise RetrievalStudyError(f"required migration is missing: {path}")
+            if version == 1:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT to_regclass('engine.schema_migrations') AS relation")
+                    exists = _required_row(cursor)["relation"] is not None
+                applied = False
+                if exists:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT EXISTS (SELECT 1 FROM engine.schema_migrations WHERE version=1)"
+                        )
+                        applied = bool(_required_row(cursor)["exists"])
+            elif version == 19:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT to_regclass('dur055.schema_migrations') AS relation")
+                    exists = _required_row(cursor)["relation"] is not None
+                applied = False
+                if exists:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT EXISTS (SELECT 1 FROM dur055.schema_migrations WHERE version=19)"
+                        )
+                        applied = bool(_required_row(cursor)["exists"])
+            else:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT EXISTS (SELECT 1 FROM engine.schema_migrations WHERE version = %s)",
+                        (version,),
+                    )
+                    applied = bool(_required_row(cursor)["exists"])
+            if not applied:
+                try:
+                    with connection.cursor() as cursor:
+>                       cursor.execute(path.read_text(encoding="utf-8"))
+
+python\incident_agent\dur055_retrieval.py:218: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <psycopg.Cursor [closed] [IDLE] (host=127.0.0.1 user=durable database=dur053_r175_pytest) at 0x1b213c7b890>
+query = 'BEGIN;\n\n-- DUR-055 gets a separate versioned embedding table. The existing M6/DUR-029\n-- 64-dimensional determinis...ion)\n);\n\nINSERT INTO dur055.schema_migrations (version) VALUES (19)\nON CONFLICT (version) DO NOTHING;\n\nCOMMIT;\n'
+params = None, prepare = None, binary = None
+
+    def execute(
+        self,
+        query: Query,
+        params: Params | None = None,
+        *,
+        prepare: bool | None = None,
+        binary: bool | None = None,
+    ) -> Self:
+        """
+        Execute a query or command to the database.
+        """
+        try:
+            with self._conn.lock:
+                self._conn.wait(
+                    self._execute_gen(query, params, prepare=prepare, binary=binary)
+                )
+        except e._NO_TRACEBACK as ex:
+>           raise ex.with_traceback(None)
+E           psycopg.errors.FeatureNotSupported: extension "vector" is not available
+E           HINT:  The extension must first be installed on the system where PostgreSQL is running.
+
+.venv\Lib\site-packages\psycopg\cursor.py:97: FeatureNotSupported
+
+The above exception was the direct cause of the following exception:
+
+    @pytest.fixture
+    def dur055_database() -> Any:
+        dsn = os.environ.get("DUR055_TEST_DATABASE_URL")
+        if not dsn:
+            pytest.skip("DUR055_TEST_DATABASE_URL is not configured")
+        connection = connect(dsn)
+>       apply_migrations(connection, Path(__file__).parents[1])
+
+tests\test_dur055_postgres_integration.py:25: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+connection = <psycopg.Connection [IDLE] (host=127.0.0.1 user=durable database=dur053_r175_pytest) at 0x1b2143d06b0>
+root = WindowsPath('D:/portfolio-projects/durable-agent-execution-engine')
+
+    def apply_migrations(connection: psycopg.Connection[Any], root: Path) -> None:
+        """Apply only the bootstrap/source-store/study migrations to the isolated DB."""
+    
+        migrations = (
+            (1, root / "migrations/000001_bootstrap.up.sql"),
+            (14, root / "migrations/000014_m6_incident_source_corpus.up.sql"),
+            (19, root / "migrations/dur055/000019_real_embeddings.up.sql"),
+        )
+        for version, path in migrations:
+            if not path.is_file():
+                raise RetrievalStudyError(f"required migration is missing: {path}")
+            if version == 1:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT to_regclass('engine.schema_migrations') AS relation")
+                    exists = _required_row(cursor)["relation"] is not None
+                applied = False
+                if exists:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT EXISTS (SELECT 1 FROM engine.schema_migrations WHERE version=1)"
+                        )
+                        applied = bool(_required_row(cursor)["exists"])
+            elif version == 19:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT to_regclass('dur055.schema_migrations') AS relation")
+                    exists = _required_row(cursor)["relation"] is not None
+                applied = False
+                if exists:
+                    with connection.cursor() as cursor:
+                        cursor.execute(
+                            "SELECT EXISTS (SELECT 1 FROM dur055.schema_migrations WHERE version=19)"
+                        )
+                        applied = bool(_required_row(cursor)["exists"])
+            else:
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        "SELECT EXISTS (SELECT 1 FROM engine.schema_migrations WHERE version = %s)",
+                        (version,),
+                    )
+                    applied = bool(_required_row(cursor)["exists"])
+            if not applied:
+                try:
+                    with connection.cursor() as cursor:
+                        cursor.execute(path.read_text(encoding="utf-8"))
+                except psycopg.Error as error:
+                    connection.rollback()
+>                   raise RetrievalStudyError(f"migration {version} failed: {error}") from error
+E                   incident_agent.dur055_retrieval.RetrievalStudyError: migration 19 failed: extension "vector" is not available
+E                   HINT:  The extension must first be installed on the system where PostgreSQL is running.
+
+python\incident_agent\dur055_retrieval.py:221: RetrievalStudyError
+=========================== short test summary info ===========================
+SKIPPED [1] tests\test_worker_kafka_lifecycle.py:59: real Kafka witness requires DURABLE_KAFKA_BROKERS
+ERROR tests/test_dur055_postgres_integration.py::test_postgresql_fts_uses_tsvector_and_ts_rank
+ERROR tests/test_dur055_postgres_integration.py::test_pgvector_hnsw_dense_query_returns_1536_dimension_rows
+============= 287 passed, 1 skipped, 2 errors in 61.34s (0:01:01) =============

@@ -1,0 +1,12 @@
+[
+  {
+    "name": "mutation",
+    "command": [
+      "C:/Program Files/Git/bin/bash.exe",
+      "scripts/mutation-gate.sh",
+      "D:\\coding agent files\\durable-engine\\codex\\r175\\mutation-round175.json"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 3662.672
+  }
+]

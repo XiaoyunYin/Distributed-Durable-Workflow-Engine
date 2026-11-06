@@ -3,11 +3,12 @@
 param(
     [ValidateSet("compose", "kind")][string]$Context = "compose",
     [string]$Scenario = "prerequisites",
-    [string]$OutputRoot
+    [string]$OutputRoot,
+    [string]$PilotJob
 )
 $ErrorActionPreference = "Stop"
 if ($Context -eq "kind") {
-    if ($Scenario -notin @("package-check", "smoke", "cleanup")) { throw "K3b: scenario is not implemented." }
+    if ($Scenario -notin @("package-check", "smoke", "cleanup", "pilot", "pilot-smoke")) { throw "Scenario is not implemented." }
     if (-not $OutputRoot) { throw "Kind scenarios require a fresh -OutputRoot outside the repository." }
     $kindScratch = if ($IsWindows) { "D:\coding agent files\durable-engine\codex\k3a" } else {
         if (-not $env:RUNNER_TEMP) { throw "RUNNER_TEMP is required." }
@@ -18,7 +19,8 @@ if ($Context -eq "kind") {
     $env:TEMP = $kindScratch
     $env:TMPDIR = $kindScratch
     $env:PYTHONDONTWRITEBYTECODE = "1"
-    & bash "$PSScriptRoot/dur053-k3.sh" $Scenario $OutputRoot $kindScratch
+    if ($Scenario -eq "pilot" -and -not $PilotJob) { throw "Pilot requires an exact -PilotJob from Amendment B.2." }
+    & bash "$PSScriptRoot/dur053-k3.sh" $Scenario $OutputRoot $kindScratch $PilotJob
     if ($LASTEXITCODE -ne 0) { throw "DUR-053 K3a FAIL; see retained evidence." }
     return
 }

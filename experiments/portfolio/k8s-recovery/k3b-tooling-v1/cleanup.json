@@ -1,0 +1,25 @@
+{
+  "branch": "codex/k8s-k3b",
+  "cleanup_method": "verified all owned paths contained by exact k3b root, refused reparse points, removed files then empty directories individually",
+  "commits_created": 0,
+  "database_prefix_remaining_after_drop": [],
+  "database_verification": "queried immediately after dropping all six; see pre-cleanup.json",
+  "head": "1370d3bf0aafe6e56679345f5716b3d4499f5131",
+  "kind_runs": 0,
+  "observed_at_utc": "2026-11-05T20:32:40.015521+00:00",
+  "observed_listing": [],
+  "recursive_delete_attempts": "automatic approval review rejected recursive Remove-Item as blocked by policy; bounded path-by-path removal succeeded",
+  "registered_pilots": 0,
+  "schema": "dur053.k3b-tooling-cleanup.v1",
+  "scratch_directory": "D:\\coding agent files\\durable-engine\\codex",
+  "status": "PASS",
+  "temporary_databases_dropped": [
+    "dur053_k3b_integration",
+    "dur053_k3b_mutation",
+    "dur053_k3b_mutation_final",
+    "dur053_k3b_mutation_review",
+    "dur053_k3b_integration_final",
+    "dur053_k3b_race_final"
+  ],
+  "workflow_dispatches": 0
+}

@@ -1,0 +1,14 @@
+{
+  "early_ruff_cache_entries_removed": [],
+  "remaining_matching_prefix": [],
+  "review_prefix_verified": true,
+  "scratch_path": "D:\\coding agent files\\durable-engine\\codex\\k3b",
+  "temporary_databases_dropped": [
+    "dur053_k3b_integration",
+    "dur053_k3b_mutation",
+    "dur053_k3b_mutation_final",
+    "dur053_k3b_mutation_review",
+    "dur053_k3b_integration_final",
+    "dur053_k3b_race_final"
+  ]
+}

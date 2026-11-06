@@ -1,0 +1,214 @@
+{
+  "attempts": [
+    {
+      "outcome": "environment failure; uv default cache inaccessible; rerun with owned UV_CACHE_DIR passed, then final suites used new separate databases",
+      "scope": "initial Go integration"
+    },
+    {
+      "outcome": "9 environment failures from unset owned GOCACHE; corrected full run passed; final run 273 passed/3 optional skips",
+      "scope": "initial full pytest"
+    },
+    {
+      "outcome": "interrupted/superseded when implementation changed; neither claimed completed",
+      "scope": "482/483 case prototype mutation runs"
+    },
+    {
+      "outcome": "all PASS; unchanged final implementation hashes match all 487 current cases",
+      "scope": "484 full gate plus 3 entry-point supplement"
+    }
+  ],
+  "base_commit": "1370d3bf0aafe6e56679345f5716b3d4499f5131",
+  "branch": "codex/k8s-k3b",
+  "budget_scope": "engineering-validation",
+  "charged_seconds": 0,
+  "checks": [
+    {
+      "command": "go build ./...",
+      "evidence": "native/go-build.txt",
+      "result": "PASS"
+    },
+    {
+      "command": "go vet ./...",
+      "evidence": "native/go-vet.txt",
+      "result": "PASS"
+    },
+    {
+      "command": "go test -p 1 -count=1 ./...",
+      "database": "dur053_k3b_integration_final (fresh migrated)",
+      "evidence": "native/go-test.txt",
+      "result": "PASS"
+    },
+    {
+      "command": "go test -race -p 1 -count=1 ./...",
+      "database": "dur053_k3b_race_final (separate fresh migrated)",
+      "evidence": "native/go-race.txt",
+      "result": "PASS"
+    },
+    {
+      "command": "ruff check python tests plus new/changed dur053_pilot*, campaign, record_pilot, freeze, schedule scripts",
+      "result": "PASS"
+    },
+    {
+      "command": "ruff format --check (same scope)",
+      "files": 85,
+      "result": "PASS"
+    },
+    {
+      "command": "mypy --cache-dir <owned scratch>",
+      "configured_source_files": 44,
+      "result": "PASS"
+    },
+    {
+      "command": "python -B -m pytest -p no:cacheprovider --basetemp <owned scratch>",
+      "evidence": "native/pytest.txt",
+      "passed": 273,
+      "result": "PASS",
+      "skipped": 3
+    },
+    {
+      "cases": 484,
+      "command": "bash scripts/mutation-gate.sh experiments/portfolio/k8s-recovery/k3b-tooling-v1/mutation-results-final.json",
+      "evidence": "mutation-results-final.json",
+      "host": "Windows Git Bash, not a Linux host claim",
+      "result": "PASS"
+    },
+    {
+      "cases": 3,
+      "command": "python -B scripts/mutation-runner.py --working-tree --manifest <entrypoint supplement> --output <supplement result>",
+      "evidence": "mutation-entrypoint-supplement.json",
+      "result": "PASS"
+    },
+    {
+      "cases": 487,
+      "command": "verify union/current manifest and per-case final source hashes",
+      "evidence": "mutation-coverage-final.json",
+      "result": "PASS"
+    },
+    {
+      "command": "schedule CLI reproduction, protected hashes, protocol byte-prefix and live-ledger immutability",
+      "result": "PASS"
+    },
+    {
+      "command": "git diff --check",
+      "note": "rechecked after final documentation/cleanup below",
+      "result": "PASS"
+    }
+  ],
+  "cleanup": {
+    "evidence": "cleanup.json",
+    "observed_scratch_listing": [],
+    "remaining_database_prefix": [],
+    "sha256": "ee5642efaedabe61e794b84d460f10cfff38676c2714fb732cfac849d32ef18e",
+    "temporary_databases_dropped": 6
+  },
+  "companion_evidence_sha256": {
+    "README.md": "7ba50c270e0d942db03434a7fd5e63fe8ddebad72077e9702533142b0bf67c4f",
+    "cleanup.json": "ee5642efaedabe61e794b84d460f10cfff38676c2714fb732cfac849d32ef18e",
+    "mutation-coverage-final.json": "36576142d23b14855dafe8836708cf73f6b46cf17eaf96073b31e6d00a7f549f",
+    "mutation-entrypoint-supplement.json": "7236a09aecaaa0608e00453cfe8a02b30883173927036c42b4b718496db40e5c",
+    "mutation-results-final.json": "a2ae74ecbcf233a568000911cc82784a5aa1dd2490acb7777c863b11608d2298",
+    "native/bash-mutation-gate.txt": "be801f52dce2697c021b1466a00f8f37054bd992bf9e6b61c8e520267b697885",
+    "native/entrypoint-mutations.txt": "2136b39c1512ad0eab62684ef38134c6561d183d0306dae6b9ad592f3b93e92a",
+    "native/go-build.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native/go-race.txt": "ee2103744b05b20cbdf87f142f149a4356021856185913f9209ad4793cb899d6",
+    "native/go-test.txt": "02186a1451c9d525a44ccd84f7f3b1b59324ab04e530f6978e7aaefbae9d2faa",
+    "native/go-vet.txt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "native/pytest.txt": "02a1ec470fc772a5cd6e4072454d61098968042a9d971be9d52fbfb842c2822d",
+    "pre-cleanup.json": "854cc6c18ced2c244443467839d874858f0af5407be8c619eef39b182ff0959e"
+  },
+  "early_ruff_cache_entries_removed": [],
+  "finalized_at_utc": "2026-11-05T20:32:40.015521+00:00",
+  "generated_at_utc": "2026-11-05T20:30:37.684471+00:00",
+  "handoff_basis": "PROVISIONAL",
+  "host": "Windows-11-10.0.26200-SP0",
+  "implementation_source_sha256": {
+    ".github/workflows/ci.yml": "12582f4cfb1a362e48440dae425fae53600036709bebab6f10807f0f8af8ff4a",
+    ".github/workflows/dur053-campaign.yml": "85599da536e0c96719d376f9c3f3d311293ebe4605ec406d48904e779bed10ca",
+    "experiments/portfolio/k8s-recovery/amendment-b2-schedule.json": "e072b7fe5c0201f075d314b251f318a7315a34de791245fe19a9205f08ad65e4",
+    "experiments/portfolio/k8s-recovery/protocol-v2.md": "18f92e015d1d8fc7ac0db858ac257d6064109a00b2b362fd4c4fc154f28d82f0",
+    "internal/invariants/campaign.go": "ef8ed4716fc2e40c064ad2abfcce01fb3799cf2205d6aecfc5911f515d5b060d",
+    "internal/invariants/k3b_windows_test.go": "f9d371997f2448431ac8679987e91cb4eb31260206cfb8c63161cd965d6c7f54",
+    "mutations/manifest.json": "8818429433a889dd1c5d238fad0a60f6f72f77fb41502402ceea1826c1b4ed63",
+    "scripts/dur053-k3.sh": "ca6e974d8056c6b5d4971266f6960407047cd67fa3a7f5964277791b5ea3774f",
+    "scripts/dur053-kubernetes.ps1": "a3c8e415dfeb433791ba4ff0523a261c97f32860fcb0a93947f2fbfe9ff19570",
+    "scripts/dur053_campaign.py": "b1c780a7df86c92aa2412e36af261504b2b3ab8130bc9acdf669f4815edaf5bf",
+    "scripts/dur053_freeze.py": "f565f87e254d250a5bfcac1f6244010a53a0b156370c20c783e9777935db79df",
+    "scripts/dur053_k3.py": "8ec13551fd7fcbd5b4829c532e86fcc1a8dfe612cf402684bdd62ba42079d5d5",
+    "scripts/dur053_k3_policy.py": "b0fc82f1e634ad1831f062f444f33dae320d6d88642e7f7d97c67bbbd15ad114",
+    "scripts/dur053_lock_check.py": "a4d7a3c7641f9918204f11fb2fa70fbd75a388752c91da7082c9f89be1c97df3",
+    "scripts/dur053_pilot.py": "8c22f9e4743c42866b6c67861ef8dce7bfe9860afaa8c8a664df92c9595aadcc",
+    "scripts/dur053_pilot_driver.py": "9911b47d485fb90adef1534d2f7cc5fc38d39c37cf382f356c9c184a6caa9aff",
+    "scripts/dur053_pilot_evidence.py": "c8678e6fa1e6612fb5cf8c6477176fc651abefc0c693838ea01d3fb962f23acf",
+    "scripts/dur053_prerequisites.py": "209d222e8a207168181aa650455338d92f60c46fb4dd869269d913c23700db0e",
+    "scripts/dur053_record_pilot.py": "6b03a192d27277046c79cd79694bf9a7f9055efd44e81cf24483d8fd3aec6484",
+    "scripts/dur053_record_smoke.py": "9c942a8730ec3db5ede0823eb0af0797cb1e3f299c6439ff8b7adf2304526e74",
+    "scripts/dur053_schedule.py": "788cff9dabd6003484357ffd1f8e92906a08695ada13acdeb5967f88ff606cd1",
+    "tests/test_k3b_pilot.py": "727f980a39466d844480f13bdf11be36de324ae2dae9d688b322ef5c49f8d276"
+  },
+  "kind_runs": 0,
+  "known_limitations": [
+    "No hosted pilot-smoke proof or registered pilot/calibration result yet; no freeze.json produced",
+    "CI proof requires reviewed tooling merged and green on main; PR head SHA alone is not proof of its tested merge tree",
+    "Standalone scripting code is covered by lint/unit/mutations; configured mypy scope is 44 package files",
+    "Intake copies evidence and appends ledger as reviewable filesystem operations; commit both together, never silently overwrite an interrupted intake",
+    "K4-K7 execution remains future work; observed schedule recheck is not their admission authorization"
+  ],
+  "measurement_claim": false,
+  "postgres_version": "PostgreSQL 18.6 (Debian 18.6-1.pgdg12+2) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit",
+  "protected_sha256": {
+    "experiments/portfolio/k8s-recovery/amendment-b-schedule.json": "b140085ebb75cad2e750e7604dd764c4e452b868b221b57a3867fae2cf72607b",
+    "experiments/portfolio/k8s-recovery/k3b-admission-analysis-v1.json": "4b2c2cad43df29daf19fe9c2079418f0ecf000922fca6e50c5648ed9fdb5c675"
+  },
+  "protocol_original_byte_prefix": {
+    "bytes": 56985,
+    "sha256": "3ae4ba6fc7666c1ec8a1c6c6f66ce60876d5248d7384eb187308e8e5a51c7eb1",
+    "verified": true
+  },
+  "registered_calibrations": 0,
+  "registered_pilots": 0,
+  "review_original_byte_prefix": {
+    "bytes": 2294392,
+    "sha256": "ceead6f8d4dc1b5444e26ee1ed1b620ce10df50113a78b442c051dade2ab3245",
+    "verified": true
+  },
+  "schema": "dur053.k3b-tooling-validation.v1",
+  "skips": [
+    {
+      "reason": "DUR055_TEST_DATABASE_URL unset",
+      "scope": "pytest",
+      "test": "two DUR-055 PostgreSQL integration cases"
+    },
+    {
+      "reason": "DURABLE_KAFKA_BROKERS unset",
+      "scope": "pytest and Go transport round-trip",
+      "test": "real Kafka integration"
+    },
+    {
+      "reason": "uncommitted tooling; user prohibits local kind and campaign dispatch; Claude commits/reviews and obtains green main-push CI first",
+      "scope": "hosted CI / actual kind / registered pilot"
+    }
+  ],
+  "source_basis": "uncommitted working tree; per-case implementation hashes verified",
+  "status": "PASS",
+  "target_commit": null,
+  "task_status": "IN_PROGRESS",
+  "temporary_databases": {
+    "dropped": [
+      "dur053_k3b_integration",
+      "dur053_k3b_mutation",
+      "dur053_k3b_mutation_final",
+      "dur053_k3b_mutation_review",
+      "dur053_k3b_integration_final",
+      "dur053_k3b_race_final"
+    ],
+    "remaining_matching_prefix": []
+  },
+  "versions": {
+    "bash": "GNU bash, version 5.2.37(1)-release (x86_64-pc-msys)",
+    "go": "go version go1.27.3 windows/amd64",
+    "mypy": "mypy 2.3.1 (compiled: yes)",
+    "python": "Python 3.12.7",
+    "ruff": "ruff 0.16.7"
+  },
+  "workflow_dispatches": 0
+}

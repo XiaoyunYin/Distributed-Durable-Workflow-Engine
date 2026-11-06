@@ -1,0 +1,86 @@
+warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+warning: unable to access 'C:\Users\yxyfz/.config/git/ignore': Permission denied
+warning: could not open directory '.tmp-pytest-dur056-gate-b-final/': Permission denied
+PASS api-duplicate-json: mutation was rejected by its named semantic test
+PASS state-event-registry: mutation was rejected by its named semantic test
+PASS state-lease-timeout-classification: mutation was rejected by its named semantic test
+PASS engine-lease-fence: mutation was rejected by its named semantic test
+PASS state-wakeup-lease-lock: mutation was rejected by its named semantic test
+PASS state-current-owner-stale-epoch: mutation was rejected by its named semantic test
+PASS state-approval-resource: mutation was rejected by its named semantic test
+PASS state-effect-argument-hash: mutation was rejected by its named semantic test
+PASS invariants-submission-boundary: mutation was rejected by its named semantic test
+PASS invariants-fault-sequence: mutation was rejected by its named semantic test
+PASS invariants-outbox-state: mutation was rejected by its named semantic test
+PASS engine-graph-entry: mutation was rejected by its named semantic test
+PASS engine-scheduler-trace-link: mutation was rejected by its named semantic test
+PASS dur049-post-boundary-fence-checker: mutation was rejected by its named semantic test
+PASS dur049-stale-attempt-result-checker: mutation was rejected by its named semantic test
+dur049-stale-attempt-result-api-fence: named-test baseline failed, skipped, or selected no tests; command=['go', 'test', '-race', '-p', '1', './internal/api', '-run', '^TestM2WorkerAPIConcurrencyRetriesAndStaleResult$', '-count=1', '-v']
+crypto/x509: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+vendor/golang.org/x/text/transform: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+vendor/golang.org/x/text/unicode/bidi: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+net/textproto: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+mime: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+mime/quotedprintable: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+net/http/internal: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+net/http/internal/ascii: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+vendor/golang.org/x/net/http2/hpack: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+net/http/internal/httpsfv: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+go.opentelemetry.io/otel/sdk/instrumentation: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+database/sql/internal: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+uuid: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+go.opentelemetry.io/otel/sdk: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+go.opentelemetry.io/otel/sdk/internal/attrnorm: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+go.opentelemetry.io/otel/sdk/internal/x: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+golang.org/x/sys/windows: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+os/user: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+go.opentelemetry.io/otel/metric/noop: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+go.opentelemetry.io/otel/semconv/internal/metricpool: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+hash/fnv: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/protobuf/internal/pragma: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+embed: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/protobuf/internal/flags: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/protobuf/internal/set: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/protobuf/internal/version: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/counter: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc/internal/x: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/grpclog/internal: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/serviceconfig: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+github.com/cenkalti/backoff/v5: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+golang.org/x/net/internal/timeseries: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+html: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+text/template/parse: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/backoff: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/attributes: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/internal/envconfig: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/balancer/pickfirst/internal: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/encoding/internal: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/internal/buffer: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/internal/idle: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+golang.org/x/text/transform: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+golang.org/x/text/unicode/bidi: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+golang.org/x/net/http2/hpack: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+golang.org/x/net/internal/httpsfv: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/internal/transport/internal: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/keepalive: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+google.golang.org/grpc/internal/resolver/dns/internal: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+github.com/grpc-ecosystem/grpc-gateway/v2/utilities: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+github.com/jackc/pgx/v5/internal/pgio: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+github.com/jackc/pgx/v5/internal/sanitize: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+crypto/internal/fips140/pbkdf2: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+github.com/jackc/pgpassfile: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+github.com/jackc/pgservicefile: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+github.com/jackc/pgx/v5/internal/iobufpool: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+github.com/jackc/pgx/v5/pgconn/ctxwatch: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+encoding/xml: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+golang.org/x/text/internal/tag: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+github.com/jackc/puddle/v2/internal/genstack: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+golang.org/x/sync/semaphore: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+internal/gate: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+net/http/internal/testcert: C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\compile.exe: exit status 0xc0000142
+go: error obtaining buildID for C:\Users\yxyfz\go\pkg\mod\golang.org\toolchain@v0.0.1-go1.27.3.windows-amd64\pkg\tool\windows_amd64\vet.exe: exit status 0xc0000142
+
+DUR-046 mutation case has no passing, executed baseline; refusing to apply mutation

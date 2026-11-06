@@ -1,0 +1,20 @@
+=== RUN   TestK3bPilotWindows
+=== RUN   TestK3bPilotWindows/metadata
+=== RUN   TestK3bPilotWindows/nested
+=== RUN   TestK3bPilotWindows/identity
+=== RUN   TestK3bPilotWindows/bytes
+=== RUN   TestK3bPilotWindows/missing
+=== RUN   TestK3bPilotWindows/extra
+=== RUN   TestK3bPilotWindows/sequence
+=== RUN   TestK3bPilotWindows/rate
+--- PASS: TestK3bPilotWindows (0.11s)
+    --- PASS: TestK3bPilotWindows/metadata (0.00s)
+    --- PASS: TestK3bPilotWindows/nested (0.00s)
+    --- PASS: TestK3bPilotWindows/identity (0.00s)
+    --- PASS: TestK3bPilotWindows/bytes (0.00s)
+    --- PASS: TestK3bPilotWindows/missing (0.00s)
+    --- PASS: TestK3bPilotWindows/extra (0.00s)
+    --- PASS: TestK3bPilotWindows/sequence (0.00s)
+    --- PASS: TestK3bPilotWindows/rate (0.00s)
+PASS
+ok  	durable-agent-execution-engine/internal/invariants	2.836s

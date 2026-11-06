@@ -1,0 +1,116 @@
+[
+  {
+    "name": "go-build",
+    "command": [
+      "go",
+      "build",
+      "./..."
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 26.906
+  },
+  {
+    "name": "go-vet",
+    "command": [
+      "go",
+      "vet",
+      "./..."
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 8.094
+  },
+  {
+    "name": "go-test",
+    "command": [
+      "go",
+      "test",
+      "-p",
+      "1",
+      "-count=1",
+      "./..."
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 160.047
+  },
+  {
+    "name": "go-window-test",
+    "command": [
+      "go",
+      "test",
+      "./internal/invariants",
+      "-run",
+      "^TestK3bPilotWindows$",
+      "-v",
+      "-count=1"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 4.594
+  },
+  {
+    "name": "ruff-check",
+    "command": [
+      "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+      "-m",
+      "ruff",
+      "check",
+      "python",
+      "tests",
+      "scripts/dur053_pilot_evidence.py",
+      "scripts/dur053_schedule.py",
+      "scripts/go_platform_filenames.py"
+    ],
+    "exit_code": 1,
+    "elapsed_seconds": 0.234
+  },
+  {
+    "name": "ruff-format",
+    "command": [
+      "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+      "-m",
+      "ruff",
+      "format",
+      "--check",
+      "python",
+      "tests",
+      "scripts/dur053_pilot_evidence.py",
+      "scripts/dur053_schedule.py",
+      "scripts/go_platform_filenames.py"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 0.125
+  },
+  {
+    "name": "mypy",
+    "command": [
+      "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+      "-m",
+      "mypy"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 8.187
+  },
+  {
+    "name": "pytest",
+    "command": [
+      "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+      "-m",
+      "pytest",
+      "--basetemp",
+      "D:\\coding agent files\\durable-engine\\codex\\r175\\pytest-full",
+      "-p",
+      "no:cacheprovider"
+    ],
+    "exit_code": 1,
+    "elapsed_seconds": 62.485
+  },
+  {
+    "name": "git-diff-check",
+    "command": [
+      "git",
+      "diff",
+      "--check"
+    ],
+    "exit_code": 0,
+    "elapsed_seconds": 0.063
+  }
+]
