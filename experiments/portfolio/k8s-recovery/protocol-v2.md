@@ -1050,3 +1050,98 @@ HEAD and tested-run blobs and refuses untracked or status-reported tooling
 changes. `.gitattributes` is included in that tooling inventory because it
 controls normalization. Raw artifact hashes remain raw: committed pilot evidence
 roots have `-text` attributes, including the engineering tooling evidence root.
+
+## Amendment B.4 - archived immutable evidence (Round 184 authorization)
+
+Claude authorized this storage-only amendment under D035 in Round 184/R257.
+The downloaded artifact, manifest bytes, raw-file hash set, all measurement
+rules and prior evidence remain immutable. New normal and interrupted intake
+uses the following representation at `EVIDENCE/<job>/<run_id>/`:
+
+1. Keep `manifest.json` raw and byte-identical. Keep `payload-index.json` raw,
+   schema `dur053.payload.v1`, listing archive paths, SHA-256, compressed byte
+   sizes and ordered member names. The ledger retains the original manifest
+   path/hash and adds `payload_index_sha256` over the raw index bytes.
+2. Store the other files in `payload/0000.tar.xz`, etc. Group root files
+   together, and each top-level directory separately, in first-member lexical
+   order; members within each group are sorted. Use Python stdlib USTAR tar
+   and XZ/LZMA2 preset 6 with a 128 MiB dictionary. Every member is a regular
+   file with mtime/uid/gid zero, empty uname/gname, and mode 0644. No links,
+   sparse files, devices, absolute paths, backslashes, drive paths, dot or
+   parent components are admitted. Archives are marked `binary` in Git.
+3. The per-archive maximum is **45,000,000 bytes** (decimal MB). A larger
+   group splits recursively at its sorted member-list midpoint, left before
+   right, until every archive fits. A single member that cannot fit refuses
+   intake; no file bytes may be dropped or transformed to meet the bound.
+   The total compressed payload maximum is **90,000,000 bytes**. Compress and
+   validate all limits in a temporary directory outside the repository before
+   creating the evidence directory or changing the ledger. This bound is four
+   times the measured 18,504,236-byte pilot payload, rounded up to a 45 MB
+   increment. It is a refusal bound, never permission to omit evidence.
+4. Every archive reader (manifest reader, initial dependencies, freeze and
+   offline recheck) verifies the committed manifest/index/archives, the raw
+   index hash against its committed ledger row, archive hashes and sizes,
+   exact layout and member inventory, then materialises regular files into a
+   fresh external temporary directory. Before data is consumed, the complete
+   extracted set must equal `artifact_sha256` and every raw hash must match.
+   Extra, duplicate, missing, unsafe or different content refuses. Readers
+   remove temporary materialisations when their scoped operation ends.
+   Offline recheck within freeze reads the already verified materialisation;
+   direct committed recheck supplies the repository for ledger verification.
+5. Already committed raw artifacts, including the 1 s pre-start refusal and
+   k3-smoke-v1, retain their original layout and validation. Exactly one layout
+   is accepted: an index or payload directory selects archived layout, which
+   allows only manifest, index and indexed archives. Raw-plus-archived content
+   refuses. Raw readers also copy verified files to fresh external temporary
+   directories before consumption. New intake always archives, including
+   interrupted partial bytes. Refuse empty source directories or non-regular
+   entries rather than silently erase directory evidence relevant to B.3.
+6. Retain every downloaded file byte, including checker/stdout duplicates.
+   Archive deduplication is compression only. No campaign dispatch, rate, L,
+   formula, minimum, cell, ceiling, reservation or execution behavior changes.
+
+Measured on the read-only run 42181882847 download via an external scratch
+copy (2026-11-06): 1,629,250,878 raw bytes, 534 files (590 entries counting
+directories), archived as root files 394,080; medium-0 651,872; medium-1
+787,712; medium-2 753,512; medium-3 757,096; short-0 687,844; short-1
+4,844,876; short-2 4,814,816; short-3 4,812,428 bytes. Total payload
+18,504,236 bytes. These are measured sizes for this run, not predictions for
+future jobs. Raw manifest and index sizes are reported separately in the
+Round 185 measurement record. Actual repository intake remains Claude's work
+after this amendment is reviewed and merged.
+
+### R256 additive engine-path saturation disclosure
+
+For every initial and repeat cell, freeze derives metrics only from the
+verified snapshot, arrivals and external witness retained in the artifact:
+offered rate; completion throughput; first-completion delay; carried warmup
+outbox backlog; measured outbox publish-lag p50/p99/max plus published and
+unpublished counts; latency medians in four consecutive arrival-order groups;
+and the p99 latency workflow's four phases (scheduled to ATTEMPT_CREATED,
+to witness start, to ATTEMPT_RESULT_RECORDED, to final-revision SUCCEEDED).
+Also report each phase's individual p99, explicitly separate from the
+additive decomposition of the single p99 workflow. Phase identities must
+match; missing/ambiguous phases refuse disclosure rather than fabricate data.
+
+Conservative definitions under Round 173: first-to-last completion throughput
+is (N-1)/(last completion - first completion), avoiding an inflated N over N-1
+intervals. Arrival-span throughput counts measured completions in the inclusive
+first-to-last scheduled-arrival interval, divided by that interval's duration.
+Either throughput below 0.9 times offered rate triggers disclosure. Backlog
+counts warmup outbox rows created at/before the first measured scheduled
+arrival and published strictly after it or still unpublished. Lag percentiles
+use published measured-workflow rows only; unpublished rows are explicitly
+counted, never assigned zero lag. Quartile medians use raw durable-minus-
+scheduled latencies in arrival order; p99 uses nearest rank, with arrival-order
+tie breaking. These diagnostic phases exclude the separate clock-bracket
+addition; registered latency/L calculation still includes that bracket.
+
+An arm's `engine_path_saturation` boolean is true whenever any repeat has
+either throughput below 0.9 times offered rate, nonzero carried warmup outbox
+backlog, or last-quartile median latency strictly greater than 1.5 times its
+first-quartile median. Equality at 0.9/1.5 does not trigger. The frozen output
+retains all initial/repeat metrics and triggers, the arm flag, and a limitation
+stating that L for the arm is derived under engine-path overload, depends on
+the 200-arrival window length and is not a steady-state latency target.
+K4-K7 reports must surface this flag alongside R251's existing disclosure.
+This adds no blocker or change to execution, rates, L, formulas or minima.

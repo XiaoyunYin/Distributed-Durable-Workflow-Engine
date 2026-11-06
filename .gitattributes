@@ -14,3 +14,6 @@
 # Immutable pilot evidence is hashed as raw artifact bytes.
 experiments/portfolio/k8s-recovery/k3-pilot-v1/** -text
 experiments/portfolio/k8s-recovery/k3b-tooling-v1/** -text
+
+# B.4 deterministic compressed immutable payloads.
+experiments/portfolio/k8s-recovery/k3-pilot-v1/**/payload/*.tar.xz binary

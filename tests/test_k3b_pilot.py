@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -82,6 +83,9 @@ def fixture_run(
             "claim_token": "token",
             "worker_id": "worker",
             "monotonic_ns": 1,
+            "timestamp": (
+                datetime.fromisoformat(row["scheduled_at"]) + timedelta(seconds=0.25)
+            ).isoformat(),
         }
         end = {
             **start,
@@ -125,6 +129,7 @@ def fixture_run(
                         {
                             "workflow_id": row["workflow_id"],
                             "new_state": "SUCCEEDED",
+                            "reason": "GRAPH_ADVANCED",
                             "revision": 3,
                             "created_at": (
                                 datetime.fromisoformat(row["scheduled_at"]) + timedelta(seconds=1)
@@ -132,10 +137,45 @@ def fixture_run(
                         }
                         for row in rows
                     ]
+                    + [
+                        {
+                            "workflow_id": row["workflow_id"],
+                            "new_state": "WAITING_ACTIVITY",
+                            "reason": reason,
+                            "revision": 2,
+                            "node_id": "activity",
+                            "iteration": 0,
+                            "attempt_number": 1,
+                            "created_at": (
+                                datetime.fromisoformat(row["scheduled_at"])
+                                + timedelta(seconds=delay)
+                            ).isoformat(),
+                        }
+                        for row in rows
+                        for reason, delay in (
+                            ("ATTEMPT_CREATED", 0.1),
+                            ("ATTEMPT_RESULT_RECORDED", 0.5),
+                        )
+                    ]
+                },
+                "engine.outbox": {
+                    "rows": [
+                        {
+                            "workflow_id": row["workflow_id"],
+                            "created_at": row["scheduled_at"],
+                            "published_at": row["scheduled_at"],
+                        }
+                        for row in rows
+                    ]
                 },
             }
         },
     )
+    trace = json.loads((directory / "snapshot.json").read_bytes())
+    trace["Snapshot"]["engine.transition_history"]["rows"].sort(
+        key=lambda row: row["new_state"] == "SUCCEEDED"
+    )
+    save(directory / "snapshot.json", trace)
     record = {
         "arm": arm,
         "index": index,
@@ -805,6 +845,7 @@ class K3bPilotTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
             (directory / "warmup-snapshot.json").write_text("{}")
+            save(directory / "manifest.json", {"artifact_sha256": artifact_hashes(directory)})
             with (
                 patch.object(
                     evidence.subprocess,
@@ -989,7 +1030,17 @@ class K3bPilotTests(unittest.TestCase):
             self.assertEqual(json.loads((root / "calibration.json").read_bytes())["status"], "FAIL")
 
     def test_freeze_reproducible_and_calibration_guards(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        # This historical fixture mocks artifact admission to exercise freeze guards;
+        # committed raw/archive materialisation is covered in test_k3b_payload.
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.object(
+                evidence, "materialize", side_effect=lambda root, _repo=None: nullcontext(root)
+            ),
+            patch.object(
+                pilot, "committed_bytes", side_effect=lambda _repo, path: path.read_bytes()
+            ),
+        ):
             repository = Path(tmp)
             available = []
             for n, (job, cells) in enumerate(pilot.JOBS.items()):
@@ -1089,7 +1140,10 @@ class K3bPilotTests(unittest.TestCase):
                 self.assertFalse(any("under overload" in x for x in result["limitations"]))
                 for arm in pilot.ARMS:
                     self.assertEqual(
-                        result["arms"][arm]["repeats"],
+                        [
+                            {k: v for k, v in repeat.items() if k != "engine_path_metrics"}
+                            for repeat in result["arms"][arm]["repeats"]
+                        ],
                         [
                             {
                                 "index": i,
@@ -1159,7 +1213,11 @@ class K3bPilotTests(unittest.TestCase):
                         record_path.write_bytes(before_record)
                         arrival_path.write_bytes(before_arrival)
                     self.assertEqual(
-                        observed["arms"]["cpu"]["repeats"][0],
+                        {
+                            k: v
+                            for k, v in observed["arms"]["cpu"]["repeats"][0].items()
+                            if k != "engine_path_metrics"
+                        },
                         {
                             "index": 1,
                             "b": busy,
@@ -1474,10 +1532,13 @@ class K3bPilotTests(unittest.TestCase):
             self.assertEqual(
                 recorded["charged_seconds"], 18900, "pilot guard bypassed interrupted-charge"
             )
-            self.assertEqual(
-                (target / "downloaded/actions-run.json").read_bytes(),
-                (failed / "actions-run.json").read_bytes(),
-            )
+            from dur053_payload import materialize
+
+            with materialize(target) as verified:
+                self.assertEqual(
+                    (verified / "downloaded/actions-run.json").read_bytes(),
+                    (failed / "actions-run.json").read_bytes(),
+                )
             with self.assertRaises(ValueError, msg="pilot guard bypassed interrupted-existing"):
                 intake.interrupted(failed, repository, "k3-pilot-2")
             job["conclusion"] = "success"
@@ -1788,7 +1849,10 @@ class K3bPilotTests(unittest.TestCase):
                 ledger, {"schema": "dur053.live-ledger.v1", "limit_seconds": 259200, "entries": []}
             )
             target = intake.record(source, repository)
-            self.assertEqual(artifact_hashes(source), artifact_hashes(target))
+            from dur053_payload import materialize
+
+            with materialize(target) as verified:
+                self.assertEqual(artifact_hashes(source), artifact_hashes(verified))
             self.assertEqual(
                 json.loads(ledger.read_bytes())["entries"][0]["category"], "k3-pilot-1a"
             )
