@@ -1,0 +1,11 @@
+{
+  "internal/invariants/k3b_pilot_window_union_test.go": "f9d371997f2448431ac8679987e91cb4eb31260206cfb8c63161cd965d6c7f54",
+  "scripts/go_platform_filenames.py": "05d16781375ba4896c2b3d1d98ccdc640176551bdcdbd55c098b9d8ca7b96005",
+  "scripts/dur053_pilot_evidence.py": "a323a57cb05f14df837e6c9546d2cbad866e6fe05605c49bc0069ae811409bb0",
+  "scripts/dur053_schedule.py": "dbf20131134887cfcf8f5827ab0785b4c70b8161e1f19b90d739ad467e5ae338",
+  "scripts/mutation-runner.py": "18391376ba1c416465d00f511839f4373289eb06c180cb7d4c16b7c80b1b1517",
+  "tests/test_go_platform_filenames.py": "72afb26c04fbbc1099e6e2f24f2bb3ff5f4a2ab7a9493abcb91f9c39ec86e666",
+  "tests/test_k3b_pilot.py": "be03746e015934eabd90f75a7e1d559e7edd8d853547587dca94b40ad591766c",
+  "tests/test_mutation_runner.py": "ed3b7c97fef340c5e1f0ab74063303bd2e18e86711056b7f3676fe5ee1f4b981",
+  "mutations/manifest.json": "6b0f5da24926a41243c5ab084e2615a0babef5df8d4405e396d3e7cdf75b4d8a"
+}

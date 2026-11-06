@@ -1,0 +1,17 @@
+{
+  "cases": 516,
+  "all_case_ids_match": true,
+  "all_named_baselines": "PASS",
+  "all_mutations": "PASS",
+  "all_current_source_hashes_match": true,
+  "implementation_hashes_unchanged": true,
+  "native_window_baselines": [
+    "k3b-checker-window-metadata",
+    "k3b-checker-window-extra",
+    "k3b-checker-window-identity",
+    "k3b-checker-window-missing",
+    "k3b-checker-window-sequence",
+    "k3b-checker-window-rate"
+  ],
+  "linux_execution": "NOT RUN; hosted proof required"
+}

@@ -125,3 +125,38 @@ def test_pytest_case_uses_a_nested_basetemp(tmp_path: Path) -> None:
     result = subprocess.run(command, capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stdout + result.stderr
     assert "1 passed" in result.stdout
+
+
+def test_working_tree_export_removes_deleted_platform_test(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    import io
+    import tarfile
+
+    runner = load_runner()
+    repository, destination = tmp_path / "repo", tmp_path / "export"
+    repository.mkdir()
+    destination.mkdir()
+    old = "internal/invariants/k3b_windows_test.go"
+    new = "internal/invariants/k3b_pilot_window_union_test.go"
+    (repository / new).parent.mkdir(parents=True)
+    (repository / new).write_bytes(b"package invariants\n")
+    archive = io.BytesIO()
+    with tarfile.open(fileobj=archive, mode="w") as handle:
+        entry = tarfile.TarInfo(old)
+        entry.size = 3
+        handle.addfile(entry, io.BytesIO(b"old"))
+
+    def output(command: list[str], **_kwargs: object) -> bytes:
+        if "archive" in command:
+            return archive.getvalue()
+        if "--diff-filter=D" in command:
+            return old.encode() + b"\0"
+        if "--others" in command:
+            return new.encode() + b"\0"
+        return b""
+
+    monkeypatch.setattr(runner.subprocess, "check_output", output)
+    runner.export_head(repository, destination, working_tree=True)
+    assert not (destination / old).exists(), "deleted platform test retained in mutation export"
+    assert (destination / new).read_bytes() == b"package invariants\n"

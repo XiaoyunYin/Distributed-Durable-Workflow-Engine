@@ -1019,6 +1019,108 @@ class K3bPilotTests(unittest.TestCase):
                     dict.fromkeys(pilot.ARMS, 2.004),
                     "freeze L must reproduce durable timestamp latencies",
                 )
+                self.assertFalse(any("under overload" in x for x in result["limitations"]))
+                for arm in pilot.ARMS:
+                    self.assertEqual(
+                        result["arms"][arm]["repeats"],
+                        [
+                            {
+                                "index": i,
+                                "b": 0.1,
+                                "measured_rate": 20.0,
+                                "implied_utilisation": 0.5,
+                            }
+                            for i in range(1, 4)
+                        ],
+                        "repeat load disclosure missing",
+                    )
+                    self.assertEqual(
+                        result["observed_schedule"]["busy_time_sensitivity"][arm],
+                        {"initial_b": 0.1, "max_repeat_b": 0.1},
+                    )
+                original_summarize = evidence.summarize
+                original_rates = pilot.rates
+                # Keep all fixture validation; vary only the measured summary's busy time.
+                # Exercise each OR branch and the strict equality boundaries independently.
+                for busy, rate, limited in (
+                    (0.15, 20, False),
+                    (0.151, 20, True),
+                    (0.1, 40, False),
+                    (0.1, 40.01, True),
+                    (0.3, 20, True),
+                ):
+
+                    def measured_summary(
+                        directory: Path, *, busy: float = busy, **kwargs: object
+                    ) -> dict:
+                        summary = original_summarize(directory, **kwargs)
+                        if directory.name == "cpu-1":
+                            summary["b"] = busy
+                        return summary
+
+                    # Registered rates remain valid: for utilisation-only cases, exercise
+                    # disclosure arithmetic with an initial reference yielding that rate.
+                    def fixture_rates(
+                        arm: str, index: int, initial: dict, rate: float = rate
+                    ) -> tuple:
+                        warm, measured = original_rates(arm, index, initial)
+                        return (warm, rate) if arm == "cpu" and index == 1 else (warm, measured)
+
+                    cpu_root = available[1][0]
+                    record_path = cpu_root / "cpu-1/record.json"
+                    arrival_path = cpu_root / "cpu-1/measured-arrivals.json"
+                    before_arrival = arrival_path.read_bytes()
+                    arrival = json.loads(before_arrival)
+                    arrival["rate"] = rate
+                    save(arrival_path, arrival)
+                    before_record = record_path.read_bytes()
+                    record = json.loads(before_record)
+                    record["measured_rate"] = rate
+                    save(record_path, record)
+                    try:
+                        with (
+                            patch.object(evidence, "summarize", side_effect=measured_summary),
+                            patch.object(pilot, "rates", side_effect=fixture_rates),
+                            patch.object(
+                                evidence,
+                                "committed_bytes",
+                                side_effect=lambda _repo, path: path.read_bytes(),
+                            ),
+                        ):
+                            observed = evidence.freeze(repository, Path("checker-fixture"))
+                    finally:
+                        record_path.write_bytes(before_record)
+                        arrival_path.write_bytes(before_arrival)
+                    self.assertEqual(
+                        observed["arms"]["cpu"]["repeats"][0],
+                        {
+                            "index": 1,
+                            "b": busy,
+                            "measured_rate": rate,
+                            "implied_utilisation": rate * busy / 4,
+                        },
+                        "repeat load disclosure missing",
+                    )
+                    limitations = [x for x in observed["limitations"] if "under overload" in x]
+                    self.assertEqual(
+                        bool(limitations), limited, "repeat overload disclosure missing"
+                    )
+                    if limited:
+                        self.assertIn(
+                            "scheduling reference does not hold under load", limitations[0]
+                        )
+                    self.assertEqual(
+                        observed["observed_schedule"]["busy_time_sensitivity"]["cpu"],
+                        {"initial_b": 0.1, "max_repeat_b": max(0.1, busy)},
+                    )
+                    # Sensitivity must never alter any existing scheduling calculation or L/r/b.
+                    for key in result["observed_schedule"]:
+                        if key != "busy_time_sensitivity":
+                            self.assertEqual(
+                                observed["observed_schedule"][key], result["observed_schedule"][key]
+                            )
+                    for key in ("b", "r", "L", "arrival_concurrency_cap"):
+                        self.assertEqual(observed["arms"]["cpu"][key], result["arms"]["cpu"][key])
                 for label, edit in (
                     ("all-cells", lambda: available.pop()),
                     ("duplicate-cell", lambda: available[0][1]["completed"].append("short-0")),

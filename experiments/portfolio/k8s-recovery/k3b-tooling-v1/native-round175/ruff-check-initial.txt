@@ -1,0 +1,31 @@
+B023 Function definition does not bind loop variable `busy`
+    --> tests\test_k3b_pilot.py:1055:44
+     |
+1053 |                         summary = original_summarize(directory, **kwargs)
+1054 |                         if directory.name == "cpu-1":
+1055 |                             summary["b"] = busy
+     |                                            ^^^^
+1056 |                         return summary
+     |
+
+B023 Function definition does not bind loop variable `original_rates`
+    --> tests\test_k3b_pilot.py:1063:42
+     |
+1062 |                     def fixture_rates(arm: str, index: int, initial: dict) -> tuple:
+1063 |                         warm, measured = original_rates(arm, index, initial)
+     |                                          ^^^^^^^^^^^^^^
+1064 |                         return (warm, rate) if arm == "cpu" and index == 1 else (warm, measured)
+     |
+
+B023 Function definition does not bind loop variable `rate`
+    --> tests\test_k3b_pilot.py:1064:39
+     |
+1062 |                     def fixture_rates(arm: str, index: int, initial: dict) -> tuple:
+1063 |                         warm, measured = original_rates(arm, index, initial)
+1064 |                         return (warm, rate) if arm == "cpu" and index == 1 else (warm, measured)
+     |                                       ^^^^
+1065 |
+1066 |                     cpu_root = available[1][0]
+     |
+
+Found 3 errors.

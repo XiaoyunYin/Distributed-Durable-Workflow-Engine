@@ -1,0 +1,15 @@
+{
+  "status": "BLOCKED",
+  "reason": "Automatic approval review rejected path-checked incidental-cache cleanup, one literal task-created bytecode-file removal, and the literal path-checked owned r175 recursive removal; each stated only blocked by policy. No requested manual cache/root cleanup command executed; the mutation runner removed its own disposable exports normally. No approval escalation or alternate deletion mechanism attempted.",
+  "database_status": "PASS",
+  "database_evidence": "round175-database-cleanup.json",
+  "owned_scratch": "D:\\coding agent files\\durable-engine\\codex\\r175",
+  "owned_scratch_exists": true,
+  "incidental_repo_caches": "Remain from initial failed environment-script launch; subsequent child processes used owned TEMP/TMP/TMPDIR/GOTMPDIR/caches and pytest basetemp.",
+  "preexisting_r174": "Untouched; locked pytest-full ignored.",
+  "observed_at_utc": "2026-11-06T01:37:55.097946+00:00",
+  "observed_codex_root_listing": [
+    "r174",
+    "r175"
+  ]
+}

@@ -105,6 +105,12 @@ def export_head(repo: Path, destination: Path, working_tree: bool = False) -> No
 
     if working_tree:
         # Reviewable uncommitted source must be tested as well as committed CI.
+        deleted = subprocess.check_output(
+            ["git", "diff", "--name-only", "--diff-filter=D", "-z", "HEAD"], cwd=repo
+        )
+        for raw in deleted.split(b"\0"):
+            if raw:
+                (destination / Path(os.fsdecode(raw))).unlink(missing_ok=True)
         changed = subprocess.check_output(["git", "diff", "--name-only", "--diff-filter=ACMRT", "-z", "HEAD"], cwd=repo)
         added = subprocess.check_output(["git", "ls-files", "--others", "--exclude-standard", "-z"], cwd=repo)
         for raw in changed.split(b"\0") + added.split(b"\0"):

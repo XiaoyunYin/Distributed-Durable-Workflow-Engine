@@ -300,10 +300,12 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
     )
     calibration = verify_calibration(calibration_roots[0])
     arms = {}
+    load_limitations = []
     from dur053_pilot import rates
 
     for arm in ("short", "medium", "long", "cpu"):
         root, initial = cells[(arm, 0)]
+        repeats = []
         for i in range(4):
             current, _ = cells[(arm, i)]
             record = json.loads((current / f"{arm}-{i}/record.json").read_bytes())
@@ -311,6 +313,17 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
             require(
                 (record["warmup_rate"], record["measured_rate"]) == expected, "pilot-freeze-rates"
             )
+            if i:
+                repeats.append(
+                    {
+                        "index": i,
+                        "b": cells[(arm, i)][1]["b"],
+                        "measured_rate": record["measured_rate"],
+                        "implied_utilisation": record["measured_rate"]
+                        * cells[(arm, i)][1]["b"]
+                        / 4,
+                    }
+                )
             if arm == "cpu":
                 require(
                     record["cpu_units"] == calibration["units"]
@@ -343,7 +356,19 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
             "r": initial["r"],
             "L": slo([cells[(arm, i)][1]["latencies"] for i in range(1, 4)]),
             "arrival_concurrency_cap": 16,
+            "repeats": repeats,
+            "max_repeat_b": max(repeat["b"] for repeat in repeats),
         }
+        if any(
+            repeat["implied_utilisation"] > 1 or repeat["b"] > 1.5 * initial["b"]
+            for repeat in repeats
+        ):
+            load_limitations.append(
+                f"{arm}: L was measured under overload; the scheduling reference does not "
+                "hold under load (repeat utilisation > 1 or b > 1.5 times initial b). "
+                "Repeat busy times are a disclosed sensitivity only; registered reservations "
+                "are unchanged."
+            )
     from dur053_schedule import observed_plan
 
     return {
@@ -374,5 +399,6 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
             "reports max/p99 polling-minus-durable differences; shared kind kernel clock only, "
             "no cross-host clock-drift guarantee",
             "not a capacity or sustainable-throughput claim",
-        ],
+        ]
+        + load_limitations,
     }

@@ -1,0 +1,26 @@
+{
+  "schema": "dur053.round175-hosted-disclosure.v1",
+  "scope": "read-only engineering smoke recomputation, not registered freeze input",
+  "hosted_run": "42132244312",
+  "source_commit": "cd17761ba2a9e6ffdad33abc8980dc2aa3a6e639",
+  "arms": {
+    "short": {
+      "initial_b": 0.0806031069,
+      "repeat_b": 0.0809024668,
+      "measured_rate": 24.812939313633333,
+      "implied_utilisation": 0.5018569997579089,
+      "repeat_to_initial_b_ratio": 1.0037139995158177,
+      "initial_record_sha256": "0210f67252e6db0855c82144a3b18180a162e8011782c352991c881f39f3e611",
+      "repeat_record_sha256": "dc70161487f4ac75aec453b4673ac39b08a40300193d4292c563e9a7a5d6ba59"
+    },
+    "cpu": {
+      "initial_b": 0.4869421329,
+      "repeat_b": 1.151506815,
+      "measured_rate": 4.107264220676353,
+      "implied_utilisation": 1.1823856852786212,
+      "repeat_to_initial_b_ratio": 2.364771370557243,
+      "initial_record_sha256": "f2b1648bbde7e4129d4a9ab718c06ce48088477984bdbde5d9b2d7397a9d3e8f",
+      "repeat_record_sha256": "fcc716c58e3e485e6887695fe2c43e854f73c951d9911b6a3c6f1312b67b6240"
+    }
+  }
+}

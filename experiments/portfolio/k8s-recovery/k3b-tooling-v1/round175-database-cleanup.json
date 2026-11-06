@@ -1,0 +1,11 @@
+{
+  "status": "PASS",
+  "databases_dropped": [
+    "dur053_r175_integration",
+    "dur053_r175_pytest",
+    "dur053_r175_mutation"
+  ],
+  "independently_queried_remaining": [],
+  "migration_test_children_remaining": [],
+  "server_version": "18.6 (Debian 18.6-1.pgdg12+2)"
+}

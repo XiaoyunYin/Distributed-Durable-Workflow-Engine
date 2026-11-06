@@ -176,6 +176,11 @@ def observed_plan(arms: dict, cpu_duration: float) -> dict:
             )
     return {
         "schema": "dur053.observed-schedule.v1",
+        "busy_time_sensitivity": {
+            arm: {"initial_b": values["b"], "max_repeat_b": values["max_repeat_b"]}
+            for arm, values in arms.items()
+            if "max_repeat_b" in values
+        },
         "units": units,
         "campaign_episodes": sum(x["episodes"] for x in units),
         "reconciliation_timeout_seconds": timeout,

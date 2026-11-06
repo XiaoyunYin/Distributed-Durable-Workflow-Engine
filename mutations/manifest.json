@@ -8580,6 +8580,102 @@
       ],
       "expected": "changed observed Service IP must fail closed",
       "requires_database": false
+    },
+    {
+      "id": "go-platform-filename-guard",
+      "kind": "behavioral",
+      "file": "scripts/go_platform_filenames.py",
+      "old": "and path not in ALLOWLIST",
+      "new": "and False",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_go_platform_filenames.py::test_platform_suffix_guard_rejects_accidental_file",
+        "-q"
+      ],
+      "expected": "platform suffix guard bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-repeat-overload-disclosure",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "if any(\n            repeat[\"implied_utilisation\"] > 1 or repeat[\"b\"] > 1.5 * initial[\"b\"]\n            for repeat in repeats\n        ):",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "repeat overload disclosure missing",
+      "requires_database": false
+    },
+    {
+      "id": "mutation-export-deleted-files",
+      "kind": "behavioral",
+      "file": "scripts/mutation-runner.py",
+      "old": "(destination / Path(os.fsdecode(raw))).unlink(missing_ok=True)",
+      "new": "pass # mutation: retain deleted file",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_mutation_runner.py::test_working_tree_export_removes_deleted_platform_test",
+        "-q"
+      ],
+      "expected": "deleted platform test retained in mutation export",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-repeat-load-fields",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "\"repeats\": repeats,",
+      "new": "\"repeats\": [],",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "repeat load disclosure missing",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-repeat-utilisation-trigger",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "repeat[\"implied_utilisation\"] > 1 or repeat[\"b\"] > 1.5 * initial[\"b\"]",
+      "new": "repeat[\"b\"] > 1.5 * initial[\"b\"]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "repeat overload disclosure missing",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-repeat-busy-trigger",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "repeat[\"implied_utilisation\"] > 1 or repeat[\"b\"] > 1.5 * initial[\"b\"]",
+      "new": "repeat[\"implied_utilisation\"] > 1",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_pilot.py::K3bPilotTests::test_freeze_reproducible_and_calibration_guards",
+        "-q"
+      ],
+      "expected": "repeat overload disclosure missing",
+      "requires_database": false
     }
   ]
 }

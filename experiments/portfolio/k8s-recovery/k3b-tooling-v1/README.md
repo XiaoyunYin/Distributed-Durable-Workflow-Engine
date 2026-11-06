@@ -130,3 +130,51 @@ is ["r174"]. Eleven task databases were dropped and queried absent.
 round174-cleanup.json and the final REVIEW block explicitly supersede
 earlier planned-removal wording. Source/native checks PASS; the handoff
 remains PROVISIONAL/IN_PROGRESS with this cleanup limitation recorded.
+
+
+## Round 175 current correction - 2026-11-06
+
+Base cd17761ba2a9e6ffdad33abc8980dc2aa3a6e639, uncommitted R250/R251 proposal.
+Historical native-validation.json and mutation output mentioning the former
+Windows-only filename retain their original bytes. Current Go source is
+`internal/invariants/k3b_pilot_window_union_test.go`; the named test and six
+existing checker-window mutation selectors remain `TestK3bPilotWindows`.
+The offline suffix guard is `tests/test_go_platform_filenames.py`, with the
+five exact intentional exceptions in `scripts/go_platform_filenames.py`.
+The mutation working-tree overlay now removes deleted tracked files before
+copying replacements. New behavioral mutations cover that regression, suffix
+rejection, repeat fields and both overload disclosure triggers.
+
+Freeze `arms[arm].repeats` records index, b, measured_rate and
+implied_utilisation = measured_rate*b/4. `max_repeat_b` and
+`observed_schedule.busy_time_sensitivity[arm]` disclose maximum repeat b beside
+initial b. A repeat utilisation > 1 OR b > 1.5*initial b adds the specified
+limitation. Sensitivity does not alter any registered calculation. Synthetic
+fixtures compare every previous planning field, b, r, L and cap unchanged.
+
+Native rerun evidence is recorded separately for this round. It cannot prove
+Linux compilation/execution. Hosted run 42132244312 proves the prior engineering
+pilot smoke only: its services job failed R250. A future hosted PR-head services
+run must be green and log `--- PASS: TestK3bPilotWindows` in its mutation baseline.
+No new hosted run, local kind, registered pilot, calibration or freeze is claimed.
+
+
+Final current evidence: [native validation](round175-native-validation.json),
+[516-case gate](mutation-round175.json), [native logs](native-round175/),
+[read-only engineering recomputation](round175-hosted-disclosure.json),
+[database cleanup](round175-database-cleanup.json), and
+[manual cleanup result](round175-cleanup.json). Native Go build/vet/PostgreSQL
+suite, Ruff check/format (87 files), mypy (44 sources), full pytest (287 passed,
+three optional service skips), public links and diff checks PASS. The initial
+configured pgvector attempt had two setup errors and is preserved separately.
+The complete native gate took 3662.672 s; every named baseline/mutation plus the
+restored baseline passes, and final source hashes match. All six native union
+baselines explicitly execute TestK3bPilotWindows. None is Linux execution proof.
+
+All three task DBs were dropped and independently queried absent; no migration
+child remains. The mutation runner cleaned its own disposable exports. Manual
+cache/root cleanup was rejected by automatic approval review with "blocked by
+policy"; r175 and incidental caches remain. Pre-existing r174/pytest-full was
+ignored. No commit, dispatch, local kind, registered pilot/calibration or real
+freeze occurred. K3b remains IN_PROGRESS/PROVISIONAL, pending fixed-target review
+and hosted Linux services proof. Earlier round artifacts remain historical.
