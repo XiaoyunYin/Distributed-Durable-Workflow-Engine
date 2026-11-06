@@ -13,6 +13,7 @@ from typing import Any
 from dur053_campaign import live_charge
 from dur053_k3 import save
 from dur053_k3_policy import ROOT, artifact_hashes, ledger_check, require
+from dur053_payload import pack, scratch
 from dur053_pilot import CEILING, EVIDENCE, job_base, read_artifact
 
 
@@ -61,7 +62,12 @@ def record(source: Path, repository: Path = ROOT) -> Path:
         artifact=(target / "manifest.json").relative_to(repository).as_posix(),
         artifact_sha256=hashlib.sha256(raw).hexdigest(),
     )
-    shutil.copytree(source, target)
+    with scratch(repository) as staging:
+        pack(source, staging)
+        row["payload_index_sha256"] = hashlib.sha256(
+            (staging / "payload-index.json").read_bytes()
+        ).hexdigest()
+        shutil.copytree(staging, target)
     ledger["entries"].append(row)
     save(ledger_path, ledger)
     return target
@@ -73,6 +79,11 @@ def interrupted(source: Path, repository: Path, name: str) -> Path:
     source contains actions-run.json and actions-job.json downloaded by Claude.
     No partial manifest can supply a refund or satisfy pilot dependencies.
     """
+    with scratch(repository) as staging:
+        return _interrupted(source, repository, name, staging)
+
+
+def _interrupted(source: Path, repository: Path, name: str, staging: Path) -> Path:
     job_base(name)
     require(
         not source.is_symlink() and all(not p.is_symlink() for p in source.rglob("*")),
@@ -91,7 +102,8 @@ def interrupted(source: Path, repository: Path, name: str) -> Path:
     target = repository / EVIDENCE / name / str(run["id"])
     require(not target.exists(), "pilot-interrupted-existing")
     # The original partial artifact (including any manifest) remains byte-identical.
-    shutil.copytree(source, target / "downloaded")
+    raw = staging / "raw"
+    shutil.copytree(source, raw / "downloaded")
     manifest: dict[str, Any] = {
         "schema": "dur053.k3b.v1",
         "job": name,
@@ -110,11 +122,11 @@ def interrupted(source: Path, repository: Path, name: str) -> Path:
         "completed": [],
         "cleanup": {"status": "UNTRUSTWORTHY"},
         "error": "termination: full reservation charged",
-        "artifact_sha256": artifact_hashes(target),
+        "artifact_sha256": artifact_hashes(raw),
     }
     commit = json.loads((source / "actions-commit.json").read_bytes())
     require(commit["sha"] == run["head_sha"], "pilot-interrupted-commit")
-    save(target / "manifest.json", manifest)
+    save(raw / "manifest.json", manifest)
     ledger_path = repository / "experiments/portfolio/k8s-recovery/live-time-ledger.json"
     ledger = json.loads(ledger_path.read_bytes())
     ledger_check(ledger, CEILING, set())
@@ -137,8 +149,15 @@ def interrupted(source: Path, repository: Path, name: str) -> Path:
     row.update(
         category=name,
         artifact=(target / "manifest.json").relative_to(repository).as_posix(),
-        artifact_sha256=hashlib.sha256((target / "manifest.json").read_bytes()).hexdigest(),
+        artifact_sha256=hashlib.sha256((raw / "manifest.json").read_bytes()).hexdigest(),
     )
+    archives = staging / "archives"
+    archives.mkdir()
+    pack(raw, archives)
+    row["payload_index_sha256"] = hashlib.sha256(
+        (archives / "payload-index.json").read_bytes()
+    ).hexdigest()
+    shutil.copytree(archives, target)
     ledger["entries"].append(row)
     save(ledger_path, ledger)
     return target

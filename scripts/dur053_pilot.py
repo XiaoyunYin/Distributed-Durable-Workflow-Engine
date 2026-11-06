@@ -13,7 +13,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-from dur053_k3_policy import artifact_hashes, require
+from dur053_k3_policy import require
 
 ARMS = {"short": 0.1, "medium": 5.0, "long": 45.0, "cpu": 1.0}
 PLANNING_RATES = {"short": 50.0, "medium": 1.0, "long": 1 / 9, "cpu": 4.0}
@@ -174,29 +174,20 @@ def committed_bytes(repository: Path, path: Path) -> bytes:
 
 
 def read_artifact(directory: Path, repository: Path | None = None) -> dict[str, Any]:
-    require(
-        directory.is_dir()
-        and not directory.is_symlink()
-        and all(not p.is_symlink() for p in directory.rglob("*")),
-        "pilot-artifact-symlinks",
-    )
-    raw = (directory / "manifest.json").read_bytes()
-    manifest = json.loads(raw)
+    from dur053_payload import materialize
+
+    with materialize(directory, repository) as verified:
+        manifest = json.loads((verified / "manifest.json").read_bytes())
     require(
         manifest["schema"] == "dur053.k3b.v1"
         and manifest["budget_scope"] == "registered-campaign"
         and manifest["measurement_claim"] is True,
         "pilot-registered-only",
     )
-    require(manifest["artifact_sha256"] == artifact_hashes(directory), "pilot-artifact-hashes")
     require(
         all(str(manifest[k]).isdigit() for k in ("run_id", "job_id")), "pilot-artifact-identity"
     )
     job_base(manifest["job"])
-    if repository is not None:
-        committed_bytes(repository, directory / "manifest.json")
-        for relative in manifest["artifact_sha256"]:
-            committed_bytes(repository, directory / relative)
     return manifest
 
 
@@ -465,7 +456,14 @@ def summarize(directory: Path, *, engineering: bool = False) -> dict[str, Any]:
 
 
 def initial_dependency(directory: Path, arm: str, repository: Path | None = None) -> dict[str, Any]:
-    manifest = read_artifact(directory, repository)
+    from dur053_payload import materialize
+
+    with materialize(directory, repository) as verified:
+        return _initial_dependency(verified, arm, directory)
+
+
+def _initial_dependency(directory: Path, arm: str, original: Path) -> dict[str, Any]:
+    manifest = read_artifact(directory)
     require(
         manifest["status"] in {"PASS", "CARRY_OVER"} and manifest["cleanup"]["status"] == "PASS",
         "pilot-dependency-accepted-job",
@@ -477,7 +475,7 @@ def initial_dependency(directory: Path, arm: str, repository: Path | None = None
     record = json.loads((directory / relative / "record.json").read_bytes())
     require(record["b"] == result["b"] and record["r"] == result["r"], "pilot-dependency-br")
     return {
-        "artifact": directory.as_posix(),
+        "artifact": original.as_posix(),
         "manifest_sha256": hashlib.sha256((directory / "manifest.json").read_bytes()).hexdigest(),
         **result,
     }

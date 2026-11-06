@@ -1,0 +1,91 @@
+{
+  "schema": "dur053.round185.validation.v1",
+  "base_commit": "32f1210498c9b02f2fc83009ce7c7afa79c41241",
+  "branch": "codex/k8s-k3b-r256",
+  "target_commit": null,
+  "handoff_basis": "PROVISIONAL",
+  "task_status": "IN_PROGRESS",
+  "checks": [
+    {
+      "command": "uv run --no-sync python -m pytest -q --basetemp D:/coding agent files/durable-engine/codex/r185/pytest-final -p no:cacheprovider",
+      "result": "315 passed, 3 skipped, 64 subtests passed in 83.38s"
+    },
+    {
+      "command": "uv run --no-sync ruff check python tests; uv run --no-sync ruff format --check python tests",
+      "result": "PASS, 83 files formatted"
+    },
+    {
+      "command": "uv run --no-sync ruff check/format --check <five changed DUR-053 scripts>",
+      "result": "PASS"
+    },
+    {
+      "command": "uv run --no-sync mypy",
+      "result": "PASS: 44 source files"
+    },
+    {
+      "command": "uv run --no-sync mypy --follow-imports=silent scripts/dur053_payload.py scripts/dur053_saturation.py",
+      "result": "PASS: 2 source files"
+    },
+    {
+      "command": "go build -o <Codex temp>/dur049-checker.exe ./cmd/dur049-checker",
+      "result": "PASS; real checker used on all eight recorded pilot snapshots by freeze reader"
+    },
+    {
+      "command": "scripts/mutation-gate.sh <Codex temp>/mutations-final.json with PYTHON wrapper injecting 13-case selection from mutations/manifest.json",
+      "result": "13/13 PASS, named semantic tests; native Windows Git Bash, not genuine Linux; includes Go package baseline"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS before final handoff append; final recheck recorded in REVIEW"
+    }
+  ],
+  "optional_skips": [
+    "DUR055_TEST_DATABASE_URL unset: two PostgreSQL tests",
+    "DURABLE_KAFKA_BROKERS unset: real Kafka witness"
+  ],
+  "unavailable": [
+    "Genuine Linux mutation execution: wsl --list --quiet returns Wsl/EnumerateDistros/Service/E_ACCESSDENIED",
+    "Hosted CI/PR validation and fixed-target Claude review: no commit or workflow dispatch authorized",
+    "No complete campaign freeze: CPU/long cells do not yet exist"
+  ],
+  "not_run": [
+    "No Go source changes: no full go build ./..., go vet ./..., go test ./... or race rerun; checker build and Go subprocess/package tests ran as recorded",
+    "No fresh PostgreSQL/Kafka integration, live campaign, kind, workload or benchmark; no temporary databases created"
+  ],
+  "failed_or_superseded_attempts": [
+    "Initial full pytest: Go subprocesses failed with inaccessible default cache plus two fixture assumptions invalidated by enriched history/archive layout. GOCACHE/GOTMPDIR moved below Codex temp; fixtures corrected; subsequent full runs passed.",
+    "Initial targeted fixture helper omitted ledger parent mkdir; corrected.",
+    "Mutation attempts refused independent-test import failures; added explicit scripts paths. A retargeted raw-hash mutant initially survived redundant validation, so admission now verifies the copied raw set once before yielding; retargeted the guard to that check. Final 13-case gate passes without unrelated errors or skipped baselines.",
+    "Additional mypy on the new scripts caught reused dict/float variable names and missing/nonnarrowed annotations; renamed the witness start and added types/explicit None refusal. Final check passes."
+  ],
+  "source_sha256": {
+    ".gitattributes": "c0a595a10784158b92f51fdde21be95aa4a07a047303ea0ce72b5292f2e84f7a",
+    "scripts/dur053_payload.py": "9135dbc08d13dabfc0804a5b9819b3620b856230fd69df6f200bfc49e003b1c3",
+    "scripts/dur053_saturation.py": "869e96f7aeec69a3f142ba573c549c8153f44ed9929449ff14d30155ed428c88",
+    "scripts/dur053_pilot.py": "07a92c96c9fdddf04fabf23ff2c5fd764df048717379ab3bf5c4931742fb6e48",
+    "scripts/dur053_pilot_evidence.py": "1249667362d411a9aa1ab69fc5902d8ca607ca7163fdcfe0da076584004a3974",
+    "scripts/dur053_record_pilot.py": "7025085cd693a7ddc89ecc6794c18c367d37a095753c9bc7f5d09a756a2f32bc",
+    "tests/test_k3b_payload.py": "410a96fe72efc02cfe6072ef6e851989c985c610781d804d8bceb15e5bf72695",
+    "tests/test_k3b_saturation.py": "216b01677269ccb46476c4f9a20445995b5181ffae8e3efee60d7b3b6efe23b0",
+    "tests/test_k3b_pilot.py": "026214113ff785f47aff5ce0aefff06114d18590eaba31de99af4beedfe5e322",
+    "mutations/manifest.json": "1e93ca681cedf8faf6e0f0dbcb2669c9d7f095765bba6bb2c4e972b48b63dd88",
+    "experiments/portfolio/k8s-recovery/protocol-v2.md": "36c134d56ec9f09b5286a1d7e4c1eb8ec3dadf75c51dd10ee7710622e827517b"
+  },
+  "cleanup": {
+    "status": "BLOCKED",
+    "reason": "Automatic approval review rejected the absolute-path-checked native PowerShell deletion of task-owned r185 before execution: blocked by policy. A combined record-update command was also rejected before execution; records were updated with apply_patch. No alternative deletion attempted. Artifact copy and scratch remain.",
+    "task_databases_created": 0,
+    "databases_to_drop": 0,
+    "observed_codex_root_listing_bytes": {
+      "r174": 12562475,
+      "r175": 12562564,
+      "r181": 462010146,
+      "r185": 2220763786,
+      "r252": 366136004,
+      "r252-round177": 368010171
+    },
+    "listing_enumeration_errors": 0,
+    "original_download_hashes_rechecked": true,
+    "preexisting_directories_untouched": true
+  }
+}
