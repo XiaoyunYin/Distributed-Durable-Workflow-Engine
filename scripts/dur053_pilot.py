@@ -42,7 +42,10 @@ def finite(value: Any, label: str, *, zero: bool = False) -> float:
 
 
 def job_base(name: str) -> str:
-    require(bool(re.fullmatch(r"k3-pilot-(1a|1b|2|3)(-c[1-9][0-9]*)?", name)), "pilot-job-name")
+    require(
+        bool(re.fullmatch(r"k3-pilot-(1a|1b|2|3|4a|4b|5a|5b|[45]c[123])(-c[1-9][0-9]*)?", name)),
+        "pilot-job-name",
+    )
     return name.split("-c")[0]
 
 

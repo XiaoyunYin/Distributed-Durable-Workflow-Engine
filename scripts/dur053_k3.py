@@ -90,7 +90,7 @@ def github(path: str) -> Any:
 
 def campaign_job_name(name: str) -> bool:
     return name in {"DUR-053 campaign", "campaign"} or bool(
-        re.fullmatch(r"k3-pilot-(1a|1b|2|3)(-c[1-9][0-9]*)?", name)
+        re.fullmatch(r"k3-pilot-(1a|1b|2|3|4a|4b|5a|5b|[45]c[123])(-c[1-9][0-9]*)?", name)
     )
 
 

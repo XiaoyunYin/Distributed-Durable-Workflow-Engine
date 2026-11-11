@@ -1106,11 +1106,13 @@ class K3bPilotTests(unittest.TestCase):
                 with patch.object(
                     evidence, "committed_bytes", side_effect=lambda _repo, path: path.read_bytes()
                 ):
-                    result = evidence.freeze(repository, Path("checker-fixture"))
+                    result = evidence.v1_inventory(repository, Path("checker-fixture"))
                 with patch.object(
                     evidence, "committed_bytes", side_effect=lambda _repo, path: path.read_bytes()
                 ):
-                    self.assertEqual(result, evidence.freeze(repository, Path("checker-fixture")))
+                    self.assertEqual(
+                        result, evidence.v1_inventory(repository, Path("checker-fixture"))
+                    )
                 self.assertEqual(result["observed_schedule"]["campaign_episodes"], 438)
                 self.assertEqual(
                     result["pre_start_refusals"],
@@ -1129,7 +1131,7 @@ class K3bPilotTests(unittest.TestCase):
                     edit(bad)
                     available[-1] = (refusal_root, bad)
                     with self.assertRaisesRegex(ValueError, "pilot-freeze-blocking-job"):
-                        evidence.freeze(repository, Path("checker-fixture"))
+                        evidence.v1_inventory(repository, Path("checker-fixture"))
                 available[-1] = (refusal_root, refusal)
                 self.assertEqual(set(result["arms"]), set(pilot.ARMS))
                 self.assertEqual(
@@ -1208,7 +1210,7 @@ class K3bPilotTests(unittest.TestCase):
                                 side_effect=lambda _repo, path: path.read_bytes(),
                             ),
                         ):
-                            observed = evidence.freeze(repository, Path("checker-fixture"))
+                            observed = evidence.v1_inventory(repository, Path("checker-fixture"))
                     finally:
                         record_path.write_bytes(before_record)
                         arrival_path.write_bytes(before_arrival)
@@ -1285,7 +1287,7 @@ class K3bPilotTests(unittest.TestCase):
                             },
                         ),
                     ):
-                        evidence.freeze(repository, Path("checker-fixture"))
+                        evidence.v1_inventory(repository, Path("checker-fixture"))
                     available[:] = before
                 for label, relative, edit in (
                     (
@@ -1326,7 +1328,7 @@ class K3bPilotTests(unittest.TestCase):
                             ValueError, label, msg="pilot guard bypassed freeze-derived-record"
                         ),
                     ):
-                        evidence.freeze(repository, Path("checker-fixture"))
+                        evidence.v1_inventory(repository, Path("checker-fixture"))
                     path.write_bytes(original)
                     if "rates" in label:
                         arrivals_path.write_bytes(original_arrivals)
@@ -1353,7 +1355,7 @@ class K3bPilotTests(unittest.TestCase):
                         msg="pilot guard bypassed freeze-dependency",
                     ),
                 ):
-                    evidence.freeze(repository, Path("checker-fixture"))
+                    evidence.v1_inventory(repository, Path("checker-fixture"))
                 current_manifest.write_bytes(original)
                 ledger_path.write_bytes(ledger_original)
                 available[0][1]["completed"].pop()
@@ -1369,7 +1371,7 @@ class K3bPilotTests(unittest.TestCase):
                         msg="pilot guard bypassed freeze-run-inventory",
                     ),
                 ):
-                    evidence.freeze(repository, Path("checker-fixture"))
+                    evidence.v1_inventory(repository, Path("checker-fixture"))
                 available[0][1]["completed"].append("medium-3")
                 ledger_value = json.loads(ledger_original)
                 ledger_value["entries"].pop(0)
@@ -1386,7 +1388,7 @@ class K3bPilotTests(unittest.TestCase):
                         msg="pilot guard bypassed freeze-ledger-entry",
                     ),
                 ):
-                    evidence.freeze(repository, Path("checker-fixture"))
+                    evidence.v1_inventory(repository, Path("checker-fixture"))
                 ledger_path.write_bytes(ledger_original)
                 fixture_calibration(available[0][0])
                 with (
@@ -1401,7 +1403,7 @@ class K3bPilotTests(unittest.TestCase):
                         msg="pilot guard bypassed freeze-cpu-calibration",
                     ),
                 ):
-                    evidence.freeze(repository, Path("checker-fixture"))
+                    evidence.v1_inventory(repository, Path("checker-fixture"))
             cpu = available[1][0]
             for guard, edit in (
                 ("pilot-calibration-accepted", lambda x: x.update(status="FAIL")),
@@ -2035,7 +2037,7 @@ class K3bPilotTests(unittest.TestCase):
                 msg="pilot guard bypassed freeze-missing",
             ),
         ):
-            evidence.freeze(ROOT, Path("unused"))
+            evidence.v1_inventory(ROOT, Path("unused"))
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             m = fixture_artifact(root)
@@ -2048,7 +2050,7 @@ class K3bPilotTests(unittest.TestCase):
                     msg="pilot guard bypassed freeze-failure",
                 ),
             ):
-                evidence.freeze(ROOT, Path("unused"))
+                evidence.v1_inventory(ROOT, Path("unused"))
 
     def test_ci_proof_and_engineering_boundary(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:

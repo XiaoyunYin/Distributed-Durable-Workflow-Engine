@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: k3-pilot-1a/1b/2/3 or the exact committed carry-over name (<job>-cN)
+        description: k3-pilot-1a/1b/2/3/4a/4b/5a/5b/4c1-3/5c1-3 or the exact committed carry-over name (<job>-cN)
         required: true
         default: k3-pilot-1a
         type: string

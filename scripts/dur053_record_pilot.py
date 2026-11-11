@@ -15,6 +15,8 @@ from dur053_k3 import save
 from dur053_k3_policy import ROOT, artifact_hashes, ledger_check, require
 from dur053_payload import pack, scratch
 from dur053_pilot import CEILING, EVIDENCE, job_base, read_artifact
+from dur053_sustained import JOBS as B6_JOBS
+from dur053_sustained import evidence_root
 
 
 def record(source: Path, repository: Path = ROOT) -> Path:
@@ -43,7 +45,12 @@ def record(source: Path, repository: Path = ROOT) -> Path:
         manifest["job_id"] not in {str(x["job_id"]) for x in ledger["entries"]},
         "pilot-intake-duplicate-job",
     )
-    target = repository / EVIDENCE / manifest["job"] / manifest["run_id"]
+    target = (
+        repository
+        / (evidence_root(manifest["job"]) if job_base(manifest["job"]) in B6_JOBS else EVIDENCE)
+        / manifest["job"]
+        / manifest["run_id"]
+    )
     require(not target.exists(), "pilot-intake-existing")
     row = {
         k: manifest[k]
@@ -99,7 +106,12 @@ def _interrupted(source: Path, repository: Path, name: str, staging: Path) -> Pa
         and job["conclusion"] in {"cancelled", "timed_out", "failure"},
         "pilot-interrupted-actions",
     )
-    target = repository / EVIDENCE / name / str(run["id"])
+    target = (
+        repository
+        / (evidence_root(name) if job_base(name) in B6_JOBS else EVIDENCE)
+        / name
+        / str(run["id"])
+    )
     require(not target.exists(), "pilot-interrupted-existing")
     # The original partial artifact (including any manifest) remains byte-identical.
     raw = staging / "raw"
