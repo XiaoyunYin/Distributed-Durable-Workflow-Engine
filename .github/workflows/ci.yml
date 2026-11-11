@@ -222,8 +222,8 @@ jobs:
   services:
     name: PostgreSQL, Kafka, and deployed smoke
     runs-on: ubuntu-24.04
-    # Green runs took 35-41 min; run 42041712735 was cancelled at 45 min when the PowerShell mutation gate grew from 14 to 20 min. 75 min is about 1.8x the observed maximum.
-    timeout-minutes: 75
+    # Services job totals were 58.0, 71.9 and 75.7 min (cancelled); 120 min is about 1.6x the observed maximum.
+    timeout-minutes: 120
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -286,6 +286,7 @@ jobs:
           docker compose @compose stop runtime-a runtime-b worker-a worker-b
 
       - name: Run PowerShell mutation gate
+        timeout-minutes: 50
         shell: pwsh
         run: |
           $values = @{}
@@ -314,6 +315,7 @@ jobs:
           ./scripts/mutation-gate.ps1 -Output mutations/results-powershell.json
 
       - name: Run Linux mutation gate
+        timeout-minutes: 50
         shell: bash
         run: |
           set -euo pipefail
