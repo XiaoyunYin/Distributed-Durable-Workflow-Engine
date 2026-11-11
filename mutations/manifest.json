@@ -8916,6 +8916,22 @@
       ],
       "expected": "engine arm flag bypassed",
       "requires_database": false
+    },
+    {
+      "id": "k3b-engine-winning-attempt-match",
+      "kind": "behavioral",
+      "file": "scripts/dur053_saturation.py",
+      "old": "if all(event[field] == winner[field] for field in identity)",
+      "new": "if all(event[field] == winner[field] for field in identity if field != \"attempt_number\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_saturation.py::test_winning_attempt_phases",
+        "-q"
+      ],
+      "expected": "winning attempt match bypassed",
+      "requires_database": false
     }
   ]
 }

@@ -150,7 +150,19 @@ def test_refusals(tmp_path: Path, attack: str) -> None:
         save(target / "payload-index.json", index)
     else:
         replace_archive(target, attack)
-    with pytest.raises(ValueError, match="pilot-.*"), payload.materialize(target):
+    guard = {
+        "tamper": "pilot-payload-archive-hash",
+        "extra": "pilot-payload-member-set",
+        "missing": "pilot-payload-index-members",
+        "traversal": "pilot-payload-member",
+        "link": "pilot-payload-member",
+        "duplicate": "pilot-payload-member",
+        "hash": "pilot-artifact-hashes",
+        "dual": "pilot-payload-exact-layout",
+        "extra_archive": "pilot-payload-exact-layout",
+        "index": "pilot-payload-index-members",
+    }[attack]
+    with pytest.raises(ValueError, match=guard), payload.materialize(target):
         pytest.fail("payload integrity bypassed")
 
 
@@ -160,7 +172,8 @@ def test_bounds_before_repository_write(tmp_path: Path, bound: str) -> None:
     fixture_artifact(source)
     repo = repository(tmp_path / "repo")
     before = (repo / "experiments/portfolio/k8s-recovery/live-time-ledger.json").read_bytes()
-    with patch.object(payload, bound, 1), pytest.raises(ValueError, match="pilot-payload-.*size"):
+    guard = "pilot-payload-archive-size" if bound == "ARCHIVE_LIMIT" else "pilot-payload-total-size"
+    with patch.object(payload, bound, 1), pytest.raises(ValueError, match=guard):
         recorder.record(source, repo)
     assert not (repo / pilot.EVIDENCE).exists(), "payload prewrite bound bypassed"
     assert (

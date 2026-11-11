@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import copy
 import hashlib
 import json
 import sys
@@ -57,7 +58,7 @@ def test_boundaries() -> None:
     assert saturation_triggers(metrics) == ["throughput", "warmup_backlog", "latency_drift"]
 
 
-def test_reduced_real_shaped_snapshot(tmp_path: Path) -> None:
+def reduced_snapshot(tmp_path: Path) -> None:
     """Independent four-workflow oracle, using real snapshot/witness field shapes."""
     epoch = datetime(2026, 11, 6, tzinfo=UTC)
 
@@ -147,7 +148,13 @@ def test_reduced_real_shaped_snapshot(tmp_path: Path) -> None:
             }
         )
     save(tmp_path / "witness.json", {"expected_pods": ["p1", "p2"], "ledgers": ledgers})
+
+
+def test_reduced_real_shaped_snapshot(tmp_path: Path) -> None:
+    reduced_snapshot(tmp_path)
     result = engine_path_metrics(tmp_path)
+    assert result["multi_attempt_workflows"] == 0
+    assert result["max_attempts"] == 1
     assert result["offered_rate"] == 1
     assert result["completion_throughput_first_to_last"] == pytest.approx(1 / 3)
     assert result["completion_throughput_arrival_span"] == pytest.approx(1 / 3)
@@ -166,3 +173,130 @@ def test_reduced_real_shaped_snapshot(tmp_path: Path) -> None:
     assert list(result["p99_latency_phase_seconds"].values()) == [0.5, 6.5, 0.5, 0.5]
     assert list(result["individual_phase_p99_seconds"].values()) == [0.5, 6.5, 0.5, 0.5]
     assert result["triggers"] == ["throughput", "warmup_backlog", "latency_drift"]
+
+
+def rewrite_witness(directory: Path, events: list[dict]) -> None:
+    export = json.loads((directory / "witness.json").read_bytes())
+    for i, event in enumerate(events):
+        event["sequence"] = i + 1
+    raw = ("\n".join(json.dumps(e) for e in events) + "\n").encode()
+    ledger = export["ledgers"][0]
+    ledger["data"] = base64.b64encode(raw).decode()
+    ledger["inventory"].update(
+        sha256=hashlib.sha256(raw).hexdigest(), attempted=len(events), written=len(events)
+    )
+    save(directory / "witness.json", export)
+
+
+def two_attempt_snapshot(directory: Path) -> None:
+    reduced_snapshot(directory)
+    path = directory / "snapshot.json"
+    snapshot = json.loads(path.read_bytes())
+    history = snapshot["Snapshot"]["engine.transition_history"]["rows"]
+    winning = next(
+        h for h in history if h["workflow_id"] == "w3" and h["reason"] == "ATTEMPT_CREATED"
+    )
+    losing_created = dict(winning, revision=1, created_at="2026-11-06T00:00:03.100000+00:00")
+    losing_result = dict(
+        losing_created,
+        revision=2,
+        reason="ATTEMPT_RESULT_RECORDED",
+        created_at="2026-11-06T00:00:03.300000+00:00",
+    )
+    history.extend([losing_created, losing_result])
+    for h in history:
+        if h["workflow_id"] == "w3" and h["revision"] in (3, 4):
+            h["attempt_number"] = 2
+    winning["created_at"] = "2026-11-06T00:00:03.750000+00:00"
+    # A post-terminal result and arbitrary storage order must not choose a winner.
+    history.append(dict(losing_result, revision=8))
+    history.reverse()
+    save(path, snapshot)
+    export = json.loads((directory / "witness.json").read_bytes())
+    events = [
+        json.loads(line) for line in base64.b64decode(export["ledgers"][0]["data"]).splitlines()
+    ]
+    for e in events[1:]:
+        e.update(
+            invocation_id=e["workflow_id"], worker_id="worker", claim_token="token", monotonic_ns=0
+        )
+        if e["workflow_id"] == "w3":
+            e.update(attempt_number=2, timestamp="2026-11-06T00:00:09.750000+00:00")
+    loser = dict(
+        events[-1],
+        invocation_id="loser",
+        attempt_number=1,
+        timestamp="2026-11-06T00:00:03.200000+00:00",
+    )
+    events.append(loser)
+    for e in list(events[1:]):
+        events.append(dict(e, event="end", outcome="SUCCEEDED", monotonic_ns=100000000))
+    rewrite_witness(directory, events)
+
+
+def test_winning_attempt_phases(tmp_path: Path) -> None:
+    two_attempt_snapshot(tmp_path)
+    # Both invocations are successful and witnessed, as pilot acceptance permits.
+    from dur053_pilot import busy_times
+
+    assert len(busy_times(json.loads((tmp_path / "witness.json").read_bytes()), {"w3"})) == 2
+    try:
+        metrics = engine_path_metrics(tmp_path)
+    except ValueError as exc:
+        pytest.fail(f"winning attempt match bypassed: {exc}")
+    assert metrics["multi_attempt_workflows"] == 1
+    assert metrics["max_attempts"] == 2
+    assert metrics["p99_latency_workflow"] == "w3"
+    assert metrics["p99_latency_seconds"] == 8
+    assert list(metrics["p99_latency_phase_seconds"].values()) == [0.75, 6, 0.75, 0.5], (
+        "winning attempt match bypassed"
+    )
+    assert list(metrics["individual_phase_p99_seconds"].values()) == [0.75, 6, 0.75, 0.5]
+    # Attempt counts cannot become a fourth overload trigger.
+    clean = baseline() | {"multi_attempt_workflows": 1, "max_attempts": 2}
+    assert saturation_triggers(clean) == []
+    assert saturation_triggers(metrics) == ["throughput", "warmup_backlog", "latency_drift"]
+
+
+@pytest.mark.parametrize(
+    "ambiguity", ["final", "result", "missing_result", "created", "start", "missing_start"]
+)
+def test_ambiguous_winner_refuses(tmp_path: Path, ambiguity: str) -> None:
+    two_attempt_snapshot(tmp_path)
+    path = tmp_path / "snapshot.json"
+    snapshot = json.loads(path.read_bytes())
+    history = snapshot["Snapshot"]["engine.transition_history"]["rows"]
+    if ambiguity in {"final", "result", "missing_result", "created"}:
+        revision = {"final": 7, "result": 4, "missing_result": 4, "created": 3}[ambiguity]
+        target = next(h for h in history if h["workflow_id"] == "w3" and h["revision"] == revision)
+        if ambiguity == "missing_result":
+            history[:] = [
+                h
+                for h in history
+                if h["workflow_id"] != "w3" or h["reason"] != "ATTEMPT_RESULT_RECORDED"
+            ]
+        else:
+            history.append(copy.deepcopy(target))
+        save(path, snapshot)
+    else:
+        export = json.loads((tmp_path / "witness.json").read_bytes())
+        events = [
+            json.loads(line) for line in base64.b64decode(export["ledgers"][0]["data"]).splitlines()
+        ]
+        target = next(
+            e
+            for e in events
+            if e["event"] == "start" and e["workflow_id"] == "w3" and e["attempt_number"] == 2
+        )
+        if ambiguity == "start":
+            events.append(dict(target, invocation_id="duplicate"))
+        else:
+            events.remove(target)
+        rewrite_witness(tmp_path, events)
+    guard = (
+        "pilot-engine-path-unique-phases"
+        if ambiguity in {"final", "result", "missing_result"}
+        else "pilot-engine-path-phase-identity"
+    )
+    with pytest.raises(ValueError, match=guard):
+        engine_path_metrics(tmp_path)

@@ -1121,7 +1121,26 @@ and the p99 latency workflow's four phases (scheduled to ATTEMPT_CREATED,
 to witness start, to ATTEMPT_RESULT_RECORDED, to final-revision SUCCEEDED).
 Also report each phase's individual p99, explicitly separate from the
 additive decomposition of the single p99 workflow. Phase identities must
-match; missing/ambiguous phases refuse disclosure rather than fabricate data.
+match; a missing or ambiguous winning-attempt phase refuses disclosure rather
+than fabricating data. Multiple attempts alone do not refuse the freeze.
+
+Round 188 / R259 conservative reading under the Round 173 standing instruction:
+use the unique final-revision SUCCEEDED transition, then the unique
+ATTEMPT_RESULT_RECORDED row with the greatest revision strictly below that
+transition. Revision order is authoritative even when timestamps tie or history
+rows are stored out of order. Match its ATTEMPT_CREATED row at an earlier
+revision and its single witness start by node_id, iteration and attempt_number.
+Do not select the first witness invocation or assume that only one attempt ran;
+earlier invocations may also be witnessed and SUCCEEDED. Missing or duplicate
+winner/result/created/start evidence cannot identify unique phases and refuses;
+unrelated earlier attempts do not. Existing evidence-integrity and phase-order
+checks remain in force for the verified inputs.
+
+Report per cell multi_attempt_workflows (number of measured workflows with
+more than one ATTEMPT_CREATED row) and max_attempts (maximum such row count
+for one measured workflow). Both are disclosure only, never saturation
+triggers, acceptance criteria or a new campaign blocker. This resolves the
+single-attempt assumption conservatively without changing L or its population.
 
 Conservative definitions under Round 173: first-to-last completion throughput
 is (N-1)/(last completion - first completion), avoiding an inflated N over N-1

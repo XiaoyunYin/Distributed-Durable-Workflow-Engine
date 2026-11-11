@@ -61,6 +61,7 @@ def engine_path_metrics(directory: Path) -> dict[str, Any]:
         if event["event"] == "start" and event["workflow_id"] in ids:
             starts[event["workflow_id"]].append(event)
     latencies, completions, phases = [], [], []
+    attempt_counts = []
     for row in rows:
         key = row["workflow_id"]
         records = history[key]
@@ -71,23 +72,38 @@ def engine_path_metrics(directory: Path) -> dict[str, Any]:
             for h in records
             if h["new_state"] == "SUCCEEDED" and h["revision"] == terminals[key]["revision"]
         ]
+        # Revision order, not timestamp or file order, identifies the result that
+        # immediately precedes the final durable success. Earlier attempts may
+        # also have successful witness invocations; they remain disclosure only.
+        attempt_counts.append(len(created))
+        require(len(final) == 1, "pilot-engine-path-unique-phases")
+        preceding = [h for h in result if h["revision"] < final[0]["revision"]]
+        latest = max((h["revision"] for h in preceding), default=-1)
+        winners = [h for h in preceding if h["revision"] == latest]
+        require(len(winners) == 1, "pilot-engine-path-unique-phases")
+        winner = winners[0]
+        identity = ("node_id", "iteration", "attempt_number")
+        matching_created = [
+            h
+            for h in created
+            if h["revision"] < winner["revision"]
+            and all(h[field] == winner[field] for field in identity)
+        ]
+        matching_starts = [
+            event
+            for event in starts[key]
+            if all(event[field] == winner[field] for field in identity)
+        ]
         require(
-            len(created) == len(result) == len(final) == len(starts[key]) == 1,
-            "pilot-engine-path-unique-phases",
-        )
-        witness_start = starts[key][0]
-        require(
-            all(
-                created[0][field] == result[0][field] == witness_start[field]
-                for field in ("node_id", "iteration", "attempt_number")
-            ),
+            len(matching_created) == len(matching_starts) == 1,
             "pilot-engine-path-phase-identity",
         )
+        witness_start = matching_starts[0]
         points = [
             timestamp(row["scheduled_at"]),
-            timestamp(created[0]["created_at"]),
+            timestamp(matching_created[0]["created_at"]),
             timestamp(witness_start["timestamp"]),
-            timestamp(result[0]["created_at"]),
+            timestamp(winner["created_at"]),
             timestamp(final[0]["created_at"]),
         ]
         require(points == sorted(points), "pilot-engine-path-phase-order")
@@ -121,6 +137,8 @@ def engine_path_metrics(directory: Path) -> dict[str, Any]:
     ]
     metrics = {
         "offered_rate": arrivals["rate"],
+        "multi_attempt_workflows": sum(count > 1 for count in attempt_counts),
+        "max_attempts": max(attempt_counts),
         "completion_throughput_first_to_last": (len(rows) - 1) / (last - first),
         "completion_throughput_arrival_span": sum(start <= t <= end for t in completions)
         / (end - start),
