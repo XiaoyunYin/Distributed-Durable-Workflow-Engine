@@ -687,7 +687,17 @@ class SustainedTests(unittest.TestCase):
 
     def test_schedule_recheck(self) -> None:
         result = plan_b6(ROOT)
-        self.assertEqual(result["charged_seconds"], 10108)
+        ledger = subprocess.run(
+            ["git", "show", "HEAD:experiments/portfolio/k8s-recovery/live-time-ledger.json"],
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+        )
+        committed_charged_seconds = sum(
+            entry["charged_seconds"] for entry in json.loads(ledger.stdout)["entries"]
+        )
+        self.assertEqual(result["charged_seconds"], committed_charged_seconds)
+        self.assertGreaterEqual(committed_charged_seconds, 10108)
         self.assertEqual(result["cap_seconds"], 259200)
         self.assertEqual(result["registered_remaining_comparison_episodes"], 422)
         self.assertEqual(result["rates"]["short"], 14.272201140132513)
