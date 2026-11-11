@@ -6418,7 +6418,7 @@
     {
       "id": "k3b-pilot-artifact-symlinks",
       "kind": "behavioral",
-      "file": "scripts/dur053_pilot.py",
+      "file": "scripts/dur053_payload.py",
       "old": "require(\n        directory.is_dir()\n        and not directory.is_symlink()\n        and all(not p.is_symlink() for p in directory.rglob(\"*\")),\n        \"pilot-artifact-symlinks\",\n    )",
       "new": "require(True, \"pilot-artifact-symlinks\")",
       "command": [
@@ -6450,9 +6450,9 @@
     {
       "id": "k3b-pilot-artifact-hashes",
       "kind": "behavioral",
-      "file": "scripts/dur053_pilot.py",
-      "old": "require(manifest[\"artifact_sha256\"] == artifact_hashes(directory), \"pilot-artifact-hashes\")",
-      "new": "require(True, \"pilot-artifact-hashes\")",
+      "file": "scripts/dur053_payload.py",
+      "old": "            require(artifact_hashes(output) == manifest[\"artifact_sha256\"], \"pilot-artifact-hashes\")",
+      "new": "            require(True, \"pilot-artifact-hashes\")",
       "command": [
         "python",
         "-m",
@@ -8739,6 +8739,198 @@
         "-q"
       ],
       "expected": "pre-start replay bound bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-engine-throughput",
+      "kind": "behavioral",
+      "file": "scripts/dur053_saturation.py",
+      "old": "< 0.9 * metrics[\"offered_rate\"]",
+      "new": "< 0.0 * metrics[\"offered_rate\"]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_saturation.py::test_individual_triggers",
+        "-q"
+      ],
+      "expected": "engine saturation trigger bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-engine-backlog",
+      "kind": "behavioral",
+      "file": "scripts/dur053_saturation.py",
+      "old": "metrics[\"warmup_outbox_unpublished_at_start\"] > 0",
+      "new": "metrics[\"warmup_outbox_unpublished_at_start\"] > 1",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_saturation.py::test_individual_triggers",
+        "-q"
+      ],
+      "expected": "engine saturation trigger bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-engine-drift",
+      "kind": "behavioral",
+      "file": "scripts/dur053_saturation.py",
+      "old": "quartiles[-1] > 1.5 * quartiles[0]",
+      "new": "quartiles[-1] > 100 * quartiles[0]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_saturation.py::test_individual_triggers",
+        "-q"
+      ],
+      "expected": "engine saturation trigger bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-payload-archive-hash",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload.py",
+      "old": "hashlib.sha256(data).hexdigest() == entry[\"sha256\"]",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_payload.py::test_refusals[tamper]",
+        "-q"
+      ],
+      "expected": "payload integrity bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-payload-index-members",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload.py",
+      "old": "members == entry[\"members\"] and members == sorted(members)",
+      "new": "members == sorted(members)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_payload.py::test_refusals[index]",
+        "-q"
+      ],
+      "expected": "payload integrity bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-payload-raw-hashes",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload.py",
+      "old": "\n        require(artifact_hashes(output) == manifest[\"artifact_sha256\"], \"pilot-artifact-hashes\")",
+      "new": "\n        require(True, \"pilot-artifact-hashes\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_payload.py::test_refusals[hash]",
+        "-q"
+      ],
+      "expected": "payload integrity bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-payload-exclusive-layout",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload.py",
+      "old": "== {\"manifest.json\", \"payload-index.json\", *paths}",
+      "new": ">= {\"manifest.json\", \"payload-index.json\", *paths}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_payload.py::test_refusals[dual]",
+        "-q"
+      ],
+      "expected": "payload integrity bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-payload-ledger-index",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload.py",
+      "old": "and rows[0].get(\"payload_index_sha256\") == hashlib.sha256(index_raw).hexdigest()",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_payload.py::test_round_trip_and_determinism",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-payload-archive-bound",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload.py",
+      "old": "require(path.stat().st_size <= ARCHIVE_LIMIT, \"pilot-payload-archive-size\")",
+      "new": "require(True, \"pilot-payload-archive-size\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_payload.py::test_bounds_before_repository_write[ARCHIVE_LIMIT]",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-payload-total-bound",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload.py",
+      "old": "        require(sum(e[\"size\"] for e in entries) <= PAYLOAD_LIMIT, \"pilot-payload-total-size\")",
+      "new": "        require(True, \"pilot-payload-total-size\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_payload.py::test_bounds_before_repository_write[PAYLOAD_LIMIT]",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-engine-arm-flag",
+      "kind": "behavioral",
+      "file": "scripts/dur053_pilot_evidence.py",
+      "old": "any(\n                repeat[\"engine_path_metrics\"][\"triggers\"] for repeat in repeats\n            )",
+      "new": "False",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_payload.py::test_complete_archived_freeze_and_arm_disclosure",
+        "-q"
+      ],
+      "expected": "engine arm flag bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-engine-winning-attempt-match",
+      "kind": "behavioral",
+      "file": "scripts/dur053_saturation.py",
+      "old": "if all(event[field] == winner[field] for field in identity)",
+      "new": "if all(event[field] == winner[field] for field in identity if field != \"attempt_number\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_saturation.py::test_winning_attempt_phases",
+        "-q"
+      ],
+      "expected": "winning attempt match bypassed",
       "requires_database": false
     }
   ]

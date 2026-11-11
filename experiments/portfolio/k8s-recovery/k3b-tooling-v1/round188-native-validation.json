@@ -1,0 +1,140 @@
+{
+  "schema": "dur053.round188.validation.v1",
+  "generated_at_utc": "2026-11-11T06:30:25.700236+00:00",
+  "base_commit": "293c34389b7a106aaf286b11473eccbb0541c386",
+  "branch": "codex/k8s-k3b-r256",
+  "target_commit": null,
+  "handoff_basis": "PROVISIONAL",
+  "task_status": "IN_PROGRESS",
+  "checks": [
+    {
+      "command": ".venv/Scripts/python.exe -m pytest -q -p no:cacheprovider --basetemp D:/coding agent files/durable-engine/codex/k3b10/pt",
+      "result": "322 passed, 3 skipped, 64 subtests passed in 89.18s; exit 0"
+    },
+    {
+      "command": ".venv/Scripts/python.exe -m ruff check python tests <all five reviewed DUR-053 scripts>",
+      "result": "All checks passed"
+    },
+    {
+      "command": ".venv/Scripts/python.exe -m ruff format --check python tests <all five reviewed DUR-053 scripts>",
+      "result": "88 files already formatted"
+    },
+    {
+      "command": ".venv/Scripts/python.exe -m mypy",
+      "result": "Success: no issues found in 44 source files"
+    },
+    {
+      "command": ".venv/Scripts/python.exe -m mypy --follow-imports=silent scripts/dur053_saturation.py scripts/dur053_payload.py",
+      "result": "Success: no issues found in 2 source files"
+    },
+    {
+      "command": "C:/Program Files/Git/bin/bash.exe scripts/mutation-gate.sh D:/coding agent files/durable-engine/codex/k3b10/mutations.json",
+      "result": "129/129 PASS; zero survivors; passing executed semantic baselines and Go package baselines",
+      "platform": "native Windows Git Bash; not Linux or hosted proof"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS; final post-handoff recheck recorded in REVIEW"
+    },
+    {
+      "command": "AST audit of three requested test files",
+      "result": "Zero bare assertRaises(ValueError) calls"
+    }
+  ],
+  "mutation_selection": {
+    "files": [
+      "scripts/dur053_payload.py",
+      "scripts/dur053_pilot.py",
+      "scripts/dur053_pilot_evidence.py",
+      "scripts/dur053_record_pilot.py",
+      "scripts/dur053_saturation.py"
+    ],
+    "case_count": 129,
+    "per_file": {
+      "scripts/dur053_payload.py": 9,
+      "scripts/dur053_pilot.py": 63,
+      "scripts/dur053_pilot_evidence.py": 43,
+      "scripts/dur053_record_pilot.py": 10,
+      "scripts/dur053_saturation.py": 4
+    },
+    "survivors": [],
+    "result": "round188-mutations-native.json",
+    "wrapper": "#!/usr/bin/env bash\nexec \"/d/portfolio-projects/durable-agent-execution-engine/.venv/Scripts/python.exe\" \"$@\" --manifest \"D:/coding agent files/durable-engine/codex/k3b10/manifest.json\"\n",
+    "reproduce": "Filter every matching file from mutations/manifest.json into external manifest.json; set PYTHON to executable wrapper above. Exact unmodified gate and runner use working-tree overlay. No repository .git write."
+  },
+  "real_artifact": {
+    "record": "round188-real-artifact-measurements.json",
+    "round185_metrics_exactly_unchanged": true,
+    "artifact_copy_created": false,
+    "original_download_modified": false
+  },
+  "optional_skips": [
+    "Two PostgreSQL tests: DUR055_TEST_DATABASE_URL unset",
+    "Real Kafka witness: DURABLE_KAFKA_BROKERS unset"
+  ],
+  "not_run": [
+    "Hosted CI or fixed-target review: commits/pushes/workflow dispatch prohibited",
+    "Genuine Linux gate: requested run was native Windows Git Bash",
+    "Full Go/race checks: no Go or concurrency source changes; Go subprocess tests and mutation package baselines did run",
+    "No live campaign, kind, fresh services or complete real freeze; future CPU/long cells absent"
+  ],
+  "failed_or_superseded_attempts": [
+    "Initial targeted tests: four failures due shared fixture equal created/result revisions and omitted extra-member guard lookup; fixed fixture ordering and lookup without weakening assertions. Final focused 55 and full suite pass.",
+    "Scratch env.ps1 dot-source refused by host execution policy. Subsequent full validation sets temp/cache paths inline under k3b10; earlier focused TemporaryDirectory contexts closed.",
+    "Final cleanup assertion incorrectly required the whole mutation temporary directory to be absent. Inspection confirms source export removed, with only pytest Git-object residues left. Recorded residue and final r185 absence accurately; requested native cleanup was policy-rejected."
+  ],
+  "source_sha256": {
+    "scripts/dur053_payload.py": "9135dbc08d13dabfc0804a5b9819b3620b856230fd69df6f200bfc49e003b1c3",
+    "scripts/dur053_pilot.py": "07a92c96c9fdddf04fabf23ff2c5fd764df048717379ab3bf5c4931742fb6e48",
+    "scripts/dur053_pilot_evidence.py": "1249667362d411a9aa1ab69fc5902d8ca607ca7163fdcfe0da076584004a3974",
+    "scripts/dur053_record_pilot.py": "7025085cd693a7ddc89ecc6794c18c367d37a095753c9bc7f5d09a756a2f32bc",
+    "scripts/dur053_saturation.py": "7610185802424059fe2c56256b08cd22dcbf87b71f261ca22842a451afd961e8",
+    "tests/test_k3b_pilot.py": "bc1913f8292a59a12ddc392a83af091f027f09f7a443914d0fe77b0402abc327",
+    "tests/test_k3b_payload.py": "07d5608a0099240f1bb71d609715b43f91844043eb530e2cbe578f499ae6c40a",
+    "tests/test_k3b_saturation.py": "c8f63a43afbf79061b2b7ae049310fcfc342f5d51cc8f2c4c46e1bd4d5d27bc5",
+    "mutations/manifest.json": "14b92056c0f2cd2e909a7b7894bd75406a698940aa3259a2857fb20a6573e75f",
+    "experiments/portfolio/k8s-recovery/protocol-v2.md": "fbe246901061159ea6280dba3fd1edb46f0a758e966cbcee4619d7eebb564849"
+  },
+  "review_original_prefix": {
+    "bytes": 2446729,
+    "sha256": "aeee3178b12ff44c6e4f7b80d6c79489ae1af796d15c231d6f2492b588283313",
+    "cr": 0
+  },
+  "cleanup": {
+    "r185": "BLOCKED: automatic approval review rejected path-checked native PowerShell recursive deletion before execution: blocked by policy; no alternate deletion attempted; final read-only observation: path absent. This pass did not execute its deletion.",
+    "task_created_repository_cache_bytes": {
+      ".ruff_cache/0.16.7/1748333775664581984": 508,
+      ".ruff_cache/0.16.7/3528545890815901524": 2332,
+      "tests/__pycache__/test_k3b_payload.cpython-312-pytest-9.1.1.pyc": 31344,
+      "tests/__pycache__/test_k3b_pilot.cpython-312-pytest-9.1.1.pyc": 126311,
+      "tests/__pycache__/test_k3b_saturation.cpython-312-pytest-9.1.1.pyc": 31395,
+      "scripts/__pycache__/dur053_payload.cpython-312.pyc": 14180,
+      "scripts/__pycache__/dur053_pilot.cpython-312.pyc": 28932,
+      "scripts/__pycache__/dur053_pilot_evidence.cpython-312.pyc": 29924,
+      "scripts/__pycache__/dur053_record_pilot.cpython-312.pyc": 9469,
+      "scripts/__pycache__/dur053_saturation.cpython-312.pyc": 11478
+    },
+    "task_databases_created": 0,
+    "databases_to_drop": 0,
+    "artifact_copy_created": false,
+    "k3b10": "BLOCKED: automatic approval review rejected path-checked native PowerShell recursive deletion before execution: blocked by policy; no alternate deletion attempted. No artifact copy; scratch logs, selection, wrappers and caches remain.",
+    "repository_cache_files": "BLOCKED: automatic approval review rejected native PowerShell deletion of ten task-created Ruff/pyc files before execution: blocked by policy; no alternative deletion attempted",
+    "observed_codex_root_listing_bytes": {
+      "k3b10": 384963177
+    },
+    "listing_enumeration_errors": 0,
+    "listing_observed_at_utc": "2026-11-11T06:31:08.645838+00:00",
+    "listing_errors": [],
+    "mutation_runner_residue": [
+      {
+        "directory": "dur046-mutation-l88tay5g",
+        "source_export_exists": false,
+        "remaining_file_count": 71,
+        "remaining_bytes": 746436,
+        "basis": "Read-only Git object files in disposable pytest fixture repositories remain after runner best-effort cleanup."
+      }
+    ],
+    "r185_present_at_final_observation": false
+  },
+  "review_append_only_and_zero_cr_verified": true
+}

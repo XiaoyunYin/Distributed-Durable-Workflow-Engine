@@ -8,11 +8,13 @@ import json
 import os
 import re
 import subprocess
+from contextlib import ExitStack
 from pathlib import Path
 from typing import Any
 
 from dur053_k3 import github
 from dur053_k3_policy import artifact_hashes, committed_ledger, require
+from dur053_payload import materialize
 from dur053_pilot import (
     EVIDENCE,
     JOBS,
@@ -122,6 +124,13 @@ def artifacts(repository: Path) -> list[tuple[Path, dict[str, Any]]]:
 
 def pre_start_refusal(directory: Path, manifest: dict[str, Any]) -> bool:
     """B.3 content classification; callers first verify the committed artifact."""
+    if (directory / "payload-index.json").exists() or (directory / "payload").exists():
+        with materialize(directory) as verified:
+            return _pre_start_refusal(verified, manifest)
+    return _pre_start_refusal(directory, manifest)
+
+
+def _pre_start_refusal(directory: Path, manifest: dict[str, Any]) -> bool:
     if (
         manifest.get("status") != "FAIL"
         or manifest.get("cleanup")
@@ -281,7 +290,12 @@ def verify_calibration(root: Path) -> dict[str, Any]:
     return calibration
 
 
-def recheck(directory: Path, checker: Path) -> None:
+def recheck(directory: Path, checker: Path, repository: Path | None = None) -> None:
+    with materialize(directory, repository) as verified:
+        _recheck(verified, checker)
+
+
+def _recheck(directory: Path, checker: Path) -> None:
     """Run the independent Go oracle again on committed snapshots, offline."""
     for snapshot in sorted(directory.rglob("*-snapshot.json")) + sorted(
         directory.glob("*/snapshot.json")
@@ -313,6 +327,11 @@ def recheck(directory: Path, checker: Path) -> None:
 
 
 def freeze(repository: Path, checker: Path) -> dict[str, Any]:
+    with ExitStack() as stack:
+        return _freeze(repository, checker, stack)
+
+
+def _freeze(repository: Path, checker: Path, stack: ExitStack) -> dict[str, Any]:
     available = artifacts(repository)
     require(bool(available), "pilot-freeze-artifacts-missing")
     refusals = {root for root, m in available if pre_start_refusal(root, m)}
@@ -366,6 +385,7 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
             and manifest["artifact_sha256"].get("images.json"),
             "pilot-freeze-environment",
         )
+        root = stack.enter_context(materialize(root, repository))
         recheck(root, checker)
         require(
             set(manifest["completed"]) == {p.parent.name for p in root.glob("*/record.json")},
@@ -376,6 +396,9 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
             calibration_roots.append(root)
         for relative in manifest["completed"]:
             summary = summarize(root / relative)
+            from dur053_saturation import engine_path_metrics
+
+            summary["engine_path_metrics"] = engine_path_metrics(root / relative)
             cell = (summary["arm"], summary["index"])
             require(cell not in cells, "pilot-freeze-duplicate-cell")
             cells[cell] = (root, summary)
@@ -406,6 +429,7 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
                 repeats.append(
                     {
                         "index": i,
+                        "engine_path_metrics": cells[(arm, i)][1]["engine_path_metrics"],
                         "b": cells[(arm, i)][1]["b"],
                         "measured_rate": record["measured_rate"],
                         "implied_utilisation": record["measured_rate"]
@@ -443,11 +467,23 @@ def freeze(repository: Path, checker: Path) -> dict[str, Any]:
         arms[arm] = {
             "b": initial["b"],
             "r": initial["r"],
+            "initial_engine_path_metrics": initial["engine_path_metrics"],
+            "engine_path_saturation": any(
+                repeat["engine_path_metrics"]["triggers"] for repeat in repeats
+            ),
             "L": slo([cells[(arm, i)][1]["latencies"] for i in range(1, 4)]),
             "arrival_concurrency_cap": 16,
             "repeats": repeats,
             "max_repeat_b": max(repeat["b"] for repeat in repeats),
         }
+        if arms[arm]["engine_path_saturation"]:
+            load_limitations.append(
+                f"{arm}: L for this arm is derived under engine-path overload. "
+                "Completion throughput, carried warmup outbox backlog or latency drift "
+                "triggered engine_path_saturation; L depends on the 200-arrival window "
+                "length and is not a steady-state latency target. K4-K7 reporting must "
+                "surface this flag. Registered rates, L and reservations are unchanged."
+            )
         if any(
             repeat["implied_utilisation"] > 1 or repeat["b"] > 1.5 * initial["b"]
             for repeat in repeats

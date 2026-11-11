@@ -218,12 +218,23 @@ func TestK2ExternalDispatchSkew(t *testing.T) {
 			if redispatches != 1 {
 				t.Fatalf("skew changed outcome: redispatch=%d", redispatches)
 			}
-			var seconds float64
-			if err := store.Pool().QueryRow(ctx, `SELECT extract(epoch from heartbeat_deadline-clock_timestamp())::float8 FROM engine.activity_attempts WHERE workflow_id=$1 AND is_current`, id).Scan(&seconds); err != nil {
+			var leaseSeconds, remainingSeconds float64
+			if err := store.Pool().QueryRow(ctx, `
+				SELECT extract(epoch from a.heartbeat_deadline-a.updated_at)::float8,
+					extract(epoch from a.heartbeat_deadline-clock_timestamp())::float8
+				FROM engine.activity_attempts a
+				JOIN engine.workflow_executions w ON w.workflow_id=a.workflow_id
+				JOIN engine.transition_history h ON h.workflow_id=a.workflow_id AND h.revision=w.revision
+				WHERE a.workflow_id=$1 AND a.is_current AND h.reason='REDISPATCH_UNCLAIMED'
+					AND h.node_id=a.node_id AND h.iteration=a.iteration AND h.attempt_number=a.attempt_number
+					AND a.updated_at <= h.created_at`, id).Scan(&leaseSeconds, &remainingSeconds); err != nil {
 				t.Fatal(err)
 			}
-			if seconds < 0.3 || seconds > 0.5 {
-				t.Fatalf("SQL clock deadline shifted: redispatch=%f", seconds)
+			if leaseSeconds < 0.45 || leaseSeconds > 0.55 {
+				t.Fatalf("SQL clock deadline shifted: redispatch lease=%f", leaseSeconds)
+			}
+			if remainingSeconds >= 0.5 || remainingSeconds <= -5 {
+				t.Fatalf("SQL clock deadline outside coarse redispatch window: remaining=%f", remainingSeconds)
 			}
 			claim, err := store.ClaimAttempt(ctx, state.ClaimInput{WorkflowID: id, NodeID: "pure.echo", WorkerID: "test", RequestID: state.NewID(), AttemptLease: time.Second})
 			if err != nil || claim.AttemptNumber != 1 {

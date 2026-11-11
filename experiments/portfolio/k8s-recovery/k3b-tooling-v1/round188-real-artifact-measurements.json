@@ -1,0 +1,43 @@
+{
+  "schema": "dur053.round188.real-artifact.v1",
+  "run_id": "42181882847",
+  "basis": "Read-only original raw download; no artifact copy or intake. Verified the manifest SHA and all 533 listed raw file hashes (534 files including manifest) before recomputation.",
+  "manifest_sha256": "39d43dd9ad7102650fbe5836b6ec0a14eedfe9b43e5c267ae228629f8e5dcfb0",
+  "raw_files_verified": 533,
+  "round185_record_sha256": "abdff810d04fc1fcd8be9c1211ab733f0ba37520eb15e9a335a8aa010b43cb0f",
+  "all_round185_metrics_exactly_unchanged": true,
+  "added_disclosure": {
+    "medium-0": {
+      "max_attempts": 1,
+      "multi_attempt_workflows": 0
+    },
+    "medium-1": {
+      "max_attempts": 1,
+      "multi_attempt_workflows": 0
+    },
+    "medium-2": {
+      "max_attempts": 1,
+      "multi_attempt_workflows": 0
+    },
+    "medium-3": {
+      "max_attempts": 1,
+      "multi_attempt_workflows": 0
+    },
+    "short-0": {
+      "max_attempts": 1,
+      "multi_attempt_workflows": 0
+    },
+    "short-1": {
+      "max_attempts": 1,
+      "multi_attempt_workflows": 0
+    },
+    "short-2": {
+      "max_attempts": 1,
+      "multi_attempt_workflows": 0
+    },
+    "short-3": {
+      "max_attempts": 1,
+      "multi_attempt_workflows": 0
+    }
+  }
+}

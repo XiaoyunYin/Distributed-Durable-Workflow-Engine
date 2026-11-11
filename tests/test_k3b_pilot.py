@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import nullcontext
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
@@ -82,6 +83,9 @@ def fixture_run(
             "claim_token": "token",
             "worker_id": "worker",
             "monotonic_ns": 1,
+            "timestamp": (
+                datetime.fromisoformat(row["scheduled_at"]) + timedelta(seconds=0.25)
+            ).isoformat(),
         }
         end = {
             **start,
@@ -125,6 +129,7 @@ def fixture_run(
                         {
                             "workflow_id": row["workflow_id"],
                             "new_state": "SUCCEEDED",
+                            "reason": "GRAPH_ADVANCED",
                             "revision": 3,
                             "created_at": (
                                 datetime.fromisoformat(row["scheduled_at"]) + timedelta(seconds=1)
@@ -132,10 +137,45 @@ def fixture_run(
                         }
                         for row in rows
                     ]
+                    + [
+                        {
+                            "workflow_id": row["workflow_id"],
+                            "new_state": "WAITING_ACTIVITY",
+                            "reason": reason,
+                            "revision": 1 if reason == "ATTEMPT_CREATED" else 2,
+                            "node_id": "activity",
+                            "iteration": 0,
+                            "attempt_number": 1,
+                            "created_at": (
+                                datetime.fromisoformat(row["scheduled_at"])
+                                + timedelta(seconds=delay)
+                            ).isoformat(),
+                        }
+                        for row in rows
+                        for reason, delay in (
+                            ("ATTEMPT_CREATED", 0.1),
+                            ("ATTEMPT_RESULT_RECORDED", 0.5),
+                        )
+                    ]
+                },
+                "engine.outbox": {
+                    "rows": [
+                        {
+                            "workflow_id": row["workflow_id"],
+                            "created_at": row["scheduled_at"],
+                            "published_at": row["scheduled_at"],
+                        }
+                        for row in rows
+                    ]
                 },
             }
         },
     )
+    trace = json.loads((directory / "snapshot.json").read_bytes())
+    trace["Snapshot"]["engine.transition_history"]["rows"].sort(
+        key=lambda row: row["new_state"] == "SUCCEEDED"
+    )
+    save(directory / "snapshot.json", trace)
     record = {
         "arm": arm,
         "index": index,
@@ -805,6 +845,7 @@ class K3bPilotTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp)
             (directory / "warmup-snapshot.json").write_text("{}")
+            save(directory / "manifest.json", {"artifact_sha256": artifact_hashes(directory)})
             with (
                 patch.object(
                     evidence.subprocess,
@@ -989,7 +1030,17 @@ class K3bPilotTests(unittest.TestCase):
             self.assertEqual(json.loads((root / "calibration.json").read_bytes())["status"], "FAIL")
 
     def test_freeze_reproducible_and_calibration_guards(self) -> None:
-        with tempfile.TemporaryDirectory() as tmp:
+        # This historical fixture mocks artifact admission to exercise freeze guards;
+        # committed raw/archive materialisation is covered in test_k3b_payload.
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.object(
+                evidence, "materialize", side_effect=lambda root, _repo=None: nullcontext(root)
+            ),
+            patch.object(
+                pilot, "committed_bytes", side_effect=lambda _repo, path: path.read_bytes()
+            ),
+        ):
             repository = Path(tmp)
             available = []
             for n, (job, cells) in enumerate(pilot.JOBS.items()):
@@ -1089,7 +1140,10 @@ class K3bPilotTests(unittest.TestCase):
                 self.assertFalse(any("under overload" in x for x in result["limitations"]))
                 for arm in pilot.ARMS:
                     self.assertEqual(
-                        result["arms"][arm]["repeats"],
+                        [
+                            {k: v for k, v in repeat.items() if k != "engine_path_metrics"}
+                            for repeat in result["arms"][arm]["repeats"]
+                        ],
                         [
                             {
                                 "index": i,
@@ -1159,7 +1213,11 @@ class K3bPilotTests(unittest.TestCase):
                         record_path.write_bytes(before_record)
                         arrival_path.write_bytes(before_arrival)
                     self.assertEqual(
-                        observed["arms"]["cpu"]["repeats"][0],
+                        {
+                            k: v
+                            for k, v in observed["arms"]["cpu"]["repeats"][0].items()
+                            if k != "engine_path_metrics"
+                        },
                         {
                             "index": 1,
                             "b": busy,
@@ -1200,7 +1258,11 @@ class K3bPilotTests(unittest.TestCase):
                     before = copy.deepcopy(available)
                     edit()
                     with (
-                        self.assertRaises(ValueError, msg=f"pilot guard bypassed freeze-{label}"),
+                        self.assertRaisesRegex(
+                            ValueError,
+                            "pilot-freeze-" + label,
+                            msg=f"pilot guard bypassed freeze-{label}",
+                        ),
                         patch.object(
                             evidence,
                             "committed_bytes",
@@ -1341,13 +1403,19 @@ class K3bPilotTests(unittest.TestCase):
                 ):
                     evidence.freeze(repository, Path("checker-fixture"))
             cpu = available[1][0]
-            for edit in (
-                lambda x: x.update(status="FAIL"),
-                lambda x: x.update(units=100000),
-                lambda x: x["candidates"][0].update(invocation_elapsed_seconds=[121] * 22),
-                lambda x: (
-                    x.update(median_busy_seconds=2),
-                    x["candidates"][0].update(measured_busy_seconds=[2] * 21),
+            for guard, edit in (
+                ("pilot-calibration-accepted", lambda x: x.update(status="FAIL")),
+                ("pilot-calibration-selection", lambda x: x.update(units=100000)),
+                (
+                    "pilot-calibration-time-bound",
+                    lambda x: x["candidates"][0].update(invocation_elapsed_seconds=[121] * 22),
+                ),
+                (
+                    "pilot-calibration-witness-source",
+                    lambda x: (
+                        x.update(median_busy_seconds=2),
+                        x["candidates"][0].update(measured_busy_seconds=[2] * 21),
+                    ),
                 ),
             ):
                 path = cpu / "calibration.json"
@@ -1359,11 +1427,15 @@ class K3bPilotTests(unittest.TestCase):
                     cpu / "calibration-seal.json",
                     {"sha256": hashlib.sha256(path.read_bytes()).hexdigest()},
                 )
-                with self.assertRaises(ValueError, msg="pilot guard bypassed calibration-evidence"):
+                with self.assertRaisesRegex(
+                    ValueError, guard, msg="pilot guard bypassed calibration-evidence"
+                ):
                     evidence.verify_calibration(cpu)
                 path.write_bytes(raw)
             save(cpu / "calibration-seal.json", {"sha256": "bad"})
-            with self.assertRaises(ValueError, msg="pilot guard bypassed calibration-seal"):
+            with self.assertRaisesRegex(
+                ValueError, "pilot-calibration-seal", msg="pilot guard bypassed calibration-seal"
+            ):
                 evidence.verify_calibration(cpu)
 
     def test_more_evidence_guards(self) -> None:
@@ -1378,31 +1450,41 @@ class K3bPilotTests(unittest.TestCase):
                 directory / "seal.json",
                 {k: v for k, v in artifact_hashes(directory).items() if k != "seal.json"},
             )
-            with self.assertRaises(ValueError, msg="pilot guard bypassed same-job-br"):
+            with self.assertRaisesRegex(
+                ValueError, "pilot-same-job-br", msg="pilot guard bypassed same-job-br"
+            ):
                 evidence.same_job_initial(root, "short")
             sample_path = directory / "samples.jsonl"
             sample = json.loads(sample_path.read_text())
-            for edit in (
-                lambda x: x.update(connections=93),
-                lambda x: x.update(monotonic_ns=-1),
-                lambda x: x["worker_deployment"]["spec"].update(replicas=3),
-                lambda x: x["pods"][0]["spec"]["containers"][0]["resources"].update(limits={}),
-                lambda x: x.update(terminal_ids=[]),
+            for guard, edit in (
+                ("pilot-sample-time-budget", lambda x: x.update(connections=93)),
+                ("pilot-sample-time-budget", lambda x: x.update(monotonic_ns=-1)),
+                (
+                    "pilot-sample-topology",
+                    lambda x: x["worker_deployment"]["spec"].update(replicas=3),
+                ),
+                (
+                    "pilot-sample-worker",
+                    lambda x: x["pods"][0]["spec"]["containers"][0]["resources"].update(limits={}),
+                ),
+                ("pilot-terminal-observation-source", lambda x: x.update(terminal_ids=[])),
             ):
                 bad = copy.deepcopy(sample)
                 edit(bad)
                 sample_path.write_text(json.dumps(bad) + "\n")
-                with self.assertRaises(ValueError, msg="pilot guard bypassed samples"):
+                with self.assertRaisesRegex(ValueError, guard, msg="pilot guard bypassed samples"):
                     pilot.summarize(directory)
             sample_path.write_text("")
-            with self.assertRaises(ValueError, msg="pilot guard bypassed samples-required"):
+            with self.assertRaisesRegex(
+                ValueError, "pilot-samples-required", msg="pilot guard bypassed samples-required"
+            ):
                 pilot.summarize(directory)
             export = json.loads((directory / "witness.json").read_bytes())
             original = json.loads(base64.b64decode(export["ledgers"][0]["data"]).splitlines()[1])
-            for edit in (
-                lambda rows: rows[1].update(sequence=999),
-                lambda rows: rows.pop(),
-                lambda rows: rows[2].update(outcome="FAILED"),
+            for guard, edit in (
+                ("pilot-witness-sequence", lambda rows: rows[1].update(sequence=999)),
+                ("pilot-witness-pairs", lambda rows: rows.pop()),
+                ("pilot-witness-end", lambda rows: rows[2].update(outcome="FAILED")),
             ):
                 bad = copy.deepcopy(export)
                 ledger = bad["ledgers"][0]
@@ -1417,9 +1499,13 @@ class K3bPilotTests(unittest.TestCase):
                 ledger["inventory"].update(
                     sha256=hashlib.sha256(raw).hexdigest(), attempted=len(rows), written=len(rows)
                 )
-                with self.assertRaises(ValueError, msg="pilot guard bypassed witness-events"):
+                with self.assertRaisesRegex(
+                    ValueError, guard, msg="pilot guard bypassed witness-events"
+                ):
                     pilot.busy_times(bad, {original["workflow_id"]})
-            with self.assertRaises(ValueError, msg="pilot guard bypassed empty-windows"):
+            with self.assertRaisesRegex(
+                ValueError, "pilot-window-population", msg="pilot guard bypassed empty-windows"
+            ):
                 pilot.combine([])
 
     def test_intake_provenance_and_termination(self) -> None:
@@ -1432,21 +1518,25 @@ class K3bPilotTests(unittest.TestCase):
             save(
                 ledger, {"schema": "dur053.live-ledger.v1", "limit_seconds": 259200, "entries": []}
             )
-            for edit in (
-                lambda x: x.update(status="UNKNOWN"),
-                lambda x: x.update(charged_seconds=1),
-                lambda x: x.update(head_sha="invalid"),
-                lambda x: x.update(run_id="../../"),
+            for guard, edit in (
+                ("pilot-intake-status", lambda x: x.update(status="UNKNOWN")),
+                ("pilot-intake-charge", lambda x: x.update(charged_seconds=1)),
+                ("pilot-intake-provenance", lambda x: x.update(head_sha="invalid")),
+                ("pilot-artifact-identity", lambda x: x.update(run_id="../../")),
             ):
                 bad = copy.deepcopy(manifest)
                 edit(bad)
                 save(source / "manifest.json", bad)
-                with self.assertRaises(ValueError, msg="pilot guard bypassed intake-metadata"):
+                with self.assertRaisesRegex(
+                    ValueError, guard, msg="pilot guard bypassed intake-metadata"
+                ):
                     intake.record(source, repository)
             save(source / "manifest.json", manifest)
             target = repository / pilot.EVIDENCE / manifest["job"] / manifest["run_id"]
             target.mkdir(parents=True)
-            with self.assertRaises(ValueError, msg="pilot guard bypassed intake-existing"):
+            with self.assertRaisesRegex(
+                ValueError, "pilot-intake-existing", msg="pilot guard bypassed intake-existing"
+            ):
                 intake.record(source, repository)
             failed = root / "termination"
             failed.mkdir()
@@ -1474,13 +1564,22 @@ class K3bPilotTests(unittest.TestCase):
             self.assertEqual(
                 recorded["charged_seconds"], 18900, "pilot guard bypassed interrupted-charge"
             )
-            self.assertEqual(
-                (target / "downloaded/actions-run.json").read_bytes(),
-                (failed / "actions-run.json").read_bytes(),
-            )
-            with self.assertRaises(ValueError, msg="pilot guard bypassed interrupted-existing"):
+            from dur053_payload import materialize
+
+            with materialize(target) as verified:
+                self.assertEqual(
+                    (verified / "downloaded/actions-run.json").read_bytes(),
+                    (failed / "actions-run.json").read_bytes(),
+                )
+            job["id"] = 61
+            save(failed / "actions-job.json", job)
+            with self.assertRaisesRegex(
+                ValueError,
+                "pilot-interrupted-existing",
+                msg="pilot guard bypassed interrupted-existing",
+            ):
                 intake.interrupted(failed, repository, "k3-pilot-2")
-            job["conclusion"] = "success"
+            job.update(id=60, conclusion="success")
             save(failed / "actions-job.json", job)
             with self.assertRaisesRegex(
                 ValueError,
@@ -1540,17 +1639,27 @@ class K3bPilotTests(unittest.TestCase):
                 patch.object(d, "sql", side_effect=["20", ""]),
             ):
                 d.sample("namespace", "database")
-            for change, sql_value in (
-                (lambda x: x["pods"][0]["status"].update(phase="Pending"), "20"),
-                (lambda x: x["worker_deployment"]["spec"].update(replicas=3), "20"),
-                (lambda x: None, "93"),
+            for guard, change, sql_value in (
+                (
+                    "pilot-observed-four-slots",
+                    lambda x: x["pods"][0]["status"].update(phase="Pending"),
+                    "20",
+                ),
+                (
+                    "pilot-autoscaler-paused",
+                    lambda x: x["worker_deployment"]["spec"].update(replicas=3),
+                    "20",
+                ),
+                ("pilot-observed-connection-budget", lambda x: None, "93"),
             ):
                 before = copy.deepcopy(sample)
                 change(sample)
                 with (
                     patch.object(d, "k", side_effect=k),
                     patch.object(d, "sql", return_value=sql_value),
-                    self.assertRaises(ValueError, msg="pilot guard bypassed live-observer"),
+                    self.assertRaisesRegex(
+                        ValueError, guard, msg="pilot guard bypassed live-observer"
+                    ),
                 ):
                     d.sample("namespace", "database")
                 sample = before
@@ -1583,16 +1692,18 @@ class K3bPilotTests(unittest.TestCase):
             pilot.admit([("short", 1)], elapsed=18000, setup=False)
         self.assertEqual(pilot.rates("cpu", 0), (1, 1))
         self.assertEqual(pilot.rates("short", 1, {"r": 3}), (0.75, 1.5))
-        for f, args in (
-            (pilot.nearest_rank, ([], 0.99)),
-            (pilot.reference, ([], 200)),
-            (pilot.slo, ([[1] * 199] * 3,)),
-            (pilot.rates, ("bad", 1)),
+        for guard, f, args in (
+            ("pilot-quantile-population", pilot.nearest_rank, ([], 0.99)),
+            ("pilot-b-population", pilot.reference, ([], 200)),
+            ("pilot-L-population", pilot.slo, ([[1] * 199] * 3,)),
+            ("pilot-cell", pilot.rates, ("bad", 1)),
         ):
-            with self.assertRaises(ValueError, msg="pilot guard bypassed numeric-input"):
+            with self.assertRaisesRegex(
+                ValueError, guard, msg="pilot guard bypassed numeric-input"
+            ):
                 f(*args)
         for value in (float("nan"), float("inf"), -1, True):
-            with self.assertRaises(ValueError, msg="pilot guard bypassed finite"):
+            with self.assertRaisesRegex(ValueError, "invalid", msg="pilot guard bypassed finite"):
                 pilot.finite(value, "invalid")
 
     def test_schedule(self) -> None:
@@ -1632,7 +1743,9 @@ class K3bPilotTests(unittest.TestCase):
             ):
                 pilot.carry_over("k3-pilot-1a", pending, reason, started)
         for name in ("pilot", "k3-pilot-1", "k3-pilot-1b-c0", "k3-pilot-1b-c1/../../"):
-            with self.assertRaises(ValueError, msg="pilot guard bypassed job-name"):
+            with self.assertRaisesRegex(
+                ValueError, "pilot-job-name", msg="pilot guard bypassed job-name"
+            ):
                 pilot.job_base(name)
 
     def test_calibration_selection(self) -> None:
@@ -1652,21 +1765,29 @@ class K3bPilotTests(unittest.TestCase):
         rows.append(candidate(1000000, 0.8))
         rows[1]["measured_busy_seconds"] = [0.3] * 21
         self.assertIsNotNone(pilot.select_cpu(rows)["limitation"])
-        for edit in (
-            lambda x: x[0].update(units=100000),
-            lambda x: x[0].update(status="TIMEOUT"),
-            lambda x: x[0].update(discarded=0),
-            lambda x: x[0].update(concurrency=2),
-            lambda x: x[0].update(timeout_seconds=121),
-            lambda x: x[0].update(measured_busy_seconds=[1] * 20),
+        for guard, edit in (
+            ("pilot-calibration-order", lambda x: x[0].update(units=100000)),
+            ("pilot-calibration-complete", lambda x: x[0].update(status="TIMEOUT")),
+            ("pilot-calibration-complete", lambda x: x[0].update(discarded=0)),
+            ("pilot-calibration-complete", lambda x: x[0].update(concurrency=2)),
+            ("pilot-calibration-complete", lambda x: x[0].update(timeout_seconds=121)),
+            ("pilot-calibration-complete", lambda x: x[0].update(measured_busy_seconds=[1] * 20)),
         ):
             bad = copy.deepcopy(rows)
             edit(bad)
-            with self.assertRaises(ValueError, msg="pilot guard bypassed calibration"):
+            with self.assertRaisesRegex(ValueError, guard, msg="pilot guard bypassed calibration"):
                 pilot.select_cpu(bad)
-        with self.assertRaises(ValueError, msg="pilot guard bypassed calibration-first"):
+        with self.assertRaisesRegex(
+            ValueError,
+            "pilot-calibration-first-candidate",
+            msg="pilot guard bypassed calibration-first",
+        ):
             pilot.select_cpu([candidate(10000, 1), candidate(100000, 2)])
-        with self.assertRaises(ValueError, msg="pilot guard bypassed calibration-incomplete"):
+        with self.assertRaisesRegex(
+            ValueError,
+            "pilot-calibration-incomplete",
+            msg="pilot guard bypassed calibration-incomplete",
+        ):
             pilot.select_cpu([candidate(10000, 0.1)])
 
     def test_summary_blocks_bad_windows_and_safety(self) -> None:
@@ -1674,48 +1795,71 @@ class K3bPilotTests(unittest.TestCase):
             directory = fixture_run(Path(tmp))
             self.assertEqual(pilot.summarize(directory)["count"], 200)
 
-            def change(file: str, edit: object) -> None:
+            def change(file: str, guard: str, edit: object) -> None:
                 path = directory / file
                 before = path.read_bytes()
                 value = json.loads(before)
                 edit(value)
                 save(path, value)
                 try:
-                    with self.assertRaises(ValueError, msg="pilot guard bypassed summary"):
+                    with self.assertRaisesRegex(
+                        ValueError, guard, msg="pilot guard bypassed summary"
+                    ):
                         pilot.summarize(directory)
                 finally:
                     path.write_bytes(before)
 
-            for edit in (
-                lambda x: x.update(status="FAIL"),
-                lambda x: x.update(timed_out=True),
-                lambda x: x.update(engineering=True),
-                lambda x: x.update(slots=8),
-                lambda x: x.update(faults=["kill"]),
-                lambda x: x.update(autoscaling="enabled"),
-                lambda x: x.update(measured_start_ns=1),
-                lambda x: x.update(warmup_end_ns=1),
-                lambda x: x.update(measured_rate=2),
-                lambda x: x.update(warmup_quiet_seconds=29),
-                lambda x: x.update(reconciliation_timeout_seconds=599),
+            for guard, edit in (
+                ("pilot-run-accepted", lambda x: x.update(status="FAIL")),
+                ("pilot-run-accepted", lambda x: x.update(timed_out=True)),
+                ("pilot-run-scope", lambda x: x.update(engineering=True)),
+                ("pilot-fixed-slots", lambda x: x.update(slots=8)),
+                ("pilot-fixed-slots", lambda x: x.update(faults=["kill"])),
+                ("pilot-fixed-slots", lambda x: x.update(autoscaling="enabled")),
+                ("pilot-window-separation", lambda x: x.update(measured_start_ns=1)),
+                ("pilot-window-separation", lambda x: x.update(warmup_end_ns=1)),
+                ("pilot-window-rates", lambda x: x.update(measured_rate=2)),
+                ("pilot-reconciliation", lambda x: x.update(warmup_quiet_seconds=29)),
+                ("pilot-reconciliation", lambda x: x.update(reconciliation_timeout_seconds=599)),
             ):
-                change("record.json", edit)
+                change("record.json", guard, edit)
             for outcome in (*pilot.SATURATION, "UNCERTAIN", "REJECTED"):
                 change(
-                    "measured-arrivals.json", lambda x, o=outcome: x["rows"][0].update(outcome=o)
+                    "measured-arrivals.json",
+                    "pilot-generator-saturation"
+                    if outcome in pilot.SATURATION
+                    else "pilot-arrival-completeness",
+                    lambda x, o=outcome: x["rows"][0].update(outcome=o),
                 )
-            change("measured-arrivals.json", lambda x: x.update(rows=x["rows"][:-1]))
             change(
-                "measured-arrivals.json", lambda x: x["rows"][1].update(workflow_id="measured-0")
+                "measured-arrivals.json",
+                "pilot-arrival-completeness",
+                lambda x: x.update(rows=x["rows"][:-1]),
             )
-            change("measured-arrivals.json", lambda x: x["rows"][0].update(workflow_id="warmup-0"))
-            change("checker.json", lambda x: x.update(valid=False))
-            change("checker.json", lambda x: x["campaign"].update(non_terminal=["missing"]))
             change(
-                "snapshot.json", lambda x: x["Snapshot"]["engine.workflow_executions"]["rows"].pop()
+                "measured-arrivals.json",
+                "pilot-arrival-identities",
+                lambda x: x["rows"][1].update(workflow_id="measured-0"),
+            )
+            change(
+                "measured-arrivals.json",
+                "pilot-window-separation",
+                lambda x: x["rows"][0].update(workflow_id="warmup-0"),
+            )
+            change("checker.json", "pilot-checker-safety", lambda x: x.update(valid=False))
+            change(
+                "checker.json",
+                "pilot-checker-safety",
+                lambda x: x["campaign"].update(non_terminal=["missing"]),
             )
             change(
                 "snapshot.json",
+                "pilot-terminal-completeness",
+                lambda x: x["Snapshot"]["engine.workflow_executions"]["rows"].pop(),
+            )
+            change(
+                "snapshot.json",
+                "pilot-terminal-completeness",
                 lambda x: x["Snapshot"]["engine.workflow_executions"]["rows"][0].update(
                     state="FAILED"
                 ),
@@ -1736,17 +1880,25 @@ class K3bPilotTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             directory = fixture_run(Path(tmp))
             export = json.loads((directory / "witness.json").read_bytes())
-            for edit in (
-                lambda x: x.update(expected_pods=["pod-1"]),
-                lambda x: x["ledgers"].pop(),
-                lambda x: x["ledgers"][0]["inventory"].update(errors=1),
-                lambda x: x["ledgers"][0]["inventory"].update(sha256="bad"),
+            for guard, edit in (
+                ("pilot-four-slot-witness", lambda x: x.update(expected_pods=["pod-1"])),
+                ("pilot-witness-pods", lambda x: x["ledgers"].pop()),
+                (
+                    "pilot-witness-integrity",
+                    lambda x: x["ledgers"][0]["inventory"].update(errors=1),
+                ),
+                (
+                    "pilot-witness-integrity",
+                    lambda x: x["ledgers"][0]["inventory"].update(sha256="bad"),
+                ),
             ):
                 bad = copy.deepcopy(export)
                 edit(bad)
-                with self.assertRaises(ValueError, msg="pilot guard bypassed witness"):
+                with self.assertRaisesRegex(ValueError, guard, msg="pilot guard bypassed witness"):
                     pilot.busy_times(bad, {"measured-0"})
-            with self.assertRaises(ValueError, msg="pilot guard bypassed witness-coverage"):
+            with self.assertRaisesRegex(
+                ValueError, "pilot-witness-coverage", msg="pilot guard bypassed witness-coverage"
+            ):
                 pilot.busy_times(export, {"not-observed"})
 
     def test_dependency_job3_and_carry_over(self) -> None:
@@ -1756,9 +1908,12 @@ class K3bPilotTests(unittest.TestCase):
                 self.assertEqual(
                     evidence.dependency_plan(root, "k3-pilot-1a")[0], pilot.JOBS["k3-pilot-1a"]
                 )
-                for job in ("k3-pilot-3", "k3-pilot-1a-c1"):
-                    with self.assertRaises(
-                        ValueError, msg="pilot guard bypassed dependency-required"
+                for job, guard in (
+                    ("k3-pilot-3", "pilot-cross-job-initial-required"),
+                    ("k3-pilot-1a-c1", "pilot-carry-predecessor"),
+                ):
+                    with self.assertRaisesRegex(
+                        ValueError, guard, msg="pilot guard bypassed dependency-required"
                     ):
                         evidence.dependency_plan(root, job)
             directory = root / "long"
@@ -1774,7 +1929,11 @@ class K3bPilotTests(unittest.TestCase):
                 self.assertEqual(deps["long"]["r"], 40)
                 manifest["status"] = "FAIL"
                 save(directory / "manifest.json", manifest)
-                with self.assertRaises(ValueError, msg="pilot guard bypassed failed-initial"):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "pilot-dependency-accepted-job",
+                    msg="pilot guard bypassed failed-initial",
+                ):
                     evidence.dependency_plan(root, "k3-pilot-3")
 
     def test_artifact_intake_and_engineering_rejection(self) -> None:
@@ -1788,7 +1947,10 @@ class K3bPilotTests(unittest.TestCase):
                 ledger, {"schema": "dur053.live-ledger.v1", "limit_seconds": 259200, "entries": []}
             )
             target = intake.record(source, repository)
-            self.assertEqual(artifact_hashes(source), artifact_hashes(target))
+            from dur053_payload import materialize
+
+            with materialize(target) as verified:
+                self.assertEqual(artifact_hashes(source), artifact_hashes(verified))
             self.assertEqual(
                 json.loads(ledger.read_bytes())["entries"][0]["category"], "k3-pilot-1a"
             )
@@ -1804,16 +1966,22 @@ class K3bPilotTests(unittest.TestCase):
                 budget_scope="engineering-validation", charged_seconds=0, measurement_claim=False
             )
             save(source / "manifest.json", manifest)
-            with self.assertRaises(ValueError, msg="pilot guard bypassed engineering-intake"):
+            with self.assertRaisesRegex(
+                ValueError, "pilot-registered-only", msg="pilot guard bypassed engineering-intake"
+            ):
                 intake.record(source, repository)
-            with self.assertRaises(ValueError, msg="pilot guard bypassed engineering-freeze"):
+            with self.assertRaisesRegex(
+                ValueError, "pilot-registered-only", msg="pilot guard bypassed engineering-freeze"
+            ):
                 pilot.read_artifact(source)
             manifest.update(
                 budget_scope="registered-campaign", charged_seconds=100, measurement_claim=True
             )
             save(source / "manifest.json", manifest)
             (source / "images.json").write_text("tampered")
-            with self.assertRaises(ValueError, msg="pilot guard bypassed artifact-hashes"):
+            with self.assertRaisesRegex(
+                ValueError, "pilot-artifact-hashes", msg="pilot guard bypassed artifact-hashes"
+            ):
                 pilot.read_artifact(source)
 
     def test_committed_dependency_bytes(self) -> None:
@@ -1835,7 +2003,11 @@ class K3bPilotTests(unittest.TestCase):
                             subprocess.CompletedProcess([], 0, b"expected", b""),
                         ],
                     ),
-                    self.assertRaises(ValueError, msg="pilot guard bypassed committed-bytes"),
+                    self.assertRaisesRegex(
+                        ValueError,
+                        "pilot-committed-bytes",
+                        msg="pilot guard bypassed committed-bytes",
+                    ),
                 ):
                     pilot.committed_bytes(root, path)
 
