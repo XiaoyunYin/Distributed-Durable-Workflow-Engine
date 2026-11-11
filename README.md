@@ -175,7 +175,7 @@ The published counts retain per-split labels: one held-out key conflicts with a 
 
 ## Run locally
 
-Prerequisites: Git, Go with `GOTOOLCHAIN=auto` (module pin Go 1.27.3),
+Prerequisites: Git, Go with `GOTOOLCHAIN=auto` (module pin Go 1.27.4),
 CPython 3.12.7, uv 0.9.5 or newer, Docker Desktop 29.7.2 or newer with
 Docker Compose v5, and PowerShell 7 or Windows PowerShell 5.1.
 

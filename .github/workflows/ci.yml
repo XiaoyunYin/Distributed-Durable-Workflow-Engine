@@ -25,7 +25,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.27.3
+          go-version: 1.27.4
           cache: true
 
       - name: Build DUR-050 generator binaries without inherited HOME
@@ -231,7 +231,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.27.3
+          go-version: 1.27.4
           cache: true
 
       - name: Set up Python
@@ -400,7 +400,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: 1.27.3
+          go-version: 1.27.4
           cache: true
       - name: Set up Python
         uses: actions/setup-python@v5

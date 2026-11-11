@@ -1164,3 +1164,11 @@ stating that L for the arm is derived under engine-path overload, depends on
 the 200-arrival window length and is not a steady-state latency target.
 K4-K7 reports must surface this flag alongside R251's existing disclosure.
 This adds no blocker or change to execution, rates, L, formulas or minima.
+
+### B.5 toolchain security patch disclosure (2026-11-10)
+
+The k3-pilot-1a images were built with Go 1.27.3. Following the GO-2026-6859
+standard-library advisory, later jobs use Go 1.27.4. Each arm's cells come
+from its registered jobs, and no arm mixes toolchains. The per-job image
+digests are recorded in each manifest's `images.json`. This toolchain patch
+changes no rate, L, formula, cell, ceiling or reservation.
