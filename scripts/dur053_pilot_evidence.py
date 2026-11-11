@@ -327,6 +327,13 @@ def _recheck(directory: Path, checker: Path) -> None:
 
 
 def freeze(repository: Path, checker: Path) -> dict[str, Any]:
+    from dur053_sustained_freeze import finish
+
+    return finish(repository, checker, v1_inventory(repository, checker))
+
+
+def v1_inventory(repository: Path, checker: Path) -> dict[str, Any]:
+    """Validate retained v1 evidence; this intermediate inventory is not a B.6 freeze."""
     with ExitStack() as stack:
         return _freeze(repository, checker, stack)
 

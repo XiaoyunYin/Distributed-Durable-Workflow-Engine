@@ -70,7 +70,7 @@ def test_round_trip_and_determinism(tmp_path: Path) -> None:
         patch.object(evidence, "recheck"),
         pytest.raises(ValueError, match="pilot-freeze-all-cells"),
     ):
-        evidence.freeze(repo, Path("unused"))
+        evidence.v1_inventory(repo, Path("unused"))
     index_path = target / "payload-index.json"
     index_path.write_bytes(index_path.read_bytes() + b" ")
     commit(repo)
@@ -232,7 +232,7 @@ def test_complete_archived_freeze_and_arm_disclosure(tmp_path: Path) -> None:
         targets[job] = recorder.record(source, repo)
     commit(repo)
     with patch.object(evidence, "recheck"):
-        frozen = evidence.freeze(repo, Path("fixture-checker"))
+        frozen = evidence.v1_inventory(repo, Path("fixture-checker"))
     assert all(not arm["engine_path_saturation"] for arm in frozen["arms"].values())
     assert frozen["arms"]["short"]["initial_engine_path_metrics"]["offered_rate"] == 1
     assert frozen["arms"]["short"]["L"] == 2.004
@@ -248,7 +248,7 @@ def test_complete_archived_freeze_and_arm_disclosure(tmp_path: Path) -> None:
         patch.object(evidence, "recheck"),
         patch("dur053_saturation.engine_path_metrics", side_effect=overloaded),
     ):
-        flagged = evidence.freeze(repo, Path("fixture-checker"))
+        flagged = evidence.v1_inventory(repo, Path("fixture-checker"))
     assert flagged["arms"]["short"]["engine_path_saturation"], "engine arm flag bypassed"
     assert not flagged["arms"]["medium"]["engine_path_saturation"]
     assert any(

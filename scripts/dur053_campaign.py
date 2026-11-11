@@ -45,11 +45,22 @@ def live_charge(cleanup: dict[str, Any], started: bool, reservation: int) -> int
 
 
 def run(output: Path, scratch_root: Path, name: str, *, engineering: bool = False) -> int:
+    from dur053_sustained import JOBS as B6_JOBS
+
+    if name.split("-c")[0] in B6_JOBS:
+        from dur053_sustained_campaign import run as run_sustained
+
+        return run_sustained(output, scratch_root, name)
     fresh_output(output)
     scratch_root.mkdir(parents=True, exist_ok=True)
     scratch = scratch_root / ("kind-" + secrets.token_hex(8))
     scratch.mkdir()
-    d = PilotDriver(output, scratch, engineering=engineering)
+    if engineering:
+        from dur053_sustained_driver import SustainedDriver
+
+        d = SustainedDriver(output, scratch, engineering=True)
+    else:
+        d = PilotDriver(output, scratch, engineering=False)
     manifest: dict[str, Any] = {
         "schema": "dur053.k3b.v1",
         "job": name,
@@ -176,6 +187,21 @@ def run(output: Path, scratch_root: Path, name: str, *, engineering: bool = Fals
             manifest["completed"].append(f"{arm}-{index}")
             save(output / "manifest.json", manifest)
         else:
+            if engineering:
+                from dur053_sustained import precision, require_stationary
+                from dur053_sustained_driver import SustainedDriver
+
+                d.root_output = output / "v2-smoke"
+                d.root_output.mkdir()
+                try:
+                    result = SustainedDriver.sustained(
+                        d, "short", 1, addresses, precision(2.0, {"engineering": True}), 2
+                    )
+                    manifest["v2_engineering_gate"] = result["stationarity_gate"]
+                    require_stationary(result["stationarity_gate"])
+                    manifest["completed"].append("v2-smoke/short-1")
+                finally:
+                    d.root_output, d.output = output, output
             manifest["status"] = "PASS"
     except Exception as error:
         manifest["error"] = (

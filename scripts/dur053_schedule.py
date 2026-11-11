@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 
 CEILING = 18900
 SETUP = 300
@@ -189,7 +190,172 @@ def observed_plan(arms: dict, cpu_duration: float) -> dict:
     }
 
 
+def plan_b6(repository: Path, frozen: dict | None = None, *, fallback: bool = False) -> dict:
+    """Budget disclosure, not admission. All registered family cells are retained."""
+    from dur053_k3_policy import committed_ledger
+    from dur053_pilot import EVIDENCE, PLANNING_RATES, committed_bytes, initial_dependency
+    from dur053_sustained import duration, operating_record, registration, reservation
+
+    ledger = committed_ledger(
+        repository / "experiments/portfolio/k8s-recovery/live-time-ledger.json", repository
+    )
+    charged = sum(row["charged_seconds"] for row in ledger["entries"])
+    arms = {a: {"b": 4 / r, "r": r, "L": 0} for a, r in PLANNING_RATES.items()}
+    assumptions = []
+    # Initial references are disclosed; CPU duration is not a new measured prediction.
+    cpu_duration = 1.0
+    for path in (repository / EVIDENCE).glob("*/*/manifest.json"):
+        m = json.loads(committed_bytes(repository, path))
+        for a in arms:
+            if f"{a}-0" in m["completed"]:
+                initial = initial_dependency(path.parent, a, repository)
+                arms[a].update(b=initial["b"], r=initial["r"])
+                if a == "cpu":
+                    cpu_duration = max(0.514, initial["b"])
+    from dur053_payload import materialize
+    from dur053_sustained import stationarity
+
+    long_gates = []
+    completed_v1 = set()
+    for path in (repository / EVIDENCE).glob("*/*/manifest.json"):
+        header = json.loads(committed_bytes(repository, path))
+        completed_v1.update(header["completed"])
+        if any(f"long-{i}" in header["completed"] for i in (1, 2, 3)):
+            with materialize(path.parent, repository) as root:
+                long_gates.extend(
+                    stationarity(root / f"long-{i}", offline=True)
+                    for i in (1, 2, 3)
+                    if f"long-{i}" in header["completed"]
+                )
+    # B.6.1: offline 4(a)/(b) disclosures do not trigger additional jobs.
+    long_triggered = len(long_gates) == 3 and any(not g["pass"] for g in long_gates)
+    pilots = []
+    for arm in ("short", "cpu", *(["long"] if long_triggered else [])):
+        reg = registration(repository, arm)
+        selected = (frozen or {}).get(arm, {}).get("passing_version") or (3 if fallback else 2)
+        arms[arm]["r"] = operating_record(reg, selected)["r"]
+        for v in range(2, selected + 1):
+            rate = operating_record(reg, v)["q"]
+            # No measured expectation for calibration: its entire bound is retained.
+            expected = (
+                300
+                + (2640 if arm == "cpu" else 0)
+                + 3 * (120 + duration(rate) + (cpu_duration if arm == "cpu" else 0.1) + 30 + 60)
+            )
+            if arm == "long":
+                for i in (1, 2, 3):
+                    pilots.append(
+                        {
+                            "family": "K3",
+                            "job": f"k3-pilot-{'4' if v == 2 else '5'}c{i}",
+                            "expected_seconds": 300 + 120 + duration(rate) + 45 + 30 + 60,
+                            "episodes": 1,
+                            "full_admission_seconds": reservation(rate, repeats=1),
+                            "rate_precision": operating_record(reg, v),
+                        }
+                    )
+            else:
+                pilots.append(
+                    {
+                        "family": "K3",
+                        "job": f"k3-pilot-{'4' if v == 2 else '5'}{'b' if arm == 'cpu' else 'a'}",
+                        "expected_seconds": expected,
+                        "episodes": 3,
+                        "full_admission_seconds": reservation(rate, cpu=arm == "cpu"),
+                        "rate_precision": operating_record(reg, v),
+                    }
+                )
+    for arm, values in (frozen or {}).items():
+        if values.get("r") is not None and values.get("L") is not None:
+            arms[arm].update({k: values[k] for k in ("r", "L")})
+    schedule = observed_plan(arms, cpu_duration)
+    units = []
+    for row in schedule["units"]:
+        if row["family"] == "K3" and row["unit"] not in {"long-initial", "long-repeats"}:
+            continue  # These completed v1 jobs are in charged, never charged again.
+        if row["unit"] == "long-initial" and "long-0" in completed_v1:
+            continue
+        if row["unit"] == "long-repeats" and all(f"long-{i}" in completed_v1 for i in (1, 2, 3)):
+            continue
+        row["arm"] = (
+            "cpu"
+            if "cpu" in row["unit"].lower()
+            else "long"
+            if "long" in row["unit"]
+            else "short"
+            if "short" in row["unit"] or "hook" in row["unit"]
+            else "medium"
+        )
+        if row["family"] != "K3" and (not frozen or frozen.get(row["arm"], {}).get("L") is None):
+            row.update(full_window_reservation_seconds=None, fits_fresh_job=None)
+        units.append(row)
+    jobs = list(pilots)
+    current = None
+    for row in units:
+        if (
+            current is None
+            or current["family"] != row["family"]
+            or current["expected_seconds"] + row["expected_seconds"] > CEILING - 600
+            or row["unit"] == "long-repeats"
+        ):
+            current = {"family": row["family"], "expected_seconds": 300, "episodes": 0, "units": []}
+            jobs.append(current)
+        current["expected_seconds"] += row["expected_seconds"]
+        current["episodes"] += row["episodes"]
+        current["units"].append(row["unit"])
+    # Remove jobs already recorded after B.6 merges, retaining actual charges.
+    completed_jobs = {row["category"] for row in ledger["entries"] if row["status"] == "PASS"}
+    jobs = [j for j in jobs if j.get("job") not in completed_jobs]
+    expected = charged + sum(j["expected_seconds"] for j in jobs) + 1710
+    assumptions.append(
+        "Long rate remains its planning reference until its v1 initial exists; "
+        "long offline gate/fallback is conditional."
+    )
+    assumptions.append(
+        "Unfrozen downstream L is unknown: full reservations are unavailable until freeze. "
+        "No admission is authorized by this estimate."
+    )
+    assumptions.append(
+        "CPU expected duration uses max(0.514 s, v1 initial b); drift has no measured "
+        "expectation, so its full 2640 s bound is included per CPU version."
+    )
+    return {
+        "schema": "dur053.b6-schedule.v1",
+        "charged_seconds": charged,
+        "cap_seconds": 259200,
+        "expected_total_seconds": expected,
+        "fits_expected_cap": expected <= 259200,
+        "expected_margin_seconds": 259200 - expected,
+        "registered_remaining_comparison_episodes": sum(
+            r["episodes"] for r in units if r["family"] != "K3"
+        ),
+        "validation_allowance_seconds": 1710,
+        "jobs": jobs,
+        "units": units,
+        "rates": {a: v["r"] for a, v in arms.items()},
+        "assumptions": assumptions,
+        "fallback_scenario": fallback,
+        "long_offline_gate": long_gates,
+    }
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--amendment", choices=["b", "b2"], default="b")
-    print(json.dumps(plan_b2() if parser.parse_args().amendment == "b2" else plan(), indent=2))
+    parser.add_argument("--amendment", choices=["b", "b2", "b6"], default="b")
+    parser.add_argument("--freeze", type=Path)
+    parser.add_argument("--fallback", action="store_true")
+    args = parser.parse_args()
+    print(
+        json.dumps(
+            plan_b6(
+                Path(__file__).resolve().parents[1],
+                json.loads(args.freeze.read_bytes())["arms"] if args.freeze else None,
+                fallback=args.fallback,
+            )
+            if args.amendment == "b6"
+            else plan_b2()
+            if args.amendment == "b2"
+            else plan(),
+            indent=2,
+        )
+    )

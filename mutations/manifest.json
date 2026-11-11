@@ -6259,7 +6259,7 @@
       "id": "k3b-pilot-job-name",
       "kind": "behavioral",
       "file": "scripts/dur053_pilot.py",
-      "old": "require(bool(re.fullmatch(r\"k3-pilot-(1a|1b|2|3)(-c[1-9][0-9]*)?\", name)), \"pilot-job-name\")",
+      "old": "require(\n        bool(re.fullmatch(r\"k3-pilot-(1a|1b|2|3|4a|4b|5a|5b|[45]c[123])(-c[1-9][0-9]*)?\", name)),\n        \"pilot-job-name\",\n    )",
       "new": "require(True, \"pilot-job-name\")",
       "command": [
         "python",
@@ -8003,7 +8003,7 @@
       "id": "k3b-history-live-job-names",
       "kind": "behavioral",
       "file": "scripts/dur053_k3.py",
-      "old": "re.fullmatch(r\"k3-pilot-(1a|1b|2|3)(-c[1-9][0-9]*)?\", name)",
+      "old": "re.fullmatch(r\"k3-pilot-(1a|1b|2|3|4a|4b|5a|5b|[45]c[123])(-c[1-9][0-9]*)?\", name)",
       "new": "re.fullmatch(r\"UNRECOGNIZED\", name)",
       "command": [
         "python",
@@ -8931,6 +8931,406 @@
         "-q"
       ],
       "expected": "winning attempt match bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-throughput",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": ">= 0.95 * pooled[\"arrivals\"]",
+      "new": ">= 0.0 * pooled[\"arrivals\"]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_throughput_boundary",
+        "-q"
+      ],
+      "expected": "b6-throughput",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-bin-one",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "sum(b[k] for b in bins[1:])",
+      "new": "sum(b[k] for b in bins)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_stationary_and_bin_one_exclusion",
+        "-q"
+      ],
+      "expected": "b6 bin one is pipeline fill",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-latency-drift",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "y <= max(1.25 * x, x + 0.5)",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_latency_absolute_boundary",
+        "-q"
+      ],
+      "expected": "b6-latency-drift",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-latency-p90",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "nearest_rank(thirds[-1], 0.9)",
+      "new": "statistics.median(thirds[-1])",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_latency_p90_and_relative_boundary",
+        "-q"
+      ],
+      "expected": "b6-latency-drift",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-engine-outstanding",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "means[0][\"outstanding\"] + 4",
+      "new": "means[0][\"outstanding\"] + 5",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_engine_boundary",
+        "-q"
+      ],
+      "expected": "b6-engine-path",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-engine-outbox",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "means[0][\"unpublished\"] + 20",
+      "new": "means[0][\"unpublished\"] + 21",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_engine_boundary",
+        "-q"
+      ],
+      "expected": "b6-engine-path",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-offline-backlog",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "c = backlog == 0",
+      "new": "c = True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_offline_backlog_and_disclosure",
+        "-q"
+      ],
+      "expected": "b6-engine-path",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-registration",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "(format(x, \".6f\"), format(x / 2, \".6f\")) == REGISTERED[arm]",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_registration_guard_fixture",
+        "-q"
+      ],
+      "expected": "b6 registration bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-freeze-rate",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "q = version_rate(registration, version)\n    r = 2 * q",
+      "new": "q = version_rate(registration, version)\n    r = 4 * q",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_freeze_rate_and_version_limit",
+        "-q"
+      ],
+      "expected": "b6 r = 2q bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-fourth-version",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "type(version) is int and version in (2, 3)",
+      "new": "type(version) is int",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_freeze_rate_and_version_limit",
+        "-q"
+      ],
+      "expected": "b6 version bound bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-v1-L",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "require(2 in versions, \"b6-v1-L-excluded\")",
+      "new": "if 2 not in versions:\n        return 1",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_freeze_rate_and_version_limit",
+        "-q"
+      ],
+      "expected": "b6 v1 L bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-retained-failure",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "any(not row[\"gate\"][\"pass\"] for row in repeats.values())",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_retained_failure_required_for_v3",
+        "-q"
+      ],
+      "expected": "b6 fallback bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-fixed-cpu-units",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_driver.py",
+      "old": "self.arm, self.units = \"cpu\", 1000000",
+      "new": "self.arm, self.units = \"cpu\", 10000",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_fixed_unit_drift_never_selects",
+        "-q"
+      ],
+      "expected": "b6 fixed units bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b61-pooled-sum",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "sum(b[k] for b in bins[1:])",
+      "new": "max(b[k] for b in bins[1:])",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_throughput_boundary",
+        "-q"
+      ],
+      "expected": "b6-throughput",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b61-pooling-not-per-bin",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "pooled[\"completions\"] >= 0.95 * pooled[\"arrivals\"]",
+      "new": "all(b[\"completions\"] >= 0.95 * b[\"arrivals\"] for b in bins[1:])",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_jittered_stationary_pools_completions",
+        "-q"
+      ],
+      "expected": "b6 pooled jitter rejected",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b61-offline-throughput",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "throughput >= 0.95 * measured_rate",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_offline_throughput_boundary_ignores_disclosures",
+        "-q"
+      ],
+      "expected": "b6-offline-throughput",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b61-offline-disclosure",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "return {\"pass\": all(checks.values()), \"checks\": checks, \"offline\": True, **evidence}",
+      "new": "return {\"pass\": a and b and all(checks.values()), \"checks\": checks, \"offline\": True, **evidence}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_offline_throughput_boundary_ignores_disclosures",
+        "-q"
+      ],
+      "expected": "b6 offline disclosures decided admission",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-complete-v2",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "require(set(repeats) == {1, 2, 3}, \"b6-v3-complete-v2\")",
+      "new": "require(True, \"b6-v3-complete-v2\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_complete_v2_required_for_v3",
+        "-q"
+      ],
+      "expected": "b6-v3-complete-v2",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-sampling-scope",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_driver.py",
+      "old": "if not getattr(self, \"engine_sampling\", False):",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_v1_engineering_cell_has_no_engine_samples",
+        "-q"
+      ],
+      "expected": "b6 v1 samples polluted",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-sampling-enabled",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_driver.py",
+      "old": "self.engine_sampling = True",
+      "new": "self.engine_sampling = False",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_continuous_v2_driver_and_scope",
+        "-q"
+      ],
+      "expected": "b6 v2 samples missing",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-sampling-restored",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_driver.py",
+      "old": "self.engine_sampling = previous_sampling",
+      "new": "self.engine_sampling = True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_sampling_flag_restored_after_failure",
+        "-q"
+      ],
+      "expected": "b6 sample flag not restored",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b61-long-admission",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_campaign.py",
+      "old": "len(gates) == 3 and any(not g[\"pass\"] for g in gates)",
+      "new": "len(gates) == 3",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_long_offline_failure_controls_admission_and_schedule",
+        "-q"
+      ],
+      "expected": "b6-long-trigger",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b61-long-schedule",
+      "kind": "behavioral",
+      "file": "scripts/dur053_schedule.py",
+      "old": "len(long_gates) == 3 and any(not g[\"pass\"] for g in long_gates)",
+      "new": "len(long_gates) == 3",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_long_offline_failure_controls_admission_and_schedule",
+        "-q"
+      ],
+      "expected": "b6 long schedule trigger bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b61-long-freeze",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_freeze.py",
+      "old": "arm == \"long\" and all(g[\"pass\"] for g in offline[\"long\"].values())",
+      "new": "arm == \"long\" and all(all(g[\"disclosure_checks\"].values()) for g in offline[\"long\"].values())",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_limited_freeze_preserves_medium",
+        "-q"
+      ],
+      "expected": "b6 long freeze criterion bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b61-long-any-repeat",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_campaign.py",
+      "old": "any(not g[\"pass\"] for g in gates)",
+      "new": "all(not g[\"pass\"] for g in gates)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_long_offline_failure_controls_admission_and_schedule",
+        "-q"
+      ],
+      "expected": "b6-long-trigger",
       "requires_database": false
     }
   ]

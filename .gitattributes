@@ -17,3 +17,7 @@ experiments/portfolio/k8s-recovery/k3b-tooling-v1/** -text
 
 # B.4 deterministic compressed immutable payloads.
 experiments/portfolio/k8s-recovery/k3-pilot-v1/**/payload/*.tar.xz binary
+
+# B.6 versioned immutable evidence (B.4 storage).
+experiments/portfolio/k8s-recovery/k3-pilot-v[23]/** -text
+experiments/portfolio/k8s-recovery/k3-pilot-v[23]/**/payload/*.tar.xz binary

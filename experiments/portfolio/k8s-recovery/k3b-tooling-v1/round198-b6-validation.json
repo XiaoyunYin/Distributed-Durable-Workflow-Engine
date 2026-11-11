@@ -1,0 +1,374 @@
+{
+  "schema": "dur053.round198.b6-validation.v1",
+  "date": "2026-11-11",
+  "handoff_basis": "PROVISIONAL",
+  "task_status": "IN_PROGRESS",
+  "branch": "codex/k8s-k3b-b6",
+  "base_commit": "9d192b1411bd5e97fa6517045841b1a198b607e0",
+  "target_commit": null,
+  "measurement_claim": false,
+  "checks": {
+    "pytest": {
+      "command": ".venv\\Scripts\\python.exe -B -m pytest -p no:cacheprovider --basetemp \"D:\\coding agent files\\durable-engine\\codex\\k3b13\\pt\"",
+      "status": "PASS",
+      "passed": 341,
+      "skipped": 3,
+      "seconds": 272.07,
+      "output": "============================= test session starts =============================\r\nplatform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0\r\nrootdir: D:\\portfolio-projects\\durable-agent-execution-engine\r\nconfigfile: pyproject.toml\r\ntestpaths: tests\r\nplugins: anyio-4.15.1\r\ncollected 344 items\r\n\r\ntests\\test_activity_registry.py ...                                      [  0%]\r\ntests\\test_dur050_cost_ledger.py .................                       [  5%]\r\ntests\\test_dur050_pilot_slo.py ................                          [ 10%]\r\ntests\\test_dur050_window_reconciliation.py ....                          [ 11%]\r\ntests\\test_dur053_witness.py ...............                             [ 15%]\r\ntests\\test_dur055_development_guards.py ....                             [ 17%]\r\ntests\\test_dur055_heldout.py ...........                                 [ 20%]\r\ntests\\test_dur055_mcp.py .......                                         [ 22%]\r\ntests\\test_dur055_postgres_integration.py ss                             [ 22%]\r\ntests\\test_dur056_budget.py ....                                         [ 24%]\r\ntests\\test_dur056_evaluation.py ..............                           [ 28%]\r\ntests\\test_dur056_fixtures.py ................                           [ 32%]\r\ntests\\test_dur056_retrieval.py ............                              [ 36%]\r\ntests\\test_dur056_scorer.py ...........                                  [ 39%]\r\ntests\\test_fault_control.py .............                                [ 43%]\r\ntests\\test_fault_proxy.py .                                              [ 43%]\r\ntests\\test_go_platform_filenames.py ..                                   [ 44%]\r\ntests\\test_imports.py ..                                                 [ 44%]\r\ntests\\test_incident_agent.py ................                            [ 49%]\r\ntests\\test_k3_driver.py ......                                           [ 51%]\r\ntests\\test_k3_lock_check.py ..                                           [ 51%]\r\ntests\\test_k3_package.py ...........                                     [ 54%]\r\ntests\\test_k3_repairs.py .......                                         [ 56%]\r\ntests\\test_k3_round174.py ...........                                    [ 60%]\r\ntests\\test_k3_workflow.py .                                              [ 60%]\r\ntests\\test_k3b_admission.py ......                                       [ 62%]\r\ntests\\test_k3b_payload.py ................                               [ 66%]\r\ntests\\test_k3b_pilot.py ..........................                       [ 74%]\r\ntests\\test_k3b_saturation.py .............                               [ 78%]\r\ntests\\test_k3b_sustained.py ...................                          [ 83%]\r\ntests\\test_kafka_worker.py ......                                        [ 85%]\r\ntests\\test_mutation_runner.py .........                                  [ 88%]\r\ntests\\test_partition_vectors.py ...                                      [ 88%]\r\ntests\\test_runtime_image_targets.py .                                    [ 89%]\r\ntests\\test_worker_identity.py .                                          [ 89%]\r\ntests\\test_worker_kafka_lifecycle.py s                                   [ 89%]\r\ntests\\test_worker_lifecycle.py .......................                   [ 96%]\r\ntests\\test_workers.py ............                                       [100%]\r\n\r\n=========================== short test summary info ===========================\r\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:34: DUR055_TEST_DATABASE_URL is not configured\r\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:41: DUR055_TEST_DATABASE_URL is not configured\r\nSKIPPED [1] tests\\test_worker_kafka_lifecycle.py:59: real Kafka witness requires DURABLE_KAFKA_BROKERS\r\n================= 341 passed, 3 skipped in 272.07s (0:04:32) ==================\r\n"
+    },
+    "targeted_b6": {
+      "command": ".venv\\Scripts\\python.exe -B -m pytest tests/test_k3b_sustained.py -k \"not committed_rate_registration and not schedule_recheck\" -p no:cacheprovider --basetemp \"D:\\coding agent files\\durable-engine\\codex\\k3b13\\pure-finalized\" -q",
+      "passed": 17,
+      "deselected": 2,
+      "status": "PASS",
+      "note": "Followed by the full finished-tree run above, including the two real-evidence tests."
+    },
+    "ruff": {
+      "status": "PASS for maintained scope and added tooling",
+      "check": ".venv\\Scripts\\python.exe -B -m ruff check --no-cache python tests scripts/dur053_sustained.py scripts/dur053_sustained_campaign.py scripts/dur053_sustained_driver.py scripts/dur053_sustained_freeze.py scripts/dur053_pilot.py scripts/dur053_pilot_evidence.py scripts/dur053_campaign.py scripts/dur053_record_pilot.py scripts/dur053_schedule.py",
+      "format": ".venv\\Scripts\\python.exe -B -m ruff format --check --no-cache python tests scripts/dur053_sustained.py scripts/dur053_sustained_campaign.py scripts/dur053_sustained_driver.py scripts/dur053_sustained_freeze.py scripts/dur053_pilot.py scripts/dur053_pilot_evidence.py scripts/dur053_campaign.py scripts/dur053_record_pilot.py scripts/dur053_schedule.py",
+      "formatted_files": 93,
+      "scripts": [
+        "dur053_sustained.py",
+        "dur053_sustained_campaign.py",
+        "dur053_sustained_driver.py",
+        "dur053_sustained_freeze.py",
+        "dur053_pilot.py",
+        "dur053_pilot_evidence.py",
+        "dur053_campaign.py",
+        "dur053_record_pilot.py",
+        "dur053_schedule.py"
+      ],
+      "existing_diagnostics": {
+        "file": "scripts/dur053_k3.py",
+        "count": 13,
+        "kinds": [
+          "SIM112 ImageOS/ImageVersion",
+          "E501 embedded existing commands"
+        ],
+        "status": "unchanged; checked and reported, not repaired"
+      }
+    },
+    "mypy": {
+      "command": ".venv\\Scripts\\python.exe -B -m mypy --cache-dir \"D:\\coding agent files\\durable-engine\\codex\\k3b13\\mypy-cache\"",
+      "status": "PASS",
+      "source_files": 44,
+      "scope": "pyproject.toml configured packages"
+    },
+    "diff_check": {
+      "command": "git diff --check",
+      "status": "PASS"
+    },
+    "mutations": {
+      "status": "PASS",
+      "total": 170,
+      "existing": 157,
+      "new": 13,
+      "killed": 170,
+      "survivors": 0,
+      "blocked": 0,
+      "exact_cases_and_commands": "round198-b6-mutations.json",
+      "case_target_hashes_and_selected_test_AST_match_finished_tree": true
+    },
+    "go_standalone": {
+      "status": "NOT_RUN",
+      "reason": "No Go files changed. Full pytest Go subprocess fixtures passed using the cached pinned toolchain; no standalone build/vet/test/race pass is claimed."
+    },
+    "hosted_kind_and_pilots": {
+      "status": "NOT_RUN",
+      "reason": "User forbids kind, dispatch, network and repository Git mutations. No v2/v3 evidence or real freeze is claimed."
+    }
+  },
+  "environment": {
+    "python": "3.12.7",
+    "go": "1.27.4 windows/amd64, pre-existing extracted cached toolchain selected directly in PATH",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOFLAGS": "-mod=mod",
+    "GOMAXPROCS": "2",
+    "GOCACHE": "D:\\coding agent files\\durable-engine\\codex\\k3b13\\go-cache",
+    "GOTMPDIR": "D:\\coding agent files\\durable-engine\\codex\\k3b13\\go-tmp",
+    "TMP_TEMP_TMPDIR": "D:\\coding agent files\\durable-engine\\codex\\k3b13",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "ruff_cache": "disabled",
+    "pytest_cache": "disabled"
+  },
+  "prior_attempts": [
+    {
+      "scope": "initial targeted pilot/payload/B.6 run",
+      "passed": 38,
+      "failed": 17,
+      "seconds": 302.54,
+      "reason": "MemoryError allocating the unchanged B.4 128 MiB-dictionary LZMA compressor under host memory pressure; later serial full runs passed all payload cases. No compressor/test weakening."
+    },
+    {
+      "scope": "first full pytest",
+      "passed": 328,
+      "failed": 10,
+      "skipped": 3,
+      "seconds": 311.87,
+      "reason": "Automatic Go toolchain resolution refused checksum verification with GOSUMDB=off. Selecting the existing cached Go 1.27.4 directly fixed the environment without network or source changes."
+    },
+    {
+      "scope": "first passing full pytest before final guard cases",
+      "passed": 341,
+      "skipped": 3,
+      "seconds": 304.78
+    }
+  ],
+  "stale_EOL": {
+    "classification": "environmental per Claude Round 197; known Round 196 failure did not recur in this pass",
+    "ci_ps1_bytes": "LF, unchanged",
+    "test_unchanged": true
+  },
+  "optional_skips": [
+    "two DUR-055 PostgreSQL tests: DUR055_TEST_DATABASE_URL unset",
+    "Kafka witness: DURABLE_KAFKA_BROKERS unset"
+  ],
+  "unchanged_bytes": {
+    "scripts/dur053_pilot_driver.py": {
+      "identical_to_base_bytes": true,
+      "sha256": "02745503a400821d39f9659ecbf44571e23733905fcd66278ed13680093e9d65"
+    },
+    "scripts/ci.ps1": {
+      "identical_to_base_bytes": true,
+      "sha256": "1f0421169d9bcec02883beded3e23479bd183b65c3ddfb4cef987c5748c092cb"
+    },
+    "tests/test_k3b_admission.py": {
+      "identical_to_base_bytes": true,
+      "sha256": "9f6020e9461bb55a455704556f11734a2d8fa5c822957b968567967fe7b9c669"
+    },
+    "python/workers/kafka_worker.py": {
+      "identical_to_base_bytes": true,
+      "sha256": "4278971c68cdd2657fb1c04d0b1310f9d734828c6b5aa376f3a64a03b2de43d2"
+    }
+  },
+  "review_append_only_prefix": {
+    "prefix_bytes": 2516394,
+    "prefix_sha256": "19f48726a8ca968d3b0bd6fcc9cd2cda30d61f13bcb612e393d3fb4dbd88b518"
+  },
+  "review_CR_bytes": 0,
+  "planning_evidence": "round198-b6-planning.json",
+  "cleanup": {
+    "status": "BLOCKED_BY_AUTOMATIC_APPROVAL_REVIEW",
+    "root": "D:\\coding agent files\\durable-engine\\codex\\k3b13",
+    "root_exists": true,
+    "files_deleted": 0,
+    "policy_rejections": [
+      {
+        "action": "path-checked recursive deletion of k3b13",
+        "reason": "blocked by policy",
+        "executed": false
+      },
+      {
+        "action": "path-checked recursive emptying of its children",
+        "reason": "blocked by policy",
+        "executed": false
+      },
+      {
+        "action": "path-checked individual-file deletion and empty-directory removal without recursive deletion",
+        "reason": "blocked by policy",
+        "executed": false
+      }
+    ],
+    "root_top_level_entries": [
+      {
+        "name": "b6-planning.json",
+        "type": "file",
+        "files": 1,
+        "bytes": 206177
+      },
+      {
+        "name": "compute_evidence.py",
+        "type": "file",
+        "files": 1,
+        "bytes": 1164
+      },
+      {
+        "name": "go-build2269709206",
+        "type": "directory",
+        "files": 6,
+        "bytes": 3553464
+      },
+      {
+        "name": "go-cache",
+        "type": "directory",
+        "files": 1506,
+        "bytes": 134074243
+      },
+      {
+        "name": "go-tmp",
+        "type": "directory",
+        "files": 6,
+        "bytes": 3555425
+      },
+      {
+        "name": "mutant-pt",
+        "type": "directory",
+        "files": 357,
+        "bytes": 41426774
+      },
+      {
+        "name": "mutation-source",
+        "type": "directory",
+        "files": 2575,
+        "bytes": 84746304
+      },
+      {
+        "name": "mutation-source-resumed",
+        "type": "directory",
+        "files": 2575,
+        "bytes": 84747842
+      },
+      {
+        "name": "mutations-resume.log",
+        "type": "file",
+        "files": 1,
+        "bytes": 8750
+      },
+      {
+        "name": "mutations.json",
+        "type": "file",
+        "files": 1,
+        "bytes": 622810
+      },
+      {
+        "name": "mutations.log",
+        "type": "file",
+        "files": 1,
+        "bytes": 7972
+      },
+      {
+        "name": "mypy-cache",
+        "type": "directory",
+        "files": 18,
+        "bytes": 16347365
+      },
+      {
+        "name": "pt",
+        "type": "directory",
+        "files": 1120,
+        "bytes": 54716782
+      },
+      {
+        "name": "pytest-final.log",
+        "type": "file",
+        "files": 1,
+        "bytes": 7696
+      },
+      {
+        "name": "pytest-finished-tree.log",
+        "type": "file",
+        "files": 1,
+        "bytes": 7696
+      },
+      {
+        "name": "pytest.log",
+        "type": "file",
+        "files": 1,
+        "bytes": 97816
+      },
+      {
+        "name": "resume_mutations.py",
+        "type": "file",
+        "files": 1,
+        "bytes": 4561
+      },
+      {
+        "name": "review-prefix.json",
+        "type": "file",
+        "files": 1,
+        "bytes": 121
+      },
+      {
+        "name": "run_mutations.py",
+        "type": "file",
+        "files": 1,
+        "bytes": 3388
+      },
+      {
+        "name": "schedule.json",
+        "type": "file",
+        "files": 1,
+        "bytes": 185394
+      },
+      {
+        "name": "targeted",
+        "type": "directory",
+        "files": 208,
+        "bytes": 20415487
+      },
+      {
+        "name": "unchanged.json",
+        "type": "file",
+        "files": 1,
+        "bytes": 646
+      }
+    ],
+    "observed_parent": "D:\\coding agent files\\durable-engine\\codex",
+    "parent_entries": [
+      {
+        "name": "k3b10",
+        "type": "directory",
+        "files": 3803,
+        "bytes": 287345650,
+        "complete": false,
+        "errors": [
+          {
+            "path": "D:\\coding agent files\\durable-engine\\codex\\k3b10\\dur046-mutation-l88tay5g",
+            "error": "[WinError 5] \u62d2\u7edd\u8bbf\u95ee\u3002: 'D:\\\\coding agent files\\\\durable-engine\\\\codex\\\\k3b10\\\\dur046-mutation-l88tay5g'"
+          },
+          {
+            "path": "D:\\coding agent files\\durable-engine\\codex\\k3b10\\pt",
+            "error": "[WinError 5] \u62d2\u7edd\u8bbf\u95ee\u3002: 'D:\\\\coding agent files\\\\durable-engine\\\\codex\\\\k3b10\\\\pt'"
+          },
+          {
+            "path": "D:\\coding agent files\\durable-engine\\codex\\k3b10\\targeted",
+            "error": "[WinError 5] \u62d2\u7edd\u8bbf\u95ee\u3002: 'D:\\\\coding agent files\\\\durable-engine\\\\codex\\\\k3b10\\\\targeted'"
+          }
+        ]
+      },
+      {
+        "name": "k3b11",
+        "type": "directory",
+        "files": 9914,
+        "bytes": 715359468,
+        "complete": false,
+        "errors": [
+          {
+            "path": "D:\\coding agent files\\durable-engine\\codex\\k3b11\\pt",
+            "error": "[WinError 5] \u62d2\u7edd\u8bbf\u95ee\u3002: 'D:\\\\coding agent files\\\\durable-engine\\\\codex\\\\k3b11\\\\pt'"
+          }
+        ]
+      },
+      {
+        "name": "k3b12",
+        "type": "directory",
+        "files": 6241,
+        "bytes": 397597812,
+        "complete": false,
+        "errors": [
+          {
+            "path": "D:\\coding agent files\\durable-engine\\codex\\k3b12\\pt",
+            "error": "[WinError 5] \u62d2\u7edd\u8bbf\u95ee\u3002: 'D:\\\\coding agent files\\\\durable-engine\\\\codex\\\\k3b12\\\\pt'"
+          }
+        ]
+      },
+      {
+        "name": "k3b13",
+        "type": "directory",
+        "files": 8384,
+        "bytes": 444737877,
+        "complete": true,
+        "errors": []
+      }
+    ],
+    "remaining_files": 8384,
+    "remaining_bytes": 444737877,
+    "remaining_directories": 1433,
+    "exact_inventory": "round198-b6-cleanup-inventory.json"
+  },
+  "review_prefix_preserved_after_handoff": true,
+  "review_prefix_preserved_after_cleanup_record": true
+}

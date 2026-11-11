@@ -1,0 +1,344 @@
+{
+  "schema": "dur053.round200.b61-validation.v1",
+  "generated_at_utc": "2026-11-11T18:42:44.137821+00:00",
+  "measurement_claim": false,
+  "task": "DUR-053/K3b",
+  "task_status": "IN_PROGRESS",
+  "handoff_basis": "PROVISIONAL",
+  "base_commit": "9d192b1411bd5e97fa6517045841b1a198b607e0",
+  "target_commit": null,
+  "branch": "codex/k8s-k3b-b6",
+  "checks": {
+    "environment": {
+      "TMP": "D:\\coding agent files\\durable-engine\\codex\\k3b14",
+      "TEMP": "D:\\coding agent files\\durable-engine\\codex\\k3b14",
+      "TMPDIR": "D:\\coding agent files\\durable-engine\\codex\\k3b14",
+      "GOTOOLCHAIN": "local",
+      "GOPROXY": "off",
+      "GOSUMDB": "off",
+      "GOFLAGS": "-mod=mod",
+      "GOMAXPROCS": "2",
+      "GOCACHE": "D:\\coding agent files\\durable-engine\\codex\\k3b14\\go-cache",
+      "GOTMPDIR": "D:\\coding agent files\\durable-engine\\codex\\k3b14\\go-tmp",
+      "PYTHONDONTWRITEBYTECODE": "1"
+    },
+    "checks": {
+      "pytest": {
+        "command": [
+          "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+          "-B",
+          "-m",
+          "pytest",
+          "-p",
+          "no:cacheprovider",
+          "--basetemp",
+          "D:\\coding agent files\\durable-engine\\codex\\k3b14\\pt"
+        ],
+        "exit_code": 0,
+        "seconds": 279.71800000000076,
+        "output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0\nrootdir: D:\\portfolio-projects\\durable-agent-execution-engine\nconfigfile: pyproject.toml\ntestpaths: tests\nplugins: anyio-4.15.1\ncollected 351 items\n\ntests\\test_activity_registry.py ...                                      [  0%]\ntests\\test_dur050_cost_ledger.py .................                       [  5%]\ntests\\test_dur050_pilot_slo.py ................                          [ 10%]\ntests\\test_dur050_window_reconciliation.py ....                          [ 11%]\ntests\\test_dur053_witness.py ...............                             [ 15%]\ntests\\test_dur055_development_guards.py ....                             [ 16%]\ntests\\test_dur055_heldout.py ...........                                 [ 19%]\ntests\\test_dur055_mcp.py .......                                         [ 21%]\ntests\\test_dur055_postgres_integration.py ss                             [ 22%]\ntests\\test_dur056_budget.py ....                                         [ 23%]\ntests\\test_dur056_evaluation.py ..............                           [ 27%]\ntests\\test_dur056_fixtures.py ................                           [ 32%]\ntests\\test_dur056_retrieval.py ............                              [ 35%]\ntests\\test_dur056_scorer.py ...........                                  [ 38%]\ntests\\test_fault_control.py .............                                [ 42%]\ntests\\test_fault_proxy.py .                                              [ 42%]\ntests\\test_go_platform_filenames.py ..                                   [ 43%]\ntests\\test_imports.py ..                                                 [ 43%]\ntests\\test_incident_agent.py ................                            [ 48%]\ntests\\test_k3_driver.py ......                                           [ 50%]\ntests\\test_k3_lock_check.py ..                                           [ 50%]\ntests\\test_k3_package.py ...........                                     [ 53%]\ntests\\test_k3_repairs.py .......                                         [ 55%]\ntests\\test_k3_round174.py ...........                                    [ 58%]\ntests\\test_k3_workflow.py .                                              [ 59%]\ntests\\test_k3b_admission.py ......                                       [ 60%]\ntests\\test_k3b_payload.py ................                               [ 65%]\ntests\\test_k3b_pilot.py ..........................                       [ 72%]\ntests\\test_k3b_saturation.py .............                               [ 76%]\ntests\\test_k3b_sustained.py ..........................                   [ 84%]\ntests\\test_kafka_worker.py ......                                        [ 85%]\ntests\\test_mutation_runner.py .........                                  [ 88%]\ntests\\test_partition_vectors.py ...                                      [ 89%]\ntests\\test_runtime_image_targets.py .                                    [ 89%]\ntests\\test_worker_identity.py .                                          [ 89%]\ntests\\test_worker_kafka_lifecycle.py s                                   [ 90%]\ntests\\test_worker_lifecycle.py .......................                   [ 96%]\ntests\\test_workers.py ............                                       [100%]\n\n=========================== short test summary info ===========================\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:34: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:41: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_worker_kafka_lifecycle.py:59: real Kafka witness requires DURABLE_KAFKA_BROKERS\n================= 348 passed, 3 skipped in 278.61s (0:04:38) ==================\n"
+      },
+      "ruff-check": {
+        "command": [
+          "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+          "-B",
+          "-m",
+          "ruff",
+          "check",
+          "--no-cache",
+          "python",
+          "tests",
+          "scripts/dur053_sustained.py",
+          "scripts/dur053_sustained_campaign.py",
+          "scripts/dur053_sustained_driver.py",
+          "scripts/dur053_sustained_freeze.py",
+          "scripts/dur053_pilot.py",
+          "scripts/dur053_pilot_evidence.py",
+          "scripts/dur053_campaign.py",
+          "scripts/dur053_record_pilot.py",
+          "scripts/dur053_schedule.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.1870000000053551,
+        "output": "All checks passed!\n"
+      },
+      "ruff-format": {
+        "command": [
+          "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+          "-B",
+          "-m",
+          "ruff",
+          "format",
+          "--check",
+          "--no-cache",
+          "python",
+          "tests",
+          "scripts/dur053_sustained.py",
+          "scripts/dur053_sustained_campaign.py",
+          "scripts/dur053_sustained_driver.py",
+          "scripts/dur053_sustained_freeze.py",
+          "scripts/dur053_pilot.py",
+          "scripts/dur053_pilot_evidence.py",
+          "scripts/dur053_campaign.py",
+          "scripts/dur053_record_pilot.py",
+          "scripts/dur053_schedule.py"
+        ],
+        "exit_code": 0,
+        "seconds": 0.125,
+        "output": "93 files already formatted\n"
+      },
+      "ruff-existing-k3": {
+        "command": [
+          "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+          "-B",
+          "-m",
+          "ruff",
+          "check",
+          "--no-cache",
+          "scripts/dur053_k3.py"
+        ],
+        "exit_code": 1,
+        "seconds": 0.11000000000058208,
+        "output": "SIM112 Use capitalized environment variable `IMAGEOS` instead of `ImageOS`\n   --> scripts\\dur053_k3.py:311:38\n    |\n309 |         versions.update(\n310 |             {\n311 |                 \"ImageOS\": os.getenv(\"ImageOS\"),\n    |                                      ^^^^^^^^^\n312 |                 \"ImageVersion\": os.getenv(\"ImageVersion\"),\n313 |                 \"vcpu_observed\": os.cpu_count(),\n    |\nhelp: Replace `ImageOS` with `IMAGEOS`\n\nSIM112 Use capitalized environment variable `IMAGEVERSION` instead of `ImageVersion`\n   --> scripts\\dur053_k3.py:312:43\n    |\n310 |             {\n311 |                 \"ImageOS\": os.getenv(\"ImageOS\"),\n312 |                 \"ImageVersion\": os.getenv(\"ImageVersion\"),\n    |                                           ^^^^^^^^^^^^^^\n313 |                 \"vcpu_observed\": os.cpu_count(),\n314 |                 \"memory_observed\": Path(\"/proc/meminfo\").read_text(),\n    |\nhelp: Replace `ImageVersion` with `IMAGEVERSION`\n\nE501 Line too long (162 > 100)\n   --> scripts\\dur053_k3.py:959:101\n    |\n957 | \u2026t(\"deletionTimestamp\")]\n958 | \u2026\n959 | \u2026([json.load(urllib.request.urlopen(\"http://\"+ip+\":8081/witness\",timeout=3)) for ip in {ips!r}]))'\n    |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n960 | \u2026rver\", code, record=False))\n961 | \u2026\n    |\n\nE501 Line too long (103 > 100)\n    --> scripts\\dur053_k3.py:1075:101\n     |\n1073 |                 \"max_connections\": 100,\n1074 |                 \"observed\": self.sql(\n1075 |                     \"SELECT application_name,count(*) FROM pg_stat_activity GROUP BY application_name;\"\n     |                                                                                                     ^^^\n1076 |                 ),\n1077 |             },\n     |\n\nE501 Line too long (270 > 100)\n    --> scripts\\dur053_k3.py:1164:101\n     |\n1162 | \u2026\n1163 | \u2026\n1164 | \u20268091)]:\\n try:\\n  socket.create_connection((host,port),timeout=3).close(); results[host]=\"CONNECTED\"\\n except TimeoutError: results[host]=\"DENIED\"\\nprint(json.dumps(results))'\n     |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1165 | \u2026\n1166 | \u2026\n     |\n\nE501 Line too long (474 > 100)\n    --> scripts\\dur053_k3.py:1187:101\n     |\n1185 | \u2026\n1186 | \u2026\n1187 | \u2026n\").read().strip();\\nfor host,port,path in [(\"ope\u2026ts[host]=e.code\\nprint(json.dumps(results))'\n     |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\u2026^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1188 | \u2026\n1189 | \u2026\n     |\n\nE501 Line too long (332 > 100)\n    --> scripts\\dur053_k3.py:1202:101\n     |\n1200 | \u2026\n1201 | \u2026\n1202 | \u2026); req=urllib.request.Request(\"http://operator:8080/v1/workflows/no-such-workflow\",headers={\"Authorization\":\"Bearer \"+token});\\ntry: print(urllib.request.urlopen(req,timeout=5).status)\\nexcept urllib.error.HTTPError as e: print(e.code)',\n     |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1203 | \u2026\n1204 | \u2026\n     |\n\nE501 Line too long (144 > 100)\n    --> scripts\\dur053_k3.py:1217:101\n     |\n1215 | \u2026\n1216 | \u2026\n1217 | \u2026};\\nfor path in [\"/healthz\",\"/readyz\"]:\\n try: r[path]=urllib.request.urlopen(\"http://'\n     |                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1218 | \u2026\n1219 | \u2026lib.error.HTTPError as e:r[path]=e.code\\nprint(json.dumps(r))'\n     |\n\nE501 Line too long (119 > 100)\n    --> scripts\\dur053_k3.py:1219:101\n     |\n1217 | \u2026         'import urllib.request,urllib.error,json; r={};\\nfor path in [\"/healthz\",\"/readyz\"]:\\n try: r[path]=urllib.request.urlopen\u2026\n1218 | \u2026         + ip\n1219 | \u2026         + ':8080\"+path,timeout=3).status\\n except urllib.error.HTTPError as e:r[path]=e.code\\nprint(json.dumps(r))'\n     |                                                                                                   ^^^^^^^^^^^^^^^^^^^\n1220 | \u2026     )\n1221 | \u2026     before = json.loads(self.python(ns, \"observer\", probe))\n     |\n\nE501 Line too long (178 > 100)\n    --> scripts\\dur053_k3.py:1270:101\n     |\n1268 | \u2026\n1269 | \u2026\n1270 | \u2026ne=time.monotonic()+20;\\nwhile time.monotonic()<deadline:\\n try: status=urllib.request.urlopen(\"http://'\n     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1271 | \u2026\n1272 | \u2026Error as e:status=e.code\\n except OSError:status=0\\n rows.append(status);\\n if len(rows)==1 and status==200:open(\"/evidence/drain-p\u2026\n     |\n\nE501 Line too long (280 > 100)\n    --> scripts\\dur053_k3.py:1272:101\n     |\n1270 | \u20260;\\nwhile time.monotonic()<deadline:\\n try: status=urllib.request.urlopen(\"http://'\n1271 | \u2026\n1272 | \u2026ode\\n except OSError:status=0\\n rows.append(status);\\n if len(rows)==1 and status==200:open(\"/evidence/drain-probe-ready\",\"w\").write(\"ready\")\\n time.sleep(.05)\\nprint(json.dumps(rows))'\n     |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1273 | \u2026\n1274 | \u2026\n     |\n\nE501 Line too long (174 > 100)\n    --> scripts\\dur053_k3.py:1352:101\n     |\n1350 | \u2026\n1351 | \u2026\n1352 | \u2026r(p):base64.b64encode(p.read_bytes()).decode() for p in pathlib.Path(\"/witness\").glob(\"*/*.jsonl\")}))'\n     |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1353 | \u2026\n1354 | \u2026\n     |\n\nE501 Line too long (109 > 100)\n    --> scripts\\dur053_k3.py:1683:101\n     |\n1681 |                 d.databases.update(\n1682 |                     d.sql(\n1683 |                         \"SELECT datname FROM pg_database WHERE datname IN ('dur053_kind','dur053_baseline');\"\n     |                                                                                                     ^^^^^^^^^\n1684 |                     ).splitlines()\n1685 |                 )\n     |\n\nFound 13 errors.\n"
+      },
+      "mypy": {
+        "command": [
+          "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+          "-B",
+          "-m",
+          "mypy",
+          "--cache-dir",
+          "D:\\coding agent files\\durable-engine\\codex\\k3b14\\mypy-cache"
+        ],
+        "exit_code": 0,
+        "seconds": 0.6869999999980791,
+        "output": "Success: no issues found in 44 source files\n"
+      },
+      "diff-check": {
+        "command": [
+          "git",
+          "diff",
+          "--check"
+        ],
+        "exit_code": 0,
+        "seconds": 0.06300000000192085,
+        "output": "warning: in the working copy of '.gitattributes', LF will be replaced by CRLF the next time Git touches it\n"
+      }
+    }
+  },
+  "prior_attempts": {
+    "initial_full_checks": {
+      "environment": {
+        "TMP": "D:\\coding agent files\\durable-engine\\codex\\k3b14",
+        "TEMP": "D:\\coding agent files\\durable-engine\\codex\\k3b14",
+        "TMPDIR": "D:\\coding agent files\\durable-engine\\codex\\k3b14",
+        "GOTOOLCHAIN": "local",
+        "GOPROXY": "off",
+        "GOSUMDB": "off",
+        "GOFLAGS": "-mod=mod",
+        "GOMAXPROCS": "2",
+        "GOCACHE": "D:\\coding agent files\\durable-engine\\codex\\k3b14\\go-cache",
+        "GOTMPDIR": "D:\\coding agent files\\durable-engine\\codex\\k3b14\\go-tmp",
+        "PYTHONDONTWRITEBYTECODE": "1"
+      },
+      "checks": {
+        "pytest": {
+          "command": [
+            "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-m",
+            "pytest",
+            "-p",
+            "no:cacheprovider",
+            "--basetemp",
+            "D:\\coding agent files\\durable-engine\\codex\\k3b14\\pt"
+          ],
+          "exit_code": 1,
+          "seconds": 324.29699999999866,
+          "output": "============================= test session starts =============================\nplatform win32 -- Python 3.12.7, pytest-9.1.1, pluggy-1.6.0\nrootdir: D:\\portfolio-projects\\durable-agent-execution-engine\nconfigfile: pyproject.toml\ntestpaths: tests\nplugins: anyio-4.15.1\ncollected 351 items\n\ntests\\test_activity_registry.py ...                                      [  0%]\ntests\\test_dur050_cost_ledger.py .................                       [  5%]\ntests\\test_dur050_pilot_slo.py ................                          [ 10%]\ntests\\test_dur050_window_reconciliation.py ....                          [ 11%]\ntests\\test_dur053_witness.py ...............                             [ 15%]\ntests\\test_dur055_development_guards.py ....                             [ 16%]\ntests\\test_dur055_heldout.py ...........                                 [ 19%]\ntests\\test_dur055_mcp.py .......                                         [ 21%]\ntests\\test_dur055_postgres_integration.py ss                             [ 22%]\ntests\\test_dur056_budget.py ....                                         [ 23%]\ntests\\test_dur056_evaluation.py ..............                           [ 27%]\ntests\\test_dur056_fixtures.py ................                           [ 32%]\ntests\\test_dur056_retrieval.py ............                              [ 35%]\ntests\\test_dur056_scorer.py ...........                                  [ 38%]\ntests\\test_fault_control.py .............                                [ 42%]\ntests\\test_fault_proxy.py .                                              [ 42%]\ntests\\test_go_platform_filenames.py ..                                   [ 43%]\ntests\\test_imports.py ..                                                 [ 43%]\ntests\\test_incident_agent.py ................                            [ 48%]\ntests\\test_k3_driver.py ......                                           [ 50%]\ntests\\test_k3_lock_check.py ..                                           [ 50%]\ntests\\test_k3_package.py ...........                                     [ 53%]\ntests\\test_k3_repairs.py .......                                         [ 55%]\ntests\\test_k3_round174.py ...........                                    [ 58%]\ntests\\test_k3_workflow.py .                                              [ 59%]\ntests\\test_k3b_admission.py ......                                       [ 60%]\ntests\\test_k3b_payload.py ................                               [ 65%]\ntests\\test_k3b_pilot.py ..........................                       [ 72%]\ntests\\test_k3b_saturation.py .............                               [ 76%]\ntests\\test_k3b_sustained.py .F........................                   [ 84%]\ntests\\test_kafka_worker.py ......                                        [ 85%]\ntests\\test_mutation_runner.py .........                                  [ 88%]\ntests\\test_partition_vectors.py ...                                      [ 89%]\ntests\\test_runtime_image_targets.py .                                    [ 89%]\ntests\\test_worker_identity.py .                                          [ 89%]\ntests\\test_worker_kafka_lifecycle.py s                                   [ 90%]\ntests\\test_worker_lifecycle.py .......................                   [ 96%]\ntests\\test_workers.py ............                                       [100%]\n\n================================== FAILURES ===================================\n___________ SustainedTests.test_committed_medium_offline_criterion ____________\n\nself = <test_k3b_sustained.SustainedTests testMethod=test_committed_medium_offline_criterion>\n\n                gate = b6.stationarity(d, offline=True)\n                with self.assertRaisesRegex(ValueError, \"b6-engine-path\"):\n                    b6.require_stationary(gate)\n    \n    def test_committed_medium_offline_criterion(self) -> None:\n        gates = {}\n        for path in (ROOT / b6.EVIDENCE).glob(\"*/*/manifest.json\"):\n            header = json.loads(b6.committed_bytes(ROOT, path))\n            if not any(f\"medium-{i}\" in header[\"completed\"] for i in (1, 2, 3)):\n                continue\n            with b6.materialize(path.parent, ROOT) as root:\n                for i in (1, 2, 3):\n                    if f\"medium-{i}\" in header[\"completed\"]:\n>                       gates[i] = b6.stationarity(root / f\"medium-{i}\", offline=True)\n            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\nE                       AssertionError: 0.49970686679309045 != 1.0\n\ntests\\test_k3b_sustained.py:492: AssertionError\n=========================== short test summary info ===========================\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:34: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:41: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_worker_kafka_lifecycle.py:59: real Kafka witness requires DURABLE_KAFKA_BROKERS\nFAILED tests/test_k3b_sustained.py::SustainedTests::test_committed_medium_offline_criterion\n============ 1 failed, 347 passed, 3 skipped in 323.13s (0:05:23) =============\n"
+        },
+        "ruff-check": {
+          "command": [
+            "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-m",
+            "ruff",
+            "check",
+            "--no-cache",
+            "python",
+            "tests",
+            "scripts/dur053_sustained.py",
+            "scripts/dur053_sustained_campaign.py",
+            "scripts/dur053_sustained_driver.py",
+            "scripts/dur053_sustained_freeze.py",
+            "scripts/dur053_pilot.py",
+            "scripts/dur053_pilot_evidence.py",
+            "scripts/dur053_campaign.py",
+            "scripts/dur053_record_pilot.py",
+            "scripts/dur053_schedule.py"
+          ],
+          "exit_code": 1,
+          "seconds": 0.31199999999807915,
+          "output": "I001 [*] Import block is un-sorted or un-formatted\n  --> tests\\test_k3b_sustained.py:1:1\n   |\n 1 | / from __future__ import annotations\n 2 | |\n 3 | | import hashlib\n 4 | | import copy\n 5 | | import json\n 6 | | import os\n 7 | | import subprocess\n 8 | | import sys\n 9 | | import tempfile\n10 | | import unittest\n11 | | from contextlib import nullcontext\n12 | | from datetime import UTC, datetime, timedelta\n13 | | from pathlib import Path\n14 | | from unittest.mock import patch\n   | |_______________________________^\n15 |\n16 |   ROOT = Path(__file__).resolve().parents[1]\n   |\nhelp: Organize imports\n  |\n2 |\n3 + import copy\n4 | import hashlib\n  - import copy\n5 | import json\n  |\n\nFound 1 error.\n[*] 1 fixable with the `--fix` option.\n"
+        },
+        "ruff-format": {
+          "command": [
+            "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-m",
+            "ruff",
+            "format",
+            "--check",
+            "--no-cache",
+            "python",
+            "tests",
+            "scripts/dur053_sustained.py",
+            "scripts/dur053_sustained_campaign.py",
+            "scripts/dur053_sustained_driver.py",
+            "scripts/dur053_sustained_freeze.py",
+            "scripts/dur053_pilot.py",
+            "scripts/dur053_pilot_evidence.py",
+            "scripts/dur053_campaign.py",
+            "scripts/dur053_record_pilot.py",
+            "scripts/dur053_schedule.py"
+          ],
+          "exit_code": 0,
+          "seconds": 0.125,
+          "output": "93 files already formatted\n"
+        },
+        "ruff-existing-k3": {
+          "command": [
+            "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-m",
+            "ruff",
+            "check",
+            "--no-cache",
+            "scripts/dur053_k3.py"
+          ],
+          "exit_code": 1,
+          "seconds": 0.09399999999732245,
+          "output": "SIM112 Use capitalized environment variable `IMAGEOS` instead of `ImageOS`\n   --> scripts\\dur053_k3.py:311:38\n    |\n309 |         versions.update(\n310 |             {\n311 |                 \"ImageOS\": os.getenv(\"ImageOS\"),\n    |                                      ^^^^^^^^^\n312 |                 \"ImageVersion\": os.getenv(\"ImageVersion\"),\n313 |                 \"vcpu_observed\": os.cpu_count(),\n    |\nhelp: Replace `ImageOS` with `IMAGEOS`\n\nSIM112 Use capitalized environment variable `IMAGEVERSION` instead of `ImageVersion`\n   --> scripts\\dur053_k3.py:312:43\n    |\n310 |             {\n311 |                 \"ImageOS\": os.getenv(\"ImageOS\"),\n312 |                 \"ImageVersion\": os.getenv(\"ImageVersion\"),\n    |                                           ^^^^^^^^^^^^^^\n313 |                 \"vcpu_observed\": os.cpu_count(),\n314 |                 \"memory_observed\": Path(\"/proc/meminfo\").read_text(),\n    |\nhelp: Replace `ImageVersion` with `IMAGEVERSION`\n\nE501 Line too long (162 > 100)\n   --> scripts\\dur053_k3.py:959:101\n    |\n957 | \u2026t(\"deletionTimestamp\")]\n958 | \u2026\n959 | \u2026([json.load(urllib.request.urlopen(\"http://\"+ip+\":8081/witness\",timeout=3)) for ip in {ips!r}]))'\n    |                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n960 | \u2026rver\", code, record=False))\n961 | \u2026\n    |\n\nE501 Line too long (103 > 100)\n    --> scripts\\dur053_k3.py:1075:101\n     |\n1073 |                 \"max_connections\": 100,\n1074 |                 \"observed\": self.sql(\n1075 |                     \"SELECT application_name,count(*) FROM pg_stat_activity GROUP BY application_name;\"\n     |                                                                                                     ^^^\n1076 |                 ),\n1077 |             },\n     |\n\nE501 Line too long (270 > 100)\n    --> scripts\\dur053_k3.py:1164:101\n     |\n1162 | \u2026\n1163 | \u2026\n1164 | \u20268091)]:\\n try:\\n  socket.create_connection((host,port),timeout=3).close(); results[host]=\"CONNECTED\"\\n except TimeoutError: results[host]=\"DENIED\"\\nprint(json.dumps(results))'\n     |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1165 | \u2026\n1166 | \u2026\n     |\n\nE501 Line too long (474 > 100)\n    --> scripts\\dur053_k3.py:1187:101\n     |\n1185 | \u2026\n1186 | \u2026\n1187 | \u2026n\").read().strip();\\nfor host,port,path in [(\"ope\u2026ts[host]=e.code\\nprint(json.dumps(results))'\n     |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\u2026^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1188 | \u2026\n1189 | \u2026\n     |\n\nE501 Line too long (332 > 100)\n    --> scripts\\dur053_k3.py:1202:101\n     |\n1200 | \u2026\n1201 | \u2026\n1202 | \u2026); req=urllib.request.Request(\"http://operator:8080/v1/workflows/no-such-workflow\",headers={\"Authorization\":\"Bearer \"+token});\\ntry: print(urllib.request.urlopen(req,timeout=5).status)\\nexcept urllib.error.HTTPError as e: print(e.code)',\n     |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1203 | \u2026\n1204 | \u2026\n     |\n\nE501 Line too long (144 > 100)\n    --> scripts\\dur053_k3.py:1217:101\n     |\n1215 | \u2026\n1216 | \u2026\n1217 | \u2026};\\nfor path in [\"/healthz\",\"/readyz\"]:\\n try: r[path]=urllib.request.urlopen(\"http://'\n     |                                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1218 | \u2026\n1219 | \u2026lib.error.HTTPError as e:r[path]=e.code\\nprint(json.dumps(r))'\n     |\n\nE501 Line too long (119 > 100)\n    --> scripts\\dur053_k3.py:1219:101\n     |\n1217 | \u2026         'import urllib.request,urllib.error,json; r={};\\nfor path in [\"/healthz\",\"/readyz\"]:\\n try: r[path]=urllib.request.urlopen\u2026\n1218 | \u2026         + ip\n1219 | \u2026         + ':8080\"+path,timeout=3).status\\n except urllib.error.HTTPError as e:r[path]=e.code\\nprint(json.dumps(r))'\n     |                                                                                                   ^^^^^^^^^^^^^^^^^^^\n1220 | \u2026     )\n1221 | \u2026     before = json.loads(self.python(ns, \"observer\", probe))\n     |\n\nE501 Line too long (178 > 100)\n    --> scripts\\dur053_k3.py:1270:101\n     |\n1268 | \u2026\n1269 | \u2026\n1270 | \u2026ne=time.monotonic()+20;\\nwhile time.monotonic()<deadline:\\n try: status=urllib.request.urlopen(\"http://'\n     |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1271 | \u2026\n1272 | \u2026Error as e:status=e.code\\n except OSError:status=0\\n rows.append(status);\\n if len(rows)==1 and status==200:open(\"/evidence/drain-p\u2026\n     |\n\nE501 Line too long (280 > 100)\n    --> scripts\\dur053_k3.py:1272:101\n     |\n1270 | \u20260;\\nwhile time.monotonic()<deadline:\\n try: status=urllib.request.urlopen(\"http://'\n1271 | \u2026\n1272 | \u2026ode\\n except OSError:status=0\\n rows.append(status);\\n if len(rows)==1 and status==200:open(\"/evidence/drain-probe-ready\",\"w\").write(\"ready\")\\n time.sleep(.05)\\nprint(json.dumps(rows))'\n     |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1273 | \u2026\n1274 | \u2026\n     |\n\nE501 Line too long (174 > 100)\n    --> scripts\\dur053_k3.py:1352:101\n     |\n1350 | \u2026\n1351 | \u2026\n1352 | \u2026r(p):base64.b64encode(p.read_bytes()).decode() for p in pathlib.Path(\"/witness\").glob(\"*/*.jsonl\")}))'\n     |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n1353 | \u2026\n1354 | \u2026\n     |\n\nE501 Line too long (109 > 100)\n    --> scripts\\dur053_k3.py:1683:101\n     |\n1681 |                 d.databases.update(\n1682 |                     d.sql(\n1683 |                         \"SELECT datname FROM pg_database WHERE datname IN ('dur053_kind','dur053_baseline');\"\n     |                                                                                                     ^^^^^^^^^\n1684 |                     ).splitlines()\n1685 |                 )\n     |\n\nFound 13 errors.\n"
+        },
+        "mypy": {
+          "command": [
+            "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-m",
+            "mypy",
+            "--cache-dir",
+            "D:\\coding agent files\\durable-engine\\codex\\k3b14\\mypy-cache"
+          ],
+          "exit_code": 0,
+          "seconds": 12.828000000001339,
+          "output": "Success: no issues found in 44 source files\n"
+        },
+        "diff-check": {
+          "command": [
+            "git",
+            "diff",
+            "--check"
+          ],
+          "exit_code": 0,
+          "seconds": 0.0940000000045984,
+          "output": "warning: in the working copy of '.gitattributes', LF will be replaced by CRLF the next time Git touches it\n"
+        }
+      }
+    },
+    "notes": [
+      "The first full run was 347 passed, 1 failed, 3 optional skips: the new medium test incorrectly treated a normalized throughput ratio as 1 workflow/s. The final test records the actual 0.49970686679309045/s measured rate and applies the registered 0.95 factor.",
+      "One new import-order diagnostic was corrected. The 13 existing scripts/dur053_k3.py diagnostics are separately disclosed.",
+      "Initial history-free snapshot omitted deploy/k8s/tools.lock.json and failed import; included that unchanged input before the proof passed.",
+      "An initial new schedule mutant failed semantically but lacked the requested diagnostic label, so it was not counted as killed. Added the label, reran the entire 25-case selection, then reran all 25 again after final test refinements."
+    ]
+  },
+  "mutations": {
+    "record": "round200-b61-mutations.json",
+    "total": 25,
+    "existing": 13,
+    "new": 12,
+    "killed": 25,
+    "survivors": 0,
+    "baseline_passes": 25,
+    "scope": "Every manifest mutant targeting any file edited during Round 200; not the full 557-case Go/service manifest or a rerun of all Round 198 targets."
+  },
+  "planning_record": "round200-b61-planning.json",
+  "history_independence": {
+    "basis": "byte-identical source snapshot with no .git and explicit nonexistent GIT_DIR",
+    "git_command": [
+      "git",
+      "show",
+      "9d192b1411bd5e97fa6517045841b1a198b607e0:scripts/dur053_pilot_driver.py"
+    ],
+    "git_exit": 128,
+    "git_stderr": "fatal: not a git repository: 'D:\\coding agent files\\durable-engine\\codex\\k3b14\\absent.git'\n",
+    "test_command": [
+      "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+      "-B",
+      "-m",
+      "pytest",
+      "tests/test_k3b_sustained.py::SustainedTests::test_medium_long_execution_unchanged",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "--basetemp",
+      "D:\\coding agent files\\durable-engine\\codex\\k3b14\\history-free-pt"
+    ],
+    "test_exit": 0,
+    "test_output": ".                                                                        [100%]\n1 passed in 0.09s\n",
+    "GIT_DIR": "D:\\coding agent files\\durable-engine\\codex\\k3b14\\absent.git"
+  },
+  "unchanged_bytes": {
+    "scripts/dur053_pilot_driver.py": {
+      "identical_to_base_bytes": true,
+      "sha256": "02745503a400821d39f9659ecbf44571e23733905fcd66278ed13680093e9d65"
+    },
+    "scripts/ci.ps1": {
+      "identical_to_base_bytes": true,
+      "sha256": "1f0421169d9bcec02883beded3e23479bd183b65c3ddfb4cef987c5748c092cb"
+    },
+    "tests/test_k3b_admission.py": {
+      "identical_to_base_bytes": true,
+      "sha256": "9f6020e9461bb55a455704556f11734a2d8fa5c822957b968567967fe7b9c669"
+    },
+    "python/workers/kafka_worker.py": {
+      "identical_to_base_bytes": true,
+      "sha256": "4278971c68cdd2657fb1c04d0b1310f9d734828c6b5aa376f3a64a03b2de43d2"
+    }
+  },
+  "review_append_only_prefix": {
+    "bytes": 2545043,
+    "sha256": "a3f6426d7741f2d77ae63a7d67e2447f6b65c97f59c7747c75ef41114e713b11",
+    "CR": 0
+  },
+  "review_CR_bytes": 0,
+  "stale_EOL": {
+    "test_unchanged": true,
+    "classification": "environmental per Round 197",
+    "recurred": false
+  },
+  "limitations": [
+    "No Go files changed; standalone Go build/vet/test/race were not run. Full pytest runs its configured Go subprocess checks with the cached 1.27.4 toolchain and offline environment.",
+    "Two DUR-055 PostgreSQL tests and the Kafka witness test skip for unset service endpoints.",
+    "No network, project .git mutation, branch switch, repository commit, push, workflow dispatch, hosted CI, kind, genuine Linux smoke, actual v2/v3 or long pilot, or freeze was run.",
+    "No committed target exists; depth-1 target checkout and hosted PR CI cannot be run here. The no-.git source snapshot with nonexistent GIT_DIR is the equivalent local proof of no base-history access.",
+    "R264 remains reviewer OPEN pending actual passing retained v2/v3 evidence. R265-R269 and R263 remain OPEN under Claude; R223 remains Claude-deferred."
+  ],
+  "cleanup": {
+    "status": "BLOCKED",
+    "reason": "Automatic approval review rejected the verified k3b14 directory deletion before execution: blocked by policy",
+    "deleted": false,
+    "preflight_regular_files": 2789,
+    "preflight_bytes": 210559277,
+    "preflight_reparse_points": 0,
+    "observed_codex_root_listing": [
+      {"name": "k3b10", "accessible_regular_files": 0, "bytes": null, "enumeration": "access denied"},
+      {"name": "k3b11", "accessible_regular_files": 0, "bytes": null, "enumeration": "access denied"},
+      {"name": "k3b12", "accessible_regular_files": 0, "bytes": null, "enumeration": "access denied"},
+      {"name": "k3b14", "accessible_regular_files": 2789, "bytes": 210559277, "enumeration": "complete"}
+    ],
+    "root": "D:\\coding agent files\\durable-engine\\codex\\k3b14",
+    "no_repository_inventory": true
+  },
+  "review_prefix_preserved_after_handoff": true
+}

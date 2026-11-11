@@ -1172,3 +1172,153 @@ standard-library advisory, later jobs use Go 1.27.4. Each arm's cells come
 from its registered jobs, and no arm mixes toolchains. The per-job image
 digests are recorded in each manifest's `images.json`. This toolchain patch
 changes no rate, L, formula, cell, ceiling or reservation.
+
+### Amendment B.6 - sustained-rate re-pilot for overloaded arms
+
+Registered by Claude Round 195 under D035, with the binding Round 197 precision clarification, before any v2 measurement. B.6 supersedes the earlier overload-disclosure-only permission for the short/CPU freeze. All v1 evidence remains immutable.
+
+1. **Retain v1 unchanged.**
+   - The short-1..3 and cpu-1..3 v1 repeats become overload-calibration evidence. They are
+     excluded from L and from all comparisons, and still count in the ledger.
+   - The v1 initials (short-0, cpu-0), the CPU calibration (1000000 units) and the medium
+     arm are unchanged and stay valid freeze inputs.
+2. **Operating rate.** For short and CPU, register q = 0.5 x X_min. X_min is the minimum
+   v1-repeat `completion_throughput_first_to_last` from `engine_path_metrics`, recomputed
+   mechanically from committed evidence:
+   - short: X_min = `14.272201`/s and q = `7.136101`/s (six-decimal rounded).
+   - cpu: X_min = `1.738647`/s and q = `0.869323`/s (six-decimal rounded).
+
+   This is capacity data from no-fault pilots, never fault outcomes. q is fixed before any v2
+   data exists.
+3. **v2 pilot.** For each of short and CPU, run three no-fault repeats with unchanged
+   workload, resources, slots and CPU units, and new deterministic seeds that do not overlap
+   v1.
+   - Each repeat warms for 120 s at q, continuously and without draining, then measures for
+     T = max(600 s, 200/q) at q. Retain every scheduled arrival; warmup arrivals stay in
+     completeness, safety and reconciliation.
+   - All existing generator, safety, completeness, reconciliation and teardown gates apply.
+   - The CPU job must not re-select units. Before its repeats it re-measures the
+     1000000-unit median with the registered calibration procedure (1 discarded + 21
+     measured, 120 s bound) as a disclosed drift check against 0.514 s, and records the
+     image digest.
+4. **Stationarity gate.** Prespecified; each repeat must pass all of:
+   - (a) **Throughput.** Split T into six equal bins by scheduled time. In bins 2-6,
+     measured completions whose durable terminal time falls in the bin must be at least
+     0.95 x the measured arrivals scheduled in the bin. Bin 1 is the pipeline fill.
+   - (b) **Latency drift.** For thirds of measured arrivals in scheduled order, the last
+     third's median and p90 must each be at most max(1.25 x first third, first third +
+     0.5 s).
+   - (c) **Engine path.** From the observer's actual samples, the last bin's mean outstanding
+     accepted workflows may exceed bin 1's by at most 4. The mean unpublished outbox rows may
+     exceed bin 1's by at most 20.
+5. **Freeze.** When all three v2 repeats of an arm pass, freeze that arm's
+   r = 2q (= X_min), so every downstream 0.25r, 0.5r, 0.75r and 1.25r multiple is relative
+   to the sustained rate.
+   - L = ceil(1000 x 2 x max v2 repeat p99)/1000, the formula unchanged.
+   - Also freeze b0 and r0 from the v1 initial, and the v2 repeats' b, as disclosed
+     references.
+6. **Bounded fallback.**
+   - If any v2 repeat of an arm fails the gate, retain it and run v3 once at q/2 with the
+     identical procedure. No further versions.
+   - Accept the first passing version; never choose among passing versions.
+   - If v3 also fails, or the budget refuses it, that arm is unperformed for stationary-SLO
+     comparisons. Its K4-K7 cells are recorded as unperformed and never silently dropped.
+7. **Medium and long.**
+   - Medium is unchanged: throughput 1.00 at 0.5r, no backlog.
+   - Long jobs 2 and 3 run as registered. At freeze, gates 4(a) and 4(b) are evaluated
+     offline on the long repeats, and 4(c) is replaced by
+     `warmup_outbox_unpublished_at_start == 0`. If long fails, it follows steps 3-6 with
+     X_min from its repeats.
+   - Medium is evaluated the same way and disclosed, without changing its freeze.
+8. **Budget.**
+   - Recompute the expected schedule and every admission reservation with the new jobs and
+     frozen rates before dispatch. No cell minimum is reduced, and a budget-short family is
+     incomplete under the existing rules.
+   - Current state: 10,108 s charged; the B.2 expected total is 225,283.5 s against the
+     259,200 s cap. Pilots 1a and 1b exceeded their expectation by 3,653 s.
+9. **Scope and ordering.**
+   - B.6 must not change any long-arm or medium-arm execution path, so jobs 2 and 3 may run on
+     either side of its merge.
+   - The v2 jobs must be versioned (for example `k3-pilot-v2` evidence root, jobs
+     `k3-pilot-4a` short and `k3-pilot-4b` CPU, split if the 18900 s ceiling requires it),
+     history-gated and recorded like v1.
+
+Precision (Round 197): X_min is the IEEE-754 double returned by
+`dur053_saturation.engine_path_metrics` for the minimum-throughput v1 repeat,
+read from committed evidence through `dur053_payload.materialize`. Execution,
+arrival schedules, T, reservations and freeze use this double: q = X_min / 2,
+r = 2q, and the v3 operating q is the original q / 2. Frozen r equals X_min
+exactly for v2; for v3 it equals twice that version's operating q.
+The registered literals above are six-decimal rounded check strings only.
+Before admission or freeze, `format(X_min, ".6f")` and `format(q, ".6f")`
+are string-compared with the registered values. Either mismatch refuses with
+`b6-rate-registration`; no float tolerance. Both run and freeze records store
+repr() of X_min, q and r, their six-decimal rounded strings and the v1 source
+run/cell. For both short and CPU the full-precision T is 600 s.
+
+Implementation/evidence routing: short v2 is `k3-pilot-4a`, CPU v2 is
+`k3-pilot-4b`; the conditional short/CPU v3 jobs are `k3-pilot-5a/5b`.
+Long v2/v3, only after its offline gate fails, uses one repeat per job
+`k3-pilot-4c1/4c2/4c3` and `k3-pilot-5c1/5c2/5c3` to retain honest admission
+against the ceiling at potentially slow rates. Their roots are
+`k3-pilot-v2` and `k3-pilot-v3`, including B.4 archives, history gating,
+same-tooling ci_proof and the unchanged cumulative ledger. Carry-over jobs
+retain exact pending cells and do not replay started work. A fourth version
+is refused. A gate failure is retained evidence, never a reason to replay a
+version. The existing v1 medium/long runner is unchanged.
+
+A single absolute loadgen schedule runs through warmup and measurement;
+all arrivals remain in the checker and witness reconciliation. Gate bins
+partition the measured scheduled-time window; completion counts use final
+SUCCEEDED-revision durable history times. Engine means use the observer's
+actual recorded count samples in the first and last bins. Gates are
+re-derived from retained bytes at freeze; a stored verdict alone is not
+trusted. The reduced CI smoke exercises the same continuous v2 runner with
+6 s warmup and 60 s measurement, `budget_scope=engineering-validation`,
+`charged_seconds=0`, `measurement_claim=false`; it supplies no campaign data.
+
+R265 freeze limitation: each worker slot is a separate Kafka consumer and
+pauses all its assigned partitions while busy. This causes head-of-line
+queueing even when other slots are idle. The reviewed medium-1 decomposition
+reports about 20.9 s waiting before 5.0 s execution, p99 26.0 s at implied
+utilisation 0.50, versus p99 5.6 s at 0.20. Medium L (about 52 s) and K5
+comparisons inherit this queueing. This is a latency limitation; claims,
+fencing and safety are unchanged. Do not change the engine during DUR-053.
+Post-DUR-053 follow-up is recorded in PLAN.md's deferred list: shared dispatch
+queue or one consumer feeding a local slot pool, preserving claim fencing
+and offset-commit-after-durable-ack, with its own pilot.
+
+
+### Amendment B.6.1 - pooled throughput and offline engine-path criterion
+
+Registered by Claude Round 199 under D035 on 2026-11-11, after the committed
+medium v1 disclosure and before any long-arm or v2 data existed. All three
+medium repeats had throughput about 1.00 and zero warmup backlog, but the
+per-bin 4(a) rule rejected them: with about 33 arrivals per bin, latency jitter
+moves completions between adjacent bins by more than the 5% tolerance. Pooled
+bins 2-6 contain 166 arrivals and 168 completions in each repeat. This
+correction avoids a false long re-pilot trigger and unnecessary budget use.
+
+1. Gate 4(a) is pooled over bins 2-6: measured completions whose durable
+   terminal time falls in those bins combined must be at least 0.95 x measured
+   arrivals scheduled in those bins combined. Retain each bin's arrival and
+   completion counts as disclosure only. Gate 4(b), gate 4(c), the bin
+   definition and every other threshold are unchanged. Latency drift and
+   observer drift continue to cover late-onset trends.
+2. For the original 200-arrival long and medium v1 windows, the offline
+   decision is `completion_throughput_first_to_last >= 0.95 x measured_rate`
+   and `warmup_outbox_unpublished_at_start == 0`, derived through
+   `engine_path_metrics`. That helper's `offered_rate` is the measured-arrival
+   rate (`measured-arrivals.json`), recorded here as `measured_rate`.
+   Pooled 4(a) and 4(b) are computed and disclosed offline but decide nothing.
+   Long follows B.6 steps 3-6 only if any long repeat fails this criterion;
+   all three passing long repeats refuse long v2 admission. Medium remains
+   disclosure-only and its freeze is unchanged. Admission, freeze and schedule
+   rechecks use the same offline criterion.
+3. Precedence: B.6.1 supersedes Round 195 items 4(a) and 7, and the matching
+   protocol text, only where they conflict. Nothing else in B.6 or Round 197
+   changes.
+
+Fallback admission retains all three v2 repeats (indices 1, 2, 3) before v3
+may start, with at least one failing, as clarified by Round 199 R267. This
+keeps admission consistent with the unchanged three-repeat freeze requirement.
