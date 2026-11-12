@@ -187,7 +187,10 @@ class SustainedDriver(PilotDriver):
             save(directory / "record.json", record)
             # One absolute loadgen schedule crosses the warmup boundary. No stop,
             # drain, checker, quiet wait or second definition setup at the boundary.
-            continuous = self.arrivals(ns, db, "continuous", math.ceil((warm + T) * q), q)
+            count = math.ceil((warm + T) * q)
+            continuous = self.arrivals(
+                ns, db, "continuous", count, q, timeout=count / q + 2 * 10 + 30 + 120
+            )
             origin = datetime.fromisoformat(
                 continuous["rows"][0]["scheduled_at"].replace("Z", "+00:00")
             )

@@ -15,6 +15,7 @@ from dur053_sustained import (
     ROOTS,
     choose,
     harness_capacity_failure,
+    harness_deadline_failure,
     operating_record,
     registration,
     retained,
@@ -42,6 +43,8 @@ def finish(repository: Path, checker: Path, result: dict[str, Any]) -> dict[str,
     version_manifests = {}
     capacity_failures = []
     capacity_counts: dict[str, int] = {}
+    deadline_failures = []
+    deadline_counts: dict[str, int] = {}
     for _version, evidence in ROOTS.items():
         for path in (repository / evidence).glob("*/*/manifest.json"):
             with materialize(path.parent, repository) as root:
@@ -51,6 +54,15 @@ def finish(repository: Path, checker: Path, result: dict[str, Any]) -> dict[str,
                     name = manifest["job"]
                     capacity_counts[name] = capacity_counts.get(name, 0) + 1
                     require(capacity_counts[name] <= 1, "b62-capacity-replay-limit")
+                elif harness_deadline_failure(root, manifest):
+                    deadline_failures.append(path.relative_to(repository).as_posix())
+                    name = manifest["job"]
+                    deadline_counts[name] = deadline_counts.get(name, 0) + 1
+                name = manifest["job"]
+                require(
+                    capacity_counts.get(name, 0) + deadline_counts.get(name, 0) <= 1,
+                    "b63-harness-replay-limit",
+                )
             relative = path.relative_to(repository).as_posix()
             require(
                 any(
@@ -68,6 +80,7 @@ def finish(repository: Path, checker: Path, result: dict[str, Any]) -> dict[str,
             require(row["artifact"] in version_manifests, "b6-freeze-ledger-inventory")
     result["unperformed_stationary_arms"] = []
     result["excluded_harness_capacity_failures"] = capacity_failures
+    result["excluded_harness_deadline_failures"] = deadline_failures
     # B.6.1: long replacement depends only on the offline engine-path criterion.
     for arm in ("short", "cpu", "long"):
         if arm == "long" and all(g["pass"] for g in offline["long"].values()):

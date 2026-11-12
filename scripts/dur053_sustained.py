@@ -314,6 +314,41 @@ def harness_capacity_failure(root: Path, manifest: dict[str, Any]) -> bool:
     return False
 
 
+def harness_deadline_failure(root: Path, manifest: dict[str, Any]) -> bool:
+    """B.6.3 legacy-only diagnosis, on materialized evidence; no metric reads."""
+    if not (
+        manifest.get("job") == "k3-pilot-4b"
+        and manifest.get("run_id") == "43173232814"
+        and manifest.get("version") == 2
+        and manifest.get("status") == "FAIL"
+        and manifest.get("cleanup", {}).get("status") == "PASS"
+        and manifest.get("error") == "command-179-kubectl-timeout"
+    ):
+        return False
+    started = [r for r in manifest.get("unperformed", []) if r.get("started") is True]
+    if len(started) != 1 or (started[0].get("arm"), started[0].get("index")) != ("cpu", 1):
+        return False
+    try:
+        rows = [json.loads(line) for line in (root / "commands.jsonl").read_bytes().splitlines()]
+        timeouts = [r for r in rows if r.get("error") == "command-179-kubectl-timeout"]
+        if len(timeouts) != 1:
+            return False
+        args = timeouts[0]["args"]
+        # Inspect executable and flag/value pairs, not substrings in another command.
+        split = args.index("--")
+        flags = args[split + 2 :]
+        return (
+            args[0] == "kubectl"
+            and "exec" in args[:split]
+            and args[split + 1] == "/loadgen"
+            and flags.count("-arm") == flags.count("-run-id") == 1
+            and flags[flags.index("-arm") + 1] == "cpu"
+            and flags[flags.index("-run-id") + 1] == "cpu-1-continuous"
+        )
+    except (OSError, ValueError, KeyError, TypeError, IndexError, AttributeError):
+        return False
+
+
 def retained(
     repository: Path, arm: str, version: int, checker: Path | None = None
 ) -> dict[int, dict]:
@@ -322,6 +357,7 @@ def retained(
 
     result = {}
     capacity_counts: dict[str, int] = {}
+    deadline_counts: dict[str, int] = {}
     for path in sorted((repository / ROOTS[version]).glob("*/*/manifest.json")):
         with materialize(path.parent, repository) as root:
             manifest = json.loads((root / "manifest.json").read_bytes())
@@ -331,6 +367,16 @@ def retained(
                 name = manifest["job"]
                 capacity_counts[name] = capacity_counts.get(name, 0) + 1
                 require(capacity_counts[name] <= 1, "b62-capacity-replay-limit")
+            elif harness_deadline_failure(root, manifest):
+                name = manifest["job"]
+                deadline_counts[name] = deadline_counts.get(name, 0) + 1
+            else:
+                name = None
+            if name is not None:
+                require(
+                    capacity_counts.get(name, 0) + deadline_counts.get(name, 0) <= 1,
+                    "b63-harness-replay-limit",
+                )
                 continue
             if pre_start_refusal(root, manifest):
                 continue

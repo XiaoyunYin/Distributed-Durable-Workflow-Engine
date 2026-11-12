@@ -1424,3 +1424,76 @@ the limit.
    the checker via exec. Its CPU request/limit are unchanged; the memory
    estimates target operation below about half of the new capacity before the
    2x margin, not a measured claim that either resource never binds.
+
+
+## Amendment B.6.3 - harness deadline (Round 211 authorization)
+
+Registered by Claude Round 211 on 2026-11-12 under R273. This amendment
+changes Plan cost, the sustained loadgen exec timeout and one legacy harness
+failure classification. B.6/B.6.1 rates, seeds, units, gates, cell minima,
+18900 s per-job ceiling and 259200 s cumulative cap remain fixed.
+
+Evidence: k3-pilot-4b run 43173232814, dispatched on main 3c2ded1, failed
+cpu-1 with command-179-kubectl-timeout. The /loadgen exec for arm cpu and
+run ID cpu-1-continuous lasted 780.2 s; cleanup passed and 1917 s is charged.
+Its 626 arrivals at q = 0.869323365519607/s cover about 720 s. The old Plan
+computed the same million-iteration SHA-256 digest for every arrival, before
+loadgen started its own count/rate + 2 x 10 + 30 s deadline. The inherited
+kubectl timeout was count/rate + 60 s. This is a harness failure before any
+stationarity verdict, so B.6's q/2 fallback does not apply.
+
+Claude's Round 211 disclosure: v1 k3-pilot-1b run 43033536602 showed loadgen
+wall time minus schedule of 13.3 s for 120 rows and 22.8-23.6 s for 200/201
+rows, about 0.11 s per row, extrapolated to about 71 s for 626 rows. Claude
+inspected the 4b terminal-count series only to locate the stall: first
+terminals appeared about 80-119 s after exec start and reached 609 of 626 at
+the kill. The arrivals file remained the initial IN_PROGRESS plan. No gate
+metric (throughput bins, latency thirds or engine-path means) was computed
+from this run. q was already registered, so this inspection cannot influence
+a rate or gate. These are the reviewer's diagnosis and disclosure, not a new
+performance measurement by this implementation.
+
+1. Plan computes the CPU expected digest once per call and reuses it for all
+   rows. The output bytes are identical to the per-row reference algorithm.
+   Tests compare serialized bytes and count digest calls on the same Plan
+   implementation; the registered per-row mutant checks the cost regression.
+2. SustainedDriver.sustained passes an explicit continuous-loadgen timeout:
+   count/q + 2 x 10 + 30 + 120 s. The first terms match loadgen's unchanged
+   deadline, with a 120 s margin for Plan and kubectl exec startup. This orders
+   loadgen's deadline and final arrivals encoding ahead of the outer kill
+   within that margin. The SHA-pinned v1 PilotDriver remains unchanged.
+3. Only cmd/dur053-loadgen imports internal/dur053. The runtime, migrate and
+   checker Linux/amd64 binaries are compared byte for byte using CGO_ENABLED=0,
+   go build -trimpath -ldflags="-s -w", on aefa5d3 and the implementation tree.
+   Exact SHA-256 values and build commands are retained in
+   k3b-tooling-v1/round212-b63-validation.json. The Dockerfile packages these
+   binaries with loadgen; its runtime and worker image identities change with
+   the loadgen bytes. This image change must accompany the CPU drift
+   disclosure against the 0.514 s reference. Each run's existing images.json,
+   versions.json, applied objects and ci_proof bind its actual environment;
+   historical drift images and evidence remain immutable.
+4. A harness-deadline failure is legacy-pinned to k3-pilot-4b run 43173232814.
+   After materialize verifies committed bytes, archive hashes and ledger/index
+   bindings, every condition is required: version 2; status FAIL; cleanup PASS;
+   error command-179-kubectl-timeout; exactly one matching timed-out command
+   row in commands.jsonl, a kubectl exec of /loadgen with -arm cpu and
+   -run-id cpu-1-continuous; exactly one started-but-unperformed cell, cpu-1.
+   No later loadgen kubectl timeout qualifies; it is an ordinary failure.
+   Across B.6.2 capacity and B.6.3 deadline failures combined, each job name
+   receives at most one harness replay. A second harness failure stops with
+   a named replay-limit guard, including mixed-class failures. B.3 refusals
+   retain their independent eligibility and limit. Replay runs all planned
+   indices with registered seeds. retained(), dependency_plan and freeze
+   exclude every failed-run cell from every population, including completed
+   cells, while retaining provenance, both ledger-inventory checks and charges.
+   Freeze records deadline exclusions separately from capacity exclusions.
+5. plan_b6 retains the charged failure and reserves the pending 4b replay at
+   its full_admission_seconds (7680 s), just as the 4a replay reserves 5040 s.
+   A completed PASS job removes the pending reservation; its actual charge
+   stays in the ledger. The schedule recheck and cap comparison, both before
+   and with PR #22's 1917 s row, are recorded in the validation record above.
+6. Ordering: PR #22 carries immutable 4b evidence and merges first. B.6.3 is
+   implemented on PR #21 over aefa5d3, followed by main into that branch.
+   Existing history, tooling and green main push ci_proof gates bind both
+   harness replays to the combined B.6.2/B.6.3 tooling. No dispatch is
+   authorized by a local schedule estimate or provisional review.

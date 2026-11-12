@@ -3,6 +3,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import math
 import shutil
 import subprocess
 import sys
@@ -436,4 +437,376 @@ class B62Tests(unittest.TestCase):
                 self.assertEqual(frozen["arms"]["short"]["L"], 2)
                 ledger["entries"] = []
                 with self.assertRaisesRegex(ValueError, "b6-freeze-ledger-entry"):
+                    freezing.finish(repo, Path("checker"), copy.deepcopy(result))
+
+
+# B.6.3 keeps the capacity class unchanged and shares its single replay budget.
+def deadline_failure(root: Path) -> dict:
+    root.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "job": "k3-pilot-4b",
+        "run_id": "43173232814",
+        "job_id": "131031261405",
+        "version": 2,
+        "status": "FAIL",
+        "cleanup": {"status": "PASS"},
+        "error": "command-179-kubectl-timeout",
+        "completed": [],
+        "artifact_sha256": {},
+        "unperformed": [
+            {"arm": "cpu", "index": 1, "started": True},
+            {"arm": "cpu", "index": 2, "started": False},
+        ],
+    }
+    save(root / "manifest.json", manifest)
+    (root / "commands.jsonl").write_text(
+        json.dumps(
+            {
+                "error": "command-179-kubectl-timeout",
+                "args": [
+                    "kubectl",
+                    "-n",
+                    "dur053-kind",
+                    "exec",
+                    "observer",
+                    "--",
+                    "/loadgen",
+                    "-arm",
+                    "cpu",
+                    "-run-id",
+                    "cpu-1-continuous",
+                ],
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+    return manifest
+
+
+def cpu_capacity(root: Path) -> dict:
+    manifest = failure(root)
+    (root / "short-2").rename(root / "cpu-2")
+    manifest.update(job="k3-pilot-4b", completed=["cpu-1"])
+    for row in manifest["unperformed"]:
+        row["arm"] = "cpu"
+    save(root / "manifest.json", manifest)
+    return manifest
+
+
+class B63Tests(unittest.TestCase):
+    def test_continuous_timeout(self) -> None:
+        class Captured(Exception):
+            pass
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            driver = SustainedDriver(root, root / "scratch")
+            driver.engineering = False
+            save(root / "cpu-drift.json", {"persisted_ns": 1})
+
+            def setup(directory: Path, _: dict) -> tuple[str, str]:
+                directory.mkdir(exist_ok=True)
+                driver.output = directory
+                return "ns", "db"
+
+            for arm, x in (("short", 14.272201), ("cpu", 1.738646731039214)):
+                for version in (2, 3):
+                    reg = b6.precision(x, {})
+                    with (
+                        self.subTest(arm=arm, version=version),
+                        patch.object(driver, "setup", side_effect=setup),
+                        patch.object(driver, "failure_export"),
+                        patch.object(driver, "arrivals", side_effect=Captured) as arrivals,
+                        self.assertRaises(Captured),
+                    ):
+                        driver.sustained(arm, 1, {}, reg, version)
+                    q = x / (2 if version == 2 else 4)
+                    count = math.ceil((120 + b6.duration(q)) * q)
+                    args, kwargs = arrivals.call_args
+                    self.assertEqual(args, ("ns", "db", "continuous", count, q))
+                    deadline = count / q + 2 * 10 + 30
+                    self.assertGreater(
+                        kwargs.get("timeout", count / q + 60),
+                        deadline,
+                        "b63 explicit timeout missing",
+                    )
+                    self.assertEqual(kwargs["timeout"], deadline + 120)
+
+    def test_deadline_classification(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            manifest = deadline_failure(root)
+            self.assertTrue(b6.harness_deadline_failure(root, manifest), "b63 failure missed")
+            for field, value in (
+                ("job", "k3-pilot-5b"),
+                ("run_id", "43173232815"),
+                ("version", 3),
+                ("status", "PASS"),
+                ("cleanup", {"status": "FAIL"}),
+                ("error", "command-180-kubectl-timeout"),
+                ("unperformed", []),
+                ("unperformed", [{"arm": "cpu", "index": 2, "started": True}]),
+                ("unperformed", [{"arm": "short", "index": 1, "started": True}]),
+                ("unperformed", [{"arm": "cpu", "index": 1, "started": False}]),
+                ("unperformed", [{"arm": "cpu", "index": 1, "started": True}] * 2),
+            ):
+                with self.subTest(field=field, value=value):
+                    self.assertFalse(
+                        b6.harness_deadline_failure(root, {**manifest, field: value}),
+                        "b63 classification bypassed",
+                    )
+            path = root / "commands.jsonl"
+            original = path.read_text()
+            row = json.loads(original)
+            args = row["args"]
+            for bad in (
+                {**row, "error": "other-timeout"},
+                {**row, "args": [v.replace("/loadgen", "/checker") for v in args]},
+                {**row, "args": [v.replace("cpu-1-continuous", "cpu-2-continuous") for v in args]},
+                {**row, "args": ["short" if v == "cpu" else v for v in args]},
+                {**row, "args": [v.replace("exec", "logs") for v in args]},
+                {**row, "args": [v.replace("kubectl", "echo") for v in args]},
+                {**row, "args": args + ["-arm", "cpu"]},
+                {**row, "args": args[:-1]},
+                {**row, "args": ["/loadgen", "-arm", "cpu", "-run-id", "cpu-1-continuous"]},
+            ):
+                path.write_text(json.dumps(bad) + "\n")
+                self.assertFalse(
+                    b6.harness_deadline_failure(root, manifest),
+                    "b63 command classification bypassed",
+                )
+            for raw in ("", "invalid", "null\n", original * 2):
+                path.write_text(raw)
+                self.assertFalse(
+                    b6.harness_deadline_failure(root, manifest),
+                    "b63 command classification bypassed",
+                )
+            path.unlink()
+            self.assertFalse(b6.harness_deadline_failure(root, manifest))
+
+    def test_real_deadline_failure(self) -> None:
+        relative = b6.ROOTS[2] / "k3-pilot-4b/43173232814"
+        if (ROOT / relative).exists():
+            with materialize(ROOT / relative, ROOT) as root:
+                manifest = json.loads((root / "manifest.json").read_bytes())
+                self.assertTrue(b6.harness_deadline_failure(root, manifest))
+            return
+        # Before PR #22 merges, read its fixed committed bytes without merging it.
+        commit = "afb8a95"
+        probe = subprocess.run(["git", "cat-file", "-e", commit], cwd=ROOT, capture_output=True)
+        if probe.returncode:
+            self.skipTest("PR #22 evidence absent from HEAD and afb8a95 unavailable")
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            names = subprocess.check_output(
+                ["git", "ls-tree", "-r", "--name-only", commit, "--", relative.as_posix()],
+                cwd=ROOT,
+                text=True,
+            ).splitlines()
+            names.append("experiments/portfolio/k8s-recovery/live-time-ledger.json")
+            for name in names:
+                target = repo / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                target.write_bytes(
+                    subprocess.check_output(
+                        ["git", "show", f"{commit}:{name}"],
+                        cwd=ROOT,
+                    )
+                )
+
+            def committed(repository: Path, path: Path) -> bytes:
+                raw = subprocess.check_output(
+                    ["git", "show", f"{commit}:{path.relative_to(repository).as_posix()}"],
+                    cwd=ROOT,
+                )
+                self.assertEqual(path.read_bytes(), raw)
+                return raw
+
+            with (
+                patch("dur053_pilot.committed_bytes", side_effect=committed),
+                materialize(repo / relative, repo) as root,
+            ):
+                manifest = json.loads((root / "manifest.json").read_bytes())
+                self.assertTrue(
+                    b6.harness_deadline_failure(root, manifest), "b63 committed failure missed"
+                )
+                isolated = repo / "isolated" / relative
+                shutil.copytree(root, isolated)
+            with (
+                patch.object(b6, "materialize", side_effect=lambda p, _: nullcontext(p)),
+                patch.object(b6, "summarize", side_effect=AssertionError("b63 population read")),
+            ):
+                self.assertEqual(b6.retained(repo / "isolated", "cpu", 2), {})
+
+    def test_shared_replay_limit_and_exclusion(self) -> None:
+        for order in (("deadline", "capacity"), ("capacity", "deadline"), ("deadline", "deadline")):
+            with self.subTest(order=order), tempfile.TemporaryDirectory() as tmp:
+                repo = Path(tmp)
+                parent = repo / b6.ROOTS[2] / "k3-pilot-4b"
+                constructors = {"deadline": deadline_failure, "capacity": cpu_capacity}
+                first = parent / "10"
+                m = constructors[order[0]](first)
+                # Even completed cells of an excluded run must never reach summarize().
+                m["completed"] = ["cpu-3"]
+                save(first / "manifest.json", m)
+                reg = b6.precision(2.0, {})
+                with (
+                    patch.object(dispatch, "registration", return_value=reg),
+                    patch.object(
+                        dispatch,
+                        "read_artifact",
+                        side_effect=lambda p, _: json.loads((p / "manifest.json").read_bytes()),
+                    ),
+                    patch.object(dispatch, "materialize", side_effect=lambda p, _: nullcontext(p)),
+                    patch.object(b6, "materialize", side_effect=lambda p, _: nullcontext(p)),
+                    patch.object(
+                        b6, "summarize", side_effect=AssertionError("b63 population read")
+                    ),
+                ):
+                    self.assertEqual(
+                        dispatch.dependency_plan(repo, "k3-pilot-4b"), ([1, 2, 3], reg)
+                    )
+                    self.assertEqual(b6.retained(repo, "cpu", 2), {}, "b63 failure not excluded")
+                    constructors[order[1]](parent / "11")
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "b63-harness-replay-limit",
+                        msg="b63 second harness replay admitted",
+                    ):
+                        dispatch.dependency_plan(repo, "k3-pilot-4b")
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "b63-harness-replay-limit",
+                        msg="b63 retained second replay admitted",
+                    ):
+                        b6.retained(repo, "cpu", 2)
+
+    def test_later_timeout_is_ordinary_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            root = repo / b6.ROOTS[2] / "k3-pilot-4b/next"
+            m = deadline_failure(root)
+            m["run_id"] = "next"
+            save(root / "manifest.json", m)
+            with (
+                patch.object(dispatch, "registration", return_value=b6.precision(2.0, {})),
+                patch.object(dispatch, "read_artifact", return_value=m),
+                patch.object(dispatch, "materialize", side_effect=lambda p, _: nullcontext(p)),
+                self.assertRaisesRegex(ValueError, "pilot-no-replay-job"),
+            ):
+                dispatch.dependency_plan(repo, "k3-pilot-4b")
+            with (
+                patch.object(b6, "materialize", side_effect=lambda p, _: nullcontext(p)),
+                self.assertRaisesRegex(ValueError, "b6-retained-job"),
+            ):
+                b6.retained(repo, "cpu", 2)
+
+    def test_deadline_schedule_reservation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            parent = repo / b6.ROOTS[2] / "k3-pilot-4b"
+            deadline_failure(parent / "10")
+            ledger = {
+                "entries": [{"category": "k3-pilot-4b", "charged_seconds": 1917, "status": "FAIL"}]
+            }
+            with (
+                patch("dur053_payload.materialize", side_effect=lambda p, _: nullcontext(p)),
+                patch("dur053_k3_policy.committed_ledger", return_value=ledger),
+                patch.object(b6, "registration", return_value=b6.precision(2.0, {})),
+            ):
+                plan = plan_b6(repo)
+                replay = next(j for j in plan["jobs"] if j.get("job") == "k3-pilot-4b")
+                self.assertTrue(replay["deadline_replay"], "b63 replay reservation missing")
+                self.assertEqual(replay["expected_seconds"], 7680, "b63 full reservation missing")
+                self.assertEqual(replay["full_admission_seconds"], 7680)
+                self.assertEqual(plan["harness_deadline_failures"], ["k3-pilot-4b"])
+                self.assertEqual(plan["charged_seconds"], 1917)
+                self.assertEqual(
+                    plan["expected_total_seconds"],
+                    1917 + sum(j["expected_seconds"] for j in plan["jobs"]) + 1710,
+                )
+                ledger["entries"].append(
+                    {"category": "k3-pilot-4b", "charged_seconds": 3000, "status": "PASS"}
+                )
+                after = plan_b6(repo)
+                self.assertFalse(any(j.get("job") == "k3-pilot-4b" for j in after["jobs"]))
+                cpu_capacity(parent / "11")
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "b63-harness-replay-limit",
+                    msg="b63 schedule second replay admitted",
+                ):
+                    plan_b6(repo)
+
+    def test_deadline_freeze_provenance_and_limit(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            v1 = repo / b6.EVIDENCE / "k3-pilot-3/9"
+            v1.mkdir(parents=True)
+            save(
+                v1 / "manifest.json",
+                {
+                    "completed": [f"{a}-{i}" for a in ("medium", "long") for i in (1, 2, 3)],
+                },
+            )
+            parent = repo / b6.ROOTS[2] / "k3-pilot-4b"
+            failed = parent / "10"
+            deadline_failure(failed)
+            relative = (failed / "manifest.json").relative_to(repo).as_posix()
+            ledger = {
+                "entries": [
+                    {"artifact": relative, "job_id": "131031261405", "category": "k3-pilot-4b"}
+                ]
+            }
+            result = {
+                "arms": {
+                    a: {"b": 1, "r": 4, "L": 2, "repeats": []}
+                    for a in ("short", "cpu", "medium", "long")
+                },
+                "source_artifacts": {},
+                "limitations": [],
+            }
+            rows = {
+                i: {"b": 0.1, "latencies": [1.0] * 600, "gate": {"pass": True}} for i in (1, 2, 3)
+            }
+            with (
+                patch.object(freezing, "materialize", side_effect=lambda p, _: nullcontext(p)),
+                patch.object(freezing, "committed_ledger", return_value=ledger),
+                patch.object(freezing, "stationarity", return_value={"pass": True}),
+                patch.object(freezing, "registration", return_value=b6.precision(2.0, {})),
+                patch.object(
+                    freezing, "retained", side_effect=lambda r, a, v, c: rows if v == 2 else {}
+                ),
+                patch("dur053_schedule.plan_b6", return_value={"units": []}),
+            ):
+                frozen = freezing.finish(repo, Path("checker"), copy.deepcopy(result))
+                self.assertEqual(
+                    frozen["excluded_harness_deadline_failures"],
+                    [relative],
+                    "b63 freeze exclusion missing",
+                )
+                self.assertIn(relative, frozen["source_artifacts"])
+                self.assertEqual(frozen["excluded_harness_capacity_failures"], [])
+                self.assertEqual(frozen["arms"]["cpu"]["versions"], {2: rows, 3: {}})
+                ledger["entries"] = []
+                with self.assertRaisesRegex(ValueError, "b6-freeze-ledger-entry"):
+                    freezing.finish(repo, Path("checker"), copy.deepcopy(result))
+                ledger["entries"] = [
+                    {"artifact": relative, "job_id": "131031261405", "category": "k3-pilot-4b"}
+                ]
+                cpu_capacity(parent / "11")
+                ledger["entries"].append(
+                    {
+                        "artifact": (parent / "11/manifest.json").relative_to(repo).as_posix(),
+                        "job_id": "10",
+                        "category": "k3-pilot-4b",
+                    }
+                )
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "b63-harness-replay-limit",
+                    msg="b63 freeze second replay admitted",
+                ):
                     freezing.finish(repo, Path("checker"), copy.deepcopy(result))

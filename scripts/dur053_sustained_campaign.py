@@ -25,6 +25,7 @@ from dur053_sustained import (
     evidence_root,
     fallback_required,
     harness_capacity_failure,
+    harness_deadline_failure,
     job_spec,
     registration,
     reservation,
@@ -78,16 +79,19 @@ def dependency_plan(repository: Path, name: str) -> tuple[list[int], dict[str, A
         )
         indices = pending
     previous = [(p, m) for p, m in available if m["job"] == name]
-    capacity, refusals = 0, 0
+    capacity, deadline, refusals = 0, 0, 0
     for path, _ in previous:
         with materialize(path, repository) as root:
             manifest = json.loads((root / "manifest.json").read_bytes())
             if pre_start_refusal(root, manifest):
                 refusals += 1
-            else:
-                require(harness_capacity_failure(root, manifest), "pilot-no-replay-job")
+            elif harness_capacity_failure(root, manifest):
                 capacity += 1
+            else:
+                require(harness_deadline_failure(root, manifest), "pilot-no-replay-job")
+                deadline += 1
     require(capacity <= 1, "b62-capacity-replay-limit")
+    require(capacity + deadline <= 1, "b63-harness-replay-limit")
     require(refusals < 3, "pilot-pre-start-replay-limit")
     return indices, reg
 

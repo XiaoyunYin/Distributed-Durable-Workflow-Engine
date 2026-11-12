@@ -208,7 +208,10 @@ class SustainedTests(unittest.TestCase):
                 driver.output = directory
                 return "ns", "db"
 
-            def arrivals(_ns: str, _db: str, label: str, count: int, rate: float) -> dict:
+            def arrivals(
+                _ns: str, _db: str, label: str, count: int, rate: float, *, timeout: float
+            ) -> dict:
+                self.assertEqual(timeout, count / rate + 2 * 10 + 30 + 120)
                 calls.append((label, count, rate))
                 driver.sample(_ns, _db)
                 rows = [
