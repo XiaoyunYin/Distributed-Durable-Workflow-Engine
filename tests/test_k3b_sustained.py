@@ -722,7 +722,25 @@ class SustainedTests(unittest.TestCase):
                     for a in ("short", "cpu", "medium", "long")
                 },
                 "source_artifacts": {},
-                "limitations": [],
+                "limitations": [
+                    "host limitation: retained verbatim",
+                    "short: L for this arm is derived under engine-path overload. "
+                    "Completion throughput, carried warmup outbox backlog or latency drift "
+                    "triggered engine_path_saturation; L depends on the 200-arrival window "
+                    "length and is not a steady-state latency target. K4-K7 reporting must "
+                    "surface this flag. Registered rates, L and reservations are unchanged.",
+                    "cpu: L for this arm is derived under engine-path overload. "
+                    "Completion throughput, carried warmup outbox backlog or latency drift "
+                    "triggered engine_path_saturation; L depends on the 200-arrival window "
+                    "length and is not a steady-state latency target. K4-K7 reporting must "
+                    "surface this flag. Registered rates, L and reservations are unchanged.",
+                    "cpu: L was measured under overload; the scheduling reference does not "
+                    "hold under load (repeat utilisation > 1 or b > 1.5 times initial b). "
+                    "Repeat busy times are a disclosed sensitivity only; registered "
+                    "reservations are unchanged.",
+                    "medium: retained v1 limitation",
+                    "R265 medium queueing limitation: retained verbatim",
+                ],
             }
             rows = {
                 i: {"b": 0.1, "latencies": [1.0] * 600, "gate": {"pass": True}} for i in (1, 2, 3)
@@ -759,6 +777,67 @@ class SustainedTests(unittest.TestCase):
                 "b6 long freeze criterion bypassed",
             )
             self.assertIn(b6.PARTITION_LIMITATION, result["limitations"])
+            self.assertIn("host limitation: retained verbatim", result["limitations"])
+            self.assertIn("medium: retained v1 limitation", result["limitations"])
+            self.assertIn("R265 medium queueing limitation: retained verbatim", result["limitations"])
+            expected_disclosures = {
+                "short": (
+                    "short: v1 repeats showed engine-path saturation and are excluded from L "
+                    "under Amendment B.6; frozen r and L come from the v2 repeats at q, which "
+                    "passed the B.6 stationarity gate."
+                ),
+                "cpu": (
+                    "cpu: v1 repeats showed engine-path saturation and are excluded from L "
+                    "under Amendment B.6; the R251 busy-time sensitivity remains disclosed in "
+                    "the v1 busy times in overload_calibration_v1_repeats_excluded_from_L; "
+                    "frozen r and L come from the v2 repeats at q, which passed the B.6 "
+                    "stationarity gate."
+                ),
+            }
+            for arm in ("short", "cpu"):
+                self.assertFalse(
+                    any(
+                        limitation.startswith(
+                            (
+                                f"{arm}: L for this arm is derived under engine-path overload",
+                                f"{arm}: L was measured under overload",
+                            )
+                        )
+                        for limitation in result["limitations"]
+                    )
+                )
+                arm_disclosures = [
+                    limitation
+                    for limitation in result["limitations"]
+                    if limitation.startswith(f"{arm}: v1 repeats")
+                ]
+                self.assertEqual(arm_disclosures, [expected_disclosures[arm]])
+
+            def unperformed_versions(_repo: Path, _arm: str, _version: int, _checker: Path) -> dict:
+                return rows
+
+            with (
+                patch.object(freezing, "materialize", side_effect=lambda p, _: nullcontext(p)),
+                patch.object(freezing, "committed_ledger", return_value={"entries": []}),
+                patch.object(
+                    freezing,
+                    "stationarity",
+                    return_value={
+                        "pass": True,
+                        "disclosure_checks": {"b6-throughput": False, "b6-latency-drift": False},
+                    },
+                ),
+                patch.object(freezing, "registration", return_value=b6.precision(10.0, {})),
+                patch.object(freezing, "retained", side_effect=unperformed_versions),
+                patch.object(freezing, "choose", return_value=None),
+                patch("dur053_schedule.plan_b6", return_value={"units": []}),
+            ):
+                unperformed = freezing.finish(repo, Path("checker"), copy.deepcopy(original))
+            self.assertIn(
+                "short: v1 repeats showed engine-path saturation and are excluded from L "
+                "under Amendment B.6; no stationary L was frozen.",
+                unperformed["limitations"],
+            )
 
             def offline_failure(directory: Path, *, offline: bool) -> dict:
                 self.assertTrue(offline)

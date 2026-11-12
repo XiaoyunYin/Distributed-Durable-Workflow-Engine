@@ -9925,6 +9925,38 @@
       ],
       "expected": "b63 freeze second replay admitted",
       "requires_database": false
+    },
+    {
+      "id": "k3b-b6-v1-overload-limitation-retained",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_freeze.py",
+      "old": "        if not removed:",
+      "new": "        if True:  # mutation: retain removed v1 limitations",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_limited_freeze_preserves_medium",
+        "-q"
+      ],
+      "expected": "is not false",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b6-r251-clause-unconditional",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_freeze.py",
+      "old": "if \"busy_time\" in removed_disclosures[arm]:",
+      "new": "if True:  # mutation: always disclose the R251 busy-time sensitivity",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_sustained.py::SustainedTests::test_limited_freeze_preserves_medium",
+        "-q"
+      ],
+      "expected": "Lists differ",
+      "requires_database": false
     }
   ]
 }

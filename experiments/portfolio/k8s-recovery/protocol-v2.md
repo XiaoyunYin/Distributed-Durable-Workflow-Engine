@@ -1323,6 +1323,12 @@ Fallback admission retains all three v2 repeats (indices 1, 2, 3) before v3
 may start, with at least one failing, as clarified by Round 199 R267. This
 keeps admission consistent with the unchanged three-repeat freeze requirement.
 
+Claude Round 216 / R274 clarification: the freeze record now describes replaced
+v1 short/CPU (and any B.6 long) overload repeats as calibration evidence
+excluded from L, while identifying the passing B.6 repeats as the stationary
+source. This changes only the wording of the freeze record's limitations; it
+changes no rate, L, gate, reservation, cell or execution path.
+
 
 ## Amendment B.6.2 (Round 206 registration; implementation Round 207)
 
