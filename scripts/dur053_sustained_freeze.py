@@ -81,10 +81,12 @@ def finish(repository: Path, checker: Path, result: dict[str, Any]) -> dict[str,
     result["unperformed_stationary_arms"] = []
     result["excluded_harness_capacity_failures"] = capacity_failures
     result["excluded_harness_deadline_failures"] = deadline_failures
+    replaced_arms: list[str] = []
     # B.6.1: long replacement depends only on the offline engine-path criterion.
     for arm in ("short", "cpu", "long"):
         if arm == "long" and all(g["pass"] for g in offline["long"].values()):
             continue
+        replaced_arms.append(arm)
         reg = registration(repository, arm)
         versions = {v: retained(repository, arm, v, checker) for v in (2, 3)}
         require(bool(versions[2]), "b6-v1-L-excluded")
@@ -146,6 +148,43 @@ def finish(repository: Path, checker: Path, result: dict[str, Any]) -> dict[str,
                 arrival_concurrency_cap=16,
             )
         result["arms"][arm] = replacement
+    removed_disclosures = {arm: set() for arm in replaced_arms}
+    retained_limitations = []
+    for limitation in result["limitations"]:
+        removed = False
+        for arm in replaced_arms:
+            if limitation.startswith(f"{arm}: L for this arm is derived under engine-path overload. "):
+                removed_disclosures[arm].add("engine_path")
+                removed = True
+            elif limitation.startswith(
+                f"{arm}: L was measured under overload; the scheduling reference does not "
+            ):
+                removed_disclosures[arm].add("busy_time")
+                removed = True
+        if not removed:
+            retained_limitations.append(limitation)
+    result["limitations"] = retained_limitations
+    for arm in replaced_arms:
+        passing_version = result["arms"][arm]["passing_version"]
+        disclosure = f"{arm}: v1 repeats are excluded from L under Amendment B.6"
+        if "engine_path" in removed_disclosures[arm]:
+            disclosure = (
+                f"{arm}: v1 repeats showed engine-path saturation and are excluded from L "
+                "under Amendment B.6"
+            )
+        if "busy_time" in removed_disclosures[arm]:
+            disclosure += (
+                "; the R251 busy-time sensitivity remains disclosed in the v1 busy times in "
+                "overload_calibration_v1_repeats_excluded_from_L"
+            )
+        if passing_version is None:
+            disclosure += "; no stationary L was frozen."
+        else:
+            disclosure += (
+                f"; frozen r and L come from the v{passing_version} repeats at q, which passed "
+                "the B.6 stationarity gate."
+            )
+        result["limitations"].append(disclosure)
     result["schema"] = "dur053.k3-freeze.b6"
     result["versioned_environment_artifacts"] = {
         path: {
