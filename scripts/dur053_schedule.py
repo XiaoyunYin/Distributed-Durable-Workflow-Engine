@@ -194,7 +194,14 @@ def plan_b6(repository: Path, frozen: dict | None = None, *, fallback: bool = Fa
     """Budget disclosure, not admission. All registered family cells are retained."""
     from dur053_k3_policy import committed_ledger
     from dur053_pilot import EVIDENCE, PLANNING_RATES, committed_bytes, initial_dependency
-    from dur053_sustained import duration, operating_record, registration, reservation
+    from dur053_sustained import (
+        ROOTS,
+        duration,
+        harness_capacity_failure,
+        operating_record,
+        registration,
+        reservation,
+    )
 
     ledger = committed_ledger(
         repository / "experiments/portfolio/k8s-recovery/live-time-ledger.json", repository
@@ -306,6 +313,18 @@ def plan_b6(repository: Path, frozen: dict | None = None, *, fallback: bool = Fa
     # Remove jobs already recorded after B.6 merges, retaining actual charges.
     completed_jobs = {row["category"] for row in ledger["entries"] if row["status"] == "PASS"}
     jobs = [j for j in jobs if j.get("job") not in completed_jobs]
+    capacity_jobs = []
+    for evidence in ROOTS.values():
+        for path in (repository / evidence).glob("*/*/manifest.json"):
+            with materialize(path.parent, repository) as root:
+                manifest = json.loads((root / "manifest.json").read_bytes())
+                if harness_capacity_failure(root, manifest):
+                    capacity_jobs.append(manifest["job"])
+    for job in jobs:
+        if capacity_jobs.count(job.get("job")) == 1:
+            # The failed run is already charged. Reserve the entire same-name
+            # replay instead of the ordinary expected-duration estimate.
+            job.update(capacity_replay=True, expected_seconds=job["full_admission_seconds"])
     expected = charged + sum(j["expected_seconds"] for j in jobs) + 1710
     assumptions.append(
         "Long rate remains its planning reference until its v1 initial exists; "
@@ -322,6 +341,7 @@ def plan_b6(repository: Path, frozen: dict | None = None, *, fallback: bool = Fa
     return {
         "schema": "dur053.b6-schedule.v1",
         "charged_seconds": charged,
+        "harness_capacity_failures": capacity_jobs,
         "cap_seconds": 259200,
         "expected_total_seconds": expected,
         "fits_expected_cap": expected <= 259200,

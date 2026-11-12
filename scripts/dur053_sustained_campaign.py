@@ -18,11 +18,13 @@ from dur053_k3_policy import (
     require,
     scratch_ownership,
 )
+from dur053_payload import materialize
 from dur053_pilot import CEILING, carry_over, committed_bytes, read_artifact
 from dur053_pilot_evidence import ci_proof, pre_start_refusal
 from dur053_sustained import (
     evidence_root,
     fallback_required,
+    harness_capacity_failure,
     job_spec,
     registration,
     reservation,
@@ -38,13 +40,13 @@ def dependency_plan(repository: Path, name: str) -> tuple[list[int], dict[str, A
     if version == 3:
         fallback_required(repository, arm)
     if arm == "long":
-        from dur053_payload import materialize
+        from dur053_payload import materialize as materialize_long
         from dur053_pilot import EVIDENCE
 
         # B.6.1: offline pass uses throughput/backlog only; 4(a)/(b) disclose.
         gates = []
         for path in (repository / EVIDENCE).glob("*/*/manifest.json"):
-            with materialize(path.parent, repository) as root:
+            with materialize_long(path.parent, repository) as root:
                 manifest = json.loads((root / "manifest.json").read_bytes())
                 gates.extend(
                     stationarity(root / f"long-{i}", offline=True)
@@ -76,8 +78,17 @@ def dependency_plan(repository: Path, name: str) -> tuple[list[int], dict[str, A
         )
         indices = pending
     previous = [(p, m) for p, m in available if m["job"] == name]
-    require(all(pre_start_refusal(p, m) for p, m in previous), "pilot-no-replay-job")
-    require(len(previous) < 3, "pilot-pre-start-replay-limit")
+    capacity, refusals = 0, 0
+    for path, _ in previous:
+        with materialize(path, repository) as root:
+            manifest = json.loads((root / "manifest.json").read_bytes())
+            if pre_start_refusal(root, manifest):
+                refusals += 1
+            else:
+                require(harness_capacity_failure(root, manifest), "pilot-no-replay-job")
+                capacity += 1
+    require(capacity <= 1, "b62-capacity-replay-limit")
+    require(refusals < 3, "pilot-pre-start-replay-limit")
     return indices, reg
 
 

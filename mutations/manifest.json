@@ -9332,6 +9332,214 @@
       ],
       "expected": "b6-long-trigger",
       "requires_database": false
+    },
+    {
+      "id": "k3b-b62-capacity-guard",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_driver.py",
+      "old": "require(not capacity, \"pilot-checker-capacity\")",
+      "new": "require(True, \"pilot-checker-capacity\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_guard_selection",
+        "-q"
+      ],
+      "expected": "b62 guard selection bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-restart-guard",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_driver.py",
+      "old": "c.get(\"restartCount\", 0) > before.get((p[\"metadata\"][\"uid\"], c[\"name\"]), 0)",
+      "new": "False",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_guard_selection",
+        "-q"
+      ],
+      "expected": "b62 guard selection bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-negative-verdict",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_driver.py",
+      "old": "if verdict and report[\"valid\"] is not True:",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_guard_selection",
+        "-q"
+      ],
+      "expected": "b62 guard selection bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-classify-cleanup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "or manifest.get(\"cleanup\", {}).get(\"status\") != \"PASS\"",
+      "new": "or False",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_classification",
+        "-q"
+      ],
+      "expected": "b62 classification bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-classify-status",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "or manifest.get(\"status\") != \"FAIL\"",
+      "new": "or False",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_classification",
+        "-q"
+      ],
+      "expected": "b62 classification bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-classify-verdict",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "if not verdict.is_file() or verdict.read_bytes() != b\"\":",
+      "new": "if not verdict.is_file():",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_classification",
+        "-q"
+      ],
+      "expected": "b62 verdict excluded",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-classify-oom",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "c.get(\"lastState\", {}).get(\"terminated\", {}).get(\"reason\") == \"OOMKilled\"",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_classification",
+        "-q"
+      ],
+      "expected": "b62 OOM requirement bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-classify-error",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "if error != \"K3 guard: pilot-checker-capacity\" and not (",
+      "new": "if False and not (",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_classification",
+        "-q"
+      ],
+      "expected": "b62 classification bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-classify-exception",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "manifest.get(\"run_id\") == \"43159046254\"",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_classification",
+        "-q"
+      ],
+      "expected": "True is not false",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-retained-exclusion",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained.py",
+      "old": "if harness_capacity_failure(root, manifest):",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_retained_excludes_completed_capacity_cells_and_stops_second",
+        "-q"
+      ],
+      "expected": "b6-retained-job",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-replay-limit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_sustained_campaign.py",
+      "old": "require(capacity <= 1, \"b62-capacity-replay-limit\")",
+      "new": "require(capacity <= 2, \"b62-capacity-replay-limit\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_replay_once_all_indices_and_prestart_limit",
+        "-q"
+      ],
+      "expected": "b62 second replay admitted",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-replay-reservation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_schedule.py",
+      "old": "job.update(capacity_replay=True, expected_seconds=job[\"full_admission_seconds\"])",
+      "new": "job.update(capacity_replay=False)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_schedule_replay_reservation",
+        "-q"
+      ],
+      "expected": "b62 replay reservation missing",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-capacity-threshold",
+      "kind": "behavioral",
+      "file": "scripts/dur053_checker_capacity.py",
+      "old": "\"pass\": projected <= LIMIT",
+      "new": "\"pass\": True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_rss_and_threshold",
+        "-q"
+      ],
+      "expected": "b62 threshold bypassed",
+      "requires_database": false
     }
   ]
 }

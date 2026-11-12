@@ -264,6 +264,56 @@ def evidence_root(name: str) -> Path:
     return ROOTS[job_spec(name)[1]]
 
 
+def harness_capacity_failure(root: Path, manifest: dict[str, Any]) -> bool:
+    """B.6.2 content rule on materialized, hash-verified evidence, never metrics.
+
+    Callers must enter materialize(directory, repository) first. In particular,
+    a restart alone selects the live guard but does not authorize a replay.
+    """
+    name = manifest.get("job", "")
+    if (
+        name.split("-c")[0] not in JOBS
+        or manifest.get("version") not in (2, 3)
+        or manifest.get("status") != "FAIL"
+        or manifest.get("cleanup", {}).get("status") != "PASS"
+    ):
+        return False
+    error = manifest.get("error")
+    legacy = name == "k3-pilot-4a" and manifest.get("run_id") == "43159046254"
+    if error != "K3 guard: pilot-checker-capacity" and not (
+        legacy and error == "K3 guard: pilot-live-checker"
+    ):
+        return False
+    failing = [r for r in manifest.get("unperformed", []) if r.get("started") is True]
+    if len(failing) != 1:
+        return False
+    cell = root / f"{failing[0]['arm']}-{failing[0]['index']}"
+    verdict = cell / "checker.json"
+    if not verdict.is_file() or verdict.read_bytes() != b"":
+        return False
+    # The old run has the all-namespace diagnostic. New guards also retain the
+    # exact observer pod JSON at failure, before cleanup can erase lastState.
+    for path in (cell / "observer-after.json", root / "diagnostics/pods-json.txt"):
+        if not path.is_file():
+            continue
+        try:
+            pods = json.loads(path.read_bytes())["items"]
+        except (ValueError, KeyError, TypeError):
+            continue
+        if any(
+            p.get("metadata", {}).get("labels", {}).get("app") == "observer"
+            and p.get("metadata", {}).get("namespace") == "dur053-kind"
+            and any(
+                c.get("name") == "observer"
+                and c.get("lastState", {}).get("terminated", {}).get("reason") == "OOMKilled"
+                for c in p.get("status", {}).get("containerStatuses", [])
+            )
+            for p in pods
+        ):
+            return True
+    return False
+
+
 def retained(
     repository: Path, arm: str, version: int, checker: Path | None = None
 ) -> dict[int, dict]:
@@ -271,10 +321,16 @@ def retained(
     from dur053_pilot_evidence import pre_start_refusal, recheck
 
     result = {}
+    capacity_counts: dict[str, int] = {}
     for path in sorted((repository / ROOTS[version]).glob("*/*/manifest.json")):
         with materialize(path.parent, repository) as root:
             manifest = json.loads((root / "manifest.json").read_bytes())
             if job_spec(manifest["job"])[:2] != (arm, version):
+                continue
+            if harness_capacity_failure(root, manifest):
+                name = manifest["job"]
+                capacity_counts[name] = capacity_counts.get(name, 0) + 1
+                require(capacity_counts[name] <= 1, "b62-capacity-replay-limit")
                 continue
             if pre_start_refusal(root, manifest):
                 continue

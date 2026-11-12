@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import json
 import math
+import subprocess
 import time
 from datetime import UTC, datetime, timedelta
+from pathlib import Path
 from typing import Any
 
 from dur053_k3 import save
@@ -16,6 +18,58 @@ from dur053_sustained import duration, operating_record, stationarity, summarize
 
 
 class SustainedDriver(PilotDriver):
+    def observer_status(self, ns: str) -> dict[str, Any]:
+        # Do not use pod(): it filters out a pod while it is restarting.
+        return json.loads(
+            self.k("-n", ns, "get", "pods", "-l", "app=observer", "-o", "json", record=False).stdout
+        )
+
+    def setup(self, directory: Path, addresses: dict[str, str]) -> tuple[str, str]:
+        ns, db = super().setup(directory, addresses)
+        if getattr(self, "engine_sampling", False) or directory.name == "cpu-drift":
+            self.observer_before = self.observer_status(ns)
+            save(directory / "observer-before.json", self.observer_before)
+        return ns, db
+
+    def k(self, *args: str, **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        result = super().k(*args, **kwargs)
+        if "/checker" not in args or "-namespace" not in args:
+            return result
+        try:
+            report = json.loads(result.stdout)
+        except ValueError:
+            report = None
+        verdict = isinstance(report, dict) and "valid" in report
+        if result.returncode == 0 and verdict and report["valid"] is True:
+            return result  # The parent retains the verdict and checks valid is True.
+        label = Path(args[args.index("-arrivals") + 1]).name.removesuffix("-combined-arrivals.json")
+        filename = "checker.json" if label == "measured" else label + "-checker.json"
+        (self.output / filename).write_text(result.stdout, encoding="utf-8", newline="\n")
+        # Any returned negative verdict stays a hard live-checker failure, even
+        # if its process also failed or the observer subsequently restarted.
+        if verdict and report["valid"] is not True:
+            require(False, "pilot-live-checker")
+        ns = args[args.index("-namespace") + 1]
+        after = self.observer_status(ns)
+        save(self.output / "observer-after.json", after)
+        before = {
+            (p["metadata"]["uid"], c["name"]): c.get("restartCount", 0)
+            for p in getattr(self, "observer_before", {}).get("items", [])
+            for c in p.get("status", {}).get("containerStatuses", [])
+        }
+        capacity = any(
+            c.get("name") == "observer"
+            and (
+                c.get("lastState", {}).get("terminated", {}).get("reason") == "OOMKilled"
+                or c.get("restartCount", 0) > before.get((p["metadata"]["uid"], c["name"]), 0)
+            )
+            for p in after.get("items", [])
+            for c in p.get("status", {}).get("containerStatuses", [])
+        )
+        require(not capacity, "pilot-checker-capacity")
+        require(False, "pilot-live-checker")
+        return result
+
     def sample(self, ns: str, db: str) -> None:
         super().sample(ns, db)
         if not getattr(self, "engine_sampling", False):

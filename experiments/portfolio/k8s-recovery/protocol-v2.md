@@ -1322,3 +1322,105 @@ correction avoids a false long re-pilot trigger and unnecessary budget use.
 Fallback admission retains all three v2 repeats (indices 1, 2, 3) before v3
 may start, with at least one failing, as clarified by Round 199 R267. This
 keeps admission consistent with the unchanged three-repeat freeze requirement.
+
+
+## Amendment B.6.2 (Round 206 registration; implementation Round 207)
+
+Registered 2026-11-12 under R271, before the short v2 replay. This supersedes
+B.6 only for harness capacity and its bounded, content-defined replay. The
+rates, seeds, stationarity rules, workload, cell minima and budgets are unchanged.
+
+R271 diagnosis: k3-pilot-4a run 43159046254 started short-1, then the observer
+was OOMKilled (exit 137, restart count 1). Its 512Mi limit could not hold the
+live namespace checker at the continuous 720 s short workload (5138 warmup
+plus measured workflows). The exec failed to find the restarting container;
+checker.json is empty. There is no invariant verdict to interpret. The smoke's
+6 s + 60 s schedule is too small to establish this memory capacity.
+
+Non-peeking basis: Round 206 used the manifest, command logs, pod diagnostics
+and file sizes only, without reading or computing the failed short cell's
+latencies, stationarity bins, throughput or gate inputs. This implementation
+also classifies that run solely from those diagnostic bytes through materialize;
+it does not inspect its performance outcomes. No registered or paid run tunes
+the limit.
+
+1. **Observer capacity.** Only the observer container's memory changes:
+   request 128Mi -> 512Mi, limit 512Mi -> 2Gi. The actual checked-in CPU
+   request is 100m (unchanged), and its CPU limit remains 1000m. No engine,
+   worker, scheduler, relay, PostgreSQL or Kafka resource changes. Historical
+   package hashes and run manifests remain immutable; there is no active
+   static package hash pin for these bytes. New runs capture the changed bytes
+   in their existing tooling inventory and applied-object evidence.
+2. **Capacity evidence before dispatch.** The Linux CI job "Go, Python,
+   Terraform, and offline evidence" builds cmd/dur049-checker, then runs
+   scripts/dur053_checker_capacity.py on materialized, committed v1
+   k3-pilot-1a/42181882847 short-1, the largest committed short snapshot
+   (approximately 42.6 MB). The script invokes /usr/bin/time -v with LC_ALL=C
+   and the offline -snapshot path, with -arrivals measured-combined-arrivals.json,
+   -witness-export witness.json and -require-terminal. Checker stdout goes to
+   RUNNER_TEMP; its valid verdict and zero exit are required. Linux maximum RSS
+   is parsed as KiB and converted to bytes. The JSON and raw time report are
+   uploaded even on failure. Reproduce on Linux:
+
+   ```sh
+   go build -o "$RUNNER_TEMP/dur049-checker" ./cmd/dur049-checker
+   uv run python scripts/dur053_checker_capacity.py --checker "$RUNNER_TEMP/dur049-checker" --output "$RUNNER_TEMP/b62-capacity.json"
+   ```
+
+   The offline path includes decoding, campaign checks and full JSON emission,
+   but omits PostgreSQL row decoding and construction of raw tables and checker
+   projections inside LoadNamespace. It is an incomplete proxy for live peak
+   memory. Use the larger estimate: max(measured offline RSS, the entire former
+   512Mi v1 allocation), then multiply by the registered combined-arrivals ratio
+   1.50 and a 2x margin. Assert both the resulting estimate and, consequently,
+   measured RSS x 1.50 x 2 are <= 2Gi. The 512Mi floor is a conservative planning
+   estimate, not a measurement or a proven upper bound for the live loader.
+   At that floor the projected v2 allocation before margin is 768Mi, below half
+   the new limit; CI must still pass if measured RSS is larger. The live guard
+   remains necessary. No memory number is inferred from pilot timing metrics.
+
+   The measured offline RSS, selected estimate and projection are recorded in
+   each CI run's `b62-checker-capacity-<run_id>` artifact
+   (`b62-capacity.json`). For a registered replay, the binding run is the push
+   CI run named by that replay manifest's `ci_proof.run_id`. That same CI job
+   asserts the projection is <= 2Gi, so a green `ci_proof` run implies the
+   capacity check passed for the exact tooling bytes. Claude records the
+   numbers in REVIEW.md. Local Windows unit tests validate parsing, the
+   larger-estimate rule and both sides of the threshold; they are not a Linux
+   capacity measurement.
+3. **Specific guard, versioned runner only.** Capture observer pod JSON after
+   setup as the cell baseline. On checker nonzero exit or missing verdict,
+   read pod JSON through the driver's kubectl helper, including restarting pods.
+   If lastState.terminated.reason is OOMKilled or restartCount increased during
+   the cell, retain the diagnostics and raise pilot-checker-capacity. A returned
+   verdict with valid != true always stays pilot-live-checker, a hard failure.
+   The v1 PilotDriver file, its SHA-256 pin and its execution are unchanged.
+4. **Content-defined harness-capacity replay (v2/v3 only).** After committed
+   bytes, archive hashes and ledger/index bindings pass materialize, classify
+   a versioned manifest iff status FAIL, cleanup PASS, error exactly
+   `K3 guard: pilot-checker-capacity`, the failing cell's checker.json exists
+   and is zero bytes, and committed observer diagnostics show
+   lastState.terminated.reason == OOMKilled. The sole legacy error exception
+   is k3-pilot-4a run 43159046254 with `K3 guard: pilot-live-checker`.
+   A restart alone can select the guard but cannot authorize replay.
+   Every failed-run cell, completed or not, remains retained and charged and
+   contributes to no gate, L, choose() population or operating record. One
+   same-name replay is allowed after one such failure, with every planned
+   index and the existing registered seeds. It requires committed B.6.2 tooling
+   and green main push CI through the existing history/tooling/ci_proof gates.
+   A second harness-capacity failure with that name is a stop requiring a new
+   review round. B.3 pre-start-refusal eligibility and its limit are unchanged.
+5. **Freeze and schedule.** finish(), retained() and both directions of the
+   ledger inventory retain the failure as provenance while excluding its cells.
+   A second capacity failure blocks admission and freeze. plan_b6 retains the
+   actual ledger charge (including the 1021 s failure) and replaces the pending
+   short replay's expected estimate with one full 5040 s reservation. It does
+   not double-count a separate successful pilot or grant more campaign time.
+6. **Ordering disclosure.** Each versioned run's observer resources are those
+   of its own tooling bytes, recorded through its `ci_proof` and applied-object
+   evidence. Runs admitted before B.6.2 merged use the 512Mi observer; runs
+   admitted after use 2Gi. The freeze and any comparison disclose the per-run
+   observer resources. The observer is a harness pod hosting both loadgen and
+   the checker via exec. Its CPU request/limit are unchanged; the memory
+   estimates target operation below about half of the new capacity before the
+   2x margin, not a measured claim that either resource never binds.
