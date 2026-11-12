@@ -9540,6 +9540,38 @@
       ],
       "expected": "b62 threshold bypassed",
       "requires_database": false
+    },
+    {
+      "id": "k3b-b62-capacity-pass-filter",
+      "kind": "behavioral",
+      "file": "scripts/dur053_checker_capacity.py",
+      "old": "manifest.get(\"status\") == \"PASS\"",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_capacity_source_ignores_fail_with_payload",
+        "-q"
+      ],
+      "expected": "b62 FAIL run selected",
+      "requires_database": false
+    },
+    {
+      "id": "k3b-b62-capacity-ledger-hash",
+      "kind": "behavioral",
+      "file": "scripts/dur053_checker_capacity.py",
+      "old": "and hashlib.sha256(raw).hexdigest() == rows[0].get(\"artifact_sha256\"),",
+      "new": "and True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k3b_b62.py::B62Tests::test_capacity_source_rejects_ledger_hash_mismatch",
+        "-q"
+      ],
+      "expected": "b62 ledger hash accepted",
+      "requires_database": false
     }
   ]
 }

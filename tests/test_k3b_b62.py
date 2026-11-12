@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import shutil
 import subprocess
@@ -72,6 +73,29 @@ def failure(root: Path, run: str = "10") -> dict:
     return manifest
 
 
+def capacity_run(repo: Path, run: str, status: str, *, payload: bool = True) -> Path:
+    source = repo / b6.EVIDENCE / f"k3-pilot-1a/{run}"
+    source.mkdir(parents=True)
+    manifest = {"run_id": run, "status": status}
+    raw = json.dumps(manifest, indent=2).encode() + b"\n"
+    (source / "manifest.json").write_bytes(raw)
+    if payload:
+        (source / "payload-index.json").write_text("{}\n")
+    ledger_path = repo / capacity.LEDGER
+    ledger_path.parent.mkdir(parents=True, exist_ok=True)
+    ledger = json.loads(ledger_path.read_bytes()) if ledger_path.exists() else {"entries": []}
+    ledger["entries"].append(
+        {
+            "category": "k3-pilot-1a",
+            "run_id": run,
+            "artifact": (source / "manifest.json").relative_to(repo).as_posix(),
+            "artifact_sha256": hashlib.sha256(raw).hexdigest(),
+        }
+    )
+    ledger_path.write_text(json.dumps(ledger) + "\n")
+    return source
+
+
 class B62Tests(unittest.TestCase):
     def test_observer_only_memory(self) -> None:
         items = json.loads((ROOT / "deploy/k8s/base/resources.yaml").read_bytes())["items"]
@@ -108,9 +132,8 @@ class B62Tests(unittest.TestCase):
     def test_capacity_measure_command_and_retained_numbers(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             repo = Path(tmp)
-            source = repo / b6.EVIDENCE / "k3-pilot-1a/42181882847"
-            source.mkdir(parents=True)
-            save(source / "manifest.json", {})
+            capacity_run(repo, "42181882847", "PASS")
+            capacity_run(repo, "42166833080", "FAIL", payload=False)
             checker = repo / "checker"
             checker.write_bytes(b"test binary")
             output = repo / "runner-temp/b62-capacity.json"
@@ -134,6 +157,46 @@ class B62Tests(unittest.TestCase):
             self.assertEqual(json.loads(output.read_bytes()), numbers)
             self.assertEqual(numbers["offline_max_rss_bytes"], 512000000)
             self.assertTrue(numbers["pass"])
+            self.assertEqual(
+                numbers["source"],
+                "experiments/portfolio/k8s-recovery/k3-pilot-v1/k3-pilot-1a/42181882847",
+            )
+
+    def test_capacity_source_selects_committed_pass_run(self) -> None:
+        self.assertEqual(
+            capacity.select_source(ROOT).relative_to(ROOT).as_posix(),
+            "experiments/portfolio/k8s-recovery/k3-pilot-v1/k3-pilot-1a/42181882847",
+        )
+
+    def test_capacity_source_ignores_fail_with_payload(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            selected = capacity_run(repo, "pass", "PASS")
+            capacity_run(repo, "fail", "FAIL")
+            self.assertEqual(capacity.select_source(repo), selected, "b62 FAIL run selected")
+
+    def test_capacity_source_rejects_two_pass_runs(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            capacity_run(repo, "pass-one", "PASS")
+            capacity_run(repo, "pass-two", "PASS")
+            with self.assertRaisesRegex(
+                ValueError, "b62-capacity-source", msg="b62 ambiguous PASS runs accepted"
+            ):
+                capacity.select_source(repo)
+
+    def test_capacity_source_rejects_ledger_hash_mismatch(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            capacity_run(repo, "pass", "PASS")
+            ledger_path = repo / capacity.LEDGER
+            ledger = json.loads(ledger_path.read_bytes())
+            ledger["entries"][0]["artifact_sha256"] = "0" * 64
+            ledger_path.write_text(json.dumps(ledger) + "\n")
+            with self.assertRaisesRegex(
+                ValueError, "b62-capacity-source", msg="b62 ledger hash accepted"
+            ):
+                capacity.select_source(repo)
 
     def test_observer_baseline_and_restart(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
