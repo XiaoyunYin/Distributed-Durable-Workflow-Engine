@@ -779,7 +779,9 @@ class SustainedTests(unittest.TestCase):
             self.assertIn(b6.PARTITION_LIMITATION, result["limitations"])
             self.assertIn("host limitation: retained verbatim", result["limitations"])
             self.assertIn("medium: retained v1 limitation", result["limitations"])
-            self.assertIn("R265 medium queueing limitation: retained verbatim", result["limitations"])
+            self.assertIn(
+                "R265 medium queueing limitation: retained verbatim", result["limitations"]
+            )
             expected_disclosures = {
                 "short": (
                     "short: v1 repeats showed engine-path saturation and are excluded from L "
