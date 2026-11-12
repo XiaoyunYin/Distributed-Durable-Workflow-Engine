@@ -114,6 +114,19 @@
       "run_id": "43220876354",
       "status": "PASS",
       "tree_sha": "afae51b9341e397f3264b2db603753506a9ad77b"
+    },
+    {
+      "artifact": "experiments/portfolio/k8s-recovery/k3-pilot-v2/k3-pilot-4b/43249622899/manifest.json",
+      "artifact_sha256": "a1da2ffaf5461b4b7ad069c40fc1b75cc881ccb8fc4fab27093ac86f068bd96d",
+      "category": "k3-pilot-4b",
+      "charged_seconds": 3624,
+      "head_sha": "d6d39b373d98e59e6c1f19fb3e459735d999e9d2",
+      "job_id": "131291548788",
+      "merge_ref_sha": "d6d39b373d98e59e6c1f19fb3e459735d999e9d2",
+      "payload_index_sha256": "10d45d17b0e87cc8f4c5a81946cdb8e68df11cd78f235e89649abaf2f5ab75c5",
+      "run_id": "43249622899",
+      "status": "PASS",
+      "tree_sha": "a23a0d3941526055af066f7e7e9a2c56c02ba309"
     }
   ],
   "limit_seconds": 259200,
