@@ -188,6 +188,22 @@ jobs:
         shell: pwsh
         run: ./scripts/check.ps1
 
+      - name: Measure B.6.2 checker capacity on committed short-1
+        shell: bash
+        run: |
+          go build -o "$RUNNER_TEMP/dur049-checker" ./cmd/dur049-checker
+          uv run python scripts/dur053_checker_capacity.py --checker "$RUNNER_TEMP/dur049-checker" --output "$RUNNER_TEMP/b62-capacity.json"
+
+      - name: Retain B.6.2 checker capacity evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: b62-checker-capacity-${{ github.run_id }}
+          path: |
+            ${{ runner.temp }}/b62-capacity.json
+            ${{ runner.temp }}/b62-capacity.time.txt
+          if-no-files-found: error
+
       - name: Verify real checkout pilot admission prefix
         shell: bash
         env:

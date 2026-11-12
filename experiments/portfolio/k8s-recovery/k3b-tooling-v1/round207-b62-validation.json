@@ -1,0 +1,199 @@
+{
+  "generated_at_utc": "2026-11-12T05:53:05.926849+00:00",
+  "task": "DUR-053/K3b B.6.2 and R271",
+  "task_status": "IN_PROGRESS",
+  "handoff_basis": "PROVISIONAL",
+  "base_commit": "4bf8bf7d2ec135ab5a2e0a9c204d628b07ae8333",
+  "target_commit": null,
+  "branch": "codex/k8s-k3b-b62",
+  "measurement_claim": false,
+  "schema": "dur053.round207.b62-validation.v1",
+  "checks": {
+    "full": {
+      "command": [
+        "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "--basetemp",
+        "D:\\coding agent files\\durable-engine\\codex\\b62\\full-pytest"
+      ],
+      "exit_code": 0,
+      "seconds": 336.0939999999973,
+      "output": "........................................................................ [ 19%]\n.....ss................................................................. [ 39%]\n........................................................................................................................................... [ 78%]\n...........................................s............................ [ 98%]\n.......                                                                  [100%]\n=========================== short test summary info ===========================\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:34: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_dur055_postgres_integration.py:41: DUR055_TEST_DATABASE_URL is not configured\nSKIPPED [1] tests\\test_worker_kafka_lifecycle.py:59: real Kafka witness requires DURABLE_KAFKA_BROKERS\n359 passed, 3 skipped, 77 subtests passed in 335.05s (0:05:35)\n"
+    },
+    "ruff-check": {
+      "command": [
+        "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "ruff",
+        "check",
+        "--no-cache",
+        "python",
+        "tests",
+        "scripts/dur053_checker_capacity.py",
+        "scripts/dur053_sustained.py",
+        "scripts/dur053_sustained_campaign.py",
+        "scripts/dur053_sustained_driver.py",
+        "scripts/dur053_sustained_freeze.py",
+        "scripts/dur053_schedule.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.21899999999732245,
+      "output": "All checks passed!\n"
+    },
+    "ruff-format": {
+      "command": [
+        "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "ruff",
+        "format",
+        "--check",
+        "--no-cache",
+        "python",
+        "tests",
+        "scripts/dur053_checker_capacity.py",
+        "scripts/dur053_sustained.py",
+        "scripts/dur053_sustained_campaign.py",
+        "scripts/dur053_sustained_driver.py",
+        "scripts/dur053_sustained_freeze.py",
+        "scripts/dur053_schedule.py"
+      ],
+      "exit_code": 0,
+      "seconds": 0.10899999999674037,
+      "output": "91 files already formatted\n"
+    },
+    "mypy": {
+      "command": [
+        "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+        "-B",
+        "-m",
+        "mypy",
+        "--cache-dir",
+        "D:\\coding agent files\\durable-engine\\codex\\b62\\mypy-cache"
+      ],
+      "exit_code": 0,
+      "seconds": 13.031000000002678,
+      "output": "Success: no issues found in 44 source files\n"
+    },
+    "diff-check": {
+      "command": [
+        "git",
+        "diff",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 0.26600000000325963,
+      "output": ""
+    }
+  },
+  "new_test_file": {
+    "command": [
+      "D:\\portfolio-projects\\durable-agent-execution-engine\\.venv\\Scripts\\python.exe",
+      "-B",
+      "-m",
+      "pytest",
+      "tests/test_k3b_b62.py",
+      "-q",
+      "-p",
+      "no:cacheprovider",
+      "--basetemp",
+      "D:\\coding agent files\\durable-engine\\codex\\b62\\b62-final"
+    ],
+    "exit_code": 0,
+    "result": "11 passed, 13 subtests passed in 2.41s"
+  },
+  "environment": {
+    "TMP": "D:\\coding agent files\\durable-engine\\codex\\b62",
+    "TEMP": "D:\\coding agent files\\durable-engine\\codex\\b62",
+    "TMPDIR": "D:\\coding agent files\\durable-engine\\codex\\b62",
+    "PYTHONDONTWRITEBYTECODE": "1",
+    "GOTOOLCHAIN": "local",
+    "GOPROXY": "off",
+    "GOSUMDB": "off",
+    "GOFLAGS": "-mod=mod",
+    "GOMAXPROCS": "2",
+    "GOCACHE": "D:\\coding agent files\\durable-engine\\codex\\b62\\go-cache",
+    "GOTMPDIR": "D:\\coding agent files\\durable-engine\\codex\\b62\\go-tmp",
+    "Go_PATH_prefix": "C:\\Users\\yxyfz\\go\\pkg\\mod\\golang.org\\toolchain@v0.0.1-go1.27.4.windows-amd64\\bin"
+  },
+  "mutations": {
+    "record": "round207-b62-mutations.json",
+    "selected": 38,
+    "existing": 25,
+    "new": 13,
+    "killed": 38,
+    "survivors": 0
+  },
+  "planning_record": "round207-b62-planning.json",
+  "source_sha256": {
+    ".github/workflows/ci.yml": "b62e649c695e1bd5a10bced35605480b622b2df3aa243b62ec6c951578c53feb",
+    "deploy/k8s/base/resources.yaml": "2b0206ccc5a7d7caa2196374746b0d7ab52badb96f663c4031a5188a34454a5e",
+    "experiments/portfolio/k8s-recovery/protocol-v2.md": "6122678b00b1a96d4248079b83939882e9aefa5e944625cc7edf19ebf7bf431f",
+    "mutations/manifest.json": "48a94dff35a20ca06206d3f7af5dfd74b70d6538b38bc03fdbde53629ff3525e",
+    "scripts/dur053_schedule.py": "0244bc55001a5debd316258e2da183210b02da34abc28457279a9309ad0da073",
+    "scripts/dur053_sustained.py": "427bf9d86bed7ae50c7caf285e4a50cdcdabe5a9a9ffc589e2d5d49def1b6317",
+    "scripts/dur053_sustained_campaign.py": "bb953e585d9523a43978a5ee2b84cfc7b20c0c34ad9d9ded5de3f31f8944bb6a",
+    "scripts/dur053_sustained_driver.py": "d8206800d2d4e87e0108aa6060a9eae41469e8e17784a078abcebb09b2ae35dd",
+    "scripts/dur053_sustained_freeze.py": "7fdf5dbc3e6f62522391f668846681727a13cbe6ae5ce89422aed0c459f48b95",
+    "scripts/dur053_checker_capacity.py": "cb97f7844f93f5f5b3a6a828793a54490ea9ee4ca554bf56725166d43ee79501",
+    "tests/test_k3b_b62.py": "abae979219a45f2d54b5b30b89539a52b8502d10e933c1524245ec67b39a47a0"
+  },
+  "unchanged_bytes": {
+    "scripts/dur053_pilot_driver.py": {
+      "identical_to_HEAD": true,
+      "sha256": "02745503a400821d39f9659ecbf44571e23733905fcd66278ed13680093e9d65"
+    },
+    "tests/test_k3b_sustained.py": {
+      "identical_to_HEAD": true,
+      "sha256": "ba9eb51c5fce836124140e42568dd75ab91cdefc241028e2265d99becb2f01cd"
+    }
+  },
+  "PLAN_sha256": "15b1163dfa7611e86fc498db0f165877a917b220165b350872d14f2fb0fac528",
+  "review_append_only_prefix": {
+    "bytes": 2581664,
+    "sha256": "4e73a848db46104b8484a69aff782e922bc069ecb7dd8d51c61ec2f72e2eec85",
+    "CR": 0
+  },
+  "initial_failed_attempts": [
+    "First targeted run: 33 passed, 1 failed. Moving the materialize import made the unchanged long-trigger fixture patch miss its target. Restored the long-path lazy import under an alias; its named baseline, both existing long-admission mutants and the full suite then passed. No existing test was weakened.",
+    "Initial Ruff found import ordering and overlong new lines; corrected before final quality checks.",
+    "A draft resource assertion incorrectly expected a 200m CPU request. It failed before writing the package; inspected the actual 100m request and preserved it."
+  ],
+  "limitations": [
+    "No Go files changed, so no standalone go vet/go test/race was run. Full pytest ran its configured Go subprocess checks offline with cached Go 1.27.4.",
+    "Two PostgreSQL integration tests skipped for unset DUR055_TEST_DATABASE_URL; one Kafka witness test skipped for unset DURABLE_KAFKA_BROKERS. No Docker or network is available.",
+    "Linux /usr/bin/time measurement, hosted CI, main push proof, kind smoke, registered pilots/replay and freeze were not run. CI must produce the memory numbers and green main push proof before dispatch.",
+    "The 512Mi floor for the live-loader estimate is conservative planning, not a measured live RSS or a proven memory bound.",
+    "The selected mutation gate used the unmodified runner helpers on a disposable source export; no complete database-backed mutation campaign or Go-wide baseline is claimed.",
+    "No .git writes, branch switch, commit, push or dispatch. Claude must commit and review a fixed target.",
+    "REVIEW.md and docs/ are ignored local records under the current .gitignore; they were updated on disk without changing tracking or ignore rules.",
+    "Historical evidence/ledger/package hash records are immutable; no active package-byte hash pin exists. Only protocol and the three new round JSONs change under experiments/."
+  ],
+  "cleanup": {
+    "status": "BLOCKED",
+    "root": "D:\\coding agent files\\durable-engine\\codex\\b62",
+    "reason": "Automatic approval review rejected the directory deletion before execution: blocked by policy. No alternate deletion method was attempted.",
+    "deleted_files": 0,
+    "remaining_files": 5264,
+    "remaining_bytes": 313541448,
+    "reparse_points": 0,
+    "enumeration": "complete read-only scan after rejection",
+    "all_temporary_files_confined_here": true
+  },
+  "review_prefix_preserved_after_handoff": true,
+  "review_CR_bytes": 0,
+  "final_scope_check": {
+    "intended_publishable_files": 14,
+    "unexpected_publishable_changes": [],
+    "diff_check": "PASS",
+    "PLAN_unchanged": true,
+    "earlier_review_prefix_preserved": true,
+    "old_pilot_evidence_and_ledger_unchanged": true
+  }
+}

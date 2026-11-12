@@ -92,10 +92,28 @@ func Prepare(ctx context.Context, store *state.Store, c Config) error {
 	return nil
 }
 func Plan(c Config) (invariants.Arrivals, error) {
+	return plan(c, cpuExpectedDigest)
+}
+
+func cpuExpectedDigest(units int) string {
+	digest := make([]byte, 32)
+	for j := 0; j < units; j++ {
+		sum := sha256.Sum256(digest)
+		digest = sum[:]
+	}
+	return hex.EncodeToString(digest)
+}
+
+// The injected digest function lets tests count work without shared mutable hooks.
+func plan(c Config, expectedCPU func(int) string) (invariants.Arrivals, error) {
 	if err := c.Validate(); err != nil {
 		return invariants.Arrivals{}, err
 	}
 	result := invariants.Arrivals{Schema: "dur053.arrivals.v1", Offered: c.Count, Status: "IN_PROGRESS", Namespace: c.Namespace, RunID: c.RunID, Arm: c.Arm, Seed: c.Seed, Rate: c.Rate, Concurrency: c.Concurrency, CPUUnits: c.CPUUnits, Rows: make([]invariants.Arrival, c.Count)}
+	var cpuDigest string
+	if c.Arm == "cpu" {
+		cpuDigest = expectedCPU(c.CPUUnits)
+	}
 	for i := range result.Rows {
 		activity := Activity(i, c.Arm)
 		key := fmt.Sprintf("dur053-%s-%d-%06d", c.RunID, c.Seed, i)
@@ -106,12 +124,7 @@ func Plan(c Config) (invariants.Arrivals, error) {
 			expected = 5
 		}
 		if activity == "dur053.cpu" {
-			digest := make([]byte, 32)
-			for j := 0; j < c.CPUUnits; j++ {
-				sum := sha256.Sum256(digest)
-				digest = sum[:]
-			}
-			expected = map[string]any{"digest": hex.EncodeToString(digest), "work_units": c.CPUUnits}
+			expected = map[string]any{"digest": cpuDigest, "work_units": c.CPUUnits}
 		}
 		body, _ := json.Marshal(map[string]any{"workflow_id": key, "namespace": c.Namespace, "submission_key": key, "payload": input, "definition_id": DefinitionID(c.RunID, activity), "definition_version": 1, "initial_node_id": activity, "initial_input": input, "actor_id": "dur053-loadgen"})
 		want, _ := json.Marshal(expected)
