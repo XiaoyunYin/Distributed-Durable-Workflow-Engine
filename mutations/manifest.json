@@ -11291,7 +11291,7 @@
     {
       "id": "k4b1-audit-commit-lock",
       "kind": "behavioral",
-      "file": "migrations/000020_k4_audit.up.sql",
+      "file": "migrations/000021_k4_claim_audit.up.sql",
       "old": "PERFORM pg_advisory_xact_lock(530004, 1);",
       "new": "PERFORM 1;",
       "command": [
@@ -12720,6 +12720,42 @@
       "file": "scripts/dur053_k4_driver.py",
       "old": "exits and any(e[\"exit_status\"] == 137 for e in exits)",
       "new": "True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_backend_requires_collected_scratch_exit",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r241-cri-invalid-status",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "status = raw[\"exit_status\"]",
+      "new": "status = raw.get(\"exit_status\", 0) if type(raw.get(\"exit_status\", 0)) is int else 0",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_ctr_real_text_selection_and_identity",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r241-backend-exit-status",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "any(\n                    e[\"exit_status\"] == 137 and e[\"exit_status_source\"] == \"explicit\" for e in exits\n                )",
+      "new": "bool(exits)",
       "command": [
         "uv",
         "run",

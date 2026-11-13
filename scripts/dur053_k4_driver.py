@@ -405,7 +405,11 @@ class K4Driver:
             streams.check()
             exits = [e for e in streams.cri_exits if e["container_id"] == cid]
             require(
-                exits and any(e["exit_status"] == 137 for e in exits), "k4-backend-cri-exit-missing"
+                exits
+                and any(
+                    e["exit_status"] == 137 and e["exit_status_source"] == "explicit" for e in exits
+                ),
+                "k4-backend-cri-exit-missing",
             )
             save(
                 self.output / "chaos-validation.json",

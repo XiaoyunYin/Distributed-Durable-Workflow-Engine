@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import re
 import shlex
 import subprocess
 import threading
@@ -46,20 +47,32 @@ def history_kind(row):
 
 
 def cri_event(text):
-    """ctr events: RFC3339Nano timestamp, namespace, topic, JSON payload.
+    """ctr events: Go time.String() timestamp, namespace, topic, JSON payload.
 
     Retain all lines upstream. Unrelated events are not process deaths; malformed
     exit events must never disappear as if no process had died.
     """
-    parts = text.split(None, 3)
-    if len(parts) < 3 or parts[2] != "/tasks/exit":
+    match = re.fullmatch(
+        r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d{1,9})? [+-]\d{4} [A-Z]+) (\S+) (\S+) (\{.*\})$",
+        text,
+    )
+    if match is None or match.group(3) != "/tasks/exit":
         require("/tasks/exit" not in text, "k4-cri-exit-unparseable")
         return None
     try:
-        require(len(parts) == 4 and parts[1] == "k8s.io", "k4-cri-exit-unparseable")
-        raw = json.loads(parts[3])
+        timestamp, namespace, _, payload = match.groups()
+        require(namespace == "k8s.io", "k4-cri-exit-unparseable")
+        date_time, offset, _ = timestamp.rsplit(" ", 2)
+        date_time, fraction = (date_time.split(".", 1) + [""])[:2]
+        datetime.fromisoformat(date_time + ("." + fraction[:6] if fraction else "") + offset)
+        raw = json.loads(payload)
         cid = raw["container_id"]
-        status = raw["exit_status"]
+        if "exit_status" in raw:
+            status = raw["exit_status"]
+            status_source = "explicit"
+        else:
+            status = 0
+            status_source = "omitted-zero"
         exited = raw["exited_at"]
         at = (
             int(exited["seconds"]) + int(exited.get("nanos", 0)) / 1e9
@@ -69,8 +82,13 @@ def cri_event(text):
         require(
             isinstance(cid, str) and bool(cid) and type(status) is int, "k4-cri-exit-unparseable"
         )
-        utc(parts[0])
-        return dict(container_id=cid, exit_status=status, at=at, source=text)
+        return dict(
+            container_id=cid,
+            exit_status=status,
+            exit_status_source=status_source,
+            at=at,
+            source=text,
+        )
     except (ValueError, KeyError, TypeError, IndexError) as error:
         raise ValueError("k4-cri-exit-unparseable: " + text) from error
 

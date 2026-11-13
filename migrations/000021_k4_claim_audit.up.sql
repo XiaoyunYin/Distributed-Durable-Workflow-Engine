@@ -13,6 +13,7 @@ CREATE OR REPLACE FUNCTION engine.k4_flush_audit() RETURNS trigger LANGUAGE plpg
 BEGIN
     -- Still deferred: never acquire the serialization lock in business statements.
     -- Only audit rows are touched here, no attempt/workflow/lease reads or locks.
+    -- This replacement is the effective definition of the commit-order lock from 000020.
     PERFORM pg_advisory_xact_lock(530004, 1);
     INSERT INTO engine.k4_audit
         (at, kind, partition_id, owner_id, epoch, session_id, pod_uid,

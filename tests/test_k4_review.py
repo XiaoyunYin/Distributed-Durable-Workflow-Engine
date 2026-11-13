@@ -24,9 +24,10 @@ import dur053_record_k4 as recorder  # noqa: E402
 pytest_plugins = ["test_k4_offline"]
 
 EXIT = (
-    "2026-11-13T01:02:03.123456789Z k8s.io /tasks/exit "
-    '{"container_id":"dead", "id":"dead", "pid":42, "exit_status":137, '
-    '"exited_at":{"seconds":1794531723,"nanos":123456789}}'
+    "2026-11-13 11:44:29.617655479 +0000 UTC k8s.io /tasks/exit "
+    '{"container_id":"7c2249c013be566bfbaa721cb61738514df6a7b3cc7088a8deb697905d8242fc",'
+    '"id":"7c2249c013be566bfbaa721cb61738514df6a7b3cc7088a8deb697905d8242fc",'
+    '"pid":4324,"exited_at":{"seconds":1794570269,"nanos":617577213}}'
 )
 
 
@@ -77,13 +78,26 @@ def test_stream_line_framing_and_fail_closed(tmp_path, monkeypatch):
 
 def test_ctr_real_text_selection_and_identity():
     e = collectors.cri_event(EXIT)
-    assert e["container_id"] == "dead" and e["exit_status"] == 137
+    assert e["container_id"] == "7c2249c013be566bfbaa721cb61738514df6a7b3cc7088a8deb697905d8242fc"
+    assert e["exit_status"] == 0 and e["exit_status_source"] == "omitted-zero"
     assert collectors.cri_event(EXIT.replace("/tasks/exit", "/tasks/start")) is None
-    for line in ("/tasks/exit bad", EXIT.replace("137", '"bad"'), EXIT[:-2]):
+    status_137 = EXIT.replace('"pid":4324,', '"pid":4324,"exit_status":137,')
+    explicit = collectors.cri_event(status_137)
+    assert explicit["exit_status"] == 137 and explicit["exit_status_source"] == "explicit"
+    malformed_timestamp = EXIT.replace("11:44:29", "not-a-time")
+    for line in (
+        "/tasks/exit bad",
+        status_137.replace('"exit_status":137', '"exit_status":"bad"'),
+        malformed_timestamp,
+        EXIT[:-2],
+    ):
         with pytest.raises(ValueError, match="k4-cri-exit-unparseable"):
             collectors.cri_event(line)
-    sessions = [dict(container_id="containerd://dead"), dict(container_id="containerd://live")]
-    collectors.apply_process_evidence(sessions, [], [("cri", 1, EXIT)])
+    sessions = [
+        dict(container_id=f"containerd://{explicit['container_id']}"),
+        dict(container_id="containerd://live"),
+    ]
+    collectors.apply_process_evidence(sessions, [], [("cri", 1, status_137)])
     assert sessions[0]["exit_code"] == 137 and "death" not in sessions[1]
 
 
@@ -543,7 +557,14 @@ def test_backend_requires_collected_scratch_exit(tmp_path, monkeypatch):
     monkeypatch.setattr(driver, "Interventions", lambda *args: adapter)
     with pytest.raises(ValueError, match="backend-cri-exit-missing"):
         d.validate_backend()
-    streams.cri_exits = [dict(container_id="dead", exit_status=137, source=EXIT)]
+    streams.cri_exits = [
+        dict(container_id="dead", exit_status=0, exit_status_source="omitted-zero", source=EXIT)
+    ]
+    with pytest.raises(ValueError, match="backend-cri-exit-missing"):
+        d.validate_backend()
+    streams.cri_exits = [
+        dict(container_id="dead", exit_status=137, exit_status_source="explicit", source=EXIT)
+    ]
     d.validate_backend()
     recorded = json.loads((tmp_path / "chaos-validation.json").read_bytes())
     assert recorded["cri_task_exits"][0]["source"] == EXIT
