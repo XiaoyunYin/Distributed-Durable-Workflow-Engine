@@ -14,6 +14,44 @@ from dur053_k4_schema import CONFIRMATION, HASH, NUMBER, SHA
 
 ENGINE_ROLES = {"api", "worker-control", "worker", "scheduler", "relay", "demand", "operator"}
 
+# Only these guards describe observed intervention outcomes. Everything else
+# (including unknown errors) propagates to the content-checked harness path.
+OUTCOME_GUARDS = frozenset(
+    {
+        "k4-rollout-incomplete",
+        "k4-chaos-ack-missing",
+        "k4-chaos-wrong-uid",
+        "k4-chaos-death-container",
+        "k4-chaos-restart-missing",
+        "k4-chaos-death-missing",
+        "k4-chaos-replacement-not-ready",
+        "k4-singleton-denial-missing",
+        "k4-eviction-deadline",
+        "k4-eviction-retry-gap",
+        "k4-scale-removed-two",
+        "k4-deletion-not-observed",
+    }
+)
+SAFETY_GUARDS = frozenset(
+    {
+        "k4-log-stream-loss",
+        "k4-observer-loss",
+        "k4-observer-stop-timeout",
+        "k4-watch-expired",
+        "k4-watch-framing",
+        "k4-stream-self-check-timeout",
+        "k4-observed-connection-budget",
+    }
+)
+
+
+def intervention_outcome(error):
+    """Classify exact guard IDs centrally; never infer outcomes from substrings."""
+    if not isinstance(error, ValueError):
+        return False
+    prefix, separator, guard = str(error).partition("K3 guard: ")
+    return not prefix and bool(separator) and guard.split(":", 1)[0] in OUTCOME_GUARDS
+
 
 def empty(spec):
     """Construct explicit nullable fields, never a passing observation."""
@@ -111,10 +149,31 @@ class Interventions:
         self.release = lambda: None
         self.safety = lambda: None
 
+    def wait(self, predicate, seconds, guard):
+        # Only the adapter's completion deadline is an intervention outcome.
+        # A safety/command timeout raised inside the predicate keeps its cause.
+        predicate_failed = False
+
+        def observe():
+            nonlocal predicate_failed
+            try:
+                return predicate()
+            except Exception:
+                predicate_failed = True
+                raise
+
+        try:
+            self.d.until(observe, seconds)
+        except TimeoutError:
+            if predicate_failed:
+                raise
+            require(False, guard)
+
     def release_after_deletion(self, role):
-        self.d.until(
+        self.wait(
             lambda: any(p["metadata"].get("deletionTimestamp") for p in self.pods(role)),
             60,
+            "k4-deletion-not-observed",
         )
         self.release()
 
@@ -132,7 +191,11 @@ class Interventions:
         )["items"]
 
     def wait_rollout(self, role, image=None):
-        self.d.until(lambda: rollout_complete(self.get("deployment", role), image), 180)
+        self.wait(
+            lambda: rollout_complete(self.get("deployment", role), image),
+            180,
+            "k4-rollout-incomplete",
+        )
         dep = self.get("deployment", role)
         require(rollout_complete(dep, image), "k4-rollout-incomplete")
         save(self.output / ("rollout-" + role + "-" + str(time.time_ns()) + ".json"), dep)
@@ -178,7 +241,7 @@ class Interventions:
             save(self.output / (name + "-status.json"), ack)
             return chaos_ack(ack)
 
-        self.d.until(injected, 60)
+        self.wait(injected, 60, "k4-chaos-ack-missing")
         require(chaos_ack(ack), "k4-chaos-ack-missing")
         self.release()
         after = None
@@ -191,7 +254,7 @@ class Interventions:
                 "restartCount", 0
             ) > status["restartCount"] and ready(after)
 
-        self.d.until(restarted, 120)
+        self.wait(restarted, 120, "k4-chaos-restart-missing")
         kill_proof(pod, after, True)
         save(self.output / (name + "-replacement.json"), after)
         self.d.k("-n", self.ns, "delete", "podchaos", name, "--wait=true", "--timeout=30s")
@@ -413,7 +476,7 @@ class Interventions:
             self.d.k("-n", self.ns, "scale", "deployment/worker", "--replicas=2")
             self.release_after_deletion("worker")
             self.wait_rollout("worker")
-            self.d.until(lambda: len(self.pods("worker")) == 2, 120)
+            self.wait(lambda: len(self.pods("worker")) == 2, 120, "k4-scale-removed-two")
             survivors = {p["metadata"]["uid"] for p in self.pods("worker")}
             pods = [p for p in pods if p["metadata"]["uid"] not in survivors]
             require(len(pods) == 2, "k4-scale-removed-two")

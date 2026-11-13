@@ -1,0 +1,185 @@
+{
+  "pods": [
+    {
+      "received": 1794589569.756352,
+      "type": "MODIFIED",
+      "object": {
+        "metadata": {
+          "name": "scheduler-556b644459-s59wc",
+          "uid": "ddaaadff-34ae-42b5-be9b-6ab6cc8705e4",
+          "resourceVersion": "7107",
+          "labels": {
+            "app": "scheduler",
+            "pod-template-hash": "556b644459"
+          }
+        },
+        "status": {
+          "conditions": [
+            {
+              "type": "PodReadyToStartContainers",
+              "status": "False",
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-11-13T17:06:09Z"
+            },
+            {
+              "type": "Initialized",
+              "status": "True",
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-11-13T17:05:51Z",
+              "reason": "PodCompleted"
+            },
+            {
+              "type": "Ready",
+              "status": "False",
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-11-13T17:06:09Z",
+              "reason": "PodCompleted"
+            },
+            {
+              "type": "ContainersReady",
+              "status": "False",
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-11-13T17:06:09Z",
+              "reason": "PodCompleted"
+            },
+            {
+              "type": "PodScheduled",
+              "status": "True",
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-11-13T17:05:51Z"
+            }
+          ],
+          "containerStatuses": [
+            {
+              "name": "scheduler",
+              "containerID": "containerd://2afc7359b0da11efecf38f76af3b01013f75abd9878ec308122ed7b2ca4a33b8",
+              "state": {
+                "terminated": {
+                  "exitCode": 0,
+                  "reason": "Completed",
+                  "startedAt": "2026-11-13T17:05:53Z",
+                  "finishedAt": "2026-11-13T17:06:09Z",
+                  "containerID": "containerd://2afc7359b0da11efecf38f76af3b01013f75abd9878ec308122ed7b2ca4a33b8"
+                }
+              },
+              "lastState": {},
+              "ready": false,
+              "restartCount": 0
+            }
+          ]
+        }
+      }
+    },
+    {
+      "received": 1794589573.5599008,
+      "type": "MODIFIED",
+      "object": {
+        "metadata": {
+          "name": "scheduler-556b644459-r2fbv",
+          "uid": "6a9532cb-8bb0-4267-bc43-fd2cc1d61bbc",
+          "resourceVersion": "7155",
+          "labels": {
+            "app": "scheduler",
+            "pod-template-hash": "556b644459"
+          }
+        },
+        "status": {
+          "conditions": [
+            {
+              "type": "PodReadyToStartContainers",
+              "status": "False",
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-11-13T17:06:13Z"
+            },
+            {
+              "type": "Initialized",
+              "status": "True",
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-11-13T17:05:51Z",
+              "reason": "PodCompleted"
+            },
+            {
+              "type": "Ready",
+              "status": "False",
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-11-13T17:06:13Z",
+              "reason": "PodCompleted"
+            },
+            {
+              "type": "ContainersReady",
+              "status": "False",
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-11-13T17:06:13Z",
+              "reason": "PodCompleted"
+            },
+            {
+              "type": "PodScheduled",
+              "status": "True",
+              "lastProbeTime": null,
+              "lastTransitionTime": "2026-11-13T17:05:51Z"
+            }
+          ],
+          "containerStatuses": [
+            {
+              "name": "scheduler",
+              "containerID": "containerd://5bac94e785cf87dceb96995e6a613362539e3e43c2a610d1634377f8a429fec8",
+              "state": {
+                "terminated": {
+                  "exitCode": 0,
+                  "reason": "Completed",
+                  "startedAt": "2026-11-13T17:05:53Z",
+                  "finishedAt": "2026-11-13T17:06:12Z",
+                  "containerID": "containerd://5bac94e785cf87dceb96995e6a613362539e3e43c2a610d1634377f8a429fec8"
+                }
+              },
+              "lastState": {},
+              "ready": false,
+              "restartCount": 0
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "logs": [
+    [
+      "log-6a9532cb-8bb0-4267-bc43-fd2cc1d61bbc-5bac94e785cf87dceb96995e6a613362539e3e43c2a610d1634377f8a429fec8.jsonl",
+      1794589572.8228998,
+      "2026-11-13T17:06:12.812237365Z 2026/11/13 17:06:12 INFO k4 process signal data=\"{\\\"container_id\\\":\\\"6a9532cb-8bb0-4267-bc43-fd2cc1d61bbc\\\",\\\"event\\\":\\\"k4_signal\\\",\\\"pod_uid\\\":\\\"6a9532cb-8bb0-4267-bc43-fd2cc1d61bbc\\\",\\\"session\\\":\\\"c6067bb1-8e02-4af5-bbfa-ff4215922148\\\",\\\"signal\\\":15,\\\"timestamp\\\":\\\"2026-11-13T17:06:12.791461157Z\\\"}\""
+    ],
+    [
+      "log-ddaaadff-34ae-42b5-be9b-6ab6cc8705e4-2afc7359b0da11efecf38f76af3b01013f75abd9878ec308122ed7b2ca4a33b8.jsonl",
+      1794589569.3914454,
+      "2026-11-13T17:06:09.381635908Z 2026/11/13 17:06:09 INFO k4 process signal data=\"{\\\"container_id\\\":\\\"ddaaadff-34ae-42b5-be9b-6ab6cc8705e4\\\",\\\"event\\\":\\\"k4_signal\\\",\\\"pod_uid\\\":\\\"ddaaadff-34ae-42b5-be9b-6ab6cc8705e4\\\",\\\"session\\\":\\\"73962dfa-7d9e-4559-94b2-b7a228463875\\\",\\\"signal\\\":15,\\\"timestamp\\\":\\\"2026-11-13T17:06:09.381396357Z\\\"}\""
+    ]
+  ],
+  "cri": [
+    [
+      "cri",
+      1794589569.401891,
+      "2026-11-13 17:06:09.399420046 +0000 UTC k8s.io /tasks/exit {\"container_id\":\"2afc7359b0da11efecf38f76af3b01013f75abd9878ec308122ed7b2ca4a33b8\",\"id\":\"2afc7359b0da11efecf38f76af3b01013f75abd9878ec308122ed7b2ca4a33b8\",\"pid\":39752,\"exited_at\":{\"seconds\":1794589569,\"nanos\":399289012}}"
+    ],
+    [
+      "cri",
+      1794589572.936011,
+      "2026-11-13 17:06:12.874336371 +0000 UTC k8s.io /tasks/exit {\"container_id\":\"5bac94e785cf87dceb96995e6a613362539e3e43c2a610d1634377f8a429fec8\",\"id\":\"5bac94e785cf87dceb96995e6a613362539e3e43c2a610d1634377f8a429fec8\",\"pid\":39777,\"exited_at\":{\"seconds\":1794589572,\"nanos\":874221357}}"
+    ]
+  ],
+  "exec_exits": [
+    [
+      "cri",
+      1794589182.458959,
+      "2026-11-13 16:59:42.457332536 +0000 UTC k8s.io /tasks/exit {\"container_id\":\"8ab12a3f548af23e5916f7a23dad7321d699fbae7cf9a0e9364ce631ea3fac23\",\"id\":\"ce5fee5064c0dc5f4f721525f4114bbf6a892cc6b69557abd88eb4f4b1dde8fd\",\"pid\":21068,\"exited_at\":{\"seconds\":1794589182,\"nanos\":457298071}}"
+    ]
+  ],
+  "treatment_error": {
+    "error": "K3 guard: k4-log-stream-loss: log-27df64e3-d980-40f1-af76-e9eb89cf32ed-4e3b99515c7dc84ef8dc6ee81cd1ba8ff48b0e473c1dcd021950a93e42ded690: unexpected stream EOF exit 0"
+  },
+  "treatment_cri": [
+    [
+      "cri",
+      1794589417.972244,
+      "2026-11-13 17:03:37.951581926 +0000 UTC k8s.io /tasks/exit {\"container_id\":\"4e3b99515c7dc84ef8dc6ee81cd1ba8ff48b0e473c1dcd021950a93e42ded690\",\"id\":\"4e3b99515c7dc84ef8dc6ee81cd1ba8ff48b0e473c1dcd021950a93e42ded690\",\"pid\":31485,\"exited_at\":{\"seconds\":1794589417,\"nanos\":951553092}}"
+    ]
+  ]
+}

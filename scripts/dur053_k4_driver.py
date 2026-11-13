@@ -46,7 +46,14 @@ from dur053_k4_collectors import (
 )
 from dur053_k4_evidence import FILES, summaries
 from dur053_k4_evidence import episode as derive_episode
-from dur053_k4_interventions import ENGINE_ROLES, Interventions, empty, ready, require_term_evidence
+from dur053_k4_interventions import (
+    ENGINE_ROLES,
+    Interventions,
+    empty,
+    intervention_outcome,
+    ready,
+    require_term_evidence,
+)
 from dur053_k4_schema import CONFIRMATION, EPISODE, JOB, SCHEMAS, load, validate
 from dur053_pilot_evidence import ci_proof
 from dur053_record_k4 import inventory
@@ -1230,6 +1237,7 @@ class K4Driver:
                 ]
                 o["end"] = min([utc(d["timestamp"]) for d in exits] + [s["death"] or end])
         observer = []
+
         def claimed_pod(attempt):
             matches = [c for c in timeline["claims"] if c["identity"] == identity(attempt)]
             require(len(matches) == 1, "k4-observer-claim-session-missing")
@@ -1242,9 +1250,7 @@ class K4Driver:
                 for p in raw_sample["pods"]
                 if p["metadata"].get("labels", {}).get("app") == "worker"
             ]
-            active = [
-                v for v in invocations if v["start"] <= sample_at < (v["finish"] or end)
-            ]
+            active = [v for v in invocations if v["start"] <= sample_at < (v["finish"] or end)]
             observer.append(
                 dict(
                     at=sample_at,
@@ -1546,6 +1552,8 @@ print(json.dumps(rows))
                 try:
                     confirmation, targets = adapter.apply(cell, overlap)
                 except Exception as error:
+                    if not intervention_outcome(error):
+                        raise
                     # A failed intervention is retained as an engine/fault
                     # outcome; it is not eligible for infrastructure replacement.
                     save(self.episode_output / "intervention-error.json", dict(error=str(error)))

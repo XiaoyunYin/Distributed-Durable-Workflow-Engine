@@ -301,6 +301,7 @@ def test_log_stream_loss_fails_closed_even_after_death(tmp_path):
     s.errors = ["log-old-abc: unexpected stream EOF exit 0"]
     s.check()
     s.pods = []
+    s.eof_at["log-old-abc"] = collectors.time.monotonic() - 15
     with pytest.raises(ValueError, match="log-stream-loss"):
         s.check()
     s.errors = ["pods: unexpected stream EOF exit 0"]

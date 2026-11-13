@@ -11962,8 +11962,8 @@
       "id": "k4b2-log-loss",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_collectors.py",
-      "old": "if not dead or \"exit 0\" not in error:",
-      "new": "if not dead:",
+      "old": "if not clean_eof or (not dead and expired):",
+      "new": "if not dead and expired:",
       "command": [
         "uv",
         "run",
@@ -12982,6 +12982,150 @@
         "-q"
       ],
       "expected": "AssertionError",
+      "requires_database": false
+    },
+    {
+      "id": "k4r250-eof-race",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "if not clean_eof or (not dead and expired):",
+      "new": "if not clean_eof or not dead:",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round249.py::test_log_eof_waits_for_retained_init_exit",
+        "-q"
+      ],
+      "expected": "k4-log-stream-loss",
+      "requires_database": false
+    },
+    {
+      "id": "k4r250-eof-no-death",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "if not clean_eof or (not dead and expired):",
+      "new": "if not clean_eof:",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round249.py::test_log_eof_without_exact_death_expires",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r250-eof-late-death",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "e[\"container_id\"] == cid and e[\"received\"] <= cutoff",
+      "new": "e[\"container_id\"] == cid",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round249.py::test_log_eof_late_evidence_does_not_reset_grace",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r250-safety-outcome",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "if not intervention_outcome(error):",
+      "new": "if False:",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round249.py::test_apply_safety_propagates_to_infrastructure",
+        "-q"
+      ],
+      "expected": "FileNotFoundError",
+      "requires_database": false
+    },
+    {
+      "id": "k4r250-finished-exact",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "death=at,",
+      "new": "death=s.get(\"_finished_bounds\", [at])[0],",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round249.py::test_retained_signal_matches_precise_init_exit",
+        "-q"
+      ],
+      "expected": "k4-signal-container-ambiguous",
+      "requires_database": false
+    },
+    {
+      "id": "k4r250-exec-death",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "if raw[\"id\"] != cid:",
+      "new": "if False:",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round249.py::test_retained_exec_exit_is_not_container_death",
+        "-q"
+      ],
+      "expected": "exec exit counted as container death",
+      "requires_database": false
+    },
+    {
+      "id": "k4r250-finished-bound",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "require(lower <= at < lower + 1, \"k4-cri-finished-bound\")",
+      "new": "require(True, \"k4-cri-finished-bound\")",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round249.py::test_cri_exit_cross_checks_rounded_finish",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r250-completion-safety-timeout",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "if predicate_failed:\n                raise",
+      "new": "if False:\n                raise",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round249.py::test_completion_deadline_preserves_predicate_safety_errors",
+        "-q"
+      ],
+      "expected": "k4-rollout-incomplete",
       "requires_database": false
     }
   ]

@@ -84,6 +84,10 @@ def cri_event(text):
         require(namespace == "k8s.io", "k4-cri-exit-unparseable")
         raw = json.loads(payload)
         cid = raw["container_id"]
+        # Probe/exec processes share container_id but have a different task id.
+        require(isinstance(raw["id"], str) and bool(raw["id"]), "k4-cri-exit-unparseable")
+        if raw["id"] != cid:
+            return None
         if "exit_status" in raw:
             status = raw["exit_status"]
             status_source = "explicit"
@@ -130,6 +134,26 @@ def structured_log(text):
 
 
 def apply_process_evidence(sessions, logs, events):
+    # Resolve precise init-process deaths before matching signals to sessions.
+    for _, _, text in events:
+        raw = cri_event(text)
+        if raw is None:
+            continue
+        cid, status, at = raw["container_id"], raw["exit_status"], raw["at"]
+        for s in sessions:
+            if s["container_id"].rsplit("/", 1)[-1] == cid:
+                for lower in s.get("_finished_bounds", []):
+                    require(lower <= at < lower + 1, "k4-cri-finished-bound")
+                require(at >= s.get("start", 0), "k4-cri-start-bound")
+                require(s.get("death") in (None, at), "k4-cri-death-conflict")
+                s.update(
+                    death=at,
+                    death_evidence="containerd-task-exit:" + cid,
+                    exit_code=int(status),
+                    exit_signal=9 if status == 137 else None,
+                )
+    for s in sessions:
+        s.pop("_finished_bounds", None)
     for _, _, text in logs:
         row = structured_log(text)
         if not row or row.get("event") != "k4_signal":
@@ -144,19 +168,6 @@ def apply_process_evidence(sessions, logs, events):
         matches[0]["signals"].append(
             dict(at=utc(row["timestamp"]), signal=row["signal"], evidence="persistent-process-log")
         )
-    for _, _, text in events:
-        raw = cri_event(text)
-        if raw is None:
-            continue
-        cid, status, at = raw["container_id"], raw["exit_status"], raw["at"]
-        for s in sessions:
-            if s["container_id"].rsplit("/", 1)[-1] == cid and status is not None:
-                s.update(
-                    death=at,
-                    death_evidence="containerd-task-exit:" + cid,
-                    exit_code=int(status),
-                    exit_signal=9 if status == 137 else None,
-                )
     return sessions
 
 
@@ -203,6 +214,8 @@ class Streams:
         self.versions = {}
         self.first_events = {}
         self.cri_exits = []
+        self.eof_at = {}
+        self.eof_received = {}
 
     def start(self, label, args, callback=None):
         path = self.output / (label + ".jsonl")
@@ -237,8 +250,11 @@ class Streams:
                                         json.dumps(dict(**envelope, error=str(error))) + "\n"
                                     )
                                 raise
+                eof_monotonic, eof_received = time.monotonic(), time.time()
                 code = proc.wait()
                 if not self.stopped:
+                    self.eof_at[label] = eof_monotonic
+                    self.eof_received[label] = eof_received
                     err.flush()
                     stderr = (self.output / (label + ".stderr")).read_text(errors="replace")
                     expired = label in {"pods", "endpoints"} and any(
@@ -372,27 +388,41 @@ class Streams:
         return dict(first_events=self.first_events.copy(), versions=self.versions.copy())
 
     def check(self):
-        # A natural log EOF is allowed only after independently observed death.
+        # Watch/CRI delivery can lag EOF. Poll without blocking other safety checks.
         fatal = []
         with self.lock:
             for error in self.errors:
                 if not error.startswith("log-"):
                     fatal.append(error)
                     continue
-                uid = error.split(":", 1)[0][4:].rsplit("-", 1)[0]
+                label = error.split(":", 1)[0]
+                uid, cid = label[4:].rsplit("-", 1)
+                cutoff = self.eof_received.setdefault(label, time.time()) + 15
                 dead = any(
+                    e["container_id"] == cid and e["received"] <= cutoff for e in self.cri_exits
+                ) or any(
                     p["object"]["metadata"]["uid"] == uid
+                    and p.get("received", 0) <= cutoff
                     and (
                         p["type"] == "DELETED"
                         or any(
-                            "terminated" in c.get("state", {})
-                            or c.get("lastState", {}).get("terminated")
+                            (
+                                c.get("containerID", "").rsplit("/", 1)[-1] == cid
+                                and "terminated" in c.get("state", {})
+                            )
+                            or c.get("lastState", {})
+                            .get("terminated", {})
+                            .get("containerID", "")
+                            .rsplit("/", 1)[-1]
+                            == cid
                             for c in p["object"].get("status", {}).get("containerStatuses", [])
                         )
                     )
                     for p in self.pods
                 )
-                if not dead or "exit 0" not in error:
+                clean_eof = error == label + ": unexpected stream EOF exit 0"
+                expired = time.monotonic() - self.eof_at.setdefault(label, time.monotonic()) >= 15
+                if not clean_eof or (not dead and expired):
                     fatal.append(error)
         require(not fatal, "k4-log-stream-loss: " + "; ".join(fatal))
 
@@ -440,7 +470,10 @@ def session_rows(events, endpoints):
             key = uid + "/" + cid
             if key not in sessions:
                 s = empty(SESSION)
-                started = c.get("state", {}).get("running", {}).get("startedAt")
+                state = c.get("state", {})
+                started = (state.get("running") or state.get("terminated") or {}).get("startedAt")
+                # start is the conservative lower bound of Kubernetes' [t,t+1)
+                # interval, not a subsecond process-start measurement.
                 s.update(
                     session=key,
                     pod_uid=uid,
@@ -460,32 +493,18 @@ def session_rows(events, endpoints):
             if c.get("state", {}).get("running") and c.get("ready"):
                 s["last_alive"] = max(s["last_alive"], source_at)
             s["readiness"].append(
-                dict(at=source_at, present=bool(c.get("ready")), width=max(0, at - source_at))
+                # The source is a [t,t+1) bound; width also covers watch delivery.
+                dict(at=source_at, present=bool(c.get("ready")), width=max(1, at - source_at))
             )
             term = c.get("state", {}).get("terminated")
             if term:
-                s.update(
-                    death=utc(term["finishedAt"]),
-                    death_evidence="pod-watch:" + p["metadata"]["resourceVersion"],
-                    exit_code=term["exitCode"],
-                    exit_signal=term.get("signal"),
-                )
+                s.setdefault("_finished_bounds", []).append(utc(term["finishedAt"]))
             # After a restart lastState belongs to the preceding container ID.
             last = c.get("lastState", {}).get("terminated")
             if last:
                 for prev in sessions.values():
-                    if (
-                        prev["pod_uid"] == uid
-                        and prev["container_id"] != cid
-                        and prev["death"] is None
-                    ):
-                        prev.update(
-                            death=utc(last["finishedAt"]),
-                            death_evidence="pod-watch-lastState:"
-                            + p["metadata"]["resourceVersion"],
-                            exit_code=last["exitCode"],
-                            exit_signal=last.get("signal"),
-                        )
+                    if prev["pod_uid"] == uid and prev["container_id"] == last.get("containerID"):
+                        prev.setdefault("_finished_bounds", []).append(utc(last["finishedAt"]))
             if event["type"] == "DELETED" and s["death"] is None:
                 # A deletion timestamp is not a process exit. Missing CRI/exit
                 # evidence remains unknown and fails confirmation.
