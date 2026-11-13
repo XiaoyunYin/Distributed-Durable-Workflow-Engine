@@ -10,6 +10,9 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from workers.k4_control import CURRENT, new_request
+from workers.witness import campaign_witness
+
 
 class ControlError(RuntimeError):
     """A control request was rejected or could not be completed."""
@@ -45,7 +48,53 @@ class ControlClient:
         return self.timeout
 
     def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        witness = campaign_witness()
+        if witness is None:
+            return self._post_once(path, body)
+        trace = CURRENT.get() or new_request(body)
+        trace.attempt += 1
+        trace.status = 0
+        token = CURRENT.set(trace)
+        error_code = ""
+        try:
+            witness.trace(
+                "http_start",
+                {
+                    "role": "worker",
+                    "request": trace.request,
+                    "body_hash": trace.body_hash,
+                    "attempt": trace.attempt,
+                    "operation": path.rsplit("/", 1)[-1],
+                    "status": 0,
+                    "error": "pending",
+                },
+            )
+            return self._post_once(path, body)
+        except ControlError as error:
+            trace.status, error_code = error.status, error.code
+            raise
+        except Exception as error:
+            error_code = type(error).__name__
+            raise
+        finally:
+            CURRENT.reset(token)
+            witness.trace(
+                "http",
+                {
+                    "role": "worker",
+                    "request": trace.request,
+                    "body_hash": trace.body_hash,
+                    "attempt": trace.attempt,
+                    "operation": path.rsplit("/", 1)[-1],
+                    "status": trace.status,
+                    "error": error_code,
+                },
+            )
+
+    def _post_once(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         headers = {"Content-Type": "application/json"}
+        if trace := CURRENT.get():
+            headers["X-Dur053-Request-ID"] = trace.request
         if self.traceparent:
             headers["traceparent"] = self.traceparent
         token_file = os.environ.get("WORKER_TOKEN_FILE", "")
@@ -67,6 +116,8 @@ class ControlClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=self.request_timeout()) as response:  # noqa: S310
+                if trace := CURRENT.get():
+                    trace.status = response.status
                 decoded = json.loads(response.read())
         except urllib.error.HTTPError as error:
             try:
