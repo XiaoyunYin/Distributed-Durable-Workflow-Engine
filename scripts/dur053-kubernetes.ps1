@@ -4,11 +4,14 @@ param(
     [ValidateSet("compose", "kind")][string]$Context = "compose",
     [string]$Scenario = "prerequisites",
     [string]$OutputRoot,
-    [string]$PilotJob
+    [string]$PilotJob,
+    [string]$K4Job,
+    [string]$ReplacementFor,
+    [string]$Checker
 )
 $ErrorActionPreference = "Stop"
 if ($Context -eq "kind") {
-    if ($Scenario -notin @("package-check", "smoke", "cleanup", "pilot", "pilot-smoke")) { throw "Scenario is not implemented." }
+    if ($Scenario -notin @("package-check", "smoke", "cleanup", "pilot", "pilot-smoke", "lifecycle", "lifecycle-smoke", "verify-evidence")) { throw "Scenario is not implemented." }
     if (-not $OutputRoot) { throw "Kind scenarios require a fresh -OutputRoot outside the repository." }
     $kindScratch = if ($IsWindows) { "D:\coding agent files\durable-engine\codex\k3a" } else {
         if (-not $env:RUNNER_TEMP) { throw "RUNNER_TEMP is required." }
@@ -20,7 +23,14 @@ if ($Context -eq "kind") {
     $env:TMPDIR = $kindScratch
     $env:PYTHONDONTWRITEBYTECODE = "1"
     if ($Scenario -eq "pilot" -and -not $PilotJob) { throw "Pilot requires an exact -PilotJob from Amendment B.2." }
-    & bash "$PSScriptRoot/dur053-k3.sh" $Scenario $OutputRoot $kindScratch $PilotJob
+    if ($Scenario -eq "lifecycle" -and -not $K4Job) { throw "Lifecycle requires an exact -K4Job from Amendment B.7." }
+    if ($Scenario -eq "verify-evidence" -and -not $Checker) { throw "Offline verification requires -Checker." }
+    if ($Scenario -in @("lifecycle", "lifecycle-smoke", "verify-evidence") -or ($Scenario -eq "cleanup" -and $K4Job)) {
+        $k4Argument = if ($Scenario -eq "verify-evidence") { $Checker } elseif ($Scenario -eq "cleanup") { "k4" } else { $K4Job }
+        & bash "$PSScriptRoot/dur053-k3.sh" $Scenario $OutputRoot $kindScratch $k4Argument $ReplacementFor
+    } else {
+        & bash "$PSScriptRoot/dur053-k3.sh" $Scenario $OutputRoot $kindScratch $PilotJob
+    }
     if ($LASTEXITCODE -ne 0) { throw "DUR-053 K3a FAIL; see retained evidence." }
     return
 }

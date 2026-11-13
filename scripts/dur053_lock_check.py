@@ -4,9 +4,12 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
+import io
 import json
 import re
 import sys
+import tarfile
 from collections.abc import Callable
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -137,6 +140,24 @@ def verify(lock: dict[str, object], client: RegistryClient) -> list[dict[str, ob
     return results
 
 
+def verify_archives(lock: dict, opener=urlopen) -> list[dict]:
+    """Verify executable/chart bytes and their declared tar members before use."""
+    results = []
+    for name, item in {**lock["tools"], **lock.get("artifacts", {})}.items():
+        with opener(item["url"], timeout=60) as response:
+            data = response.read()
+        ok = hashlib.sha256(data).hexdigest() == item["sha256"]
+        member = item["member"]
+        if ok and member:
+            with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+                matches = [m for m in archive.getmembers() if m.name == member and m.isfile()]
+                ok = len(matches) == 1
+        results.append(
+            dict(name=name, url=item["url"], sha256=item["sha256"], member=member, ok=ok)
+        )
+    return results
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--lock", type=Path, default=ROOT / "deploy/k8s/tools.lock.json")
@@ -144,8 +165,8 @@ def main() -> int:
     args = parser.parse_args()
     try:
         lock = json.loads(args.lock.read_text(encoding="utf-8"))
-        results = verify(lock, RegistryClient())
-    except (OSError, json.JSONDecodeError, ValueError, RuntimeError) as error:
+        results = verify(lock, RegistryClient()) + verify_archives(lock)
+    except (OSError, json.JSONDecodeError, ValueError, RuntimeError, tarfile.TarError) as error:
         print(json.dumps({"status": "FAIL", "error": str(error)}, indent=2), file=sys.stderr)
         return 1
     report = {

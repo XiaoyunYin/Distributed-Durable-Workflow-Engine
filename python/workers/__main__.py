@@ -87,6 +87,10 @@ def run() -> None:
     stopping = lifecycle.drain
 
     def stop(_signum: int, _frame: object) -> None:
+        from workers.witness import campaign_witness
+
+        if witness := campaign_witness():
+            witness.trace("signal", {"signal": _signum})
         lifecycle.begin_drain()
         if lifecycle.legacy:
             threading.Thread(target=server.shutdown, daemon=True).start()

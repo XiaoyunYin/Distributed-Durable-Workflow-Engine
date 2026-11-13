@@ -5,10 +5,10 @@ COPY go.mod go.sum ./
 COPY cmd ./cmd
 COPY internal ./internal
 COPY migrations ./migrations
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/runtime ./cmd/runtime \
- && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/dur053-migrate \
- && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/loadgen ./cmd/dur053-loadgen \
- && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/checker ./cmd/dur049-checker
+RUN CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/runtime ./cmd/runtime \
+ && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/migrate ./cmd/dur053-migrate \
+ && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/loadgen ./cmd/dur053-loadgen \
+ && CGO_ENABLED=0 go build -buildvcs=false -trimpath -ldflags="-s -w" -o /out/checker ./cmd/dur049-checker
 FROM scratch AS runtime
 COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=build /out/ /

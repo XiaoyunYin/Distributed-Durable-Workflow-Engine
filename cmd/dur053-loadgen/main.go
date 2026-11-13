@@ -25,10 +25,20 @@ func main() {
 	flag.IntVar(&c.CPUUnits, "cpu-units", 10000, "bounded deterministic CPU work units")
 	flag.DurationVar(&c.Timeout, "request-timeout", 10*time.Second, "HTTP response deadline")
 	output := flag.String("output", "", "new arrival manifest path")
+
+	k4 := flag.Bool("k4", false, "K4 continuous absolute schedule with fsynced journal")
+	k4Start := flag.String("k4-start", "", "absolute RFC3339Nano arrival zero")
+	k4Stop := flag.String("k4-stop", "", "file containing absolute RFC3339Nano schedule end")
 	db := flag.String("database-url", os.Getenv("DATABASE_URL"), "fixture definition database URL")
 	flag.Parse()
 	if *output == "" {
 		fatal(fmt.Errorf("output required"))
+	}
+	if *k4 {
+		if err := dur053.RunK4(context.Background(), c, *db, *output, *k4Start, *k4Stop); err != nil {
+			fatal(err)
+		}
+		return
 	}
 	plan, err := dur053.Plan(c)
 	if err != nil {

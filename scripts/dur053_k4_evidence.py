@@ -289,6 +289,18 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         "k4-episode-replacement-link",
     )
     p = parameters(f, cell["duration"])
+    warmup = WARMUP
+    if m["budget_scope"] == "engineering-validation":
+        from dur053_k4_driver import SMOKE_CELLS, SMOKE_WARMUP, SMOKE_WINDOWS
+
+        require(
+            not m["measurement_claim"]
+            and m["job"] == "lifecycle-smoke"
+            and m["episode"] in SMOKE_CELLS,
+            "k4-engineering-profile",
+        )
+        p["W"] = SMOKE_WINDOWS[cell["duration"]]
+        warmup = SMOKE_WARMUP
     require(
         m["freeze_sha256"] == f["sha256"]
         and m["seed"] == cell["seed"]
@@ -325,8 +337,8 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
 
     need(c["intervention"] == m["intervention"], "k4-intervention-clock")
     need(
-        m["intervention"] - m["warmup_start"] >= WARMUP
-        and m["intervention"] - m["warmup_start"] <= WARMUP + p["confirmation"]
+        m["intervention"] - m["warmup_start"] >= warmup
+        and m["intervention"] - m["warmup_start"] <= warmup + p["confirmation"]
         and math.isclose(m["window_end"] - m["intervention"], p["W"], abs_tol=1e-8),
         "k4-registered-windows",
     )
@@ -341,6 +353,30 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         ("measured", m["intervention"], m["window_end"]),
     ):
         rows = [a for a in arrivals if a["phase"] == phase]
+        if (root / "arrivals-journal.jsonl").exists():
+            from dur053_k4_collectors import journal_rows, utc
+
+            plan, updates, torn = journal_rows((root / "arrivals-journal.jsonl").read_text())
+            planned = [r for r in plan["rows"] if start <= utc(r["scheduled_at"]) < end]
+            need(
+                not torn
+                and plan["rate"] == m["rate"]
+                and len(rows) == len(planned)
+                and all(
+                    a["key"] == r["key"]
+                    and a["scheduled"] == utc(r["scheduled_at"])
+                    and math.isclose(
+                        a["scheduled"],
+                        m["warmup_start"] + r["sequence"] / m["rate"],
+                        rel_tol=0,
+                        abs_tol=1e-6,
+                    )
+                    and a["outcome"] == updates.get(a["key"], {}).get("outcome")
+                    for a, r in zip(rows, planned, strict=False)
+                ),
+                "k4-arrival-schedule",
+            )
+            continue
         need(
             len(rows) == math.ceil((end - start) * m["rate"] - 1e-8)
             and all(

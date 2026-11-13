@@ -127,6 +127,10 @@ class CampaignWitness:
             {**invocation, "event": "start", "at": time.monotonic()},
             invocation["id"],
         )
+        hold = os.getenv("DUR053_K4_HOLD_FILE", "")
+        deadline = time.monotonic() + 60
+        while hold and Path(hold).exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
         return invocation
 
     def end(self, invocation: dict[str, Any], outcome: str) -> None:

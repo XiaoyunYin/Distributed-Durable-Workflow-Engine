@@ -305,3 +305,7 @@ class AdmissionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def test_k4_smoke_is_a_required_main_push_ci_job() -> None:
+    assert "DUR-053 K4 lifecycle smoke" in evidence.REQUIRED_CI_JOBS

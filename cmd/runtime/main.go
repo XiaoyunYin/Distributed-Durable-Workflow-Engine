@@ -86,7 +86,7 @@ func lifecycleHandlerWithAPI(role string, store *state.Store, metrics *telemetry
 			mux.Handle("POST /internal/readiness/run", readinessHandler(store, metrics, role))
 		}
 	}
-	return mux
+	return k4Handler(mux)
 }
 
 type readinessResponse struct {

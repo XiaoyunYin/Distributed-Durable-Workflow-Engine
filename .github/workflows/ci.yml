@@ -680,3 +680,42 @@ jobs:
           path: ${{ runner.temp }}/dur053-k3-smoke/
           if-no-files-found: error
           retention-days: 30
+
+  dur053-k4-lifecycle-smoke:
+    name: DUR-053 K4 lifecycle smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 65
+    steps:
+      - name: Check out source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-go@v5
+        with:
+          go-version: 1.27.4
+      - name: Exercise lifecycle engineering smoke
+        shell: bash
+        env:
+          DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          export TMP="$RUNNER_TEMP" TEMP="$RUNNER_TEMP" TMPDIR="$RUNNER_TEMP" PYTHONDONTWRITEBYTECODE=1
+          # Driver ceiling is 3600s including verified cleanup; no ledger admission.
+          bash scripts/dur053-k3.sh lifecycle-smoke "$RUNNER_TEMP/dur053-k4" "$RUNNER_TEMP/dur053-k4-scratch"
+      - name: Verify engineering evidence offline
+        shell: bash
+        run: |
+          set -euo pipefail
+          go build -buildvcs=false -o "$RUNNER_TEMP/dur053-k4-checker" ./cmd/dur049-checker
+          bash scripts/dur053-k3.sh verify-evidence "$RUNNER_TEMP/dur053-k4" "$RUNNER_TEMP/dur053-k4-scratch" "$RUNNER_TEMP/dur053-k4-checker"
+      - name: Retain full lifecycle diagnostics
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: dur053-k4-lifecycle-${{ github.run_id }}
+          path: ${{ runner.temp }}/dur053-k4/
+          if-no-files-found: error

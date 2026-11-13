@@ -25,6 +25,7 @@ REQUIRED_CI_JOBS = {
     "Linux mutation gate",
     "DUR-053 Compose prerequisites",
     "DUR-053 pilot smoke",
+    "DUR-053 K4 lifecycle smoke",
 }
 
 
