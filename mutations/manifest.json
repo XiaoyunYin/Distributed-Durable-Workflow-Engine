@@ -11281,11 +11281,11 @@
         "test",
         "./internal/state",
         "-run",
-        "^TestK4CommitOrder$",
+        "^TestK4AuditNoLockInversion$",
         "-count=1",
         "-v"
       ],
-      "expected": "K4 audit order assigned before commit",
+      "expected": "K4 audit lock inversion",
       "requires_database": true
     },
     {

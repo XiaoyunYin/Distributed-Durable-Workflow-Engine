@@ -2,6 +2,9 @@ package state
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/url"
 	"os"
 	"strings"
 	"testing"
@@ -10,6 +13,7 @@ import (
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/migrations"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -99,9 +103,23 @@ func k4Store(t *testing.T) *Store {
 	t.Setenv("DUR053_K4_CAMPAIGN", "1")
 	t.Setenv("POD_UID", "k4-test-pod")
 	t.Setenv("CONTAINER_ID", "k4-test-container")
-	s, err := NewFromURL(context.Background(), cfg.ConnString())
+	target, err := url.Parse(databaseURL)
 	if err != nil {
 		t.Fatal(err)
+	}
+	target.Path = "/" + name
+	target.RawPath = ""
+	s, err := NewFromURL(context.Background(), target.String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	var currentDatabase string
+	if err := s.pool.QueryRow(ctx, `SELECT current_database()`).Scan(&currentDatabase); err != nil || currentDatabase != name {
+		t.Fatalf("K4 store connected to %q, want isolated database %q: %v", currentDatabase, name, err)
+	}
+	var auditTable string
+	if err := s.pool.QueryRow(ctx, `SELECT to_regclass('engine.k4_audit')::text`).Scan(&auditTable); err != nil || auditTable != "engine.k4_audit" {
+		t.Fatalf("K4 isolated database is missing engine.k4_audit: %q: %v", auditTable, err)
 	}
 	t.Cleanup(s.Close)
 	return s
@@ -378,5 +396,180 @@ func TestK4CommitSerialization(t *testing.T) {
 	}
 	if err := <-done; err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestK4AuditNoLockInversion(t *testing.T) {
+	s := k4Store(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
+	defer cancel()
+
+	// Use an ordinary business row to force the order that exposed the
+	// inversion: transaction 2 owns the row while transaction 1 finalizes audit.
+	rowTable := "k4_lock_row_" + strings.ReplaceAll(NewID(), "-", "")
+	qualifiedTable := `engine."` + rowTable + `"`
+	if _, err := s.pool.Exec(ctx, `CREATE TABLE `+qualifiedTable+` (id integer PRIMARY KEY)`); err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _, _ = s.pool.Exec(context.Background(), `DROP TABLE IF EXISTS `+qualifiedTable) }()
+	if _, err := s.pool.Exec(ctx, `INSERT INTO `+qualifiedTable+` (id) VALUES (1)`); err != nil {
+		t.Fatal(err)
+	}
+
+	firstConn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer firstConn.Release()
+	secondConn, err := s.pool.Acquire(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer secondConn.Release()
+	first, err := firstConn.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = first.Rollback(context.Background()) }()
+	second, err := secondConn.Begin(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = second.Rollback(context.Background()) }()
+
+	queueAudit := func(tx pgx.Tx, owner string) error {
+		_, err := tx.Exec(ctx, `INSERT INTO engine.k4_audit_queue
+			(kind, partition_id, owner_id, epoch, session_id, pod_uid, container_id)
+			VALUES ('acquire', 0, $1, 1, 'lock-inversion-test', 'pod', 'container')`, owner)
+		return err
+	}
+	if err := queueAudit(first, NewID()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := second.Exec(ctx, `SELECT id FROM `+qualifiedTable+` WHERE id=1 FOR UPDATE`); err != nil {
+		t.Fatal(err)
+	}
+
+	secondPID, err := backendPID(ctx, second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secondInsert := make(chan error, 1)
+	go func() { secondInsert <- queueAudit(second, NewID()) }()
+	// For IMMEDIATE, transaction 2 blocks on the advisory lock here. For
+	// DEFERRED, its insert returns and the row lock remains its only lock.
+	secondBlocked, err := waitForInsertOrLock(ctx, s, secondPID, secondInsert)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	firstPID, err := backendPID(ctx, first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstUpdate := make(chan error, 1)
+	go func() {
+		_, err := first.Exec(ctx, `UPDATE `+qualifiedTable+` SET id=id WHERE id=1`)
+		firstUpdate <- err
+	}()
+
+	// In the deferred case, first waits for the business row. Let transaction
+	// 2 commit so first can proceed. In the immediate case, PostgreSQL detects
+	// the cycle and returns 40P01 from one of the blocked statements.
+	if secondBlocked {
+		// IMMEDIATE has transaction 1 holding the advisory lock and transaction
+		// 2 holding the row lock while waiting for the advisory lock. Advancing
+		// transaction 1 must produce PostgreSQL's deadlock error.
+		for i := 0; i < 2; i++ {
+			candidate := awaitErr(ctx, firstUpdate)
+			if i == 1 {
+				candidate = awaitErr(ctx, secondInsert)
+			}
+			var deadlock *pgconn.PgError
+			if errors.As(candidate, &deadlock) && deadlock.Code == "40P01" {
+				t.Fatalf("K4 audit lock inversion: %v", deadlock)
+			}
+			if candidate != nil {
+				t.Fatalf("K4 audit lock inversion produced unexpected error: %v", candidate)
+			}
+		}
+		t.Fatal("K4 audit lock inversion: expected deadlock did not occur")
+	}
+	if err := waitForQueryLockState(ctx, s, firstPID); err != nil {
+		t.Fatal(err)
+	}
+	if err := second.Commit(ctx); err != nil {
+		var deadlock *pgconn.PgError
+		if errors.As(err, &deadlock) && deadlock.Code == "40P01" {
+			t.Fatalf("K4 audit lock inversion: %v", deadlock)
+		}
+		t.Fatal(err)
+	}
+	if err := awaitErr(ctx, firstUpdate); err != nil {
+		t.Fatal(err)
+	}
+	if err := first.Commit(ctx); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func backendPID(ctx context.Context, tx pgx.Tx) (int32, error) {
+	var pid int32
+	err := tx.QueryRow(ctx, `SELECT pg_backend_pid()`).Scan(&pid)
+	return pid, err
+}
+
+func waitForQueryLockState(ctx context.Context, s *Store, pid int32) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		var waiting bool
+		err := s.pool.QueryRow(ctx, `SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid=$1`, pid).Scan(&waiting)
+		if err != nil {
+			return err
+		}
+		if waiting {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return fmt.Errorf("timed out waiting for backend %d to wait on a lock: %w", pid, ctx.Err())
+		case <-ticker.C:
+		}
+	}
+}
+
+func waitForInsertOrLock(ctx context.Context, s *Store, pid int32, result <-chan error) (bool, error) {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+	for {
+		select {
+		case err := <-result:
+			return false, err
+		default:
+		}
+		var waiting bool
+		if err := s.pool.QueryRow(ctx, `SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid=$1`, pid).Scan(&waiting); err != nil {
+			return false, err
+		}
+		if waiting {
+			return true, nil
+		}
+		select {
+		case err := <-result:
+			return false, err
+		case <-ctx.Done():
+			return false, ctx.Err()
+		case <-ticker.C:
+		}
+	}
+}
+
+func awaitErr(ctx context.Context, result <-chan error) error {
+	select {
+	case err := <-result:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
 	}
 }
