@@ -121,6 +121,7 @@ func TestK4HistoryLeaseJoin(t *testing.T) {
 		Graph: []byte(`{"nodes":["root"]}`), ActivityVersions: []byte(`{"root":"1"}`), EffectClasses: []byte(`{"root":"PURE_ACTIVITY"}`)}); err != nil {
 		t.Fatal(err)
 	}
+	workflowIDs := make([]string, 0, 2)
 	for i := 0; i < 2; i++ {
 		var workflow string
 		for {
@@ -134,6 +135,7 @@ func TestK4HistoryLeaseJoin(t *testing.T) {
 			SubmissionPayloadHash: "hash", DefinitionID: def, DefinitionVersion: 1, PartitionID: ref.PartitionID, InitialNodeID: "root", ActorID: "client"}); err != nil {
 			t.Fatal(err)
 		}
+		workflowIDs = append(workflowIDs, workflow)
 		if err := s.ApplyOwnerTransition(ctx, OwnerTransitionInput{Lease: ref, WorkflowID: workflow, ExpectedRevision: 1,
 			NewState: StateWaitingActivity, ActorID: "scheduler-label-is-not-owner-uuid", Reason: "SCHEDULE_ACTIVITY", NodeID: "root"}); err != nil {
 			t.Fatal(err)
@@ -152,8 +154,17 @@ func TestK4HistoryLeaseJoin(t *testing.T) {
 		t.Fatal("K4 history/lease order or owner join missing", count, err)
 	}
 	var historyCount int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM engine.k4_history_order WHERE owner=$1`, owner).Scan(&historyCount); err != nil || historyCount != 4 {
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM engine.k4_history_order h
+		JOIN engine.transition_history t USING (transition_id)
+		WHERE t.workflow_id = ANY($1)`, workflowIDs).Scan(&historyCount); err != nil || historyCount != 4 {
 		t.Fatal("K4 history audit omitted non-owner history", historyCount, err)
+	}
+	var ownerHistoryCount, unownedHistoryCount int
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FILTER (WHERE h.owner=$2), count(*) FILTER (WHERE h.owner='')
+		FROM engine.k4_history_order h
+		JOIN engine.transition_history t USING (transition_id)
+		WHERE t.workflow_id = ANY($1)`, workflowIDs, owner).Scan(&ownerHistoryCount, &unownedHistoryCount); err != nil || ownerHistoryCount != 2 || unownedHistoryCount != 2 {
+		t.Fatal("K4 history audit owner distribution changed", ownerHistoryCount, unownedHistoryCount, err)
 	}
 	// Takeover after a released lease retains the existing epoch rule.
 	nextOwner := NewID()
