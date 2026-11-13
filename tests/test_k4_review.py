@@ -280,6 +280,18 @@ def test_schedule_requires_window_coverage_and_stop(tmp_path, freeze, checker):
     assert not evidence.schedule_stopped(tmp_path, m)
 
 
+def test_late_stop_file_observation_has_specific_issue(tmp_path, freeze, checker):
+    m, docs = episode_fixture(tmp_path, freeze)
+    rows = journal_fixture(tmp_path, m, docs)
+    stop = next(row for row in rows if row.get("event") == "stop")
+    stop["at"] = driver.stamp(m["window_end"] + 2 / m["rate"])
+    write_journal(tmp_path, rows)
+
+    assert evidence.schedule_stopped(tmp_path, m)
+    assert not evidence.schedule_stop_timely(tmp_path, m, m["rate"])
+    assert "k4-arrival-stop-late" in evidence.episode(tmp_path, freeze, checker)["issues"]
+
+
 def test_schedule_uses_wire_start_precision(tmp_path, freeze, checker):
     m, docs = episode_fixture(tmp_path, freeze)
     # The host retains a sub-microsecond fraction which stamp() cannot send.

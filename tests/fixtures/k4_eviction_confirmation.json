@@ -1,0 +1,765 @@
+{
+  "confirmation": {
+    "binary_identity": "4da01f69ae95ff9816888cabafc658fa696d783642d45b18d891e84fd3837b0f",
+    "binary_proof": {
+      "runtime_a": "695add09d86abe43ad4a35e39f6942aad5e65b2e45d5c7319b7541f31291b72a",
+      "runtime_a_prime": "695add09d86abe43ad4a35e39f6942aad5e65b2e45d5c7319b7541f31291b72a",
+      "worker_a": "ca119a3a64897c4a288b6e540700f298b93ef328e3242f87b6780f0dfa8b5c50",
+      "worker_a_prime": "ca119a3a64897c4a288b6e540700f298b93ef328e3242f87b6780f0dfa8b5c50"
+    },
+    "build": "same-job-buildvcs-false",
+    "chaos_kind": "",
+    "chaos_object": "",
+    "chaos_version": "",
+    "completed": 1794607029.6886241,
+    "deletion_cost_used": false,
+    "episode": "short-core-6-pair-0-baseline",
+    "eviction_retry_interval": 5.0,
+    "evictions": [
+      {
+        "allowed_after": 1,
+        "allowed_before": 1,
+        "denial": "",
+        "pod_uid": "f407ecbb-5d3c-4fd9-b258-f2bb6c6cf0ce",
+        "replaced_by": "3bcce2bc-2e23-47c5-a90c-7d65395177cd",
+        "replacement_ready": 1794607014.0,
+        "replacement_ready_upper": 1794607023.8139818,
+        "replicas": 2,
+        "requested": 1794607009.8382027,
+        "responded": 1794607010.5102015,
+        "role": "api",
+        "scheduled": 1794607007.496224,
+        "status": 201
+      },
+      {
+        "allowed_after": 1,
+        "allowed_before": 1,
+        "denial": "Error from server (TooManyRequests): Cannot evict pod as it would violate the pod's disruption budget.\n",
+        "pod_uid": "e445944e-8e7e-4a3d-9f73-e369c949f430",
+        "replaced_by": "",
+        "replacement_ready": null,
+        "replacement_ready_upper": null,
+        "replicas": 2,
+        "requested": 1794607009.837829,
+        "responded": 1794607010.6739938,
+        "role": "api",
+        "scheduled": 1794607007.496224,
+        "status": 429
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 1,
+        "denial": "",
+        "pod_uid": "9f4fd804-2076-4ac3-88be-c630add76637",
+        "replaced_by": "c27a68e6-0b8a-43b3-84e2-d8abe18ddd99",
+        "replacement_ready": 1794607017.0,
+        "replacement_ready_upper": 1794607023.8140292,
+        "replicas": 2,
+        "requested": 1794607009.8460042,
+        "responded": 1794607010.733341,
+        "role": "worker-control",
+        "scheduled": 1794607007.496224,
+        "status": 201
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 1,
+        "denial": "Error from server (TooManyRequests): Cannot evict pod as it would violate the pod's disruption budget.\n",
+        "pod_uid": "dd450f81-5976-4089-8595-87cd90537f52",
+        "replaced_by": "",
+        "replacement_ready": null,
+        "replacement_ready_upper": null,
+        "replicas": 2,
+        "requested": 1794607009.8404632,
+        "responded": 1794607010.754123,
+        "role": "scheduler",
+        "scheduled": 1794607007.496224,
+        "status": 429
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 0,
+        "denial": "Error from server (TooManyRequests): Cannot evict pod as it would violate the pod's disruption budget.\n",
+        "pod_uid": "3070a168-3fc4-4242-a804-90f7beaf80d5",
+        "replaced_by": "",
+        "replacement_ready": null,
+        "replacement_ready_upper": null,
+        "replicas": 1,
+        "requested": 1794607009.8394191,
+        "responded": 1794607010.760358,
+        "role": "relay",
+        "scheduled": 1794607007.496224,
+        "status": 429
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 0,
+        "denial": "Error from server (TooManyRequests): Cannot evict pod as it would violate the pod's disruption budget.\n",
+        "pod_uid": "0ac0211e-ae65-4598-97b3-162298fb1dba",
+        "replaced_by": "",
+        "replacement_ready": null,
+        "replacement_ready_upper": null,
+        "replicas": 1,
+        "requested": 1794607009.8384724,
+        "responded": 1794607010.7637858,
+        "role": "demand",
+        "scheduled": 1794607007.496224,
+        "status": 429
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 1,
+        "denial": "",
+        "pod_uid": "4a054bb6-e9c7-4a93-b8dc-7663d8613a42",
+        "replaced_by": "5de9a87b-3f19-435b-8a8d-387f02ff5154",
+        "replacement_ready": 1794607026.0,
+        "replacement_ready_upper": 1794607027.2073503,
+        "replicas": 2,
+        "requested": 1794607009.8408477,
+        "responded": 1794607010.7944517,
+        "role": "scheduler",
+        "scheduled": 1794607007.496224,
+        "status": 201
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 0,
+        "denial": "Error from server (TooManyRequests): Cannot evict pod as it would violate the pod's disruption budget.\n",
+        "pod_uid": "f724cedb-049f-403a-90a2-c01fc4f6ba18",
+        "replaced_by": "",
+        "replacement_ready": null,
+        "replacement_ready_upper": null,
+        "replicas": 1,
+        "requested": 1794607009.8390539,
+        "responded": 1794607010.8107731,
+        "role": "operator",
+        "scheduled": 1794607007.496224,
+        "status": 429
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 1,
+        "denial": "",
+        "pod_uid": "edd649be-d3a8-449d-99d2-aa860b7ab17d",
+        "replaced_by": "722fca5e-9c6a-4ec9-b2ce-36e6877b0d0a",
+        "replacement_ready": 1794607019.0,
+        "replacement_ready_upper": 1794607023.8140838,
+        "replicas": 2,
+        "requested": 1794607009.8429446,
+        "responded": 1794607010.8966174,
+        "role": "worker",
+        "scheduled": 1794607007.496224,
+        "status": 201
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 1,
+        "denial": "Error from server (TooManyRequests): Cannot evict pod as it would violate the pod's disruption budget.\n",
+        "pod_uid": "31bd82b3-e4a6-49dc-97fe-ce07e62de07d",
+        "replaced_by": "",
+        "replacement_ready": null,
+        "replacement_ready_upper": null,
+        "replicas": 2,
+        "requested": 1794607009.845194,
+        "responded": 1794607011.3720405,
+        "role": "worker-control",
+        "scheduled": 1794607007.496224,
+        "status": 429
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 1,
+        "denial": "Error from server (TooManyRequests): Cannot evict pod as it would violate the pod's disruption budget.\n",
+        "pod_uid": "c7f4777d-c0d6-4367-9781-15b3bb67bd67",
+        "replaced_by": "",
+        "replacement_ready": null,
+        "replacement_ready_upper": null,
+        "replicas": 2,
+        "requested": 1794607009.8414357,
+        "responded": 1794607011.3846946,
+        "role": "worker",
+        "scheduled": 1794607007.496224,
+        "status": 429
+      },
+      {
+        "allowed_after": 1,
+        "allowed_before": 1,
+        "denial": "",
+        "pod_uid": "e445944e-8e7e-4a3d-9f73-e369c949f430",
+        "replaced_by": "586d91ee-3ee3-45e2-9ed6-0a0a6a5bb016",
+        "replacement_ready": 1794607019.0,
+        "replacement_ready_upper": 1794607023.8140037,
+        "replicas": 2,
+        "requested": 1794607015.574144,
+        "responded": 1794607015.7853885,
+        "role": "api",
+        "scheduled": 1794607007.496224,
+        "status": 201
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 0,
+        "denial": "Error from server (TooManyRequests): Cannot evict pod as it would violate the pod's disruption budget.\n",
+        "pod_uid": "dd450f81-5976-4089-8595-87cd90537f52",
+        "replaced_by": "",
+        "replacement_ready": null,
+        "replacement_ready_upper": null,
+        "replicas": 2,
+        "requested": 1794607015.6542237,
+        "responded": 1794607015.9601667,
+        "role": "scheduler",
+        "scheduled": 1794607007.496224,
+        "status": 429
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 0,
+        "denial": "Error from server (TooManyRequests): Cannot evict pod as it would violate the pod's disruption budget.\n",
+        "pod_uid": "31bd82b3-e4a6-49dc-97fe-ce07e62de07d",
+        "replaced_by": "",
+        "replacement_ready": null,
+        "replacement_ready_upper": null,
+        "replicas": 2,
+        "requested": 1794607016.3158498,
+        "responded": 1794607016.5040598,
+        "role": "worker-control",
+        "scheduled": 1794607007.496224,
+        "status": 429
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 0,
+        "denial": "Error from server (TooManyRequests): Cannot evict pod as it would violate the pod's disruption budget.\n",
+        "pod_uid": "c7f4777d-c0d6-4367-9781-15b3bb67bd67",
+        "replaced_by": "",
+        "replacement_ready": null,
+        "replacement_ready_upper": null,
+        "replicas": 2,
+        "requested": 1794607016.3228803,
+        "responded": 1794607016.708607,
+        "role": "worker",
+        "scheduled": 1794607007.496224,
+        "status": 429
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 1,
+        "denial": "",
+        "pod_uid": "dd450f81-5976-4089-8595-87cd90537f52",
+        "replaced_by": "e04c3997-2e75-4df0-905f-e4de548a1ba3",
+        "replacement_ready": 1794607015.0,
+        "replacement_ready_upper": 1794607023.8140519,
+        "replicas": 2,
+        "requested": 1794607020.8602726,
+        "responded": 1794607021.0283334,
+        "role": "scheduler",
+        "scheduled": 1794607007.496224,
+        "status": 201
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 1,
+        "denial": "",
+        "pod_uid": "31bd82b3-e4a6-49dc-97fe-ce07e62de07d",
+        "replaced_by": "cfb528a2-bb56-4fb6-beff-0be2ea350dff",
+        "replacement_ready": 1794607027.0,
+        "replacement_ready_upper": 1794607027.741317,
+        "replicas": 2,
+        "requested": 1794607021.4041984,
+        "responded": 1794607021.7486417,
+        "role": "worker-control",
+        "scheduled": 1794607007.496224,
+        "status": 201
+      },
+      {
+        "allowed_after": 0,
+        "allowed_before": 1,
+        "denial": "",
+        "pod_uid": "c7f4777d-c0d6-4367-9781-15b3bb67bd67",
+        "replaced_by": "c3fff4fb-197c-4e40-a0ca-f7edb22b077d",
+        "replacement_ready": 1794607029.0,
+        "replacement_ready_upper": 1794607029.6869986,
+        "replicas": 2,
+        "requested": 1794607021.612761,
+        "responded": 1794607022.128309,
+        "role": "worker",
+        "scheduled": 1794607007.496224,
+        "status": 201
+      }
+    ],
+    "harness_targeted": false,
+    "image_a": "localhost:5001/dur053-runtime@sha256:91844373cdced122a0f01dca31f6b6724934f10bf83ad450df2a32e8f7d7bdc2",
+    "image_a_prime": "localhost:5001/dur053-runtime@sha256:bd68e016ecd5e257082d6933ca3e7cba2fa1b2ab5f844139872ab6b89c18fb9c",
+    "injection_status": "",
+    "intervention": 1794607007.496224,
+    "kind": "eviction",
+    "lineage_a": "a",
+    "lineage_a_prime": "a-prime",
+    "no_cordon": true,
+    "overlap": [
+      {
+        "acknowledgment": "durable-witness:7dc9316e-25c5-411b-8b5a-362c9f034a1b",
+        "at": 1794607006.8876066,
+        "claim": {
+          "attempt": 1,
+          "iteration": 0,
+          "namespace": "dur053-k4-26fe6f5a2110",
+          "node": "dur048.sleep",
+          "token_hash": "afc7a82dd8debb0a5260d3e6f8caa2a5f24d079fc3363d83042fe4a5ac51a4fe",
+          "workflow": "dur053-k4-7a53ed1110b8-530031-000035"
+        },
+        "end": 1794607012.672302,
+        "epoch": null,
+        "owner": "",
+        "partition": null,
+        "pod_uid": "edd649be-d3a8-449d-99d2-aa860b7ab17d",
+        "publication": "",
+        "request": "",
+        "role": "worker",
+        "session": "483342f0-c9ee-4fdd-a11e-30be910e9a67",
+        "workflows": [
+          "dur053-k4-7a53ed1110b8-530031-000035"
+        ]
+      },
+      {
+        "acknowledgment": "durable-witness:072428a0-c6e6-4623-9de3-f727b20879f7",
+        "at": 1794607007.212811,
+        "claim": {
+          "attempt": 1,
+          "iteration": 0,
+          "namespace": "dur053-k4-26fe6f5a2110",
+          "node": "dur048.sleep",
+          "token_hash": "ac2138b568f5dce27ecdd9ad733c66c072dc2e2a5204cce1d804d3bd4e2f6d92",
+          "workflow": "dur053-k4-7a53ed1110b8-530031-000037"
+        },
+        "end": 1794607012.6624737,
+        "epoch": null,
+        "owner": "",
+        "partition": null,
+        "pod_uid": "edd649be-d3a8-449d-99d2-aa860b7ab17d",
+        "publication": "",
+        "request": "",
+        "role": "worker",
+        "session": "483342f0-c9ee-4fdd-a11e-30be910e9a67",
+        "workflows": [
+          "dur053-k4-7a53ed1110b8-530031-000037"
+        ]
+      },
+      {
+        "acknowledgment": "durable-witness:3d16843f-d409-4133-a3be-589aa820048a",
+        "at": 1794607006.5137212,
+        "claim": {
+          "attempt": 1,
+          "iteration": 0,
+          "namespace": "dur053-k4-26fe6f5a2110",
+          "node": "dur048.sleep",
+          "token_hash": "4e7a60b97218a90eba4e92039105181af06b044189693e0b614f80e9de8218c8",
+          "workflow": "dur053-k4-7a53ed1110b8-530031-000032"
+        },
+        "end": 1794607012.6657004,
+        "epoch": null,
+        "owner": "",
+        "partition": null,
+        "pod_uid": "c7f4777d-c0d6-4367-9781-15b3bb67bd67",
+        "publication": "",
+        "request": "",
+        "role": "worker",
+        "session": "052b3dc6-d09b-4ccf-8a59-c9da45201d39",
+        "workflows": [
+          "dur053-k4-7a53ed1110b8-530031-000032"
+        ]
+      }
+    ],
+    "pdb_bypassed": false,
+    "removed": 1794607029.6886246,
+    "revision_a": "",
+    "revision_a_prime": "",
+    "roles": [
+      {
+        "disruptions_allowed": 1,
+        "pod_uids": [
+          "e445944e-8e7e-4a3d-9f73-e369c949f430",
+          "f407ecbb-5d3c-4fd9-b258-f2bb6c6cf0ce"
+        ],
+        "replicas": 2,
+        "role": "api"
+      },
+      {
+        "disruptions_allowed": 0,
+        "pod_uids": [
+          "0ac0211e-ae65-4598-97b3-162298fb1dba"
+        ],
+        "replicas": 1,
+        "role": "demand"
+      },
+      {
+        "disruptions_allowed": 0,
+        "pod_uids": [
+          "f724cedb-049f-403a-90a2-c01fc4f6ba18"
+        ],
+        "replicas": 1,
+        "role": "operator"
+      },
+      {
+        "disruptions_allowed": 0,
+        "pod_uids": [
+          "3070a168-3fc4-4242-a804-90f7beaf80d5"
+        ],
+        "replicas": 1,
+        "role": "relay"
+      },
+      {
+        "disruptions_allowed": 1,
+        "pod_uids": [
+          "dd450f81-5976-4089-8595-87cd90537f52",
+          "4a054bb6-e9c7-4a93-b8dc-7663d8613a42"
+        ],
+        "replicas": 2,
+        "role": "scheduler"
+      },
+      {
+        "disruptions_allowed": 1,
+        "pod_uids": [
+          "c7f4777d-c0d6-4367-9781-15b3bb67bd67",
+          "edd649be-d3a8-449d-99d2-aa860b7ab17d"
+        ],
+        "replicas": 2,
+        "role": "worker"
+      },
+      {
+        "disruptions_allowed": 1,
+        "pod_uids": [
+          "31bd82b3-e4a6-49dc-97fe-ce07e62de07d",
+          "9f4fd804-2076-4ac3-88be-c630add76637"
+        ],
+        "replicas": 2,
+        "role": "worker-control"
+      }
+    ],
+    "rollout_status": "",
+    "schema": "dur053.k4-confirmation.v1",
+    "setup_completed": null,
+    "source_commit": "acb82a80bbbcc4c0c608310f078ba54584e45bd7",
+    "target": "engine-replicated-roles",
+    "targets": [
+      {
+        "container_id": "containerd://5c3cf6e48e02f562c955025c64504572fe779a69280c82db8e23cd83622c15e0",
+        "deleted": 1794607055.0,
+        "pod_uid": "e445944e-8e7e-4a3d-9f73-e369c949f430",
+        "replacement_ready": 1794607019.0,
+        "replacement_uid": "586d91ee-3ee3-45e2-9ed6-0a0a6a5bb016",
+        "restart_after": 0,
+        "restart_before": 0,
+        "session": "38f73fb9-66bb-49e0-a3d3-ad4818197630"
+      },
+      {
+        "container_id": "containerd://1d3133871049ca61ef09acd23fa3a0be01d38848c37985d0d4c4de7ed6280ba5",
+        "deleted": 1794607050.0,
+        "pod_uid": "f407ecbb-5d3c-4fd9-b258-f2bb6c6cf0ce",
+        "replacement_ready": 1794607014.0,
+        "replacement_uid": "3bcce2bc-2e23-47c5-a90c-7d65395177cd",
+        "restart_after": 0,
+        "restart_before": 0,
+        "session": "f407ecbb-5d3c-4fd9-b258-f2bb6c6cf0ce/containerd://1d3133871049ca61ef09acd23fa3a0be01d38848c37985d0d4c4de7ed6280ba5"
+      },
+      {
+        "container_id": "containerd://8219082ba1071bbdceaf416245edc7a63908aebb9ab67b0b2fa963ef3752b067",
+        "deleted": 1794607060.0,
+        "pod_uid": "dd450f81-5976-4089-8595-87cd90537f52",
+        "replacement_ready": 1794607015.0,
+        "replacement_uid": "e04c3997-2e75-4df0-905f-e4de548a1ba3",
+        "restart_after": 0,
+        "restart_before": 0,
+        "session": "dd8fcb5f-145b-4b11-a8ce-fe94a7320425"
+      },
+      {
+        "container_id": "containerd://628d71461e70e415e2a73d58298ea5d9759139f819edcc101334e2f71fdc7789",
+        "deleted": 1794607050.0,
+        "pod_uid": "4a054bb6-e9c7-4a93-b8dc-7663d8613a42",
+        "replacement_ready": 1794607026.0,
+        "replacement_uid": "5de9a87b-3f19-435b-8a8d-387f02ff5154",
+        "restart_after": 0,
+        "restart_before": 0,
+        "session": "7fbb7b72-ed28-4d7c-a213-95a78d9ece2d"
+      },
+      {
+        "container_id": "containerd://ac7ba7ef1149266dbb74e675243982f27617c1dc852dfd1d54af2d4108d41ecb",
+        "deleted": 1794607062.0,
+        "pod_uid": "c7f4777d-c0d6-4367-9781-15b3bb67bd67",
+        "replacement_ready": 1794607029.0,
+        "replacement_uid": "c3fff4fb-197c-4e40-a0ca-f7edb22b077d",
+        "restart_after": 0,
+        "restart_before": 0,
+        "session": "052b3dc6-d09b-4ccf-8a59-c9da45201d39"
+      },
+      {
+        "container_id": "containerd://4c8b656e2535484b363ac00ceedc0d5d163646772e39b1f6d38d137520c1baf3",
+        "deleted": 1794607050.0,
+        "pod_uid": "edd649be-d3a8-449d-99d2-aa860b7ab17d",
+        "replacement_ready": 1794607019.0,
+        "replacement_uid": "722fca5e-9c6a-4ec9-b2ce-36e6877b0d0a",
+        "restart_after": 0,
+        "restart_before": 0,
+        "session": "483342f0-c9ee-4fdd-a11e-30be910e9a67"
+      },
+      {
+        "container_id": "containerd://c3113f274cfa54dd6256a32acdfda524ee721215eeecc535fe2d70bd2b539456",
+        "deleted": 1794607061.0,
+        "pod_uid": "31bd82b3-e4a6-49dc-97fe-ce07e62de07d",
+        "replacement_ready": 1794607027.0,
+        "replacement_uid": "cfb528a2-bb56-4fb6-beff-0be2ea350dff",
+        "restart_after": 0,
+        "restart_before": 0,
+        "session": "4927a90a-2d68-4c80-a783-67a39a5c0194"
+      },
+      {
+        "container_id": "containerd://c6a8d47de87e89c82c4c4fd0c799321b124cc577ad16eda3ae40680c7ceef9be",
+        "deleted": 1794607050.0,
+        "pod_uid": "9f4fd804-2076-4ac3-88be-c630add76637",
+        "replacement_ready": 1794607017.0,
+        "replacement_uid": "c27a68e6-0b8a-43b3-84e2-d8abe18ddd99",
+        "restart_after": 0,
+        "restart_before": 0,
+        "session": "e37fc155-dc6d-4871-9e91-1ebb98278c46"
+      }
+    ]
+  },
+  "leases": [],
+  "timeline": {
+    "invocations": [
+      {
+        "finish": 1794607012.672302,
+        "identity": {
+          "attempt": 1,
+          "iteration": 0,
+          "namespace": "dur053-k4-26fe6f5a2110",
+          "node": "dur048.sleep",
+          "token_hash": "afc7a82dd8debb0a5260d3e6f8caa2a5f24d079fc3363d83042fe4a5ac51a4fe",
+          "workflow": "dur053-k4-7a53ed1110b8-530031-000035"
+        },
+        "session": "483342f0-c9ee-4fdd-a11e-30be910e9a67",
+        "start": 1794607006.8876066
+      },
+      {
+        "finish": 1794607012.6624737,
+        "identity": {
+          "attempt": 1,
+          "iteration": 0,
+          "namespace": "dur053-k4-26fe6f5a2110",
+          "node": "dur048.sleep",
+          "token_hash": "ac2138b568f5dce27ecdd9ad733c66c072dc2e2a5204cce1d804d3bd4e2f6d92",
+          "workflow": "dur053-k4-7a53ed1110b8-530031-000037"
+        },
+        "session": "483342f0-c9ee-4fdd-a11e-30be910e9a67",
+        "start": 1794607007.212811
+      },
+      {
+        "finish": 1794607012.6657004,
+        "identity": {
+          "attempt": 1,
+          "iteration": 0,
+          "namespace": "dur053-k4-26fe6f5a2110",
+          "node": "dur048.sleep",
+          "token_hash": "4e7a60b97218a90eba4e92039105181af06b044189693e0b614f80e9de8218c8",
+          "workflow": "dur053-k4-7a53ed1110b8-530031-000032"
+        },
+        "session": "052b3dc6-d09b-4ccf-8a59-c9da45201d39",
+        "start": 1794607006.5137212
+      }
+    ],
+    "sessions": [
+      {
+        "container_id": "containerd://8219082ba1071bbdceaf416245edc7a63908aebb9ab67b0b2fa963ef3752b067",
+        "death": 1794607021.010167,
+        "death_evidence": "containerd-task-exit:8219082ba1071bbdceaf416245edc7a63908aebb9ab67b0b2fa963ef3752b067",
+        "exit_code": 0,
+        "exit_signal": null,
+        "pod_uid": "dd450f81-5976-4089-8595-87cd90537f52",
+        "readiness": [],
+        "role": "scheduler",
+        "session": "dd8fcb5f-145b-4b11-a8ce-fe94a7320425",
+        "start": 1794606993.0
+      },
+      {
+        "container_id": "containerd://628d71461e70e415e2a73d58298ea5d9759139f819edcc101334e2f71fdc7789",
+        "death": 1794607011.0932026,
+        "death_evidence": "containerd-task-exit:628d71461e70e415e2a73d58298ea5d9759139f819edcc101334e2f71fdc7789",
+        "exit_code": 0,
+        "exit_signal": null,
+        "pod_uid": "4a054bb6-e9c7-4a93-b8dc-7663d8613a42",
+        "readiness": [],
+        "role": "scheduler",
+        "session": "7fbb7b72-ed28-4d7c-a213-95a78d9ece2d",
+        "start": 1794606994.0
+      },
+      {
+        "container_id": "containerd://1d3133871049ca61ef09acd23fa3a0be01d38848c37985d0d4c4de7ed6280ba5",
+        "death": 1794607010.3820534,
+        "death_evidence": "containerd-task-exit:1d3133871049ca61ef09acd23fa3a0be01d38848c37985d0d4c4de7ed6280ba5",
+        "exit_code": 0,
+        "exit_signal": null,
+        "pod_uid": "f407ecbb-5d3c-4fd9-b258-f2bb6c6cf0ce",
+        "readiness": [],
+        "role": "api",
+        "session": "f407ecbb-5d3c-4fd9-b258-f2bb6c6cf0ce/containerd://1d3133871049ca61ef09acd23fa3a0be01d38848c37985d0d4c4de7ed6280ba5",
+        "start": 1794606995.0
+      },
+      {
+        "container_id": "containerd://5c3cf6e48e02f562c955025c64504572fe779a69280c82db8e23cd83622c15e0",
+        "death": 1794607015.8019078,
+        "death_evidence": "containerd-task-exit:5c3cf6e48e02f562c955025c64504572fe779a69280c82db8e23cd83622c15e0",
+        "exit_code": 0,
+        "exit_signal": null,
+        "pod_uid": "e445944e-8e7e-4a3d-9f73-e369c949f430",
+        "readiness": [],
+        "role": "api",
+        "session": "38f73fb9-66bb-49e0-a3d3-ad4818197630",
+        "start": 1794606995.0
+      },
+      {
+        "container_id": "containerd://c3113f274cfa54dd6256a32acdfda524ee721215eeecc535fe2d70bd2b539456",
+        "death": 1794607021.8600664,
+        "death_evidence": "containerd-task-exit:c3113f274cfa54dd6256a32acdfda524ee721215eeecc535fe2d70bd2b539456",
+        "exit_code": 0,
+        "exit_signal": null,
+        "pod_uid": "31bd82b3-e4a6-49dc-97fe-ce07e62de07d",
+        "readiness": [],
+        "role": "worker-control",
+        "session": "4927a90a-2d68-4c80-a783-67a39a5c0194",
+        "start": 1794606995.0
+      },
+      {
+        "container_id": "containerd://c6a8d47de87e89c82c4c4fd0c799321b124cc577ad16eda3ae40680c7ceef9be",
+        "death": 1794607010.9654114,
+        "death_evidence": "containerd-task-exit:c6a8d47de87e89c82c4c4fd0c799321b124cc577ad16eda3ae40680c7ceef9be",
+        "exit_code": 0,
+        "exit_signal": null,
+        "pod_uid": "9f4fd804-2076-4ac3-88be-c630add76637",
+        "readiness": [],
+        "role": "worker-control",
+        "session": "e37fc155-dc6d-4871-9e91-1ebb98278c46",
+        "start": 1794606994.0
+      },
+      {
+        "container_id": "containerd://ac7ba7ef1149266dbb74e675243982f27617c1dc852dfd1d54af2d4108d41ecb",
+        "death": 1794607022.458771,
+        "death_evidence": "containerd-task-exit:ac7ba7ef1149266dbb74e675243982f27617c1dc852dfd1d54af2d4108d41ecb",
+        "exit_code": 0,
+        "exit_signal": null,
+        "pod_uid": "c7f4777d-c0d6-4367-9781-15b3bb67bd67",
+        "readiness": [],
+        "role": "worker",
+        "session": "052b3dc6-d09b-4ccf-8a59-c9da45201d39",
+        "start": 1794606995.0
+      },
+      {
+        "container_id": "containerd://4c8b656e2535484b363ac00ceedc0d5d163646772e39b1f6d38d137520c1baf3",
+        "death": 1794607012.7922404,
+        "death_evidence": "containerd-task-exit:4c8b656e2535484b363ac00ceedc0d5d163646772e39b1f6d38d137520c1baf3",
+        "exit_code": 0,
+        "exit_signal": null,
+        "pod_uid": "edd649be-d3a8-449d-99d2-aa860b7ab17d",
+        "readiness": [],
+        "role": "worker",
+        "session": "483342f0-c9ee-4fdd-a11e-30be910e9a67",
+        "start": 1794606996.0
+      },
+      {
+        "container_id": "containerd://bca8b6aece5c92fed1e60046de8ca3bde5d1b50197ce08e3a1fdc3c2d94ff375",
+        "death": null,
+        "death_evidence": "",
+        "exit_code": null,
+        "exit_signal": null,
+        "pod_uid": "3bcce2bc-2e23-47c5-a90c-7d65395177cd",
+        "readiness": [],
+        "role": "api",
+        "session": "fbe2b691-e695-46bf-a333-41c888169378",
+        "start": 1794607013.0
+      },
+      {
+        "container_id": "containerd://73fab19147b6311737cd6e4ee49e962e1a6147e35ca3677e2fa754820b269e45",
+        "death": null,
+        "death_evidence": "",
+        "exit_code": null,
+        "exit_signal": null,
+        "pod_uid": "e04c3997-2e75-4df0-905f-e4de548a1ba3",
+        "readiness": [],
+        "role": "scheduler",
+        "session": "77b2d7c3-f348-4f75-b532-1344e9676ee1",
+        "start": 1794607014.0
+      },
+      {
+        "container_id": "containerd://cd6266e9653eabe07fe2568b7279d2081e8a9aa5f30ec5ff9b03662342d3e841",
+        "death": null,
+        "death_evidence": "",
+        "exit_code": null,
+        "exit_signal": null,
+        "pod_uid": "c27a68e6-0b8a-43b3-84e2-d8abe18ddd99",
+        "readiness": [],
+        "role": "worker-control",
+        "session": "949bb232-5f92-4ddd-935a-588425cc54c6",
+        "start": 1794607014.0
+      },
+      {
+        "container_id": "containerd://9a798289da79716ebd0d2823179f39654bcf55be432e8f219ad9a3af12e1f263",
+        "death": null,
+        "death_evidence": "",
+        "exit_code": null,
+        "exit_signal": null,
+        "pod_uid": "722fca5e-9c6a-4ec9-b2ce-36e6877b0d0a",
+        "readiness": [],
+        "role": "worker",
+        "session": "9e80b6ed-4bc1-4376-9f27-b51891758441",
+        "start": 1794607015.0
+      },
+      {
+        "container_id": "containerd://82acbccd4e52c88c2327208f16133ab85c7b5ab190b9dc1d3889c681d7858c0f",
+        "death": null,
+        "death_evidence": "",
+        "exit_code": null,
+        "exit_signal": null,
+        "pod_uid": "586d91ee-3ee3-45e2-9ed6-0a0a6a5bb016",
+        "readiness": [],
+        "role": "api",
+        "session": "586d91ee-3ee3-45e2-9ed6-0a0a6a5bb016/containerd://82acbccd4e52c88c2327208f16133ab85c7b5ab190b9dc1d3889c681d7858c0f",
+        "start": 1794607017.0
+      },
+      {
+        "container_id": "containerd://c4a6e6b120e0f7de1ef3daa265b83b16fe4ba843951001f1fe8e744a0fae832b",
+        "death": null,
+        "death_evidence": "",
+        "exit_code": null,
+        "exit_signal": null,
+        "pod_uid": "5de9a87b-3f19-435b-8a8d-387f02ff5154",
+        "readiness": [],
+        "role": "scheduler",
+        "session": "5715fe4a-15bf-42d6-bc98-e8f848b503d9",
+        "start": 1794607023.0
+      },
+      {
+        "container_id": "containerd://c94c26b824d50c5a7b45c62b5fe9340f81928d89df79181c6d32f3443abc6be5",
+        "death": null,
+        "death_evidence": "",
+        "exit_code": null,
+        "exit_signal": null,
+        "pod_uid": "cfb528a2-bb56-4fb6-beff-0be2ea350dff",
+        "readiness": [],
+        "role": "worker-control",
+        "session": "fd6ef227-ff34-462e-9079-23cb8cf98b7e",
+        "start": 1794607024.0
+      },
+      {
+        "container_id": "containerd://775b9f7385673cc5ca4e53c6480e6f7cfc6611d41fbaec75990b0d699711fd24",
+        "death": null,
+        "death_evidence": "",
+        "exit_code": null,
+        "exit_signal": null,
+        "pod_uid": "c3fff4fb-197c-4e40-a0ca-f7edb22b077d",
+        "readiness": [],
+        "role": "worker",
+        "session": "53816862-9dca-4b33-8df4-e69a1498631e",
+        "start": 1794607025.0
+      }
+    ]
+  }
+}

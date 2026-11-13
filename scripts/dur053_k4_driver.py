@@ -1517,6 +1517,24 @@ print(json.dumps(rows))
         adapter = Interventions(
             self.base, ns, self.episode_output, self.images, self.proof, self.source
         )
+        stop_value = None
+
+        def stop_load(intervention):
+            nonlocal stop_value
+            stop = intervention + p["W"]
+            value = stamp(stop)
+            if stop_value is not None:
+                require(stop_value == value, "k4-stop-file-changed")
+            stop_value = value
+            script = (
+                "from pathlib import Path; p=Path('/evidence/k4-stop'); value="
+                + repr(value)
+                + "; assert not p.exists() or p.read_text() == value; "
+                "p.write_text(value) if not p.exists() else None"
+            )
+            self.base.python(ns, "observer", script)
+
+        adapter.stop_load = stop_load
         if "rollback" in cell["event"]:
             adapter.rollback_setup(cell["event"].split()[0].lower())
         self.start_samples(ns, db)
@@ -1606,10 +1624,8 @@ print(json.dumps(rows))
                 )
                 adapter.release()
             require(confirmation["intervention"] <= deadline, "k4-intervention-deadline")
+            stop_load(confirmation["intervention"])
             stop = confirmation["intervention"] + p["W"]
-            self.base.python(
-                ns, "observer", 'open("/evidence/k4-stop","w").write(' + repr(stamp(stop)) + ")"
-            )
             while time.time() < stop:
                 self.check_observation()
                 time.sleep(0.1)

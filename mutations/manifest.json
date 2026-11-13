@@ -13285,7 +13285,7 @@
         "tests/test_k4_round251.py::test_four_denied_roles_retry_concurrently",
         "-q"
       ],
-      "expected": "resource name may not be empty",
+      "expected": "k4-empty-resource-name",
       "requires_database": false
     },
     {
@@ -13302,6 +13302,38 @@
         "-q"
       ],
       "expected": "quiet stamp precedes witness activity read in same round trip",
+      "requires_database": false
+    },
+    {
+      "id": "k4r258-stop-after-intervention",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "        self.stop_load(record[\"intervention\"])\n",
+      "new": "        pass\n",
+      "command": [
+        "D:/portfolio-projects/durable-agent-execution-engine/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_k4_round258.py::test_stop_is_written_before_blocking_intervention",
+        "-q"
+      ],
+      "expected": "stop file was not marked before intervention block",
+      "requires_database": false
+    },
+    {
+      "id": "k4r258-ignore-late-stop",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "        need(schedule_stop_timely(root, m, m[\"rate\"]), \"k4-arrival-stop-late\")",
+      "new": "        need(True, \"k4-arrival-stop-late\")",
+      "command": [
+        "D:/portfolio-projects/durable-agent-execution-engine/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_late_stop_file_observation_has_specific_issue",
+        "-q"
+      ],
+      "expected": "k4-arrival-stop-late",
       "requires_database": false
     }
   ]

@@ -60,7 +60,7 @@ def identity(i: dict, *, attempt=False):
 def confirmation(c: dict, t: dict, event: str, leases=()) -> list[str]:
     issues = []
 
-    def need(ok, message):
+    def need(ok: object, message: str) -> None:
         if not ok:
             issues.append(message)
 
@@ -267,7 +267,6 @@ def confirmation(c: dict, t: dict, event: str, leases=()) -> list[str]:
                         for e in rows
                     ),
                     "k4-confirmation-eventual-drain",
-                    "k4-confirmation-singleton-denial",
                 )
     return sorted(set(issues))
 
@@ -335,6 +334,17 @@ def schedule_stopped(root, m):
         and math.isclose(utc(stops[0]["stop"]), m["window_end"], rel_tol=0, abs_tol=1e-6)
         and utc(stops[0]["at"]) + 1e-6 >= m["window_end"]
     )
+
+
+def schedule_stop_timely(root, m, rate):
+    from dur053_k4_collectors import utc
+
+    stops = [
+        json.loads(line)
+        for line in (root / "arrivals-journal.jsonl").read_text().splitlines()
+        if json.loads(line).get("event") == "stop"
+    ]
+    return len(stops) == 1 and utc(stops[0]["at"]) <= m["window_end"] + 1 / rate + 1e-6
 
 
 def episode(root: Path, f: dict, checker: Path) -> dict:
@@ -420,7 +430,7 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
     if outcome and not c["overlap"]:
         issues.append("k4-confirmation-overlap")
 
-    def need(ok, message):
+    def need(ok: object, message: str) -> None:
         if not ok:
             issues.append(message)
 
@@ -436,6 +446,8 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
     arrivals = docs["arrivals"]["rows"]
     if (root / "arrivals-journal.jsonl").exists() or m["hold"] is not None:
         need(hold_evidence(m, arrivals), "k4-hold-evidence")
+    if (root / "arrivals-journal.jsonl").exists():
+        need(schedule_stop_timely(root, m, m["rate"]), "k4-arrival-stop-late")
     need(
         len({a["id"] for a in arrivals}) == len(arrivals)
         and len({a["key"] for a in arrivals}) == len(arrivals),

@@ -149,6 +149,7 @@ class Interventions:
         self.revisions = ("", "")
         self.release = lambda: None
         self.safety = lambda: None
+        self.stop_load = lambda intervention: None
         self.intervention_issued = None
 
     def issue(self, targets):
@@ -503,6 +504,7 @@ class Interventions:
             image_a=self.images["a"][image_role], image_a_prime=self.images["a-prime"][image_role]
         )
         save(self.output / "confirmation.json", record)
+        self.stop_load(record["intervention"])
         self.intervening = True
         pods = self.pods(role) if kind != "eviction" else []
         if kind != "eviction":
