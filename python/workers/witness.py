@@ -1,8 +1,8 @@
-"""Opt-in external execution ledger. Evidence failures never change engine calls.
+"""Opt-in external execution ledger and explicit K4 campaign selection.
 
-One process owns one append-only file on host storage; fsync precedes return.
-The observer separately exports inventory() from every expected pod/process.
-Its count/hash/error counters make missing/truncated exports fail closed.
+The historical K3 ledger logs evidence failures without changing engine calls.
+One process owns one append-only file; its observer exports inventory() from each
+pod/process. K4 uses the separate fail-closed, sealed CampaignWitness implementation.
 """
 
 from __future__ import annotations
@@ -17,6 +17,8 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+
+from workers.k4_witness import CampaignWitness, campaign_enabled
 
 LOG = logging.getLogger(__name__)
 
@@ -84,20 +86,39 @@ class InvocationWitness:
             }
 
 
-_GLOBAL: InvocationWitness | None = None
+_GLOBAL: InvocationWitness | CampaignWitness | None = None
 _GLOBAL_LOCK = threading.Lock()
 
 
-def configured_witness() -> InvocationWitness | None:
+def configured_witness() -> InvocationWitness | CampaignWitness | None:
     global _GLOBAL
     directory = os.getenv("DUR053_WITNESS_DIR", "")
+    campaign = campaign_enabled()
+    if campaign and (not directory or not os.getenv("RUNTIME_NAMESPACE")):
+        raise ValueError("K4 campaign requires DUR053_WITNESS_DIR and RUNTIME_NAMESPACE")
     if not directory:
         return None
     with _GLOBAL_LOCK:
         if _GLOBAL is None:
-            _GLOBAL = InvocationWitness(
+            arguments = (
                 directory,
                 os.getenv("POD_NAME", os.getenv("WORKER_ID", "unknown")),
                 os.getenv("POD_UID", os.getenv("HOSTNAME", "unknown")),
             )
+            _GLOBAL = (
+                CampaignWitness(
+                    directory, arguments[1], os.getenv("POD_UID", ""), os.getenv("CONTAINER_ID", "")
+                )
+                if campaign
+                else InvocationWitness(*arguments)
+            )
         return _GLOBAL
+
+
+def campaign_witness() -> CampaignWitness | None:
+    if not campaign_enabled():
+        return None
+    witness = configured_witness()
+    if not isinstance(witness, CampaignWitness):
+        raise ValueError("K4 campaign cannot reuse a K3 witness session")
+    return witness

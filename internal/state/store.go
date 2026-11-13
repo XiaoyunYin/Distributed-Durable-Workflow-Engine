@@ -112,6 +112,9 @@ func newFromURLConfig(ctx context.Context, databaseURL string, maxConns int32, r
 	if configure != nil {
 		configure(config)
 	}
+	if err := configureK4Audit(config); err != nil {
+		return nil, err
+	}
 	pool, err := pgxpool.NewWithConfig(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("open PostgreSQL pool: %w", err)
@@ -615,6 +618,9 @@ func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID str
 		WHERE partition_id = $1`, partitionID, lease.OwnerID, lease.Epoch, lease.LeaseExpiresAt); err != nil {
 		return Lease{}, false, fmt.Errorf("acquire partition lease: %w", err)
 	}
+	if err := s.recordK4Lease(ctx, tx, "acquire", LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}); err != nil {
+		return Lease{}, false, err
+	}
 	if s.recordLeaseAcquisitions {
 		if _, err := tx.Exec(ctx, `
 		INSERT INTO engine.lease_acquisitions
@@ -652,6 +658,9 @@ func (s *Store) ReleaseLease(ctx context.Context, ref LeaseRef) error {
 		SET owner_id = NULL, lease_expires_at = NULL, updated_at = clock_timestamp()
 		WHERE partition_id = $1`, ref.PartitionID); err != nil {
 		return fmt.Errorf("release partition lease: %w", err)
+	}
+	if err := s.recordK4Lease(ctx, tx, "release", ref); err != nil {
+		return err
 	}
 	return tx.Commit(ctx)
 }
@@ -710,6 +719,9 @@ func lockLease(ctx context.Context, tx pgx.Tx, ref LeaseRef) (Lease, error) {
 	}
 	if owner == nil || expiry == nil || *owner != ref.OwnerID || epoch != ref.Epoch || !expiry.After(databaseNow) {
 		return Lease{}, ErrLeaseNotOwned
+	}
+	if err := recordK4Authorization(ctx, tx, ref.OwnerID); err != nil {
+		return Lease{}, err
 	}
 	return Lease{PartitionID: ref.PartitionID, OwnerID: *owner, Epoch: epoch, LeaseExpiresAt: *expiry}, nil
 }

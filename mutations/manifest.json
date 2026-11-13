@@ -11233,6 +11233,460 @@
       ],
       "expected": "k4-continuation-suffix",
       "requires_database": false
+    },
+    {
+      "id": "k4b1-audit-omitted",
+      "kind": "behavioral",
+      "file": "internal/state/k4_audit.go",
+      "old": "if tx.Conn().Config().RuntimeParams[\"durable.k4_campaign\"] != \"on\" {\n\t\treturn nil\n\t}\n\t_, err := tx.Exec(ctx, `INSERT",
+      "new": "if true { return nil }\n\t_, err := tx.Exec(ctx, `INSERT",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4LeaseAuditAtomic$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 lease audit row missing",
+      "requires_database": true
+    },
+    {
+      "id": "k4b1-audit-outside-transaction",
+      "kind": "behavioral",
+      "file": "internal/state/k4_audit.go",
+      "old": "_, err := tx.Exec(ctx, `INSERT INTO engine.k4_audit_queue",
+      "new": "_, err := s.pool.Exec(ctx, `INSERT INTO engine.k4_audit_queue",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4LeaseAuditAtomic$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 audit escaped lease transaction",
+      "requires_database": true
+    },
+    {
+      "id": "k4b1-audit-immediate",
+      "kind": "behavioral",
+      "file": "migrations/000020_k4_audit.up.sql",
+      "old": "DEFERRABLE INITIALLY DEFERRED",
+      "new": "DEFERRABLE INITIALLY IMMEDIATE",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4AuditNoLockInversion$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 audit lock inversion",
+      "requires_database": true
+    },
+    {
+      "id": "k4b1-audit-commit-lock",
+      "kind": "behavioral",
+      "file": "migrations/000020_k4_audit.up.sql",
+      "old": "PERFORM pg_advisory_xact_lock(530004, 1);",
+      "new": "PERFORM 1;",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4CommitSerialization$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 audit did not serialize through commit",
+      "requires_database": true
+    },
+    {
+      "id": "k4b1-history-omitted",
+      "kind": "behavioral",
+      "file": "migrations/000020_k4_audit.up.sql",
+      "old": "FOR EACH ROW WHEN (current_setting('durable.k4_campaign', true) = 'on')",
+      "new": "FOR EACH ROW WHEN (false)",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4HistoryLeaseJoin$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 history/lease order or owner join missing",
+      "requires_database": true
+    },
+    {
+      "id": "k4b1-history-owner-label",
+      "kind": "behavioral",
+      "file": "migrations/000020_k4_audit.up.sql",
+      "old": "ELSE COALESCE(current_setting('durable.k4_owner', true), '') END",
+      "new": "ELSE NEW.actor_id END",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4HistoryLeaseJoin$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 history/lease order or owner join missing",
+      "requires_database": true
+    },
+    {
+      "id": "k4b1-audit-immutable",
+      "kind": "behavioral",
+      "file": "migrations/000020_k4_audit.up.sql",
+      "old": "RAISE EXCEPTION 'K4 audit is append-only';",
+      "new": "RETURN NULL;",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4LeaseAuditAtomic$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 audit is mutable",
+      "requires_database": true
+    },
+    {
+      "id": "k4b1-audit-off",
+      "kind": "behavioral",
+      "file": "internal/state/k4_audit.go",
+      "old": "if flag != \"1\" {",
+      "new": "if flag == \"disabled\" {",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4AuditConfiguration$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 audit flag changed defaults",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-release-audit-omitted",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "if err := s.recordK4Lease(ctx, tx, \"release\", ref); err != nil {",
+      "new": "if err := error(nil); err != nil {",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4LeaseAuditAtomic$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 failed audit allowed lease release",
+      "requires_database": true
+    },
+    {
+      "id": "k4b1-ack-off",
+      "kind": "behavioral",
+      "file": "cmd/runtime/scheduler.go",
+      "old": "campaign := os.Getenv(\"DUR053_K4_CAMPAIGN\") == \"1\"",
+      "new": "campaign := os.Getenv(\"DUR053_K4_CAMPAIGN\") != \"disabled\"",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK4SchedulerAcknowledgment$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 acknowledgment emitted with campaign flag off",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-ack-missing",
+      "kind": "behavioral",
+      "file": "cmd/runtime/scheduler.go",
+      "old": "campaign := os.Getenv(\"DUR053_K4_CAMPAIGN\") == \"1\"",
+      "new": "campaign := os.Getenv(\"DUR053_K4_CAMPAIGN\") == \"1\" && false",
+      "command": [
+        "go",
+        "test",
+        "./cmd/runtime",
+        "-run",
+        "^TestK4SchedulerAcknowledgment$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 per-acquisition acknowledgment missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-witness-fail-open",
+      "kind": "behavioral",
+      "file": "python/workers/k4_witness.py",
+      "old": "os._exit(70)",
+      "new": "return",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_persistence_failure_exits_before_further_work"
+      ],
+      "expected": "K4 witness failed open",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-raw-token",
+      "kind": "behavioral",
+      "file": "python/workers/k4_witness.py",
+      "old": "hashlib.sha256(fields[\"claim_token\"].encode()).hexdigest()",
+      "new": "fields[\"claim_token\"]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_hashes_and_dead_session_seals"
+      ],
+      "expected": "K4 token hash missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-session-seal-omitted",
+      "kind": "behavioral",
+      "file": "python/workers/k4_witness.py",
+      "old": "os.replace(temporary, self.seal_path)",
+      "new": "pass  # mutation: no durable inventory",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_hashes_and_dead_session_seals"
+      ],
+      "expected": "K4 durable session inventory missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-acknowledged-start-omitted",
+      "kind": "behavioral",
+      "file": "python/workers/k4_witness.py",
+      "old": "self.acknowledged.append(acknowledgment)",
+      "new": "pass  # mutation: omit acknowledgment",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_hashes_and_dead_session_seals"
+      ],
+      "expected": "K4 acknowledged starts differ from sealed ledger",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-witness-data-fsync",
+      "kind": "behavioral",
+      "file": "python/workers/k4_witness.py",
+      "old": "os.fsync(handle.fileno())\n                self.digests",
+      "new": "pass  # mutation: no data fsync\n                self.digests",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_short_write_and_fsync"
+      ],
+      "expected": "K4 witness fsync omitted",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-witness-seal-fsync",
+      "kind": "behavioral",
+      "file": "python/workers/k4_witness.py",
+      "old": "os.fsync(handle.fileno())\n                os.replace",
+      "new": "pass  # mutation: no seal fsync\n                os.replace",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_short_write_and_fsync"
+      ],
+      "expected": "K4 witness fsync omitted",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-witness-directory-fsync",
+      "kind": "behavioral",
+      "file": "python/workers/k4_witness.py",
+      "old": "os.fsync(fd)",
+      "new": "pass  # mutation: no directory fsync",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_directory_fsync"
+      ],
+      "expected": "K4 inventory directory sync omitted",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-witness-short-write",
+      "kind": "behavioral",
+      "file": "python/workers/k4_witness.py",
+      "old": "if handle.write(data) != len(data):",
+      "new": "if handle.write(data) < 0:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_short_write_and_fsync"
+      ],
+      "expected": "K4 short write failed open",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-legacy-callback",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "consumer.subscribe([TASK_TOPIC], listener=callbacks)",
+      "new": "pass  # mutation: no legacy callback listener",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_callbacks_both_paths_and_disposition[True]"
+      ],
+      "expected": "K4 legacy callback trace missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-executor-callback",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "if self.trace is not None:\n            self.trace.on_partitions_assigned(partitions)",
+      "new": "if self.trace is not None and False:\n            self.trace.on_partitions_assigned(partitions)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_callbacks_both_paths_and_disposition[False]"
+      ],
+      "expected": "K4 executor callback trace missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-lost-callback",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "self.emit(\"lost\", partitions, generation, member)",
+      "new": "pass  # mutation: omit lost callback",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_callbacks_both_paths_and_disposition[True]"
+      ],
+      "expected": "K4 legacy callback trace missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-delivery-disposition",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "if witness := campaign_witness():\n        task_identity",
+      "new": "if (witness := campaign_witness()) and False:\n        task_identity",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_durable_delivery_identity"
+      ],
+      "expected": "K4 durable delivery identity missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-result-disposition",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "\"result_disposition\",",
+      "new": "\"result_disposition_omitted\",",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_result_disposition_identity"
+      ],
+      "expected": "K4 durable result disposition missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-retry-identity",
+      "kind": "behavioral",
+      "file": "python/workers/control.py",
+      "old": "trace = CURRENT.get() or new_request(body)",
+      "new": "trace = new_request(body)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_retry_trace_identity_body_status"
+      ],
+      "expected": "K4 retry request identity changed",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-http-trace",
+      "kind": "behavioral",
+      "file": "python/workers/control.py",
+      "old": "\"http\",",
+      "new": "\"http_omitted\",",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_retry_trace_identity_body_status"
+      ],
+      "expected": "K4 control attempt trace missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4b1-http-start",
+      "kind": "behavioral",
+      "file": "python/workers/control.py",
+      "old": "\"http_start\",",
+      "new": "\"http_start_omitted\",",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_instrumentation.py::test_k4_retry_trace_identity_body_status"
+      ],
+      "expected": "K4 in-flight HTTP request missing",
+      "requires_database": false
     }
   ]
 }

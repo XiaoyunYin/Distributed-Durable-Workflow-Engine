@@ -8,6 +8,7 @@ Crashes between acknowledgment and claim/result are repaired by the scheduler.
 from __future__ import annotations
 
 import base64
+import json
 import logging
 import threading
 import time
@@ -18,9 +19,12 @@ from kafka import ConsumerRebalanceListener, KafkaConsumer
 from kafka.structs import OffsetAndMetadata, TopicPartition
 
 from workers.control import Claim, ControlClient, ControlError
+from workers.k4_control import CURRENT, new_request
+from workers.k4_witness import campaign_enabled
 from workers.lifecycle import BoundedExecutor, WorkerLifecycle
 from workers.registry import default_registry
 from workers.runner import ActivityRunner, ActivityTask
+from workers.witness import campaign_witness
 
 LOG = logging.getLogger(__name__)
 TASK_TOPIC = "durable-agent.tasks.v1"
@@ -52,6 +56,18 @@ class RetryingControl(ControlClient):
         return self.timeout
 
     def _post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
+        if not campaign_enabled():
+            return self._retry_post(path, body)
+        # Freeze the serialized body once for all attempts. Neither a retry nor
+        # another thread may replace this logical request's identity or body.
+        body = json.loads(json.dumps(body, separators=(",", ":")))
+        token = CURRENT.set(new_request(body))
+        try:
+            return self._retry_post(path, body)
+        finally:
+            CURRENT.reset(token)
+
+    def _retry_post(self, path: str, body: dict[str, Any]) -> dict[str, Any]:
         deadline = time.monotonic() + 30.0 if self.lifecycle is not None else float("inf")
         self.request_deadlines.deadline = deadline
         delay = 0.1
@@ -164,6 +180,27 @@ def handle_delivery(
     )
     control.traceparent = traceparent
     response = control._post("/v1/worker-deliveries", delivery_body(message))
+    if witness := campaign_witness():
+        task_identity = response.get("task") or {}
+        witness.trace(
+            "disposed",
+            {
+                "consumer": worker_id,
+                "consumer_session": getattr(consumer, "_dur053_session", ""),
+                "generation": group_generation(consumer),
+                "topic": message.topic,
+                "partition": message.partition,
+                "offset": message.offset,
+                "event_id": delivery_body(message)["event_id"],
+                "disposition": response.get("disposition", ""),
+                "commit_offset": response["commit_offset"],
+                "next_offset": response.get("next_offset"),
+                "workflow": task_identity.get("workflow_id", ""),
+                "node": task_identity.get("node_id", ""),
+                "iteration": task_identity.get("iteration"),
+                "attempt": task_identity.get("attempt_number"),
+            },
+        )
     if assignment is not None and not assignment.current(message, generation):
         return None
     if response["commit_offset"]:
@@ -194,7 +231,25 @@ def handle_delivery(
 
     def execute() -> None:
         try:
-            ActivityRunner(control, default_registry()).run_task(work)
+            receipt = ActivityRunner(control, default_registry()).run_task(work)
+            if witness := campaign_witness():
+                witness.trace(
+                    "result_disposition",
+                    {
+                        "consumer": worker_id,
+                        "consumer_session": getattr(consumer, "_dur053_session", ""),
+                        "generation": group_generation(consumer),
+                        "topic": message.topic,
+                        "partition": message.partition,
+                        "offset": message.offset,
+                        "event_id": delivery_body(message)["event_id"],
+                        "workflow": work.workflow_id,
+                        "node": work.node_id,
+                        "iteration": work.iteration,
+                        "attempt": control.expected_attempt,
+                        "disposition": receipt.get("Disposition", ""),
+                    },
+                )
         except ControlError as error:
             if error.code not in {"STALE_CLAIM", "STALE_ATTEMPT"}:
                 raise
@@ -223,7 +278,7 @@ def legacy_consume_slot(brokers: str, url: str, worker_id: str, stop: threading.
         consumer = None
         try:
             consumer = KafkaConsumer(
-                TASK_TOPIC,
+                *([] if campaign_enabled() else [TASK_TOPIC]),
                 bootstrap_servers=brokers.split(","),
                 group_id=GROUP,
                 client_id=worker_id,
@@ -231,6 +286,10 @@ def legacy_consume_slot(brokers: str, url: str, worker_id: str, stop: threading.
                 auto_offset_reset="earliest",
                 max_poll_records=1,
             )
+            if campaign_enabled():
+                callbacks = CallbackTrace(worker_id)
+                callbacks.attach(consumer)
+                consumer.subscribe([TASK_TOPIC], listener=callbacks)
             control = RetryingControl(url, stop)
             while not stop.is_set():
                 for records in consumer.poll(timeout_ms=500, max_records=1).values():
@@ -290,14 +349,19 @@ class Assignment(ConsumerRebalanceListener):  # type: ignore[misc]
         self.lifecycle = lifecycle
         self.generation = 0
         self.partitions: set[Any] = set()
+        self.trace: CallbackTrace | None = None
 
     def on_partitions_revoked(self, partitions: Any) -> None:
+        if self.trace is not None:
+            self.trace.on_partitions_revoked(partitions)
         self.generation += 1
         self.partitions.difference_update(partitions)
         with self.lifecycle.lock:
             self.lifecycle.rebalances += 1
 
     def on_partitions_assigned(self, partitions: Any) -> None:
+        if self.trace is not None:
+            self.trace.on_partitions_assigned(partitions)
         self.generation += 1
         self.partitions = set(partitions)
 
@@ -306,6 +370,72 @@ class Assignment(ConsumerRebalanceListener):  # type: ignore[misc]
             self.generation == generation
             and TopicPartition(message.topic, message.partition) in self.partitions
         )
+
+
+def group_generation(consumer: Any) -> int:
+    coordinator = getattr(consumer, "_coordinator", None)
+    generation = getattr(coordinator, "_generation", None)
+    return int(getattr(generation, "generation_id", -1))
+
+
+class CallbackTrace(ConsumerRebalanceListener):  # type: ignore[misc]
+    """Observation only. Assignment's existing transport validity is unchanged."""
+
+    def __init__(self, consumer_id: str) -> None:
+        self.consumer_id = consumer_id
+        self.consumer_session = str(uuid.uuid4())
+        self.consumer: Any = None
+        self.partitions: set[Any] = set()
+
+    def attach(self, consumer: Any) -> None:
+        self.consumer = consumer
+        consumer._dur053_session = self.consumer_session
+        coordinator = consumer._coordinator
+        reset = coordinator.reset_generation
+
+        def observed_reset(*args: Any, **kwargs: Any) -> Any:
+            generation = group_generation(consumer)
+            member = str(getattr(coordinator._generation, "member_id", ""))
+            partitions = set(self.partitions)
+            result = reset(*args, **kwargs)
+            # kafka-python 2.2.16 has no lost-listener dispatch. Observe the
+            # original membership reset, after it runs, without a poll/rejoin.
+            if generation >= 0 and partitions:
+                self.emit("lost", partitions, generation, member)
+            return result
+
+        coordinator.reset_generation = observed_reset
+
+    def emit(
+        self, event: str, partitions: Any, generation: int | None = None, member: str | None = None
+    ) -> None:
+        if witness := campaign_witness():
+            group = getattr(getattr(self.consumer, "_coordinator", None), "_generation", None)
+            witness.trace(
+                event,
+                {
+                    "consumer": self.consumer_id,
+                    "consumer_session": self.consumer_session,
+                    "member_id": str(getattr(group, "member_id", "")) if member is None else member,
+                    "generation": group_generation(self.consumer)
+                    if generation is None
+                    else generation,
+                    "partitions": [
+                        {"topic": p.topic, "partition": p.partition} for p in sorted(partitions)
+                    ],
+                },
+            )
+
+    def on_partitions_revoked(self, partitions: Any) -> None:
+        self.emit("revoke", partitions)
+        self.partitions.difference_update(partitions)
+
+    def on_partitions_assigned(self, partitions: Any) -> None:
+        self.emit("assigned", partitions)
+        self.partitions = set(partitions)
+
+    def on_partitions_lost(self, partitions: Any) -> None:
+        self.emit("lost", partitions)
 
 
 def consume_slot(
@@ -328,6 +458,9 @@ def consume_slot(
                 heartbeat_interval_ms=3000,
                 api_version_auto_timeout_ms=3000,
             )
+            if campaign_enabled():
+                assignment.trace = CallbackTrace(worker_id)
+                assignment.trace.attach(consumer)
             consumer.subscribe([TASK_TOPIC], listener=assignment)
             control = RetryingControl(url, lifecycle.abort, lifecycle)
             while lifecycle.can_start():

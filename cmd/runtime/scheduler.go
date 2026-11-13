@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"os"
@@ -19,7 +20,13 @@ func schedulerOptions(tracing *telemetry.Tracing) engine.ServeOptions {
 	serveOptions := engine.ServeOptions{Tracing: tracing}
 	if milliseconds, err := strconv.Atoi(os.Getenv("RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS")); err == nil && milliseconds > 0 {
 		hold := time.Duration(milliseconds) * time.Millisecond
-		serveOptions.AfterLeaseAcquired = func(hookContext context.Context, _ state.Lease) error {
+		serveOptions.AfterLeaseAcquired = func(hookContext context.Context, lease state.Lease) error {
+			campaign := os.Getenv("DUR053_K4_CAMPAIGN") == "1"
+			if campaign {
+				acquisition := state.NewID()
+				emitSchedulerAcknowledgment(lease, acquisition, "after_lease_acquired_hold_enter")
+				defer emitSchedulerAcknowledgment(lease, acquisition, "after_lease_acquired_hold_exit")
+			}
 			timer := time.NewTimer(hold)
 			defer timer.Stop()
 			select {
@@ -32,6 +39,20 @@ func schedulerOptions(tracing *telemetry.Tracing) engine.ServeOptions {
 		slog.Warn("scheduler lease observation hold enabled", "duration", hold)
 	}
 	return serveOptions
+}
+
+var schedulerClockOrigin = time.Now()
+
+func emitSchedulerAcknowledgment(lease state.Lease, acquisition, boundary string) {
+	data, _ := json.Marshal(map[string]any{
+		"event": "scheduler_acquisition", "boundary": boundary,
+		"acquisition": acquisition,
+		"owner":       lease.OwnerID, "epoch": lease.Epoch, "partition": lease.PartitionID,
+		"session": state.K4Session, "pod_uid": os.Getenv("POD_UID"),
+		"container_id": os.Getenv("CONTAINER_ID"), "pid": os.Getpid(),
+		"timestamp": time.Now().UTC(), "monotonic_seconds": time.Since(schedulerClockOrigin).Seconds(),
+	})
+	slog.Info("k4 scheduler acknowledgment", "data", string(data))
 }
 
 func runIngestor(ctx context.Context, drain <-chan struct{}, store *state.Store, brokers []string, wake chan<- struct{}) error {
