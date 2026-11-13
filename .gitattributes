@@ -21,3 +21,7 @@ experiments/portfolio/k8s-recovery/k3-pilot-v1/**/payload/*.tar.xz binary
 # B.6 versioned immutable evidence (B.4 storage).
 experiments/portfolio/k8s-recovery/k3-pilot-v[23]/** -text
 experiments/portfolio/k8s-recovery/k3-pilot-v[23]/**/payload/*.tar.xz binary
+
+# K4 immutable lifecycle evidence uses the same B.4 representation.
+experiments/portfolio/k8s-recovery/k4-v1/** -text
+experiments/portfolio/k8s-recovery/k4-v1/**/payload/*.tar.xz binary

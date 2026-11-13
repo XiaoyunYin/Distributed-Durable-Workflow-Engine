@@ -42,6 +42,8 @@ type fenceReport struct {
 }
 
 func main() {
+	lifecyclePath := flag.String("lifecycle", "", "K4 offline lifecycle timeline (explicit mode)")
+	leaseAuditPath := flag.String("lease-audit", "", "K4 committed lease audit; required with lifecycle")
 	workflowIDs := flag.String("workflow-ids", "", "comma-separated workflow IDs to export")
 	snapshotPath := flag.String("snapshot", "", "offline Trace JSON snapshot")
 	databaseURL := flag.String("database-url", os.Getenv("DATABASE_URL"), "PostgreSQL URL for live export")
@@ -55,6 +57,15 @@ func main() {
 	requireTerminal := flag.Bool("require-terminal", false, "fail on non-terminal accepted work")
 	clockProbe := flag.Bool("clock-probe", false, "bracket a database clock query with observer UTC")
 	flag.Parse()
+	if *lifecyclePath != "" || *leaseAuditPath != "" {
+		if *lifecyclePath == "" || *leaseAuditPath == "" || *snapshotPath != "" || *campaignPath != "" || *witnessPath != "" || *clockProbe || *preFaultRevision != 0 || *recoveryRevision != 0 || *recoveryEpoch != 0 || *staleAttemptNumber != 0 || *workflowIDs != "" || *namespace != "" || *requireTerminal {
+			fatal(fmt.Errorf("lifecycle requires timeline and lease-audit and excludes legacy modes"))
+		}
+		if !lifecycleMode(*lifecyclePath, *leaseAuditPath) {
+			os.Exit(1)
+		}
+		return
+	}
 	if *clockProbe {
 		probe, err := databaseClockProbe(*databaseURL)
 		if err != nil {
