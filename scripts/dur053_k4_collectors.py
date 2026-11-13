@@ -24,6 +24,24 @@ def utc(value):
     return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
 
 
+def parse_ctr_line(text):
+    """Parse ctr events' Go time.String() prefix and JSON payload."""
+    match = re.fullmatch(
+        r"(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d{1,9})? [+-]\d{4} [A-Z]+) (\S+) (\S+) (\{.*\})",
+        text,
+    )
+    if match is None:
+        return None
+    timestamp, namespace, topic, payload = match.groups()
+    try:
+        date_time, offset, _ = timestamp.rsplit(" ", 2)
+        date_time, fraction = (date_time.split(".", 1) + [""])[:2]
+        datetime.fromisoformat(date_time + ("." + fraction[:6] if fraction else "") + offset)
+    except ValueError:
+        return None
+    return timestamp, namespace, topic, payload
+
+
 def history_kind(row):
     """Preserve receipt/replacement semantics without inventing an owner."""
     terminal = row.get("new_state") in {"SUCCEEDED", "FAILED", "CANCELED", "ABANDONED", "REJECTED"}
@@ -52,19 +70,13 @@ def cri_event(text):
     Retain all lines upstream. Unrelated events are not process deaths; malformed
     exit events must never disappear as if no process had died.
     """
-    match = re.fullmatch(
-        r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d(?:\.\d{1,9})? [+-]\d{4} [A-Z]+) (\S+) (\S+) (\{.*\})$",
-        text,
-    )
-    if match is None or match.group(3) != "/tasks/exit":
+    parsed = parse_ctr_line(text)
+    if parsed is None or parsed[2] != "/tasks/exit":
         require("/tasks/exit" not in text, "k4-cri-exit-unparseable")
         return None
     try:
-        timestamp, namespace, _, payload = match.groups()
+        _, namespace, _, payload = parsed
         require(namespace == "k8s.io", "k4-cri-exit-unparseable")
-        date_time, offset, _ = timestamp.rsplit(" ", 2)
-        date_time, fraction = (date_time.split(".", 1) + [""])[:2]
-        datetime.fromisoformat(date_time + ("." + fraction[:6] if fraction else "") + offset)
         raw = json.loads(payload)
         cid = raw["container_id"]
         if "exit_status" in raw:
@@ -294,15 +306,14 @@ class Streams:
         if event is not None:
             with self.lock:
                 self.cri_exits.append(dict(received=received, **event))
-        parts = text.split(None, 3)
-        if len(parts) != 4:
+        parsed = parse_ctr_line(text)
+        if parsed is None:
             return False
         try:
-            utc(parts[0])
-            json.loads(parts[3])
+            json.loads(parsed[3])
         except ValueError:
             return False
-        return parts[1] == "k8s.io" and parts[2].startswith("/")
+        return parsed[1] == "k8s.io" and parsed[2].startswith("/")
 
     def start_cri(self):
         self.start(

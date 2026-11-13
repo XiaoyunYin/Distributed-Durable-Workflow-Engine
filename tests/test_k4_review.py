@@ -29,6 +29,16 @@ EXIT = (
     '"id":"7c2249c013be566bfbaa721cb61738514df6a7b3cc7088a8deb697905d8242fc",'
     '"pid":4324,"exited_at":{"seconds":1794570269,"nanos":617577213}}'
 )
+RETAINED_START = (
+    "2026-11-13 12:52:40.884437304 +0000 UTC k8s.io /tasks/start "
+    '{"container_id":"965f0f7fb899de104b2553c8015e2fae0662a3d35edd44fd07ef47a8f6b3424e","pid":4334}'
+)
+RETAINED_EXIT = (
+    "2026-11-13 12:52:41.013449142 +0000 UTC k8s.io /tasks/exit "
+    '{"container_id":"4ccd6cc203b6bf1708e560d161a06661722d265a272eb4f011e0c826cbcb9e47",'
+    '"id":"4ccd6cc203b6bf1708e560d161a06661722d265a272eb4f011e0c826cbcb9e47",'
+    '"pid":4362,"exited_at":{"seconds":1794574361,"nanos":13353454}}'
+)
 
 
 def test_raw_watch_resume_bookmark_and_error(tmp_path):
@@ -99,6 +109,14 @@ def test_ctr_real_text_selection_and_identity():
     ]
     collectors.apply_process_evidence(sessions, [], [("cri", 1, status_137)])
     assert sessions[0]["exit_code"] == 137 and "death" not in sessions[1]
+
+
+def test_observe_cri_accepts_retained_ctr_lines():
+    streams = collectors.Streams(Mock(), "ns", Path("."))
+    assert streams.observe_cri(RETAINED_START, 1794574360.8852007)
+    assert streams.observe_cri(RETAINED_EXIT, 1794574361.0145087)
+    assert [event["source"] for event in streams.cri_exits] == [RETAINED_EXIT]
+    assert streams.cri_exits[0]["exit_status"] == 0
 
 
 def test_stream_self_check_requires_server_events(tmp_path):

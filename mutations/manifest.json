@@ -12715,24 +12715,6 @@
       "requires_database": false
     },
     {
-      "id": "k4r240-backend-exit-proof",
-      "kind": "behavioral",
-      "file": "scripts/dur053_k4_driver.py",
-      "old": "exits and any(e[\"exit_status\"] == 137 for e in exits)",
-      "new": "True",
-      "command": [
-        "uv",
-        "run",
-        "python",
-        "-m",
-        "pytest",
-        "tests/test_k4_review.py::test_backend_requires_collected_scratch_exit",
-        "-q"
-      ],
-      "expected": "DID NOT RAISE",
-      "requires_database": false
-    },
-    {
       "id": "k4r241-cri-invalid-status",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_collectors.py",
@@ -12766,6 +12748,42 @@
         "-q"
       ],
       "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-backend-exit-proof",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "exits\n                and any(\n                    e[\"exit_status\"] == 137 and e[\"exit_status_source\"] == \"explicit\" for e in exits\n                )",
+      "new": "True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_backend_requires_collected_scratch_exit",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r244-cri-observe-split",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "return parsed[1] == \"k8s.io\" and parsed[2].startswith(\"/\")",
+      "new": "parts = text.split(None, 3)\n        if len(parts) != 4:\n            return False\n        try:\n            utc(parts[0])\n            json.loads(parts[3])\n        except ValueError:\n            return False\n        return parts[1] == \"k8s.io\" and parts[2].startswith(\"/\")",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_observe_cri_accepts_retained_ctr_lines",
+        "-q"
+      ],
+      "expected": "AssertionError",
       "requires_database": false
     }
   ]
