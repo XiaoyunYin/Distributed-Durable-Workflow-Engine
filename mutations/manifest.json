@@ -12857,6 +12857,132 @@
       ],
       "expected": "authenticated worker claims lost",
       "requires_database": false
+    },
+    {
+      "id": "k4r248-observer-host-start",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "at=data[\"clock\"],",
+      "new": "at=start,",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_observer_uses_snapshot_clock_inside_roundtrip",
+        "-q"
+      ],
+      "expected": "host start used as observation",
+      "requires_database": false
+    },
+    {
+      "id": "k4r248-workflow-host-start",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "r[\"data\"][\"clock\"]\n                for r in self.samples",
+      "new": "r[\"at\"]\n                for r in self.samples",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_retained.py::test_retained_assembly",
+        "-q"
+      ],
+      "expected": "polling observation preceded terminal commit",
+      "requires_database": false
+    },
+    {
+      "id": "k4r248-wire-start",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "phase_start = wire_start if phase == \"warmup\" else start",
+      "new": "phase_start = start",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_schedule_uses_wire_start_precision",
+        "-q"
+      ],
+      "expected": "wire start lost the first arrival",
+      "requires_database": false
+    },
+    {
+      "id": "k4r248-nanosecond-time",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "return parsed.timestamp() + residual / 1e9",
+      "new": "return parsed.timestamp()",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_schedule_uses_wire_start_precision",
+        "-q"
+      ],
+      "expected": "nanosecond fraction truncated",
+      "requires_database": false
+    },
+    {
+      "id": "k4r248-latency-query-window",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "after = [b for b in m[\"clock_brackets\"] if b[\"start\"] >= w[\"terminal\"]]",
+      "new": "after = [b for b in m[\"clock_brackets\"] if b[\"start\"] <= w[\"terminal\"] <= b[\"end\"]]",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_latency_probes_enclose_interval",
+        "-q"
+      ],
+      "expected": "k4-latency-evidence-missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4r248-startup-censor",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "s[\"censored\"] and s[\"change\"] in intervention_changes",
+      "new": "s[\"censored\"]",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_assignment_setup_censor_is_retained",
+        "-q"
+      ],
+      "expected": "k4-assignment-disposition-censored",
+      "requires_database": false
+    },
+    {
+      "id": "k4r248-assembled-observer-clock",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "sample_at = raw_sample[\"data\"][\"clock\"] if raw_sample[\"data\"] else raw_sample[\"at\"]",
+      "new": "sample_at = raw_sample[\"at\"]",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_retained.py::test_retained_assembly",
+        "-q"
+      ],
+      "expected": "AssertionError",
+      "requires_database": false
     }
   ]
 }

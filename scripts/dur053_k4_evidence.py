@@ -419,9 +419,14 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         rows = [a for a in arrivals if a["phase"] == phase]
         if (root / "arrivals-journal.jsonl").exists():
             from dur053_k4_collectors import journal_rows, utc
+            from dur053_k4_driver import stamp
 
             plan, updates, torn = journal_rows((root / "arrivals-journal.jsonl").read_text())
-            planned = [r for r in plan["rows"] if start <= utc(r["scheduled_at"]) < end]
+            # The absolute start sent to Go is stamp(warmup_start). Preserve
+            # that wire precision at the first-arrival boundary and grid origin.
+            wire_start = utc(stamp(m["warmup_start"]))
+            phase_start = wire_start if phase == "warmup" else start
+            planned = [r for r in plan["rows"] if phase_start <= utc(r["scheduled_at"]) < end]
             need(
                 not torn
                 and plan["rows"]
@@ -434,7 +439,7 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
                     and a["scheduled"] == utc(r["scheduled_at"])
                     and math.isclose(
                         a["scheduled"],
-                        m["warmup_start"] + r["sequence"] / m["rate"],
+                        wire_start + r["sequence"] / m["rate"],
                         rel_tol=0,
                         abs_tol=1e-6,
                     )
@@ -521,13 +526,17 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
             if w["state"] != "SUCCEEDED":
                 missing += 1
                 continue
-            brackets = [
-                b["width"] for b in m["clock_brackets"] if b["start"] <= w["terminal"] <= b["end"]
-            ]
-            if not brackets:
+            # Probes enclose the arrival-to-terminal interval; terminals need
+            # not occur during the short clock-query round trips themselves.
+            before = [b for b in m["clock_brackets"] if b["end"] <= a["scheduled"]]
+            after = [b for b in m["clock_brackets"] if b["start"] >= w["terminal"]]
+            if not before or not after:
                 missing += 1
                 continue
-            delay = w["terminal"] - a["scheduled"] + max(w["clock_width"], max(brackets))
+            probes = (max(before, key=lambda b: b["end"]), min(after, key=lambda b: b["start"]))
+            delay = w["terminal"] - a["scheduled"] + max(
+                w["clock_width"], *(b["width"] for b in probes)
+            )
             finite(delay, "k4-latency", zero=True)
             values.append(delay)
             succeeded += 1
@@ -610,7 +619,17 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
     leases = docs["leases"]["rows"]
     reacquire = partition_reacquisition(t, leases, m["intervention"])
     stalls = assignment_stalls(docs["kafka"]["rows"], arrivals, t, m["reconciliation_end"])
-    need(not any(s["censored"] for s in stalls), "k4-assignment-disposition-censored")
+    # Setup generations may end before the first registered arrival. Retain
+    # their censoring, but gate the intervention's membership changes only.
+    intervention_changes = {
+        r["change"]
+        for r in docs["kafka"]["rows"]
+        if r["event"] in {"revoke", "rebalance_start"} and r["at"] >= m["intervention"]
+    }
+    need(
+        not any(s["censored"] and s["change"] in intervention_changes for s in stalls),
+        "k4-assignment-disposition-censored",
+    )
     http = defaultdict(lambda: dict(errors=0, retries=0, requests=0))
     requests = {}
     for r in t["http"]:

@@ -21,7 +21,12 @@ from dur053_k4_schema import SESSION
 
 
 def utc(value):
-    return datetime.fromisoformat(value.replace("Z", "+00:00")).timestamp()
+    # datetime truncates RFC3339Nano to microseconds. Preserve the residual
+    # before converting to epoch seconds (whose float precision is coarser).
+    parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    fraction = re.search(r"\.(\d+)", value)
+    residual = int((fraction[1] + "000000000")[:9]) % 1000 if fraction else 0
+    return parsed.timestamp() + residual / 1e9
 
 
 def parse_ctr_line(text):

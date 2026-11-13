@@ -9,6 +9,7 @@ import io
 import json
 import sys
 import tarfile
+import threading
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
@@ -706,6 +707,27 @@ def test_observer_connection_breach_fails_closed(tmp_path):
     d.base.sql.return_value = json.dumps(dict(clock=10, connections=[dict(count=93)]))
     with pytest.raises(ValueError, match="observed-connection-budget"):
         d.snapshot("db", light=True)
+
+
+def test_observer_uses_snapshot_clock_inside_roundtrip(tmp_path, monkeypatch):
+    d = driver.K4Driver.__new__(driver.K4Driver)
+    d.base = Mock()
+    d.episode_output = tmp_path
+    d.base.sql.return_value = json.dumps(dict(clock=13, connections=[dict(count=2)]))
+    d.base.k.return_value = SimpleNamespace(stdout='{"items":[]}')
+    d.observer_stop = threading.Event()
+    # The terminal statement/commit at 12 lands after host start=10 and
+    # inside the SQL bracket [11,14], before the returned DB clock=13.
+    monkeypatch.setattr(driver.time, "time", Mock(side_effect=[9, 10, 11, 14, 15]))
+    monkeypatch.setattr(d.observer_stop, "wait", lambda _: d.observer_stop.set())
+    d.start_samples("ns", "db")
+    d.sampler.join(timeout=5)
+    assert not d.sampler.is_alive()
+    row = d.samples[0]
+    assert not row["error"]
+    assert row["at"] == 13 and row["at"] - 12 == 1, "host start used as observation"
+    assert row["data"]["bracket"] == dict(start=11, end=14, width=3)
+    assert json.loads((tmp_path / "observer-raw.jsonl").read_bytes())["at"] == 13
 
 
 def test_claim_without_invocation_is_retained_without_inventing_execution():

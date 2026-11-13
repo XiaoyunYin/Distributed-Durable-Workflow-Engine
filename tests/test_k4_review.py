@@ -280,6 +280,66 @@ def test_schedule_requires_window_coverage_and_stop(tmp_path, freeze, checker):
     assert not evidence.schedule_stopped(tmp_path, m)
 
 
+def test_schedule_uses_wire_start_precision(tmp_path, freeze, checker):
+    m, docs = episode_fixture(tmp_path, freeze)
+    # The host retains a sub-microsecond fraction which stamp() cannot send.
+    m["warmup_start"] = 0.0000001
+    rows = journal_fixture(tmp_path, m, docs)
+    assert rows[0]["plan"]["rows"][0]["scheduled_at"] == driver.stamp(0)
+    assert "k4-arrival-schedule" not in evidence.episode(tmp_path, freeze, checker)["issues"], (
+        "wire start lost the first arrival"
+    )
+    # Real fifth-artifact RFC3339Nano value; retain its sub-microsecond digits.
+    assert collectors.utc("2026-11-13T15:33:10.399884391Z") == 1794583990 + 0.399884391, (
+        "nanosecond fraction truncated"
+    )
+
+
+def test_latency_probes_enclose_interval(tmp_path, freeze, checker):
+    m, _ = episode_fixture(tmp_path, freeze)
+    value = evidence.episode(tmp_path, freeze, checker)
+    assert value["valid"], value["issues"]
+    assert value["latency"]["missing"] == 0, "terminal required inside query round trip"
+    m["clock_brackets"] = m["clock_brackets"][:1]
+    write(tmp_path / "episode.json", m)
+    assert "k4-latency-evidence-missing" in evidence.episode(tmp_path, freeze, checker)["issues"]
+
+
+def test_assignment_setup_censor_is_retained(tmp_path, freeze, checker):
+    import hashlib
+
+    m, docs = episode_fixture(tmp_path, freeze)
+    row = dict(
+        change="startup",
+        at=1,
+        consumer="one",
+        session="s",
+        generation=1,
+        partitions=[],
+        survivors=["one"],
+        trigger_uid="uid",
+        arrival="",
+        disposition_order=None,
+        event="revoke",
+    )
+    docs["kafka"]["rows"] = [row, dict(row, event="stable", at=2)]
+
+    def derive():
+        write(tmp_path / "kafka.json", docs["kafka"])
+        m["files"]["kafka"] = hashlib.sha256((tmp_path / "kafka.json").read_bytes()).hexdigest()
+        write(tmp_path / "episode.json", m)
+        return evidence.episode(tmp_path, freeze, checker)
+
+    value = derive()
+    assert value["valid"], value["issues"]
+    assert value["assignment_stalls"][0]["censored"], "startup censoring hidden"
+    row["at"] = m["intervention"]
+    docs["kafka"]["rows"][1]["at"] = m["intervention"] + 1
+    assert "k4-assignment-disposition-censored" in derive()["issues"], (
+        "intervention censoring accepted"
+    )
+
+
 def test_hold_evidence_requires_release_and_reports_expiry():
     state = dict(
         host_start=1, host_end=2, observer=1.5, path="/hold", existed=False, exists=True, mtime=1.5

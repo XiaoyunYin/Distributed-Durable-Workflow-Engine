@@ -123,7 +123,10 @@ def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment"):
         witness_available=True,
         quiet_since=301,
         images=dict(runtime="runtime@sha256:" + "a" * 64, worker="worker@sha256:" + "b" * 64),
-        clock_brackets=[dict(start=0, end=400, width=0.001)],
+        clock_brackets=[
+            dict(start=0, end=0, width=0),
+            dict(start=399, end=399.001, width=0.001),
+        ],
     )
     if m["arm"] == "baseline":
         m["baseline_flags"] = ["RUNTIME_SHUTDOWN_MODE=legacy", "WORKER_DRAIN_MODE=legacy"]

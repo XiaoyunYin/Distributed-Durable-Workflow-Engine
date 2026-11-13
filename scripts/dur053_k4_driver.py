@@ -666,7 +666,9 @@ class K4Driver:
                             self.base.k("-n", ns, "get", "pods", "-o", "json", record=False).stdout
                         )["items"]
                         row = dict(
-                            at=start,
+                            # DB statement/history times and this snapshot clock
+                            # share a domain. The host bracket stays in data.
+                            at=data["clock"],
                             gap=max(0, start - last),
                             width=time.time() - start,
                             data=data,
@@ -1010,7 +1012,7 @@ class K4Driver:
                 if h["identity"]["workflow"] == w["workflow_id"] and h["kind"] == "terminal"
             ]
             observations = [
-                r["at"]
+                r["data"]["clock"]
                 for r in self.samples
                 if r["data"]
                 and any(
@@ -1234,17 +1236,18 @@ class K4Driver:
             return workers[matches[0]["session"]]["pod_uid"]
 
         for raw_sample in self.samples:
+            sample_at = raw_sample["data"]["clock"] if raw_sample["data"] else raw_sample["at"]
             pods = [
                 p
                 for p in raw_sample["pods"]
                 if p["metadata"].get("labels", {}).get("app") == "worker"
             ]
             active = [
-                v for v in invocations if v["start"] <= raw_sample["at"] < (v["finish"] or end)
+                v for v in invocations if v["start"] <= sample_at < (v["finish"] or end)
             ]
             observer.append(
                 dict(
-                    at=raw_sample["at"],
+                    at=sample_at,
                     source="host-bracketed-db-and-pod",
                     width=raw_sample["width"],
                     gap=raw_sample["gap"],

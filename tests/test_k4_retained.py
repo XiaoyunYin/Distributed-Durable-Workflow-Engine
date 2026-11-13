@@ -67,6 +67,15 @@ def test_retained_assembly(tmp_path, retained):
     d.episode_output = tmp_path
     d.snapshot = lambda _: retained["snapshot"]
     d.samples = retained["samples"]
+    # A terminal commit falls inside the last sample's host round trip.
+    terminal_times = [
+        collectors.utc(h["created_at"])
+        for h in retained["snapshot"]["history"]
+        if h["new_state"] == "SUCCEEDED"
+    ]
+    last = d.samples[-1]
+    last["at"] = min(terminal_times) - 0.04
+    last["data"]["clock"] = max(terminal_times) + 0.04
     d.witness_raw = lambda _: {
         name: base64.b64encode(text.encode()).decode() for name, text in retained["files"].items()
     }
@@ -92,6 +101,9 @@ def test_retained_assembly(tmp_path, retained):
     )
     timeline = json.loads((tmp_path / "timeline.json").read_bytes())
     assert len(timeline["workflows"]) == 4
+    errors = [w["first_observed"] - w["terminal"] for w in timeline["workflows"]]
+    assert min(errors) > 0, "polling observation preceded terminal commit"
+    assert all(w["first_observed"] == last["data"]["clock"] for w in timeline["workflows"])
     assert len(timeline["claims"]) == len(retained["snapshot"]["attempts"])
     assert timeline["receipts"] and timeline["invocations"]
     assert any(
@@ -101,6 +113,7 @@ def test_retained_assembly(tmp_path, retained):
     assert len(json.loads((tmp_path / "confirmation.json").read_bytes())["targets"]) == 2
     assert all((tmp_path / name).exists() for name in driver.FILES.values())
     observers = json.loads((tmp_path / "observers.json").read_bytes())["rows"]
+    assert [r["at"] for r in observers] == [s["data"]["clock"] for s in d.samples]
     assert len(observers[0]["active_claims"]) == 4, "authenticated worker claims lost"
     workers = {s["session"]: s["pod_uid"] for s in timeline["sessions"] if s["role"] == "worker"}
     for claim in observers[0]["active_claims"]:

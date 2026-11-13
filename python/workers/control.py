@@ -56,7 +56,7 @@ class ControlClient:
         trace.status = 0
         token = CURRENT.set(trace)
         error_code = ""
-        claim_fields = (
+        claim_fields: dict[str, Any] = (
             {k: body[k] for k in ("request_id", "worker_id") if k in body}
             if path.rsplit("/", 1)[-1] == "claim"
             else {}
