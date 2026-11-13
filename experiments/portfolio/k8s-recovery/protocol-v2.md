@@ -1503,3 +1503,68 @@ performance measurement by this implementation.
    Existing history, tooling and green main push ci_proof gates bind both
    harness replays to the combined B.6.2/B.6.3 tooling. No dispatch is
    authorized by a local schedule estimate or provisional review.
+
+
+## Amendment B.7 (Round 223 registration)
+
+Registered by Claude under D035 before any K4 measurement.
+
+
+1. **Node drain/PDB cell (an amendment).**
+   - The host stays one kind node, so the K3 calibration (b, r, L) still applies to every K4 cell. A real `kubectl drain` cannot complete there: cordon blocks the replacements, and singleton PDBs (`minAvailable: 1`) block their eviction forever.
+   - The registered event "node drain/PDB eviction" is therefore executed as a **PDB-governed eviction drill without cordon**. At the intervention, the driver submits Eviction API requests at the same instant for every engine pod of each role with more than one replica. It retries each denied request (HTTP 429) at a bounded interval until that pod is evicted and its replacement is Ready.
+   - For every engine role whose PDB allows 0 disruptions, the driver sends exactly one eviction request and records the denial. It never forces, deletes or bypasses the request. Harness pods (observer, load generator, collectors) are never targeted.
+   - "Eventual drain" means every targeted replicated pod has been evicted and replaced. The confirmation record keeps:
+     - every eviction request and response;
+     - PDB `disruptionsAllowed` before and after each request;
+     - the denial events;
+     - the affected UIDs, the SIGTERM-to-exit time and the readiness of each replacement.
+   - Disclosure: this tests the PDB-gated voluntary-eviction path that a drain uses, on a single node. It is not node maintenance or node failure, and there is no rescheduling to another node.
+   - No PDB is lowered or bypassed, and the cell, pair count, arms, rate and windows are unchanged.
+2. **API target (a clarification).** "API rollout" and "API SIGKILL" target `Deployment/api` (the public submission API) only. Worker-control errors and retries are still measured in every episode, including when they are zero.
+3. **Rollout and rollback (a clarification).**
+   - Each K4 job builds two runtime/worker image digests, A and A'. They come from the same source commit and the same build, and differ only by an OCI label (`dur053.k4.lineage=a|a-prime`). The record keeps both digests and their binary-identity proof.
+   - Rollout = change the Deployment image A -> A' using the Deployment's registered strategy, and confirm completion through observed rollout status. A fixed sleep never counts as completion.
+   - Rollback episodes first complete A -> A' during setup, before warmup. The intervention is then `rollout undo` to the recorded A revision.
+   - An annotation-only restart is not a rollout or a rollback.
+   - Disclosure: this is not a cross-version upgrade. Cross-version compatibility stays the K2 upgrade-compatibility gate's scope.
+4. **SIGKILL (a clarification).**
+   - Use the registered backend, Chaos Mesh 2.7.2 `container-kill`, against the exact target container. Install it from the pinned lock at job setup in every K4 job, identically for both arms.
+   - Confirmation requires:
+     - the chaos object's injection status;
+     - container ID and restart-count change, or deletion of the target pod UID;
+     - `lastState.terminated` exit 137 / signal 9 where the runtime reports it;
+     - observed process death;
+     - independent replacement progress.
+   - Never kill the kind node container.
+   - If Chaos Mesh cannot be validated on kind with containerd in engineering CI, stop and report. Do not substitute a backend without a Claude ruling.
+   - Disclose that the Chaos Mesh daemons are present in K4 but were absent during K3 calibration.
+5. **Campaign instrumentation (a clarification and disclosure).** Campaign instrumentation is permitted when all of the following hold:
+   - it is identical in both lifecycle arms and mutation-tested;
+   - it changes no lifecycle, claim, lease or fencing decision or predicate;
+   - lease release/acquire ordering is kept as additive, append-only audit rows written in the same transaction as the existing statements;
+   - worker witness persistence in K4 campaign mode fails closed: a start that cannot be persisted aborts before workload logic;
+   - Kafka assignment callbacks are traced in both worker paths without changing poll/execution behaviour;
+   - published evidence uses claim-token hashes.
+
+   The resulting image differs from the K3 calibration image. This is disclosed the same way as B.5: frozen b, r and L are unchanged, and the K4 images are recorded per job.
+6. **Measurement and reporting (clarifications).**
+   - Long-arm latency p99 and paired p99 differences are NOT ESTIMATED (n < 200), and episodes are never pooled.
+   - Short whole-episode populations report p99 only where n >= 200 per population.
+   - "No-fault" latency is reported only for explicitly delimited post-completion portions of W, labelled "post-intervention, no active fault". Otherwise it is unavailable.
+   - K4 records every submission outcome (rejected or uncertain). An adverse outcome is a result, not a harness failure.
+   - K3's all-accepted pilot rule is unchanged.
+7. **Order, seeds and admission (clarifications).**
+   - One frozen K4 registry maps each event name to its unit index, with a global pair ordinal i and seed `530001+i`. Pair 0 runs baseline then treatment, and later pairs alternate. Amendment B's "treatment removed before baseline" means teardown before the next arm.
+   - Matched pairs never split across jobs.
+   - The five expected groups stay the published plan, named `k4-1` .. `k4-5`.
+   - Admission is per whole pair (or per coverage episode), using the actual elapsed time plus both episodes' full bounds.
+   - An unstarted suffix carries over unchanged to `k4-<n>-c<m>`, whose predecessor must be committed (history gate).
+   - The remaining expected schedule is recomputed from verified episode identities and actual ledger charges.
+   - K3's B.6.2/B.6.3 replay exceptions do not carry over. Only the general rule applies: one linked infrastructure replacement after a recorded classification and budget check. Fault-induced failures are valid outcomes.
+8. **K7 gate (a clarification).**
+   - Busy/idle eligibility is decided by pod UID at deletion start, using the durable claims at that instant.
+   - The excess uses conservative interval bounds.
+   - Ambiguous busy-removal or ambiguous positive-excess evidence cannot produce GO.
+   - No deletion-cost annotation steers victim selection.
+   - The table is frozen at K4 closeout.

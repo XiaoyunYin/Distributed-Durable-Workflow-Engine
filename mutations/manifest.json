@@ -9973,6 +9973,1266 @@
       ],
       "expected": "DID NOT RAISE",
       "requires_database": false
+    },
+    {
+      "id": "k4a-event-map",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "\"worker rollout\",",
+      "new": "\"worker restart\",",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_registry_and_frozen_bounds"
+      ],
+      "expected": "K4 event mapping changed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-order",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "if ordinal % 2 == 0 else",
+      "new": "if ordinal % 2 == 1 else",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_registry_and_frozen_bounds"
+      ],
+      "expected": "K4 order changed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-seed",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "seed=530001 + ordinal,\n                            arm=arm,",
+      "new": "seed=530002 + ordinal,\n                            arm=arm,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_registry_and_frozen_bounds"
+      ],
+      "expected": "K4 seed changed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-rounded-rate",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "rate=0.5 * a[\"r\"],",
+      "new": "rate=round(0.5 * a[\"r\"], 6),",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_registry_and_frozen_bounds"
+      ],
+      "expected": "K4 short bounds changed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-confirmation-bound",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "confirmation=2 * a[\"L\"],",
+      "new": "confirmation=a[\"L\"],",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_registry_and_frozen_bounds"
+      ],
+      "expected": "K4 short bounds changed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-reconciliation-bound",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "T=shared[\"reconciliation_timeout_seconds\"][duration],",
+      "new": "T=min(600, shared[\"reconciliation_timeout_seconds\"][duration]),",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_registry_and_frozen_bounds"
+      ],
+      "expected": "K4 long bounds shortened",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-warmup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "WARMUP = 120",
+      "new": "WARMUP = 0",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_registry_and_frozen_bounds"
+      ],
+      "expected": "K4 short bounds changed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-window",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "- ARMS[duration] - QUIET - RESET,",
+      "new": "- ARMS[duration] - QUIET - RESET - 1,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_registry_and_frozen_bounds"
+      ],
+      "expected": "K4 short bounds changed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-frozen-rate-guard",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "if arm in REGISTERED:",
+      "new": "if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_committed_freeze_changed"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-pair-admission",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "rows[unit][\"full_window_reservation_seconds\"]",
+      "new": "rows[unit][\"full_window_reservation_seconds\"] / 2",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_admission_and_progress"
+      ],
+      "expected": "whole pair or reserves omitted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-actual-overhead",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "require(elapsed + needed <= reservation, \"k4-whole-pair-fit\")",
+      "new": "require(needed <= reservation, \"k4-whole-pair-fit\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_admission_and_progress"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-actual-ledger",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "require(elapsed + needed <= ledger_remaining, \"k4-ledger-fit\")",
+      "new": "require(needed <= ledger_remaining, \"k4-ledger-fit\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_admission_and_progress"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-progress-double-count",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "if not ids <= done:",
+      "new": "if True:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_admission_and_progress"
+      ],
+      "expected": "K4 progress counted twice",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-progress-ledger",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "len(ledger_episodes) == len(set(ledger_episodes)) and set(verified) == set(ledger_episodes),",
+      "new": "True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_admission_and_progress"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-continuation-suffix",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "return list(prior[\"pending\"])",
+      "new": "return [],",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_continuation"
+      ],
+      "expected": "continuation suffix changed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-tails-199",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "if len(values) >= 200 and not long else",
+      "new": "if len(values) >= 199 and not long else",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_tails"
+      ],
+      "expected": "p99 emitted below n=200 or wrong rank",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-long-pooled-tail",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "if len(values) >= 200 and not long else",
+      "new": "if len(values) >= 200 else",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_tails"
+      ],
+      "expected": "long p99 estimated",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-population-missing",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "n=len(values),\n        missing=missing,",
+      "new": "n=len(values),\n        missing=0,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_tails"
+      ],
+      "expected": "population strata lost",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-gate-zero-excess",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "median = statistics.median(excess) if excess else None",
+      "new": "median = statistics.median([x for x in excess if x > 0]) if any(x > 0 for x in excess) else None",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_gate"
+      ],
+      "expected": "zero/negative excess dropped",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-gate-busy-count",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "and eligible >= 2",
+      "new": "and eligible >= 1",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_gate"
+      ],
+      "expected": "GO with one eligible removal",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-gate-idle",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "r[\"busy_removed\"] and r[\"idle_survivor\"] and not r[\"ambiguous\"]",
+      "new": "r[\"busy_removed\"] and not r[\"ambiguous\"]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_gate"
+      ],
+      "expected": "GO without idle survivor",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-gate-ambiguity",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "and not any(r[\"ambiguous\"] for r in rows)",
+      "new": "and True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_gate"
+      ],
+      "expected": "ambiguous evidence produced GO",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-gate-complete",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "and complete_pairs\n",
+      "new": "and True\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_gate"
+      ],
+      "expected": "incomplete cell produced GO",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-closed-fields",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_schema.py",
+      "old": "check(type(value) is dict and value.keys() == spec.keys())",
+      "new": "check(type(value) is dict and spec.keys() <= value.keys())",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_closed_schemas"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-engineering-contribution",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "m[\"budget_scope\"] == \"registered-campaign\" and m[\"measurement_claim\"],",
+      "new": "True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_intake_guards[engineering-k4-engineering-not-contribution]"
+      ],
+      "expected": "k4-engineering-not-contribution accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-interrupted-refund",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "and m[\"charged_seconds\"] == expected_charge,",
+      "new": "and True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_intake_guards[refund-k4-intake-charge]"
+      ],
+      "expected": "k4-intake-charge accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-raw-hash",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "require(m[\"artifact_sha256\"] == artifact_hashes(source), \"k4-intake-artifact-hashes\")",
+      "new": "require(True, \"k4-intake-artifact-hashes\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_intake_guards[hash-k4-intake-artifact-hashes]"
+      ],
+      "expected": "k4-intake-artifact-hashes accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-cell-assignment",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "require(m[\"assigned\"] == assigned, \"k4-intake-assignment\")",
+      "new": "require(True, \"k4-intake-assignment\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_intake_guards[assignment-k4-intake-assignment]"
+      ],
+      "expected": "k4-intake-assignment accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-tree-provenance",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "and commit[\"commit\"][\"tree\"][\"sha\"] == m[\"tree_sha\"]",
+      "new": "and True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_intake_guards[provenance-k4-intake-actions]"
+      ],
+      "expected": "k4-intake-actions accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-ledger-orphan",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "len(rows) == len(paths) and {r[\"artifact\"] for r in rows} == paths,",
+      "new": "True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_bidirectional_inventory"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-missing-metric",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "computed == json.loads((source / name / \"metrics.json\").read_bytes()),",
+      "new": "True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_completed_archive_rederivation"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-assignment-without-sentinel",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "censored=useful is None,",
+      "new": "censored=False,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_assignment_requires_delivery"
+      ],
+      "expected": "callback-only stall accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-dead-session",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "missing(\"lifecycle dead session inventory missing\")",
+      "new": "// mutation: ignore missing dead session",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleFixtures$/missing_dead_session$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "missing dead session accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-forged-witness",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "missing(\"lifecycle witness hash mismatch\")",
+      "new": "// mutation: ignore forged inventory",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleFixtures$/forged_inventory$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "forged inventory accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-missing-start",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "if acknowledged[id] || !starts[id] {",
+      "new": "if acknowledged[id] {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleFixtures$/missing_acknowledged_start$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "missing acknowledged start accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-claim-as-execution",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "r.ClaimedUnexecuted++",
+      "new": "r.DuplicateExecutions++",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleFixtures$/claim_without_execution$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "claim without start counted as execution",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-unknown-as-zero",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "missing(\"lifecycle unfinished invocation lacks exact-session death or abort\")",
+      "new": "interval.Upper = new(float64)",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleFixtures$/unknown_interval$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "unknown interval accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-configured-busy-time",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "interval.Lower = last - v.Start",
+      "new": "interval.Lower = 45",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleFixtures$/confirmed_kill_mid-activity$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "kill interval bounds incorrect",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-stale-committed",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "if r.StaleCommitted != 0 {",
+      "new": "if false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleFixtures$/stale_committed$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "stale committed receipt accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-cross-workflow-fence",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "if r.SupersededTransitions != 0 {",
+      "new": "if false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleFixtures$/cross-workflow_supersession$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "cross-workflow superseded transition accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-rejected-as-committed",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "r.StaleRejected++",
+      "new": "r.StaleCommitted++",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleFixtures$/late_stale_rejection$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "typed stale rejection counted as committed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-evidence-as-committed",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "r.EvidenceOnly++",
+      "new": "r.StaleCommitted++",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleFixtures$/evidence_only$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "evidence-only counted as committed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-wrong-container",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "and s.get(\"container_id\") == target[\"container_id\"],",
+      "new": "and True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_confirmation_identity"
+      ],
+      "expected": "wrong target container accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-replacement-progress",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "s2[\"pod_uid\"] == target[\"replacement_uid\"]",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_confirmation_identity"
+      ],
+      "expected": "missing replacement accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-stale-overlap",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "and o[\"at\"] <= c[\"intervention\"] <= o[\"end\"]",
+      "new": "and True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_confirmation_identity"
+      ],
+      "expected": "stale overlap accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-kill-acknowledgement",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "and c[\"injection_status\"] == \"injected\",",
+      "new": "and True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_kill_confirmation"
+      ],
+      "expected": "kill without injection acknowledgement accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-rollout-fixed-sleep",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "and c[\"rollout_status\"] == \"complete\"",
+      "new": "and True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_confirmation_and_quiet"
+      ],
+      "expected": "fixed sleep accepted as rollout",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-quiet-reset",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "and m[\"quiet_since\"] >= quiet",
+      "new": "and True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_confirmation_and_quiet"
+      ],
+      "expected": "quiet timer ignored late activity",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-explicit-mode",
+      "kind": "behavioral",
+      "file": "cmd/dur049-checker/main.go",
+      "old": "if *lifecyclePath != \"\" || *leaseAuditPath != \"\" {",
+      "new": "if false {",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_lifecycle_cli_is_explicit"
+      ],
+      "expected": "lifecycle CLI accepted mixed/partial mode",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-release-before-exit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "        termination = min(\n            (v[\"at\"] for v in s[\"signals\"] if v[\"signal\"] == 15), default=intervention\n        )\n",
+      "new": "        termination = s[\"death\"]\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_partition_release_precedes_exit"
+      ],
+      "expected": "release before process exit disappeared",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-archive-identity",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload.py",
+      "old": "hashlib.sha256(data).hexdigest() == entry[\"sha256\"], \"pilot-payload-archive-hash\"",
+      "new": "True, \"pilot-payload-archive-hash\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_payload.py::test_archive_identity"
+      ],
+      "expected": "changed archive identity accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-index-identity",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload.py",
+      "old": "and rows[0].get(\"payload_index_sha256\") == hashlib.sha256(index_raw).hexdigest(),",
+      "new": "and True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_payload.py::test_committed_index_identity"
+      ],
+      "expected": "changed committed index accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-member-identity",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload.py",
+      "old": "require(seen == set(manifest[\"artifact_sha256\"]), \"pilot-payload-member-set\")\n        require(artifact_hashes(output) == manifest[\"artifact_sha256\"], \"pilot-artifact-hashes\")",
+      "new": "require(seen == set(manifest[\"artifact_sha256\"]), \"pilot-payload-member-set\")\n        require(True, \"pilot-artifact-hashes\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_payload.py::test_raw_member_identity"
+      ],
+      "expected": "changed raw member accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-missing-control-trace",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "len(claim_requests) >= len(t[\"claims\"]) and len(result_requests) >= len(t[\"receipts\"]),",
+      "new": "True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_missing_control_trace"
+      ],
+      "expected": "missing control trace reported zero errors",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-contributions",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "if d[\"classification\"] == \"valid\"]",
+      "new": "if True]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_replacement"
+      ],
+      "expected": "valid outcomes discarded",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-replacement-assignment",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "if d[\"classification\"] == \"infrastructure-invalid\"",
+      "new": "if True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_replacement"
+      ],
+      "expected": "replacement includes valid or unstarted episodes",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-second-replacement",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "and not any(r[\"replacement_for\"] == replacement_for for r in rows)",
+      "new": "and True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_replacement"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-replacement-chain",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "and not prior[\"replacement_for\"],",
+      "new": "and True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_replacement"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-bare-infrastructure",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "require(bool(d[\"reason\"]) and bool(d[\"evidence\"]), \"k4-infrastructure-evidence\")",
+      "new": "require(True, \"k4-infrastructure-evidence\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_bare_infrastructure_refused"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-engine-exclusion",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "not (\n            applied\n",
+      "new": "not (\n            False\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_engine_outcome_cannot_be_excluded"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-content-setup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "            ok = (\n                component == \"setup\"\n                and raw.get(\"status\") == \"failure\"\n                and incident[\"warmup_start\"] is not None\n                and incident[\"at\"] < incident[\"warmup_start\"]\n                and (ep is None or incident[\"warmup_start\"] == ep[\"warmup_start\"])\n                and not applied\n            )",
+      "new": "            ok = True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_content"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-content-oom",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "            ok = (\n                component in {\"collector\", \"driver\"}\n                and raw.get(\"metadata\", {}).get(\"labels\", {}).get(\"k4-component\") == component\n                and any(\n                    s.get(\"state\", {}).get(\"terminated\", {}).get(\"reason\") == \"OOMKilled\"\n                    for s in raw.get(\"status\", {}).get(\"containerStatuses\", [])\n                )\n            )",
+      "new": "            ok = True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_content"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-content-timeout",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "            ok = (\n                component in {\"collector\", \"driver\"}\n                and raw.get(\"component\") == component\n                and raw.get(\"exit_code\") == 124\n                and bool(raw.get(\"command\"))\n            )",
+      "new": "            ok = True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_content"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-content-collection",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "            ok = (\n                component == \"collector\"\n                and raw.get(\"component\") == \"collector\"\n                and (bool(errors) or bool(missing))\n                and type(errors) is list\n                and all(type(e) is str and e for e in errors)\n                and type(missing) is list\n                and all(\n                    type(p) is str\n                    and p.startswith(name + \"/\")\n                    and (source / p).resolve().is_relative_to(source.resolve())\n                    and not (source / p).exists()\n                    for p in missing\n                )\n            )",
+      "new": "            ok = True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_content"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-content-runner",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "            ok = (\n                component == \"runner\"\n                and str(raw.get(\"id\"))\n                == str(json.loads((source / \"actions-job.json\").read_bytes())[\"id\"])\n                and raw.get(\"conclusion\") in {\"cancelled\", \"timed_out\", \"failure\"}\n                and raw.get(\"runner_failure\") in {\"runner-lost\", \"runner-disconnected\"}\n            )",
+      "new": "            ok = True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_content"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-pair-flag",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "replaced=bool(b[\"replacement_for\"] or t[\"replacement_for\"]),",
+      "new": "replaced=False,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_episode_replacement_roundtrip"
+      ],
+      "expected": "replaced pair not flagged",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-lost-classification",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "classification=\"infrastructure-invalid\",",
+      "new": "classification=\"unexercised\",",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_interrupted_lost_episodes_are_invalid"
+      ],
+      "expected": "k4-classification-content",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-replacement-reservation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "fraction = 1 / rows[unit][\"episodes\"]",
+      "new": "fraction = 1",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_replacement"
+      ],
+      "expected": "replacement reserves a whole pair",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-lease-release",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "} else if release != nil && (matching == nil || release.Order > matching.Order) {",
+      "new": "} else if release != nil && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleLeaseOwnership$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "lease ownership check bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-lease-acquisition-match",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "if matching == nil || (newest != nil && h.Epoch > newest.Epoch) {\n\t\t\tmissing(\"lifecycle owner acquisition missing\")",
+      "new": "if newest == nil || (newest != nil && h.Epoch > newest.Epoch) {\n\t\t\tmissing(\"lifecycle owner acquisition missing\")",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleLeaseOwnership$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "lease ownership check bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-lease-reacquisition",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "release.Order > matching.Order",
+      "new": "release.Order < h.Order",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleLeaseOwnership$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "lease ownership check bypassed",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-replacement-seed",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "and ep[\"seed\"] == cell[\"seed\"]",
+      "new": "and True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_replacement_identity_binding"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-replacement-arm",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "and ep[\"arm\"] == cell[\"arm\"]",
+      "new": "and True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_replacement_identity_binding"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-replacement-link",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "and ep[\"replacement_for\"] == (cell[\"episode\"] if m[\"replacement_for\"] else \"\"),",
+      "new": "and True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_replacement_identity_binding"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-progress-omission",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "{p.parent.name for p in source.glob(\"*/episode.json\")} <= set(ids),",
+      "new": "True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_interrupted_lost_episodes_are_invalid"
+      ],
+      "expected": "DID NOT RAISE ValueError",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-lease-future-epoch",
+      "kind": "behavioral",
+      "file": "internal/invariants/lifecycle.go",
+      "old": "matching == nil || (newest != nil && h.Epoch > newest.Epoch)",
+      "new": "matching == nil",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants",
+        "-run",
+        "^TestLifecycleLeaseOwnership$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "epoch above newest acquisition accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4a-episode-failed-carry-over",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "prior[\"status\"] in {\"CARRY_OVER\", \"interrupted\", \"FAIL\", \"invalid\", \"unexercised\"}",
+      "new": "prior[\"status\"] in {\"CARRY_OVER\", \"interrupted\"}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_offline.py::test_infrastructure_replacement"
+      ],
+      "expected": "k4-continuation-suffix",
+      "requires_database": false
     }
   ]
 }
