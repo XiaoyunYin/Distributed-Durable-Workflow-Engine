@@ -524,7 +524,7 @@ func waitForQueryLockState(ctx context.Context, s *Store, pid int32) error {
 	defer ticker.Stop()
 	for {
 		var waiting bool
-		err := s.pool.QueryRow(ctx, `SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid=$1`, pid).Scan(&waiting)
+		err := s.pool.QueryRow(ctx, `SELECT wait_event_type IS NOT DISTINCT FROM 'Lock' FROM pg_stat_activity WHERE pid=$1`, pid).Scan(&waiting)
 		if err != nil {
 			return err
 		}
@@ -549,7 +549,7 @@ func waitForInsertOrLock(ctx context.Context, s *Store, pid int32, result <-chan
 		default:
 		}
 		var waiting bool
-		if err := s.pool.QueryRow(ctx, `SELECT wait_event_type = 'Lock' FROM pg_stat_activity WHERE pid=$1`, pid).Scan(&waiting); err != nil {
+		if err := s.pool.QueryRow(ctx, `SELECT wait_event_type IS NOT DISTINCT FROM 'Lock' FROM pg_stat_activity WHERE pid=$1`, pid).Scan(&waiting); err != nil {
 			return false, err
 		}
 		if waiting {
