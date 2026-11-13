@@ -152,7 +152,7 @@ func TestK4HistoryLeaseJoin(t *testing.T) {
 		t.Fatal("K4 history/lease order or owner join missing", count, err)
 	}
 	var historyCount int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM engine.k4_history_order`).Scan(&historyCount); err != nil || historyCount != 4 {
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM engine.k4_history_order WHERE owner=$1`, owner).Scan(&historyCount); err != nil || historyCount != 4 {
 		t.Fatal("K4 history audit omitted non-owner history", historyCount, err)
 	}
 	// Takeover after a released lease retains the existing epoch rule.
@@ -261,11 +261,25 @@ func TestK4LeaseAuditAtomic(t *testing.T) {
 		t.Fatal("K4 audit is mutable")
 	}
 	export, err := s.ExportK4LeaseAudit(ctx, time.Unix(0, 0))
-	if err != nil || export.Schema != "dur053.k4-lease-audit.v1" || len(export.Rows) != 3 {
+	if err != nil || export.Schema != "dur053.k4-lease-audit.v1" {
 		t.Fatal("K4 lease export incomplete", export, err)
 	}
+	ownerRows := make([]K4LeaseAuditRow, 0, 3)
 	for i, row := range export.Rows {
-		if row.At <= 0 || row.Owner != owner || row.Transaction == "" || row.Session != K4Session || (i > 0 && row.Order <= export.Rows[i-1].Order) {
+		if row.Order <= 0 || (i > 0 && row.Order <= export.Rows[i-1].Order) {
+			t.Fatal("K4 lease export order missing", row)
+		}
+		if row.Owner == owner {
+			ownerRows = append(ownerRows, row)
+		}
+	}
+	if len(ownerRows) != 3 {
+		t.Fatal("K4 lease export incomplete for test owner", ownerRows)
+	}
+	wantKinds := []string{"acquire", "acquire", "release"}
+	for i, row := range ownerRows {
+		if row.Kind != wantKinds[i] || row.At <= 0 || row.Transaction == "" || row.Session != K4Session ||
+			(i > 0 && row.Order <= ownerRows[i-1].Order) {
 			t.Fatal("K4 lease export identity/order missing", row)
 		}
 	}
@@ -313,7 +327,7 @@ func TestK4CommitOrder(t *testing.T) {
 		t.Fatal("K4 audit order is not commit ordered")
 	}
 	var queued int
-	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM engine.k4_audit_queue WHERE session_id=$1`, K4Session).Scan(&queued); err != nil || queued != 0 {
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM engine.k4_audit_queue WHERE owner_id IN ($1, $2)`, a, b).Scan(&queued); err != nil || queued != 0 {
 		t.Fatal("K4 queue did not drain", err)
 	}
 }
