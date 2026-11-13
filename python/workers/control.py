@@ -56,6 +56,11 @@ class ControlClient:
         trace.status = 0
         token = CURRENT.set(trace)
         error_code = ""
+        claim_fields = (
+            {k: body[k] for k in ("request_id", "worker_id") if k in body}
+            if path.rsplit("/", 1)[-1] == "claim"
+            else {}
+        )
         try:
             witness.trace(
                 "http_start",
@@ -67,6 +72,7 @@ class ControlClient:
                     "operation": path.rsplit("/", 1)[-1],
                     "status": 0,
                     "error": "pending",
+                    **claim_fields,
                 },
             )
             return self._post_once(path, body)
@@ -88,6 +94,7 @@ class ControlClient:
                     "operation": path.rsplit("/", 1)[-1],
                     "status": trace.status,
                     "error": error_code,
+                    **claim_fields,
                 },
             )
 

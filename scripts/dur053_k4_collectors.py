@@ -596,15 +596,6 @@ def durable_claims(attempts, traces, namespace, audit):
     for row in attempts:
         if not row["worker_id"]:
             continue
-        hashes = set()
-        for expected in (0, row["attempt_number"]):
-            body = dict(
-                worker_id=row["worker_id"],
-                request_id=row["worker_request_id"],
-                attempt_lease_ms=60000,
-                expected_attempt=expected,
-            )
-            hashes.add(hashlib.sha256(json.dumps(body, separators=(",", ":")).encode()).hexdigest())
         audits = [
             r
             for r in audit
@@ -631,12 +622,30 @@ def durable_claims(attempts, traces, namespace, audit):
             for r in traces
             if r["event"] in {"http_start", "http"}
             and r.get("operation") == "claim"
-            and r.get("body_hash") in hashes
+            and r.get("request_id") == row["worker_request_id"]
         ]
         require(
             bool(acks) and len({r["session"] for r in acks}) == 1,
             "k4-claim-session-evidence-missing",
         )
+        for ack in acks:
+            hashes = set()
+            for expected in (0, row["attempt_number"]):
+                body = dict(
+                    worker_id=ack.get("worker_id"),
+                    request_id=ack["request_id"],
+                    attempt_lease_ms=60000,
+                    expected_attempt=expected,
+                )
+                hashes.add(
+                    hashlib.sha256(json.dumps(body, separators=(",", ":")).encode()).hexdigest()
+                )
+            require(
+                isinstance(ack.get("worker_id"), str)
+                and bool(ack["worker_id"])
+                and ack.get("body_hash") in hashes,
+                "k4-claim-body-hash-mismatch",
+            )
         first = min(acks, key=lambda r: r["at"])
         ident = dict(
             namespace=namespace,

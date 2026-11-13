@@ -224,6 +224,28 @@ def test_k4_retry_trace_identity_body_status(
     assert traces(campaign)[-1]["error"] == "STALE_CLAIM"
 
 
+def test_k4_claim_trace_body_fields(campaign, monkeypatch):
+    client = ControlClient("http://unused")
+    monkeypatch.setattr(client, "_post_once", lambda *_: {})
+    body = dict(
+        worker_id="body-worker",
+        request_id="body-request",
+        attempt_lease_ms=60000,
+        expected_attempt=1,
+    )
+    client._post("/v1/claim", body)
+    rows = [r for r in traces(campaign) if r["event"] in {"http_start", "http"}]
+    assert len(rows) == 2
+    assert all(
+        r["request_id"] == body["request_id"] and r["worker_id"] == body["worker_id"] for r in rows
+    )
+    assert all(
+        r["body_hash"]
+        == hashlib.sha256(json.dumps(body, separators=(",", ":")).encode()).hexdigest()
+        for r in rows
+    )
+
+
 @pytest.mark.parametrize("legacy", [True, False])
 def test_k4_callbacks_both_paths_and_disposition(
     campaign: CampaignWitness, monkeypatch: pytest.MonkeyPatch, legacy: bool

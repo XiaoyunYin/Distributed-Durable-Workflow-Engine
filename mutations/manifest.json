@@ -12785,6 +12785,78 @@
       ],
       "expected": "AssertionError",
       "requires_database": false
+    },
+    {
+      "id": "k4r246-claim-db-worker-join",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "and r.get(\"request_id\") == row[\"worker_request_id\"]",
+      "new": "and r.get(\"worker_id\") == row[\"worker_id\"]",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_retained.py::test_retained_claim_body_identity",
+        "-q"
+      ],
+      "expected": "k4-claim-session-evidence-missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4r246-claim-hash-mismatch",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "and ack.get(\"body_hash\") in hashes",
+      "new": "and True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_retained.py::test_retained_claim_body_identity",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r246-claim-trace-fields",
+      "kind": "behavioral",
+      "file": "python/workers/control.py",
+      "old": "\"error\": \"pending\",\n                    **claim_fields,",
+      "new": "\"error\": \"pending\",",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_instrumentation.py::test_k4_claim_trace_body_fields",
+        "-q"
+      ],
+      "expected": "KeyError",
+      "requires_database": false
+    },
+    {
+      "id": "k4r246-observer-claims",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "if a[\"state\"] == \"CLAIMED\" and a[\"worker_id\"]",
+      "new": "if a[\"state\"] == \"CLAIMED\" and not a[\"worker_id\"]",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_retained.py::test_retained_assembly",
+        "-q"
+      ],
+      "expected": "authenticated worker claims lost",
+      "requires_database": false
     }
   ]
 }

@@ -324,6 +324,8 @@ def test_response_less_claim_uses_commit_audit():
         session="worker-session",
         at=9,
         body_hash=hashlib.sha256(json.dumps(body, separators=(",", ":")).encode()).hexdigest(),
+        request_id=body["request_id"],
+        worker_id=body["worker_id"],
     )
     audit = dict(
         a,

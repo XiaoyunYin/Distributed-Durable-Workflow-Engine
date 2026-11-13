@@ -725,6 +725,8 @@ def test_claim_without_invocation_is_retained_without_inventing_execution():
             event="http",
             operation="claim",
             body_hash=digest,
+            request_id=body["request_id"],
+            worker_id=body["worker_id"],
             status=200,
             error="",
             session="s",

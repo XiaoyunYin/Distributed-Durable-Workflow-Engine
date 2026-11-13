@@ -864,6 +864,15 @@ class K4Driver:
         self.base.live_start = started
         return self.base.cleanup()
 
+    def arrival_journal(self, ns):
+        path = self.episode_output / "arrivals-journal.jsonl"
+        if not path.exists():
+            raw = self.base.python(
+                ns, "observer", 'print(open("/evidence/k4-arrivals.jsonl").read())', record=False
+            )
+            path.write_text(raw, encoding="utf-8", newline="\n")
+        return path.read_text(encoding="utf-8")
+
     def assemble(self, ns, db, cell, confirmation, targets, start, end, quiet, timeout, manifest):
         snapshot = self.snapshot(db)
         sessions = apply_process_evidence(
@@ -1081,12 +1090,7 @@ class K4Driver:
             }
             for r in snapshot["leases"]
         ]
-        raw = self.base.python(
-            ns, "observer", 'print(open("/evidence/k4-arrivals.jsonl").read())', record=False
-        )
-        (self.episode_output / "arrivals-journal.jsonl").write_text(
-            raw, encoding="utf-8", newline="\n"
-        )
+        raw = self.arrival_journal(ns)
         plan, updates, torn = journal_rows(raw)
         require(not torn, "k4-arrival-journal-torn")
         arrivals = []
@@ -1224,11 +1228,11 @@ class K4Driver:
                 ]
                 o["end"] = min([utc(d["timestamp"]) for d in exits] + [s["death"] or end])
         observer = []
-        known_workers = {
-            e["object"]["metadata"]["uid"]: e["object"]
-            for e in self.collector.pods
-            if e["object"]["metadata"].get("labels", {}).get("app") == "worker"
-        }
+        def claimed_pod(attempt):
+            matches = [c for c in timeline["claims"] if c["identity"] == identity(attempt)]
+            require(len(matches) == 1, "k4-observer-claim-session-missing")
+            return workers[matches[0]["session"]]["pod_uid"]
+
         for raw_sample in self.samples:
             pods = [
                 p
@@ -1249,11 +1253,9 @@ class K4Driver:
                     if raw_sample["data"]
                     else None,
                     active_claims=[
-                        dict(identity=identity(a), pod_uid=p["metadata"]["uid"])
+                        dict(identity=identity(a), pod_uid=claimed_pod(a))
                         for a in (raw_sample["data"]["attempts"] if raw_sample["data"] else [])
                         if a["state"] == "CLAIMED" and a["worker_id"]
-                        for p in known_workers.values()
-                        if a["worker_id"].rsplit("-", 1)[0] == p["metadata"]["name"]
                     ],
                     pods=[
                         dict(
@@ -1621,6 +1623,8 @@ print(json.dumps(rows))
             )
             self.stop_samples()
             m["status"] = "PASS" if overlap else "unexercised"
+            # Retain this input before assembly can fail and reset deletes the pod.
+            self.arrival_journal(ns)
             self.assemble(
                 ns, db, cell, confirmation, targets, start, time.time(), quiet, timeout, m
             )
