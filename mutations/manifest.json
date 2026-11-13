@@ -12952,7 +12952,7 @@
       "id": "k4r248-startup-censor",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_evidence.py",
-      "old": "s[\"censored\"] and s[\"change\"] in intervention_changes",
+      "old": "s[\"censored\"] and s[\"eligible_undisposed\"] and s[\"change\"] in intervention_changes",
       "new": "s[\"censored\"]",
       "command": [
         "uv",
@@ -13042,7 +13042,7 @@
       "id": "k4r250-safety-outcome",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_driver.py",
-      "old": "if not intervention_outcome(error):",
+      "old": "if adapter.intervention_issued is None or not intervention_outcome(error):",
       "new": "if False:",
       "command": [
         "uv",
@@ -13126,6 +13126,150 @@
         "-q"
       ],
       "expected": "k4-rollout-incomplete",
+      "requires_database": false
+    },
+    {
+      "id": "k4r252-outcome-unexercised",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "            if not issued:\n                m[\"status\"] = \"unexercised\"",
+      "new": "            if not issued or metrics[\"intervention_outcome\"]:\n                m[\"status\"] = \"unexercised\"",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_issued_outcome_classification",
+        "-q"
+      ],
+      "expected": "issued outcome relabelled unexercised",
+      "requires_database": false
+    },
+    {
+      "id": "k4r252-issue-before-command",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "            self.issue(self.pods(role))",
+      "new": "            pass",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_issue_marker_precedes_mutation",
+        "-q"
+      ],
+      "expected": "FileNotFoundError",
+      "requires_database": false
+    },
+    {
+      "id": "k4r252-sequential-retry",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "            futures = [pool.submit(retry_pod, pod, row) for pod, row in pending]",
+      "new": "            futures = []\n            for pod, row in pending:\n                future = pool.submit(retry_pod, pod, row)\n                future.result()\n                futures.append(future)",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_four_denied_roles_retry_concurrently",
+        "-q"
+      ],
+      "expected": "k4-eviction-retry-gap",
+      "requires_database": false
+    },
+    {
+      "id": "k4r252-incremental-save",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "                record[\"evictions\"].append(row)\n                save(self.output / \"confirmation.json\", record)",
+      "new": "                record[\"evictions\"].append(row)",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_eviction_rows_survive_later_guard",
+        "-q"
+      ],
+      "expected": "incremental eviction rows lost",
+      "requires_database": false
+    },
+    {
+      "id": "k4r252-unconditional-censor",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "s[\"censored\"] and s[\"eligible_undisposed\"] and s[\"change\"] in intervention_changes",
+      "new": "s[\"censored\"] and s[\"change\"] in intervention_changes",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_censored_assignment_requires_eligible_arrival",
+        "-q"
+      ],
+      "expected": "idle generation rejected or eligible arrival ignored",
+      "requires_database": false
+    },
+    {
+      "id": "k4r252-ignore-undisposed",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "s[\"censored\"] and s[\"eligible_undisposed\"] and s[\"change\"] in intervention_changes",
+      "new": "False",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_censored_assignment_requires_eligible_arrival",
+        "-q"
+      ],
+      "expected": "idle generation rejected or eligible arrival ignored",
+      "requires_database": false
+    },
+    {
+      "id": "k4r252-valid-fail-job",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "all(x[\"valid\"] and x[\"status\"] == \"PASS\" for x in metrics)",
+      "new": "all(x[\"valid\"] for x in metrics)",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_valid_failed_intervention_fails_job",
+        "-q"
+      ],
+      "expected": "valid FAIL hidden by job success",
+      "requires_database": false
+    },
+    {
+      "id": "k4r252-api-before-save",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "            # Serialize append + save; retain even the request that trips a later guard.",
+      "new": "            require(status in (201, 429), \"k4-eviction-api-failure\")\n            # Serialize append + save; retain even the request that trips a later guard.",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_eviction_api_failure_retains_completed_requests",
+        "-q"
+      ],
+      "expected": "completed eviction request lost",
       "requires_database": false
     }
   ]

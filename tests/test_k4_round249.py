@@ -137,6 +137,7 @@ def test_apply_safety_propagates_to_infrastructure(tmp_path, monkeypatch, retain
     d.sampler = Mock()
     d.collector = Mock()
     adapter = Mock()
+    adapter.intervention_issued = 110
     error = retained["treatment_error"]["error"].split("k4-log-stream-loss: ")[1]
     adapter.apply.side_effect = lambda *a: require(False, "k4-log-stream-loss: " + error)
     monkeypatch.setattr(driver, "Interventions", lambda *a: adapter)

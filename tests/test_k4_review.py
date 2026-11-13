@@ -335,8 +335,8 @@ def test_assignment_setup_censor_is_retained(tmp_path, freeze, checker):
     assert value["assignment_stalls"][0]["censored"], "startup censoring hidden"
     row["at"] = m["intervention"]
     docs["kafka"]["rows"][1]["at"] = m["intervention"] + 1
-    assert "k4-assignment-disposition-censored" in derive()["issues"], (
-        "intervention censoring accepted"
+    assert "k4-assignment-disposition-censored" not in derive()["issues"], (
+        "idle intervention censoring rejected"
     )
 
 

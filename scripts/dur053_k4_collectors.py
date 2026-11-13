@@ -732,7 +732,11 @@ def callback_rows(traces, arrivals, timeline, intervention):
                 consumer=raw["consumer_session"],
                 session=raw["session"],
                 generation=raw["generation"],
-                partitions=[p["partition"] for p in raw.get("partitions", [])],
+                partitions=(
+                    [raw["partition"]]
+                    if event == "disposed"
+                    else [p["partition"] for p in raw.get("partitions", [])]
+                ),
                 survivors=survivors,
                 trigger_uid=trigger["pod_uid"],
                 arrival=arrival,

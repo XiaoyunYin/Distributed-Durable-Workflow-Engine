@@ -1552,7 +1552,7 @@ print(json.dumps(rows))
                 try:
                     confirmation, targets = adapter.apply(cell, overlap)
                 except Exception as error:
-                    if not intervention_outcome(error):
+                    if adapter.intervention_issued is None or not intervention_outcome(error):
                         raise
                     # A failed intervention is retained as an engine/fault
                     # outcome; it is not eligible for infrastructure replacement.
@@ -1633,24 +1633,20 @@ print(json.dumps(rows))
                 dict(snapshot=snap, timeout=timeout, observed_at=time.time(), deadline=deadline),
             )
             self.stop_samples()
-            m["status"] = "PASS" if overlap else "unexercised"
+            issued = adapter.intervention_issued is not None
+            m["status"] = "PASS" if issued else "unexercised"
             # Retain this input before assembly can fail and reset deletes the pod.
             self.arrival_journal(ns)
             self.assemble(
                 ns, db, cell, confirmation, targets, start, time.time(), quiet, timeout, m
             )
             metrics = derive_episode(self.episode_output, f, checker)
-            if not overlap or any(
-                issue in metrics["issues"]
-                for issue in (
-                    "k4-confirmation-boundary",
-                    "k4-confirmation-worker-claim",
-                    "k4-confirmation-overlap",
-                )
-            ):
+            if not issued:
                 m["status"] = "unexercised"
             else:
-                m["status"] = "PASS" if metrics["valid"] else "FAIL"
+                m["status"] = (
+                    "PASS" if metrics["valid"] and not metrics["intervention_outcome"] else "FAIL"
+                )
             locked_document(self.episode_output / "episode.json", m)
             metrics = derive_episode(self.episode_output, f, checker)
             save(self.episode_output / "metrics.json", metrics)
@@ -1796,7 +1792,9 @@ def verify_engineering(root, checker):
     for name in m["episodes"]:
         value = derive_episode(root / name, f, checker)
         require(
-            value == json.loads((root / name / "metrics.json").read_bytes()) and value["valid"],
+            value == json.loads((root / name / "metrics.json").read_bytes())
+            and value["valid"]
+            and value["status"] == "PASS",
             "k4-engineering-metrics",
         )
         metrics.append(value)
@@ -2063,7 +2061,8 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
         else:
             m["status"] = (
                 "PASS"
-                if len(metrics) == len(m["episodes"]) and all(x["valid"] for x in metrics)
+                if len(metrics) == len(m["episodes"])
+                and all(x["valid"] and x["status"] == "PASS" for x in metrics)
                 else "FAIL"
             )
     except Exception as error:

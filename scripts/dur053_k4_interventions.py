@@ -5,8 +5,9 @@ from __future__ import annotations
 import hashlib
 import json
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
+from threading import Lock
 
 from dur053_k3 import save
 from dur053_k3_policy import require
@@ -27,13 +28,13 @@ OUTCOME_GUARDS = frozenset(
         "k4-chaos-replacement-not-ready",
         "k4-singleton-denial-missing",
         "k4-eviction-deadline",
-        "k4-eviction-retry-gap",
         "k4-scale-removed-two",
         "k4-deletion-not-observed",
     }
 )
 SAFETY_GUARDS = frozenset(
     {
+        "k4-eviction-retry-gap",
         "k4-log-stream-loss",
         "k4-observer-loss",
         "k4-observer-stop-timeout",
@@ -148,6 +149,16 @@ class Interventions:
         self.revisions = ("", "")
         self.release = lambda: None
         self.safety = lambda: None
+        self.intervention_issued = None
+
+    def issue(self, targets):
+        """Persist the command boundary before the first intervention mutation."""
+        if self.intervention_issued is None:
+            self.intervention_issued = time.time()
+            save(
+                self.output / "intervention-issued.json",
+                dict(intervention_issued=self.intervention_issued, targets=targets),
+            )
 
     def wait(self, predicate, seconds, guard):
         # Only the adapter's completion deadline is an intervention outcome.
@@ -203,6 +214,8 @@ class Interventions:
 
     def set_image(self, role, lineage):
         image = self.images[lineage]["worker" if role == "worker" else "runtime"]
+        if getattr(self, "intervening", False):
+            self.issue(self.pods(role))
         self.d.k("-n", self.ns, "set", "image", "deployment/" + role, role + "=" + image)
         if getattr(self, "intervening", False):
             self.release_after_deletion(role)
@@ -232,6 +245,7 @@ class Interventions:
         }
         # The UID and exact current container are captured before submission.
         save(self.output / (name + "-target.json"), pod)
+        self.issue([pod])
         self.d.apply(obj)
         ack = None
 
@@ -286,11 +300,25 @@ class Interventions:
         save(self.output / "confirmation.json", record)
         rolemap = {r["role"]: r for r in roles}
 
-        def request(p):
+        lock = Lock()
+
+        def pdb_round():
+            snapshot = self.get("pdb", "")
+            save(self.output / ("pdb-round-" + str(time.time_ns()) + ".json"), snapshot)
+            return {
+                p["metadata"]["name"]: p["status"]["disruptionsAllowed"] for p in snapshot["items"]
+            }
+
+        allowed = pdb_round()
+
+        def request(p, previous=None):
             self.safety()
             role = p["metadata"]["labels"]["app"]
             require(role in ENGINE_ROLES, "k4-eviction-harness")
-            before = self.get("pdb", role)["status"]["disruptionsAllowed"]
+            if previous is not None:
+                next_at = previous["responded"] + record["eviction_retry_interval"]
+                time.sleep(max(0, next_at - time.time() - 0.1))
+            before = allowed[role]
             t0 = time.time()
             body = {
                 "apiVersion": "policy/v1",
@@ -317,7 +345,6 @@ class Interventions:
                     else 0
                 )
             )
-            require(status in (201, 429), "k4-eviction-api-failure")
             row = dict(
                 pod_uid=p["metadata"]["uid"],
                 role=role,
@@ -327,45 +354,72 @@ class Interventions:
                 responded=t1,
                 status=status,
                 allowed_before=before,
-                allowed_after=self.get("pdb", role)["status"]["disruptionsAllowed"],
+                allowed_after=allowed[role],
                 denial=result.stderr if status == 429 else "",
                 replaced_by="",
                 replacement_ready=None,
                 replacement_ready_upper=None,
             )
+            # Serialize append + save; retain even the request that trips a later guard.
+            with lock:
+                record["evictions"].append(row)
+                save(self.output / "confirmation.json", record)
+            require(status in (201, 429), "k4-eviction-api-failure")
+            if previous is not None:
+                require(
+                    t0 - previous["responded"] <= record["eviction_retry_interval"],
+                    "k4-eviction-retry-gap",
+                )
             return p, row
 
         # All initial requests are dispatched together. No rollout/delete/cordon.
+        self.issue(initial)
         with ThreadPoolExecutor(max_workers=len(initial)) as pool:
-            responses = list(pool.map(request, initial))
+            futures = [pool.submit(request, pod) for pod in initial]
+            responses = [f.result() for f in as_completed(futures)]
         self.release()
         pending = []
         for pod, row in responses:
-            record["evictions"].append(row)
             r = rolemap[row["role"]]
             if r["disruptions_allowed"] == 0:
                 require(row["status"] == 429, "k4-singleton-denial-missing")
             else:
                 pending.append((pod, row))
         deadline = time.monotonic() + 180
+
+        def retry_pod(pod, row):
+            while row["status"] == 429:
+                require(time.monotonic() < deadline, "k4-eviction-deadline")
+                pod, row = request(pod, row)
+            return pod, row
+
+        # One persistent retry worker per pending pod. A single all-PDB read
+        # per observation round runs in the coordinator, never in a retry worker.
+        with ThreadPoolExecutor(max_workers=len(pending) or 1) as pool:
+            futures = [pool.submit(retry_pod, pod, row) for pod, row in pending]
+            while not all(f.done() for f in futures):
+                allowed = pdb_round()
+                with lock:
+                    for row in record["evictions"]:
+                        row["allowed_after"] = allowed[row["role"]]
+                    save(self.output / "confirmation.json", record)
+                time.sleep(0.2)
+            pending = [f.result() for f in futures]
+        allowed = pdb_round()
+        for row in record["evictions"]:
+            row["allowed_after"] = allowed[row["role"]]
+        save(self.output / "confirmation.json", record)
         used_replacements = set()
         while pending:
             require(time.monotonic() < deadline, "k4-eviction-deadline")
             later = []
+            observations = {role: self.pods(role) for role in {r["role"] for _, r in pending}}
             for pod, row in pending:
-                if row["status"] == 429:
-                    _, retry = request(pod)
-                    require(
-                        retry["requested"] - row["responded"] <= record["eviction_retry_interval"],
-                        "k4-eviction-retry-gap",
-                    )
-                    record["evictions"].append(retry)
-                    row = retry
                 old = set(rolemap[row["role"]]["pod_uids"])
                 replacements = sorted(
                     [
                         p
-                        for p in self.pods(row["role"])
+                        for p in observations[row["role"]]
                         if p["metadata"]["uid"] not in old | used_replacements and ready(p)
                     ],
                     key=lambda p: (
@@ -373,7 +427,7 @@ class Interventions:
                         p["metadata"]["uid"],
                     ),
                 )
-                live_uids = {p["metadata"]["uid"] for p in self.pods(row["role"])}
+                live_uids = {p["metadata"]["uid"] for p in observations[row["role"]]}
                 if (
                     row["status"] == 201
                     and pod["metadata"]["uid"] not in live_uids
@@ -458,6 +512,7 @@ class Interventions:
                 revision_prime = self.set_image(role, "a-prime")
             else:
                 revision_a, revision_prime = self.revisions
+                self.issue(pods)
                 self.d.k(
                     "-n",
                     self.ns,
@@ -473,6 +528,7 @@ class Interventions:
             )
         elif kind == "scale-down":
             require(len(pods) == 4, "k4-scale-start-four")
+            self.issue(pods)
             self.d.k("-n", self.ns, "scale", "deployment/worker", "--replicas=2")
             self.release_after_deletion("worker")
             self.wait_rollout("worker")

@@ -191,7 +191,18 @@ def test_eviction_singletons_once_no_harness_no_cordon(tmp_path):
         "a" * 40,
     )
     a.pods = lambda role: live[role]
-    a.get = lambda kind, role: dict(status=dict(disruptionsAllowed=1 if role == "worker" else 0))
+    a.get = lambda kind, role: (
+        dict(status=dict(disruptionsAllowed=1 if role == "worker" else 0))
+        if role
+        else dict(
+            items=[
+                dict(
+                    metadata=dict(name=r), status=dict(disruptionsAllowed=1 if r == "worker" else 0)
+                )
+                for r in interventions.ENGINE_ROLES
+            ]
+        )
+    )
     c = interventions.empty(CONFIRMATION)
     c.update(episode="e", intervention=10.0)
     targets = a.eviction(10.0, c)
@@ -216,7 +227,16 @@ def test_eviction_singletons_once_no_harness_no_cordon(tmp_path):
 def test_pdb_missing_denial_fails(tmp_path):
     a = interventions.Interventions(Mock(), "ns", tmp_path, {}, {}, "a" * 40)
     a.pods = lambda role: [pod(role, role)]
-    a.get = lambda *args: dict(status=dict(disruptionsAllowed=0))
+    a.get = lambda kind, role: (
+        dict(status=dict(disruptionsAllowed=0))
+        if role
+        else dict(
+            items=[
+                dict(metadata=dict(name=r), status=dict(disruptionsAllowed=0))
+                for r in interventions.ENGINE_ROLES
+            ]
+        )
+    )
     a.d.k.return_value = SimpleNamespace(returncode=0, stderr="")
     with pytest.raises(ValueError, match="singleton-denial-missing"):
         a.eviction(10, interventions.empty(CONFIRMATION))

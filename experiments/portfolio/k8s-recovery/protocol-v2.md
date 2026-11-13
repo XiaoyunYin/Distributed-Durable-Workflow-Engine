@@ -1551,6 +1551,17 @@ Registered by Claude under D035 before any K4 measurement.
 
    The resulting image differs from the K3 calibration image. This is disclosed the same way as B.5: frozen b, r and L are unchanged, and the K4 images are recorded per job.
 6. **Measurement and reporting (clarifications).**
+   - A censored intervention-onward assignment change invalidates an episode only
+     when an arrival keyed to its Kafka partitions was scheduled after stable, while
+     that generation was active, and remained undisposed in that generation by
+     reconciliation end. Generation eligibility ends at its next revoke/lost callback;
+     later arrivals are not charged to a superseded generation. Kafka key partitions
+     come from witnessed task deliveries, not scheduler partitions; unknown key
+     mapping is conservatively eligible. Otherwise retain the censored row, its
+     assignment-only lower bound and total >= reconciliation_end - trigger, and report
+     censored/uncensored counts. Exclude censored changes from stall populations;
+     never impute them. This Round 251/R295 ruling clarifies B.7 item 6 and changes no
+     other assignment metric or K7.
    - Long-arm latency p99 and paired p99 differences are NOT ESTIMATED (n < 200), and episodes are never pooled.
    - Short whole-episode populations report p99 only where n >= 200 per population.
    - "No-fault" latency is reported only for explicitly delimited post-completion portions of W, labelled "post-intervention, no active fault". Otherwise it is unavailable.

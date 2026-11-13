@@ -267,6 +267,7 @@ def confirmation(c: dict, t: dict, event: str, leases=()) -> list[str]:
                         for e in rows
                     ),
                     "k4-confirmation-eventual-drain",
+                    "k4-confirmation-singleton-denial",
                 )
     return sorted(set(issues))
 
@@ -389,7 +390,35 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         t["namespace"] == m["namespace"] and t["witness"] == docs["witness"]["rows"],
         "k4-witness-inventory-binding",
     )
-    issues = confirmation(c, t, cell["event"], docs["leases"]["rows"])
+    confirmation_issues = confirmation(c, t, cell["event"], docs["leases"]["rows"])
+    outcome = None
+    if (root / "intervention-error.json").exists():
+        from dur053_k4_interventions import intervention_outcome
+
+        error = json.loads((root / "intervention-error.json").read_bytes())["error"]
+        issued = json.loads((root / "intervention-issued.json").read_bytes())
+        require(
+            intervention_outcome(ValueError(error))
+            and c["intervention"] <= issued["intervention_issued"] <= m["reconciliation_end"],
+            "k4-intervention-outcome-evidence",
+        )
+        outcome = error
+    # Missing completion/replacement is an expected failed intervention result.
+    # Identity, chronology, overlap and policy evidence still fail closed.
+    outcome_checks = {
+        "k4-confirmation-overlap",
+        "k4-confirmation-completion",
+        "k4-confirmation-replacement",
+        "k4-confirmation-independent-replacement",
+        "k4-confirmation-process-death",
+        "k4-confirmation-image-rollout",
+        "k4-confirmation-chaos-ack",
+        "k4-confirmation-eventual-drain",
+        "k4-confirmation-singleton-denial",
+    }
+    issues = [v for v in confirmation_issues if not outcome or v not in outcome_checks]
+    if outcome and not c["overlap"]:
+        issues.append("k4-confirmation-overlap")
 
     def need(ok, message):
         if not ok:
@@ -534,8 +563,10 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
                 missing += 1
                 continue
             probes = (max(before, key=lambda b: b["end"]), min(after, key=lambda b: b["start"]))
-            delay = w["terminal"] - a["scheduled"] + max(
-                w["clock_width"], *(b["width"] for b in probes)
+            delay = (
+                w["terminal"]
+                - a["scheduled"]
+                + max(w["clock_width"], *(b["width"] for b in probes))
             )
             finite(delay, "k4-latency", zero=True)
             values.append(delay)
@@ -627,7 +658,10 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         if r["event"] in {"revoke", "rebalance_start"} and r["at"] >= m["intervention"]
     }
     need(
-        not any(s["censored"] and s["change"] in intervention_changes for s in stalls),
+        not any(
+            s["censored"] and s["eligible_undisposed"] and s["change"] in intervention_changes
+            for s in stalls
+        ),
         "k4-assignment-disposition-censored",
     )
     http = defaultdict(lambda: dict(errors=0, retries=0, requests=0))
@@ -707,7 +741,9 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         schema="dur053.k4-metrics.v1",
         episode=m["episode"],
         replacement_for=m["replacement_for"],
-        status=m["status"],
+        status="FAIL" if outcome else m["status"],
+        intervention_outcome=outcome,
+        partial_confirmation_issues=confirmation_issues if outcome else [],
         complete=check["complete"] and not issues,
         valid=check["valid"] and not issues and m["status"] in {"PASS", "FAIL"},
         issues=sorted(set(issues)),
@@ -751,6 +787,10 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         readiness_endpoint_delay=endpoints,
         partition_reacquisition=reacquire,
         assignment_stalls=stalls,
+        assignment_change_counts=dict(
+            censored=sum(s["censored"] for s in stalls),
+            uncensored=sum(not s["censored"] for s in stalls),
+        ),
         http=dict(http),
         submission_errors=sum(a["outcome"] != "accepted" for a in arrivals),
         recovery=recovery,
@@ -953,6 +993,40 @@ def assignment_stalls(rows, arrivals, t, end):
             )
         ]
         useful = min((r["at"] for r in disposed), default=None)
+        # A generation stops offering disposition opportunities at its next
+        # revoke/lost callback. Later arrivals belong to a later generation.
+        generation_end = min(
+            (
+                r["at"]
+                for r in rows
+                if r["event"] in {"revoke", "rebalance_start"}
+                and r["generation"] == generation
+                and stable_at is not None
+                and r["at"] > stable_at
+            ),
+            default=end,
+        )
+        partitions = {p for r in stable for p in r["partitions"]}
+        # Kafka task partitions come from witnessed deliveries, never the
+        # independent 16-way scheduler partition hash. Unknown keys fail closed.
+        keyed = defaultdict(set)
+        for r in rows:
+            if r["event"] == "disposed":
+                keyed[r["arrival"]].update(r["partitions"])
+        eligible = [
+            a
+            for a in arrivals
+            if partitions
+            and stable_at is not None
+            and stable_at < a.get("scheduled", -math.inf) <= end
+            and a["scheduled"] < generation_end
+            and (not keyed[a["id"]] or bool(keyed[a["id"]] & partitions))
+        ]
+        undisposed = [
+            a["id"]
+            for a in eligible
+            if not any(r["arrival"] == a["id"] and r["at"] <= end for r in disposed)
+        ]
         active = [
             min(v["finish"] if v["finish"] is not None else end, end) - v["start"]
             for v in t["invocations"]
@@ -967,6 +1041,11 @@ def assignment_stalls(rows, arrivals, t, end):
                 useful_disposition=useful - stable_at if useful is not None else None,
                 total=useful - trigger["at"] if useful is not None else None,
                 censored=useful is None,
+                eligible_undisposed=undisposed,
+                assignment_only_lower=stable_at - trigger["at"]
+                if stable_at is not None
+                else end - trigger["at"],
+                total_lower=useful - trigger["at"] if useful is not None else end - trigger["at"],
                 longest_active=max(active, default=0),
             )
         )

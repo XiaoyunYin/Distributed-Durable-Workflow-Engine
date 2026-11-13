@@ -108,6 +108,19 @@ It excludes the historical flags; default campaign and fence behavior is unchang
 
 ## Metrics, tails and accounting
 
+A censored intervention-onward assignment change invalidates an episode only
+when an arrival keyed to its Kafka partitions was scheduled after stable, while
+that generation was active, and remained undisposed in that generation by
+reconciliation end. Generation eligibility ends at its next revoke/lost callback;
+later arrivals are not charged to a superseded generation. Kafka key partitions
+come from witnessed task deliveries, not scheduler partitions; unknown key
+mapping is conservatively eligible. Otherwise retain the censored row, its
+assignment-only lower bound and total >= reconciliation_end - trigger, and report
+censored/uncensored counts. Exclude censored changes from stall populations;
+never impute them. This Round 251/R295 ruling clarifies B.7 item 6 and changes no
+other assignment metric or K7.
+
+
 `dur053_k4_evidence.py derive --episode DIR --checker BINARY` derives every
 section-10 K4 metric from source exports and the independently rerun checker.
 Distributions use shared nearest rank. Each population publishes n, missing and
