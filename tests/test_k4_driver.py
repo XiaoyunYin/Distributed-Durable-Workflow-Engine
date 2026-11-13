@@ -168,6 +168,25 @@ def test_eviction_singletons_once_no_harness_no_cordon(tmp_path):
     calls = []
 
     def k(*args, **kwargs):
+        if "get" in args:
+            index = args.index("get")
+            name = args[index + 2] if args[index + 2] != "-o" else None
+            if name == "":
+                raise ValueError("error: resource name may not be empty")
+            assert name is None, "eviction list read unexpectedly named a resource"
+            return SimpleNamespace(
+                stdout=json.dumps(
+                    {
+                        "items": [
+                            dict(
+                                metadata=dict(name=role),
+                                status=dict(disruptionsAllowed=1 if role == "worker" else 0),
+                            )
+                            for role in interventions.ENGINE_ROLES
+                        ]
+                    }
+                )
+            )
         body = json.loads(kwargs["data"])
         name = body["metadata"]["name"]
         calls.append(name)
@@ -237,7 +256,30 @@ def test_pdb_missing_denial_fails(tmp_path):
             ]
         )
     )
-    a.d.k.return_value = SimpleNamespace(returncode=0, stderr="")
+
+    def kubectl(*args, **kwargs):
+        if "get" in args:
+            index = args.index("get")
+            name = args[index + 2] if args[index + 2] != "-o" else None
+            if name == "":
+                raise ValueError("error: resource name may not be empty")
+            assert name is None, "eviction list read unexpectedly named a resource"
+            return SimpleNamespace(
+                stdout=json.dumps(
+                    {
+                        "items": [
+                            dict(
+                                metadata=dict(name=role),
+                                status=dict(disruptionsAllowed=0),
+                            )
+                            for role in interventions.ENGINE_ROLES
+                        ]
+                    }
+                )
+            )
+        return SimpleNamespace(returncode=0, stderr="")
+
+    a.d.k.side_effect = kubectl
     with pytest.raises(ValueError, match="singleton-denial-missing"):
         a.eviction(10, interventions.empty(CONFIRMATION))
 

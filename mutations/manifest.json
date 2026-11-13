@@ -13271,6 +13271,38 @@
       ],
       "expected": "completed eviction request lost",
       "requires_database": false
+    },
+    {
+      "id": "k4r254-empty-pdb-name",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "snapshot = self.get_list(\"pdb\")",
+      "new": "snapshot = self.get(\"pdb\", \"\")",
+      "command": [
+        "D:/portfolio-projects/durable-agent-execution-engine/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_four_denied_roles_retry_concurrently",
+        "-q"
+      ],
+      "expected": "resource name may not be empty",
+      "requires_database": false
+    },
+    {
+      "id": "k4r254-roundtrip-t0-quiet",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "quiet = t1",
+      "new": "quiet = t0",
+      "command": [
+        "D:/portfolio-projects/durable-agent-execution-engine/.venv/Scripts/python.exe",
+        "-m",
+        "pytest",
+        "tests/test_k4_round254.py::test_reconciliation_activity_inside_round_trip_uses_t1",
+        "-q"
+      ],
+      "expected": "quiet stamp precedes witness activity read in same round trip",
+      "requires_database": false
     }
   ]
 }

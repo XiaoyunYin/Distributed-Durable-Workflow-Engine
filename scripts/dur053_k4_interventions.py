@@ -190,8 +190,15 @@ class Interventions:
 
     def get(self, kind, name):
         self.safety()
+        require(bool(name), "k4-empty-resource-name")
         return json.loads(
             self.d.k("-n", self.ns, "get", kind, name, "-o", "json", record=False).stdout
+        )
+
+    def get_list(self, kind):
+        self.safety()
+        return json.loads(
+            self.d.k("-n", self.ns, "get", kind, "-o", "json", record=False).stdout
         )
 
     def pods(self, role):
@@ -303,7 +310,7 @@ class Interventions:
         lock = Lock()
 
         def pdb_round():
-            snapshot = self.get("pdb", "")
+            snapshot = self.get_list("pdb")
             save(self.output / ("pdb-round-" + str(time.time_ns()) + ".json"), snapshot)
             return {
                 p["metadata"]["name"]: p["status"]["disruptionsAllowed"] for p in snapshot["items"]

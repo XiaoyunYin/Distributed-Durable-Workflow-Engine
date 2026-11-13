@@ -222,6 +222,32 @@ def eviction_fake(tmp_path, monkeypatch):
     counts = {}
 
     def k(*args, **kwargs):
+        if "get" in args:
+            index = args.index("get")
+            kind = args[index + 1]
+            name = args[index + 2] if args[index + 2] != "-o" else None
+            if name == "":
+                raise ValueError("error: resource name may not be empty")
+            if name is None:
+                return SimpleNamespace(
+                    stdout=json.dumps(
+                        {
+                            "items": [
+                                dict(
+                                    metadata=dict(name=r),
+                                    status=dict(disruptionsAllowed=1 if r in roles else 0),
+                                )
+                                for r in initial
+                            ]
+                        }
+                    )
+                )
+            if kind == "pdb":
+                return SimpleNamespace(
+                    stdout=json.dumps(
+                        dict(status=dict(disruptionsAllowed=1 if name in roles else 0))
+                    )
+                )
         name = json.loads(kwargs["data"])["metadata"]["name"]
         role = next(
             r for r, pods in initial.items() if any(p["metadata"]["name"] == name for p in pods)
@@ -241,16 +267,6 @@ def eviction_fake(tmp_path, monkeypatch):
         SimpleNamespace(k=k, until=lambda pred, _: pred()), "ns", tmp_path, {}, {}, "a" * 40
     )
     a.pods = lambda role: live[role]
-    a.get = lambda kind, role: (
-        dict(status=dict(disruptionsAllowed=1 if role in roles else 0))
-        if role
-        else dict(
-            items=[
-                dict(metadata=dict(name=r), status=dict(disruptionsAllowed=1 if r in roles else 0))
-                for r in initial
-            ]
-        )
-    )
     return a, counts
 
 
@@ -341,7 +357,15 @@ def test_valid_failed_intervention_fails_job(tmp_path, monkeypatch, status):
 
 def test_eviction_api_failure_retains_completed_requests(tmp_path, monkeypatch):
     a, _ = eviction_fake(tmp_path, monkeypatch)
-    a.d.k = lambda *args, **kwargs: SimpleNamespace(returncode=1, stderr="unavailable")
+
+    kubectl = a.d.k
+
+    def fail_eviction(*args, **kwargs):
+        if "create" in args:
+            return SimpleNamespace(returncode=1, stderr="unavailable")
+        return kubectl(*args, **kwargs)
+
+    a.d.k = fail_eviction
     with pytest.raises(ValueError, match="k4-eviction-api-failure"):
         a.eviction(10, interventions.empty(driver.CONFIRMATION))
     rows = json.loads((tmp_path / "confirmation.json").read_bytes())["evictions"]

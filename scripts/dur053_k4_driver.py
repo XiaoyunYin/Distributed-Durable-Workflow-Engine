@@ -76,6 +76,20 @@ def stamp(at):
     return datetime.fromtimestamp(at, UTC).isoformat().replace("+00:00", "Z")
 
 
+def reconciliation_round(snapshot_read, witness_read, last, quiet):
+    """Bracket remote reconciliation reads; t1 bounds everything returned by them."""
+    t0 = time.time()
+    snapshot = snapshot_read()
+    witness = witness_read()
+    t1 = time.time()
+    fingerprint = hashlib.sha256(json.dumps(witness, sort_keys=True).encode()).hexdigest()
+    changed = fingerprint != last
+    if changed:
+        quiet = t1
+        last = fingerprint
+    return snapshot, quiet, last, t0, t1, changed
+
+
 def locked_document(path, value):
     validate(value, SCHEMAS[value["schema"]])
     save(path, value)
@@ -757,7 +771,9 @@ class K4Driver:
             self.collector.log_text("cri-exits.jsonl"),
         )
         if role == "worker":
-            _, invocations, _ = export_seals(self.witness_raw(ns), sessions)
+            witness = self.witness_raw(ns)
+            now = time.time()
+            _, invocations, _ = export_seals(witness, sessions)
             active = [v for v in invocations if v["finish"] is None and v["start"] <= now]
             by = {s["session"]: s for s in sessions}
             return [
@@ -1602,32 +1618,37 @@ print(json.dumps(rows))
             last = None
             deadline = max(stop, confirmation["removed"] or stop) + p["T"]
             timeout = False
-            while True:
-                now = time.time()
-                snap = self.snapshot(db, light=True)
-                witness = self.witness_raw(ns)
-                fingerprint = hashlib.sha256(
-                    json.dumps(witness, sort_keys=True).encode()
-                ).hexdigest()
-                if fingerprint != last:
-                    quiet = now
-                    last = fingerprint
-                terminal = all(
-                    w["state"] in {"SUCCEEDED", "FAILED", "CANCELED", "ABANDONED", "REJECTED"}
-                    for w in snap["workflows"]
-                )
-                state = reconciled(
-                    now,
-                    all_terminal=terminal,
-                    witness_available=True,
-                    last_activity=quiet,
-                    deadline=deadline,
-                )
-                if state != "waiting":
-                    timeout = state == "timeout"
-                    break
-                self.check_observation()
-                time.sleep(1)
+            poll_path = self.episode_output / "reconciliation-polls.jsonl"
+            with poll_path.open("ab") as poll_log:
+                while True:
+                    snap, quiet, last, t0, t1, changed = reconciliation_round(
+                        lambda: self.snapshot(db, light=True),
+                        lambda: self.witness_raw(ns),
+                        last,
+                        quiet,
+                    )
+                    poll_log.write(
+                        (
+                            json.dumps(dict(t0=t0, t1=t1, fingerprint_changed=changed)) + "\n"
+                        ).encode("utf-8")
+                    )
+                    poll_log.flush()
+                    terminal = all(
+                        w["state"] in {"SUCCEEDED", "FAILED", "CANCELED", "ABANDONED", "REJECTED"}
+                        for w in snap["workflows"]
+                    )
+                    state = reconciled(
+                        t1,
+                        all_terminal=terminal,
+                        witness_available=True,
+                        last_activity=quiet,
+                        deadline=deadline,
+                    )
+                    if state != "waiting":
+                        timeout = state == "timeout"
+                        break
+                    self.check_observation()
+                    time.sleep(1)
             save(
                 self.episode_output / "engine-outcome.json",
                 dict(snapshot=snap, timeout=timeout, observed_at=time.time(), deadline=deadline),
