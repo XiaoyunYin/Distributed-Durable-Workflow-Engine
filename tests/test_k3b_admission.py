@@ -40,6 +40,36 @@ def commit(root: Path) -> None:
 
 
 class AdmissionTests(unittest.TestCase):
+    def test_ci_proof_requires_every_main_push_gate(self) -> None:
+        runs = {
+            "workflow_runs": [
+                {"id": 99, "head_sha": "a" * 40, "event": "push", "head_branch": "main"}
+            ]
+        }
+        for name in sorted(evidence.REQUIRED_CI_JOBS):
+            for conclusion in (None, "failure", "cancelled", "skipped", "timed_out", "duplicate"):
+                with self.subTest(job=name, conclusion=conclusion):
+                    jobs = [
+                        {"name": job, "conclusion": "success"}
+                        for job in sorted(evidence.REQUIRED_CI_JOBS)
+                        if job != name
+                    ]
+                    if conclusion == "duplicate":
+                        jobs.extend([{"name": name, "conclusion": "success"}] * 2)
+                    elif conclusion is not None:
+                        jobs.append({"name": name, "conclusion": conclusion})
+                    with (
+                        patch.object(evidence, "tooling_inventory", return_value={"go.mod": b"x"}),
+                        patch.dict(os.environ, {"GITHUB_REPOSITORY": "fixture/repo"}),
+                        patch.object(
+                            evidence,
+                            "github",
+                            side_effect=[runs, {"total_count": len(jobs), "jobs": jobs}],
+                        ),
+                        self.assertRaisesRegex(ValueError, "pilot-ci-proof-missing"),
+                    ):
+                        evidence.ci_proof(ROOT)
+
     def test_normalized_committed_content(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -69,8 +99,11 @@ class AdmissionTests(unittest.TestCase):
                 ]
             }
             api_jobs = {
-                "total_count": 1,
-                "jobs": [{"name": "DUR-053 pilot smoke", "conclusion": "success"}],
+                "total_count": len(evidence.REQUIRED_CI_JOBS),
+                "jobs": [
+                    {"name": name, "conclusion": "success"}
+                    for name in sorted(evidence.REQUIRED_CI_JOBS)
+                ],
             }
             with (
                 patch.dict(os.environ, {"GITHUB_REPOSITORY": "fixture/repo"}),

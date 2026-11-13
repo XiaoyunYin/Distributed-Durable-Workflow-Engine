@@ -1,7 +1,7 @@
 # DUR-046 mutation gate
 
 The manifest contains selected safety mutations, one per contract guard. It
-currently has seventeen behavioral mutations plus one configuration tripwire.
+currently has 596 cases, including behavioral mutations and configuration tripwires.
 The gate exports the committed `HEAD` into a disposable directory, applies
 exactly one mutation, and requires the check declared by that case to fail. A
 compile error, skipped test, no-test result, or unrelated failure is not a
@@ -40,3 +40,43 @@ artifact `dur046-mutation-results-35941481466`, on source commit
 manifest cases: 17 behavioral detections and one configuration tripwire.
 These are hosted-run evidence snapshots, not a claim that the gates were
 rerun in the current local environment.
+
+## Current CI layout and timing
+
+`PowerShell mutation gate` (`mutation-powershell`) and `Linux mutation gate`
+(`mutation-linux`) run in parallel on separate Ubuntu runners, each with its
+own bootstrapped Compose stack and migration-complete mutation database.
+Each gate stops deployed runtime/worker relays before testing, then drops its
+database, restores the relays, uploads results and diagnostics, and tears down
+the stack. Each mutation step has a 75-minute limit within a 100-minute job.
+`PostgreSQL, Kafka, and deployed smoke` (`services`) retains the service/race
+and DUR-055 retrieval checks with a 25-minute job limit. Its retained steps
+totaled 596 and 773 seconds in runs 43303598471 and 43317291102, respectively;
+25 minutes gives at least 1.94x measured headroom.
+
+Results artifacts are `dur046-mutation-results-powershell-<run_id>` and
+`dur046-mutation-results-linux-<run_id>`, containing `results-powershell.json`
+and `results-bash.json`, respectively. Diagnostic artifacts are
+`mutation-powershell-diagnostics-<run_id>` and
+`mutation-linux-diagnostics-<run_id>`; services keeps
+`service-diagnostics-<run_id>`.
+
+Both shell entry points use `scripts/mutation-runner.py` and run the complete
+manifest with the same detection criteria. New reports retain the v1 schema
+and all existing fields, adding monotonic wall-clock seconds:
+
+- Top-level `duration_seconds` covers the campaign through report assembly,
+  excluding final scratch cleanup. `setup_duration_seconds` covers manifest,
+  interpreter, environment/cache and source-export preparation;
+  `baseline_duration_seconds` and `restored_baseline_duration_seconds` measure
+  the initial and final Go baselines.
+- Each case's `duration_seconds` includes drift checking, preparation, its
+  named-test baseline, the mutation command and source restoration.
+  `setup_duration_seconds` measures preparation through command/environment
+  selection; `baseline_duration_seconds` measures the named-test baseline;
+  `mutation_duration_seconds` measures the mutated command. Patch/restoration
+  and result processing account for the remaining case time.
+
+Historical checked-in reports above predate timing fields and remain unchanged.
+Pilot `ci_proof` requires every main-push gate, including both mutation jobs,
+to succeed, and the tooling inventory includes the workflow and runner sources.

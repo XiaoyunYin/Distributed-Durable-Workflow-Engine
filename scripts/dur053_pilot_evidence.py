@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import Any
 
 from dur053_k3 import github
-from dur053_k3_policy import artifact_hashes, committed_ledger, require
+from dur053_k3_policy import REQUIRED_CI_JOBS, artifact_hashes, committed_ledger, require
 from dur053_payload import materialize
 from dur053_pilot import (
     EVIDENCE,
@@ -85,9 +85,10 @@ def ci_proof(repository: Path) -> dict[str, Any]:
                 continue
             jobs = github(f"repos/{repo}/actions/runs/{run['id']}/jobs?per_page=100")
             require(jobs["total_count"] <= 100, "pilot-ci-job-pagination")
-            if not any(
-                j["name"] == "DUR-053 pilot smoke" and j["conclusion"] == "success"
-                for j in jobs["jobs"]
+            if not all(
+                [j.get("conclusion") for j in jobs["jobs"] if j.get("name") == name]
+                == ["success"]
+                for name in REQUIRED_CI_JOBS
             ):
                 continue
             same = True

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -160,3 +161,105 @@ def test_working_tree_export_removes_deleted_platform_test(
     runner.export_head(repository, destination, working_tree=True)
     assert not (destination / old).exists(), "deleted platform test retained in mutation export"
     assert (destination / new).read_bytes() == b"package invariants\n"
+
+
+@pytest.mark.parametrize("output_name", ["results-powershell.json", "results-bash.json"])
+def test_report_records_wall_clock_phases_without_changing_verdicts(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, output_name: str
+) -> None:
+    runner = load_runner()
+    repository = tmp_path / "repository"
+    (repository / "scripts").mkdir(parents=True)
+    cases = [
+        {
+            "id": kind,
+            "kind": kind,
+            "file": "guard.txt",
+            "old": "enabled",
+            "new": "disabled",
+            "command": ["go", "test", "./guard", "-run", "^TestGuard$"],
+            "expected": "guard removed",
+            "requires_database": False,
+        }
+        for kind in ("behavioral", "configuration_tripwire")
+    ]
+    (repository / "manifest.json").write_text(json.dumps({"cases": cases}), encoding="utf-8")
+    elapsed = 0.0
+
+    def advance(seconds: float) -> None:
+        nonlocal elapsed
+        elapsed += seconds
+
+    def check_output(command: list[str], **_kwargs: object) -> str:
+        if command[0] == "uv":
+            advance(1.25)
+            return sys.executable
+        return "a" * 40
+
+    def export(_repo: Path, destination: Path, working_tree: bool) -> None:
+        assert working_tree
+        advance(0.75)
+        (destination / "guard.txt").write_bytes(b"enabled\n")
+
+    fingerprint = runner.source_fingerprint
+
+    def timed_fingerprint(root: Path) -> dict[str, str]:
+        advance(0.25)
+        return fingerprint(root)
+
+    baselines = iter((2.0, 3.0))
+    case_baselines = iter((4.0, 5.0))
+    mutations = iter((6.0, 7.0))
+
+    def run(command: list[str], cwd: Path, _env: dict[str, str]) -> tuple[int, str]:
+        if cwd == repository:
+            advance(next(baselines))
+            return 0, "ok global baseline"
+        if "-v" in command:
+            assert (cwd / "guard.txt").read_bytes() == b"enabled\n"
+            advance(next(case_baselines))
+            return 0, "--- PASS: TestGuard (0.00s)\nPASS\n"
+        assert (cwd / "guard.txt").read_bytes() == b"disabled\n"
+        advance(next(mutations))
+        return 1, "guard removed"
+
+    monkeypatch.setattr(runner, "__file__", str(repository / "scripts/mutation-runner.py"))
+    monkeypatch.setattr(runner.time, "perf_counter", lambda: elapsed)
+    monkeypatch.setattr(runner.subprocess, "check_output", check_output)
+    monkeypatch.setattr(runner, "export_head", export)
+    monkeypatch.setattr(runner, "source_fingerprint", timed_fingerprint)
+    monkeypatch.setattr(runner, "run", run)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "mutation-runner",
+            "--manifest",
+            "manifest.json",
+            "--working-tree",
+            "--output",
+            output_name,
+        ],
+    )
+    assert runner.main() == 0
+    report = json.loads((repository / output_name).read_text(encoding="utf-8"))
+    assert report["schema"] == "dur-046-mutation-results.v1"
+    assert report["status"] == "PASS"
+    assert report["source_basis"] == "working-tree overlay"
+    assert report["git_commit"] == "a" * 40
+    assert report["duration_seconds"] == 29.75
+    assert report["setup_duration_seconds"] == 2.25
+    assert report["baseline_duration_seconds"] == 2.0
+    assert report["restored_baseline_duration_seconds"] == 3.0
+    for index, result in enumerate(report["cases"]):
+        assert result["id"] == cases[index]["id"]
+        assert result["kind"] == cases[index]["kind"]
+        assert result["status"] == result["baseline_status"] == "PASS"
+        assert result["exit_code"] == 1
+        assert result["expected_failure"] == result["output_tail"] == "guard removed"
+        assert result["source_sha256"]
+        assert result["baseline_output_tail"]
+        assert result["duration_seconds"] == 10.25 + index * 2
+        assert result["setup_duration_seconds"] == 0.25
+        assert result["baseline_duration_seconds"] == 4.0 + index
+        assert result["mutation_duration_seconds"] == 6.0 + index

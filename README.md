@@ -256,15 +256,17 @@ counters and gauges for leases, claims, results, relay activity, database work,
 workers, and reconciliation age. The local DUR-048 pilot also exports an
 end-to-end HTTP-to-Kafka-worker trace for its normal and recovery cases; that
 trace is local pilot evidence, not production observability.
-The current mutation manifest declares 17 behavioral cases plus one
-configuration tripwire. The checked-in [PowerShell results](mutations/results-powershell.json)
+The current mutation manifest declares 596 selected cases. The checked-in
+[PowerShell results](mutations/results-powershell.json)
 and [Bash results](mutations/results-bash.json) are from hosted run
 [`35941481466`](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/35941481466)
 on `4f98911`; each records all 18 cases. Both workflow jobs passed on two
 consecutive attempts.
-The workflow creates and drops a disposable migration-complete database for
-both mutation gates after an earlier run exposed shared-database residue from
-the preceding service suite. The bounded AWS recovery evidence is published
+The `PowerShell mutation gate` and `Linux mutation gate` jobs run in parallel,
+each with its own isolated stack and disposable migration-complete database.
+Both publish per-case and baseline/setup wall times in separate results
+artifacts; see the [gate layout and timing fields](mutations/README.md#current-ci-layout-and-timing).
+The bounded AWS recovery evidence is published
 separately; the required Kubernetes campaign remains future work.
 Internal study notes stay local; only concise claim boundaries
 and reproducible evidence links are published here.
