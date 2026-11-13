@@ -21,6 +21,7 @@ import subprocess
 import sys
 import tarfile
 import tempfile
+import time
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -125,6 +126,7 @@ def export_head(repo: Path, destination: Path, working_tree: bool = False) -> No
 
 
 def main() -> int:
+    started = time.perf_counter()
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", default="mutations/manifest.json")
     parser.add_argument("--output", default="mutations/results.json")
@@ -163,6 +165,7 @@ def main() -> int:
 
     results: list[dict[str, object]] = []
     scratch_root = Path(tempfile.mkdtemp(prefix="dur046-mutation-"))
+    setup_duration = time.perf_counter() - started
     try:
         baseline = [
             "go",
@@ -176,7 +179,9 @@ def main() -> int:
             "./internal/state",
             "-count=1",
         ]
+        baseline_started = time.perf_counter()
         code, output = run(baseline, repo, base_env)
+        baseline_duration = time.perf_counter() - baseline_started
         if code != 0 or "SKIP" in output or "no tests to run" in output.lower():
             print(output, file=sys.stderr)
             print(
@@ -186,11 +191,14 @@ def main() -> int:
             )
             return 1
 
+        setup_started = time.perf_counter()
         scratch = scratch_root / "source"
         scratch.mkdir()
         export_head(repo, scratch, args.working_tree)
         original_fingerprint = source_fingerprint(scratch)
+        setup_duration += time.perf_counter() - setup_started
         for case in cases:
+            case_started = time.perf_counter()
             if source_fingerprint(scratch) != original_fingerprint:
                 raise RuntimeError("mutation source drift: restored export differs from its baseline")
             kind = str(case.get("kind", "behavioral"))
@@ -211,9 +219,12 @@ def main() -> int:
             # applying the mutation. This catches misspelled -run patterns and
             # skipped/no-test cases; running this after patching would confuse
             # an expected mutation failure with a broken baseline.
+            case_setup_duration = time.perf_counter() - case_started
+            baseline_started = time.perf_counter()
             baseline_ok, baseline_output = validate_case_baseline(
                 str(case["id"]), command, scratch, env
             )
+            case_baseline_duration = time.perf_counter() - baseline_started
             if not baseline_ok:
                 print(baseline_output, file=sys.stderr)
                 print(
@@ -223,7 +234,9 @@ def main() -> int:
                 )
                 return 1
             path.write_text(source.replace(old, new, 1), encoding="utf-8", newline="\n")
+            mutation_started = time.perf_counter()
             code, output = run(command, scratch, env)
+            mutation_duration = time.perf_counter() - mutation_started
             expected = str(case["expected"])
             detected = (
                 code != 0
@@ -241,12 +254,17 @@ def main() -> int:
                 "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
                 "expected_failure": expected,
                 "output_tail": output[-4000:],
+                "duration_seconds": time.perf_counter() - case_started,
+                "setup_duration_seconds": case_setup_duration,
+                "baseline_duration_seconds": case_baseline_duration,
+                "mutation_duration_seconds": mutation_duration,
             }
             results.append(result)
             if not detected:
                 print(json.dumps(result, indent=2), file=sys.stderr)
                 return 1
             path.write_bytes(original_bytes)
+            result["duration_seconds"] = time.perf_counter() - case_started
             if kind == "configuration_tripwire":
                 print(f"PASS {case['id']}: configuration tripwire detected the removed setting")
             else:
@@ -254,7 +272,9 @@ def main() -> int:
 
         # The mutation exports are disposable, so prove the unmodified
         # checkout still passes after the complete campaign as well.
+        baseline_started = time.perf_counter()
         code, output = run(baseline, repo, base_env)
+        restored_baseline_duration = time.perf_counter() - baseline_started
         if code != 0 or "SKIP" in output or "no tests to run" in output.lower():
             print(output, file=sys.stderr)
             print(
@@ -276,6 +296,10 @@ def main() -> int:
                     "git_commit": commit,
                     "source_basis": "working-tree overlay" if args.working_tree else "HEAD",
                     "generated_at_utc": datetime.now(UTC).isoformat(),
+                    "duration_seconds": time.perf_counter() - started,
+                    "setup_duration_seconds": setup_duration,
+                    "baseline_duration_seconds": baseline_duration,
+                    "restored_baseline_duration_seconds": restored_baseline_duration,
                     "cases": results,
                 },
                 indent=2,

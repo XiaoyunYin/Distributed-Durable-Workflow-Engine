@@ -502,8 +502,11 @@ class K3bPilotTests(unittest.TestCase):
                     side_effect=[
                         {"workflow_runs": [run]},
                         {
-                            "total_count": 1,
-                            "jobs": [{"name": "DUR-053 pilot smoke", "conclusion": "success"}],
+                            "total_count": len(evidence.REQUIRED_CI_JOBS),
+                            "jobs": [
+                                {"name": name, "conclusion": "success"}
+                                for name in sorted(evidence.REQUIRED_CI_JOBS)
+                            ],
                         },
                     ],
                 ),
@@ -706,7 +709,10 @@ class K3bPilotTests(unittest.TestCase):
                     },
                     {
                         "total_count": 101,
-                        "jobs": [{"name": "DUR-053 pilot smoke", "conclusion": "success"}],
+                        "jobs": [
+                            {"name": name, "conclusion": "success"}
+                            for name in sorted(evidence.REQUIRED_CI_JOBS)
+                        ],
                     },
                 ],
             ),

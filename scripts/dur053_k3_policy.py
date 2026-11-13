@@ -17,6 +17,15 @@ K8S = ROOT / "deploy/k8s"
 DIGEST = re.compile(r"^[^\s]+@sha256:[0-9a-f]{64}$")
 ROLES = {"api", "operator", "worker-control", "scheduler", "relay", "demand", "worker", "observer"}
 AUTH = {"api", "operator", "worker-control"}
+# Every unconditional main-push gate must pass before pilot admission.
+REQUIRED_CI_JOBS = {
+    "Go, Python, Terraform, and offline evidence",
+    "PostgreSQL, Kafka, and deployed smoke",
+    "PowerShell mutation gate",
+    "Linux mutation gate",
+    "DUR-053 Compose prerequisites",
+    "DUR-053 pilot smoke",
+}
 
 
 def require(condition: Any, guard: str) -> None:

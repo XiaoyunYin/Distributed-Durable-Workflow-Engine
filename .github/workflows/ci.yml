@@ -238,8 +238,8 @@ jobs:
   services:
     name: PostgreSQL, Kafka, and deployed smoke
     runs-on: ubuntu-24.04
-    # Services job totals were 58.0, 71.9 and 75.7 min (cancelled); 120 min is about 1.6x the observed maximum.
-    timeout-minutes: 120
+    # Retained steps: 596/773 s in runs 43303598471/43317291102; 25 min gives >=1.94x headroom.
+    timeout-minutes: 25
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -295,6 +295,63 @@ jobs:
         shell: pwsh
         run: docker compose --env-file .env -f deploy/local/dur055-postgres.yaml down --volumes --remove-orphans
 
+      - name: Collect service diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          if (Test-Path -LiteralPath .env) {
+            docker compose --env-file .env -f deploy/local/compose.yaml ps > artifacts/compose-ps.txt
+            docker compose --env-file .env -f deploy/local/compose.yaml logs --no-color > artifacts/compose-logs.txt
+          }
+
+      - name: Upload service diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-diagnostics-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Tear down the isolated service stack
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath .env) {
+            docker compose --env-file .env -f deploy/local/compose.yaml down --volumes --remove-orphans
+          }
+
+  mutation-powershell:
+    name: PowerShell mutation gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.27.4
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Bootstrap the isolated service stack
+        shell: pwsh
+        run: ./scripts/bootstrap.ps1 -StartServices
+
       - name: Isolate deployed relays for mutation gates
         shell: pwsh
         run: |
@@ -302,7 +359,7 @@ jobs:
           docker compose @compose stop runtime-a runtime-b worker-a worker-b
 
       - name: Run PowerShell mutation gate
-        timeout-minutes: 50
+        timeout-minutes: 75
         shell: pwsh
         run: |
           $values = @{}
@@ -330,8 +387,101 @@ jobs:
           Write-Host ("DUR-046 mutation database: {0}; query: {1}" -f $parsedMutationURL.AbsolutePath.TrimStart('/'), $parsedMutationURL.Query)
           ./scripts/mutation-gate.ps1 -Output mutations/results-powershell.json
 
+      - name: Drop isolated mutation databases
+        if: always()
+        shell: pwsh
+        run: |
+          $values = @{}
+          foreach ($line in (Get-Content -LiteralPath '.env')) {
+            if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
+          }
+          $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
+          foreach ($database in @('dur046_mutation_powershell')) {
+            docker compose @compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $values['POSTGRES_USER'] -d postgres -c "DROP DATABASE IF EXISTS $database WITH (FORCE)"
+            if ($LASTEXITCODE -ne 0) { throw "Could not drop isolated mutation database $database." }
+          }
+
+      - name: Restore deployed relays after mutation gates
+        if: always()
+        shell: pwsh
+        run: |
+          $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
+          docker compose @compose up -d --wait runtime-a runtime-b worker-a worker-b
+
+      - name: Upload mutation results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dur046-mutation-results-powershell-${{ github.run_id }}
+          path: mutations/results-powershell.json
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Collect service diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          if (Test-Path -LiteralPath .env) {
+            docker compose --env-file .env -f deploy/local/compose.yaml ps > artifacts/compose-ps.txt
+            docker compose --env-file .env -f deploy/local/compose.yaml logs --no-color > artifacts/compose-logs.txt
+          }
+
+      - name: Upload service diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mutation-powershell-diagnostics-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Tear down the isolated service stack
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath .env) {
+            docker compose --env-file .env -f deploy/local/compose.yaml down --volumes --remove-orphans
+          }
+
+  mutation-linux:
+    name: Linux mutation gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 100
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.27.4
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Bootstrap the isolated service stack
+        shell: pwsh
+        run: ./scripts/bootstrap.ps1 -StartServices
+
+      - name: Isolate deployed relays for mutation gates
+        shell: pwsh
+        run: |
+          $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
+          docker compose @compose stop runtime-a runtime-b worker-a worker-b
+
       - name: Run Linux mutation gate
-        timeout-minutes: 50
+        timeout-minutes: 75
         shell: bash
         run: |
           set -euo pipefail
@@ -360,7 +510,7 @@ jobs:
             if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
           }
           $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
-          foreach ($database in @('dur046_mutation_powershell', 'dur046_mutation_linux')) {
+          foreach ($database in @('dur046_mutation_linux')) {
             docker compose @compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $values['POSTGRES_USER'] -d postgres -c "DROP DATABASE IF EXISTS $database WITH (FORCE)"
             if ($LASTEXITCODE -ne 0) { throw "Could not drop isolated mutation database $database." }
           }
@@ -376,8 +526,8 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dur046-mutation-results-${{ github.run_id }}
-          path: mutations/results-*.json
+          name: dur046-mutation-results-linux-${{ github.run_id }}
+          path: mutations/results-bash.json
           if-no-files-found: error
           retention-days: 14
 
@@ -395,7 +545,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: service-diagnostics-${{ github.run_id }}
+          name: mutation-linux-diagnostics-${{ github.run_id }}
           path: artifacts/
           if-no-files-found: ignore
           retention-days: 14
