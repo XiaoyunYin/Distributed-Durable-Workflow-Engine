@@ -247,7 +247,7 @@ def test_report_records_wall_clock_phases_without_changing_verdicts(
     assert report["status"] == "PASS"
     assert report["source_basis"] == "working-tree overlay"
     assert report["git_commit"] == "a" * 40
-    assert report["duration_seconds"] == 29.75
+    assert report["duration_seconds"] == 24.75
     assert report["setup_duration_seconds"] == 2.25
     assert report["baseline_duration_seconds"] == 2.0
     assert report["restored_baseline_duration_seconds"] == 3.0
@@ -259,7 +259,151 @@ def test_report_records_wall_clock_phases_without_changing_verdicts(
         assert result["expected_failure"] == result["output_tail"] == "guard removed"
         assert result["source_sha256"]
         assert result["baseline_output_tail"]
-        assert result["duration_seconds"] == 10.25 + index * 2
+        assert result["duration_seconds"] == (10.25 if index == 0 else 7.25)
         assert result["setup_duration_seconds"] == 0.25
-        assert result["baseline_duration_seconds"] == 4.0 + index
+        assert result["baseline_duration_seconds"] == (4.0 if index == 0 else 0.0)
         assert result["mutation_duration_seconds"] == 6.0 + index
+        assert result["baseline_reused"] is (index == 1)
+        assert result["baseline_source_case"] == cases[0]["id"]
+
+
+def _run_small_campaign(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    cases: list[dict[str, object]],
+    *,
+    fail_baseline: bool = False,
+    drift_before_second_case: bool = False,
+) -> tuple[ModuleType, Path]:
+    runner = load_runner()
+    repository = tmp_path / "repository"
+    (repository / "scripts").mkdir(parents=True)
+    (repository / "manifest.json").write_text(json.dumps({"cases": cases}), encoding="utf-8")
+
+    def check_output(command: list[str], **_kwargs: object) -> str:
+        return sys.executable if command[0] == "uv" else "a" * 40
+
+    def export(_repo: Path, destination: Path, _working_tree: bool) -> None:
+        (destination / "guard.txt").write_text("enabled", encoding="utf-8")
+
+    original_fingerprint = runner.source_fingerprint
+    fingerprints = 0
+
+    def fingerprint(root: Path) -> dict[str, str]:
+        nonlocal fingerprints
+        fingerprints += 1
+        result = original_fingerprint(root)
+        if drift_before_second_case and fingerprints == 3:
+            return {"drift": "detected"}
+        return result
+
+    baseline_calls: list[tuple[list[str], dict[str, str]]] = []
+
+    def run(command: list[str], cwd: Path, env: dict[str, str]) -> tuple[int, str]:
+        if cwd == repository:
+            return 0, "ok global baseline"
+        if "-v" in command:
+            baseline_calls.append((command, env))
+            if fail_baseline:
+                return 1, "broken shared baseline"
+            return 0, "--- PASS: TestGuard (0.00s)\nPASS\n"
+        return 1, "guard removed"
+
+    monkeypatch.setattr(runner, "__file__", str(repository / "scripts/mutation-runner.py"))
+    monkeypatch.setattr(runner.subprocess, "check_output", check_output)
+    monkeypatch.setattr(runner, "export_head", export)
+    monkeypatch.setattr(runner, "source_fingerprint", fingerprint)
+    monkeypatch.setattr(runner, "run", run)
+    monkeypatch.setattr(sys, "argv", ["mutation-runner", "--manifest", "manifest.json"])
+    runner._test_baseline_calls = baseline_calls
+    return runner, repository
+
+
+def test_baselines_are_deduplicated_by_exact_command_and_environment(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    template = {
+        "kind": "behavioral",
+        "file": "guard.txt",
+        "old": "enabled",
+        "new": "disabled",
+        "expected": "guard removed",
+        "requires_database": False,
+    }
+    cases = [
+        {**template, "id": "first", "command": ["go", "test", "./guard", "-run", "^TestGuard$"]},
+        {**template, "id": "same", "command": ["go", "test", "./guard", "-run", "^TestGuard$"]},
+        {
+            **template,
+            "id": "different-env",
+            "command": ["go", "test", "./guard", "-run", "^TestGuard$"],
+            "env": {"CASE_MODE": "other"},
+        },
+        {
+            **template,
+            "id": "different-command",
+            "command": ["go", "test", "./guard", "-run", "^TestOther$"],
+        },
+    ]
+    runner, repository = _run_small_campaign(monkeypatch, tmp_path, cases)
+
+    assert runner.main() == 0
+    report = json.loads((repository / "mutations/results.json").read_text(encoding="utf-8"))
+    results = report["cases"]
+    assert len(runner._test_baseline_calls) == 3
+    assert [row["baseline_reused"] for row in results] == [False, True, False, False]
+    assert [row["baseline_source_case"] for row in results] == [
+        "first",
+        "first",
+        "different-env",
+        "different-command",
+    ]
+    assert [row["baseline_duration_seconds"] for row in results][1] == 0
+
+
+def test_failing_shared_baseline_fails_on_first_case_with_existing_error(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    template = {
+        "kind": "behavioral",
+        "file": "guard.txt",
+        "old": "enabled",
+        "new": "disabled",
+        "command": ["go", "test", "./guard", "-run", "^TestGuard$"],
+        "expected": "guard removed",
+        "requires_database": False,
+    }
+    cases = [{**template, "id": case_id} for case_id in ("first", "same")]
+    runner, _repository = _run_small_campaign(monkeypatch, tmp_path, cases, fail_baseline=True)
+
+    assert runner.main() == 1
+    output = capsys.readouterr().err
+    assert "first: named-test baseline failed, skipped, or selected no tests" in output
+    assert (
+        "DUR-046 mutation case has no passing, executed baseline; refusing to apply mutation"
+        in output
+    )
+    assert len(runner._test_baseline_calls) == 1
+
+
+def test_source_drift_check_runs_before_a_reused_baseline(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    template = {
+        "kind": "behavioral",
+        "file": "guard.txt",
+        "old": "enabled",
+        "new": "disabled",
+        "command": ["go", "test", "./guard", "-run", "^TestGuard$"],
+        "expected": "guard removed",
+        "requires_database": False,
+    }
+    cases = [{**template, "id": case_id} for case_id in ("first", "same")]
+    runner, _repository = _run_small_campaign(
+        monkeypatch, tmp_path, cases, drift_before_second_case=True
+    )
+
+    with pytest.raises(
+        RuntimeError, match="mutation source drift: restored export differs from its baseline"
+    ):
+        runner.main()

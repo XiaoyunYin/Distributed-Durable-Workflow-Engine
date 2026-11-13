@@ -197,6 +197,7 @@ def main() -> int:
         export_head(repo, scratch, args.working_tree)
         original_fingerprint = source_fingerprint(scratch)
         setup_duration += time.perf_counter() - setup_started
+        case_baselines: dict[tuple[tuple[str, ...], tuple[tuple[str, str], ...]], tuple[bool, str, str]] = {}
         for case in cases:
             case_started = time.perf_counter()
             if source_fingerprint(scratch) != original_fingerprint:
@@ -212,19 +213,30 @@ def main() -> int:
             count = source.count(old)
             if count != 1:
                 raise RuntimeError(f"{case['id']}: expected one patch site, found {count}")
-            command = case_command([str(item) for item in case["command"]], python_exe,
+            case_command_list = [str(item) for item in case["command"]]
+            command = case_command(case_command_list, python_exe,
                                    scratch_root / "pytest" / str(case["id"]))
             env = dict(base_env)
+            env.update({str(key): str(value) for key, value in case.get("env", {}).items()})
+            baseline_key = (tuple(case_command_list), tuple(sorted(env.items())))
             # Prove the exact selector passes on the unmodified source before
             # applying the mutation. This catches misspelled -run patterns and
             # skipped/no-test cases; running this after patching would confuse
             # an expected mutation failure with a broken baseline.
             case_setup_duration = time.perf_counter() - case_started
-            baseline_started = time.perf_counter()
-            baseline_ok, baseline_output = validate_case_baseline(
-                str(case["id"]), command, scratch, env
-            )
-            case_baseline_duration = time.perf_counter() - baseline_started
+            if baseline_key in case_baselines:
+                baseline_ok, baseline_output, baseline_source_case = case_baselines[baseline_key]
+                case_baseline_duration = 0.0
+                baseline_reused = True
+            else:
+                baseline_started = time.perf_counter()
+                baseline_ok, baseline_output = validate_case_baseline(
+                    str(case["id"]), command, scratch, env
+                )
+                case_baseline_duration = time.perf_counter() - baseline_started
+                baseline_source_case = str(case["id"])
+                baseline_reused = False
+                case_baselines[baseline_key] = (baseline_ok, baseline_output, baseline_source_case)
             if not baseline_ok:
                 print(baseline_output, file=sys.stderr)
                 print(
@@ -251,6 +263,8 @@ def main() -> int:
                 "exit_code": code,
                 "baseline_status": "PASS",
                 "baseline_output_tail": baseline_output[-2000:],
+                "baseline_reused": baseline_reused,
+                "baseline_source_case": baseline_source_case,
                 "source_sha256": hashlib.sha256(source.encode()).hexdigest(),
                 "expected_failure": expected,
                 "output_tail": output[-4000:],
