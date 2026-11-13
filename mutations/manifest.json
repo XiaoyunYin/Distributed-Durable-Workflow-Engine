@@ -9959,6 +9959,22 @@
       "requires_database": false
     },
     {
+      "id": "mutation-runner-source-drift-check",
+      "kind": "behavioral",
+      "file": "scripts/mutation-runner.py",
+      "old": "if source_fingerprint(scratch) != original_fingerprint:",
+      "new": "if False:  # mutation: disable restored source drift check",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_mutation_runner.py::test_source_drift_check_runs_before_a_reused_baseline",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
       "id": "k4a-event-map",
       "kind": "behavioral",
       "file": "scripts/dur053_k4.py",
