@@ -35,7 +35,13 @@ func Wait(ctx context.Context) {
 	hold := os.Getenv("DUR053_K4_HOLD_FILE")
 	deadline := time.Now().Add(60 * time.Second)
 	for hold != "" && time.Now().Before(deadline) {
-		if _, err := os.Stat(hold); os.IsNotExist(err) {
+		info, err := os.Stat(hold)
+		if os.IsNotExist(err) {
+			break
+		}
+		if err == nil && !time.Now().Before(info.ModTime().Add(60*time.Second)) {
+			slog.Info("k4 hold bound expired", "event", "k4_hold_bound_expired", "hold", hold,
+				"timestamp", time.Now().UTC(), "pod_uid", os.Getenv("POD_UID"))
 			break
 		}
 		select {

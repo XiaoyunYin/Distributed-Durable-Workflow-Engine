@@ -11,6 +11,7 @@ import threading
 import time
 from datetime import datetime
 from pathlib import Path
+from urllib.parse import urlencode
 
 from dur053_k3 import CLUSTER, save
 from dur053_k3_policy import require
@@ -24,6 +25,14 @@ def utc(value):
 
 def history_kind(row):
     """Preserve receipt/replacement semantics without inventing an owner."""
+    terminal = row.get("new_state") in {"SUCCEEDED", "FAILED", "CANCELED", "ABANDONED", "REJECTED"}
+    # Authorization evidence takes precedence over reason aliases.
+    if (
+        row.get("epoch")
+        or row.get("scheduler_epoch")
+        or row.get("actor_kind") not in {"client", "worker"}
+    ):
+        return "terminal" if terminal else "transition"
     reason = row["reason"].lower()
     if row["reason"] == "ATTEMPT_RESULT_RECORDED":
         return "receipt"
@@ -31,11 +40,39 @@ def history_kind(row):
         return "cancel"
     if "replac" in reason or "timeout" in reason:
         return "supersede"
-    if not row["owner"]:
+    if not row["owner"] and row.get("actor_kind") in {"client", "worker"}:
         return "claim"
-    if row.get("new_state") in {"SUCCEEDED", "FAILED", "CANCELED", "ABANDONED", "REJECTED"}:
-        return "terminal"
-    return "transition"
+    return "terminal" if terminal else "transition"
+
+
+def cri_event(text):
+    """ctr events: RFC3339Nano timestamp, namespace, topic, JSON payload.
+
+    Retain all lines upstream. Unrelated events are not process deaths; malformed
+    exit events must never disappear as if no process had died.
+    """
+    parts = text.split(None, 3)
+    if len(parts) < 3 or parts[2] != "/tasks/exit":
+        require("/tasks/exit" not in text, "k4-cri-exit-unparseable")
+        return None
+    try:
+        require(len(parts) == 4 and parts[1] == "k8s.io", "k4-cri-exit-unparseable")
+        raw = json.loads(parts[3])
+        cid = raw["container_id"]
+        status = raw["exit_status"]
+        exited = raw["exited_at"]
+        at = (
+            int(exited["seconds"]) + int(exited.get("nanos", 0)) / 1e9
+            if isinstance(exited, dict)
+            else utc(exited)
+        )
+        require(
+            isinstance(cid, str) and bool(cid) and type(status) is int, "k4-cri-exit-unparseable"
+        )
+        utc(parts[0])
+        return dict(container_id=cid, exit_status=status, at=at, source=text)
+    except (ValueError, KeyError, TypeError, IndexError) as error:
+        raise ValueError("k4-cri-exit-unparseable: " + text) from error
 
 
 def structured_log(text):
@@ -73,18 +110,10 @@ def apply_process_evidence(sessions, logs, events):
             dict(at=utc(row["timestamp"]), signal=row["signal"], evidence="persistent-process-log")
         )
     for _, _, text in events:
-        if "{" not in text:
+        raw = cri_event(text)
+        if raw is None:
             continue
-        raw = json.loads(text[text.index("{") :])
-        cid = raw.get("container_id", raw.get("containerID", ""))
-        status = raw.get("exit_status", raw.get("exitStatus"))
-        exited = raw.get("exited_at", raw.get("exitedAt"))
-        if isinstance(exited, dict):
-            at = int(exited["seconds"]) + int(exited.get("nanos", 0)) / 1e9
-        elif isinstance(exited, str):
-            at = utc(exited)
-        else:
-            at = utc(text.split()[0])
+        cid, status, at = raw["container_id"], raw["exit_status"], raw["at"]
         for s in sessions:
             if s["container_id"].rsplit("/", 1)[-1] == cid and status is not None:
                 s.update(
@@ -136,6 +165,9 @@ class Streams:
         self.threads = []
         self.pods = []
         self.endpoints = []
+        self.versions = {}
+        self.first_events = {}
+        self.cri_exits = []
 
     def start(self, label, args, callback=None):
         path = self.output / (label + ".jsonl")
@@ -152,30 +184,36 @@ class Streams:
         def pump():
             try:
                 with path.open("a", encoding="utf-8", newline="\n") as handle:
-                    pending = ""
-                    decoder = json.JSONDecoder()
                     for line in iter(proc.stdout.readline, b""):
                         received = time.time()
                         text = line.decode("utf-8", errors="strict").rstrip("\r\n")
-                        if callback:
-                            pending += text + "\n"
-                            try:
-                                obj, consumed = decoder.raw_decode(pending.lstrip())
-                            except ValueError:
-                                continue
-                            require(not pending.lstrip()[consumed:].strip(), "k4-watch-framing")
-                            text = json.dumps(obj)
-                            pending = ""
                         envelope = dict(received=received, source=text)
                         handle.write(json.dumps(envelope) + "\n")
                         handle.flush()
                         if callback:
-                            callback(text, received)
-                if pending.strip():
-                    self.errors.append(label + ": truncated watch object")
+                            try:
+                                if callback(text, received) is not False:
+                                    self.first_events.setdefault(label, received)
+                            except Exception as error:
+                                with (self.output / (label + "-parse-failures.jsonl")).open(
+                                    "a", encoding="utf-8", newline="\n"
+                                ) as failures:
+                                    failures.write(
+                                        json.dumps(dict(**envelope, error=str(error))) + "\n"
+                                    )
+                                raise
                 code = proc.wait()
                 if not self.stopped:
-                    self.errors.append(f"{label}: unexpected stream EOF exit {code}")
+                    err.flush()
+                    stderr = (self.output / (label + ".stderr")).read_text(errors="replace")
+                    expired = label in {"pods", "endpoints"} and any(
+                        token in stderr for token in ("410", "Gone", "too old resource version")
+                    )
+                    self.errors.append(
+                        label + ": k4-watch-expired"
+                        if expired
+                        else f"{label}: unexpected stream EOF exit {code}"
+                    )
             except Exception as error:
                 self.errors.append(label + ": " + str(error))
 
@@ -184,8 +222,9 @@ class Streams:
         self.threads.append(t)
 
     def observe_pod(self, text, received):
-        event = json.loads(text)
-        require(event.get("type") in {"ADDED", "MODIFIED", "DELETED"}, "k4-pod-watch-error")
+        event = self.watch_event("pods", text)
+        if event is None:
+            return
         p = event["object"]
         role = p["metadata"].get("labels", {}).get("app")
         with self.lock:
@@ -218,38 +257,85 @@ class Streams:
                 )
 
     def observe_endpoint(self, text, received):
-        event = json.loads(text)
-        require(event.get("type") in {"ADDED", "MODIFIED", "DELETED"}, "k4-endpoint-watch-error")
+        event = self.watch_event("endpoints", text)
+        if event is None:
+            return
         with self.lock:
             self.endpoints.append(dict(received=received, **event))
 
+    def watch_event(self, resource, text):
+        event = json.loads(text)
+        kind = event.get("type")
+        require(kind != "ERROR" and event.get("object", {}).get("code") != 410, "k4-watch-expired")
+        require(kind in {"ADDED", "MODIFIED", "DELETED", "BOOKMARK"}, "k4-watch-framing")
+        self.versions[resource] = event["object"]["metadata"]["resourceVersion"]
+        return None if kind == "BOOKMARK" else event
+
+    def observe_cri(self, text, received):
+        event = cri_event(text)
+        if event is not None:
+            with self.lock:
+                self.cri_exits.append(dict(received=received, **event))
+        parts = text.split(None, 3)
+        if len(parts) != 4:
+            return False
+        try:
+            utc(parts[0])
+            json.loads(parts[3])
+        except ValueError:
+            return False
+        return parts[1] == "k8s.io" and parts[2].startswith("/")
+
+    def start_cri(self):
+        self.start(
+            "cri-exits",
+            [
+                "docker",
+                "exec",
+                "dur053-k3a-control-plane",
+                "ctr",
+                "--namespace",
+                "k8s.io",
+                "events",
+            ],
+            self.observe_cri,
+        )
+
     def start_watch(self, resource):
-        # jsonpath emits each watch object as a single JSON line, including
-        # source timestamps and resourceVersion. No polling replaces this watch.
         current = json.loads(
             self.d.k("-n", self.ns, "get", resource, "-o", "json", record=False).stdout
         )
         callback = self.observe_pod if resource == "pods" else self.observe_endpoint
         for obj in current["items"]:
             callback(json.dumps({"type": "ADDED", "object": obj}), time.time())
+        rv = current["metadata"]["resourceVersion"]
+        self.versions[resource] = rv
+        # kubectl v1.32.2 get --raw streams the API response verbatim. No
+        # kubectl watch flags are involved. Timeout/EOF before close is fatal.
+        query = urlencode(
+            dict(watch="true", resourceVersion=rv, allowWatchBookmarks="true", timeoutSeconds=3600)
+        )
         self.start(
             resource,
             [
                 "kubectl",
                 "--context",
                 "kind-" + CLUSTER,
-                "-n",
-                self.ns,
                 "get",
-                resource,
-                "--watch-only",
-                "--output-watch-events",
-                "-o",
-                "json",
-                "--resource-version=" + current["metadata"]["resourceVersion"],
+                "--raw",
+                f"/api/v1/namespaces/{self.ns}/{resource}?{query}",
             ],
             callback,
         )
+
+    def self_check(self, timeout=20):
+        deadline = time.monotonic() + timeout
+        while not {"pods", "endpoints", "cri-exits"} <= self.first_events.keys():
+            self.check()
+            require(time.monotonic() < deadline, "k4-stream-self-check-timeout")
+            time.sleep(0.05)
+        self.check()
+        return dict(first_events=self.first_events.copy(), versions=self.versions.copy())
 
     def check(self):
         # A natural log EOF is allowed only after independently observed death.
@@ -475,7 +561,7 @@ def export_seals(raw, sessions):
     return witnesses, invocations, traces
 
 
-def durable_claims(attempts, traces, namespace):
+def durable_claims(attempts, traces, namespace, audit):
     """A durable claim remains evidence even when no invocation ever started."""
     claims = []
     for row in attempts:
@@ -490,18 +576,37 @@ def durable_claims(attempts, traces, namespace):
                 expected_attempt=expected,
             )
             hashes.add(hashlib.sha256(json.dumps(body, separators=(",", ":")).encode()).hexdigest())
+        audits = [
+            r
+            for r in audit
+            if all(
+                r[k] == row[k]
+                for k in (
+                    "workflow_id",
+                    "node_id",
+                    "iteration",
+                    "attempt_number",
+                    "token_hash",
+                    "worker_id",
+                    "worker_request_id",
+                )
+            )
+        ]
+        require(bool(audits), "k4-claim-ack-clock-evidence-missing")
+        require(len(audits) == 1, "k4-claim-audit-ambiguous")
+        durable = audits[0]
+        lo, hi = utc(durable["at"]), utc(durable["finalized_at"])
+        require(lo <= hi, "k4-claim-audit-clock")
         acks = [
             r
             for r in traces
-            if r["event"] == "http"
+            if r["event"] in {"http_start", "http"}
             and r.get("operation") == "claim"
             and r.get("body_hash") in hashes
-            and r.get("status") == 200
-            and not r.get("error")
         ]
         require(
             bool(acks) and len({r["session"] for r in acks}) == 1,
-            "k4-claim-ack-clock-evidence-missing",
+            "k4-claim-session-evidence-missing",
         )
         first = min(acks, key=lambda r: r["at"])
         ident = dict(
@@ -513,7 +618,20 @@ def durable_claims(attempts, traces, namespace):
             token_hash=row["token_hash"],
         )
         claims.append(
-            dict(identity=ident, session=first["session"], order=len(claims) + 1, at=first["at"])
+            dict(
+                identity=ident,
+                session=first["session"],
+                order=durable["order"],
+                at=lo,
+                commit_bracket=dict(
+                    statement=lo,
+                    finalized=hi,
+                    transaction=durable["transaction"],
+                    session=durable["session"],
+                    pod_uid=durable["pod_uid"],
+                    container_id=durable["container_id"],
+                ),
+            )
         )
     return claims
 

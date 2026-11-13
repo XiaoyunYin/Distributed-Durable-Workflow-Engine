@@ -58,22 +58,34 @@ type LifecycleInvocation struct {
 	AbortEvidence string            `json:"abort_evidence"`
 	Outcome       string            `json:"outcome"`
 }
+type LifecycleCommitBracket struct {
+	Statement   float64 `json:"statement"`
+	Finalized   float64 `json:"finalized"`
+	Transaction string  `json:"transaction"`
+	Session     string  `json:"session"`
+	PodUID      string  `json:"pod_uid"`
+	ContainerID string  `json:"container_id"`
+}
+
 type LifecycleClaim struct {
-	Identity LifecycleIdentity `json:"identity"`
-	Session  string            `json:"session"`
-	Order    int64             `json:"order"`
-	At       float64           `json:"at"`
+	CommitBracket *LifecycleCommitBracket `json:"commit_bracket"`
+	Identity      LifecycleIdentity       `json:"identity"`
+	Session       string                  `json:"session"`
+	Order         int64                   `json:"order"`
+	At            float64                 `json:"at"`
 }
 type LifecycleHistory struct {
-	Identity  LifecycleIdentity `json:"identity"`
-	Order     int64             `json:"order"`
-	At        float64           `json:"at"`
-	Kind      string            `json:"kind"`
-	Receipt   string            `json:"receipt"`
-	Partition int               `json:"partition"`
-	Owner     string            `json:"owner"`
-	Epoch     int64             `json:"epoch"`
-	Revision  int64             `json:"revision"`
+	SchedulerEpoch *int64            `json:"scheduler_epoch"`
+	ActorKind      string            `json:"actor_kind"`
+	Identity       LifecycleIdentity `json:"identity"`
+	Order          int64             `json:"order"`
+	At             float64           `json:"at"`
+	Kind           string            `json:"kind"`
+	Receipt        string            `json:"receipt"`
+	Partition      int               `json:"partition"`
+	Owner          string            `json:"owner"`
+	Epoch          int64             `json:"epoch"`
+	Revision       int64             `json:"revision"`
 }
 type LifecycleReceipt struct {
 	ID        string            `json:"id"`

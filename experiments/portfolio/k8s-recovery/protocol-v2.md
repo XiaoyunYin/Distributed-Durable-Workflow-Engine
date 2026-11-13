@@ -1545,7 +1545,9 @@ Registered by Claude under D035 before any K4 measurement.
    - lease release/acquire ordering is kept as additive, append-only audit rows written in the same transaction as the existing statements;
    - worker witness persistence in K4 campaign mode fails closed: a start that cannot be persisted aborts before workload logic;
    - Kafka assignment callbacks are traced in both worker paths without changing poll/execution behaviour;
-   - published evidence uses claim-token hashes.
+   - published evidence uses claim-token hashes;
+   - target-local worker/API/relay/scheduler boundary holds confirm in-flight work at intervention. They are identical in both arms, bounded by hold-file mtime plus 60 seconds, and absent from overhead probes. Rollout/rollback and scale-down release on observed deletion; container-kill releases after backend injection; eviction releases after the concurrent initial requests. Evidence retains host/observer hold_set and hold_released instants, file-state checks, bound expiry (including expiry before explicit release), and the count of measured arrivals scheduled during the effective hold interval;
+   - campaign claims have additive append-only audit rows in the claim transaction, with statement time and deferred-finalization clock time retained as a commit-path bracket.
 
    The resulting image differs from the K3 calibration image. This is disclosed the same way as B.5: frozen b, r and L are unchanged, and the K4 images are recorded per job.
 6. **Measurement and reporting (clarifications).**

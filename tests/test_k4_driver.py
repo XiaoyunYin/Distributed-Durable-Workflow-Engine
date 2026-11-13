@@ -203,6 +203,13 @@ def test_eviction_singletons_once_no_harness_no_cordon(tmp_path):
         "singleton request retried"
     )
     assert all(e["scheduled"] == 10 for e in c["evictions"])
+    replacements = [e for e in c["evictions"] if e["status"] == 201]
+    assert len({e["replaced_by"] for e in replacements}) == 2, "eviction reused replacement"
+    assert all(
+        e["replacement_ready"] == collectors.utc("2026-01-01T00:00:00Z")
+        and e["replacement_ready_upper"] >= e["replacement_ready"]
+        for e in replacements
+    )
 
 
 def test_pdb_missing_denial_fails(tmp_path):
@@ -242,13 +249,25 @@ def test_reconciliation_quiet_resets_and_deadline_only():
 @pytest.mark.parametrize("state", ["SUCCEEDED", "FAILED", "CANCELED", "WAITING_ACTIVITY"])
 def test_empty_owner_is_never_authorized(state):
     kind = collectors.history_kind(
-        dict(reason="SUBMITTED", owner="", new_state=state, node_id=None)
+        dict(
+            reason="SUBMITTED",
+            owner="",
+            new_state=state,
+            node_id=None,
+            epoch=0,
+            actor_kind="client",
+        )
     )
     assert kind not in {"transition", "terminal"}, "empty owner authorized"
 
 
 def test_history_receipt_is_not_result_consumption():
-    assert collectors.history_kind(dict(reason="ATTEMPT_RESULT_RECORDED", owner="")) == "receipt"
+    assert (
+        collectors.history_kind(
+            dict(reason="ATTEMPT_RESULT_RECORDED", owner="", epoch=0, actor_kind="worker")
+        )
+        == "receipt"
+    )
     assert (
         collectors.history_kind(dict(reason="RESULT_CONSUMED", owner="scheduler")) == "transition"
     )
@@ -585,7 +604,7 @@ def test_kill_uses_only_witnessed_container(tmp_path):
 
 def test_expired_watch_fails_instead_of_resyncing_over_a_gap(tmp_path):
     s = collectors.Streams(Mock(), "ns", tmp_path)
-    with pytest.raises(ValueError, match="pod-watch-error"):
+    with pytest.raises(ValueError, match="watch-expired"):
         s.observe_pod(json.dumps(dict(type="ERROR", object=dict(code=410))), 10)
 
 
@@ -712,10 +731,22 @@ def test_claim_without_invocation_is_retained_without_inventing_execution():
             at=10,
         )
     ]
-    claims = collectors.durable_claims([a], traces, "ns")
+    audit = [
+        dict(
+            a,
+            at="1970-01-01T00:00:10Z",
+            finalized_at="1970-01-01T00:00:10.001Z",
+            order=1,
+            transaction="tx",
+            session="api",
+            pod_uid="api-pod",
+            container_id="api-cid",
+        )
+    ]
+    claims = collectors.durable_claims([a], traces, "ns", audit)
     assert len(claims) == 1 and claims[0]["identity"]["workflow"] == "w", (
         "unexecuted claim was omitted"
     )
     assert claims[0]["at"] == 10 and claims[0]["session"] == "s"
     with pytest.raises(ValueError, match="claim-ack-clock-evidence-missing"):
-        collectors.durable_claims([a], [], "ns")
+        collectors.durable_claims([a], [], "ns", [])

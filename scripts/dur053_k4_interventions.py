@@ -6,6 +6,7 @@ import hashlib
 import json
 import time
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 from dur053_k3 import save
 from dur053_k3_policy import require
@@ -267,6 +268,7 @@ class Interventions:
                 denial=result.stderr if status == 429 else "",
                 replaced_by="",
                 replacement_ready=None,
+                replacement_ready_upper=None,
             )
             return p, row
 
@@ -283,6 +285,7 @@ class Interventions:
             else:
                 pending.append((pod, row))
         deadline = time.monotonic() + 180
+        used_replacements = set()
         while pending:
             require(time.monotonic() < deadline, "k4-eviction-deadline")
             later = []
@@ -296,21 +299,38 @@ class Interventions:
                     record["evictions"].append(retry)
                     row = retry
                 old = set(rolemap[row["role"]]["pod_uids"])
-                replacements = [
-                    p
-                    for p in self.pods(row["role"])
-                    if p["metadata"]["uid"] not in old and ready(p)
-                ]
+                replacements = sorted(
+                    [
+                        p
+                        for p in self.pods(row["role"])
+                        if p["metadata"]["uid"] not in old | used_replacements and ready(p)
+                    ],
+                    key=lambda p: (
+                        p["metadata"].get("creationTimestamp", ""),
+                        p["metadata"]["uid"],
+                    ),
+                )
                 live_uids = {p["metadata"]["uid"] for p in self.pods(row["role"])}
                 if (
                     row["status"] == 201
                     and pod["metadata"]["uid"] not in live_uids
                     and replacements
                 ):
-                    row.update(
-                        replaced_by=replacements[0]["metadata"]["uid"],
-                        replacement_ready=time.time(),
+                    replacement = replacements[0]
+                    uid = replacement["metadata"]["uid"]
+                    condition = next(
+                        c
+                        for c in replacement["status"]["conditions"]
+                        if c["type"] == "Ready" and c["status"] == "True"
                     )
+                    row.update(
+                        replaced_by=uid,
+                        replacement_ready=datetime.fromisoformat(
+                            condition["lastTransitionTime"].replace("Z", "+00:00")
+                        ).timestamp(),
+                        replacement_ready_upper=time.time(),
+                    )
+                    used_replacements.add(uid)
                 else:
                     later.append((pod, row))
             save(self.output / "confirmation.json", record)

@@ -116,6 +116,7 @@ def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment"):
         rate=p["rate"],
         L=p["L"],
         W=p["W"],
+        confirmation_deadline=120 + p["confirmation"],
         intervention=120,
         window_end=300,
         reconciliation_end=331,
@@ -182,7 +183,15 @@ def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment"):
                 namespace="ns", workflow=aid, node="n", iteration=0, attempt=1, token_hash="a" * 64
             )
             order = 10 + 3 * len(arrivals)
-            t["claims"].append(dict(identity=ident, session="worker", order=order, at=at + 0.001))
+            t["claims"].append(
+                dict(
+                    identity=ident,
+                    session="worker",
+                    order=order,
+                    at=at + 0.001,
+                    commit_bracket=None,
+                )
+            )
             t["http"].extend(
                 [
                     dict(
@@ -234,6 +243,8 @@ def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment"):
                         partition=0,
                         owner="",
                         epoch=0,
+                        scheduler_epoch=None,
+                        actor_kind="worker",
                         revision=1,
                     ),
                     dict(
@@ -245,6 +256,8 @@ def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment"):
                         partition=0,
                         owner="owner",
                         epoch=1,
+                        scheduler_epoch=1,
+                        actor_kind="scheduler",
                         revision=2,
                     ),
                 ]
@@ -436,7 +449,7 @@ def test_closed_schemas(name):
     with pytest.raises(ValueError, match="k4-schema"):
         schema.validate(value, spec)
     del value["extra"]
-    del value["episode" if "episode" in value else "job"]
+    del value["schema"]
     with pytest.raises(ValueError, match="k4-schema"):
         schema.validate(value, spec)
 

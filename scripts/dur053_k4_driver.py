@@ -327,6 +327,22 @@ class K4Driver:
         return addresses
 
     def validate_backend(self):
+        client = json.loads(self.base.k("version", "--client", "-o", "json").stdout)
+        require(client["clientVersion"]["gitVersion"] == "v1.32.2", "k4-kubectl-version")
+        get_help = self.base.k("get", "--help").stdout
+        ctr_version = self.base.command(
+            ["docker", "exec", "dur053-k3a-control-plane", "ctr", "version"]
+        ).stdout
+        ctr_help = self.base.command(
+            ["docker", "exec", "dur053-k3a-control-plane", "ctr", "events", "--help"]
+        ).stdout
+        require("--raw" in get_help and "--filter" not in ctr_help, "k4-stream-cli-contract")
+        save(
+            self.output / "stream-cli-contract.json",
+            dict(
+                kubectl=client, get_help=get_help, ctr_version=ctr_version, ctr_events_help=ctr_help
+            ),
+        )
         ns = "dur053-k4-backend"
         self.base.apply(dict(apiVersion="v1", kind="Namespace", metadata=dict(name=ns)))
         self.namespaces.add(ns)
@@ -351,8 +367,58 @@ class K4Driver:
         self.base.k("-n", ns, "wait", "pod/scratch", "--for=condition=Ready", "--timeout=120s")
         adapter = Interventions(self.base, ns, self.output, self.images, self.proof, self.source)
         before = adapter.get("pod", "scratch")
-        after = adapter.kill(before, name="backend-validation")
-        save(self.output / "chaos-validation.json", dict(status="PASS", before=before, after=after))
+        streams = Streams(self.base, ns, self.output / "backend-streams")
+        try:
+            streams.start_cri()
+            streams.start_watch("pods")
+            streams.start_watch("endpoints")
+            # Force a server event for both watches; list rows do not count.
+            self.base.k("-n", ns, "label", "pod/scratch", "k4-self-check=true")
+            self.base.apply(
+                dict(
+                    apiVersion="v1",
+                    kind="Endpoints",
+                    metadata=dict(name="scratch", namespace=ns),
+                    subsets=[],
+                )
+            )
+            # Container creation produces a CRI event before the kill. This
+            # self-check therefore catches CLI failures before fault injection.
+            self.base.k(
+                "-n",
+                ns,
+                "run",
+                "stream-check",
+                "--restart=Never",
+                "--image=" + self.images["a"]["worker"],
+                "--image-pull-policy=Never",
+                "--command",
+                "--",
+                "python",
+                "-c",
+                "print('stream-check')",
+            )
+            check = streams.self_check()
+            after = adapter.kill(before, name="backend-validation")
+            cid = before["status"]["containerStatuses"][0]["containerID"].rsplit("/", 1)[-1]
+            self.base.until(lambda: any(e["container_id"] == cid for e in streams.cri_exits), 20)
+            streams.check()
+            exits = [e for e in streams.cri_exits if e["container_id"] == cid]
+            require(
+                exits and any(e["exit_status"] == 137 for e in exits), "k4-backend-cri-exit-missing"
+            )
+            save(
+                self.output / "chaos-validation.json",
+                dict(
+                    status="PASS",
+                    before=before,
+                    after=after,
+                    stream_self_check=check,
+                    cri_task_exits=exits,
+                ),
+            )
+        finally:
+            streams.close()
         self.base.k("delete", "namespace", ns, "--wait=true", "--timeout=60s")
         self.namespaces.discard(ns)
 
@@ -389,6 +455,8 @@ class K4Driver:
                 )
             for c in pod["containers"]:
                 env = {e["name"]: e for e in c.get("env", [])}
+                if self.episode_output.name.startswith("overhead-"):
+                    env["DUR053_K4_COMMIT_TIMING"] = dict(name="DUR053_K4_COMMIT_TIMING", value="1")
                 env["RUNTIME_NAMESPACE"] = dict(name="RUNTIME_NAMESPACE", value=ns)
                 env["DUR053_K4_HOLD_FILE"] = dict(
                     name="DUR053_K4_HOLD_FILE",
@@ -480,20 +548,7 @@ class K4Driver:
                 timeout=190,
             )
         self.collector = Streams(self.base, ns, self.episode_output / "streams")
-        self.collector.start(
-            "cri-exits",
-            [
-                "docker",
-                "exec",
-                "dur053-k3a-control-plane",
-                "ctr",
-                "--namespace",
-                "k8s.io",
-                "events",
-                "--filter",
-                "topic==/tasks/exit",
-            ],
-        )
+        self.collector.start_cri()
         self.collector.start_watch("pods")
         self.collector.start_watch("endpoints")
         self.base.apply(
@@ -540,6 +595,7 @@ class K4Driver:
             "history": 'SELECT h.*, k."order",k.partition,k.owner,k.epoch,k.session '
             "FROM engine.transition_history h JOIN engine.k4_history_order k USING(transition_id)",
             "leases": "SELECT * FROM engine.k4_lease_audit",
+            "claim_audit": 'SELECT * FROM engine.k4_claim_audit ORDER BY "order"',
             "sessions": "SELECT DISTINCT session_id AS session,pod_uid,container_id "
             "FROM engine.k4_audit",
             "connections": "SELECT count(*) AS count FROM pg_stat_activity "
@@ -646,7 +702,7 @@ class K4Driver:
         require(not self.sample_error, "k4-observer-loss: " + "; ".join(self.sample_error))
 
     def load(self, ns, cell, p, start):
-        count = math.ceil((p["warmup"] + p["confirmation"] + p["W"] + 5) * p["rate"])
+        count = math.ceil((p["warmup"] + p["confirmation"] + p["W"] + 180) * p["rate"])
         return self.base.k(
             "-n",
             ns,
@@ -677,7 +733,7 @@ class K4Driver:
             str(p["rate"]),
             "-output",
             "/evidence/k4-arrivals.jsonl",
-            timeout=p["warmup"] + p["confirmation"] + p["W"] + 120,
+            timeout=p["warmup"] + p["confirmation"] + p["W"] + 240,
             allowed=True,
         )
 
@@ -816,9 +872,11 @@ class K4Driver:
         # downward alias is resolved by enclosing process lifetime, not by name.
         for raw in snapshot["sessions"]:
             rows = [h for h in snapshot["history"] if h["session"] == raw["session"]]
-            times = [utc(h["created_at"]) for h in rows] + [
-                utc(r["at"]) for r in snapshot["leases"] if r["session"] == raw["session"]
-            ]
+            times = (
+                [utc(h["created_at"]) for h in rows]
+                + [utc(r["at"]) for r in snapshot["leases"] if r["session"] == raw["session"]]
+                + [utc(r["at"]) for r in snapshot["claim_audit"] if r["session"] == raw["session"]]
+            )
             require(
                 raw["container_id"] == raw["pod_uid"]
                 or any(
@@ -877,7 +935,9 @@ class K4Driver:
                 token_hash=a.get("token_hash", "0" * 64),
             )
 
-        timeline["claims"] = durable_claims(snapshot["attempts"], traces, ns)
+        timeline["claims"] = durable_claims(
+            snapshot["attempts"], traces, ns, snapshot["claim_audit"]
+        )
         for v in invocations:
             matches = [c for c in timeline["claims"] if c["identity"] == v["identity"]]
             require(
@@ -897,6 +957,8 @@ class K4Driver:
                 partition=raw["partition"],
                 owner=raw["owner"],
                 epoch=raw["epoch"],
+                scheduler_epoch=raw["scheduler_epoch"],
+                actor_kind=raw["actor_kind"],
                 revision=raw["revision"],
             )
             if (
@@ -905,8 +967,7 @@ class K4Driver:
                 and raw["new_state"] in {"SUCCEEDED", "FAILED", "CANCELED"}
             ):
                 row["kind"] = "terminal"
-            if raw["reason"] == "ATTEMPT_RESULT_RECORDED":
-                row["kind"] = "receipt"
+            if raw["reason"] == "ATTEMPT_RESULT_RECORDED" and row["kind"] == "receipt":
                 row["receipt"] = raw["transition_id"]
                 i = row["identity"]
                 vs = [v for v in invocations if v["identity"] == i]
@@ -956,7 +1017,15 @@ class K4Driver:
                 )
             )
         for r in traces:
-            if r["event"] == "http":
+            if r["event"] == "http" or (
+                r["event"] == "http_start"
+                and not any(
+                    later["event"] == "http"
+                    and later["request"] == r["request"]
+                    and later["attempt"] == r["attempt"]
+                    for later in traces
+                )
+            ):
                 timeline["http"].append(
                     {
                         **{
@@ -1072,6 +1141,14 @@ class K4Driver:
                     r["present"] and r["at"] >= confirmation["intervention"] for r in s["readiness"]
                 )
             ]
+            if confirmation["kind"] == "eviction":
+                mapped = [
+                    e["replaced_by"]
+                    for e in confirmation["evictions"]
+                    if e["pod_uid"] == uid and e["replaced_by"]
+                ]
+                require(len(mapped) == 1, "k4-eviction-replacement-missing")
+                replacements = [s for s in replacements if s["pod_uid"] == mapped[0]]
             new = min(replacements, key=lambda s: s["start"]) if replacements else None
             confirmation["targets"].append(
                 dict(
@@ -1217,6 +1294,16 @@ class K4Driver:
                 for s in sessions
             ],
         )
+        if manifest["hold"]:
+            hold = manifest["hold"]
+            require(hold["hold_released"] is not None, "k4-hold-release-missing")
+            hold["measured_arrivals"] = sum(
+                a["phase"] == "measured"
+                and hold["hold_set"]["observer"]
+                <= a["scheduled"]
+                < min(hold["hold_released"]["observer"], hold["bound_expiry"])
+                for a in arrivals
+            )
         for key, doc in docs.items():
             locked_document(self.episode_output / FILES[key], doc)
         manifest.update(
@@ -1235,6 +1322,19 @@ class K4Driver:
             },
         )
         locked_document(self.episode_output / "episode.json", manifest)
+
+    def hold_state(self, ns, role, action):
+        before = time.time()
+        path = "/witness/control/" + role + ".hold"
+        code = (
+            "import pathlib,time,json; p=pathlib.Path(" + repr(path) + "); "
+            "p.parent.mkdir(exist_ok=True); existed=p.exists(); "
+            + ("p.touch(); " if action == "set" else "p.unlink(missing_ok=True); ")
+            + "print(json.dumps(dict(observer=time.time(), existed=existed, "
+            "exists=p.exists(), mtime=p.stat().st_mtime if p.exists() else 0)))"
+        )
+        state = json.loads(self.base.python(ns, "observer", code))
+        return dict(host_start=before, host_end=time.time(), path=path, **state)
 
     def overhead_probe(self, addresses, f):
         modes = {}
@@ -1304,7 +1404,17 @@ print(json.dumps(rows))
                 for w in snap["workflows"]
                 if w["state"] == "SUCCEEDED"
             }
+            timings = [
+                r
+                for _, _, line in self.collector.log_text()
+                if (r := structured_log(line)) and r.get("event") == "k4_commit_timing"
+            ]
+            require(
+                timings and all(r["success"] for r in timings), "k4-overhead-commit-timing-missing"
+            )
+            save(self.episode_output / "commit-timings.json", timings)
             value = dict(
+                **overhead_sensitivity(plan, snap, measured, timings),
                 rate=p["rate"],
                 start=start,
                 stop=stop,
@@ -1390,19 +1500,26 @@ print(json.dumps(rows))
             while time.time() < start + max(0, p["warmup"] - 1):
                 self.check_observation()
                 time.sleep(0.05)
-            self.base.python(
-                ns,
-                "observer",
-                'import pathlib; p=pathlib.Path("/witness/control"); p.mkdir(exist_ok=True); '
-                "(p/" + repr(hold_role + ".hold") + ").touch()",
+            m["hold"] = dict(
+                role=hold_role,
+                hold_set=self.hold_state(ns, hold_role, "set"),
+                hold_released=None,
+                bound_expiry=0,
+                bound_expired=False,
+                measured_arrivals=0,
             )
-            adapter.release = lambda: self.base.python(
-                ns,
-                "observer",
-                "import pathlib; pathlib.Path("
-                + repr("/witness/control/" + hold_role + ".hold")
-                + ").unlink(missing_ok=True)",
-            )
+            m["hold"]["bound_expiry"] = m["hold"]["hold_set"]["mtime"] + 60
+            locked_document(self.episode_output / "episode.json", m)
+
+            def release():
+                if m["hold"]["hold_released"] is None:
+                    m["hold"]["hold_released"] = self.hold_state(ns, hold_role, "release")
+                    m["hold"]["bound_expired"] = (
+                        m["hold"]["hold_released"]["observer"] >= m["hold"]["bound_expiry"]
+                    )
+                    locked_document(self.episode_output / "episode.json", m)
+
+            adapter.release = release
             while time.time() < start + p["warmup"]:
                 self.check_observation()
                 time.sleep(0.05)
@@ -1414,7 +1531,9 @@ print(json.dumps(rows))
                 overlap = self.overlap(ns, role, time.time())
                 if not overlap:
                     time.sleep(0.05)
+            m["confirmation_deadline"] = deadline
             if overlap:
+                require(time.time() <= deadline, "k4-intervention-deadline")
                 try:
                     confirmation, targets = adapter.apply(cell, overlap)
                 except Exception as error:
@@ -1444,7 +1563,7 @@ print(json.dumps(rows))
                     target="engine-replicated-roles"
                     if kind == "eviction"
                     else "Deployment/" + role,
-                    intervention=time.time(),
+                    intervention=deadline,
                     removed=time.time(),
                     completed=time.time(),
                 )
@@ -1453,6 +1572,7 @@ print(json.dumps(rows))
                     self.episode_output / "unexercised.json", dict(reason="k4-unexercised-overlap")
                 )
                 adapter.release()
+            require(confirmation["intervention"] <= deadline, "k4-intervention-deadline")
             stop = confirmation["intervention"] + p["W"]
             self.base.python(
                 ns, "observer", 'open("/evidence/k4-stop","w").write(' + repr(stamp(stop)) + ")"
@@ -1491,6 +1611,10 @@ print(json.dumps(rows))
                     break
                 self.check_observation()
                 time.sleep(1)
+            save(
+                self.episode_output / "engine-outcome.json",
+                dict(snapshot=snap, timeout=timeout, observed_at=time.time(), deadline=deadline),
+            )
             self.stop_samples()
             m["status"] = "PASS" if overlap else "unexercised"
             self.assemble(
@@ -1532,6 +1656,32 @@ print(json.dumps(rows))
             except Exception as error:
                 self.fatal = True
                 save(self.episode_output / "reset-error.json", dict(error=str(error)))
+
+
+def overhead_sensitivity(plan, snapshot, measured, timings):
+    from dur053_pilot import nearest_rank
+
+    scheduled = {r["workflow_id"]: utc(r["scheduled_at"]) for r in plan["rows"]}
+    terminal = {
+        w["workflow_id"]: utc(w["updated_at"])
+        for w in snapshot["workflows"]
+        if w["state"] == "SUCCEEDED"
+    }
+    require(measured <= terminal.keys(), "k4-overhead-terminal-missing")
+    latency = [terminal[key] - scheduled[key] for key in sorted(measured)]
+    commits = [row["seconds"] for row in timings]
+    require(latency and commits and min(latency + commits) >= 0, "k4-overhead-timing-invalid")
+    return dict(
+        end_to_end_latency=dict(
+            n=len(latency), p50=nearest_rank(latency, 0.5), p99=nearest_rank(latency, 0.99)
+        ),
+        db_commit_path=dict(
+            n=len(commits),
+            p50=nearest_rank(commits, 0.5),
+            p99=nearest_rank(commits, 0.99),
+            scope="pgx COMMIT round trip; includes deferred finalization and lock wait",
+        ),
+    )
 
 
 def verify_overhead(root, f):
@@ -1576,7 +1726,10 @@ def verify_overhead(root, f):
         }
         require(not torn and measured and measured <= set(busy), "k4-overhead-population")
         snapshot = json.loads((probe / "database.json").read_bytes())
+        timings = json.loads((probe / "commit-timings.json").read_bytes())
+        require(timings and all(r["success"] for r in timings), "k4-overhead-commit-timing-missing")
         calculated = dict(
+            **overhead_sensitivity(plan, snapshot, measured, timings),
             rate=value["rate"],
             start=value["start"],
             stop=value["stop"],
@@ -1712,6 +1865,7 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
             m["assigned"] = list(SMOKE_CELLS)
             units = list(SMOKE_CELLS)
             ledger_remaining = 0
+            prior_episodes = set()
         else:
             require(os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch", "k4-dispatch-only")
             job, prior, head = job_identity_and_history()
@@ -1725,6 +1879,9 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
             ledger_check(committed_ledger(ROOT / LEDGER), CEILING, prior)
             ledger_remaining = 259200 - sum(r["charged_seconds"] for r in ledger["entries"])
             save(output / "ci-proof.json", ci_proof(ROOT))
+            prior_episodes = {
+                eid for _, prior_manifest in rows for eid in prior_manifest["episodes"]
+            }
             units = assignment(
                 f, name, {x["job_id"]: x for _, x in rows}, replacement_for=replacement_for
             )
@@ -1757,6 +1914,7 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
                 if engineering or replacement_for
                 else [r for r in registry() if r["unit"] == unit]
             )
+            cells = [cell for cell in cells if cell["episode"] not in prior_episodes]
             started.append(unit)
             locked_document(
                 output / "progress.json",
@@ -1802,7 +1960,14 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
                         locked_document(ep_path, ep)
                     incident_source = cell["episode"] + "/harness-source.json"
                     source = dict(
-                        status="failure", component="collector", errors=[str(error)], missing=[]
+                        status="failure",
+                        component="collector",
+                        errors=[str(error)],
+                        missing=[
+                            cell["episode"] + "/" + file
+                            for file in FILES.values()
+                            if not (episode_dir / file).is_file()
+                        ],
                     )
                     save(output / incident_source, source)
                     incident = cell["episode"] + "/harness-incident.json"
@@ -1828,47 +1993,33 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
                         reason=reason,
                         evidence=[incident],
                     )
-                    from dur053_record_k4 import validate_disposition
+                    from dur053_record_k4 import observed_fault_outcome, validate_disposition
 
-                    if claim_clock_loss:
-                        # Death in the claim-response gap is not a harness
-                        # exclusion or permission to re-measure this outcome.
-                        require(ep is not None, "k4-fault-outcome-episode-missing")
-                        disposition.update(
-                            classification="unexercised"
-                            if ep["status"] == "unexercised"
-                            else "valid",
-                            reason="",
-                            evidence=[],
+                    fault = ep is not None and observed_fault_outcome(output, cell["episode"])
+                    if fault and source["missing"]:
+                        ep.update(
+                            status="FAIL",
+                            metrics="not-derivable",
+                            missing_exports=[Path(p).name for p in source["missing"]],
                         )
-                        save(
-                            episode_dir / "intake-stopped.json",
-                            dict(
-                                error="k4-claim-ack-clock-evidence-missing",
-                                instruction="Retain outcome and charge; "
-                                "no infrastructure replacement. "
-                                "Claim clock evidence requires review.",
-                            ),
-                        )
-                    try:
-                        validate_disposition(output, disposition)
-                    except ValueError as classification_error:
-                        if "k4-engine-outcome-not-infrastructure" not in str(classification_error):
-                            raise
-                        require(ep is not None, "k4-fault-outcome-episode-missing")
-                        ep["status"] = "FAIL"
                         locked_document(ep_path, ep)
                         disposition.update(classification="valid", reason="", evidence=[])
                         save(
                             episode_dir / "intake-stopped.json",
                             dict(
                                 error="k4-engine-outcome-with-export-loss",
-                                details=str(classification_error),
-                                instruction="Retain fault outcome and charge; "
-                                "no infrastructure replacement. "
-                                "Intake requires review because derived evidence is incomplete.",
+                                missing_exports=ep["missing_exports"],
+                                instruction="Charge and retain FAIL; no replacement. "
+                                "Continuation requires committed Claude acknowledgement.",
                             ),
                         )
+                        m["intake_stopped"].append(cell["episode"])
+                        from dur053_record_k4 import stopped_intake
+
+                        value = stopped_intake(output, ep)
+                        save(episode_dir / "metrics.json", value)
+                        metrics.append(value)
+                    validate_disposition(output, disposition)
                     m["dispositions"].append(disposition)
                     save(
                         output / "failure.json",
@@ -1881,8 +2032,11 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
                         d.collector.close()
                         d.collector = None
                     d.fatal = True
+                    if m["intake_stopped"]:
+                        break
 
-            m["pending"].pop(0)
+            if not m["intake_stopped"] or m["episodes"][-1] == cells[-1]["episode"]:
+                m["pending"].pop(0)
             locked_document(output / "manifest.json", m)
             if d.fatal:
                 m["status"] = "FAIL"

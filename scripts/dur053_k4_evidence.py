@@ -217,6 +217,20 @@ def confirmation(c: dict, t: dict, event: str, leases=()) -> list[str]:
             "k4-confirmation-chaos-ack",
         )
     if kind == "eviction":
+        replaced = [e for e in c["evictions"] if e["replaced_by"]]
+        need(
+            len({e["replaced_by"] for e in replaced}) == len(replaced),
+            "k4-confirmation-distinct-replacements",
+        )
+        need(
+            all(
+                e["replacement_ready"] is not None
+                and e["replacement_ready_upper"] is not None
+                and e["replacement_ready"] <= e["replacement_ready_upper"]
+                for e in replaced
+            ),
+            "k4-confirmation-replacement-clock",
+        )
         need(c["no_cordon"] and bool(c["evictions"]), "k4-confirmation-eviction-requests")
         need(
             bool(c["roles"]) and c["eviction_retry_interval"] > 0, "k4-confirmation-role-inventory"
@@ -280,8 +294,54 @@ def run_checker(checker: Path, root: Path) -> dict:
     return report
 
 
+def hold_evidence(m, arrivals):
+    h = m["hold"]
+    if not h or h["hold_released"] is None:
+        return False
+    set_at, released = h["hold_set"], h["hold_released"]
+    return (
+        set_at["exists"]
+        and not released["exists"]
+        and released["existed"]
+        and set_at["path"] == released["path"]
+        and set_at["host_start"]
+        <= set_at["host_end"]
+        <= released["host_start"]
+        <= released["host_end"]
+        and set_at["observer"] <= released["observer"]
+        and h["bound_expiry"] == set_at["mtime"] + 60
+        and h["bound_expired"] == (released["observer"] >= h["bound_expiry"])
+        and h["measured_arrivals"]
+        == sum(
+            a["phase"] == "measured"
+            and set_at["observer"] <= a["scheduled"] < min(released["observer"], h["bound_expiry"])
+            for a in arrivals
+        )
+    )
+
+
+def schedule_stopped(root, m):
+    from dur053_k4_collectors import utc
+
+    stops = [
+        json.loads(line)
+        for line in (root / "arrivals-journal.jsonl").read_text().splitlines()
+        if json.loads(line).get("event") == "stop"
+    ]
+    return (
+        len(stops) == 1
+        and stops[0].get("reason") == "stop-file"
+        and math.isclose(utc(stops[0]["stop"]), m["window_end"], rel_tol=0, abs_tol=1e-6)
+        and utc(stops[0]["at"]) + 1e-6 >= m["window_end"]
+    )
+
+
 def episode(root: Path, f: dict, checker: Path) -> dict:
     m = load(root / "episode.json")
+    if m["metrics"] == "not-derivable":
+        from dur053_record_k4 import stopped_intake
+
+        return stopped_intake(root.parent, m)
     cell = episode_identity(m["episode"])
     require(
         m["replacement_for"] == (cell["episode"] if m["episode"] != cell["episode"] else "")
@@ -339,10 +399,14 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
     need(
         m["intervention"] - m["warmup_start"] >= warmup
         and m["intervention"] - m["warmup_start"] <= warmup + p["confirmation"]
+        and m["intervention"] <= m["confirmation_deadline"]
+        and m["confirmation_deadline"] == m["warmup_start"] + warmup + p["confirmation"]
         and math.isclose(m["window_end"] - m["intervention"], p["W"], abs_tol=1e-8),
         "k4-registered-windows",
     )
     arrivals = docs["arrivals"]["rows"]
+    if (root / "arrivals-journal.jsonl").exists() or m["hold"] is not None:
+        need(hold_evidence(m, arrivals), "k4-hold-evidence")
     need(
         len({a["id"] for a in arrivals}) == len(arrivals)
         and len({a["key"] for a in arrivals}) == len(arrivals),
@@ -360,6 +424,9 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
             planned = [r for r in plan["rows"] if start <= utc(r["scheduled_at"]) < end]
             need(
                 not torn
+                and plan["rows"]
+                and utc(plan["rows"][-1]["scheduled_at"]) >= m["window_end"] - 1 / m["rate"]
+                and schedule_stopped(root, m)
                 and plan["rate"] == m["rate"]
                 and len(rows) == len(planned)
                 and all(
@@ -983,6 +1050,18 @@ def summaries(metrics: list[dict]) -> dict:
         t = by_id.get(r["unit"] + "-treatment")
         if b is None or t is None:
             continue
+        if any(x.get("metrics") == "not-derivable" for x in (b, t)):
+            paired.append(
+                dict(
+                    event=r["event"],
+                    duration=r["duration"],
+                    pair=r["pair"],
+                    episodes=[b["episode"], t["episode"]],
+                    result="FAIL",
+                    metrics="not-derivable",
+                )
+            )
+            continue
         require(b["pair_binding"] == t["pair_binding"], "k4-matched-pair-binding")
         diff = {}
         for q in ("p50", "p90", "max", "p99"):
@@ -1043,7 +1122,12 @@ def summaries(metrics: list[dict]) -> dict:
             unit = f"{duration}-core-1-pair-{pair}"
             b, t = by_id.get(unit + "-baseline"), by_id.get(unit + "-treatment")
             complete &= b is not None and t is not None
-            if t is None:
+            if (
+                t is None
+                or t.get("metrics") == "not-derivable"
+                or (b and b.get("metrics") == "not-derivable")
+            ):
+                safety = False
                 continue
             safety &= t["valid"] and bool(b and b["valid"])
             removal = t["busy_removals"]
@@ -1062,6 +1146,17 @@ def summaries(metrics: list[dict]) -> dict:
         gates[duration] = k7(rows, complete_pairs=complete, safety=safety)
     return dict(
         schema="dur053.k4-summary.v1",
+        failed_events=[
+            dict(
+                event=episode_identity(m["episode"])["event"],
+                duration=episode_identity(m["episode"])["duration"],
+                episode=m["episode"],
+                result="FAIL",
+                metrics="not-derivable",
+            )
+            for m in metrics
+            if m.get("metrics") == "not-derivable"
+        ],
         paired=paired,
         k7=gates,
         k7_decision="GO" if any(g["decision"] == "GO" for g in gates.values()) else "NO-GO",

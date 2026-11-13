@@ -130,6 +130,13 @@ class CampaignWitness:
         hold = os.getenv("DUR053_K4_HOLD_FILE", "")
         deadline = time.monotonic() + 60
         while hold and Path(hold).exists() and time.monotonic() < deadline:
+            try:
+                expired = time.time() >= Path(hold).stat().st_mtime + 60
+            except FileNotFoundError:
+                break
+            if expired:
+                self.trace("hold_bound_expired", {"hold": hold})
+                break
             time.sleep(0.01)
         return invocation
 

@@ -86,6 +86,23 @@ func TestK4JournalRejectsSyncFailure(t *testing.T) {
 	}
 }
 
+func TestK4PlanRecordsStopCondition(t *testing.T) {
+	c := testConfig()
+	c.Count = 2
+	plan, _ := Plan(c)
+	start := time.Now()
+	mem := &memoryK4Journal{}
+	err := runK4Plan(context.Background(), c, plan, start, &K4Journal{File: mem}, realClock{},
+		func(context.Context, []byte) (int, []byte, error) { t.Fatal("HTTP after stop"); return 0, nil, nil },
+		func() (time.Time, error) { return start, nil })
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(mem.data, []byte(`"event":"stop"`)) || !bytes.Contains(mem.data, []byte(`"reason":"stop-file"`)) {
+		t.Fatal("K4 stop condition missing from journal")
+	}
+}
+
 type memoryK4Journal struct {
 	mu     sync.Mutex
 	data   []byte

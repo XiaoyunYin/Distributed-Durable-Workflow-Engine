@@ -116,6 +116,7 @@ func runK4Plan(ctx context.Context, c Config, plan invariants.Arrivals, start ti
 			return e
 		}
 		if !end.IsZero() && !at.Before(end) {
+			appendRow(map[string]any{"event": "stop", "at": clock.Now().UTC(), "stop": end.UTC(), "reason": "stop-file"})
 			break
 		}
 

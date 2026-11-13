@@ -11944,8 +11944,8 @@
       "id": "k4b2-empty-owner",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_collectors.py",
-      "old": "if not row[\"owner\"]:\n        return \"claim\"",
-      "new": "if False:\n        return \"claim\"",
+      "old": "if not row[\"owner\"] and row.get(\"actor_kind\") in {\"client\", \"worker\"}:",
+      "new": "if False:",
       "command": [
         "uv",
         "run",
@@ -12388,6 +12388,348 @@
         "-q"
       ],
       "expected": "unexecuted claim was omitted",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-ownerless-scheduler",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "    terminal = row.get(\"new_state\") in {",
+      "new": "    if not row[\"owner\"]:\n        return \"claim\"\n    terminal = row.get(\"new_state\") in {",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_ownerless_scheduler_reaches_checker",
+        "-q"
+      ],
+      "expected": "ownerless scheduler hidden",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-plan-coverage",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "and utc(plan[\"rows\"][-1][\"scheduled_at\"]) >= m[\"window_end\"] - 1 / m[\"rate\"]",
+      "new": "and True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_schedule_requires_window_coverage_and_stop",
+        "-q"
+      ],
+      "expected": "truncated plan accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-stop-journal",
+      "kind": "behavioral",
+      "file": "internal/dur053/k4.go",
+      "old": "appendRow(map[string]any{\"event\": \"stop\", \"at\": clock.Now().UTC(), \"stop\": end.UTC(), \"reason\": \"stop-file\"})",
+      "new": "appendRow(map[string]any{\"event\": \"omitted\"})",
+      "command": [
+        "go",
+        "test",
+        "./internal/dur053",
+        "-run",
+        "^TestK4PlanRecordsStopCondition$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 stop condition missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-hold-release",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "if not h or h[\"hold_released\"] is None:\n        return False",
+      "new": "if not h or h[\"hold_released\"] is None:\n        return True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_hold_evidence_requires_release_and_reports_expiry",
+        "-q"
+      ],
+      "expected": "hold release instant omitted",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-stopped-engine-evidence",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "require(observed_fault_outcome(source, name), \"k4-stopped-intake-engine-evidence\")",
+      "new": "require(True, \"k4-stopped-intake-engine-evidence\")",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_stopped_intake_requires_observed_engine_failure",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-continuation-ack",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4.py",
+      "old": "all(not r.get(\"intake_stopped\") or r.get(\"claude_acknowledgement\") is True for r in rows)",
+      "new": "True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_continuation_needs_claude_acknowledgement",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-cri-parse",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "require(\"/tasks/exit\" not in text, \"k4-cri-exit-unparseable\")",
+      "new": "require(True, \"k4-cri-exit-unparseable\")",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_ctr_real_text_selection_and_identity",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-raw-watch-rv",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "resourceVersion=rv,",
+      "new": "resourceVersion=\"0\",",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_raw_watch_resume_bookmark_and_error",
+        "-q"
+      ],
+      "expected": "resourceVersion",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-durable-claim",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "if r[\"event\"] in {\"http_start\", \"http\"}",
+      "new": "if r[\"event\"] == \"http\"",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_response_less_claim_uses_commit_audit",
+        "-q"
+      ],
+      "expected": "k4-claim-session-evidence-missing",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-claim-capture",
+      "kind": "behavioral",
+      "file": "migrations/000021_k4_claim_audit.up.sql",
+      "old": "AND NEW.state = 'CLAIMED' AND OLD.state = 'DISPATCHABLE'",
+      "new": "AND false AND NEW.state = 'CLAIMED' AND OLD.state = 'DISPATCHABLE'",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4ClaimAuditAtomic$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 claim committed without audit",
+      "requires_database": true
+    },
+    {
+      "id": "k4r240-claim-commit-clock",
+      "kind": "behavioral",
+      "file": "migrations/000021_k4_claim_audit.up.sql",
+      "old": "NEW.transition_id, NEW.claim_identity, clock_timestamp()",
+      "new": "NEW.transition_id, NEW.claim_identity, NEW.at",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4ClaimAuditAtomic$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 claim commit bracket missing",
+      "requires_database": true
+    },
+    {
+      "id": "k4r240-claim-hash",
+      "kind": "behavioral",
+      "file": "migrations/000021_k4_claim_audit.up.sql",
+      "old": "'token_hash', encode(sha256(convert_to(NEW.claim_token::text,'UTF8')),'hex')",
+      "new": "'token_hash', repeat('0',64)",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4ClaimAuditAtomic$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 claim audit identity missing",
+      "requires_database": true
+    },
+    {
+      "id": "k4r240-claim-deferred",
+      "kind": "behavioral",
+      "file": "migrations/000021_k4_claim_audit.up.sql",
+      "old": "CREATE VIEW engine.k4_claim_audit AS",
+      "new": "DROP TRIGGER k4_finalize_audit ON engine.k4_audit_queue;\nCREATE CONSTRAINT TRIGGER k4_finalize_audit AFTER INSERT ON engine.k4_audit_queue\nDEFERRABLE INITIALLY IMMEDIATE FOR EACH ROW EXECUTE FUNCTION engine.k4_flush_audit();\nCREATE VIEW engine.k4_claim_audit AS",
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4ClaimAuditNoLockInversion$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K4 audit lock inversion",
+      "requires_database": true
+    },
+    {
+      "id": "k4r240-eviction-distinct",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "used_replacements.add(uid)",
+      "new": "used_replacements.update([])",
+      "expected": "eviction reused replacement",
+      "kind": "behavioral",
+      "requires_database": false,
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_eviction_singletons_once_no_harness_no_cordon",
+        "-q"
+      ]
+    },
+    {
+      "id": "k4r240-overhead-latency",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "**overhead_sensitivity(plan, snap, measured, timings),",
+      "new": "**{},",
+      "expected": "end_to_end_latency",
+      "kind": "behavioral",
+      "requires_database": false,
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_overhead_artifact_contains_both_mode_timings",
+        "-q"
+      ]
+    },
+    {
+      "id": "k4r240-commit-timing-mode",
+      "file": "internal/state/k4_audit.go",
+      "old": "if os.Getenv(\"DUR053_K4_COMMIT_TIMING\") == \"1\" {",
+      "new": "if os.Getenv(\"DUR053_K4_COMMIT_TIMING\") == \"1\" && os.Getenv(\"DUR053_K4_CAMPAIGN\") == \"1\" {",
+      "expected": "K4 commit timing absent from overhead mode",
+      "kind": "behavioral",
+      "requires_database": false,
+      "command": [
+        "go",
+        "test",
+        "./internal/state",
+        "-run",
+        "^TestK4CommitTimingBothModes$",
+        "-count=1",
+        "-v"
+      ]
+    },
+    {
+      "id": "k4r240-worker-hold-expiry",
+      "kind": "behavioral",
+      "file": "python/workers/k4_witness.py",
+      "old": "expired = time.time() >= Path(hold).stat().st_mtime + 60",
+      "new": "expired = False",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_instrumentation.py::test_k4_worker_records_global_hold_expiry",
+        "-q"
+      ],
+      "expected": "worker waited after hold bound",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-ownerless-unknown-actor",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "or row.get(\"actor_kind\") not in {\"client\", \"worker\"}",
+      "new": "or row.get(\"actor_kind\") == \"scheduler\"",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_ownerless_unknown_actor_keeps_authorization",
+        "-q"
+      ],
+      "expected": "ownerless unknown actor alias hidden",
+      "requires_database": false
+    },
+    {
+      "id": "k4r240-backend-exit-proof",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "exits and any(e[\"exit_status\"] == 137 for e in exits)",
+      "new": "True",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_review.py::test_backend_requires_collected_scratch_exit",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
       "requires_database": false
     }
   ]

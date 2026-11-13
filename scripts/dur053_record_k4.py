@@ -106,7 +106,103 @@ def inventory(repository: Path) -> tuple[list[tuple[Path, dict]], dict]:
         {p for p in (repository / EVIDENCE_ROOT).rglob("*") if p.is_file()} == expected_files,
         "k4-directory-orphan",
     )
+    acknowledge_stopped(repository, found)
     return found, ledger
+
+
+def stopped_intake(source, ep):
+    """Charge/provenance only; no numerical metric may be inferred."""
+    from dur053_k4_evidence import FILES
+
+    name = ep["episode"]
+    report = json.loads(evidence_path(source, name + "/intake-stopped.json").read_bytes())
+    missing = [file for file in FILES.values() if not (source / name / file).is_file()]
+    require(
+        ep["status"] == "FAIL"
+        and ep["metrics"] == "not-derivable"
+        and missing
+        and sorted(ep["missing_exports"]) == sorted(missing)
+        and report.get("missing_exports") == ep["missing_exports"]
+        and report.get("error") == "k4-engine-outcome-with-export-loss",
+        "k4-stopped-intake-content",
+    )
+    # Independently read the observed engine evidence, not the marker's assertion.
+    require(observed_fault_outcome(source, name), "k4-stopped-intake-engine-evidence")
+    return dict(
+        schema="dur053.k4-metrics.v1",
+        episode=name,
+        replacement_for=ep["replacement_for"],
+        status="FAIL",
+        valid=True,
+        complete=False,
+        metrics="not-derivable",
+        missing_exports=missing,
+        evidence=name + "/intake-stopped.json",
+    )
+
+
+def observed_fault_outcome(source, name):
+    cpath = source / name / "confirmation.json"
+    if not cpath.is_file():
+        return False
+    c = load(cpath)
+    applied = (
+        c["injection_status"] == "injected"
+        or c["completed"] is not None
+        or c["removed"] is not None
+        or any(e["status"] in {200, 201} for e in c["evictions"])
+    )
+    if not applied:
+        return False
+    tpath = source / name / "timeline.json"
+    if tpath.is_file():
+        t = load(tpath)
+        if (
+            any(w["state"] in {"FAILED", "CANCELED"} for w in t["workflows"])
+            or any(
+                r["category"] == "committed" and r["outcome"] == "failure" for r in t["receipts"]
+            )
+            or any(r["status"] >= 500 for r in t["http"])
+        ):
+            return True
+    # A retained reconciliation snapshot independently proves failure or timeout.
+    path = source / name / "engine-outcome.json"
+    if not path.is_file():
+        return False
+    outcome = json.loads(path.read_bytes())
+    rows = outcome.get("snapshot", {}).get("workflows", [])
+    return any(w["state"] in {"FAILED", "CANCELED"} for w in rows) or (
+        outcome.get("timeout") is True
+        and any(
+            w["state"] not in {"SUCCEEDED", "FAILED", "CANCELED", "ABANDONED", "REJECTED"}
+            for w in rows
+        )
+        and outcome.get("observed_at", 0) >= outcome.get("deadline", float("inf"))
+    )
+
+
+def acknowledge_stopped(repository, manifests):
+    stopped = [m for _, m in manifests if m.get("intake_stopped")]
+    if not stopped:
+        return
+    path = repository / "experiments/portfolio/k8s-recovery/k4-continuation-acknowledgements.json"
+    committed_bytes(repository, path)
+    document = load(path)
+    require(document.get("schema") == "dur053.k4-continuation-acks.v1", "k4-acknowledgement-schema")
+    for m in stopped:
+        manifest = repository / EVIDENCE_ROOT / m["job"] / m["run_id"] / "manifest.json"
+        digest = hashlib.sha256(committed_bytes(repository, manifest)).hexdigest()
+        matches = [
+            a
+            for a in document["acknowledgements"]
+            if a.get("job_id") == m["job_id"]
+            and a.get("manifest_sha256") == digest
+            and a.get("reviewer") == "Claude"
+            and a.get("acknowledged") is True
+            and type(a.get("review_round")) is int
+            and a["review_round"] > 239
+        ]
+        m["claude_acknowledgement"] = len(matches) == 1
 
 
 def contributions(m: dict) -> list[str]:
@@ -139,6 +235,11 @@ def validate_disposition(source: Path, d: dict) -> None:
             in ({"PASS", "FAIL"} if d["classification"] == "valid" else {"unexercised"}),
             "k4-classification-status",
         )
+        if ep["metrics"] == "not-derivable":
+            require(d["classification"] == "valid", "k4-stopped-intake-disposition")
+            stopped_intake(source, ep)
+        else:
+            require(not ep["missing_exports"], "k4-unmarked-export-loss")
         return
     require(bool(d["reason"]) and bool(d["evidence"]), "k4-infrastructure-evidence")
     # A recorded engine outcome after intervention cannot be excluded by a later
@@ -303,6 +404,22 @@ def validate_job(source: Path, f: dict, *, history: dict[str, dict], intake=True
     )
     done = assigned[: len(assigned) - len(m["pending"])]
     ids = done if m["replacement_for"] else [r["episode"] for r in registry() if r["unit"] in done]
+    previously_started = {eid for prior in history.values() for eid in prior.get("episodes", [])}
+    if not m["replacement_for"]:
+        ids = [eid for eid in ids if eid not in previously_started]
+        if m["intake_stopped"] and m["pending"]:
+            partial = [
+                r["episode"]
+                for r in registry()
+                if r["unit"] == m["pending"][0] and r["episode"] not in previously_started
+            ]
+            # Only a stopped intake can retain a prefix of an admitted pair.
+            extra = len(m["episodes"]) - len(ids)
+            require(
+                0 < extra < len(partial) and m["episodes"][-1] in m["intake_stopped"],
+                "k4-stopped-pair-prefix",
+            )
+            ids += partial[:extra]
     require(m["episodes"] == ids, "k4-intake-whole-pair")
     require(m["status"] != "CARRY_OVER" or bool(m["pending"]), "k4-intake-carry-over")
     require(m["status"] != "PASS" or not m["pending"], "k4-intake-pass-pending")
@@ -315,6 +432,16 @@ def validate_job(source: Path, f: dict, *, history: dict[str, dict], intake=True
             "k4-infrastructure-replacement",
         )
     require([d["episode"] for d in m["dispositions"]] == ids, "k4-disposition-inventory")
+    stopped = [
+        name
+        for name in ids
+        if (source / name / "episode.json").is_file()
+        and load(source / name / "episode.json")["metrics"] == "not-derivable"
+    ]
+    require(
+        stopped == m["intake_stopped"] and (not stopped or m["status"] == "FAIL"),
+        "k4-stopped-job-fail",
+    )
     for d in m["dispositions"]:
         cell = episode_identity(d["episode"])
         require(
@@ -454,7 +581,12 @@ def interrupted(source: Path, repository: Path, name: str, checker: Path) -> Pat
         shutil.copytree(source, raw / "downloaded")
         for file in ("actions-run.json", "actions-job.json", "actions-commit.json"):
             shutil.copyfile(source / file, raw / file)
-        ids = [r["episode"] for r in registry() if r["unit"] in progress["started"]]
+        prior_episodes = {eid for _, prior_manifest in prior for eid in prior_manifest["episodes"]}
+        ids = [
+            r["episode"]
+            for r in registry()
+            if r["unit"] in progress["started"] and r["episode"] not in prior_episodes
+        ]
         require(
             {p.parent.name for p in source.glob("*/episode.json")} <= set(ids),
             "k4-interrupted-progress-omission",
@@ -543,6 +675,7 @@ def interrupted(source: Path, repository: Path, name: str, checker: Path) -> Pat
             pending=assigned[len(progress["started"]) :],
             replacement_for="",
             dispositions=dispositions,
+            intake_stopped=[],
             artifact_sha256={},
         )
         save(raw / "summary.json", summaries(values))
