@@ -177,3 +177,26 @@ def test_pilot_ci_proof_names_cover_every_main_push_job() -> None:
         assert name is not None
         names.add(name.group(1))
     assert names == REQUIRED_CI_JOBS
+
+
+def test_k4_engineering_workflow_is_uncharged_and_retains_failures() -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    steps = dict(_job_steps(workflow, "dur053-k4-lifecycle-smoke"))
+    run = steps["Exercise lifecycle engineering smoke"]
+    assert "lifecycle-smoke" in run
+    assert "$RUNNER_TEMP/dur053-k4" in run
+    assert "3600s" in run
+    offline = steps["Verify engineering evidence offline"]
+    assert "verify-evidence" in offline and "dur053-k4-checker" in offline
+    upload = steps["Retain full lifecycle diagnostics"]
+    assert "if: always()" in upload and "${{ runner.temp }}/dur053-k4/" in upload
+    assert "DUR-053 K4 lifecycle smoke" in REQUIRED_CI_JOBS
+
+
+def test_k4_dispatch_routes_keep_the_k3_path() -> None:
+    workflow = (ROOT / ".github/workflows/dur053-campaign.yml").read_text(encoding="utf-8")
+    shell = (ROOT / "scripts/dur053-k3.sh").read_text(encoding="utf-8")
+    assert "^k4-[1-5](-c[1-9][0-9]*)?$" in workflow
+    assert "DUR053_K4_REPLACEMENT_FOR" in workflow
+    assert 'python3 scripts/dur053_campaign.py --job "$DUR053_PILOT_JOB"' in workflow
+    assert "dur053_k4_driver.py" in shell and "dur053_campaign.py" in shell

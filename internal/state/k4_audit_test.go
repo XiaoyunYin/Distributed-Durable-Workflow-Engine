@@ -400,6 +400,12 @@ func TestK4CommitSerialization(t *testing.T) {
 }
 
 func TestK4AuditNoLockInversion(t *testing.T) {
+	testK4AuditNoLockInversion(t, "acquire")
+}
+func TestK4ClaimAuditNoLockInversion(t *testing.T) {
+	testK4AuditNoLockInversion(t, "claim")
+}
+func testK4AuditNoLockInversion(t *testing.T, kind string) {
 	s := k4Store(t)
 	ctx, cancel := context.WithTimeout(context.Background(), 8*time.Second)
 	defer cancel()
@@ -440,7 +446,7 @@ func TestK4AuditNoLockInversion(t *testing.T) {
 	queueAudit := func(tx pgx.Tx, owner string) error {
 		_, err := tx.Exec(ctx, `INSERT INTO engine.k4_audit_queue
 			(kind, partition_id, owner_id, epoch, session_id, pod_uid, container_id)
-			VALUES ('acquire', 0, $1, 1, 'lock-inversion-test', 'pod', 'container')`, owner)
+			VALUES ($2, 0, $1, 1, 'lock-inversion-test', 'pod', 'container')`, owner, kind)
 		return err
 	}
 	if err := queueAudit(first, NewID()); err != nil {

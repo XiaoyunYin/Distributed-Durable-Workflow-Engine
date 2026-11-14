@@ -14,8 +14,8 @@ Every declared field is required, including empty arrays and nullable fields.
 Unknown fields, missing fields, wrong primitive types, booleans used as numbers,
 nonfinite times, duplicate JSON keys, and malformed lowercase hashes are rejected.
 Time values are nonnegative. Null means unavailable, never zero. `SHA256` means
-64 lowercase hex characters; Git SHA means 40. Schema revisions require a new
-version. The complete field reference follows below.
+64 lowercase hex characters; Git SHA means 40. The Round 239 pre-measurement additive fields below are binding for Phase B2;
+subsequent schema revisions require a new version. The complete field reference follows below.
 
 Each original episode directory is its canonical registry identity (unit plus lifecycle
 arm). A replacement appends `-replacement-1` and links through `replacement_for`;
@@ -107,6 +107,19 @@ dur049-checker -lifecycle timeline.json -lease-audit leases.json
 It excludes the historical flags; default campaign and fence behavior is unchanged.
 
 ## Metrics, tails and accounting
+
+A censored intervention-onward assignment change invalidates an episode only
+when an arrival keyed to its Kafka partitions was scheduled after stable, while
+that generation was active, and remained undisposed in that generation by
+reconciliation end. Generation eligibility ends at its next revoke/lost callback;
+later arrivals are not charged to a superseded generation. Kafka key partitions
+come from witnessed task deliveries, not scheduler partitions; unknown key
+mapping is conservatively eligible. Otherwise retain the censored row, its
+assignment-only lower bound and total >= reconciliation_end - trigger, and report
+censored/uncensored counts. Exclude censored changes from stall populations;
+never impute them. This Round 251/R295 ruling clarifies B.7 item 6 and changes no
+other assignment metric or K7.
+
 
 `dur053_k4_evidence.py derive --episode DIR --checker BINARY` derives every
 section-10 K4 metric from source exports and the independently rerun checker.
@@ -272,6 +285,7 @@ and enum alternatives are exact strings.
 | `session` | `string` |
 | `order` | `integer` |
 | `at` | `number` |
+| `commit_bracket` | `{ statement: number, finalized: number, transaction: string, session: string, pod_uid: string, container_id: string }?` |
 
 ### HISTORY
 
@@ -285,6 +299,8 @@ and enum alternatives are exact strings.
 | `partition` | `integer` |
 | `owner` | `string` |
 | `epoch` | `integer` |
+| `scheduler_epoch` | `integer?` |
+| `actor_kind` | `string` |
 | `revision` | `integer` |
 
 ### RECEIPT
@@ -432,6 +448,7 @@ and enum alternatives are exact strings.
 | `denial` | `string` |
 | `replaced_by` | `string` |
 | `replacement_ready` | `number?` |
+| `replacement_ready_upper` | `number?` |
 
 ### TARGET
 
@@ -595,10 +612,14 @@ and enum alternatives are exact strings.
 | `budget_scope` | `'engineering-validation' / 'registered-campaign'` |
 | `measurement_claim` | `boolean` |
 | `seed` | `integer` |
+| `metrics` | `derivable / not-derivable` |
+| `missing_exports` | `[string]` |
+| `hold` | `HOLD?` |
 | `rate` | `number` |
 | `L` | `number` |
 | `W` | `number` |
 | `warmup_start` | `number` |
+| `confirmation_deadline` | `number` |
 | `intervention` | `number` |
 | `window_end` | `number` |
 | `reconciliation_end` | `number` |
@@ -637,6 +658,7 @@ and enum alternatives are exact strings.
 | `pending` | `[string]` |
 | `replacement_for` | `string` |
 | `dispositions` | `[DISPOSITION]` |
+| `intake_stopped` | `[string]` |
 | `artifact_sha256` | `hashmap` |
 
 ### dur053.k4-confirmation.v1
@@ -732,3 +754,72 @@ and enum alternatives are exact strings.
 | `episode` | `string` |
 | `rows` | `[SAMPLE]` |
 
+
+## Round 239 binding Phase B2 additions
+
+These additive fields extend the pre-measurement Phase B2 contracts. Every field
+is required in the closed registry; nullable Phase A values remain explicit.
+
+History retains the audit epoch, source scheduler_epoch and actor_kind. Any
+nonzero epoch or scheduler actor keeps transition/terminal, including empty owners
+and receipt-like reasons. Only epoch zero/NULL client/worker empty-owner rows use
+non-owner kinds: ATTEMPT_RESULT_RECORDED is receipt, cancellation is cancel,
+replacement/timeout is supersede, and remaining rows use the historical claim
+history label. That label denotes non-owner creation/worker history only; actual
+durable claims are exclusively timeline.claims. Unknown actors retain authorization
+checks. This mapping cannot hide an ownerless scheduler write.
+
+Migration 000021 adds claim queue rows via an AFTER UPDATE trigger in the claim
+transaction. The immutable row carries attempt identity, token hash, worker/request,
+API database session/pod/container and transaction identity. at is statement time;
+finalized_at is clock_timestamp() in the deferred finalizer after the serialization
+lock. commit_bracket retains these two instants and API provenance. Finalization
+is before commit acknowledgement; it is not an exact WAL-flush timestamp. The
+claimant worker session comes from its fsynced pre-send trace, even if no response
+trace or invocation exists. Only a missing audit row raises
+k4-claim-ack-clock-evidence-missing; ambiguous identity and invalid brackets have
+separate errors. Phase A synthetic brackets are NULL; live B2 brackets are required.
+
+A live arrival journal must cover window_end - 1/rate and retain a fsynced stop
+row: reason=stop-file, stop=window_end, at>=stop. Exhaustion/cancellation cannot
+supply that record. The driver sizes through the confirmation deadline, W and
+180 seconds of apply slack; intervention<=recorded confirmation_deadline is
+required independently of plan length.
+
+HOLD has role, hold_set, nullable hold_released, bound_expiry, bound_expired and
+measured_arrivals. Each state has host_start, host_end, observer, path, existed,
+exists and mtime. Host times bracket the observer command and retained file check.
+A live episode requires set and release observations. The global bound is file
+mtime+60 seconds; hooks stop waiting there and emit expiry evidence. bound_expired
+records expiry before explicit release, including after target death.
+measured_arrivals counts measured schedules in [hold_set.observer,
+min(hold_released.observer,bound_expiry)). Release points are in B.7 item 5;
+overhead probes never set holds.
+
+Eviction maps replacements by creationTimestamp then UID, each used once.
+replacement_ready is Ready=True lastTransitionTime; replacement_ready_upper is
+the poll observation. Both overhead modes retain scheduled-to-terminal latency
+p50/p99 and passive pgx COMMIT-round-trip p50/p99 with raw timing rows. This includes
+network, deferred finalization and lock wait; it does not decompose WAL flush.
+Both modes enable the same tracer. These are engineering disclosures, not
+registered SLO estimates or permission to retune.
+
+### Charge-and-provenance-only intake
+
+An observed engine failure after intervention followed by required-export loss
+is valid/FAIL with metrics=not-derivable, explicit missing_exports and retained
+intake-stopped.json. The recorder checks actual missing files and independently
+reads engine evidence (failed workflow, committed failure receipt, server error,
+or a timed-out reconciliation snapshot) plus applied-intervention evidence.
+It derives a nonnumerical FAIL marker, invents no metric and charges normally.
+The job lists these episode IDs in intake_stopped and must be FAIL. Subsequent
+injection stops, including an unstarted pair partner. A partial admitted unit
+stays pending and its retained prefix cannot be replayed. No infrastructure
+replacement is available. Pair/event results cannot PASS; a marker prevents K7 GO.
+
+Any later campaign job needs a committed entry in
+k4-continuation-acknowledgements.json (dur053.k4-continuation-acks.v1), with job_id,
+manifest_sha256, reviewer=Claude, acknowledged=true and integer review_round>239
+naming Claude's REVIEW acknowledgement. Registry and bound manifest bytes must
+both be committed. Absent, uncommitted, false, mismatched or non-Claude entries
+cannot authorize continuation. No raw reassembly or rerun is authorized.

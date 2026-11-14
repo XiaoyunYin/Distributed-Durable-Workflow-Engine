@@ -38,6 +38,24 @@ def traces(campaign: CampaignWitness) -> list[dict[str, Any]]:
     return [json.loads(line) for line in campaign.trace_path.read_text().splitlines()]
 
 
+def test_k4_worker_records_global_hold_expiry(campaign, tmp_path, monkeypatch):
+    hold = tmp_path / "worker.hold"
+    hold.touch()
+    os.utime(hold, (1, 1))
+    monkeypatch.setenv("DUR053_K4_HOLD_FILE", str(hold))
+
+    def unexpected_wait(_):
+        raise AssertionError("worker waited after hold bound")
+
+    monkeypatch.setattr("workers.k4_witness.time.sleep", unexpected_wait)
+    registry = ActivityRegistry()
+    registry.register("fixture", "v1", lambda x: x + 1)
+    assert ActivityRunner(FakeControl(), registry).run_task(task("expiry"))["payload"] == 2
+    assert any(row["event"] == "hold_bound_expired" for row in traces(campaign)), (
+        "worker hold expiry was silent"
+    )
+
+
 def test_k4_hashes_and_dead_session_seals(
     campaign: CampaignWitness, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -204,6 +222,28 @@ def test_k4_retry_trace_identity_body_status(
         ControlClient("http://unused")._post("/v1/claim", {})
     assert traces(campaign)[-1]["status"] == 409
     assert traces(campaign)[-1]["error"] == "STALE_CLAIM"
+
+
+def test_k4_claim_trace_body_fields(campaign, monkeypatch):
+    client = ControlClient("http://unused")
+    monkeypatch.setattr(client, "_post_once", lambda *_: {})
+    body = dict(
+        worker_id="body-worker",
+        request_id="body-request",
+        attempt_lease_ms=60000,
+        expected_attempt=1,
+    )
+    client._post("/v1/claim", body)
+    rows = [r for r in traces(campaign) if r["event"] in {"http_start", "http"}]
+    assert len(rows) == 2
+    assert all(
+        r["request_id"] == body["request_id"] and r["worker_id"] == body["worker_id"] for r in rows
+    )
+    assert all(
+        r["body_hash"]
+        == hashlib.sha256(json.dumps(body, separators=(",", ":")).encode()).hexdigest()
+        for r in rows
+    )
 
 
 @pytest.mark.parametrize("legacy", [True, False])

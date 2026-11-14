@@ -60,7 +60,12 @@ INVOCATION = obj(
     abort_evidence=str,
     outcome=str,
 )
-CLAIM = obj(identity=IDENTITY, session=str, order=int, at=NUMBER)
+COMMIT_BRACKET = obj(
+    statement=NUMBER, finalized=NUMBER, transaction=str, session=str, pod_uid=str, container_id=str
+)
+CLAIM = obj(
+    identity=IDENTITY, session=str, order=int, at=NUMBER, commit_bracket=nullable(COMMIT_BRACKET)
+)
 HISTORY = obj(
     identity=IDENTITY,
     order=int,
@@ -70,6 +75,8 @@ HISTORY = obj(
     partition=int,
     owner=str,
     epoch=int,
+    scheduler_epoch=nullable(int),
+    actor_kind=str,
     revision=int,
 )
 RECEIPT = obj(
@@ -187,6 +194,7 @@ EVICTION = obj(
     denial=str,
     replaced_by=str,
     replacement_ready=nullable(NUMBER),
+    replacement_ready_upper=nullable(NUMBER),
 )
 TARGET = obj(
     session=str,
@@ -232,6 +240,23 @@ CONFIRMATION = obj(
     harness_targeted=bool,
     deletion_cost_used=bool,
 )
+HOLD_STATE = obj(
+    host_start=NUMBER,
+    host_end=NUMBER,
+    observer=NUMBER,
+    path=str,
+    existed=bool,
+    exists=bool,
+    mtime=NUMBER,
+)
+HOLD = obj(
+    role=str,
+    hold_set=HOLD_STATE,
+    hold_released=nullable(HOLD_STATE),
+    bound_expiry=NUMBER,
+    bound_expired=bool,
+    measured_arrivals=int,
+)
 EPISODE = obj(
     schema=enum("dur053.k4-episode.v1"),
     episode=str,
@@ -245,13 +270,17 @@ EPISODE = obj(
     freeze_sha256=HASH,
     namespace=str,
     status=enum("PASS", "FAIL", "invalid", "unexercised", "interrupted"),
+    metrics=enum("derivable", "not-derivable"),
+    missing_exports=array(str),
     budget_scope=enum("registered-campaign", "engineering-validation"),
     measurement_claim=bool,
     seed=int,
+    hold=nullable(HOLD),
     rate=NUMBER,
     L=NUMBER,
     W=NUMBER,
     warmup_start=NUMBER,
+    confirmation_deadline=NUMBER,
     intervention=NUMBER,
     window_end=NUMBER,
     reconciliation_end=NUMBER,
@@ -305,9 +334,22 @@ JOB = obj(
     pending=array(str),
     replacement_for=str,
     dispositions=array(DISPOSITION),
+    intake_stopped=array(str),
     artifact_sha256="hashmap",
 )
 SCHEMAS = {
+    "dur053.k4-continuation-acks.v1": obj(
+        schema=enum("dur053.k4-continuation-acks.v1"),
+        acknowledgements=array(
+            obj(
+                job_id=str,
+                manifest_sha256=HASH,
+                reviewer=enum("Claude"),
+                acknowledged=bool,
+                review_round=int,
+            )
+        ),
+    ),
     "dur053.k4-progress.v1": obj(schema=enum("dur053.k4-progress.v1"), job=str, started=array(str)),
     "dur053.k4-harness.v1": obj(
         schema=enum("dur053.k4-harness.v1"),

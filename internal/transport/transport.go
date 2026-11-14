@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	"durable-agent-execution-engine/internal/k4observe"
 	"durable-agent-execution-engine/internal/state"
 	"durable-agent-execution-engine/internal/telemetry"
 	"github.com/segmentio/kafka-go"
@@ -64,6 +65,8 @@ func (b *KafkaBroker) Publish(ctx context.Context, event state.OutboxEvent) erro
 	if b == nil || b.writer == nil {
 		return errors.New("Kafka broker is not initialized")
 	}
+	done := k4observe.Begin(ctx, "relay", event.EventID, state.K4Session, []string{event.WorkflowID})
+	defer done()
 	topic := event.Topic
 	if topic == "" {
 		topic = b.defaultTopic

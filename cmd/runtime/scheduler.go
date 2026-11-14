@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/engine"
+	"durable-agent-execution-engine/internal/k4observe"
 	"durable-agent-execution-engine/internal/state"
 	"durable-agent-execution-engine/internal/telemetry"
 	"durable-agent-execution-engine/internal/transport"
@@ -26,6 +27,7 @@ func schedulerOptions(tracing *telemetry.Tracing) engine.ServeOptions {
 				acquisition := state.NewID()
 				emitSchedulerAcknowledgment(lease, acquisition, "after_lease_acquired_hold_enter")
 				defer emitSchedulerAcknowledgment(lease, acquisition, "after_lease_acquired_hold_exit")
+				k4observe.Wait(hookContext)
 			}
 			timer := time.NewTimer(hold)
 			defer timer.Stop()

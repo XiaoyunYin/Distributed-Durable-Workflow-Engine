@@ -42,6 +42,8 @@ func main() {
 		slog.Error("invalid RUNTIME_SHUTDOWN_MODE", "mode", mode)
 		os.Exit(1)
 	}
+	stopObservation := observeK4Signals()
+	defer stopObservation()
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 	if mode == "legacy" {

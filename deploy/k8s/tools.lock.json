@@ -25,6 +25,13 @@
       "url": "https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz",
       "sha256": "95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73",
       "member": "kubeconform"
+    },
+    "helm": {
+      "version": "3.16.4",
+      "url": "https://get.helm.sh/helm-v3.16.4-linux-amd64.tar.gz",
+      "sha256": "fc307327959aa38ed8f9f7e66d45492bb022a66c3e5da6063958254b9767d179",
+      "member": "linux-amd64/helm",
+      "k4_only": true
     }
   },
   "images": {
@@ -107,5 +114,14 @@
     "url": "https://files.pythonhosted.org/packages/b9/2b/614b4752f2e127db5cc206abc23a8c19678e92b23c3db30fc86ab731d3bd/PyYAML-6.0.2-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl",
     "sha256": "80bab7bfc629882493af4aa31a4cfa43a4c57c83813253626916b8c7ada83476"
   },
-  "registry": "registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373"
+  "registry": "registry:2.8.3@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373",
+  "artifacts": {
+    "chaos-chart": {
+      "version": "2.7.2",
+      "url": "https://charts.chaos-mesh.org/chaos-mesh-2.7.2.tgz",
+      "sha256": "7da40c4b0d5d544bf6983a7c201d983fd5281366dbb0763b8050d4a6fac9f36f",
+      "member": "chaos-mesh/Chart.yaml",
+      "k4_only": true
+    }
+  }
 }

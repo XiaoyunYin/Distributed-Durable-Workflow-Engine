@@ -3,9 +3,14 @@ on:
   workflow_dispatch:
     inputs:
       job:
-        description: k3-pilot-1a/1b/2/3/4a/4b/5a/5b/4c1-3/5c1-3 or the exact committed carry-over name (<job>-cN)
+        description: k3-pilot job or k4-1..k4-5, including exact committed -cN continuations
         required: true
         default: k3-pilot-1a
+        type: string
+      replacement_for:
+        description: K4 prior Actions job ID with committed per-episode infrastructure evidence (one replacement)
+        required: false
+        default: ''
         type: string
 permissions:
   contents: read
@@ -28,10 +33,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           DUR053_PILOT_JOB: ${{ inputs.job }}
+          DUR053_K4_REPLACEMENT_FOR: ${{ inputs.replacement_for }}
         run: |
           set -euo pipefail
           export TMP="$RUNNER_TEMP" TEMP="$RUNNER_TEMP" TMPDIR="$RUNNER_TEMP" PYTHONDONTWRITEBYTECODE=1
-          python3 scripts/dur053_campaign.py --job "$DUR053_PILOT_JOB" --output "$RUNNER_TEMP/dur053-campaign" --scratch-root "$RUNNER_TEMP/dur053-campaign-scratch"
+          if [[ "$DUR053_PILOT_JOB" =~ ^k4-[1-5](-c[1-9][0-9]*)?$ ]]; then
+            bash scripts/dur053-k3.sh lifecycle "$RUNNER_TEMP/dur053-campaign" "$RUNNER_TEMP/dur053-campaign-scratch" "$DUR053_PILOT_JOB" "$DUR053_K4_REPLACEMENT_FOR"
+          else
+            test -z "$DUR053_K4_REPLACEMENT_FOR"
+            python3 scripts/dur053_campaign.py --job "$DUR053_PILOT_JOB" --output "$RUNNER_TEMP/dur053-campaign" --scratch-root "$RUNNER_TEMP/dur053-campaign-scratch"
+          fi
       - name: Retain complete and failed evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2

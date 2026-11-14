@@ -191,6 +191,10 @@ def assignment(
 ) -> list[str]:
     base, number = job_name(name)
     rows = list({r["job_id"]: r for r in history.values() if "job_id" in r}.values())
+    require(
+        all(not r.get("intake_stopped") or r.get("claude_acknowledgement") is True for r in rows),
+        "k4-stopped-intake-claude-acknowledgement-required",
+    )
     if replacement_for:
         prior = next((r for r in rows if r["job_id"] == replacement_for), None)
         require(

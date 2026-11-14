@@ -274,6 +274,8 @@ class Driver:
         bindir = self.scratch / "bin"
         bindir.mkdir()
         for name, tool in LOCK["tools"].items():
+            if tool.get("k4_only"):
+                continue
             data = download(tool["url"], tool["sha256"])
             if tool["member"]:
                 with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:

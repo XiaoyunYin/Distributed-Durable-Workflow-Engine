@@ -60,7 +60,7 @@ def identity(i: dict, *, attempt=False):
 def confirmation(c: dict, t: dict, event: str, leases=()) -> list[str]:
     issues = []
 
-    def need(ok, message):
+    def need(ok: object, message: str) -> None:
         if not ok:
             issues.append(message)
 
@@ -217,6 +217,20 @@ def confirmation(c: dict, t: dict, event: str, leases=()) -> list[str]:
             "k4-confirmation-chaos-ack",
         )
     if kind == "eviction":
+        replaced = [e for e in c["evictions"] if e["replaced_by"]]
+        need(
+            len({e["replaced_by"] for e in replaced}) == len(replaced),
+            "k4-confirmation-distinct-replacements",
+        )
+        need(
+            all(
+                e["replacement_ready"] is not None
+                and e["replacement_ready_upper"] is not None
+                and e["replacement_ready"] <= e["replacement_ready_upper"]
+                for e in replaced
+            ),
+            "k4-confirmation-replacement-clock",
+        )
         need(c["no_cordon"] and bool(c["evictions"]), "k4-confirmation-eviction-requests")
         need(
             bool(c["roles"]) and c["eviction_retry_interval"] > 0, "k4-confirmation-role-inventory"
@@ -280,8 +294,65 @@ def run_checker(checker: Path, root: Path) -> dict:
     return report
 
 
+def hold_evidence(m, arrivals):
+    h = m["hold"]
+    if not h or h["hold_released"] is None:
+        return False
+    set_at, released = h["hold_set"], h["hold_released"]
+    return (
+        set_at["exists"]
+        and not released["exists"]
+        and released["existed"]
+        and set_at["path"] == released["path"]
+        and set_at["host_start"]
+        <= set_at["host_end"]
+        <= released["host_start"]
+        <= released["host_end"]
+        and set_at["observer"] <= released["observer"]
+        and h["bound_expiry"] == set_at["mtime"] + 60
+        and h["bound_expired"] == (released["observer"] >= h["bound_expiry"])
+        and h["measured_arrivals"]
+        == sum(
+            a["phase"] == "measured"
+            and set_at["observer"] <= a["scheduled"] < min(released["observer"], h["bound_expiry"])
+            for a in arrivals
+        )
+    )
+
+
+def schedule_stopped(root, m):
+    from dur053_k4_collectors import utc
+
+    stops = [
+        json.loads(line)
+        for line in (root / "arrivals-journal.jsonl").read_text().splitlines()
+        if json.loads(line).get("event") == "stop"
+    ]
+    return (
+        len(stops) == 1
+        and stops[0].get("reason") == "stop-file"
+        and math.isclose(utc(stops[0]["stop"]), m["window_end"], rel_tol=0, abs_tol=1e-6)
+        and utc(stops[0]["at"]) + 1e-6 >= m["window_end"]
+    )
+
+
+def schedule_stop_timely(root, m, rate):
+    from dur053_k4_collectors import utc
+
+    stops = [
+        json.loads(line)
+        for line in (root / "arrivals-journal.jsonl").read_text().splitlines()
+        if json.loads(line).get("event") == "stop"
+    ]
+    return len(stops) == 1 and utc(stops[0]["at"]) <= m["window_end"] + 1 / rate + 1e-6
+
+
 def episode(root: Path, f: dict, checker: Path) -> dict:
     m = load(root / "episode.json")
+    if m["metrics"] == "not-derivable":
+        from dur053_record_k4 import stopped_intake
+
+        return stopped_intake(root.parent, m)
     cell = episode_identity(m["episode"])
     require(
         m["replacement_for"] == (cell["episode"] if m["episode"] != cell["episode"] else "")
@@ -289,6 +360,18 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         "k4-episode-replacement-link",
     )
     p = parameters(f, cell["duration"])
+    warmup = WARMUP
+    if m["budget_scope"] == "engineering-validation":
+        from dur053_k4_driver import SMOKE_CELLS, SMOKE_WARMUP, SMOKE_WINDOWS
+
+        require(
+            not m["measurement_claim"]
+            and m["job"] == "lifecycle-smoke"
+            and m["episode"] in SMOKE_CELLS,
+            "k4-engineering-profile",
+        )
+        p["W"] = SMOKE_WINDOWS[cell["duration"]]
+        warmup = SMOKE_WARMUP
     require(
         m["freeze_sha256"] == f["sha256"]
         and m["seed"] == cell["seed"]
@@ -317,20 +400,54 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         t["namespace"] == m["namespace"] and t["witness"] == docs["witness"]["rows"],
         "k4-witness-inventory-binding",
     )
-    issues = confirmation(c, t, cell["event"], docs["leases"]["rows"])
+    confirmation_issues = confirmation(c, t, cell["event"], docs["leases"]["rows"])
+    outcome = None
+    if (root / "intervention-error.json").exists():
+        from dur053_k4_interventions import intervention_outcome
 
-    def need(ok, message):
+        error = json.loads((root / "intervention-error.json").read_bytes())["error"]
+        issued = json.loads((root / "intervention-issued.json").read_bytes())
+        require(
+            intervention_outcome(ValueError(error))
+            and c["intervention"] <= issued["intervention_issued"] <= m["reconciliation_end"],
+            "k4-intervention-outcome-evidence",
+        )
+        outcome = error
+    # Missing completion/replacement is an expected failed intervention result.
+    # Identity, chronology, overlap and policy evidence still fail closed.
+    outcome_checks = {
+        "k4-confirmation-overlap",
+        "k4-confirmation-completion",
+        "k4-confirmation-replacement",
+        "k4-confirmation-independent-replacement",
+        "k4-confirmation-process-death",
+        "k4-confirmation-image-rollout",
+        "k4-confirmation-chaos-ack",
+        "k4-confirmation-eventual-drain",
+        "k4-confirmation-singleton-denial",
+    }
+    issues = [v for v in confirmation_issues if not outcome or v not in outcome_checks]
+    if outcome and not c["overlap"]:
+        issues.append("k4-confirmation-overlap")
+
+    def need(ok: object, message: str) -> None:
         if not ok:
             issues.append(message)
 
     need(c["intervention"] == m["intervention"], "k4-intervention-clock")
     need(
-        m["intervention"] - m["warmup_start"] >= WARMUP
-        and m["intervention"] - m["warmup_start"] <= WARMUP + p["confirmation"]
+        m["intervention"] - m["warmup_start"] >= warmup
+        and m["intervention"] - m["warmup_start"] <= warmup + p["confirmation"]
+        and m["intervention"] <= m["confirmation_deadline"]
+        and m["confirmation_deadline"] == m["warmup_start"] + warmup + p["confirmation"]
         and math.isclose(m["window_end"] - m["intervention"], p["W"], abs_tol=1e-8),
         "k4-registered-windows",
     )
     arrivals = docs["arrivals"]["rows"]
+    if (root / "arrivals-journal.jsonl").exists() or m["hold"] is not None:
+        need(hold_evidence(m, arrivals), "k4-hold-evidence")
+    if (root / "arrivals-journal.jsonl").exists():
+        need(schedule_stop_timely(root, m, m["rate"]), "k4-arrival-stop-late")
     need(
         len({a["id"] for a in arrivals}) == len(arrivals)
         and len({a["key"] for a in arrivals}) == len(arrivals),
@@ -341,6 +458,38 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         ("measured", m["intervention"], m["window_end"]),
     ):
         rows = [a for a in arrivals if a["phase"] == phase]
+        if (root / "arrivals-journal.jsonl").exists():
+            from dur053_k4_collectors import journal_rows, utc
+            from dur053_k4_driver import stamp
+
+            plan, updates, torn = journal_rows((root / "arrivals-journal.jsonl").read_text())
+            # The absolute start sent to Go is stamp(warmup_start). Preserve
+            # that wire precision at the first-arrival boundary and grid origin.
+            wire_start = utc(stamp(m["warmup_start"]))
+            phase_start = wire_start if phase == "warmup" else start
+            planned = [r for r in plan["rows"] if phase_start <= utc(r["scheduled_at"]) < end]
+            need(
+                not torn
+                and plan["rows"]
+                and utc(plan["rows"][-1]["scheduled_at"]) >= m["window_end"] - 1 / m["rate"]
+                and schedule_stopped(root, m)
+                and plan["rate"] == m["rate"]
+                and len(rows) == len(planned)
+                and all(
+                    a["key"] == r["key"]
+                    and a["scheduled"] == utc(r["scheduled_at"])
+                    and math.isclose(
+                        a["scheduled"],
+                        wire_start + r["sequence"] / m["rate"],
+                        rel_tol=0,
+                        abs_tol=1e-6,
+                    )
+                    and a["outcome"] == updates.get(a["key"], {}).get("outcome")
+                    for a, r in zip(rows, planned, strict=False)
+                ),
+                "k4-arrival-schedule",
+            )
+            continue
         need(
             len(rows) == math.ceil((end - start) * m["rate"] - 1e-8)
             and all(
@@ -418,13 +567,19 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
             if w["state"] != "SUCCEEDED":
                 missing += 1
                 continue
-            brackets = [
-                b["width"] for b in m["clock_brackets"] if b["start"] <= w["terminal"] <= b["end"]
-            ]
-            if not brackets:
+            # Probes enclose the arrival-to-terminal interval; terminals need
+            # not occur during the short clock-query round trips themselves.
+            before = [b for b in m["clock_brackets"] if b["end"] <= a["scheduled"]]
+            after = [b for b in m["clock_brackets"] if b["start"] >= w["terminal"]]
+            if not before or not after:
                 missing += 1
                 continue
-            delay = w["terminal"] - a["scheduled"] + max(w["clock_width"], max(brackets))
+            probes = (max(before, key=lambda b: b["end"]), min(after, key=lambda b: b["start"]))
+            delay = (
+                w["terminal"]
+                - a["scheduled"]
+                + max(w["clock_width"], *(b["width"] for b in probes))
+            )
             finite(delay, "k4-latency", zero=True)
             values.append(delay)
             succeeded += 1
@@ -507,7 +662,20 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
     leases = docs["leases"]["rows"]
     reacquire = partition_reacquisition(t, leases, m["intervention"])
     stalls = assignment_stalls(docs["kafka"]["rows"], arrivals, t, m["reconciliation_end"])
-    need(not any(s["censored"] for s in stalls), "k4-assignment-disposition-censored")
+    # Setup generations may end before the first registered arrival. Retain
+    # their censoring, but gate the intervention's membership changes only.
+    intervention_changes = {
+        r["change"]
+        for r in docs["kafka"]["rows"]
+        if r["event"] in {"revoke", "rebalance_start"} and r["at"] >= m["intervention"]
+    }
+    need(
+        not any(
+            s["censored"] and s["eligible_undisposed"] and s["change"] in intervention_changes
+            for s in stalls
+        ),
+        "k4-assignment-disposition-censored",
+    )
     http = defaultdict(lambda: dict(errors=0, retries=0, requests=0))
     requests = {}
     for r in t["http"]:
@@ -585,7 +753,9 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         schema="dur053.k4-metrics.v1",
         episode=m["episode"],
         replacement_for=m["replacement_for"],
-        status=m["status"],
+        status="FAIL" if outcome else m["status"],
+        intervention_outcome=outcome,
+        partial_confirmation_issues=confirmation_issues if outcome else [],
         complete=check["complete"] and not issues,
         valid=check["valid"] and not issues and m["status"] in {"PASS", "FAIL"},
         issues=sorted(set(issues)),
@@ -629,6 +799,10 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         readiness_endpoint_delay=endpoints,
         partition_reacquisition=reacquire,
         assignment_stalls=stalls,
+        assignment_change_counts=dict(
+            censored=sum(s["censored"] for s in stalls),
+            uncensored=sum(not s["censored"] for s in stalls),
+        ),
         http=dict(http),
         submission_errors=sum(a["outcome"] != "accepted" for a in arrivals),
         recovery=recovery,
@@ -831,6 +1005,40 @@ def assignment_stalls(rows, arrivals, t, end):
             )
         ]
         useful = min((r["at"] for r in disposed), default=None)
+        # A generation stops offering disposition opportunities at its next
+        # revoke/lost callback. Later arrivals belong to a later generation.
+        generation_end = min(
+            (
+                r["at"]
+                for r in rows
+                if r["event"] in {"revoke", "rebalance_start"}
+                and r["generation"] == generation
+                and stable_at is not None
+                and r["at"] > stable_at
+            ),
+            default=end,
+        )
+        partitions = {p for r in stable for p in r["partitions"]}
+        # Kafka task partitions come from witnessed deliveries, never the
+        # independent 16-way scheduler partition hash. Unknown keys fail closed.
+        keyed = defaultdict(set)
+        for r in rows:
+            if r["event"] == "disposed":
+                keyed[r["arrival"]].update(r["partitions"])
+        eligible = [
+            a
+            for a in arrivals
+            if partitions
+            and stable_at is not None
+            and stable_at < a.get("scheduled", -math.inf) <= end
+            and a["scheduled"] < generation_end
+            and (not keyed[a["id"]] or bool(keyed[a["id"]] & partitions))
+        ]
+        undisposed = [
+            a["id"]
+            for a in eligible
+            if not any(r["arrival"] == a["id"] and r["at"] <= end for r in disposed)
+        ]
         active = [
             min(v["finish"] if v["finish"] is not None else end, end) - v["start"]
             for v in t["invocations"]
@@ -845,6 +1053,11 @@ def assignment_stalls(rows, arrivals, t, end):
                 useful_disposition=useful - stable_at if useful is not None else None,
                 total=useful - trigger["at"] if useful is not None else None,
                 censored=useful is None,
+                eligible_undisposed=undisposed,
+                assignment_only_lower=stable_at - trigger["at"]
+                if stable_at is not None
+                else end - trigger["at"],
+                total_lower=useful - trigger["at"] if useful is not None else end - trigger["at"],
                 longest_active=max(active, default=0),
             )
         )
@@ -947,6 +1160,18 @@ def summaries(metrics: list[dict]) -> dict:
         t = by_id.get(r["unit"] + "-treatment")
         if b is None or t is None:
             continue
+        if any(x.get("metrics") == "not-derivable" for x in (b, t)):
+            paired.append(
+                dict(
+                    event=r["event"],
+                    duration=r["duration"],
+                    pair=r["pair"],
+                    episodes=[b["episode"], t["episode"]],
+                    result="FAIL",
+                    metrics="not-derivable",
+                )
+            )
+            continue
         require(b["pair_binding"] == t["pair_binding"], "k4-matched-pair-binding")
         diff = {}
         for q in ("p50", "p90", "max", "p99"):
@@ -1007,7 +1232,12 @@ def summaries(metrics: list[dict]) -> dict:
             unit = f"{duration}-core-1-pair-{pair}"
             b, t = by_id.get(unit + "-baseline"), by_id.get(unit + "-treatment")
             complete &= b is not None and t is not None
-            if t is None:
+            if (
+                t is None
+                or t.get("metrics") == "not-derivable"
+                or (b and b.get("metrics") == "not-derivable")
+            ):
+                safety = False
                 continue
             safety &= t["valid"] and bool(b and b["valid"])
             removal = t["busy_removals"]
@@ -1026,6 +1256,17 @@ def summaries(metrics: list[dict]) -> dict:
         gates[duration] = k7(rows, complete_pairs=complete, safety=safety)
     return dict(
         schema="dur053.k4-summary.v1",
+        failed_events=[
+            dict(
+                event=episode_identity(m["episode"])["event"],
+                duration=episode_identity(m["episode"])["duration"],
+                episode=m["episode"],
+                result="FAIL",
+                metrics="not-derivable",
+            )
+            for m in metrics
+            if m.get("metrics") == "not-derivable"
+        ],
         paired=paired,
         k7=gates,
         k7_decision="GO" if any(g["decision"] == "GO" for g in gates.values()) else "NO-GO",

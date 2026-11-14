@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/multitracer"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -16,6 +17,13 @@ import (
 var K4Session = NewID()
 
 func configureK4Audit(config *pgxpool.Config) error {
+	if os.Getenv("DUR053_K4_COMMIT_TIMING") == "1" {
+		if config.ConnConfig.Tracer == nil {
+			config.ConnConfig.Tracer = k4CommitTracer{}
+		} else {
+			config.ConnConfig.Tracer = multitracer.New(config.ConnConfig.Tracer, k4CommitTracer{})
+		}
+	}
 	flag := os.Getenv("DUR053_K4_CAMPAIGN")
 	if flag != "" && flag != "0" && flag != "1" {
 		return errors.New("DUR053_K4_CAMPAIGN must be 0 or 1")
