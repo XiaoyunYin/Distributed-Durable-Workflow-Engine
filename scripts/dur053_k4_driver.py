@@ -197,6 +197,20 @@ class K4Driver:
         journal_lock = threading.Lock()
 
         def command(args, **kwargs):
+            if args[:3] == ["kind", "create", "cluster"]:
+                args = list(args)
+                index = args.index("--config") + 1
+                config = json.loads(Path(args[index]).read_text())
+                # Kubernetes v1.32 logs the pre-StopContainer "Killing container"
+                # record at V(2). Enable it only in K4's disposable cluster.
+                for node in config["nodes"]:
+                    node.setdefault("kubeadmConfigPatches", []).append(
+                        "kind: InitConfiguration\nnodeRegistration:\n"
+                        "  kubeletExtraArgs:\n    v: '2'\n"
+                    )
+                config_path = self.output / "kind-diagnostics-config.json"
+                save(config_path, config)
+                args[index] = str(config_path)
             if "psql" in args and str(kwargs.get("data", "")).startswith("/* K4 observer */"):
                 kwargs["timeout"] = min(kwargs.get("timeout", 180), 5)
             ident = secrets.token_hex(8)
@@ -738,6 +752,103 @@ class K4Driver:
         require(not self.sampler.is_alive(), "k4-observer-stop-timeout")
         require(not self.sample_error, "k4-observer-loss: " + "; ".join(self.sample_error))
 
+    def retain_target_termination(self, targets, confirmation, episode_deadline):
+        """Retain deaths before assembly/TERM guard, without extending episode bounds."""
+        if not targets:
+            save(self.episode_output / "target-termination.json", dict(targets=[]))
+            return
+        rows = []
+        while True:
+            now = time.time()
+            with self.collector.lock:
+                pods = list(self.collector.pods)
+                exits = list(self.collector.cri_exits)
+            rows = []
+            for pod in targets:
+                uid = pod["metadata"]["uid"]
+                deletions = [
+                    utc(e["object"]["metadata"]["deletionTimestamp"])
+                    for e in pods
+                    if e["object"]["metadata"]["uid"] == uid
+                    and e["object"]["metadata"].get("deletionTimestamp")
+                ]
+                # deletionTimestamp is the end of the API's grace period,
+                # not its start. Never add another grace period to it.
+                grace_deadline = min(deletions) if deletions else None
+                if confirmation["kind"] == "kill":
+                    grace_deadline = confirmation["intervention"] + pod["spec"].get(
+                        "terminationGracePeriodSeconds", 30
+                    )
+                until = min(episode_deadline, grace_deadline or episode_deadline)
+                for container in pod["status"]["containerStatuses"]:
+                    cid = container["containerID"].rsplit("/", 1)[-1]
+                    death = next((e for e in exits if e["container_id"] == cid), None)
+                    rows.append(
+                        dict(
+                            pod_uid=uid,
+                            pod_name=pod["metadata"]["name"],
+                            container_id=cid,
+                            grace_deadline=grace_deadline,
+                            observation_deadline=until,
+                            observed_at=now,
+                            cri_exit=death,
+                        )
+                    )
+            save(self.episode_output / "target-termination.json", dict(targets=rows))
+            if all(
+                row["cri_exit"] is not None or now >= row["observation_deadline"] for row in rows
+            ):
+                break
+            self.check_observation()
+            time.sleep(
+                min(
+                    0.1,
+                    min(
+                        r["observation_deadline"]
+                        for r in rows
+                        if r["cri_exit"] is None and r["observation_deadline"] > now
+                    )
+                    - now,
+                )
+            )
+        # Fetch the full interval, not the last 300 journal lines. Retain full
+        # target Killing records even when the TERM predicate will refuse.
+        result = self.base.command(
+            [
+                "docker",
+                "exec",
+                "dur053-k3a-control-plane",
+                "journalctl",
+                "-u",
+                "kubelet",
+                "--no-pager",
+                "--since",
+                stamp(confirmation["intervention"] - 1),
+            ],
+            allowed=True,
+            timeout=10,
+        )
+        directory = self.episode_output / "diagnostics"
+        directory.mkdir(exist_ok=True)
+        (directory / "target-kubelet.txt").write_text(
+            "".join(
+                line + "\n"
+                for line in result.stdout.splitlines()
+                if "Killing container" in line
+                and any(
+                    token in line
+                    for row in rows
+                    for token in (row["pod_uid"], row["pod_name"], row["container_id"])
+                )
+            ),
+            encoding="utf-8",
+            newline="\n",
+        )
+        save(
+            directory / "kubelet-query.json",
+            dict(exit_code=result.returncode, stderr=result.stderr),
+        )
+
     def load(self, ns, cell, p, start):
         count = math.ceil((p["warmup"] + p["confirmation"] + p["W"] + 180) * p["rate"])
         return self.base.k(
@@ -1250,6 +1361,31 @@ class K4Driver:
                     ),
                 )
             )
+        # Persist the final CRI mapping even if the following TERM guard refuses.
+        # An exit delivered during reconciliation can arrive after the bounded
+        # target wait (notably a kubelet SIGKILL right at grace expiry).
+        target_sessions = {t["session"] for t in confirmation["targets"]}
+        save(
+            self.episode_output / "target-process-evidence.json",
+            dict(
+                targets=[
+                    {
+                        key: s.get(key)
+                        for key in (
+                            "session",
+                            "pod_uid",
+                            "container_id",
+                            "death",
+                            "death_evidence",
+                            "exit_code",
+                            "exit_signal",
+                        )
+                    }
+                    for s in sessions
+                    if s["session"] in target_sessions
+                ]
+            ),
+        )
         require_term_evidence(confirmation, sessions)
         for o in confirmation["overlap"]:
             s = next(
@@ -1660,9 +1796,13 @@ print(json.dumps(rows))
                 self.check_observation()
                 time.sleep(0.1)
             require(load_future.result().returncode == 0, "k4-loadgen-failed")
+            deadline = max(stop, confirmation["removed"] or stop) + p["T"]
+            # Finish target observation before starting the quiet interval:
+            # witness writes during this wait must not be hidden by an earlier
+            # reconciliation-complete decision. The original deadline holds.
+            self.retain_target_termination(targets, confirmation, deadline)
             quiet = time.time()
             last = None
-            deadline = max(stop, confirmation["removed"] or stop) + p["T"]
             timeout = False
             poll_path = self.episode_output / "reconciliation-polls.jsonl"
             with poll_path.open("ab") as poll_log:

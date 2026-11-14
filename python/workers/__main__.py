@@ -15,7 +15,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from workers import __version__
 from workers.lifecycle import WorkerLifecycle, worker_identity
-from workers.witness import configured_witness
+from workers.witness import campaign_witness, configured_witness
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -86,14 +86,33 @@ def run() -> None:
     watchdog = start_abort_watchdog(lifecycle, process_done)
     stopping = lifecycle.drain
 
-    def stop(_signum: int, _frame: object) -> None:
-        from workers.witness import campaign_witness
+    # A Python handler can interrupt Event.wait while its non-reentrant
+    # condition lock is held. Even Event.set is unsafe here. Publish one plain
+    # tuple; the normal coordinator owns all persistence and shutdown work.
+    received: tuple[int, float] | None = None
 
-        if witness := campaign_witness():
-            witness.trace("signal", {"signal": _signum})
-        lifecycle.begin_drain()
-        if lifecycle.legacy:
-            threading.Thread(target=server.shutdown, daemon=True).start()
+    def stop(_signum: int, _frame: object) -> None:
+        nonlocal received
+        if received is None:
+            received = (_signum, time.monotonic())
+
+    def coordinate_stop() -> None:
+        while not process_done.wait(0.01):
+            receipt = received
+            if receipt is None:
+                continue
+            signum, at = receipt
+            if witness := campaign_witness():
+                witness.trace("signal", {"signal": signum}, at=at)
+            lifecycle.begin_drain()
+            if lifecycle.legacy:
+                server.shutdown()
+            return
+
+    signal_thread = threading.Thread(
+        target=coordinate_stop, name="worker-signal-coordinator", daemon=True
+    )
+    signal_thread.start()
 
     if not lifecycle.legacy:
         signal.signal(signal.SIGTERM, stop)
@@ -150,6 +169,7 @@ def run() -> None:
         health_thread.join(timeout=1)
     server.server_close()
     process_done.set()
+    signal_thread.join(timeout=1)
     if watchdog is not None:
         watchdog.join(timeout=1)
 

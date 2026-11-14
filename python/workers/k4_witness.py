@@ -144,7 +144,7 @@ class CampaignWitness:
         self._append("invocations", {**invocation, "event": "finish", "at": time.monotonic()})
         self.trace("outcome", {"invocation": invocation["id"], "outcome": outcome})
 
-    def trace(self, event: str, fields: dict[str, Any]) -> None:
+    def trace(self, event: str, fields: dict[str, Any], *, at: float | None = None) -> None:
         # Only explicitly selected metadata reaches this method; never bodies,
         # headers, response payloads or arbitrary error messages (may hold tokens).
         self._append(
@@ -155,7 +155,7 @@ class CampaignWitness:
                 "session": self.session,
                 "pod_uid": self.pod_uid,
                 "container_id": self.container_id,
-                "at": time.monotonic(),
+                "at": time.monotonic() if at is None else at,
                 "timestamp": datetime.now(UTC).isoformat(),
             },
         )

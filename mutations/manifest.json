@@ -13738,6 +13738,38 @@
       ],
       "expected": "K4 smoke reservation lacks 20% headroom",
       "requires_database": false
+    },
+    {
+      "id": "k4r314-handler-witness-lock",
+      "file": "python/workers/__main__.py",
+      "old": "        nonlocal received\n        if received is None:",
+      "new": "        nonlocal received\n        if witness := campaign_witness():\n            witness.trace(\"signal\", {\"signal\": _signum})\n        if received is None:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_worker_signals.py::test_real_signal_at_lock_boundary",
+        "-q"
+      ],
+      "expected": "signal handler deadlocked on worker lock",
+      "requires_database": false,
+      "kind": "behavioral"
+    },
+    {
+      "id": "k4r314-early-term-diagnostics",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "            if all(\n                row[\"cri_exit\"] is not None or now >= row[\"observation_deadline\"] for row in rows\n            ):",
+      "new": "            if True:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round281.py::test_wait_retains_cri_status_and_target_killing_lines",
+        "-q"
+      ],
+      "expected": "target death/grace evidence collection ended early or exceeded bound",
+      "requires_database": false,
+      "kind": "behavioral"
     }
   ]
 }
