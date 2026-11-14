@@ -13740,6 +13740,22 @@
       "requires_database": false
     },
     {
+      "id": "k4r313-pilot-smoke-token",
+      "kind": "behavioral",
+      "file": ".github/workflows/ci.yml",
+      "old": "      - name: Exercise exact v1 pilot path and continuous v2 path with engineering parameters\n        shell: bash\n        env:\n          GH_TOKEN: ${{ github.token }}\n        run:",
+      "new": "      - name: Exercise exact v1 pilot path and continuous v2 path with engineering parameters\n        shell: bash\n        run:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round273.py::test_smoke_workflow_reservations_and_tokens",
+        "-q"
+      ],
+      "expected": "pilot smoke step missing GH_TOKEN",
+      "requires_database": false
+    },
+    {
       "id": "k4r314-handler-witness-lock",
       "file": "python/workers/__main__.py",
       "old": "        nonlocal received\n        if received is None:",
