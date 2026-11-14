@@ -645,6 +645,8 @@ jobs:
           persist-credentials: false
       - name: Exercise exact v1 pilot path and continuous v2 path with engineering parameters
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           export TMP="$RUNNER_TEMP" TEMP="$RUNNER_TEMP" TMPDIR="$RUNNER_TEMP" PYTHONDONTWRITEBYTECODE=1
