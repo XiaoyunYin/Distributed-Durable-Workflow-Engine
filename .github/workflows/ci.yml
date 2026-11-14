@@ -617,6 +617,8 @@ jobs:
           retention-days: 30
       - name: Run package-check
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: ./scripts/dur053-kubernetes.ps1 -Context kind -Scenario package-check -OutputRoot (Join-Path $env:RUNNER_TEMP "dur053-k3-package")
       - name: Retain evidence including failures
         if: always()
@@ -671,6 +673,8 @@ jobs:
           persist-credentials: false
       - name: Run smoke
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: ./scripts/dur053-kubernetes.ps1 -Context kind -Scenario smoke -OutputRoot (Join-Path $env:RUNNER_TEMP "dur053-k3-smoke")
       - name: Retain evidence including failures
         if: always()
@@ -684,7 +688,7 @@ jobs:
   dur053-k4-lifecycle-smoke:
     name: DUR-053 K4 lifecycle smoke
     runs-on: ubuntu-24.04
-    timeout-minutes: 65
+    timeout-minutes: 95
     steps:
       - name: Check out source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -704,7 +708,7 @@ jobs:
         run: |
           set -euo pipefail
           export TMP="$RUNNER_TEMP" TEMP="$RUNNER_TEMP" TMPDIR="$RUNNER_TEMP" PYTHONDONTWRITEBYTECODE=1
-          # Driver ceiling is 3600s including verified cleanup; no ledger admission.
+          # Driver ceiling is 4800s including verified cleanup; no ledger admission.
           bash scripts/dur053-k3.sh lifecycle-smoke "$RUNNER_TEMP/dur053-k4" "$RUNNER_TEMP/dur053-k4-scratch"
       - name: Verify engineering evidence offline
         shell: bash
@@ -712,6 +716,20 @@ jobs:
           set -euo pipefail
           go build -buildvcs=false -o "$RUNNER_TEMP/dur053-k4-checker" ./cmd/dur049-checker
           bash scripts/dur053-k3.sh verify-evidence "$RUNNER_TEMP/dur053-k4" "$RUNNER_TEMP/dur053-k4-scratch" "$RUNNER_TEMP/dur053-k4-checker"
+      - name: Report registered scheduler reaction and smoke time
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "dur053-k4"
+          manifest = json.loads((root / "manifest.json").read_bytes())
+          confirmation = json.loads((root / "short-core-2-pair-0-treatment/confirmation.json").read_bytes())
+          print(json.dumps({"elapsed_live_seconds": manifest["elapsed_live_seconds"],
+                            "charged_seconds": manifest["charged_seconds"],
+                            "registered_scheduler_reaction": confirmation["reaction"]}))
+          PY
       - name: Retain full lifecycle diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

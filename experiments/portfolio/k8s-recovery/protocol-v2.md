@@ -783,6 +783,9 @@ jobs have contents:read only. Success, failure, cancellation and subsequent PR
 pushes do not create ledger debt. These engineering artifacts retain their
 observed setup-through-teardown duration for diagnosis and possible selection;
 `charged_seconds=0` and `measurement_claim=false` describe their CI status.
+
+Provenance uses the job's contents:read token when present, with a bounded
+rate-limit retry, and remains a non-gating provenance read.
 The bounded 3600 s smoke execution ceiling and teardown verification still apply.
 
 Only `dur053-campaign.yml` workflow_dispatch jobs and one registered K3
@@ -1581,3 +1584,68 @@ Registered by Claude under D035 before any K4 measurement.
    - Ambiguous busy-removal or ambiguous positive-excess evidence cannot produce GO.
    - No deletion-cost annotation steers victim selection.
    - The table is frozen at K4 closeout.
+
+
+### Amendment B.4.1 (Round 269 registration)
+
+Registered by Claude under D035, storage only. This amendment applies only to K4
+recording and evidence readers. K3 layouts, readers, evidence, and
+`scripts/dur053_payload.py` remain unchanged. Measurement, dispositions, rates,
+minima, budget, schedule, freeze, migrations, and engine predicates do not change.
+
+1. **Format.** `scripts/dur053_payload_v2.py` retains B.4's sorted regular members,
+   mtime/uid/gid 0, mode 0644, empty uname/gname, deterministic XZ/LZMA2 preset 6
+   with a 128 MiB dictionary, grouping, and midpoint split. It writes PAX tar.
+   Only a `path` extended record is allowed, only when the name cannot fit USTAR;
+   global headers and other keys refuse. Names of at most 100 bytes produce
+   byte-identical output to v1 USTAR.
+2. **Location.** Archives are external release assets, never Git evidence files.
+   The repository release is a prerelease named and tagged
+   `dur053-evidence-<job>-<run_id>`, with assets `NNNN.tar.xz`. Git retains the raw,
+   byte-identical `EVIDENCE/<job>/<run_id>/manifest.json`, `payload-index.json`, and
+   intake documents (including k4-1 `reclassification.json`) under ledger binding.
+   Index schema `dur053.payload.v2` retains B.4 fields and adds each archive's
+   `asset` name and `store: {"kind": "github-release", "repository":
+   "XiaoyunYin/Distributed-Durable-Workflow-Engine", "tag": ...}`.
+3. **Bounds.** The per-archive maximum remains 45,000,000 bytes. The per-job total
+   maximum is 1,440,000,000 bytes: 46 episodes times the measured 7,708,740-byte
+   maximum times 4, rounded up to a 45 MB increment. This is a refusal bound,
+   never permission to omit bytes. Every downloaded byte is retained (B.4 item 6).
+4. **Intake.** `stage` packs and validates everything outside the repository and
+   prints the exact asset list, SHA-256 hashes, and sizes. Claude uploads those
+   files to the release. `commit` fetches every listed asset from the store,
+   requires exactly that asset set, checks size and SHA-256 before extraction,
+   materializes, and runs all B.4 item 4 inventory/raw-hash checks and existing K4
+   checks (including R306's pinned legacy route for k4-1) before writing evidence
+   and ledger. `--store <directory>` selects an offline store with one subdirectory
+   per release tag; `--store github` downloads public assets by unauthenticated
+   HTTPS with the same checks. Only directory stores are tested offline.
+5. **Readers.** K4 materialization and verify/acceptance use v2 indexes through the
+   store. They verify the committed index's raw hash against ledger
+   `payload_index_sha256`, every asset's size and SHA-256 before extraction, and
+   all B.4 item 4 checks.
+6. **History gate.** Dispatch never fetches or materializes raw payloads. It binds
+   committed manifest bytes, index bytes, and intake document bytes to ledger
+   hashes, including `reclassification_sha256` where present, and reads
+   dispositions and contributions only from those committed documents. The
+   k4-1 `legacy_form(raw, manifest)` check runs at intake; its successful result
+   and covered hashes are recorded in the hash-bound `reclassification.json`.
+7. **Layouts.** A K4 directory must contain its manifest, v2 index and intake
+   documents, without a `payload/` directory. Mixed layouts refuse. No K3
+   evidence migrates.
+
+### B.7 item 5 disclosure (R307, Round 269)
+
+From the first post-R307 job, campaign-mode Go signal logging writes the existing
+`k4_signal` record before cancelling shutdown, using one signal subscription.
+The runtime image therefore differs from k4-1's `cfdbf1a` image. Replacement and
+later jobs use the fixed image; within-job pairing is unaffected. No measurement
+or predicate changes. Outside campaign mode the existing `signal.NotifyContext`
+path remains unchanged.
+
+### B.7 engineering smoke reservation (R311, Round 273)
+
+The K4 engineering smoke reserves 4800 s live with a 95 min CI job timeout,
+because the complete nine-episode smoke and final reset no longer fit 3600 s
+with the unchanged 900 s closeout reserve. This is engineering-only, charges
+zero campaign time, and changes no campaign value, cell, warmup or predicate.

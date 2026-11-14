@@ -130,7 +130,9 @@ def test_apply_safety_propagates_to_infrastructure(tmp_path, monkeypatch, retain
             host_start=0, host_end=0, observer=0, path="hold", existed=False, exists=True, mtime=0
         )
     )
-    d.overlap = Mock(return_value=[dict(role="worker")])
+    d.overlap = Mock(
+        return_value=[dict(role="worker", session="worker-session", acknowledgment="worker-ack")]
+    )
     d.load = Mock(return_value=Mock(returncode=0))
     d.base = Mock()
     d.observer_stop = threading.Event()

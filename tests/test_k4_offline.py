@@ -58,7 +58,7 @@ def checker(tmp_path_factory):
     target = tmp_path_factory.mktemp("checker") / "checker.exe"
     env = dict(os.environ, GOFLAGS="-mod=mod", GOPROXY="off")
     subprocess.run(
-        ["go", "build", "-o", str(target), "./cmd/dur049-checker"],
+        ["go", "build", "-p", "1", "-o", str(target), "./cmd/dur049-checker"],
         cwd=ROOT,
         env=env,
         check=True,
@@ -96,7 +96,7 @@ def seal_witness(timeline):
         )
 
 
-def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment"):
+def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment", workflow_stride=1):
     m = default(schema.EPISODE)
     p = k4.parameters(freeze, "short")
     m.update(
@@ -182,6 +182,11 @@ def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment"):
                     attempts=1,
                 )
             )
+            if j % workflow_stride:
+                # Keep the full frozen offered-arrival grid, but a smaller
+                # accepted population for tests concerned with intake history.
+                arrivals[-1].update(outcome="rejected", status=429)
+                continue
             ident = dict(
                 namespace="ns", workflow=aid, node="n", iteration=0, attempt=1, token_hash="a" * 64
             )
@@ -760,7 +765,7 @@ def test_archive_ledger_roundtrip(tmp_path, checker, monkeypatch):
     # archive limits, deterministic container and all integrity checks remain active.
     import lzma
 
-    import dur053_payload
+    import dur053_payload_v2 as dur053_payload
 
     monkeypatch.setattr(
         dur053_payload, "FILTERS", [dict(id=lzma.FILTER_LZMA2, preset=0, dict_size=1 << 20)]
@@ -769,27 +774,28 @@ def test_archive_ledger_roundtrip(tmp_path, checker, monkeypatch):
     downloaded = tmp_path / "downloaded"
     actions(downloaded)
     (downloaded / "partial.log").write_bytes(b"retained partial fault evidence\r\n")
-    target = recorder.interrupted(downloaded, repo, "k4-1", checker)
+    target, store = record_interrupted(downloaded, repo, "k4-1", checker)
     m = schema.load(target / "manifest.json")
     assert m["charged_seconds"] == 18900 and m["status"] == "interrupted", (
         "interrupted job refunded or erased"
     )
     git_commit(repo)
-    verified = evidence.verify_evidence(repo, checker)
+    verified = evidence.verify_evidence(repo, checker, store=store)
     assert verified["schedule"]["charged_seconds"] == 18900, "actual interrupted charge omitted"
     assert len(verified["missing_episodes"]) == 161 and not verified["valid"], (
         "passing subset accepted"
     )
-    with dur053_payload.materialize(target, repo) as raw:
+    with recorder.materialize_job(target, repo, store=store) as raw:
         assert (
             raw / "downloaded/partial.log"
         ).read_bytes() == b"retained partial fault evidence\r\n", "failure bytes erased"
     with pytest.raises(ValueError, match="k4-job-replay"):
-        recorder.interrupted(downloaded, repo, "k4-1", checker)
-    archive = next((target / "payload").glob("*.tar.xz"))
+        record_interrupted(downloaded, repo, "k4-1", checker)
+    index = json.loads((target / "payload-index.json").read_bytes())
+    archive = next((store / index["store"]["tag"]).glob("*.tar.xz"))
     archive.write_bytes(archive.read_bytes() + b"changed")
     with pytest.raises(ValueError):
-        evidence.verify_evidence(repo, checker)
+        evidence.verify_evidence(repo, checker, store=store)
 
 
 def test_bidirectional_inventory(tmp_path):
@@ -860,7 +866,7 @@ def test_infrastructure_replacement(freeze):
 def test_completed_archive_rederivation(tmp_path, checker, monkeypatch):
     import lzma
 
-    import dur053_payload
+    import dur053_payload_v2 as dur053_payload
 
     monkeypatch.setattr(
         dur053_payload, "FILTERS", [dict(id=lzma.FILTER_LZMA2, preset=0, dict_size=1 << 20)]
@@ -908,20 +914,20 @@ def test_completed_archive_rederivation(tmp_path, checker, monkeypatch):
     m["artifact_sha256"] = recorder.artifact_hashes(source)
     write(source / "manifest.json", m)
     with pytest.raises(ValueError, match="k4-intake-metrics"):
-        recorder.record(source, repo, checker)
+        record_directory(source, repo, checker)
     value = evidence.episode(source / name, f, checker)
     write(source / name / "metrics.json", value)
     m["artifact_sha256"] = recorder.artifact_hashes(source)
     write(source / "manifest.json", m)
-    target = recorder.record(source, repo, checker)
+    target, store = record_directory(source, repo, checker)
     git_commit(repo)
-    result = evidence.verify_evidence(repo, checker)
+    result = evidence.verify_evidence(repo, checker, store=store)
     assert len(result["missing_episodes"]) == 160 and result["disposition_counts"] == {"PASS": 1}, (
         "valid episode omitted or failure inventory hidden"
     )
     assert result["schedule"]["charged_seconds"] == 400, "completed work charged twice"
     with pytest.raises(ValueError):
-        recorder.record(source, repo, checker)
+        record_directory(source, repo, checker)
     assert (target / "manifest.json").read_bytes() == (source / "manifest.json").read_bytes(), (
         "immutable destination overwritten"
     )
@@ -1188,7 +1194,7 @@ def test_replacement_identity_binding(tmp_path, freeze, field, bad):
 def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     import lzma
 
-    import dur053_payload
+    import dur053_payload_v2 as dur053_payload
 
     monkeypatch.setattr(
         dur053_payload, "FILTERS", [dict(id=lzma.FILTER_LZMA2, preset=0, dict_size=1 << 20)]
@@ -1203,10 +1209,22 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
         if index == 1:
             ds.append(harness_incident(source, name))
             continue
-        ep, _ = episode_fixture(source / name, f, episode=name)
+        # One in four arrivals is accepted; the complete frozen offered grid,
+        # both phases and >200 measured successes remain. All record/verify
+        # passes and every replacement/history assertion still run unchanged.
+        ep, docs = episode_fixture(source / name, f, episode=name, workflow_stride=4)
+        # This intake fixture uses worker cells; match its synthetic rollout targets.
+        docs["confirmation"]["target"] = "Deployment/worker"
+        for session in docs["timeline"]["sessions"]:
+            if session["role"] == "relay":
+                session["role"] = "worker"
+        for key, file in evidence.FILES.items():
+            write(source / name / file, docs[key])
+            ep["files"][key] = hashlib.sha256((source / name / file).read_bytes()).hexdigest()
         ep.update(job="k4-1", status="FAIL" if index == 2 else "PASS")
         write(source / name / "episode.json", ep)
         value = evidence.episode(source / name, f, checker)
+        assert value["valid"] and value["complete"] and value["offered"] > value["accepted"] > 200
         write(source / name / "metrics.json", value)
         values.append(value)
         ds.append(disposition(name))
@@ -1235,14 +1253,20 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     write(source / "summary.json", evidence.summaries(values))
     m["artifact_sha256"] = recorder.artifact_hashes(source)
     write(source / "manifest.json", m)
-    recorder.record(source, repo, checker)
+    _, store = record_directory(source, repo, checker)
     git_commit(repo)
-    first = evidence.verify_evidence(repo, checker)
+    first = evidence.verify_evidence(repo, checker, store=store)
     assert first["disposition_counts"] == {"PASS": 2, "FAIL": 1}, "valid fault outcome lost"
     assert recorder.contributions(m) == [ids[0], ids[2], ids[3]], "valid partner discarded"
     replacement = tmp_path / "replacement"
     new_id = ids[1] + "-replacement-1"
-    ep, _ = episode_fixture(replacement / new_id, f, episode=ids[1])
+    ep, docs = episode_fixture(replacement / new_id, f, episode=ids[1], workflow_stride=4)
+    docs["confirmation"]["target"] = "Deployment/worker"
+    for session in docs["timeline"]["sessions"]:
+        if session["role"] == "relay":
+            session["role"] = "worker"
+    for key, file in evidence.FILES.items():
+        write(replacement / new_id / file, docs[key])
     ep.update(episode=new_id, replacement_for=ids[1], job="k4-1", run_id="101", job_id="201")
     # Every exported document binds to the new identity, while seed and arm stay fixed.
     for file in evidence.FILES.values():
@@ -1255,6 +1279,7 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     }
     write(replacement / new_id / "episode.json", ep)
     value = evidence.episode(replacement / new_id, f, checker)
+    assert value["valid"] and value["complete"] and value["offered"] > value["accepted"] > 200
     write(replacement / new_id / "metrics.json", value)
     write(replacement / "summary.json", evidence.summaries([value]))
     actions(replacement, run="101", job="201")
@@ -1283,9 +1308,15 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     write(replacement / new_id / "episode.json", ep)
     r["artifact_sha256"] = recorder.artifact_hashes(replacement)
     write(replacement / "manifest.json", r)
-    recorder.record(replacement, repo, checker)
+    _, replacement_store = record_directory(replacement, repo, checker)
+    # A release store holds both retained jobs when verifying the continuation.
+    import shutil
+
+    for release in store.iterdir():
+        shutil.copytree(release, replacement_store / release.name)
+    store = replacement_store
     git_commit(repo)
-    result = evidence.verify_evidence(repo, checker)
+    result = evidence.verify_evidence(repo, checker, store=store)
     pair = next(p for p in result["paired"] if p["pair"] == 0)
     assert pair["replaced"] and pair["episodes"] == [ids[0], new_id], "replaced pair not flagged"
     assert ids[0] not in result["missing_episodes"] and ids[1] not in result["missing_episodes"]
@@ -1298,7 +1329,7 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
 def test_interrupted_lost_episodes_are_invalid(tmp_path, checker, monkeypatch):
     import lzma
 
-    import dur053_payload
+    import dur053_payload_v2 as dur053_payload
 
     monkeypatch.setattr(
         dur053_payload, "FILTERS", [dict(id=lzma.FILTER_LZMA2, preset=0, dict_size=1 << 20)]
@@ -1310,7 +1341,7 @@ def test_interrupted_lost_episodes_are_invalid(tmp_path, checker, monkeypatch):
     write(
         source / "progress.json", dict(schema="dur053.k4-progress.v1", job="k4-1", started=[first])
     )
-    target = recorder.interrupted(source, repo, "k4-1", checker)
+    target, _ = record_interrupted(source, repo, "k4-1", checker)
     m = schema.load(target / "manifest.json")
     assert len(m["dispositions"]) == 2 and all(
         d["classification"] == "infrastructure-invalid" for d in m["dispositions"]
@@ -1322,4 +1353,46 @@ def test_interrupted_lost_episodes_are_invalid(tmp_path, checker, monkeypatch):
     write(source / "progress.json", dict(schema="dur053.k4-progress.v1", job="k4-1", started=[]))
     other = local_repository(tmp_path / "other")
     with pytest.raises(ValueError, match="k4-interrupted-progress-omission"):
-        recorder.interrupted(source, other, "k4-1", checker)
+        record_interrupted(source, other, "k4-1", checker)
+
+
+def upload_directory(staging, repository):
+    import shutil
+    import tempfile
+
+    index = json.loads((staging / "payload-index.json").read_bytes())
+    store = Path(tempfile.mkdtemp(prefix="upload-", dir=repository.parent))
+    shutil.copytree(staging / "assets", store / index["store"]["tag"])
+    return store
+
+
+def test_upload_directory_uses_fresh_stores(tmp_path):
+    staging = tmp_path / "stage"
+    write(staging / "payload-index.json", {"store": {"tag": "same-tag"}})
+    (staging / "assets").mkdir()
+    (staging / "assets" / "asset.tar.xz").write_bytes(b"retained bytes")
+    stores = [upload_directory(staging, tmp_path / name) for name in ("repo", "other", "repo")]
+    assert len(set(stores)) == 3
+    assert all(
+        (store / "same-tag/asset.tar.xz").read_bytes() == b"retained bytes" for store in stores
+    )
+
+
+def record_directory(source, repository, checker):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temporary:
+        staging = Path(temporary) / "stage"
+        recorder.stage(source, staging, repository, checker)
+        store = upload_directory(staging, repository)
+        return recorder.record(staging, repository, checker, store=store), store
+
+
+def record_interrupted(source, repository, name, checker):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temporary:
+        staging = Path(temporary) / "stage"
+        recorder.interrupted(source, repository, name, checker, staging)
+        store = upload_directory(staging, repository)
+        return recorder.record(staging, repository, checker, store=store), store

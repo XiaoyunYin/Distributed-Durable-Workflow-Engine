@@ -18,6 +18,7 @@ import sys
 import tarfile
 import threading
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -84,8 +85,32 @@ def github(path: str) -> Any:
             "X-GitHub-Api-Version": "2022-11-28",
         },
     )
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return json.load(response)
+    for attempt in range(3):
+        try:
+            with urllib.request.urlopen(request, timeout=30) as response:
+                return json.load(response)
+        except urllib.error.HTTPError as error:
+            if error.code not in {403, 429}:
+                raise
+            headers = error.headers or {}
+            body = error.read().decode("utf-8", errors="replace").lower()
+            limited = (
+                headers.get("X-RateLimit-Remaining") == "0"
+                or headers.get("Retry-After") is not None
+                or "rate limit" in body
+                or "rate-limit" in body
+            )
+            if not limited or attempt == 2:
+                raise
+            delay = 60.0
+            try:
+                if headers.get("Retry-After") is not None:
+                    delay = float(headers["Retry-After"])
+                elif headers.get("X-RateLimit-Reset") is not None:
+                    delay = float(headers["X-RateLimit-Reset"]) - time.time()
+            except (ValueError, TypeError):
+                pass
+            time.sleep(max(0, min(delay, 60)))
 
 
 def campaign_job_name(name: str) -> bool:

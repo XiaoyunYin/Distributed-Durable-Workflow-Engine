@@ -13,7 +13,6 @@ import (
 	"strings"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"durable-agent-execution-engine/internal/api"
@@ -42,16 +41,15 @@ func main() {
 		slog.Error("invalid RUNTIME_SHUTDOWN_MODE", "mode", mode)
 		os.Exit(1)
 	}
-	stopObservation := observeK4Signals()
-	defer stopObservation()
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := k4SignalContext(context.Background(), signal.Notify, signal.Stop)
 	defer stop()
 	if mode == "legacy" {
-		legacyServe(ctx)
+		legacyServe(ctx, stop)
 		return
 	}
 	if err := serveLifecycle(ctx); err != nil {
 		slog.Error("runtime stopped", "error", err)
+		stop()
 		os.Exit(1)
 	}
 }

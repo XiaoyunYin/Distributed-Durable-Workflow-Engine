@@ -259,7 +259,7 @@ and enum alternatives are exact strings.
 | `death_evidence` | `string` |
 | `exit_code` | `integer?` |
 | `exit_signal` | `integer?` |
-| `signals` | `[{ at: number, signal: integer, evidence: string }]` |
+| `signals` | `[{at: number, signal: integer, evidence: string}]` |
 | `readiness` | `[MEMBER]` |
 | `endpoints` | `[MEMBER]` |
 
@@ -277,6 +277,17 @@ and enum alternatives are exact strings.
 | `abort_evidence` | `string` |
 | `outcome` | `string` |
 
+### COMMIT_BRACKET
+
+| Required field | Type |
+| --- | --- |
+| `statement` | `number` |
+| `finalized` | `number` |
+| `transaction` | `string` |
+| `session` | `string` |
+| `pod_uid` | `string` |
+| `container_id` | `string` |
+
 ### CLAIM
 
 | Required field | Type |
@@ -285,7 +296,7 @@ and enum alternatives are exact strings.
 | `session` | `string` |
 | `order` | `integer` |
 | `at` | `number` |
-| `commit_bracket` | `{ statement: number, finalized: number, transaction: string, session: string, pod_uid: string, container_id: string }?` |
+| `commit_bracket` | `COMMIT_BRACKET?` |
 
 ### HISTORY
 
@@ -294,7 +305,7 @@ and enum alternatives are exact strings.
 | `identity` | `IDENTITY` |
 | `order` | `integer` |
 | `at` | `number` |
-| `kind` | `'cancel' / 'claim' / 'receipt' / 'supersede' / 'terminal' / 'transition'` |
+| `kind` | `'cancel' \| 'claim' \| 'receipt' \| 'supersede' \| 'terminal' \| 'transition'` |
 | `receipt` | `string` |
 | `partition` | `integer` |
 | `owner` | `string` |
@@ -312,8 +323,8 @@ and enum alternatives are exact strings.
 | `session` | `string` |
 | `order` | `integer` |
 | `at` | `number` |
-| `category` | `'committed' / 'evidence_only' / 'rejected'` |
-| `outcome` | `'failure' / 'retryable' / 'success'` |
+| `category` | `'committed' \| 'evidence_only' \| 'rejected'` |
+| `outcome` | `'failure' \| 'retryable' \| 'success'` |
 | `rejection` | `string` |
 
 ### WORKFLOW
@@ -359,7 +370,7 @@ and enum alternatives are exact strings.
 | --- | --- |
 | `order` | `integer` |
 | `at` | `number` |
-| `kind` | `'acquire' / 'release'` |
+| `kind` | `'acquire' \| 'release'` |
 | `partition` | `integer` |
 | `owner` | `string` |
 | `epoch` | `integer` |
@@ -371,7 +382,7 @@ and enum alternatives are exact strings.
 | Required field | Type |
 | --- | --- |
 | `change` | `string` |
-| `event` | `'assigned' / 'disposed' / 'rebalance_start' / 'revoke' / 'stable'` |
+| `event` | `'assigned' \| 'disposed' \| 'rebalance_start' \| 'revoke' \| 'stable'` |
 | `at` | `number` |
 | `consumer` | `string` |
 | `session` | `string` |
@@ -389,10 +400,10 @@ and enum alternatives are exact strings.
 | `id` | `string` |
 | `key` | `string` |
 | `workflow` | `string` |
-| `phase` | `'measured' / 'warmup'` |
+| `phase` | `'measured' \| 'warmup'` |
 | `scheduled` | `number` |
 | `sent` | `number?` |
-| `outcome` | `'accepted' / 'rejected' / 'uncertain' / 'unsent'` |
+| `outcome` | `'accepted' \| 'rejected' \| 'uncertain' \| 'unsent'` |
 | `status` | `integer` |
 | `error` | `string` |
 | `request_hash` | `sha256` |
@@ -408,8 +419,8 @@ and enum alternatives are exact strings.
 | `gap` | `number` |
 | `error` | `string` |
 | `oldest_claimable` | `number?` |
-| `active_claims` | `[{ identity: IDENTITY, pod_uid: string }]` |
-| `pods` | `[{ pod_uid: string, role: string, ready: boolean, eligible: boolean }]` |
+| `active_claims` | `[{identity: IDENTITY, pod_uid: string}]` |
+| `pods` | `[{pod_uid: string, role: string, ready: boolean, eligible: boolean}]` |
 | `replicas` | `integer` |
 | `busy_slots` | `integer` |
 | `total_slots` | `integer` |
@@ -418,7 +429,7 @@ and enum alternatives are exact strings.
 
 | Required field | Type |
 | --- | --- |
-| `role` | `'api' / 'relay' / 'scheduler' / 'worker'` |
+| `role` | `'api' \| 'relay' \| 'scheduler' \| 'worker'` |
 | `session` | `string` |
 | `pod_uid` | `string` |
 | `at` | `number` |
@@ -469,9 +480,11 @@ and enum alternatives are exact strings.
 | --- | --- |
 | `schema` | `'dur053.k4-confirmation.v1'` |
 | `episode` | `string` |
-| `kind` | `'eviction' / 'kill' / 'rollback' / 'rollout' / 'scale-down'` |
+| `kind` | `'eviction' \| 'kill' \| 'rollback' \| 'rollout' \| 'scale-down'` |
 | `target` | `string` |
 | `intervention` | `number` |
+| `reaction` | `number?` |
+| `observed_overlap_first_at` | `number?` |
 | `completed` | `number?` |
 | `removed` | `number?` |
 | `overlap` | `[OVERLAP]` |
@@ -479,7 +492,7 @@ and enum alternatives are exact strings.
 | `image_a` | `string` |
 | `image_a_prime` | `string` |
 | `binary_identity` | `sha256` |
-| `binary_proof` | `{ runtime_a: sha256, runtime_a_prime: sha256, worker_a: sha256, worker_a_prime: sha256 }` |
+| `binary_proof` | `{runtime_a: sha256, runtime_a_prime: sha256, worker_a: sha256, worker_a_prime: sha256}` |
 | `source_commit` | `sha1` |
 | `build` | `string` |
 | `lineage_a` | `string` |
@@ -494,11 +507,34 @@ and enum alternatives are exact strings.
 | `injection_status` | `string` |
 | `evictions` | `[EVICTION]` |
 | `eviction_retry_interval` | `number` |
-| `roles` | `[{ role: string, replicas: integer, disruptions_allowed: integer, pod_uids: [string] }]` |
+| `roles` | `[{role: string, replicas: integer, disruptions_allowed: integer, pod_uids: [string]}]` |
 | `no_cordon` | `boolean` |
 | `pdb_bypassed` | `boolean` |
 | `harness_targeted` | `boolean` |
 | `deletion_cost_used` | `boolean` |
+
+### HOLD_STATE
+
+| Required field | Type |
+| --- | --- |
+| `host_start` | `number` |
+| `host_end` | `number` |
+| `observer` | `number` |
+| `path` | `string` |
+| `existed` | `boolean` |
+| `exists` | `boolean` |
+| `mtime` | `number` |
+
+### HOLD
+
+| Required field | Type |
+| --- | --- |
+| `role` | `string` |
+| `hold_set` | `HOLD_STATE` |
+| `hold_released` | `HOLD_STATE?` |
+| `bound_expiry` | `number` |
+| `bound_expired` | `boolean` |
+| `measured_arrivals` | `integer` |
 
 ### EPISODE
 
@@ -507,7 +543,7 @@ and enum alternatives are exact strings.
 | `schema` | `'dur053.k4-episode.v1'` |
 | `episode` | `string` |
 | `replacement_for` | `string` |
-| `arm` | `'baseline' / 'treatment'` |
+| `arm` | `'baseline' \| 'treatment'` |
 | `job` | `string` |
 | `run_id` | `string` |
 | `job_id` | `string` |
@@ -515,14 +551,18 @@ and enum alternatives are exact strings.
 | `tree_sha` | `sha1` |
 | `freeze_sha256` | `sha256` |
 | `namespace` | `string` |
-| `status` | `'FAIL' / 'PASS' / 'interrupted' / 'invalid' / 'unexercised'` |
-| `budget_scope` | `'engineering-validation' / 'registered-campaign'` |
+| `status` | `'FAIL' \| 'PASS' \| 'interrupted' \| 'invalid' \| 'unexercised'` |
+| `metrics` | `'derivable' \| 'not-derivable'` |
+| `missing_exports` | `[string]` |
+| `budget_scope` | `'engineering-validation' \| 'registered-campaign'` |
 | `measurement_claim` | `boolean` |
 | `seed` | `integer` |
+| `hold` | `HOLD?` |
 | `rate` | `number` |
 | `L` | `number` |
 | `W` | `number` |
 | `warmup_start` | `number` |
+| `confirmation_deadline` | `number` |
 | `intervention` | `number` |
 | `window_end` | `number` |
 | `reconciliation_end` | `number` |
@@ -530,10 +570,10 @@ and enum alternatives are exact strings.
 | `witness_available` | `boolean` |
 | `witness_activity` | `[number]` |
 | `quiet_since` | `number?` |
-| `clock_brackets` | `[{ start: number, end: number, width: number }]` |
+| `clock_brackets` | `[{start: number, end: number, width: number}]` |
 | `baseline_flags` | `[string]` |
-| `images` | `{ runtime: string, worker: string }` |
-| `files` | `{ timeline: sha256, leases: sha256, confirmation: sha256, arrivals: sha256, kafka: sha256, witness: sha256, observers: sha256 }` |
+| `images` | `{runtime: string, worker: string}` |
+| `files` | `{timeline: sha256, leases: sha256, confirmation: sha256, arrivals: sha256, kafka: sha256, witness: sha256, observers: sha256}` |
 
 ### DISPOSITION
 
@@ -541,8 +581,8 @@ and enum alternatives are exact strings.
 | --- | --- |
 | `episode` | `string` |
 | `replacement_for` | `string` |
-| `classification` | `'infrastructure-invalid' / 'unexercised' / 'valid'` |
-| `reason` | `'' / 'collection-failure' / 'harness-oom' / 'harness-timeout' / 'runner-loss' / 'setup-before-warmup'` |
+| `classification` | `'infrastructure-invalid' \| 'unexercised' \| 'valid'` |
+| `reason` | `'' \| 'collection-failure' \| 'harness-confirmation-miss' \| 'harness-oom' \| 'harness-timeout' \| 'runner-loss' \| 'setup-before-warmup'` |
 | `evidence` | `[string]` |
 
 ### JOB
@@ -557,21 +597,44 @@ and enum alternatives are exact strings.
 | `merge_ref_sha` | `sha1` |
 | `tree_sha` | `sha1` |
 | `freeze_sha256` | `sha256` |
-| `budget_scope` | `'engineering-validation' / 'registered-campaign'` |
+| `budget_scope` | `'engineering-validation' \| 'registered-campaign'` |
 | `measurement_claim` | `boolean` |
-| `status` | `'CARRY_OVER' / 'FAIL' / 'PASS' / 'interrupted' / 'invalid' / 'unexercised'` |
+| `status` | `'CARRY_OVER' \| 'FAIL' \| 'PASS' \| 'interrupted' \| 'invalid' \| 'unexercised'` |
 | `registered_live_seconds` | `integer` |
 | `charged_seconds` | `integer` |
 | `elapsed_live_seconds` | `integer?` |
 | `live_start` | `number?` |
 | `live_end` | `number?` |
-| `cleanup` | `'PASS' / 'UNTRUSTWORTHY'` |
+| `cleanup` | `'PASS' \| 'UNTRUSTWORTHY'` |
 | `episodes` | `[string]` |
 | `assigned` | `[string]` |
 | `pending` | `[string]` |
 | `replacement_for` | `string` |
 | `dispositions` | `[DISPOSITION]` |
+| `intake_stopped` | `[string]` |
 | `artifact_sha256` | `hashmap` |
+
+### SAFETY
+
+| Required field | Type |
+| --- | --- |
+| `episodes` | `[string]` |
+| `unavailable` | `[string]` |
+| `lost_accepted` | `integer` |
+| `duplicate_accepted` | `integer` |
+| `stale_committed` | `integer` |
+| `superseded_owner_transitions` | `integer` |
+| `failed_workflows` | `integer` |
+| `canceled_workflows` | `integer` |
+| `http_5xx` | `integer` |
+| `passed` | `boolean` |
+
+### dur053.k4-continuation-acks.v1
+
+| Required field | Type |
+| --- | --- |
+| `schema` | `'dur053.k4-continuation-acks.v1'` |
+| `acknowledgements` | `[{job_id: string, manifest_sha256: sha256, reviewer: 'Claude', acknowledged: boolean, review_round: integer}]` |
 
 ### dur053.k4-progress.v1
 
@@ -587,8 +650,8 @@ and enum alternatives are exact strings.
 | --- | --- |
 | `schema` | `'dur053.k4-harness.v1'` |
 | `episode` | `string` |
-| `reason` | `'collection-failure' / 'harness-oom' / 'harness-timeout' / 'runner-loss' / 'setup-before-warmup'` |
-| `component` | `'collector' / 'driver' / 'runner' / 'setup'` |
+| `reason` | `'collection-failure' \| 'harness-confirmation-miss' \| 'harness-oom' \| 'harness-timeout' \| 'runner-loss' \| 'setup-before-warmup'` |
+| `component` | `'collector' \| 'driver' \| 'runner' \| 'setup'` |
 | `at` | `number` |
 | `warmup_start` | `number?` |
 | `source` | `string` |
@@ -600,7 +663,7 @@ and enum alternatives are exact strings.
 | `schema` | `'dur053.k4-episode.v1'` |
 | `episode` | `string` |
 | `replacement_for` | `string` |
-| `arm` | `'baseline' / 'treatment'` |
+| `arm` | `'baseline' \| 'treatment'` |
 | `job` | `string` |
 | `run_id` | `string` |
 | `job_id` | `string` |
@@ -608,12 +671,12 @@ and enum alternatives are exact strings.
 | `tree_sha` | `sha1` |
 | `freeze_sha256` | `sha256` |
 | `namespace` | `string` |
-| `status` | `'FAIL' / 'PASS' / 'interrupted' / 'invalid' / 'unexercised'` |
-| `budget_scope` | `'engineering-validation' / 'registered-campaign'` |
+| `status` | `'FAIL' \| 'PASS' \| 'interrupted' \| 'invalid' \| 'unexercised'` |
+| `metrics` | `'derivable' \| 'not-derivable'` |
+| `missing_exports` | `[string]` |
+| `budget_scope` | `'engineering-validation' \| 'registered-campaign'` |
 | `measurement_claim` | `boolean` |
 | `seed` | `integer` |
-| `metrics` | `derivable / not-derivable` |
-| `missing_exports` | `[string]` |
 | `hold` | `HOLD?` |
 | `rate` | `number` |
 | `L` | `number` |
@@ -627,10 +690,10 @@ and enum alternatives are exact strings.
 | `witness_available` | `boolean` |
 | `witness_activity` | `[number]` |
 | `quiet_since` | `number?` |
-| `clock_brackets` | `[{ start: number, end: number, width: number }]` |
+| `clock_brackets` | `[{start: number, end: number, width: number}]` |
 | `baseline_flags` | `[string]` |
-| `images` | `{ runtime: string, worker: string }` |
-| `files` | `{ timeline: sha256, leases: sha256, confirmation: sha256, arrivals: sha256, kafka: sha256, witness: sha256, observers: sha256 }` |
+| `images` | `{runtime: string, worker: string}` |
+| `files` | `{timeline: sha256, leases: sha256, confirmation: sha256, arrivals: sha256, kafka: sha256, witness: sha256, observers: sha256}` |
 
 ### dur053.k4-job.v1
 
@@ -644,15 +707,15 @@ and enum alternatives are exact strings.
 | `merge_ref_sha` | `sha1` |
 | `tree_sha` | `sha1` |
 | `freeze_sha256` | `sha256` |
-| `budget_scope` | `'engineering-validation' / 'registered-campaign'` |
+| `budget_scope` | `'engineering-validation' \| 'registered-campaign'` |
 | `measurement_claim` | `boolean` |
-| `status` | `'CARRY_OVER' / 'FAIL' / 'PASS' / 'interrupted' / 'invalid' / 'unexercised'` |
+| `status` | `'CARRY_OVER' \| 'FAIL' \| 'PASS' \| 'interrupted' \| 'invalid' \| 'unexercised'` |
 | `registered_live_seconds` | `integer` |
 | `charged_seconds` | `integer` |
 | `elapsed_live_seconds` | `integer?` |
 | `live_start` | `number?` |
 | `live_end` | `number?` |
-| `cleanup` | `'PASS' / 'UNTRUSTWORTHY'` |
+| `cleanup` | `'PASS' \| 'UNTRUSTWORTHY'` |
 | `episodes` | `[string]` |
 | `assigned` | `[string]` |
 | `pending` | `[string]` |
@@ -667,9 +730,11 @@ and enum alternatives are exact strings.
 | --- | --- |
 | `schema` | `'dur053.k4-confirmation.v1'` |
 | `episode` | `string` |
-| `kind` | `'eviction' / 'kill' / 'rollback' / 'rollout' / 'scale-down'` |
+| `kind` | `'eviction' \| 'kill' \| 'rollback' \| 'rollout' \| 'scale-down'` |
 | `target` | `string` |
 | `intervention` | `number` |
+| `reaction` | `number?` |
+| `observed_overlap_first_at` | `number?` |
 | `completed` | `number?` |
 | `removed` | `number?` |
 | `overlap` | `[OVERLAP]` |
@@ -677,7 +742,7 @@ and enum alternatives are exact strings.
 | `image_a` | `string` |
 | `image_a_prime` | `string` |
 | `binary_identity` | `sha256` |
-| `binary_proof` | `{ runtime_a: sha256, runtime_a_prime: sha256, worker_a: sha256, worker_a_prime: sha256 }` |
+| `binary_proof` | `{runtime_a: sha256, runtime_a_prime: sha256, worker_a: sha256, worker_a_prime: sha256}` |
 | `source_commit` | `sha1` |
 | `build` | `string` |
 | `lineage_a` | `string` |
@@ -692,7 +757,7 @@ and enum alternatives are exact strings.
 | `injection_status` | `string` |
 | `evictions` | `[EVICTION]` |
 | `eviction_retry_interval` | `number` |
-| `roles` | `[{ role: string, replicas: integer, disruptions_allowed: integer, pod_uids: [string] }]` |
+| `roles` | `[{role: string, replicas: integer, disruptions_allowed: integer, pod_uids: [string]}]` |
 | `no_cordon` | `boolean` |
 | `pdb_bypassed` | `boolean` |
 | `harness_targeted` | `boolean` |
@@ -753,7 +818,6 @@ and enum alternatives are exact strings.
 | `schema` | `'dur053.k4-observers.v1'` |
 | `episode` | `string` |
 | `rows` | `[SAMPLE]` |
-
 
 ## Round 239 binding Phase B2 additions
 
@@ -823,3 +887,41 @@ manifest_sha256, reviewer=Claude, acknowledged=true and integer review_round>239
 naming Claude's REVIEW acknowledgement. Registry and bound manifest bytes must
 both be committed. Absent, uncommitted, false, mismatched or non-Claude entries
 cannot authorize continuation. No raw reassembly or rerun is authorized.
+
+## Round 262 additive harness evidence
+
+Round 261 authorizes `harness-confirmation-miss` as an infrastructure-invalid
+reason with component `driver`. Intake checks recomputed confirmation timing
+issues and the retained intervention, deadline and overlap times; labels and
+engine outcomes cannot prove this reason. Round 263 requires at least one timing
+issue and retained times after the deadline or outside every overlap. Other
+issues do not affect this classification. The other reasons retain the R275
+applied-outcome guard. A valid disposition satisfying this confirmation-miss
+content rule is refused; non-timing fault FAILs remain valid contributions even
+with invalid metrics. Metric `issues` and `valid` meanings are unchanged.
+Disposition derivation is read-only; derived incident files are materialized
+separately in the driver output or recorder raw copy.
+
+New confirmations record nullable `reaction`: intervention minus the earliest
+selected boundary entry (`overlap.at`). Unexercised episodes use null. Historical
+pre-R301 confirmations remain readable with an unavailable reaction, without
+rewriting retained source bytes. Live selection ends after reading evidence;
+exported overlap ends still come from the observed exits.
+
+Summary `safety` follows the closed SAFETY contract above. It sums all attempted
+episodes with derivable timeline evidence, including infrastructure-invalid and
+unexercised attempts and the originals of replaced episodes. `lost_accepted`
+counts accepted arrivals without a terminal durable workflow (including other
+non-success terminal states); FAILED and CANCELED workflows are counted
+separately. `duplicate_accepted` counts duplicate durable keys and multiple
+committed successes for one logical iteration, not legitimate reexecutions.
+Stale commits, superseded owner transitions and HTTP 5xx also fail this aggregate.
+Unavailable lease audit evidence is explicit and cannot pass safety. Campaign
+validity and K7 safety use this aggregate in addition to the contributing
+population; excluded attempts can never erase a safety failure.
+
+The lifecycle smoke adds `short-core-2-pair-0-treatment` with the registered
+short parameters, while keeping engineering scope, zero charge and no measurement
+claim. It reports reaction, confirmation and elapsed live time. The shortened
+baseline is not a matched comparison to that registered-timing engineering
+sample. No registered parameter, seed, confirmation bound or engine byte changes.

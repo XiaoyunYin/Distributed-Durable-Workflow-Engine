@@ -39,7 +39,11 @@ def test_issued_outcome_classification(tmp_path, monkeypatch, mode):
             host_start=0, host_end=0, observer=0, path="hold", existed=False, exists=True, mtime=0
         )
     )
-    d.overlap = Mock(return_value=[] if mode == "no-overlap" else [dict(role="worker")])
+    d.overlap = Mock(
+        return_value=[]
+        if mode == "no-overlap"
+        else [dict(role="worker", session="worker-session", acknowledgment="worker-ack")]
+    )
     d.load = Mock(return_value=Mock(returncode=0))
     d.base, d.sampler, d.collector = Mock(), Mock(), Mock()
     d.observer_stop = threading.Event()
@@ -342,10 +346,20 @@ def test_valid_failed_intervention_fails_job(tmp_path, monkeypatch, status):
     fake.base.command.return_value = SimpleNamespace(stdout="a" * 40)
     fake.cleanup.return_value = dict(status="PASS")
     fake.execute_episode.return_value = dict(valid=True, status=status)
+    monkeypatch.setattr(
+        "dur053_record_k4.derive_disposition",
+        lambda *args: dict(
+            episode="short-core-0-pair-0-treatment",
+            replacement_for="",
+            classification="valid",
+            reason="",
+            evidence=[],
+        ),
+    )
     monkeypatch.setattr(driver, "K4Driver", lambda *args: fake)
     monkeypatch.setattr(driver, "frozen", lambda *args: dict(sha256="a" * 64))
     monkeypatch.setattr(driver, "SMOKE_CELLS", ("short-core-0-pair-0-treatment",))
-    monkeypatch.setattr(driver, "summaries", lambda *args: {})
+    monkeypatch.setattr(driver, "summaries", lambda *args, **kwargs: {})
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_EVENT_NAME", "pull_request")
     monkeypatch.setenv("GITHUB_RUN_ID", "100")

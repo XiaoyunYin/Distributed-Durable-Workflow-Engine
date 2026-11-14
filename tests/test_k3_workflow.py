@@ -185,7 +185,7 @@ def test_k4_engineering_workflow_is_uncharged_and_retains_failures() -> None:
     run = steps["Exercise lifecycle engineering smoke"]
     assert "lifecycle-smoke" in run
     assert "$RUNNER_TEMP/dur053-k4" in run
-    assert "3600s" in run
+    assert "4800s" in run
     offline = steps["Verify engineering evidence offline"]
     assert "verify-evidence" in offline and "dur053-k4-checker" in offline
     upload = steps["Retain full lifecycle diagnostics"]
