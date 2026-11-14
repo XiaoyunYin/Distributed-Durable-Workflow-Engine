@@ -544,7 +544,7 @@ def test_signal_handler_registered_before_consumers(monkeypatch: pytest.MonkeyPa
     def start(*args: Any) -> list[threading.Thread]:
         assert signal.SIGTERM in handlers, "SIGTERM handler missing before consumer startup"
         handlers[signal.SIGTERM](signal.SIGTERM, None)
-        assert args[-1].drain.is_set()
+        assert args[-1].drain.wait(1), "signal coordinator did not begin drain"
         return []
 
     monkeypatch.setattr(process, "ThreadingHTTPServer", create_server)

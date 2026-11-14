@@ -13754,6 +13754,102 @@
       ],
       "expected": "pilot smoke step missing GH_TOKEN",
       "requires_database": false
+    },
+    {
+      "id": "k4r314-handler-witness-lock",
+      "file": "python/workers/__main__.py",
+      "old": "        nonlocal received\n        if received is None:",
+      "new": "        nonlocal received\n        if witness := campaign_witness():\n            witness.trace(\"signal\", {\"signal\": _signum})\n        if received is None:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_worker_signals.py::test_real_signal_at_lock_boundary",
+        "-q"
+      ],
+      "expected": "signal handler deadlocked on worker lock",
+      "requires_database": false,
+      "kind": "behavioral"
+    },
+    {
+      "id": "k4r314-early-term-diagnostics",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "            if all(\n                row[\"cri_exit\"] is not None or now >= row[\"observation_deadline\"] for row in rows\n            ):",
+      "new": "            if True:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round281.py::test_wait_retains_cri_status_and_target_killing_lines",
+        "-q"
+      ],
+      "expected": "target death/grace evidence collection ended early or exceeded bound",
+      "requires_database": false,
+      "kind": "behavioral"
+    },
+    {
+      "id": "k4r314-unbounded-main-wait",
+      "kind": "behavioral",
+      "file": "python/workers/__main__.py",
+      "old": "    while not lifecycle.drain.wait(0.1):\n        coordinate_once()\n",
+      "new": "    lifecycle.drain.wait()\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_worker_signals.py::test_main_wait_coordinates_two_sigterms",
+        "-q"
+      ],
+      "expected": "main wait did not seal signal and begin drain within one second",
+      "requires_database": false
+    },
+    {
+      "id": "k4r315-journal-epoch",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "                \"@\" + str(int(confirmation[\"intervention\"] - 1)),\n",
+      "new": "                stamp(confirmation[\"intervention\"] - 1),\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round281.py::test_wait_retains_cri_status_and_target_killing_lines",
+        "-q"
+      ],
+      "expected": "kubelet query did not use integer epoch argv",
+      "requires_database": false
+    },
+    {
+      "id": "k4r315-first-deletion",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "                grace_deadline = deletions[0] if deletions else None\n",
+      "new": "                grace_deadline = min(deletions) if deletions else None\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round281.py::test_wait_retains_cri_status_and_target_killing_lines",
+        "-q"
+      ],
+      "expected": "target death/grace evidence collection ended early or exceeded bound",
+      "requires_database": false
+    },
+    {
+      "id": "k4r314-live-signal-repeat",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "                    if attempt == 2:\n                        return\n",
+      "new": "                    if attempt == 1:\n                        return\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round281.py::test_live_signal_diagnostics_repeat_and_bound",
+        "-q"
+      ],
+      "expected": "live signal samples missed deletion or repeat",
+      "requires_database": false
     }
   ]
 }

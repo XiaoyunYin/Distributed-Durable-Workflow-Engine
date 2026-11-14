@@ -1649,3 +1649,31 @@ The K4 engineering smoke reserves 4800 s live with a 95 min CI job timeout,
 because the complete nine-episode smoke and final reset no longer fit 3600 s
 with the unchanged 900 s closeout reserve. This is engineering-only, charges
 zero campaign time, and changes no campaign value, cell, warmup or predicate.
+
+
+### B.7 item 5 disclosure (R314, Round 281)
+
+From the first post-R314 job, the Python worker's SIGTERM/SIGINT handler only
+publishes the signal number and monotonic receipt time. A normal coordinator
+seals the existing signal trace before beginning drain, including legacy mode.
+This changes the worker image (both A and A'); the Go runtime is unchanged.
+The Dockerfile's pinned Python base digest remains unchanged. The K3 freeze
+`cf7fd60e77a0a995994fd593ef9b2bab6d3f3f443d26d2a2fe927f8feb42c14b`
+binds historical calibration evidence, including its recorded images, rather
+than fixing the worker digest for future K4 jobs. K4 binds each job's actual
+worker digests and equal A/A' Python bytes in images.json and binary proof.
+Historical evidence and all frozen b, r, L values remain unchanged.
+
+k4-1 ran the old handler. Its contributions remain historical evidence for
+that worker; comparisons spanning k4-1 and later jobs must disclose this signal
+handling change. The replacement job and k4-2 onward use the fixed worker;
+within-job pairs still share identical worker code. New K4 clusters enable
+kubelet verbosity 2 to retain full target Killing container records. Before
+assembly's unchanged TERM-evidence guard, target CRI exit status/time are
+retained until death or grace deadline, bounded by the existing reconciliation
+deadline. This diagnostic logging also differs from k4-1 and applies equally
+to both arms and overhead probes. No predicate, classification, schedule,
+rate, grace period, drain budget, or episode bound is changed.
+
+
+6. R314/R315 quiet-interval clarification (Round 284). When a target is still alive at load completion, the quiet/reconciliation interval starts after target termination observation has reached its CRI death or the first observed deletionTimestamp grace deadline (whichever comes first), capped by the unchanged episode reconciliation deadline. Witness writes during this observation wait do not count toward a completed quiet interval. The quiet interval start can therefore shift later; the overall deadline, schedule, grace period, drain budget, predicates and classifications are unchanged. Live signal diagnostics run concurrently from the intervention-issued boundary and do not extend these bounds. Both worker modes now use a 0.1-second main-thread wait and an idempotent signal coordinator step; paired arms use the same updated worker bytes.
