@@ -500,7 +500,7 @@ class Interventions:
             setup_completed=self.setup_completed,
         )
         entries = [o["at"] for o in overlap if "at" in o]
-        record["reaction"] = record["intervention"] - min(entries) if entries else None
+        record["observed_overlap_first_at"] = min(entries) if entries else None
         image_role = "worker" if role == "worker" else "runtime"
         record.update(
             image_a=self.images["a"][image_role], image_a_prime=self.images["a-prime"][image_role]
@@ -563,6 +563,8 @@ class Interventions:
             )
         else:
             pods = self.eviction(record["intervention"], record)
+        entries = [o["at"] for o in record["overlap"] if "at" in o]
+        record["reaction"] = record["intervention"] - min(entries) if entries else None
         record.update(completed=time.time(), removed=time.time())
         save(self.output / "confirmation.json", record)
         return record, pods

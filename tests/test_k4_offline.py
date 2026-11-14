@@ -769,28 +769,28 @@ def test_archive_ledger_roundtrip(tmp_path, checker, monkeypatch):
     downloaded = tmp_path / "downloaded"
     actions(downloaded)
     (downloaded / "partial.log").write_bytes(b"retained partial fault evidence\r\n")
-    target = record_interrupted(downloaded, repo, "k4-1", checker)
+    target, store = record_interrupted(downloaded, repo, "k4-1", checker)
     m = schema.load(target / "manifest.json")
     assert m["charged_seconds"] == 18900 and m["status"] == "interrupted", (
         "interrupted job refunded or erased"
     )
     git_commit(repo)
-    verified = evidence.verify_evidence(repo, checker, store=repo.parent / "store")
+    verified = evidence.verify_evidence(repo, checker, store=store)
     assert verified["schedule"]["charged_seconds"] == 18900, "actual interrupted charge omitted"
     assert len(verified["missing_episodes"]) == 161 and not verified["valid"], (
         "passing subset accepted"
     )
-    with recorder.materialize_job(target, repo, store=repo.parent / "store") as raw:
+    with recorder.materialize_job(target, repo, store=store) as raw:
         assert (
             raw / "downloaded/partial.log"
         ).read_bytes() == b"retained partial fault evidence\r\n", "failure bytes erased"
     with pytest.raises(ValueError, match="k4-job-replay"):
         record_interrupted(downloaded, repo, "k4-1", checker)
     index = json.loads((target / "payload-index.json").read_bytes())
-    archive = next((repo.parent / "store" / index["store"]["tag"]).glob("*.tar.xz"))
+    archive = next((store / index["store"]["tag"]).glob("*.tar.xz"))
     archive.write_bytes(archive.read_bytes() + b"changed")
     with pytest.raises(ValueError):
-        evidence.verify_evidence(repo, checker, store=repo.parent / "store")
+        evidence.verify_evidence(repo, checker, store=store)
 
 
 def test_bidirectional_inventory(tmp_path):
@@ -914,9 +914,9 @@ def test_completed_archive_rederivation(tmp_path, checker, monkeypatch):
     write(source / name / "metrics.json", value)
     m["artifact_sha256"] = recorder.artifact_hashes(source)
     write(source / "manifest.json", m)
-    target = record_directory(source, repo, checker)
+    target, store = record_directory(source, repo, checker)
     git_commit(repo)
-    result = evidence.verify_evidence(repo, checker, store=repo.parent / "store")
+    result = evidence.verify_evidence(repo, checker, store=store)
     assert len(result["missing_episodes"]) == 160 and result["disposition_counts"] == {"PASS": 1}, (
         "valid episode omitted or failure inventory hidden"
     )
@@ -1244,9 +1244,9 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     write(source / "summary.json", evidence.summaries(values))
     m["artifact_sha256"] = recorder.artifact_hashes(source)
     write(source / "manifest.json", m)
-    record_directory(source, repo, checker)
+    _, store = record_directory(source, repo, checker)
     git_commit(repo)
-    first = evidence.verify_evidence(repo, checker, store=repo.parent / "store")
+    first = evidence.verify_evidence(repo, checker, store=store)
     assert first["disposition_counts"] == {"PASS": 2, "FAIL": 1}, "valid fault outcome lost"
     assert recorder.contributions(m) == [ids[0], ids[2], ids[3]], "valid partner discarded"
     replacement = tmp_path / "replacement"
@@ -1298,9 +1298,15 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     write(replacement / new_id / "episode.json", ep)
     r["artifact_sha256"] = recorder.artifact_hashes(replacement)
     write(replacement / "manifest.json", r)
-    record_directory(replacement, repo, checker)
+    _, replacement_store = record_directory(replacement, repo, checker)
+    # A release store holds both retained jobs when verifying the continuation.
+    import shutil
+
+    for release in store.iterdir():
+        shutil.copytree(release, replacement_store / release.name)
+    store = replacement_store
     git_commit(repo)
-    result = evidence.verify_evidence(repo, checker, store=repo.parent / "store")
+    result = evidence.verify_evidence(repo, checker, store=store)
     pair = next(p for p in result["paired"] if p["pair"] == 0)
     assert pair["replaced"] and pair["episodes"] == [ids[0], new_id], "replaced pair not flagged"
     assert ids[0] not in result["missing_episodes"] and ids[1] not in result["missing_episodes"]
@@ -1325,7 +1331,7 @@ def test_interrupted_lost_episodes_are_invalid(tmp_path, checker, monkeypatch):
     write(
         source / "progress.json", dict(schema="dur053.k4-progress.v1", job="k4-1", started=[first])
     )
-    target = record_interrupted(source, repo, "k4-1", checker)
+    target, _ = record_interrupted(source, repo, "k4-1", checker)
     m = schema.load(target / "manifest.json")
     assert len(m["dispositions"]) == 2 and all(
         d["classification"] == "infrastructure-invalid" for d in m["dispositions"]
@@ -1342,11 +1348,24 @@ def test_interrupted_lost_episodes_are_invalid(tmp_path, checker, monkeypatch):
 
 def upload_directory(staging, repository):
     import shutil
+    import tempfile
 
     index = json.loads((staging / "payload-index.json").read_bytes())
-    store = repository.parent / "store"
+    store = Path(tempfile.mkdtemp(prefix="upload-", dir=repository.parent))
     shutil.copytree(staging / "assets", store / index["store"]["tag"])
     return store
+
+
+def test_upload_directory_uses_fresh_stores(tmp_path):
+    staging = tmp_path / "stage"
+    write(staging / "payload-index.json", {"store": {"tag": "same-tag"}})
+    (staging / "assets").mkdir()
+    (staging / "assets" / "asset.tar.xz").write_bytes(b"retained bytes")
+    stores = [upload_directory(staging, tmp_path / name) for name in ("repo", "other", "repo")]
+    assert len(set(stores)) == 3
+    assert all(
+        (store / "same-tag/asset.tar.xz").read_bytes() == b"retained bytes" for store in stores
+    )
 
 
 def record_directory(source, repository, checker):
@@ -1356,7 +1375,7 @@ def record_directory(source, repository, checker):
         staging = Path(temporary) / "stage"
         recorder.stage(source, staging, repository, checker)
         store = upload_directory(staging, repository)
-        return recorder.record(staging, repository, checker, store=store)
+        return recorder.record(staging, repository, checker, store=store), store
 
 
 def record_interrupted(source, repository, name, checker):
@@ -1366,4 +1385,4 @@ def record_interrupted(source, repository, name, checker):
         staging = Path(temporary) / "stage"
         recorder.interrupted(source, repository, name, checker, staging)
         store = upload_directory(staging, repository)
-        return recorder.record(staging, repository, checker, store=store)
+        return recorder.record(staging, repository, checker, store=store), store

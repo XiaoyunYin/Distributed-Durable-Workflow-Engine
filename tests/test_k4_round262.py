@@ -375,6 +375,72 @@ def test_reaction_recorded_by_intervention(tmp_path):
     assert record["reaction"] == record["intervention"] - 10, "reaction time was not recorded"
 
 
+@pytest.mark.parametrize("kind", ["scale-down", "kill", "empty-scale-down"])
+def test_reaction_binds_retained_overlap(tmp_path, freeze, checker, monkeypatch, kind):  # noqa: F811
+    from dur053_k4_interventions import Interventions
+
+    event = "worker SIGKILL" if kind == "kill" else "worker scale-down 4 to 2"
+    cell = next(r for r in k4.registry() if r["event"] == event)
+    manifest, docs = episode_fixture(tmp_path, freeze, episode=cell["episode"])
+    pods = [{"metadata": {"uid": f"pod-{i}"}} for i in range(4)]
+    current = list(pods)
+
+    def command(*args):
+        assert args == ("-n", "ns", "scale", "deployment/worker", "--replicas=2")
+        current[:] = pods[:2]
+
+    adapter = Interventions(
+        SimpleNamespace(k=command),
+        "ns",
+        tmp_path,
+        {"a": {"worker": "a"}, "a-prime": {"worker": "b"}},
+        docs["confirmation"]["binary_proof"],
+        "a" * 40,
+    )
+    adapter.pods = lambda role: list(current)
+    adapter.release_after_deletion = lambda role: None
+    adapter.wait_rollout = lambda role: "1"
+    adapter.wait = lambda predicate, *args: predicate()
+    killed = []
+    adapter.kill = lambda pod: killed.append(pod)
+    monkeypatch.setattr("dur053_k4_interventions.time.time", lambda: 120.0)
+    # The earliest observed overlap is on a survivor. Both removed pods overlap later.
+    indices = [2, 3] if kind == "kill" else [0] if kind == "empty-scale-down" else [0, 2, 3]
+    overlap = [
+        dict(docs["confirmation"]["overlap"][0], role="worker", pod_uid=f"pod-{i}", at=117 + i)
+        for i in indices
+    ]
+    record, targets = adapter.apply(cell, overlap)
+    assert record["observed_overlap_first_at"] == min(o["at"] for o in overlap)
+    if kind == "kill":
+        assert targets == killed == [pods[2]]
+        assert record["overlap"] == overlap
+    else:
+        assert targets == pods[2:]
+        assert record["overlap"] == [o for o in overlap if o["pod_uid"] in {"pod-2", "pod-3"}]
+    expected = (
+        record["intervention"] - min(o["at"] for o in record["overlap"])
+        if record["overlap"]
+        else None
+    )
+    assert record["reaction"] == expected, "reaction was computed before overlap filtering"
+    # Exercise the real verifier's unchanged reaction equality, including legacy-null handling.
+    write(tmp_path / "confirmation.json", record)
+    manifest["files"]["confirmation"] = hashlib.sha256(
+        (tmp_path / "confirmation.json").read_bytes()
+    ).hexdigest()
+    write(tmp_path / "episode.json", manifest)
+    assert evidence.episode(tmp_path, freeze, checker)["reaction"] == expected
+    # Disclosure alone never changes acceptance predicates or metrics.
+    record["observed_overlap_first_at"] = 0
+    write(tmp_path / "confirmation.json", record)
+    manifest["files"]["confirmation"] = hashlib.sha256(
+        (tmp_path / "confirmation.json").read_bytes()
+    ).hexdigest()
+    write(tmp_path / "episode.json", manifest)
+    assert evidence.episode(tmp_path, freeze, checker)["reaction"] == expected
+
+
 def test_verification_aggregates_excluded_safety(tmp_path, freeze, checker, monkeypatch):  # noqa: F811
     name = "short-core-2-pair-0-baseline"
     _, docs = episode_fixture(tmp_path / name, freeze, episode=name)

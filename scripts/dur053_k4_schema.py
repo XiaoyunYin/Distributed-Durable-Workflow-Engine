@@ -213,6 +213,7 @@ CONFIRMATION = obj(
     target=str,
     intervention=NUMBER,
     reaction=nullable(NUMBER),
+    observed_overlap_first_at=nullable(NUMBER),
     completed=nullable(NUMBER),
     removed=nullable(NUMBER),
     overlap=array(OVERLAP),
@@ -411,6 +412,9 @@ SCHEMAS = {
 
 
 def validate(value, spec, path="$", *, label="k4-schema"):
+    if spec is CONFIRMATION and isinstance(value, dict):
+        value = {"observed_overlap_first_at": None, **value}
+
     def check(ok):
         require(ok, f"{label} {path}")
 
@@ -457,5 +461,7 @@ def load(path: Path) -> dict:
     require(type(value) is dict and value.get("schema") in SCHEMAS, "k4-schema-name")
     if value["schema"] == "dur053.k4-confirmation.v1" and "reaction" not in value:
         value["reaction"] = None  # Retained pre-R301 bytes; never rewrite originals.
+    if value["schema"] == "dur053.k4-confirmation.v1":
+        value.setdefault("observed_overlap_first_at", None)
     validate(value, SCHEMAS[value["schema"]])
     return value

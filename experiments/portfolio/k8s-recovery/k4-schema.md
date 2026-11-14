@@ -484,6 +484,7 @@ and enum alternatives are exact strings.
 | `target` | `string` |
 | `intervention` | `number` |
 | `reaction` | `number?` |
+| `observed_overlap_first_at` | `number?` |
 | `completed` | `number?` |
 | `removed` | `number?` |
 | `overlap` | `[OVERLAP]` |
@@ -733,6 +734,7 @@ and enum alternatives are exact strings.
 | `target` | `string` |
 | `intervention` | `number` |
 | `reaction` | `number?` |
+| `observed_overlap_first_at` | `number?` |
 | `completed` | `number?` |
 | `removed` | `number?` |
 | `overlap` | `[OVERLAP]` |

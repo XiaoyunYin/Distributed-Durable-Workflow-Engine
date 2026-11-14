@@ -175,7 +175,7 @@ def test_legacy_stage_commit_requires_upload(tmp_path, legacy_download):  # noqa
         recorder.record(staging, repo, Path("unused"), store=store)
     assert not (repo / k4.EVIDENCE_ROOT).exists()
     assert (repo / k4.LEDGER).read_bytes() == before
-    upload_directory(staging, repo)
+    store = upload_directory(staging, repo)
     target = recorder.record(staging, repo, Path("unused"), store=store)
     assert not (target / "payload").exists() and not (target / "assets").exists()
     git_commit(repo)

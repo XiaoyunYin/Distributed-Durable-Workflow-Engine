@@ -195,7 +195,7 @@ def test_pinned_legacy_record_roundtrip(tmp_path, legacy_download):
     source, original = legacy_download
     before = file_hashes(source)
     repo = local_repository(tmp_path / "repo")
-    target = record_directory(source, repo, Path("unused"))
+    target, store = record_directory(source, repo, Path("unused"))
     document = json.loads((target / "reclassification.json").read_bytes())
     derived = document["dispositions"]
     assert len(derived) == 22 and len(recorder.contributions(dict(dispositions=derived))) == 20
@@ -211,7 +211,7 @@ def test_pinned_legacy_record_roundtrip(tmp_path, legacy_download):
     inventory, _ = recorder.inventory(repo)
     assert inventory[0][1]["job"] == "k4-1"
     assert inventory[0][1]["dispositions"] == derived
-    verified = evidence.verify_evidence(repo, Path("unused"), store=repo.parent / "store")
+    verified = evidence.verify_evidence(repo, Path("unused"), store=store)
     assert verified["schedule"]["charged_seconds"] == 10874
     assert verified["retained_jobs"][0]["dispositions"] == derived
     assert len(verified["safety"]["episodes"]) == 21
