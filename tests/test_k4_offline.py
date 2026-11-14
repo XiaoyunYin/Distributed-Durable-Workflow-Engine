@@ -96,7 +96,7 @@ def seal_witness(timeline):
         )
 
 
-def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment"):
+def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment", workflow_stride=1):
     m = default(schema.EPISODE)
     p = k4.parameters(freeze, "short")
     m.update(
@@ -182,6 +182,11 @@ def episode_fixture(root, freeze, *, episode="short-coverage-0-0-treatment"):
                     attempts=1,
                 )
             )
+            if j % workflow_stride:
+                # Keep the full frozen offered-arrival grid, but a smaller
+                # accepted population for tests concerned with intake history.
+                arrivals[-1].update(outcome="rejected", status=429)
+                continue
             ident = dict(
                 namespace="ns", workflow=aid, node="n", iteration=0, attempt=1, token_hash="a" * 64
             )
@@ -1204,7 +1209,10 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
         if index == 1:
             ds.append(harness_incident(source, name))
             continue
-        ep, docs = episode_fixture(source / name, f, episode=name)
+        # One in four arrivals is accepted; the complete frozen offered grid,
+        # both phases and >200 measured successes remain. All record/verify
+        # passes and every replacement/history assertion still run unchanged.
+        ep, docs = episode_fixture(source / name, f, episode=name, workflow_stride=4)
         # This intake fixture uses worker cells; match its synthetic rollout targets.
         docs["confirmation"]["target"] = "Deployment/worker"
         for session in docs["timeline"]["sessions"]:
@@ -1216,6 +1224,7 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
         ep.update(job="k4-1", status="FAIL" if index == 2 else "PASS")
         write(source / name / "episode.json", ep)
         value = evidence.episode(source / name, f, checker)
+        assert value["valid"] and value["complete"] and value["offered"] > value["accepted"] > 200
         write(source / name / "metrics.json", value)
         values.append(value)
         ds.append(disposition(name))
@@ -1251,7 +1260,7 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     assert recorder.contributions(m) == [ids[0], ids[2], ids[3]], "valid partner discarded"
     replacement = tmp_path / "replacement"
     new_id = ids[1] + "-replacement-1"
-    ep, docs = episode_fixture(replacement / new_id, f, episode=ids[1])
+    ep, docs = episode_fixture(replacement / new_id, f, episode=ids[1], workflow_stride=4)
     docs["confirmation"]["target"] = "Deployment/worker"
     for session in docs["timeline"]["sessions"]:
         if session["role"] == "relay":
@@ -1270,6 +1279,7 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     }
     write(replacement / new_id / "episode.json", ep)
     value = evidence.episode(replacement / new_id, f, checker)
+    assert value["valid"] and value["complete"] and value["offered"] > value["accepted"] > 200
     write(replacement / new_id / "metrics.json", value)
     write(replacement / "summary.json", evidence.summaries([value]))
     actions(replacement, run="101", job="201")

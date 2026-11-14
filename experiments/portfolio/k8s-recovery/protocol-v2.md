@@ -783,6 +783,9 @@ jobs have contents:read only. Success, failure, cancellation and subsequent PR
 pushes do not create ledger debt. These engineering artifacts retain their
 observed setup-through-teardown duration for diagnosis and possible selection;
 `charged_seconds=0` and `measurement_claim=false` describe their CI status.
+
+Provenance uses the job's contents:read token when present, with a bounded
+rate-limit retry, and remains a non-gating provenance read.
 The bounded 3600 s smoke execution ceiling and teardown verification still apply.
 
 Only `dur053-campaign.yml` workflow_dispatch jobs and one registered K3
@@ -1639,3 +1642,10 @@ The runtime image therefore differs from k4-1's `cfdbf1a` image. Replacement and
 later jobs use the fixed image; within-job pairing is unaffected. No measurement
 or predicate changes. Outside campaign mode the existing `signal.NotifyContext`
 path remains unchanged.
+
+### B.7 engineering smoke reservation (R311, Round 273)
+
+The K4 engineering smoke reserves 4800 s live with a 95 min CI job timeout,
+because the complete nine-episode smoke and final reset no longer fit 3600 s
+with the unchanged 900 s closeout reserve. This is engineering-only, charges
+zero campaign time, and changes no campaign value, cell, warmup or predicate.

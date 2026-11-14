@@ -72,6 +72,7 @@ SMOKE_CELLS = (
 REGISTERED_SMOKE = "short-core-2-pair-0-treatment"
 SMOKE_WARMUP = 5
 SMOKE_WINDOWS = {"short": 12, "long": 50}
+SMOKE_LIVE_RESERVATION = 4800
 
 
 def episode_parameters(f, cell, *, engineering):
@@ -180,7 +181,7 @@ def lineage_identity(configs):
 class K4Driver:
     def __init__(self, output, scratch, engineering=False):
         self.base = Driver(output, scratch)
-        self.base.live_reservation = 3600 if engineering else CEILING
+        self.base.live_reservation = SMOKE_LIVE_RESERVATION if engineering else CEILING
         self.output, self.scratch, self.engineering = output, scratch, engineering
         self.images = {}
         self.proof = {}
@@ -1934,7 +1935,7 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
         budget_scope="engineering-validation" if engineering else "registered-campaign",
         measurement_claim=not engineering,
         charged_seconds=0 if engineering else CEILING,
-        registered_live_seconds=3600 if engineering else CEILING,
+        registered_live_seconds=SMOKE_LIVE_RESERVATION if engineering else CEILING,
         status="FAIL",
         cleanup="UNTRUSTWORTHY",
         replacement_for=replacement_for,

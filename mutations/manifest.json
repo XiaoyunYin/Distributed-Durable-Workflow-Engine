@@ -13722,6 +13722,22 @@
       ],
       "expected": "reaction was computed before overlap filtering",
       "requires_database": false
+    },
+    {
+      "id": "k4r311-smoke-reservation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "SMOKE_LIVE_RESERVATION = 4800\n",
+      "new": "SMOKE_LIVE_RESERVATION = 3600\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round273.py::test_engineering_smoke_fits_reservation",
+        "-q"
+      ],
+      "expected": "K4 smoke reservation lacks 20% headroom",
+      "requires_database": false
     }
   ]
 }
