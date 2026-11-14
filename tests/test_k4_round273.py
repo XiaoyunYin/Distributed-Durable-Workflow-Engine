@@ -32,12 +32,24 @@ def test_smoke_workflow_reservations_and_tokens():
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
     assert "    timeout-minutes: 95\n" in jobs["dur053-k4-lifecycle-smoke"]
-    for job, step in (("k3-package", "Run package-check"), ("k3-smoke", "Run smoke")):
+    token_steps = (
+        ("k3-package", "Run package-check"),
+        ("k3-smoke", "Run smoke"),
+        (
+            "k3-pilot-smoke",
+            "Exercise exact v1 pilot path and continuous v2 path with engineering parameters",
+        ),
+    )
+    for job, step in token_steps:
         block = jobs[job]
         assert "    permissions:\n      contents: read\n" in block
         assert "actions: read" not in block
         body = block.split(f"      - name: {step}\n", 1)[1].split("      - name:", 1)[0]
-        assert "          GH_TOKEN: ${{ github.token }}\n" in body
+        token = "          GH_TOKEN: ${{ github.token }}\n"
+        if job == "k3-pilot-smoke":
+            assert token in body, "pilot smoke step missing GH_TOKEN"
+        else:
+            assert token in body
     assert "    timeout-minutes: 70\n" in jobs["k3-smoke"]
     assert k3.LIVE_RESERVATION == 3600
 
