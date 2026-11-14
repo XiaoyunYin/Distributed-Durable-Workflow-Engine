@@ -23,7 +23,6 @@ from dur053_k4 import (
     remaining,
 )
 from dur053_k4_schema import load
-from dur053_payload import materialize
 from dur053_pilot import finite, nearest_rank
 
 FILES = {
@@ -1361,10 +1360,44 @@ def summaries(metrics: list[dict], *, safety_rows=None) -> dict:
     )
 
 
-def verify_evidence(repository: Path, checker: Path) -> dict:
+def history_view(repository: Path) -> dict:
+    """Dispatch view of intake-validated, committed documents; no raw payload IO."""
+    from dur053_record_k4 import inventory
+
+    manifests, ledger = inventory(repository)
+    metrics, safety_rows = [], []
+    for path, _ in manifests:
+        document = json.loads((path.parent / "intake.json").read_bytes())
+        metrics.extend(document["metrics"])
+        safety_rows.extend(document["safety_rows"])
+    result = summaries(metrics, safety_rows=safety_rows)
+    result["retained_jobs"] = [
+        dict(
+            job=m["job"],
+            run_id=m["run_id"],
+            status=m["status"],
+            dispositions=m["dispositions"],
+            charged_seconds=m["charged_seconds"],
+            pending=m["pending"],
+        )
+        for _, m in manifests
+    ]
+    result["schedule"] = remaining(
+        frozen(repository), [m["episode"] for m in metrics], ledger["entries"]
+    )
+    result["complete"] = not result["missing_episodes"] and all(m["complete"] for m in metrics)
+    result["valid"] = (
+        result["complete"] and result["safety"]["passed"] and all(m["valid"] for m in metrics)
+    )
+    return result
+
+
+def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
     from dur053_record_k4 import (
         contributions,
         inventory,
+        legacy_reclassification,
+        materialize_job,
         metric_episodes,
         validate_disposition,
         validate_job,
@@ -1376,7 +1409,9 @@ def verify_evidence(repository: Path, checker: Path) -> dict:
     verified = []
     safety_rows = []
     for path, m in manifests:
-        with materialize(path.parent, repository) as root:
+        legacy = (path.parent / "reclassification.json").exists()
+        reader = materialize_job
+        with reader(path.parent, repository, store=store) as root:
             validate_job(
                 root,
                 f,
@@ -1387,6 +1422,22 @@ def verify_evidence(repository: Path, checker: Path) -> dict:
                 },
                 intake=False,
             )
+            if legacy:
+                document = legacy_reclassification(root, f, checker, load(root / "manifest.json"))
+                require(
+                    document == json.loads((path.parent / "reclassification.json").read_bytes()),
+                    "k4-legacy-reclassification",
+                )
+                require(m["dispositions"] == document["dispositions"], "k4-legacy-dispositions")
+                for name in contributions(m):
+                    metrics.append(episode(root / name, f, checker))
+                    verified.append(name)
+                safety_rows.extend(
+                    s
+                    for name in m["episodes"]
+                    if (s := safety_evidence(root / name, checker)) is not None
+                )
+                continue
             for name in metric_episodes(m, root):
                 value = episode(root / name, f, checker)
                 stored = json.loads((root / name / "metrics.json").read_bytes())
@@ -1436,9 +1487,10 @@ def main():
     p.add_argument("--checker", type=Path, required=True)
     p.add_argument("--repository", type=Path, default=ROOT)
     p.add_argument("--episode", type=Path)
+    p.add_argument("--store", default="github")
     a = p.parse_args()
     result = (
-        verify_evidence(a.repository, a.checker)
+        verify_evidence(a.repository, a.checker, store=a.store)
         if a.command == "verify-evidence"
         else episode(a.episode, frozen(a.repository), a.checker)
     )

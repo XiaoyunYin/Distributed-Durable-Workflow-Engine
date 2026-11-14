@@ -211,7 +211,7 @@ class LiveEvidence:
         self.open = {}
 
     def lines(self, pattern):
-        for index, path in enumerate(self.streams.output.glob(pattern)):
+        for path in self.streams.output.glob(pattern):
             with path.open("rb") as handle:
                 handle.seek(self.offsets.get(path.name, 0))
                 while True:
@@ -221,7 +221,7 @@ class LiveEvidence:
                         break
                     self.offsets[path.name] = handle.tell()
                     row = json.loads(line)
-                    yield (index, offset), row["source"]
+                    yield (path.name, offset), row["source"]
 
     def read(self):
         streams = self.streams
@@ -256,7 +256,7 @@ class LiveEvidence:
             else:
                 continue
             identity = role, key
-            if rank < self.ranks.get(identity, (-1, -1)):
+            if identity in self.ranks and rank < self.ranks[identity]:
                 continue
             self.ranks[identity] = rank
             if data["boundary"] in {"enter", "after_lease_acquired_hold_enter"}:

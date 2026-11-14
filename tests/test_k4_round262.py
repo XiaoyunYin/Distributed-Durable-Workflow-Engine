@@ -119,12 +119,12 @@ def test_exit_between_detection_and_issue_repolls(monkeypatch):
     assert selected == [current], "issued against an exited boundary"
 
 
-def test_observed_overlap_past_deadline_is_driver_incident(monkeypatch):
+def test_confirmed_overlap_past_deadline_is_driver_incident(monkeypatch):
     drv = driver.K4Driver.__new__(driver.K4Driver)
     clock = [1]
 
     def read(*args):
-        clock[0] = 12
+        clock[0] += 5
         return [dict(session="old", acknowledgment="ack")]
 
     drv.overlap = read
@@ -410,10 +410,10 @@ def verify_campaign(tmp_path, freeze, checker, monkeypatch, name, disposition): 
     )
 
     @contextmanager
-    def materialize(*args):
+    def materialize(*args, **kwargs):
         yield tmp_path
 
-    monkeypatch.setattr(evidence, "materialize", materialize)
+    monkeypatch.setattr(recorder, "materialize_job", materialize)
     monkeypatch.setattr(evidence, "frozen", lambda _: freeze)
     monkeypatch.setattr(
         recorder, "inventory", lambda _: ([(tmp_path / "manifest.json", manifest)], {"entries": []})

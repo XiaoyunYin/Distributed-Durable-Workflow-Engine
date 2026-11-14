@@ -18,14 +18,29 @@ import (
 
 // Campaign-only matched baseline. Keep the pre-K1 HTTP-return and defer order;
 // role selection and shared routes are the same as in the new lifecycle.
-func legacyServe(ctx context.Context) {
-	serve := flag.NewFlagSet("serve", flag.ExitOnError)
+func legacyServe(ctx context.Context, observationStops ...context.CancelFunc) {
+	stopObservation := func() {}
+	if len(observationStops) != 0 {
+		stopObservation = observationStops[0]
+	}
+	flagMode := flag.ExitOnError
+	if os.Getenv("DUR053_K4_CAMPAIGN") == "1" {
+		flagMode = flag.ContinueOnError
+	}
+	serve := flag.NewFlagSet("serve", flagMode)
 	addr := serve.String("addr", envOrDefault("RUNTIME_ADDR", "127.0.0.1:8080"), "HTTP listen address")
 	rolesValue := serve.String("roles", envOrDefault("RUNTIME_ROLES", "combined"), "runtime role set")
-	_ = serve.Parse(os.Args[1:])
+	if err := serve.Parse(os.Args[1:]); err != nil {
+		stopObservation()
+		if errors.Is(err, flag.ErrHelp) {
+			os.Exit(0)
+		}
+		os.Exit(2)
+	}
 	roles, roleErr := lifecycleRoles(*rolesValue)
 	if roleErr != nil {
 		slog.Error("invalid roles", "error", roleErr)
+		stopObservation()
 		os.Exit(1)
 	}
 
@@ -34,6 +49,7 @@ func legacyServe(ctx context.Context) {
 	if roles["demand"] {
 		if err := serveLifecycle(ctx); err != nil {
 			slog.Error("demand stopped", "error", err)
+			stopObservation()
 			os.Exit(1)
 		}
 		return
@@ -42,6 +58,7 @@ func legacyServe(ctx context.Context) {
 	reviewer, authErr := api.AuthenticationFromEnvironment()
 	if routeErr != nil || authErr != nil {
 		slog.Error("invalid HTTP identity/route configuration", "route_error", routeErr, "auth_error", authErr)
+		stopObservation()
 		os.Exit(1)
 	}
 	role := envOrDefault("RUNTIME_ROLE", "runtime")
@@ -49,6 +66,7 @@ func legacyServe(ctx context.Context) {
 	tracing, tracingErr := telemetry.NewTracing(context.Background(), "durable-runtime-"+role, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
 	if tracingErr != nil {
 		slog.Error("runtime tracing initialization failed", "error", tracingErr)
+		stopObservation()
 		os.Exit(1)
 	}
 	defer func() {
@@ -67,6 +85,7 @@ func legacyServe(ctx context.Context) {
 		cancel()
 		if err != nil {
 			slog.Error("runtime database initialization failed", "error", err)
+			stopObservation()
 			os.Exit(1)
 		}
 		store.SetTelemetry(metrics)
@@ -120,6 +139,7 @@ func legacyServe(ctx context.Context) {
 			broker, err = transport.NewKafkaBroker(brokers, transport.DefaultTopic)
 			if err != nil {
 				slog.Error("runtime Kafka relay initialization failed", "error", err)
+				stopObservation()
 				os.Exit(1)
 			}
 			relay := transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID(),
@@ -150,11 +170,13 @@ func legacyServe(ctx context.Context) {
 	}
 	if controller, err := faults.FromEnvironment(); err != nil {
 		slog.Error("fault controller initialization failed", "error", err)
+		stopObservation()
 		os.Exit(1)
 	} else if controller != nil {
 		defer controller.Close()
 		if err := controller.Hit("runtime_ready", map[string]any{"role": role}); err != nil {
 			slog.Error("runtime fault boundary failed", "error", err)
+			stopObservation()
 			os.Exit(1)
 		}
 		_ = controller.Emit("released", "runtime_ready", map[string]any{"role": role})
@@ -172,6 +194,7 @@ func legacyServe(ctx context.Context) {
 	slog.Info("runtime foundation server started", "addr", *addr, "role", role, "version", version)
 	if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		slog.Error("runtime server failed", "error", err)
+		stopObservation()
 		os.Exit(1)
 	}
 }

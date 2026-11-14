@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -33,24 +35,41 @@ func k4Handler(next http.Handler) http.Handler {
 	})
 }
 
-func observeK4Signals() func() {
+func k4SignalContext(parent context.Context, notify func(chan<- os.Signal, ...os.Signal), stopNotify func(chan<- os.Signal)) (context.Context, context.CancelFunc) {
 	if os.Getenv("DUR053_K4_CAMPAIGN") != "1" {
-		return func() {}
+		return signal.NotifyContext(parent, os.Interrupt, syscall.SIGTERM)
 	}
+	ctx, cancel := context.WithCancel(parent)
 	ch := make(chan os.Signal, 4)
 	done := make(chan struct{})
-	signal.Notify(ch, syscall.SIGTERM, os.Interrupt)
+	stopping := make(chan struct{})
+	var once sync.Once
+	notify(ch, syscall.SIGTERM, os.Interrupt)
+	record := func(sig os.Signal) {
+		received := time.Now().UTC()
+		data, _ := json.Marshal(map[string]any{"event": "k4_signal", "signal": int(sig.(syscall.Signal)),
+			"session": state.K4Session, "pod_uid": os.Getenv("POD_UID"), "container_id": os.Getenv("CONTAINER_ID"), "timestamp": received})
+		slog.Info("k4 process signal", "data", string(data))
+	}
 	go func() {
-		for {
+		defer close(done)
+		defer cancel()
+		select {
+		case sig := <-ch:
+			record(sig)
+		case <-stopping:
+			// Stop has unsubscribed, so drain any already-received signal before
+			// cancellation or an error exit can overtake its record.
 			select {
 			case sig := <-ch:
-				data, _ := json.Marshal(map[string]any{"event": "k4_signal", "signal": int(sig.(syscall.Signal)),
-					"session": state.K4Session, "pod_uid": os.Getenv("POD_UID"), "container_id": os.Getenv("CONTAINER_ID"), "timestamp": time.Now().UTC()})
-				slog.Info("k4 process signal", "data", string(data))
-			case <-done:
-				return
+				record(sig)
+			default:
 			}
+		case <-ctx.Done():
 		}
 	}()
-	return func() { signal.Stop(ch); close(done) }
+	return ctx, func() {
+		once.Do(func() { stopNotify(ch); close(stopping) })
+		<-done
+	}
 }

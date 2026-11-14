@@ -10,7 +10,7 @@ from unittest.mock import Mock
 
 import pytest
 from test_k4_driver import pod
-from test_k4_offline import episode_fixture, seal_witness, write
+from test_k4_offline import episode_fixture, record_directory, seal_witness, write
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 
@@ -553,7 +553,7 @@ def test_stopped_intake_record_and_committed_ack_gate(tmp_path, checker, monkeyp
     import hashlib
     import lzma
 
-    import dur053_payload
+    import dur053_payload_v2 as dur053_payload
     from test_k4_offline import empty_job, git_commit, local_repository
 
     monkeypatch.setattr(
@@ -598,7 +598,7 @@ def test_stopped_intake_record_and_committed_ack_gate(tmp_path, checker, monkeyp
     ack_path = repo / "experiments/portfolio/k8s-recovery/k4-continuation-acknowledgements.json"
     write(ack_path, dict(schema="dur053.k4-continuation-acks.v1", acknowledgements=[]))
     git_commit(repo)
-    target = recorder.record(source, repo, checker)
+    target = record_directory(source, repo, checker)
     git_commit(repo)
     manifests, ledger = recorder.inventory(repo)
     assert ledger["entries"][-1]["charged_seconds"] == 400
@@ -624,7 +624,10 @@ def test_stopped_intake_record_and_committed_ack_gate(tmp_path, checker, monkeyp
     manifests, _ = recorder.inventory(repo)
     prior = manifests[0][1]
     assert k4.assignment(f, "k4-1-c1", {prior["job_id"]: prior}) == m["pending"]
-    assert evidence.verify_evidence(repo, checker)["k7_decision"] == "NO-GO"
+    assert (
+        evidence.verify_evidence(repo, checker, store=repo.parent / "store")["k7_decision"]
+        == "NO-GO"
+    )
 
 
 def test_backend_requires_collected_scratch_exit(tmp_path, monkeypatch):

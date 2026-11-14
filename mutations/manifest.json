@@ -13511,6 +13511,201 @@
       ],
       "expected": "timing label overrode retained inside-overlap times",
       "requires_database": false
+    },
+    {
+      "id": "k4r266-glob-index",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "        for path in self.streams.output.glob(pattern):\n            with path.open(\"rb\") as handle:\n                handle.seek(self.offsets.get(path.name, 0))\n                while True:\n                    offset = handle.tell()\n                    line = handle.readline()\n                    if not line.endswith(b\"\\n\"):\n                        break\n                    self.offsets[path.name] = handle.tell()\n                    row = json.loads(line)\n                    yield (path.name, offset), row[\"source\"]\n",
+      "new": "        for index, path in enumerate(self.streams.output.glob(pattern)):\n            with path.open(\"rb\") as handle:\n                handle.seek(self.offsets.get(path.name, 0))\n                while True:\n                    offset = handle.tell()\n                    line = handle.readline()\n                    if not line.endswith(b\"\\n\"):\n                        break\n                    self.offsets[path.name] = handle.tell()\n                    row = json.loads(line)\n                    yield (index, offset), row[\"source\"]\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round266.py::test_glob_reordering_cannot_discard_exit",
+        "-q"
+      ],
+      "expected": "glob reorder discarded boundary exit",
+      "requires_database": false
+    },
+    {
+      "id": "k4r266-abort-exited-overlap",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "    def confirmed_overlap(self, ns, role, deadline):\n        self.observed_exited_overlaps = 0\n        while time.time() <= deadline:\n            self.check_observation()\n            overlap = self.overlap(ns, role, time.time())\n            if overlap:\n                # Refresh immediately before apply: all selected acknowledgments\n                # must still be open, including worker witness invocations.\n                current = self.overlap(ns, role, time.time())\n                keys = {(o[\"session\"], o[\"acknowledgment\"]) for o in current}\n                if all((o[\"session\"], o[\"acknowledgment\"]) in keys for o in overlap):\n                    require(time.time() <= deadline, \"k4-harness-confirmation-deadline\")\n                    return overlap\n                self.observed_exited_overlaps += sum(\n                    (o[\"session\"], o[\"acknowledgment\"]) not in keys for o in overlap\n                )\n            time.sleep(0.05)\n        return []\n\n",
+      "new": "    def confirmed_overlap(self, ns, role, deadline):\n        observed = False\n        self.observed_exited_overlaps = 0\n        while time.time() <= deadline:\n            self.check_observation()\n            overlap = self.overlap(ns, role, time.time())\n            observed |= bool(overlap)\n            if overlap:\n                # Refresh immediately before apply: all selected acknowledgments\n                # must still be open, including worker witness invocations.\n                current = self.overlap(ns, role, time.time())\n                keys = {(o[\"session\"], o[\"acknowledgment\"]) for o in current}\n                if all((o[\"session\"], o[\"acknowledgment\"]) in keys for o in overlap):\n                    require(time.time() <= deadline, \"k4-harness-confirmation-deadline\")\n                    return overlap\n                self.observed_exited_overlaps += sum(\n                    (o[\"session\"], o[\"acknowledgment\"]) not in keys for o in overlap\n                )\n            time.sleep(0.05)\n        require(not observed, \"k4-harness-confirmation-deadline\")\n        return []\n\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round266.py::test_exited_overlap_is_unexercised_and_next_episode_continues",
+        "-q"
+      ],
+      "expected": "k4-harness-confirmation-deadline",
+      "requires_database": false
+    },
+    {
+      "id": "k4r266-legacy-unpinned",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "        require(all(m.get(k) == v for k, v in LEGACY_PIN.items()), \"k4-legacy-pin\")",
+      "new": "        require(True, \"k4-legacy-pin\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round266.py::test_legacy_pin_refuses_other_identity",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r266-legacy-any-disposition",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "            require(\n                derived == original\n                or (\n                    original == dict(derived, classification=\"valid\", reason=\"\", evidence=[])\n                    and derived[\"classification\"] == \"infrastructure-invalid\"\n                    and derived[\"reason\"] == \"harness-confirmation-miss\"\n                ),\n                \"k4-legacy-disposition-difference\",\n            )",
+      "new": "            require(True, \"k4-legacy-disposition-difference\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round266.py::test_legacy_refuses_other_disposition_difference",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r266-legacy-ignore-fields",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "            require(\n                not {\"reaction\", \"budget_scope\", \"safety\"}.intersection(retained)\n                and computed == expected_metrics,\n                \"k4-legacy-metric-fields\",\n            )",
+      "new": "            require(\n                not {\"reaction\", \"budget_scope\", \"safety\"}.intersection(retained)\n                and computed.get(\"reaction\") is None\n                and computed.get(\"budget_scope\") == expected_metrics[\"budget_scope\"]\n                and computed.get(\"safety\") == expected_metrics[\"safety\"],\n                \"k4-legacy-metric-fields\",\n            )",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round266.py::test_legacy_refuses_retained_metric_difference",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r267-legacy-safety-unbound",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "                safety=retained_safety,",
+      "new": "                safety=computed.get(\"safety\"),",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round266.py::test_legacy_refuses_safety_mismatch",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r269-pax-any-key",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload_v2.py",
+      "old": "            require(key == b\"path\", \"k4-payload-pax-key\")",
+      "new": "            require(True, \"k4-payload-pax-key\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round269.py::test_pax_headers_refuse",
+        "-q"
+      ],
+      "expected": "non-path PAX key accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4r269-store-skip-hash",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload_v2.py",
+      "old": "            require(digest == entry[\"sha256\"], \"pilot-payload-archive-hash\")",
+      "new": "            require(True, \"pilot-payload-archive-hash\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round269.py::test_store_hash_refuses",
+        "-q"
+      ],
+      "expected": "store hash mismatch accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4r269-gate-materializes",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "        bound_documents(path.parent, repository)\n",
+      "new": "        bound_documents(path.parent, repository)\n        with materialize_job(path.parent, repository):\n            pass\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round269.py::test_history_gate_never_materializes",
+        "-q"
+      ],
+      "expected": "history gate touched raw payload",
+      "requires_database": false
+    },
+    {
+      "id": "k4r269-cap-ignored",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload_v2.py",
+      "old": "\n    require(sum(e[\"size\"] for e in entries) <= PAYLOAD_LIMIT, \"pilot-payload-total-size\")",
+      "new": "\n    require(True, \"pilot-payload-total-size\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round269.py::test_total_cap_refuses",
+        "-q"
+      ],
+      "expected": "total cap ignored",
+      "requires_database": false
+    },
+    {
+      "id": "k4r269-release-extra-asset",
+      "kind": "behavioral",
+      "file": "scripts/dur053_payload_v2.py",
+      "old": "    require(set(assets) == {e[\"asset\"] for e in index[\"archives\"]}, \"k4-store-assets\")",
+      "new": "    require({e[\"asset\"] for e in index[\"archives\"]} <= set(assets), \"k4-store-assets\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round269.py::test_release_extra_asset_refuses",
+        "-q"
+      ],
+      "expected": "extra release asset accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k4r307-async-signal",
+      "kind": "behavioral",
+      "file": "cmd/runtime/k4_observe.go",
+      "old": "\tnotify(ch, syscall.SIGTERM, os.Interrupt)\n",
+      "new": "\t// Separate NotifyContext-equivalent subscription races asynchronous logging.\n\tshutdown := make(chan os.Signal, 4)\n\tnotify(shutdown, os.Interrupt, syscall.SIGTERM)\n\tgo func() {\n\t\tselect {\n\t\tcase <-shutdown:\n\t\t\tcancel()\n\t\tcase <-ctx.Done():\n\t\t}\n\t}()\n\tnotify(ch, syscall.SIGTERM, os.Interrupt)\n",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./cmd/runtime",
+        "-run",
+        "^TestK4SignalLoggedBeforeCancellation$",
+        "-count=1"
+      ],
+      "expected": "k4_signal missing at lifecycle cancellation",
+      "requires_database": false
     }
   ]
 }

@@ -834,11 +834,10 @@ class K4Driver:
         return result
 
     def confirmed_overlap(self, ns, role, deadline):
-        observed = False
+        self.observed_exited_overlaps = 0
         while time.time() <= deadline:
             self.check_observation()
             overlap = self.overlap(ns, role, time.time())
-            observed |= bool(overlap)
             if overlap:
                 # Refresh immediately before apply: all selected acknowledgments
                 # must still be open, including worker witness invocations.
@@ -847,8 +846,10 @@ class K4Driver:
                 if all((o["session"], o["acknowledgment"]) in keys for o in overlap):
                     require(time.time() <= deadline, "k4-harness-confirmation-deadline")
                     return overlap
+                self.observed_exited_overlaps += sum(
+                    (o["session"], o["acknowledgment"]) not in keys for o in overlap
+                )
             time.sleep(0.05)
-        require(not observed, "k4-harness-confirmation-deadline")
         return []
 
     def diagnostics(self):
@@ -1644,7 +1645,11 @@ print(json.dumps(rows))
                 )
                 targets = []
                 save(
-                    self.episode_output / "unexercised.json", dict(reason="k4-unexercised-overlap")
+                    self.episode_output / "unexercised.json",
+                    dict(
+                        reason="k4-unexercised-overlap",
+                        observed_exited_overlaps=self.observed_exited_overlaps,
+                    ),
                 )
                 adapter.release()
             require(confirmation["intervention"] <= deadline, "k4-harness-confirmation-deadline")

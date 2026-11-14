@@ -760,7 +760,7 @@ def test_archive_ledger_roundtrip(tmp_path, checker, monkeypatch):
     # archive limits, deterministic container and all integrity checks remain active.
     import lzma
 
-    import dur053_payload
+    import dur053_payload_v2 as dur053_payload
 
     monkeypatch.setattr(
         dur053_payload, "FILTERS", [dict(id=lzma.FILTER_LZMA2, preset=0, dict_size=1 << 20)]
@@ -769,27 +769,28 @@ def test_archive_ledger_roundtrip(tmp_path, checker, monkeypatch):
     downloaded = tmp_path / "downloaded"
     actions(downloaded)
     (downloaded / "partial.log").write_bytes(b"retained partial fault evidence\r\n")
-    target = recorder.interrupted(downloaded, repo, "k4-1", checker)
+    target = record_interrupted(downloaded, repo, "k4-1", checker)
     m = schema.load(target / "manifest.json")
     assert m["charged_seconds"] == 18900 and m["status"] == "interrupted", (
         "interrupted job refunded or erased"
     )
     git_commit(repo)
-    verified = evidence.verify_evidence(repo, checker)
+    verified = evidence.verify_evidence(repo, checker, store=repo.parent / "store")
     assert verified["schedule"]["charged_seconds"] == 18900, "actual interrupted charge omitted"
     assert len(verified["missing_episodes"]) == 161 and not verified["valid"], (
         "passing subset accepted"
     )
-    with dur053_payload.materialize(target, repo) as raw:
+    with recorder.materialize_job(target, repo, store=repo.parent / "store") as raw:
         assert (
             raw / "downloaded/partial.log"
         ).read_bytes() == b"retained partial fault evidence\r\n", "failure bytes erased"
     with pytest.raises(ValueError, match="k4-job-replay"):
-        recorder.interrupted(downloaded, repo, "k4-1", checker)
-    archive = next((target / "payload").glob("*.tar.xz"))
+        record_interrupted(downloaded, repo, "k4-1", checker)
+    index = json.loads((target / "payload-index.json").read_bytes())
+    archive = next((repo.parent / "store" / index["store"]["tag"]).glob("*.tar.xz"))
     archive.write_bytes(archive.read_bytes() + b"changed")
     with pytest.raises(ValueError):
-        evidence.verify_evidence(repo, checker)
+        evidence.verify_evidence(repo, checker, store=repo.parent / "store")
 
 
 def test_bidirectional_inventory(tmp_path):
@@ -860,7 +861,7 @@ def test_infrastructure_replacement(freeze):
 def test_completed_archive_rederivation(tmp_path, checker, monkeypatch):
     import lzma
 
-    import dur053_payload
+    import dur053_payload_v2 as dur053_payload
 
     monkeypatch.setattr(
         dur053_payload, "FILTERS", [dict(id=lzma.FILTER_LZMA2, preset=0, dict_size=1 << 20)]
@@ -908,20 +909,20 @@ def test_completed_archive_rederivation(tmp_path, checker, monkeypatch):
     m["artifact_sha256"] = recorder.artifact_hashes(source)
     write(source / "manifest.json", m)
     with pytest.raises(ValueError, match="k4-intake-metrics"):
-        recorder.record(source, repo, checker)
+        record_directory(source, repo, checker)
     value = evidence.episode(source / name, f, checker)
     write(source / name / "metrics.json", value)
     m["artifact_sha256"] = recorder.artifact_hashes(source)
     write(source / "manifest.json", m)
-    target = recorder.record(source, repo, checker)
+    target = record_directory(source, repo, checker)
     git_commit(repo)
-    result = evidence.verify_evidence(repo, checker)
+    result = evidence.verify_evidence(repo, checker, store=repo.parent / "store")
     assert len(result["missing_episodes"]) == 160 and result["disposition_counts"] == {"PASS": 1}, (
         "valid episode omitted or failure inventory hidden"
     )
     assert result["schedule"]["charged_seconds"] == 400, "completed work charged twice"
     with pytest.raises(ValueError):
-        recorder.record(source, repo, checker)
+        record_directory(source, repo, checker)
     assert (target / "manifest.json").read_bytes() == (source / "manifest.json").read_bytes(), (
         "immutable destination overwritten"
     )
@@ -1188,7 +1189,7 @@ def test_replacement_identity_binding(tmp_path, freeze, field, bad):
 def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     import lzma
 
-    import dur053_payload
+    import dur053_payload_v2 as dur053_payload
 
     monkeypatch.setattr(
         dur053_payload, "FILTERS", [dict(id=lzma.FILTER_LZMA2, preset=0, dict_size=1 << 20)]
@@ -1243,9 +1244,9 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     write(source / "summary.json", evidence.summaries(values))
     m["artifact_sha256"] = recorder.artifact_hashes(source)
     write(source / "manifest.json", m)
-    recorder.record(source, repo, checker)
+    record_directory(source, repo, checker)
     git_commit(repo)
-    first = evidence.verify_evidence(repo, checker)
+    first = evidence.verify_evidence(repo, checker, store=repo.parent / "store")
     assert first["disposition_counts"] == {"PASS": 2, "FAIL": 1}, "valid fault outcome lost"
     assert recorder.contributions(m) == [ids[0], ids[2], ids[3]], "valid partner discarded"
     replacement = tmp_path / "replacement"
@@ -1297,9 +1298,9 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     write(replacement / new_id / "episode.json", ep)
     r["artifact_sha256"] = recorder.artifact_hashes(replacement)
     write(replacement / "manifest.json", r)
-    recorder.record(replacement, repo, checker)
+    record_directory(replacement, repo, checker)
     git_commit(repo)
-    result = evidence.verify_evidence(repo, checker)
+    result = evidence.verify_evidence(repo, checker, store=repo.parent / "store")
     pair = next(p for p in result["paired"] if p["pair"] == 0)
     assert pair["replaced"] and pair["episodes"] == [ids[0], new_id], "replaced pair not flagged"
     assert ids[0] not in result["missing_episodes"] and ids[1] not in result["missing_episodes"]
@@ -1312,7 +1313,7 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
 def test_interrupted_lost_episodes_are_invalid(tmp_path, checker, monkeypatch):
     import lzma
 
-    import dur053_payload
+    import dur053_payload_v2 as dur053_payload
 
     monkeypatch.setattr(
         dur053_payload, "FILTERS", [dict(id=lzma.FILTER_LZMA2, preset=0, dict_size=1 << 20)]
@@ -1324,7 +1325,7 @@ def test_interrupted_lost_episodes_are_invalid(tmp_path, checker, monkeypatch):
     write(
         source / "progress.json", dict(schema="dur053.k4-progress.v1", job="k4-1", started=[first])
     )
-    target = recorder.interrupted(source, repo, "k4-1", checker)
+    target = record_interrupted(source, repo, "k4-1", checker)
     m = schema.load(target / "manifest.json")
     assert len(m["dispositions"]) == 2 and all(
         d["classification"] == "infrastructure-invalid" for d in m["dispositions"]
@@ -1336,4 +1337,33 @@ def test_interrupted_lost_episodes_are_invalid(tmp_path, checker, monkeypatch):
     write(source / "progress.json", dict(schema="dur053.k4-progress.v1", job="k4-1", started=[]))
     other = local_repository(tmp_path / "other")
     with pytest.raises(ValueError, match="k4-interrupted-progress-omission"):
-        recorder.interrupted(source, other, "k4-1", checker)
+        record_interrupted(source, other, "k4-1", checker)
+
+
+def upload_directory(staging, repository):
+    import shutil
+
+    index = json.loads((staging / "payload-index.json").read_bytes())
+    store = repository.parent / "store"
+    shutil.copytree(staging / "assets", store / index["store"]["tag"])
+    return store
+
+
+def record_directory(source, repository, checker):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temporary:
+        staging = Path(temporary) / "stage"
+        recorder.stage(source, staging, repository, checker)
+        store = upload_directory(staging, repository)
+        return recorder.record(staging, repository, checker, store=store)
+
+
+def record_interrupted(source, repository, name, checker):
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as temporary:
+        staging = Path(temporary) / "stage"
+        recorder.interrupted(source, repository, name, checker, staging)
+        store = upload_directory(staging, repository)
+        return recorder.record(staging, repository, checker, store=store)
