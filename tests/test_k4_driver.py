@@ -699,6 +699,12 @@ def test_lineages_differ_only_by_the_locked_label():
 
 
 def test_registered_progress_is_whole_unit_prefix(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        "dur053_record_k4.derive_disposition",
+        lambda source, name, value: dict(
+            episode=name, replacement_for="", classification="valid", reason="", evidence=[]
+        ),
+    )
     fake = Mock()
     fake.fatal = False
     fake.base.command.return_value = SimpleNamespace(stdout="a" * 40)
@@ -723,7 +729,7 @@ def test_registered_progress_is_whole_unit_prefix(tmp_path, monkeypatch):
         lambda: [dict(episode=unit + "-" + arm, unit=unit) for arm in ("baseline", "treatment")],
     )
     monkeypatch.setattr(driver, "admit", lambda *args, **kwargs: 1000)
-    monkeypatch.setattr(driver, "summaries", lambda *args: {})
+    monkeypatch.setattr(driver, "summaries", lambda *args, **kwargs: {})
     monkeypatch.setenv("GITHUB_ACTIONS", "true")
     monkeypatch.setenv("GITHUB_EVENT_NAME", "workflow_dispatch")
     monkeypatch.setenv("GITHUB_REPOSITORY", "example/repo")

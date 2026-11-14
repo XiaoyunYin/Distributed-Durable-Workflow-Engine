@@ -499,6 +499,8 @@ class Interventions:
             lineage_a_prime="a-prime",
             setup_completed=self.setup_completed,
         )
+        entries = [o["at"] for o in overlap if "at" in o]
+        record["reaction"] = record["intervention"] - min(entries) if entries else None
         image_role = "worker" if role == "worker" else "runtime"
         record.update(
             image_a=self.images["a"][image_role], image_a_prime=self.images["a-prime"][image_role]

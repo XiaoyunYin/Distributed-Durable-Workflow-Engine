@@ -133,10 +133,10 @@ def structured_log(text):
     return data if isinstance(data, dict) else None
 
 
-def apply_process_evidence(sessions, logs, events):
+def apply_process_evidence(sessions, logs, events, *, decoded=False):
     # Resolve precise init-process deaths before matching signals to sessions.
     for _, _, text in events:
-        raw = cri_event(text)
+        raw = text if decoded else cri_event(text)
         if raw is None:
             continue
         cid, status, at = raw["container_id"], raw["exit_status"], raw["at"]
@@ -155,7 +155,7 @@ def apply_process_evidence(sessions, logs, events):
     for s in sessions:
         s.pop("_finished_bounds", None)
     for _, _, text in logs:
-        row = structured_log(text)
+        row = text if decoded else structured_log(text)
         if not row or row.get("event") != "k4_signal":
             continue
         matches = [
@@ -197,6 +197,86 @@ def reconciled(now, *, all_terminal, witness_available, last_activity, deadline)
     return "timeout" if now >= deadline else "waiting"
 
 
+class LiveEvidence:
+    """One decode per retained line; preserve file order and last-event wins."""
+
+    def __init__(self, streams):
+        self.streams = streams
+        self.offsets = {}
+        self.sessions = {}
+        self.pod_offset = self.endpoint_offset = self.cri_offset = 0
+        self.signals = []
+        self.exits = []
+        self.ranks = {}
+        self.open = {}
+
+    def lines(self, pattern):
+        for index, path in enumerate(self.streams.output.glob(pattern)):
+            with path.open("rb") as handle:
+                handle.seek(self.offsets.get(path.name, 0))
+                while True:
+                    offset = handle.tell()
+                    line = handle.readline()
+                    if not line.endswith(b"\n"):
+                        break
+                    self.offsets[path.name] = handle.tell()
+                    row = json.loads(line)
+                    yield (index, offset), row["source"]
+
+    def read(self):
+        streams = self.streams
+        # Pod/endpoint JSON is decoded at receipt. Consume each event once.
+        with streams.lock:
+            pods = streams.pods[self.pod_offset :]
+            endpoints = streams.endpoints[self.endpoint_offset :]
+            self.pod_offset += len(pods)
+            self.endpoint_offset += len(endpoints)
+            exits = streams.cri_exits[self.cri_offset :]
+            self.cri_offset += len(exits)
+        before = set(self.sessions)
+        session_rows(pods, [], self.sessions)
+        # New sessions inherit endpoint history, as in the full offline mapper.
+        new = {k: s for k, s in self.sessions.items() if k not in before}
+        if new:
+            session_rows([], streams.endpoints[: self.endpoint_offset], new)
+        old = {k: s for k, s in self.sessions.items() if k in before}
+        session_rows([], endpoints, old)
+        changed = bool(pods)
+        for rank, text in self.lines("log-*.jsonl"):
+            data = structured_log(text)
+            if not data:
+                continue
+            if data.get("event") == "k4_signal":
+                self.signals.append(("", 0, data))
+                changed = True
+            if data.get("event") == "scheduler_acquisition":
+                role, key = "scheduler", data["acquisition"]
+            elif data.get("event") == "k4_boundary":
+                role, key = data["role"], data["identity"]
+            else:
+                continue
+            identity = role, key
+            if rank < self.ranks.get(identity, (-1, -1)):
+                continue
+            self.ranks[identity] = rank
+            if data["boundary"] in {"enter", "after_lease_acquired_hold_enter"}:
+                self.open[identity] = data
+            else:
+                self.open.pop(identity, None)
+        for raw in exits:
+            self.exits.append(("", 0, raw))
+            changed = True
+        if changed:
+            # Process events are sparse. Revalidate cached decoded evidence when
+            # pod bounds change, without parsing old logs or CRI lines again.
+            for s in self.sessions.values():
+                s["signals"] = []
+            apply_process_evidence(
+                list(self.sessions.values()), self.signals, self.exits, decoded=True
+            )
+        return list(self.sessions.values())
+
+
 class Streams:
     """Each stream owns files and a process. No deleted-pod re-fetch is needed."""
 
@@ -216,6 +296,7 @@ class Streams:
         self.cri_exits = []
         self.eof_at = {}
         self.eof_received = {}
+        self.live = LiveEvidence(self)
 
     def start(self, label, args, callback=None):
         path = self.output / (label + ".jsonl")
@@ -454,8 +535,8 @@ class Streams:
         return result
 
 
-def session_rows(events, endpoints):
-    sessions = {}
+def session_rows(events, endpoints, sessions=None):
+    sessions = {} if sessions is None else sessions
     for event in events:
         p = event["object"]
         at = event["received"]

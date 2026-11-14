@@ -362,7 +362,7 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
     p = parameters(f, cell["duration"])
     warmup = WARMUP
     if m["budget_scope"] == "engineering-validation":
-        from dur053_k4_driver import SMOKE_CELLS, SMOKE_WARMUP, SMOKE_WINDOWS
+        from dur053_k4_driver import REGISTERED_SMOKE, SMOKE_CELLS, SMOKE_WARMUP, SMOKE_WINDOWS
 
         require(
             not m["measurement_claim"]
@@ -370,8 +370,9 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
             and m["episode"] in SMOKE_CELLS,
             "k4-engineering-profile",
         )
-        p["W"] = SMOKE_WINDOWS[cell["duration"]]
-        warmup = SMOKE_WARMUP
+        if m["episode"] != REGISTERED_SMOKE:
+            p["W"] = SMOKE_WINDOWS[cell["duration"]]
+            warmup = SMOKE_WARMUP
     require(
         m["freeze_sha256"] == f["sha256"]
         and m["seed"] == cell["seed"]
@@ -401,6 +402,17 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         "k4-witness-inventory-binding",
     )
     confirmation_issues = confirmation(c, t, cell["event"], docs["leases"]["rows"])
+    if c["reaction"] is not None:
+        require(
+            bool(c["overlap"])
+            and math.isclose(
+                c["reaction"],
+                c["intervention"] - min(o["at"] for o in c["overlap"]),
+                rel_tol=0,
+                abs_tol=1e-7,
+            ),
+            "k4-confirmation-reaction",
+        )
     outcome = None
     if (root / "intervention-error.json").exists():
         from dur053_k4_interventions import intervention_outcome
@@ -437,12 +449,11 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
     need(c["intervention"] == m["intervention"], "k4-intervention-clock")
     need(
         m["intervention"] - m["warmup_start"] >= warmup
-        and m["intervention"] - m["warmup_start"] <= warmup + p["confirmation"]
-        and m["intervention"] <= m["confirmation_deadline"]
         and m["confirmation_deadline"] == m["warmup_start"] + warmup + p["confirmation"]
         and math.isclose(m["window_end"] - m["intervention"], p["W"], abs_tol=1e-8),
         "k4-registered-windows",
     )
+    need(m["intervention"] <= m["confirmation_deadline"], "k4-harness-confirmation-deadline")
     arrivals = docs["arrivals"]["rows"]
     if (root / "arrivals-journal.jsonl").exists() or m["hold"] is not None:
         need(hold_evidence(m, arrivals), "k4-hold-evidence")
@@ -755,6 +766,8 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         replacement_for=m["replacement_for"],
         status="FAIL" if outcome else m["status"],
         intervention_outcome=outcome,
+        budget_scope=m["budget_scope"],
+        reaction=c["reaction"],
         partial_confirmation_issues=confirmation_issues if outcome else [],
         complete=check["complete"] and not issues,
         valid=check["valid"] and not issues and m["status"] in {"PASS", "FAIL"},
@@ -881,6 +894,7 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         / m["W"]
     )
     metrics["slo"]["wilson_95_descriptive"] = wilson(within, accepted)
+    metrics["safety"] = safety_evidence(root, checker)
     return metrics
 
 
@@ -1149,7 +1163,59 @@ def replica_metrics(t, m):
     )
 
 
-def summaries(metrics: list[dict]) -> dict:
+def safety_evidence(root, checker):
+    """All attempted episodes with timeline bytes remain visible to acceptance."""
+    timeline = root / "timeline.json"
+    if not timeline.exists():
+        return None
+    t = load(timeline)
+    workflows = {w["key"]: w for w in t["workflows"]}
+    arrivals = load(root / "arrivals.json")["rows"] if (root / "arrivals.json").exists() else []
+    accepted = [a for a in arrivals if a["outcome"] == "accepted"]
+    check = run_checker(checker, root) if (root / "leases.json").exists() else None
+    return dict(
+        episode=root.name,
+        unavailable=[] if check else [root.name + ": lease audit unavailable"],
+        lost_accepted=sum(
+            a["key"] not in workflows
+            or workflows[a["key"]]["terminal"] is None
+            or workflows[a["key"]]["state"] not in {"SUCCEEDED", "FAILED", "CANCELED"}
+            for a in accepted
+        ),
+        duplicate_accepted=(len(t["workflows"]) - len(workflows))
+        + sum(
+            max(0, count - 1)
+            for count in Counter(
+                identity(r["identity"])
+                for r in t["receipts"]
+                if r["category"] == "committed" and r["outcome"] == "success"
+            ).values()
+        ),
+        stale_committed=check["stale_committed"] if check else 0,
+        superseded_owner_transitions=check["superseded_transitions"] if check else 0,
+        failed_workflows=sum(w["state"] == "FAILED" for w in t["workflows"]),
+        canceled_workflows=sum(w["state"] == "CANCELED" for w in t["workflows"]),
+        http_5xx=sum(r["status"] >= 500 for r in t["http"]),
+    )
+
+
+def safety_aggregate(rows):
+    from dur053_k4_schema import SAFETY, validate
+
+    keys = set(SAFETY) - {"episodes", "unavailable", "passed"}
+    result = {key: sum(row[key] for row in rows) for key in keys}
+    passed = not any(result.values())
+    unavailable = [item for row in rows for item in row.get("unavailable", [])]
+    result.update(
+        episodes=[row["episode"] for row in rows],
+        unavailable=unavailable,
+        passed=passed and not unavailable,
+    )
+    validate(result, SAFETY)
+    return result
+
+
+def summaries(metrics: list[dict], *, safety_rows=None) -> dict:
     by_id = {m["replacement_for"] or m["episode"]: m for m in metrics}
     require(len(by_id) == len(metrics), "k4-summary-duplicate")
     paired = []
@@ -1171,6 +1237,11 @@ def summaries(metrics: list[dict]) -> dict:
                     metrics="not-derivable",
                 )
             )
+            continue
+        if (
+            b.get("budget_scope") == t.get("budget_scope") == "engineering-validation"
+            and b["pair_binding"] != t["pair_binding"]
+        ):
             continue
         require(b["pair_binding"] == t["pair_binding"], "k4-matched-pair-binding")
         diff = {}
@@ -1220,9 +1291,14 @@ def summaries(metrics: list[dict]) -> dict:
                 },
             )
         )
+    aggregate = safety_aggregate(
+        safety_rows if safety_rows is not None else [m["safety"] for m in metrics if "safety" in m]
+    )
     gates = {}
-    campaign_safe = len(by_id) == len(registry()) and all(
-        m["valid"] and m["complete"] for m in metrics
+    campaign_safe = (
+        aggregate["passed"]
+        and len(by_id) == len(registry())
+        and all(m["valid"] and m["complete"] for m in metrics)
     )
     for duration in ("short", "long"):
         rows = []
@@ -1256,6 +1332,8 @@ def summaries(metrics: list[dict]) -> dict:
         gates[duration] = k7(rows, complete_pairs=complete, safety=safety)
     return dict(
         schema="dur053.k4-summary.v1",
+        safety=aggregate,
+        reactions={m["episode"]: m.get("reaction") for m in metrics},
         failed_events=[
             dict(
                 event=episode_identity(m["episode"])["event"],
@@ -1284,12 +1362,19 @@ def summaries(metrics: list[dict]) -> dict:
 
 
 def verify_evidence(repository: Path, checker: Path) -> dict:
-    from dur053_record_k4 import contributions, inventory, metric_episodes, validate_job
+    from dur053_record_k4 import (
+        contributions,
+        inventory,
+        metric_episodes,
+        validate_disposition,
+        validate_job,
+    )
 
     f = frozen(repository)
     manifests, ledger = inventory(repository)
     metrics = []
     verified = []
+    safety_rows = []
     for path, m in manifests:
         with materialize(path.parent, repository) as root:
             validate_job(
@@ -1302,18 +1387,30 @@ def verify_evidence(repository: Path, checker: Path) -> dict:
                 },
                 intake=False,
             )
-            for name in metric_episodes(m):
+            for name in metric_episodes(m, root):
                 value = episode(root / name, f, checker)
                 stored = json.loads((root / name / "metrics.json").read_bytes())
                 require(value == stored, "k4-stored-metrics")
+                validate_disposition(
+                    root, next(d for d in m["dispositions"] if d["episode"] == name), metrics=value
+                )
                 if name in contributions(m):
                     metrics.append(value)
                     verified.append(name)
-            computed = summaries([episode(root / name, f, checker) for name in metric_episodes(m)])
+            job_safety = [
+                s
+                for name in m["episodes"]
+                if (s := safety_evidence(root / name, checker)) is not None
+            ]
+            safety_rows.extend(job_safety)
+            computed = summaries(
+                [episode(root / name, f, checker) for name in metric_episodes(m, root)],
+                safety_rows=job_safety,
+            )
             require(
                 computed == json.loads((root / "summary.json").read_bytes()), "k4-stored-summary"
             )
-    result = summaries(metrics)
+    result = summaries(metrics, safety_rows=safety_rows)
     result["retained_jobs"] = [
         dict(
             job=m["job"],
@@ -1327,7 +1424,9 @@ def verify_evidence(repository: Path, checker: Path) -> dict:
     ]
     result["schedule"] = remaining(f, verified, ledger["entries"])
     result["complete"] = not result["missing_episodes"] and all(m["complete"] for m in metrics)
-    result["valid"] = result["complete"] and all(m["valid"] for m in metrics)
+    result["valid"] = (
+        result["complete"] and result["safety"]["passed"] and all(m["valid"] for m in metrics)
+    )
     return result
 
 

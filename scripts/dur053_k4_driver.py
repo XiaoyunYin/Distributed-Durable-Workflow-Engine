@@ -44,7 +44,7 @@ from dur053_k4_collectors import (
     structured_log,
     utc,
 )
-from dur053_k4_evidence import FILES, summaries
+from dur053_k4_evidence import FILES, safety_evidence, summaries
 from dur053_k4_evidence import episode as derive_episode
 from dur053_k4_interventions import (
     ENGINE_ROLES,
@@ -62,14 +62,23 @@ SMOKE_CELLS = (
     "short-core-0-pair-0-baseline",
     "short-core-0-pair-0-treatment",
     "short-core-2-pair-0-baseline",
+    "short-core-2-pair-0-treatment",
     "short-core-4-pair-0-baseline",
     "short-core-6-pair-0-baseline",
     "short-core-1-pair-0-baseline",
     "short-coverage-3-0-treatment",
     "long-core-0-pair-0-treatment",
 )
+REGISTERED_SMOKE = "short-core-2-pair-0-treatment"
 SMOKE_WARMUP = 5
 SMOKE_WINDOWS = {"short": 12, "long": 50}
+
+
+def episode_parameters(f, cell, *, engineering):
+    p = parameters(f, cell["duration"])
+    if engineering and cell["episode"] != REGISTERED_SMOKE:
+        p.update(warmup=SMOKE_WARMUP, W=SMOKE_WINDOWS[cell["duration"]])
+    return p
 
 
 def stamp(at):
@@ -765,11 +774,8 @@ class K4Driver:
         )
 
     def overlap(self, ns, role, now):
-        sessions = apply_process_evidence(
-            session_rows(self.collector.pods, self.collector.endpoints),
-            self.collector.log_text(),
-            self.collector.log_text("cri-exits.jsonl"),
-        )
+        sessions = self.collector.live.read()
+        now = time.time()  # Live selection ends after the evidence read.
         if role == "worker":
             witness = self.witness_raw(ns)
             now = time.time()
@@ -794,15 +800,11 @@ class K4Driver:
                 )
                 for v in active
             ]
-        entries = {}
-        for _, _, text in self.collector.log_text():
-            data = structured_log(text)
-            if not data:
-                continue
-            if role == "scheduler" and data.get("event") == "scheduler_acquisition":
-                entries[data["acquisition"]] = data
-            elif data.get("event") == "k4_boundary" and data.get("role") == role:
-                entries[data["identity"]] = data
+        entries = {
+            key: data
+            for (entry_role, key), data in self.collector.live.open.items()
+            if entry_role == role
+        }
         by = {s["pod_uid"]: s for s in sessions}
         result = []
         for d in entries.values():
@@ -830,6 +832,24 @@ class K4Driver:
                 )
             )
         return result
+
+    def confirmed_overlap(self, ns, role, deadline):
+        observed = False
+        while time.time() <= deadline:
+            self.check_observation()
+            overlap = self.overlap(ns, role, time.time())
+            observed |= bool(overlap)
+            if overlap:
+                # Refresh immediately before apply: all selected acknowledgments
+                # must still be open, including worker witness invocations.
+                current = self.overlap(ns, role, time.time())
+                keys = {(o["session"], o["acknowledgment"]) for o in current}
+                if all((o["session"], o["acknowledgment"]) in keys for o in overlap):
+                    require(time.time() <= deadline, "k4-harness-confirmation-deadline")
+                    return overlap
+            time.sleep(0.05)
+        require(not observed, "k4-harness-confirmation-deadline")
+        return []
 
     def diagnostics(self):
         for ns in sorted(self.namespaces | {"chaos-mesh"}):
@@ -899,6 +919,14 @@ class K4Driver:
         return path.read_text(encoding="utf-8")
 
     def assemble(self, ns, db, cell, confirmation, targets, start, end, quiet, timeout, manifest):
+        confirmation.setdefault(
+            "reaction",
+            (
+                confirmation["intervention"] - min(o["at"] for o in confirmation["overlap"])
+                if confirmation["overlap"]
+                else None
+            ),
+        )
         snapshot = self.snapshot(db)
         sessions = apply_process_evidence(
             session_rows(self.collector.pods, self.collector.endpoints),
@@ -1482,9 +1510,7 @@ print(json.dumps(rows))
     def execute_episode(self, cell, addresses, f, job_manifest, checker):
         self.episode_output = self.output / cell["episode"]
         self.episode_output.mkdir()
-        p = parameters(f, cell["duration"])
-        if self.engineering:
-            p.update(warmup=SMOKE_WARMUP, W=SMOKE_WINDOWS[cell["duration"]])
+        p = episode_parameters(f, cell, engineering=self.engineering)
         m = empty(EPISODE)
         m.update(
             schema="dur053.k4-episode.v1",
@@ -1547,6 +1573,7 @@ print(json.dumps(rows))
         try:
             hold_role = "worker" if "PDB" in cell["event"] else cell["event"].split()[0].lower()
             while time.time() < start + max(0, p["warmup"] - 1):
+                self.collector.live.read()
                 self.check_observation()
                 time.sleep(0.05)
             m["hold"] = dict(
@@ -1573,16 +1600,13 @@ print(json.dumps(rows))
                 self.check_observation()
                 time.sleep(0.05)
             deadline = start + p["warmup"] + p["confirmation"]
-            overlap = []
             role = "worker" if "PDB" in cell["event"] else cell["event"].split()[0].lower()
-            while time.time() <= deadline and not overlap:
-                self.check_observation()
-                overlap = self.overlap(ns, role, time.time())
-                if not overlap:
-                    time.sleep(0.05)
+            m["confirmation_deadline"] = deadline
+            locked_document(self.episode_output / "episode.json", m)
+            overlap = self.confirmed_overlap(ns, role, deadline)
             m["confirmation_deadline"] = deadline
             if overlap:
-                require(time.time() <= deadline, "k4-intervention-deadline")
+                require(time.time() <= deadline, "k4-harness-confirmation-deadline")
                 try:
                     confirmation, targets = adapter.apply(cell, overlap)
                 except Exception as error:
@@ -1623,7 +1647,7 @@ print(json.dumps(rows))
                     self.episode_output / "unexercised.json", dict(reason="k4-unexercised-overlap")
                 )
                 adapter.release()
-            require(confirmation["intervention"] <= deadline, "k4-intervention-deadline")
+            require(confirmation["intervention"] <= deadline, "k4-harness-confirmation-deadline")
             stop_load(confirmation["intervention"])
             stop = confirmation["intervention"] + p["W"]
             while time.time() < stop:
@@ -1644,9 +1668,9 @@ print(json.dumps(rows))
                         quiet,
                     )
                     poll_log.write(
-                        (
-                            json.dumps(dict(t0=t0, t1=t1, fingerprint_changed=changed)) + "\n"
-                        ).encode("utf-8")
+                        (json.dumps(dict(t0=t0, t1=t1, fingerprint_changed=changed)) + "\n").encode(
+                            "utf-8"
+                        )
                     )
                     poll_log.flush()
                     terminal = all(
@@ -1839,6 +1863,19 @@ def verify_engineering(root, checker):
         summaries(metrics) == json.loads((root / "summary.json").read_bytes()),
         "k4-engineering-summary",
     )
+    registered = load(root / REGISTERED_SMOKE / "episode.json")
+    confirmation = load(root / REGISTERED_SMOKE / "confirmation.json")
+    require(
+        registered["W"] == parameters(f, "short")["W"]
+        and registered["confirmation_deadline"]
+        == registered["warmup_start"]
+        + parameters(f, "short")["warmup"]
+        + parameters(f, "short")["confirmation"]
+        and confirmation["reaction"] is not None
+        and confirmation["reaction"]
+        == confirmation["intervention"] - min(o["at"] for o in confirmation["overlap"]),
+        "k4-registered-smoke-confirmation",
+    )
     long_timeline = load(root / "long-core-0-pair-0-treatment" / "timeline.json")
     require(
         any(
@@ -1866,6 +1903,15 @@ def verify_engineering(root, checker):
         budget_scope=m["budget_scope"],
         measurement_claim=False,
         episodes=len(metrics),
+        registered_scheduler=dict(
+            episode=REGISTERED_SMOKE,
+            reaction=confirmation["reaction"],
+            intervention=confirmation["intervention"],
+            deadline=registered["confirmation_deadline"],
+            confirmation="PASS",
+        ),
+        elapsed_live_seconds=m["elapsed_live_seconds"],
+        charged_seconds=m["charged_seconds"],
     )
 
 
@@ -1979,19 +2025,11 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
                     value = d.execute_episode(cell, addresses, f, m, checker)
                     metrics.append(value)
                     m["episodes"].append(cell["episode"])
-                    m["dispositions"].append(
-                        dict(
-                            episode=cell["episode"],
-                            replacement_for=episode_identity(cell["episode"])["episode"]
-                            if cell["episode"].endswith("-replacement-1")
-                            else "",
-                            classification="unexercised"
-                            if value["status"] == "unexercised"
-                            else "valid",
-                            reason="",
-                            evidence=[],
-                        )
-                    )
+                    from dur053_record_k4 import derive_disposition, save_disposition_evidence
+
+                    disposition = derive_disposition(output, cell["episode"], value)
+                    save_disposition_evidence(output, disposition)
+                    m["dispositions"].append(disposition)
                 except Exception as error:
                     episode_dir = output / cell["episode"]
                     episode_dir.mkdir(exist_ok=True)
@@ -1999,6 +2037,8 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
                     ep = load(ep_path) if ep_path.exists() else None
                     before = ep is None or ep["warmup_start"] == 0
                     reason = "setup-before-warmup" if before else "collection-failure"
+                    if "k4-harness-confirmation-deadline" in str(error):
+                        reason = "harness-confirmation-miss"
                     now = time.time()
                     claim_clock_loss = "k4-claim-ack-clock-evidence-missing" in str(error)
                     if ep:
@@ -2023,6 +2063,14 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
                             if not (episode_dir / file).is_file()
                         ],
                     )
+                    if reason == "harness-confirmation-miss":
+                        source.update(
+                            component="driver",
+                            errors=["k4-harness-confirmation-deadline"],
+                            observed_overlap=True,
+                            deadline=ep["confirmation_deadline"],
+                            observed_at=now,
+                        )
                     save(output / incident_source, source)
                     incident = cell["episode"] + "/harness-incident.json"
                     locked_document(
@@ -2031,7 +2079,11 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
                             schema="dur053.k4-harness.v1",
                             episode=cell["episode"],
                             reason=reason,
-                            component="setup" if before else "collector",
+                            component="setup"
+                            if before
+                            else "driver"
+                            if reason == "harness-confirmation-miss"
+                            else "collector",
                             at=now,
                             warmup_start=(ep["warmup_start"] if ep else now + 1),
                             source=incident_source,
@@ -2109,7 +2161,12 @@ def run(output, scratch_root, name, engineering=False, replacement_for=""):
         except Exception as diagnostic:
             save(output / "diagnostics-error.json", dict(error=str(diagnostic)))
     finally:
-        save(output / "summary.json", summaries(metrics))
+        safety_rows = [
+            s
+            for name in m["episodes"]
+            if (s := safety_evidence(output / name, checker)) is not None
+        ]
+        save(output / "summary.json", summaries(metrics, safety_rows=safety_rows))
         try:
             cleanup = d.cleanup()
             save(output / "cleanup.json", cleanup)

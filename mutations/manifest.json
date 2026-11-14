@@ -13335,6 +13335,182 @@
       ],
       "expected": "k4-arrival-stop-late",
       "requires_database": false
+    },
+    {
+      "id": "k4r262-full-reparse",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_collectors.py",
+      "old": "    def read(self):\n        streams = self.streams",
+      "new": "    def read(self):\n        self.offsets.clear()\n        streams = self.streams",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_each_line_decoded_once_across_polls",
+        "-q"
+      ],
+      "expected": "structured log line was decoded more than once",
+      "requires_database": false
+    },
+    {
+      "id": "k4r262-end-before-read",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "        sessions = self.collector.live.read()\n        now = time.time()  # Live selection ends after the evidence read.",
+      "new": "        now = time.time()\n        sessions = self.collector.live.read()",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_live_end_stamped_after_read",
+        "-q"
+      ],
+      "expected": "live end precedes evidence read",
+      "requires_database": false
+    },
+    {
+      "id": "k4r262-no-preissue-check",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "                keys = {(o[\"session\"], o[\"acknowledgment\"]) for o in current}",
+      "new": "                keys = {(o[\"session\"], o[\"acknowledgment\"]) for o in overlap}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_exit_between_detection_and_issue_repolls",
+        "-q"
+      ],
+      "expected": "issued against an exited boundary",
+      "requires_database": false
+    },
+    {
+      "id": "k4r262-reaction-omitted",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "        record[\"reaction\"] = record[\"intervention\"] - min(entries) if entries else None",
+      "new": "        record[\"reaction\"] = None",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_reaction_recorded_by_intervention",
+        "-q"
+      ],
+      "expected": "reaction time was not recorded",
+      "requires_database": false
+    },
+    {
+      "id": "k4r262-no-harness-reclassification",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "    if confirmation_miss(ep, c, metrics):",
+      "new": "    if False:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_k4_1_shaped_intake_all_22_dispositions",
+        "-q"
+      ],
+      "expected": "k4-valid-disposition-confirmation-miss",
+      "requires_database": false
+    },
+    {
+      "id": "k4r262-ignore-other-issues",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "        bool(issues & TIMING_ISSUES)",
+      "new": "        bool(issues) and issues <= TIMING_ISSUES",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_timing_miss_with_failed_workflow",
+        "-q"
+      ],
+      "expected": "timing miss with engine failure retained",
+      "requires_database": false
+    },
+    {
+      "id": "k4r262-trust-label-times",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "                ok = incident[\"source\"] == name + \"/confirmation.json\" and confirmation_miss(\n                    ep, c, metrics\n                )",
+      "new": "                ok = True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_hand_label_inside_overlap_refused",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r263-refuse-fault-fail",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "                require(\n                    not confirmation_miss(ep, load(source / name / \"confirmation.json\"), metrics),\n                    \"k4-valid-disposition-confirmation-miss\",\n                )",
+      "new": "                require(metrics[\"valid\"], \"k4-valid-disposition-invalid-metrics\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_nontiming_fault_fail_accepted",
+        "-q"
+      ],
+      "expected": "k4-valid-disposition-invalid-metrics",
+      "requires_database": false
+    },
+    {
+      "id": "k4r262-drop-excluded-safety",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "            safety_rows.extend(job_safety)",
+      "new": "            safety_rows.extend([])",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_verification_aggregates_excluded_safety",
+        "-q"
+      ],
+      "expected": "campaign verification discarded excluded safety",
+      "requires_database": false
+    },
+    {
+      "id": "k4r262-shorten-registered-smoke",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "    if engineering and cell[\"episode\"] != REGISTERED_SMOKE:",
+      "new": "    if engineering:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_registered_scheduler_smoke_keeps_registered_parameters",
+        "-q"
+      ],
+      "expected": "registered scheduler smoke timing was shortened",
+      "requires_database": false
+    },
+    {
+      "id": "k4r263-skip-time-check",
+      "kind": "behavioral",
+      "file": "scripts/dur053_record_k4.py",
+      "old": "        and (\n            c[\"intervention\"] > ep[\"confirmation_deadline\"]\n            or (\n                bool(c[\"overlap\"])\n                and all(not o[\"at\"] <= c[\"intervention\"] <= o[\"end\"] for o in c[\"overlap\"])\n            )\n        )",
+      "new": "        and True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round262.py::test_timing_issue_inside_overlap_stays_valid",
+        "-q"
+      ],
+      "expected": "timing label overrode retained inside-overlap times",
+      "requires_database": false
     }
   ]
 }

@@ -58,7 +58,7 @@ def checker(tmp_path_factory):
     target = tmp_path_factory.mktemp("checker") / "checker.exe"
     env = dict(os.environ, GOFLAGS="-mod=mod", GOPROXY="off")
     subprocess.run(
-        ["go", "build", "-o", str(target), "./cmd/dur049-checker"],
+        ["go", "build", "-p", "1", "-o", str(target), "./cmd/dur049-checker"],
         cwd=ROOT,
         env=env,
         check=True,
@@ -1203,7 +1203,15 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
         if index == 1:
             ds.append(harness_incident(source, name))
             continue
-        ep, _ = episode_fixture(source / name, f, episode=name)
+        ep, docs = episode_fixture(source / name, f, episode=name)
+        # This intake fixture uses worker cells; match its synthetic rollout targets.
+        docs["confirmation"]["target"] = "Deployment/worker"
+        for session in docs["timeline"]["sessions"]:
+            if session["role"] == "relay":
+                session["role"] = "worker"
+        for key, file in evidence.FILES.items():
+            write(source / name / file, docs[key])
+            ep["files"][key] = hashlib.sha256((source / name / file).read_bytes()).hexdigest()
         ep.update(job="k4-1", status="FAIL" if index == 2 else "PASS")
         write(source / name / "episode.json", ep)
         value = evidence.episode(source / name, f, checker)
@@ -1242,7 +1250,13 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
     assert recorder.contributions(m) == [ids[0], ids[2], ids[3]], "valid partner discarded"
     replacement = tmp_path / "replacement"
     new_id = ids[1] + "-replacement-1"
-    ep, _ = episode_fixture(replacement / new_id, f, episode=ids[1])
+    ep, docs = episode_fixture(replacement / new_id, f, episode=ids[1])
+    docs["confirmation"]["target"] = "Deployment/worker"
+    for session in docs["timeline"]["sessions"]:
+        if session["role"] == "relay":
+            session["role"] = "worker"
+    for key, file in evidence.FILES.items():
+        write(replacement / new_id / file, docs[key])
     ep.update(episode=new_id, replacement_for=ids[1], job="k4-1", run_id="101", job_id="201")
     # Every exported document binds to the new identity, while seed and arm stay fixed.
     for file in evidence.FILES.values():

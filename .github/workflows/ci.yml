@@ -712,6 +712,20 @@ jobs:
           set -euo pipefail
           go build -buildvcs=false -o "$RUNNER_TEMP/dur053-k4-checker" ./cmd/dur049-checker
           bash scripts/dur053-k3.sh verify-evidence "$RUNNER_TEMP/dur053-k4" "$RUNNER_TEMP/dur053-k4-scratch" "$RUNNER_TEMP/dur053-k4-checker"
+      - name: Report registered scheduler reaction and smoke time
+        if: always()
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          root = Path(os.environ["RUNNER_TEMP"]) / "dur053-k4"
+          manifest = json.loads((root / "manifest.json").read_bytes())
+          confirmation = json.loads((root / "short-core-2-pair-0-treatment/confirmation.json").read_bytes())
+          print(json.dumps({"elapsed_live_seconds": manifest["elapsed_live_seconds"],
+                            "charged_seconds": manifest["charged_seconds"],
+                            "registered_scheduler_reaction": confirmation["reaction"]}))
+          PY
       - name: Retain full lifecycle diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

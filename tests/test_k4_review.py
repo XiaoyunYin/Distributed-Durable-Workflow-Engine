@@ -587,7 +587,12 @@ def test_stopped_intake_record_and_committed_ack_gate(tmp_path, checker, monkeyp
             )
         ],
     )
-    write(source / "summary.json", evidence.summaries([value]))
+    write(
+        source / "summary.json",
+        evidence.summaries(
+            [value], safety_rows=[evidence.safety_evidence(source / ep["episode"], checker)]
+        ),
+    )
     m["artifact_sha256"] = recorder.artifact_hashes(source)
     write(source / "manifest.json", m)
     ack_path = repo / "experiments/portfolio/k8s-recovery/k4-continuation-acknowledgements.json"

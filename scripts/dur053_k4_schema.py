@@ -212,6 +212,7 @@ CONFIRMATION = obj(
     kind=enum("rollout", "rollback", "scale-down", "kill", "eviction"),
     target=str,
     intervention=NUMBER,
+    reaction=nullable(NUMBER),
     completed=nullable(NUMBER),
     removed=nullable(NUMBER),
     overlap=array(OVERLAP),
@@ -302,7 +303,12 @@ EPISODE = obj(
     ),
 )
 INFRA_REASONS = enum(
-    "setup-before-warmup", "harness-oom", "harness-timeout", "collection-failure", "runner-loss"
+    "setup-before-warmup",
+    "harness-oom",
+    "harness-timeout",
+    "collection-failure",
+    "runner-loss",
+    "harness-confirmation-miss",
 )
 DISPOSITION = obj(
     episode=str,
@@ -336,6 +342,18 @@ JOB = obj(
     dispositions=array(DISPOSITION),
     intake_stopped=array(str),
     artifact_sha256="hashmap",
+)
+SAFETY = obj(
+    episodes=array(str),
+    unavailable=array(str),
+    lost_accepted=int,
+    duplicate_accepted=int,
+    stale_committed=int,
+    superseded_owner_transitions=int,
+    failed_workflows=int,
+    canceled_workflows=int,
+    http_5xx=int,
+    passed=bool,
 )
 SCHEMAS = {
     "dur053.k4-continuation-acks.v1": obj(
@@ -437,5 +455,7 @@ def pairs(rows):
 def load(path: Path) -> dict:
     value = json.loads(path.read_bytes(), object_pairs_hook=pairs)
     require(type(value) is dict and value.get("schema") in SCHEMAS, "k4-schema-name")
+    if value["schema"] == "dur053.k4-confirmation.v1" and "reaction" not in value:
+        value["reaction"] = None  # Retained pre-R301 bytes; never rewrite originals.
     validate(value, SCHEMAS[value["schema"]])
     return value

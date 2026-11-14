@@ -221,11 +221,71 @@ def evidence_path(source: Path, name: str) -> Path:
     return path
 
 
-def validate_disposition(source: Path, d: dict) -> None:
+TIMING_ISSUES = {"k4-confirmation-boundary", "k4-harness-confirmation-deadline"}
+
+
+def confirmation_miss(ep, c, metrics):
+    issues = set(metrics["issues"])
+    return (
+        bool(issues & TIMING_ISSUES)
+        and (
+            c["intervention"] > ep["confirmation_deadline"]
+            or (
+                bool(c["overlap"])
+                and all(not o["at"] <= c["intervention"] <= o["end"] for o in c["overlap"])
+            )
+        )
+    )
+
+
+def derive_disposition(source, name, metrics):
+    """Read content without modifying source or consulting engine outcomes."""
+    ep = load(source / name / "episode.json")
+    c = load(source / name / "confirmation.json")
+    d = dict(
+        episode=name,
+        replacement_for=ep["replacement_for"],
+        classification="unexercised" if ep["status"] == "unexercised" else "valid",
+        reason="",
+        evidence=[],
+    )
+    if confirmation_miss(ep, c, metrics):
+        incident = name + "/confirmation-miss.json"
+        d.update(
+            {"classification": "infrastructure-invalid"},
+            reason="harness-confirmation-miss",
+            evidence=[incident],
+        )
+    return d
+
+
+def save_disposition_evidence(output, d):
+    """Materialize derived evidence only in the caller's output/raw copy."""
+    if d["reason"] == "harness-confirmation-miss":
+        name = d["episode"]
+        ep = load(output / name / "episode.json")
+        save(
+            output / name / "confirmation-miss.json",
+            dict(
+                schema="dur053.k4-harness.v1",
+                episode=name,
+                reason=d["reason"],
+                component="driver",
+                at=ep["reconciliation_end"],
+                warmup_start=ep["warmup_start"],
+                source=name + "/confirmation.json",
+            ),
+        )
+
+
+def validate_disposition(source: Path, d: dict, *, metrics=None) -> None:
     """Validate independent harness records and their retained source content."""
     name = d["episode"]
     episode_path = source / name / "episode.json"
     ep = load(episode_path) if episode_path.exists() else None
+    if metrics is None and (source / name / "metrics.json").exists():
+        # record()/verify_evidence() independently recompute and compare this file.
+        metrics = json.loads((source / name / "metrics.json").read_bytes())
     if d["classification"] != "infrastructure-invalid":
         require(
             not d["reason"] and not d["evidence"] and ep is not None, "k4-classification-content"
@@ -240,8 +300,47 @@ def validate_disposition(source: Path, d: dict) -> None:
             stopped_intake(source, ep)
         else:
             require(not ep["missing_exports"], "k4-unmarked-export-loss")
+            if d["classification"] == "valid" and metrics is not None:
+                require(
+                    not confirmation_miss(ep, load(source / name / "confirmation.json"), metrics),
+                    "k4-valid-disposition-confirmation-miss",
+                )
         return
     require(bool(d["reason"]) and bool(d["evidence"]), "k4-infrastructure-evidence")
+    if d["reason"] == "harness-confirmation-miss":
+        for ref in d["evidence"]:
+            incident = load(evidence_path(source, ref))
+            require(
+                incident["schema"] == "dur053.k4-harness.v1"
+                and incident["episode"] == name
+                and incident["reason"] == d["reason"]
+                and incident["component"] == "driver",
+                "k4-infrastructure-evidence",
+            )
+            raw = json.loads(evidence_path(source, incident["source"]).read_bytes())
+            if (
+                metrics is not None
+                and ep is not None
+                and (source / name / "confirmation.json").exists()
+            ):
+                c = load(source / name / "confirmation.json")
+                ok = incident["source"] == name + "/confirmation.json" and confirmation_miss(
+                    ep, c, metrics
+                )
+            else:
+                # A pre-issue poll observed a boundary but exhausted its deadline.
+                ok = (
+                    ep is not None
+                    and ep["intervention"] == 0
+                    and raw.get("component") == "driver"
+                    and "k4-harness-confirmation-deadline" in raw.get("errors", [])
+                    and raw.get("observed_overlap") is True
+                    and raw.get("deadline") == ep["confirmation_deadline"]
+                    and raw.get("observed_at", 0) > ep["confirmation_deadline"]
+                    and not (source / name / "intervention-issued.json").exists()
+                )
+            require(ok, "k4-harness-confirmation-miss-content")
+        return
     # A recorded engine outcome after intervention cannot be excluded by a later
     # harness incident. Missing exports use collection/runner source evidence.
     confirmation = source / name / "confirmation.json"
@@ -482,7 +581,7 @@ def validate_job(source: Path, f: dict, *, history: dict[str, dict], intake=True
 
 
 def record(source: Path, repository: Path, checker: Path) -> Path:
-    from dur053_k4_evidence import episode, summaries
+    from dur053_k4_evidence import episode, safety_evidence, summaries
 
     f = frozen(repository)
     prior, ledger = inventory(repository)
@@ -497,15 +596,23 @@ def record(source: Path, repository: Path, checker: Path) -> Path:
     require(not previous.intersection(contributions(m)), "k4-intake-duplicate-episode")
     ledger_check(ledger, m["charged_seconds"], set())
     values = []
-    for name in metric_episodes(m):
+    for name in metric_episodes(m, source):
         computed = episode(source / name, f, checker)
         require(
             computed == json.loads((source / name / "metrics.json").read_bytes()),
             "k4-intake-metrics",
         )
         values.append(computed)
+        validate_disposition(
+            source, next(d for d in m["dispositions"] if d["episode"] == name), metrics=computed
+        )
+    safety_rows = [
+        s for name in m["episodes"] if (s := safety_evidence(source / name, checker)) is not None
+    ]
     require(
-        summaries(values) == json.loads((source / "summary.json").read_bytes()), "k4-intake-summary"
+        summaries(values, safety_rows=safety_rows)
+        == json.loads((source / "summary.json").read_bytes()),
+        "k4-intake-summary",
     )
     require(
         m["status"] != "PASS"
@@ -549,9 +656,15 @@ def record(source: Path, repository: Path, checker: Path) -> Path:
     return target
 
 
-def metric_episodes(m: dict) -> list[str]:
+def metric_episodes(m: dict, source: Path | None = None) -> list[str]:
     return [
-        d["episode"] for d in m["dispositions"] if d["classification"] != "infrastructure-invalid"
+        d["episode"]
+        for d in m["dispositions"]
+        if d["classification"] != "infrastructure-invalid"
+        or (
+            d["reason"] == "harness-confirmation-miss"
+            and (source is None or (source / d["episode"] / "metrics.json").exists())
+        )
     ]
 
 
@@ -593,7 +706,7 @@ def interrupted(source: Path, repository: Path, name: str, checker: Path) -> Pat
         )
         dispositions = []
         values = []
-        from dur053_k4_evidence import FILES, episode, summaries
+        from dur053_k4_evidence import FILES, episode, safety_evidence, summaries
 
         for eid in ids:
             epdir = source / eid
@@ -605,17 +718,9 @@ def interrupted(source: Path, repository: Path, name: str, checker: Path) -> Pat
                 value = episode(raw / eid, f, checker)
                 save(raw / eid / "metrics.json", value)
                 values.append(value)
-                dispositions.append(
-                    dict(
-                        episode=eid,
-                        replacement_for="",
-                        classification="valid"
-                        if ep["status"] in {"PASS", "FAIL"}
-                        else "unexercised",
-                        reason="",
-                        evidence=[],
-                    )
-                )
+                disposition = derive_disposition(raw, eid, value)
+                save_disposition_evidence(raw, disposition)
+                dispositions.append(disposition)
             else:
                 report = f"incidents/{eid}-collection.json"
                 incident = f"incidents/{eid}.json"
@@ -678,7 +783,8 @@ def interrupted(source: Path, repository: Path, name: str, checker: Path) -> Pat
             intake_stopped=[],
             artifact_sha256={},
         )
-        save(raw / "summary.json", summaries(values))
+        safety_rows = [s for eid in ids if (s := safety_evidence(raw / eid, checker)) is not None]
+        save(raw / "summary.json", summaries(values, safety_rows=safety_rows))
         m["artifact_sha256"] = artifact_hashes(raw)
         save(raw / "manifest.json", m)
         return record(raw, repository, checker)
