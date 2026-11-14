@@ -96,18 +96,29 @@ def run() -> None:
         if received is None:
             received = (_signum, time.monotonic())
 
-    def coordinate_stop() -> None:
-        while not process_done.wait(0.01):
-            receipt = received
-            if receipt is None:
-                continue
-            signum, at = receipt
+    coordinate_lock = threading.Lock()
+    coordinated = False
+
+    def coordinate_once() -> None:
+        nonlocal coordinated
+        if received is None or not coordinate_lock.acquire(blocking=False):
+            return
+        try:
+            if coordinated:
+                return
+            signum, at = received
             if witness := campaign_witness():
                 witness.trace("signal", {"signal": signum}, at=at)
             lifecycle.begin_drain()
-            if lifecycle.legacy:
-                server.shutdown()
-            return
+            coordinated = True
+        finally:
+            coordinate_lock.release()
+
+    def coordinate_stop() -> None:
+        while not process_done.wait(0.01):
+            coordinate_once()
+            if coordinated:
+                return
 
     signal_thread = threading.Thread(
         target=coordinate_stop, name="worker-signal-coordinator", daemon=True
@@ -153,20 +164,20 @@ def run() -> None:
         ),
         flush=True,
     )
+    # Both modes keep the main thread executing Python, even when the C-level
+    # signal handler ran on another thread. The coordinator also covers startup.
+    health_thread = threading.Thread(target=server.serve_forever, daemon=True)
+    health_thread.start()
+    while not lifecycle.drain.wait(0.1):
+        coordinate_once()
     if lifecycle.legacy:
-        server.serve_forever()
-    else:
-        health_thread = threading.Thread(target=server.serve_forever, daemon=True)
-        health_thread.start()
-        lifecycle.drain.wait()
-    lifecycle.begin_drain()
-    if lifecycle.legacy:
+        server.shutdown()
         for thread in threads:
             thread.join(timeout=2)
     else:
         finish_drain(lifecycle, threads)
         server.shutdown()
-        health_thread.join(timeout=1)
+    health_thread.join(timeout=1)
     server.server_close()
     process_done.set()
     signal_thread.join(timeout=1)

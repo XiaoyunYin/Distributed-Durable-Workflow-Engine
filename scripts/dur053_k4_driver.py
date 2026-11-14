@@ -752,8 +752,153 @@ class K4Driver:
         require(not self.sampler.is_alive(), "k4-observer-stop-timeout")
         require(not self.sample_error, "k4-observer-loss: " + "; ".join(self.sample_error))
 
-    def retain_target_termination(self, targets, confirmation, episode_deadline):
+    def start_target_signal_diagnostics(self, adapter, episode_deadline):
+        """Arm before issue/apply can wait for rollout, not after load completion."""
+        stopped = threading.Event()
+        issue = adapter.issue
+        threads = []
+        started = False
+
+        def issued(targets):
+            nonlocal started
+            issue(targets)
+            if started:
+                return
+            started = True
+            for pod in targets:
+                thread = threading.Thread(
+                    target=self.retain_target_termination,
+                    args=([pod], {}, episode_deadline),
+                    kwargs=dict(signals_only=True, stopped=stopped),
+                    daemon=True,
+                    name="k4-target-signal-" + pod["metadata"]["uid"],
+                )
+                threads.append(thread)
+                thread.start()
+
+        adapter.issue = issued
+        return stopped, threads
+
+    def stop_target_signal_diagnostics(self, diagnostics, deadline):
+        if diagnostics is not None:
+            stopped, threads = diagnostics
+            stopped.set()
+            for thread in threads:
+                thread.join(timeout=max(0, deadline - time.time()))
+
+    def retain_target_signals(self, pod, episode_deadline, stopped):
+        # Each target has its own monitor so a slow/dead exec cannot postpone
+        # another target's first sample. No monitor is joined by assembly.
+        directory = self.episode_output / "diagnostics"
+        directory.mkdir(exist_ok=True)
+        uid = pod["metadata"]["uid"]
+        collector = self.collector
+        first = None
+        attempt = 0
+        while not stopped.is_set() and time.time() < episode_deadline:
+            with collector.lock:
+                deletion = next(
+                    (
+                        e["object"]["metadata"]["deletionTimestamp"]
+                        for e in collector.pods
+                        if e["object"]["metadata"]["uid"] == uid
+                        and e["object"]["metadata"].get("deletionTimestamp")
+                    ),
+                    None,
+                )
+            now = time.time()
+            if deletion is not None:
+                episode_deadline = min(episode_deadline, utc(deletion))
+                if first is None:
+                    first = now
+                if now >= first + attempt * 5 and now < episode_deadline:
+                    for container in pod["status"]["containerStatuses"]:
+                        cid = container["containerID"].rsplit("/", 1)[-1]
+                        began = time.time()
+                        timeout = min(1.0, episode_deadline - began)
+                        if timeout <= 0 or stopped.is_set():
+                            return
+                        # The worker image has Python; other target images may
+                        # refuse exec, which is retained as best-effort evidence.
+                        script = (
+                            "from pathlib import Path\n"
+                            "paths=[Path('/proc/1/status')]\n"
+                            "paths+=sorted(Path('/proc/1/task').glob('*/status'))\n"
+                            "paths+=sorted(Path('/proc/1/task').glob('*/wchan'))\n"
+                            "for p in paths:\n"
+                            " try:\n"
+                            "  text=p.read_text(); print(str(p))\n"
+                            "  print(text if p.name=='wchan' else ''.join("
+                            "l+'\\n' for l in text.splitlines() if l.split(':')[0] "
+                            "in {'Name','State','SigPnd','ShdPnd','SigBlk','SigIgn','SigCgt'}))\n"
+                            " except OSError as e: print(str(p), str(e))\n"
+                        )
+                        row = dict(
+                            pod_uid=uid,
+                            container_id=cid,
+                            attempt=attempt,
+                            deletion_observed_at=first,
+                            started=began,
+                            timeout=timeout,
+                        )
+                        try:
+                            result = self.base.k(
+                                "-n",
+                                pod["metadata"]["namespace"],
+                                "exec",
+                                pod["metadata"]["name"],
+                                "-c",
+                                container["name"],
+                                "--",
+                                "python",
+                                "-c",
+                                script,
+                                allowed=True,
+                                record=False,
+                                timeout=timeout,
+                            )
+                            row.update(
+                                exit_code=result.returncode,
+                                stdout=result.stdout,
+                                stderr=result.stderr,
+                            )
+                        except Exception as error:
+                            cause = error.__cause__ or error
+
+                            def output(value):
+                                return (
+                                    value.decode(errors="replace")
+                                    if isinstance(value, bytes)
+                                    else value or ""
+                                )
+
+                            row.update(
+                                exit_code=None,
+                                stdout=output(getattr(cause, "stdout", "")),
+                                stderr=output(getattr(cause, "stderr", "")) or str(error),
+                                error=str(error),
+                            )
+                        row["finished"] = time.time()
+                        save(directory / f"target-signals-{uid}-{cid}-{attempt}.json", row)
+                    attempt += 1
+                    if attempt == 2:
+                        return
+            stopped.wait(min(0.1, max(0, episode_deadline - time.time())))
+
+    def retain_target_termination(
+        self,
+        targets,
+        confirmation,
+        episode_deadline,
+        *,
+        signals_only=False,
+        stopped=None,
+        diagnostics=None,
+    ):
         """Retain deaths before assembly/TERM guard, without extending episode bounds."""
+        if signals_only:
+            self.retain_target_signals(targets[0], episode_deadline, stopped)
+            return
         if not targets:
             save(self.episode_output / "target-termination.json", dict(targets=[]))
             return
@@ -774,7 +919,7 @@ class K4Driver:
                 ]
                 # deletionTimestamp is the end of the API's grace period,
                 # not its start. Never add another grace period to it.
-                grace_deadline = min(deletions) if deletions else None
+                grace_deadline = deletions[0] if deletions else None
                 if confirmation["kind"] == "kill":
                     grace_deadline = confirmation["intervention"] + pod["spec"].get(
                         "terminationGracePeriodSeconds", 30
@@ -811,6 +956,10 @@ class K4Driver:
                     - now,
                 )
             )
+        # Stop in-flight execs within the existing ten-second query allowance,
+        # so no diagnostic writer can race final evidence hashing.
+        query_deadline = time.time() + 10
+        self.stop_target_signal_diagnostics(diagnostics, query_deadline)
         # Fetch the full interval, not the last 300 journal lines. Retain full
         # target Killing records even when the TERM predicate will refuse.
         result = self.base.command(
@@ -823,10 +972,10 @@ class K4Driver:
                 "kubelet",
                 "--no-pager",
                 "--since",
-                stamp(confirmation["intervention"] - 1),
+                "@" + str(int(confirmation["intervention"] - 1)),
             ],
             allowed=True,
-            timeout=10,
+            timeout=max(0.001, query_deadline - time.time()),
         )
         directory = self.episode_output / "diagnostics"
         directory.mkdir(exist_ok=True)
@@ -1708,6 +1857,7 @@ print(json.dumps(rows))
         locked_document(self.episode_output / "episode.json", m)
         pool = ThreadPoolExecutor(max_workers=1)
         load_future = pool.submit(self.load, ns, cell, p, start)
+        diagnostic_stop = None
         try:
             hold_role = "worker" if "PDB" in cell["event"] else cell["event"].split()[0].lower()
             while time.time() < start + max(0, p["warmup"] - 1):
@@ -1744,6 +1894,9 @@ print(json.dumps(rows))
             overlap = self.confirmed_overlap(ns, role, deadline)
             m["confirmation_deadline"] = deadline
             if overlap:
+                diagnostic_stop = self.start_target_signal_diagnostics(
+                    adapter, deadline + p["W"] + p["T"]
+                )
                 require(time.time() <= deadline, "k4-harness-confirmation-deadline")
                 try:
                     confirmation, targets = adapter.apply(cell, overlap)
@@ -1800,7 +1953,9 @@ print(json.dumps(rows))
             # Finish target observation before starting the quiet interval:
             # witness writes during this wait must not be hidden by an earlier
             # reconciliation-complete decision. The original deadline holds.
-            self.retain_target_termination(targets, confirmation, deadline)
+            self.retain_target_termination(
+                targets, confirmation, deadline, diagnostics=diagnostic_stop
+            )
             quiet = time.time()
             last = None
             timeout = False
@@ -1859,6 +2014,7 @@ print(json.dumps(rows))
             save(self.episode_output / "metrics.json", metrics)
             return metrics
         finally:
+            self.stop_target_signal_diagnostics(diagnostic_stop, time.time() + 1)
             self.observer_stop.set()
             self.sampler.join(timeout=30)
             if self.collector:

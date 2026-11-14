@@ -144,7 +144,7 @@ def test_apply_safety_propagates_to_infrastructure(tmp_path, monkeypatch, retain
     adapter.apply.side_effect = lambda *a: require(False, "k4-log-stream-loss: " + error)
     monkeypatch.setattr(driver, "Interventions", lambda *a: adapter)
     monkeypatch.setattr(
-        driver, "parameters", lambda *a: dict(rate=1, L=1, W=1, warmup=0, confirmation=20)
+        driver, "parameters", lambda *a: dict(rate=1, L=1, W=1, T=100, warmup=0, confirmation=20)
     )
     clock = iter(range(100, 10000))
     monkeypatch.setattr(driver.time, "time", lambda: next(clock))

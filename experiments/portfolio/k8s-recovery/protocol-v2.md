@@ -1674,3 +1674,6 @@ retained until death or grace deadline, bounded by the existing reconciliation
 deadline. This diagnostic logging also differs from k4-1 and applies equally
 to both arms and overhead probes. No predicate, classification, schedule,
 rate, grace period, drain budget, or episode bound is changed.
+
+
+6. R314/R315 quiet-interval clarification (Round 284). When a target is still alive at load completion, the quiet/reconciliation interval starts after target termination observation has reached its CRI death or the first observed deletionTimestamp grace deadline (whichever comes first), capped by the unchanged episode reconciliation deadline. Witness writes during this observation wait do not count toward a completed quiet interval. The quiet interval start can therefore shift later; the overall deadline, schedule, grace period, drain budget, predicates and classifications are unchanged. Live signal diagnostics run concurrently from the intervention-issued boundary and do not extend these bounds. Both worker modes now use a 0.1-second main-thread wait and an idempotent signal coordinator step; paired arms use the same updated worker bytes.

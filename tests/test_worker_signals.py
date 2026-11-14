@@ -7,7 +7,6 @@ import os
 import signal
 import subprocess
 import sys
-import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -71,7 +70,6 @@ def test_handler_defers_trace_and_orders_drain(
             lifecycle = process.HealthHandler.lifecycle
             assert lifecycle is not None
             assert not lifecycle.drain.is_set(), "drain preceded durable signal trace"
-            assert threading.current_thread() is not threading.main_thread()
             calls.append((fields["signal"], kw["at"]))
         original(self, event, fields, **kw)
 
@@ -122,3 +120,45 @@ def test_handler_defers_trace_and_orders_drain(
     assert len(calls) == 1
     assert calls[0][0] == signal.SIGTERM
     assert receipt_bounds[0] <= calls[0][1] <= receipt_bounds[1], "signal receipt time lost"
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_main_wait_coordinates_two_sigterms(tmp_path: Path, legacy: bool) -> None:
+    _wait_process(tmp_path, "published", legacy)
+
+
+@pytest.mark.skipif(sys.platform != "linux", reason="pthread-directed SIGTERM requires Linux")
+@pytest.mark.parametrize("legacy", [False, True])
+def test_pthread_sigterm_wakes_main_wait(tmp_path: Path, legacy: bool) -> None:
+    _wait_process(tmp_path, "pthread", legacy)
+
+
+def _wait_process(tmp_path: Path, mode: str, legacy: bool) -> None:
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                str(Path(__file__).with_name("fixtures") / "r314_wait_process.py"),
+                mode,
+                "legacy" if legacy else "drain",
+            ],
+            env={
+                **os.environ,
+                "PYTHONPATH": os.pathsep.join(sys.path),
+                "DUR053_WITNESS_DIR": str(tmp_path),
+            },
+            capture_output=True,
+            text=True,
+            timeout=5,
+        )
+    except subprocess.TimeoutExpired as error:
+        pytest.fail(
+            f"main wait did not seal signal and begin drain within one second: {error.stderr!r}"
+        )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "BOUNDED_SIGNAL_DRAIN_COMPLETE" in result.stdout
+
+
+@pytest.mark.parametrize("legacy", [False, True])
+def test_two_real_sigterms_one_signal_row(tmp_path: Path, legacy: bool) -> None:
+    _wait_process(tmp_path, "repeated", legacy)
