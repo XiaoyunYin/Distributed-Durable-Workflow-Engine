@@ -13324,8 +13324,8 @@
       "id": "k4r258-ignore-late-stop",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_evidence.py",
-      "old": "        need(schedule_stop_timely(root, m, m[\"rate\"]), \"k4-arrival-stop-late\")",
-      "new": "        need(True, \"k4-arrival-stop-late\")",
+      "old": "        need(timely, \"k4-arrival-stop-unscheduled\" if timely is None else \"k4-arrival-stop-late\")",
+      "new": "        need(True, \"k4-arrival-stop-unscheduled\" if timely is None else \"k4-arrival-stop-late\")",
       "command": [
         "D:/portfolio-projects/durable-agent-execution-engine/.venv/Scripts/python.exe",
         "-m",
