@@ -13898,6 +13898,70 @@
       ],
       "expected": "R316 stop observation at or after tick deadline accepted",
       "requires_database": false
+    },
+    {
+      "id": "k4r317-no-early-hold",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "        early_hold = self.hold_state(ns, \"worker\", \"set\") if long_drain else None\n",
+      "new": "        early_hold = None\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round290.py::test_early_hold_precedes_arrivals_only_in_engineering_long_smoke",
+        "-q"
+      ],
+      "expected": "R317 engineering hold missing before arrivals or registered timing changed",
+      "requires_database": false
+    },
+    {
+      "id": "k4r317-invalid-selected-session",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "                if o[\"pod_uid\"] in targets\n                and o[\"claim\"][\"node\"] == \"dur048.sleep\"\n                and o[\"at\"] >= hold[\"observer\"]\n",
+      "new": "                if o[\"at\"] >= hold[\"observer\"]\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round290.py::test_selection_excludes_foreign_pods_and_fast_or_prehold_work",
+        "-q"
+      ],
+      "expected": "R317 selected session is not an old worker held dur048.sleep",
+      "requires_database": false
+    },
+    {
+      "id": "k4r317-no-signal-wait",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "            if signals and time.time() < bound:\n",
+      "new": "            if time.time() < bound:\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round290.py::test_release_waits_for_one_actual_target_term",
+        "-q"
+      ],
+      "expected": "R317 hold released before qualifying target SIGTERM",
+      "requires_database": false
+    },
+    {
+      "id": "k4r317-no-mechanism",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "            if long_drain:\n                overlap = self.engineering_drain_overlap(ns, adapter, early_hold, deadline)\n",
+      "new": "            if False:\n                overlap = self.engineering_drain_overlap(ns, adapter, early_hold, deadline)\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round290.py::test_episode_connects_selection_and_signal_release",
+        "-q"
+      ],
+      "expected": "R317 episode bypassed engineering selection or signal wait, or changed registered path",
+      "requires_database": false
     }
   ]
 }

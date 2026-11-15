@@ -75,6 +75,14 @@ SMOKE_WINDOWS = {"short": 12, "long": 50}
 SMOKE_LIVE_RESERVATION = 4800
 
 
+def engineering_long_drain(engineering, budget_scope, cell):
+    return (
+        engineering
+        and budget_scope == "engineering-validation"
+        and cell["episode"] == "long-core-0-pair-0-treatment"
+    )
+
+
 def episode_parameters(f, cell, *, engineering):
     p = parameters(f, cell["duration"])
     if engineering and cell["episode"] != REGISTERED_SMOKE:
@@ -1113,6 +1121,78 @@ class K4Driver:
             time.sleep(0.05)
         return []
 
+    def engineering_drain_overlap(self, ns, adapter, hold, deadline):
+        # The hold is installed BEFORE load starts. A sleep acknowledged after
+        # that installation cannot enter its 45 s activity until release. One
+        # ready old pod suffices: RollingUpdate terminates both old workers,
+        # and release waits for the selected session's own SIGTERM.
+        bound = min(deadline, hold["host_start"] + 60)
+        while time.time() < bound:
+            self.check_observation()
+            pods = adapter.pods("worker")
+            targets = {p["metadata"]["uid"] for p in pods if ready(p)}
+            overlap = [
+                o
+                for o in self.overlap(ns, "worker", time.time())
+                if o["pod_uid"] in targets
+                and o["claim"]["node"] == "dur048.sleep"
+                and o["at"] >= hold["observer"]
+            ]
+            if overlap and time.time() < bound:
+                save(
+                    self.episode_output / "engineering-long-drain.json",
+                    dict(targets=sorted(targets), overlap=overlap, hold=hold, deadline=bound),
+                )
+                return overlap
+            time.sleep(0.05)
+        require(False, "k4-engineering-long-drain-target-timeout")
+
+    def release_engineering_drain(self, ns, overlap, hold, deadline, release):
+        # Deletion precedes SIGTERM, sometimes by many seconds. Preserve the
+        # existing bounded hold until an actual signal on a selected session.
+        # Only one session is needed by verify_engineering's unchanged guard.
+        bound = min(deadline, hold["host_start"] + 60)
+        selected = {o["session"] for o in overlap}
+        filenames = {
+            session + suffix
+            for session in selected
+            for suffix in (".inventory.json", ".jsonl", ".trace.jsonl")
+        }
+        while time.time() < bound:
+            self.check_observation()
+            # A surge pod can be watched before its witness is initialized.
+            # Confirm only the selected old sessions, using their sealed files.
+            sessions = [s for s in self.collector.live.read() if s["session"] in selected]
+            raw = {k: v for k, v in self.witness_raw(ns).items() if Path(k).name in filenames}
+            _, invocations, traces = export_seals(raw, sessions)
+            held = {
+                o["session"]: o["at"]
+                for o in overlap
+                if any(
+                    v["session"] == o["session"]
+                    and "durable-witness:" + v["id"] == o["acknowledgment"]
+                    and v["finish"] is None
+                    for v in invocations
+                )
+            }
+            signals = [
+                t
+                for t in traces
+                if t["event"] == "signal"
+                and t["signal"] == 15
+                and t["session"] in held
+                and held[t["session"]] <= t["at"]
+            ]
+            if signals and time.time() < bound:
+                save(
+                    self.episode_output / "engineering-long-drain-signal.json",
+                    dict(signals=signals, observed_at=time.time(), deadline=bound),
+                )
+                release()
+                return
+            time.sleep(0.05)
+        require(False, "k4-engineering-long-drain-signal-timeout")
+
     def diagnostics(self):
         for ns in sorted(self.namespaces | {"chaos-mesh"}):
             result = self.base.k(
@@ -1852,6 +1932,8 @@ print(json.dumps(rows))
             adapter.rollback_setup(cell["event"].split()[0].lower())
         self.start_samples(ns, db)
         adapter.safety = self.check_observation
+        long_drain = engineering_long_drain(self.engineering, job_manifest["budget_scope"], cell)
+        early_hold = self.hold_state(ns, "worker", "set") if long_drain else None
         start = time.time() + 3
         m["warmup_start"] = start
         locked_document(self.episode_output / "episode.json", m)
@@ -1866,7 +1948,7 @@ print(json.dumps(rows))
                 time.sleep(0.05)
             m["hold"] = dict(
                 role=hold_role,
-                hold_set=self.hold_state(ns, hold_role, "set"),
+                hold_set=early_hold if long_drain else self.hold_state(ns, hold_role, "set"),
                 hold_released=None,
                 bound_expiry=0,
                 bound_expired=False,
@@ -1891,7 +1973,13 @@ print(json.dumps(rows))
             role = "worker" if "PDB" in cell["event"] else cell["event"].split()[0].lower()
             m["confirmation_deadline"] = deadline
             locked_document(self.episode_output / "episode.json", m)
-            overlap = self.confirmed_overlap(ns, role, deadline)
+            if long_drain:
+                overlap = self.engineering_drain_overlap(ns, adapter, early_hold, deadline)
+                adapter.release = lambda: self.release_engineering_drain(
+                    ns, overlap, early_hold, deadline, release
+                )
+            else:
+                overlap = self.confirmed_overlap(ns, role, deadline)
             m["confirmation_deadline"] = deadline
             if overlap:
                 diagnostic_stop = self.start_target_signal_diagnostics(
