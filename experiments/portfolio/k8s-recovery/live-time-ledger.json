@@ -164,6 +164,24 @@
       "run_id": "43536422415",
       "status": "FAIL",
       "tree_sha": "456cc5a421810974f81762b764418d889bb99d9c"
+    },
+    {
+      "artifact": "experiments/portfolio/k8s-recovery/k4-v1/k4-1/43646226152/manifest.json",
+      "artifact_sha256": "42b1622ffba66a97f119d6eb58d94df99312deb7502ff55ebdbe36d0c3671804",
+      "category": "k4-1",
+      "charged_seconds": 1342,
+      "head_sha": "cae8163caa2a2038ab0675093cd7ead13ff08e62",
+      "intake_sha256": "30e42f622c44c2ef6a69e5e76ff259ecc75044f8806435517ee635cdb8a4c2cb",
+      "job_id": "132604521450",
+      "k4_episodes": [
+        "short-core-2-pair-0-baseline-replacement-1",
+        "short-core-2-pair-0-treatment-replacement-1"
+      ],
+      "merge_ref_sha": "cae8163caa2a2038ab0675093cd7ead13ff08e62",
+      "payload_index_sha256": "5ee302347ce2219b139989410e422f1283379065e4d2bf27041c485520532880",
+      "run_id": "43646226152",
+      "status": "PASS",
+      "tree_sha": "3572d4e24a62a5ddb539e2f048d61745e3a5a858"
     }
   ],
   "limit_seconds": 259200,
