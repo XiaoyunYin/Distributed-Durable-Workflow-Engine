@@ -236,13 +236,22 @@ def journal_fixture(root, m, docs):
             for i, a in enumerate(arrivals)
         ],
     )
+    # The generator retains an unsent tick at/after the stop-file boundary.
+    plan["rows"].append(
+        dict(
+            key="stop-tick",
+            workflow_id="stop-tick",
+            sequence=len(arrivals),
+            scheduled_at=driver.stamp(m["warmup_start"] + len(arrivals) / m["rate"]),
+        )
+    )
     journal = [
         dict(event="plan", plan=plan),
-        *[dict(event="arrival", **a) for a in arrivals],
+        *[dict(a, event="arrival", scheduled=driver.stamp(a["scheduled"])) for a in arrivals],
         dict(
             event="stop",
             reason="stop-file",
-            at=driver.stamp(m["window_end"]),
+            at=plan["rows"][-1]["scheduled_at"],
             stop=driver.stamp(m["window_end"]),
         ),
     ]

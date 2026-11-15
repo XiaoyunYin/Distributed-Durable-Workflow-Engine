@@ -1677,3 +1677,12 @@ rate, grace period, drain budget, or episode bound is changed.
 
 
 6. R314/R315 quiet-interval clarification (Round 284). When a target is still alive at load completion, the quiet/reconciliation interval starts after target termination observation has reached its CRI death or the first observed deletionTimestamp grace deadline (whichever comes first), capped by the unchanged episode reconciliation deadline. Witness writes during this observation wait do not count toward a completed quiet interval. The quiet interval start can therefore shift later; the overall deadline, schedule, grace period, drain budget, predicates and classifications are unchanged. Live signal diagnostics run concurrently from the intervention-issued boundary and do not extend these bounds. Both worker modes now use a 0.1-second main-thread wait and an idempotent signal coordinator step; paired arms use the same updated worker bytes.
+
+7. **R316 evidence-predicate timing-bound correction (Round 288).** The arrival
+   stop predicate selects the first journalled plan tick scheduled at or after
+   the stop-file value, preserving nanosecond precision. That tick must be no
+   later than window_end + 1/rate + 1 microsecond; the single stop-file observation
+   must fall within [tick, tick + 1/rate), with no arrival scheduled at or after
+   tick. An exhausted plan is refused with a distinct issue. This correction is
+   applied to all historical and future K4 episodes and changes no committed
+   outcome. The Go load generator and images are unchanged.

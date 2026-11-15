@@ -1,0 +1,44 @@
+{
+  "source": "PR #36 CI run 43654156854, short-coverage-3-0-treatment; exact retained fields only",
+  "window_end": 1794701876.7155557,
+  "rate": 7.136100570066256,
+  "journal": [
+    {
+      "event": "plan",
+      "plan": {
+        "rate": 7.136100570066256,
+        "rows": [
+          {
+            "sequence": 126,
+            "key": "dur053-k4-baa55b4b5de7-530080-000126",
+            "scheduled_at": "2026-11-15T00:17:56.71550983Z"
+          },
+          {
+            "sequence": 127,
+            "key": "dur053-k4-baa55b4b5de7-530080-000127",
+            "scheduled_at": "2026-11-15T00:17:56.855642384Z"
+          }
+        ]
+      }
+    },
+    {
+      "attempts": 1,
+      "error": "",
+      "event": "arrival",
+      "id": "dur053-k4-baa55b4b5de7-530080-000126",
+      "key": "dur053-k4-baa55b4b5de7-530080-000126",
+      "outcome": "accepted",
+      "request_hash": "ad8220bf376862542b6a2aaf5d21a973717fb9683454f0d9f3775f6eb42182a1",
+      "scheduled": "2026-11-15T00:17:56.71550983Z",
+      "sent": "2026-11-15T00:17:56.716565424Z",
+      "status": 201,
+      "workflow": "dur053-k4-baa55b4b5de7-530080-000126"
+    },
+    {
+      "at": "2026-11-15T00:17:56.856439532Z",
+      "event": "stop",
+      "reason": "stop-file",
+      "stop": "2026-11-15T00:17:56.715556Z"
+    }
+  ]
+}
