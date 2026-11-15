@@ -6,8 +6,11 @@ import argparse
 import hashlib
 import json
 import math
+import re
 import subprocess
 from collections import Counter, defaultdict
+from datetime import UTC, datetime
+from decimal import Decimal
 from pathlib import Path
 
 from dur053_k3_policy import require
@@ -336,14 +339,36 @@ def schedule_stopped(root, m):
 
 
 def schedule_stop_timely(root, m, rate):
-    from dur053_k4_collectors import utc
+    """Return None for an exhausted plan, otherwise whether the stop is timely."""
 
-    stops = [
-        json.loads(line)
-        for line in (root / "arrivals-journal.jsonl").read_text().splitlines()
-        if json.loads(line).get("event") == "stop"
-    ]
-    return len(stops) == 1 and utc(stops[0]["at"]) <= m["window_end"] + 1 / rate + 1e-6
+    def ns(value):
+        # datetime alone truncates RFC3339Nano; epoch floats also lose nanoseconds.
+        parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        delta = parsed - datetime(1970, 1, 1, tzinfo=UTC)
+        fraction = re.search(r"\.(\d+)", value)
+        residual = int((fraction[1] + "000000000")[:9]) % 1000 if fraction else 0
+        return (
+            (delta.days * 86400 + delta.seconds) * 1_000_000 + delta.microseconds
+        ) * 1000 + residual
+
+    rows = [json.loads(line) for line in (root / "arrivals-journal.jsonl").read_text().splitlines()]
+    stops = [r for r in rows if r.get("event") == "stop"]
+    if len(stops) != 1 or stops[0].get("reason") != "stop-file":
+        return False
+    stop = ns(stops[0]["stop"])
+    tick = next(
+        (ns(r["scheduled_at"]) for r in rows[0]["plan"]["rows"] if ns(r["scheduled_at"]) >= stop),
+        None,
+    )
+    if tick is None:
+        return None
+    at = ns(stops[0]["at"])
+    interval = Decimal(1_000_000_000) / Decimal(str(rate))
+    return (
+        tick <= Decimal(str(m["window_end"])) * 1_000_000_000 + interval + 1000
+        and tick <= at < tick + interval
+        and not any(r.get("event") == "arrival" and ns(r["scheduled"]) >= tick for r in rows)
+    )
 
 
 def episode(root: Path, f: dict, checker: Path) -> dict:
@@ -457,7 +482,8 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
     if (root / "arrivals-journal.jsonl").exists() or m["hold"] is not None:
         need(hold_evidence(m, arrivals), "k4-hold-evidence")
     if (root / "arrivals-journal.jsonl").exists():
-        need(schedule_stop_timely(root, m, m["rate"]), "k4-arrival-stop-late")
+        timely = schedule_stop_timely(root, m, m["rate"])
+        need(timely, "k4-arrival-stop-unscheduled" if timely is None else "k4-arrival-stop-late")
     need(
         len({a["id"] for a in arrivals}) == len(arrivals)
         and len({a["key"] for a in arrivals}) == len(arrivals),

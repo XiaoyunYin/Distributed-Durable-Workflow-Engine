@@ -13324,8 +13324,8 @@
       "id": "k4r258-ignore-late-stop",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_evidence.py",
-      "old": "        need(schedule_stop_timely(root, m, m[\"rate\"]), \"k4-arrival-stop-late\")",
-      "new": "        need(True, \"k4-arrival-stop-late\")",
+      "old": "        need(timely, \"k4-arrival-stop-unscheduled\" if timely is None else \"k4-arrival-stop-late\")",
+      "new": "        need(True, \"k4-arrival-stop-unscheduled\" if timely is None else \"k4-arrival-stop-late\")",
       "command": [
         "D:/portfolio-projects/durable-agent-execution-engine/.venv/Scripts/python.exe",
         "-m",
@@ -13849,6 +13849,54 @@
         "-q"
       ],
       "expected": "live signal samples missed deletion or repeat",
+      "requires_database": false
+    },
+    {
+      "id": "k4r316-observed-bound",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "        tick <= Decimal(str(m[\"window_end\"])) * 1_000_000_000 + interval + 1000\n",
+      "new": "        at <= Decimal(str(m[\"window_end\"])) * 1_000_000_000 + interval + 1000\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round288.py::test_hosted_stop_tick_allows_wake_latency",
+        "-q"
+      ],
+      "expected": "R316 hosted stop rejected despite observation within first stop tick interval",
+      "requires_database": false
+    },
+    {
+      "id": "k4r316-tick-strict",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "(ns(r[\"scheduled_at\"]) for r in rows[0][\"plan\"][\"rows\"] if ns(r[\"scheduled_at\"]) >= stop)",
+      "new": "(ns(r[\"scheduled_at\"]) for r in rows[0][\"plan\"][\"rows\"] if ns(r[\"scheduled_at\"]) > stop)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round288.py::test_exact_tick_is_first_eligible_at_nanosecond_precision",
+        "-q"
+      ],
+      "expected": "R316 exact stop tick skipped or nanosecond predecessor selected",
+      "requires_database": false
+    },
+    {
+      "id": "k4r316-no-upper",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "        and tick <= at < tick + interval\n",
+      "new": "        and tick <= at\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round288.py::test_observed_stop_upper_bound",
+        "-q"
+      ],
+      "expected": "R316 stop observation at or after tick deadline accepted",
       "requires_database": false
     }
   ]
