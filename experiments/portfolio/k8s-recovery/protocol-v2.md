@@ -1686,3 +1686,17 @@ rate, grace period, drain budget, or episode bound is changed.
    tick. An exhausted plan is refused with a distinct issue. This correction is
    applied to all historical and future K4 episodes and changes no committed
    outcome. The Go load generator and images are unchanged.
+
+### B.7 engineering long-drain smoke (R317, Rounds 290/294)
+
+Only the engineering-validation `long-core-0-pair-0-treatment` smoke installs
+the existing 60 s worker boundary hold before arrivals and issues the rollout
+as soon as at least one ready old worker holds a post-hold unfinished
+`dur048.sleep` (arrival 0 qualifies). It selects only those old worker sessions
+and releases after observing SIGTERM on a qualifying selected session. The
+rollout terminates both old workers, so the 45 s activity starts after that
+signal and crosses the unchanged 30 s drain deadline, regardless of which old
+worker the rollout removes first. Target and signal waits refuse distinctly
+at the earlier of the existing confirmation deadline and hold expiry. This
+changes no registered behavior, arrival schedule/rate, activity duration,
+worker image, rollout strategy, drain budget, or coverage predicate.
