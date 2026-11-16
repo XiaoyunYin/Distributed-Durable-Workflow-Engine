@@ -161,13 +161,20 @@ def legacy_download(tmp_path, monkeypatch):
 
     # The fixture trims bulk diagnostics/exports. Isolate metric recomputation
     # at this seam; the real retained download exercises the unmocked recorder.
-    def recompute(path, *args):
+    def safety(path, _, *, rules=evidence.Derivation.CORRECTED):
+        result = copy.deepcopy(rows[path.name].get("safety"))
+        if result is not None and rules is evidence.Derivation.CORRECTED:
+            assert result["http_5xx"] == 0  # The pinned fixture has no HTTP failures.
+            result["http_5xx_by_role"] = []
+        return result
+
+    def recompute(path, *args, rules=evidence.Derivation.CORRECTED):
         row = rows[path.name]
         result = dict(
             copy.deepcopy(row["metrics"]),
             reaction=None,
             budget_scope=row["episode"].get("budget_scope", m["budget_scope"]),
-            safety=row.get("safety"),
+            safety=safety(path, None, rules=rules),
         )
         if path.name == "short-core-2-pair-0-baseline":
             result["issues"] = evidence.confirmation(
@@ -176,7 +183,7 @@ def legacy_download(tmp_path, monkeypatch):
         return result
 
     monkeypatch.setattr(evidence, "episode", recompute)
-    monkeypatch.setattr(evidence, "safety_evidence", lambda path, _: rows[path.name].get("safety"))
+    monkeypatch.setattr(evidence, "safety_evidence", safety)
     monkeypatch.setattr(
         payload, "FILTERS", [dict(id=lzma.FILTER_LZMA2, preset=0, dict_size=1 << 20)]
     )
@@ -253,8 +260,8 @@ def refuse_added_metric(legacy_download, monkeypatch, field, value):
     source, m = legacy_download
     episode = evidence.episode
 
-    def recompute(path, *args):
-        result = episode(path, *args)
+    def recompute(path, *args, **kwargs):
+        result = episode(path, *args, **kwargs)
         result[field] = value
         return result
 

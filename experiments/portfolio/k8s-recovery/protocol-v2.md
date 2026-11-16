@@ -1700,3 +1700,47 @@ worker the rollout removes first. Target and signal waits refuse distinctly
 at the earlier of the existing confirmation deadline and hold expiry. This
 changes no registered behavior, arrival schedule/rate, activity duration,
 worker image, rollout strategy, drain budget, or coverage predicate.
+
+### B.7 HTTP drain-cost correction (R318, Rounds 303/304)
+
+This correction follows observing seven worker-control HTTP 503
+`CONTROL_UNAVAILABLE` responses in four k4-2 node-drain baseline episodes
+(run 43714142099), retried with the same request identities; treatments had zero.
+The Drain metric registered on **2026-11-04**
+([Evidence and metric definitions, Drain](#evidence-and-metric-definitions)) already
+includes per-role control HTTP errors/retries and client submission errors.
+The later HTTP-5xx safety-failure clause exceeded that registered definition.
+Retried control-plane/client 5xx are drain cost, reported by role and arm as
+`http_5xx_by_role`, with the total `http_5xx` retained in safety rows and summary;
+HTTP 5xx alone no longer fails safety. A 5xx coinciding with a lost, duplicated
+or stale result remains unsafe through the existing counters, as do FAILED or
+CANCELED workflows and superseded owner transitions. HTTP 5xx remains an engine
+outcome for `k4-engine-outcome-not-infrastructure`. Historical and future K4
+verification use the corrected predicate without rewriting committed evidence;
+retained pre-correction report fields keep their historical values.
+
+
+### B.7 assignment generation-end correction (R319, Rounds 308/309)
+
+The k4-2-c1 `long-core-0-pair-0-treatment` FAIL exposed a generation-end
+predicate defect: a joining consumer's revoke has generation `-1` (no current
+group generation), so requiring the preceding generation's label admitted later
+arrivals into an already-ended opportunity window. All observed consumers use
+one group, `runtime-workers-v1`. A stable generation now ends at the first
+`revoke` or `rebalance_start` in that group strictly after stability, regardless
+of the callback's generation label. The registered Assignment stall metric is
+unchanged. In k4-2 and k4-2-c1 this changes only `eligible_undisposed` lists in
+16 episodes and one verdict: the long treatment becomes PASS and complete;
+assignment-only, total, censoring and longest-active values are unchanged.
+Across all committed history, 16 earlier episodes also change only eligibility
+lists. Removing the long treatment's censoring issue restores its previously
+suppressed `no_active_fault` population and validity/completeness as well.
+
+For both R318 and R319, retained metrics, summary, reclassification and intake
+bytes keep their historical values. Intake reproduces the producer's complete
+derivation exactly under the pre-R318 HTTP-inclusive safety predicate and
+pre-R319 generation-equality end rule. Verification proves those historical
+reports before returning corrected results for every episode. The role breakdown
+(always present, even empty, in corrected-driver reports) selects corrected rules
+and strict whole-document equality for new artifacts; no field projection is
+used. Re-staging an old recording preserves its historical intake bytes.

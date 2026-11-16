@@ -49,9 +49,11 @@ def legacy_form(source, m):
     return legacy
 
 
-def legacy_reclassification(source, f, checker, m):
+def legacy_reclassification(source, f, checker, m, *, rules=None):
     """Re-derive the pinned download without writing any retained byte."""
-    from dur053_k4_evidence import FILES, episode, safety_evidence, summaries
+    from dur053_k4_evidence import FILES, Derivation, episode, safety_evidence, summaries
+
+    rules = Derivation.CORRECTED if rules is None else rules
 
     require(legacy_form(source, m), "k4-legacy-form")
     require(m["charged_seconds"] == 10874, "k4-legacy-charge")
@@ -62,10 +64,10 @@ def legacy_reclassification(source, f, checker, m):
         if original["classification"] != "infrastructure-invalid" or all(
             (source / name / file).is_file() for file in FILES.values()
         ):
-            computed = episode(source / name, f, checker)
+            computed = episode(source / name, f, checker, rules=Derivation.HISTORICAL)
             retained = json.loads((source / name / "metrics.json").read_bytes())
             episode_manifest = load(source / name / "episode.json")
-            retained_safety = safety_evidence(source / name, checker)
+            retained_safety = safety_evidence(source / name, checker, rules=Derivation.HISTORICAL)
             expected_metrics = dict(
                 retained,
                 reaction=None,
@@ -105,19 +107,23 @@ def legacy_reclassification(source, f, checker, m):
             validate_disposition(source, original)
             derived = dict(original)
         dispositions.append(derived)
-    old_summary = summaries(values)
+    old_summary = summaries(values, rules=Derivation.HISTORICAL)
     del old_summary["safety"]
     del old_summary["reactions"]
     require(
         old_summary == json.loads((source / "summary.json").read_bytes()),
         "k4-legacy-summary",
     )
+    if rules is Derivation.CORRECTED:
+        values = [episode(source / v["episode"], f, checker) for v in values]
     safety_rows = [
-        s for name in m["episodes"] if (s := safety_evidence(source / name, checker)) is not None
+        s
+        for name in m["episodes"]
+        if (s := safety_evidence(source / name, checker, rules=rules)) is not None
     ]
     contributing = {d["episode"] for d in dispositions if d["classification"] == "valid"}
     summary = summaries(
-        [v for v in values if v["episode"] in contributing], safety_rows=safety_rows
+        [v for v in values if v["episode"] in contributing], safety_rows=safety_rows, rules=rules
     )
     return dict(
         schema="dur053.k4-reclassification.v1",
@@ -132,7 +138,9 @@ def legacy_reclassification(source, f, checker, m):
         summary=summary,
         metrics=[v for v in values if v["episode"] in contributing],
         safety_rows=safety_rows,
-        collection_failure_root_cause="R301 cumulative overlap reparse exhausted confirmation window",
+        collection_failure_root_cause=(
+            "R301 cumulative overlap reparse exhausted confirmation window"
+        ),
     )
 
 
@@ -759,13 +767,17 @@ def validate_job(source: Path, f: dict, *, history: dict[str, dict], intake=True
 
 
 def prepare(source: Path, repository: Path, checker: Path):
-    from dur053_k4_evidence import episode, safety_evidence, summaries
+    from dur053_k4_evidence import Derivation, recorded_derivation
 
     f = frozen(repository)
     prior, ledger = inventory(repository)
     history = {m["job_id"]: m for _, m in prior}
     m = validate_job(source, f, history=history)
-    document = legacy_reclassification(source, f, checker, m) if legacy_form(source, m) else None
+    document = (
+        legacy_reclassification(source, f, checker, m, rules=Derivation.HISTORICAL)
+        if legacy_form(source, m)
+        else None
+    )
     m = classified_manifest(m, document)
     target = repository / EVIDENCE_ROOT / m["job"] / m["run_id"]
     require(not target.exists(), "k4-intake-existing")
@@ -775,28 +787,25 @@ def prepare(source: Path, repository: Path, checker: Path):
     previous = {e for _, v in prior for e in contributions(v)}
     require(not previous.intersection(contributions(m)), "k4-intake-duplicate-episode")
     ledger_check(ledger, m["charged_seconds"], set())
-    values = []
-    for name in [] if document else metric_episodes(m, source):
-        computed = episode(source / name, f, checker)
-        require(
-            computed == json.loads((source / name / "metrics.json").read_bytes()),
-            "k4-intake-metrics",
+    values, safety_rows = (
+        ([], [])
+        if document
+        else recorded_derivation(
+            source,
+            f,
+            checker,
+            metric_episodes(m, source),
+            m["episodes"],
+            metrics_guard="k4-intake-metrics",
+            summary_guard="k4-intake-summary",
         )
-        values.append(computed)
+    )
+    for computed in values:
         validate_disposition(
-            source, next(d for d in m["dispositions"] if d["episode"] == name), metrics=computed
+            source,
+            next(d for d in m["dispositions"] if d["episode"] == computed["episode"]),
+            metrics=computed,
         )
-    safety_rows = (
-        [s for name in m["episodes"] if (s := safety_evidence(source / name, checker)) is not None]
-        if not document
-        else []
-    )
-    require(
-        document is not None
-        or summaries(values, safety_rows=safety_rows)
-        == json.loads((source / "summary.json").read_bytes()),
-        "k4-intake-summary",
-    )
     require(
         m["status"] != "PASS"
         or (all(v["valid"] for v in values) and len(contributions(m)) == len(m["episodes"])),
@@ -959,7 +968,7 @@ def interrupted(source: Path, repository: Path, name: str, checker: Path, destin
             if epdir.exists():
                 shutil.copytree(epdir, raw / eid)
             if complete:
-                ep = load(epdir / "episode.json")
+                load(epdir / "episode.json")
                 value = episode(raw / eid, f, checker)
                 save(raw / eid / "metrics.json", value)
                 values.append(value)
