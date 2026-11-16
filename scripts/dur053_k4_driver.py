@@ -2246,6 +2246,7 @@ def verify_engineering(root, checker):
         checker,
         m["episodes"],
         m["episodes"],
+        producer=m,
         metrics_guard="k4-engineering-metrics",
         summary_guard="k4-engineering-summary",
     )

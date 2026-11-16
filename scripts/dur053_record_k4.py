@@ -51,11 +51,19 @@ def legacy_form(source, m):
 
 def legacy_reclassification(source, f, checker, m, *, rules=None):
     """Re-derive the pinned download without writing any retained byte."""
-    from dur053_k4_evidence import FILES, Derivation, episode, safety_evidence, summaries
+    from dur053_k4_evidence import (
+        FILES,
+        Derivation,
+        episode,
+        producer_rules,
+        safety_evidence,
+        summaries,
+    )
 
     rules = Derivation.CORRECTED if rules is None else rules
 
     require(legacy_form(source, m), "k4-legacy-form")
+    require(producer_rules(m) is Derivation.HISTORICAL, "k4-legacy-producer")
     require(m["charged_seconds"] == 10874, "k4-legacy-charge")
     require(artifact_hashes(source) == m["artifact_sha256"], "k4-intake-artifact-hashes")
     values, dispositions, incidents = [], [], {}
@@ -796,6 +804,7 @@ def prepare(source: Path, repository: Path, checker: Path):
             checker,
             metric_episodes(m, source),
             m["episodes"],
+            producer=m,
             metrics_guard="k4-intake-metrics",
             summary_guard="k4-intake-summary",
         )

@@ -1222,6 +1222,12 @@ def test_episode_replacement_roundtrip(tmp_path, checker, monkeypatch):
             write(source / name / file, docs[key])
             ep["files"][key] = hashlib.sha256((source / name / file).read_bytes()).hexdigest()
         ep.update(job="k4-1", status="FAIL" if index == 2 else "PASS")
+        if index == 2:
+            write(source / name / "intervention-issued.json", dict(intervention_issued=120))
+            write(
+                source / name / "intervention-error.json",
+                dict(error="K3 guard: k4-rollout-incomplete"),
+            )
         write(source / name / "episode.json", ep)
         value = evidence.episode(source / name, f, checker)
         assert value["valid"] and value["complete"] and value["offered"] > value["accepted"] > 200

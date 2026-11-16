@@ -1740,7 +1740,42 @@ For both R318 and R319, retained metrics, summary, reclassification and intake
 bytes keep their historical values. Intake reproduces the producer's complete
 derivation exactly under the pre-R318 HTTP-inclusive safety predicate and
 pre-R319 generation-equality end rule. Verification proves those historical
-reports before returning corrected results for every episode. The role breakdown
-(always present, even empty, in corrected-driver reports) selects corrected rules
-and strict whole-document equality for new artifacts; no field projection is
-used. Re-staging an old recording preserves its historical intake bytes.
+reports before returning corrected results for every episode. Registered producer
+identity selects the rules as specified in the R320 note below; the role breakdown
+must agree with those rules. Strict whole-document equality is required; no field
+projection is used. Re-staging an old recording preserves its historical intake bytes.
+
+### B.7 idle scale-down correction (R320, Round 311)
+
+The k4-3 baselines `long-core-1-pair-2-baseline` and
+`long-core-1-pair-4-baseline` (run 43815170801) exposed a confirmation defect:
+the driver confirmed in-flight work on Deployment/worker, scaled 4 to 2, then
+filtered the retained overlap to removed pods. When all in-flight work was on
+survivors, the empty overlap incorrectly made the exercised episode FAIL/invalid.
+This correction was made after observing those two baselines. The registered
+metric definitions, assignment and intervention are unchanged.
+
+For scale-down only, Deployment-level confirmation enforced before intervention
+is sufficient. Removing idle pods is valid and exercised, with empty affected
+population, null reaction and empty dependent recovery populations. Other kinds
+still require nonempty overlap. Corrected scale-down metrics explicitly report
+`scale_down_removal` as `idle` or `busy` from the retained removed-pod overlap at
+intervention; `observed_overlap_first_at` remains disclosure only. K7's existing
+busy/idle classification still uses exact pod UIDs at deletion start, including
+its ambiguity checks, rather than the pre-filter observation.
+
+HISTORICAL proves the complete pre-R318/R319/R320 reports only for this closed
+registered campaign set: k4-1 / 43536422415, k4-1 replacement / 43646226152,
+k4-1-c1 / 43681029839, k4-2 / 43714142099, k4-2-c1 / 43776853010, and
+k4-3 / 43815170801. Every other campaign run and every engineering smoke must
+match CORRECTED strictly; a conflicting format marker is refused. Historical
+intake, report, ledger and archive bytes remain unchanged. Verification first
+proves producer reports and then derives corrected metrics. For issued, derivable
+episodes it reconstructs PASS iff valid with no intervention outcome; independent
+collection-failure and unissued statuses remain preserved.
+
+Observed R320 verdict scope is the two k4-3 idle baselines above: both become
+PASS/valid/complete; the busy `long-core-1-pair-3-baseline` is unchanged apart
+from the additive removal label. Earlier scale-down episodes had retained busy
+overlap. R319's long treatment remains PASS. K7 retains idle removals with zero
+excess under its registered rule rather than excluding them from the comparison.
