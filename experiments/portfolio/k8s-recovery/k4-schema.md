@@ -929,6 +929,13 @@ Pre-R318 retained reports are compared using their historical predicate and
 without the new breakdown; all other fields must match. No retained bytes change.
 The committed-only dispatch view marks an old row's unavailable role explicitly
 as `unavailable`; raw-evidence verification recovers the actual role.
+Producer rules are pinned to the six campaign identities registered in protocol-v2
+B.7's R320 note; every other run and every engineering smoke uses corrected rules.
+The format marker must agree. Corrected scale-down metrics add
+`scale_down_removal` (`idle` or `busy`) from removed-pod overlap at intervention.
+An empty scale-down overlap is valid with null reaction and empty affected
+population. `observed_overlap_first_at` is disclosure only. K7 still classifies
+busy/idle by UID at deletion start using `busy_removals`, including ambiguity.
 Unavailable lease audit evidence is explicit and cannot pass safety. Campaign
 validity and K7 safety use this aggregate in addition to the contributing
 population; excluded attempts can never erase a safety failure.

@@ -468,6 +468,7 @@ def verify_campaign(tmp_path, freeze, checker, monkeypatch, name, disposition): 
         job="k4-1",
         run_id="1",
         job_id="2",
+        budget_scope="registered-campaign",
         status="FAIL",
         charged_seconds=400,
         pending=[],

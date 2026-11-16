@@ -14015,7 +14015,7 @@
       "id": "k4r318-intake-strict",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_evidence.py",
-      "old": "    rules = reporting_rules(stored)",
+      "old": "    rules = producer_rules(producer)",
       "new": "    rules = Derivation.CORRECTED",
       "command": [
         "python",
@@ -14024,7 +14024,7 @@
         "-q",
         "tests/test_k4_round303.py::test_intake_accepts_only_matching_retained_reports"
       ],
-      "expected": "k4-intake-metrics",
+      "expected": "k4-intake-summary",
       "requires_database": false
     },
     {
@@ -14057,6 +14057,36 @@
         "tests/test_k4_round303.py::test_intake_accepts_only_matching_retained_reports"
       ],
       "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r320-restore-overlap-gate",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "        and (bool(c[\"overlap\"]) or (kind == \"scale-down\" and rules is Derivation.CORRECTED)),\n",
+      "new": "        and bool(c[\"overlap\"]),\n",
+      "command": ["python", "-m", "pytest", "-q", "tests/test_k4_round311.py::test_idle_scale_down_is_valid_complete"],
+      "expected": "R320 idle scale-down retained the nonempty overlap gate",
+      "requires_database": false
+    },
+    {
+      "id": "k4r320-unregistered-historical",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "    rules = producer_rules(producer)\n    require(reporting_rules(stored) is rules, summary_guard)\n",
+      "new": "    rules = reporting_rules(stored)\n    require(reporting_rules(stored) is rules, summary_guard)\n",
+      "command": ["python", "-m", "pytest", "-q", "tests/test_k4_round311.py::test_registered_producer_proof"],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k4r320-recorded-status",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_evidence.py",
+      "old": "            metrics[\"status\"] = \"PASS\" if metrics[\"valid\"] and not outcome else \"FAIL\"\n",
+      "new": "            metrics[\"status\"] = m[\"status\"]\n",
+      "command": ["python", "-m", "pytest", "-q", "tests/test_k4_round311.py::test_idle_scale_down_is_valid_complete"],
+      "expected": "R320 status echoed the recorded FAIL",
       "requires_database": false
     }
   ]

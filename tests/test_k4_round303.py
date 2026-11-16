@@ -134,6 +134,7 @@ def test_intake_accepts_only_matching_retained_reports(tmp_path, monkeypatch):
     manifest = dict(
         job="k4-2",
         run_id="1",
+        budget_scope="registered-campaign",
         job_id="2",
         head_sha="a" * 40,
         merge_ref_sha="a" * 40,
@@ -175,6 +176,8 @@ def test_intake_accepts_only_matching_retained_reports(tmp_path, monkeypatch):
     monkeypatch.setattr(evidence, "summaries", summary_for)
 
     for old_format in (True, False):
+        manifest["run_id"] = "43714142099" if old_format else "1"
+        write(tmp_path / "manifest.json", manifest)
         rules = evidence.Derivation.HISTORICAL if old_format else evidence.Derivation.CORRECTED
         stored_metric = dict(copy.deepcopy(metric), safety=row_for(rules))
         stored_summary = summary_for(rules=rules)
@@ -233,7 +236,8 @@ def test_verification_recomputes_historical_http_safety(
     write(tmp_path / "summary.json", old)
     manifest = dict(
         job="k4-2",
-        run_id="1",
+        run_id="43714142099",
+        budget_scope="registered-campaign",
         job_id="2",
         status="CARRY_OVER",
         charged_seconds=400,

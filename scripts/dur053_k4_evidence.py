@@ -41,16 +41,34 @@ FILES = {
 
 
 class Derivation(Enum):
-    HISTORICAL = "pre-R318-R319"
-    CORRECTED = "R318-R319"
+    HISTORICAL = "pre-R318-R319-R320"
+    CORRECTED = "R318-R319-R320"
+
+
+# Closed before the R320 correction; engineering smokes always use current rules.
+HISTORICAL_PRODUCERS = frozenset(
+    {
+        ("k4-1", "43536422415"),
+        ("k4-1", "43646226152"),
+        ("k4-1-c1", "43681029839"),
+        ("k4-2", "43714142099"),
+        ("k4-2-c1", "43776853010"),
+        ("k4-3", "43815170801"),
+    }
+)
+
+
+def producer_rules(manifest):
+    return (
+        Derivation.HISTORICAL
+        if manifest["budget_scope"] == "registered-campaign"
+        and (manifest["job"], manifest["run_id"]) in HISTORICAL_PRODUCERS
+        else Derivation.CORRECTED
+    )
 
 
 def reporting_rules(document):
-    """The role breakdown marks reports produced by the corrected driver.
-
-    Select rules, never project fields: the entire derived document must equal
-    the recording. All newly produced reports include the breakdown, even empty.
-    """
+    """Read the format marker only; it must agree with registered producer rules."""
     if isinstance(document, dict):
         if "http_5xx_by_role" in document:
             return Derivation.CORRECTED
@@ -66,10 +84,13 @@ def reporting_rules(document):
     )
 
 
-def recorded_derivation(root, f, checker, names, attempted, *, metrics_guard, summary_guard):
+def recorded_derivation(
+    root, f, checker, names, attempted, *, producer, metrics_guard, summary_guard
+):
     """Prove retained reports exactly under their producer's derivation rules."""
     stored = json.loads((root / "summary.json").read_bytes())
-    rules = reporting_rules(stored)
+    rules = producer_rules(producer)
+    require(reporting_rules(stored) is rules, summary_guard)
     values = []
     for name in names:
         value = episode(root / name, f, checker, rules=rules)
@@ -107,7 +128,9 @@ def identity(i: dict, *, attempt=False):
     return tuple(i[k] for k in keys)
 
 
-def confirmation(c: dict, t: dict, event: str, leases=()) -> list[str]:
+def confirmation(
+    c: dict, t: dict, event: str, leases=(), *, rules=Derivation.CORRECTED
+) -> list[str]:
     issues = []
 
     def need(ok: object, message: str) -> None:
@@ -133,7 +156,11 @@ def confirmation(c: dict, t: dict, event: str, leases=()) -> list[str]:
         "k4-confirmation-target",
     )
     sessions = {s["session"]: s for s in t["sessions"]}
-    need(bool(c["targets"]) and bool(c["overlap"]), "k4-confirmation-overlap")
+    need(
+        bool(c["targets"])
+        and (bool(c["overlap"]) or (kind == "scale-down" and rules is Derivation.CORRECTED)),
+        "k4-confirmation-overlap",
+    )
     for o in c["overlap"]:
         s = sessions.get(o["session"], {})
         need(
@@ -473,7 +500,7 @@ def episode(root: Path, f: dict, checker: Path, *, rules=Derivation.CORRECTED) -
         t["namespace"] == m["namespace"] and t["witness"] == docs["witness"]["rows"],
         "k4-witness-inventory-binding",
     )
-    confirmation_issues = confirmation(c, t, cell["event"], docs["leases"]["rows"])
+    confirmation_issues = confirmation(c, t, cell["event"], docs["leases"]["rows"], rules=rules)
     if c["reaction"] is not None:
         require(
             bool(c["overlap"])
@@ -511,7 +538,9 @@ def episode(root: Path, f: dict, checker: Path, *, rules=Derivation.CORRECTED) -
         "k4-confirmation-singleton-denial",
     }
     issues = [v for v in confirmation_issues if not outcome or v not in outcome_checks]
-    if outcome and not c["overlap"]:
+    if outcome and not c["overlap"] and not (
+        c["kind"] == "scale-down" and rules is Derivation.CORRECTED
+    ):
         issues.append("k4-confirmation-overlap")
 
     def need(ok: object, message: str) -> None:
@@ -970,21 +999,15 @@ def episode(root: Path, f: dict, checker: Path, *, rules=Derivation.CORRECTED) -
     )
     metrics["slo"]["wilson_95_descriptive"] = wilson(within, accepted)
     metrics["safety"] = safety_evidence(root, checker, rules=rules)
-    if rules is Derivation.CORRECTED and m["status"] == "FAIL" and metrics["valid"] and not outcome:
-        # The old driver persisted its derived FAIL in episode.json. Undo that
-        # feedback only when R319 removed the historical censoring gate.
-        historical_stalls = assignment_stalls(
-            docs["kafka"]["rows"],
-            arrivals,
-            t,
-            m["reconciliation_end"],
-            rules=Derivation.HISTORICAL,
-        )
-        if any(
-            row["censored"] and row["eligible_undisposed"] and row["change"] in intervention_changes
-            for row in historical_stalls
-        ):
-            metrics["status"] = "PASS"
+    if rules is Derivation.CORRECTED:
+        if c["kind"] == "scale-down":
+            metrics["scale_down_removal"] = "busy" if c["overlap"] else "idle"
+        # PASS/FAIL on the normal derivable path means an intervention was issued.
+        # The collection-failure handler writes harness-source.json and can also
+        # set FAIL (claim-clock loss); that independent failure must be preserved.
+        # Unissued/unexercised, invalid and interrupted statuses are not derived.
+        if m["status"] in {"PASS", "FAIL"} and not (root / "harness-source.json").exists():
+            metrics["status"] = "PASS" if metrics["valid"] and not outcome else "FAIL"
     return metrics
 
 
@@ -1553,8 +1576,10 @@ def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
             )
             if legacy:
                 stored = json.loads((path.parent / "reclassification.json").read_bytes())
+                rules = producer_rules(m)
+                require(reporting_rules(stored) is rules, "k4-legacy-reclassification")
                 document = legacy_reclassification(
-                    root, f, checker, load(root / "manifest.json"), rules=reporting_rules(stored)
+                    root, f, checker, load(root / "manifest.json"), rules=rules
                 )
                 require(
                     document == stored,
@@ -1576,13 +1601,11 @@ def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
                 checker,
                 metric_episodes(m, root),
                 m["episodes"],
+                producer=m,
                 metrics_guard="k4-stored-metrics",
                 summary_guard="k4-stored-summary",
             )
-            corrected = (
-                reporting_rules(json.loads((root / "summary.json").read_bytes()))
-                is Derivation.CORRECTED
-            )
+            corrected = producer_rules(m) is Derivation.CORRECTED
             for old in retained:
                 name = old["episode"]
                 value = old if corrected else episode(root / name, f, checker)
