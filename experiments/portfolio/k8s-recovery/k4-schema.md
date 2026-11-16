@@ -627,6 +627,7 @@ and enum alternatives are exact strings.
 | `failed_workflows` | `integer` |
 | `canceled_workflows` | `integer` |
 | `http_5xx` | `integer` |
+| `http_5xx_by_role` | `[{role: string, arm: 'baseline' \| 'treatment', http_5xx: integer}]` |
 | `passed` | `boolean` |
 
 ### dur053.k4-continuation-acks.v1
@@ -915,7 +916,19 @@ counts accepted arrivals without a terminal durable workflow (including other
 non-success terminal states); FAILED and CANCELED workflows are counted
 separately. `duplicate_accepted` counts duplicate durable keys and multiple
 committed successes for one logical iteration, not legitimate reexecutions.
-Stale commits, superseded owner transitions and HTTP 5xx also fail this aggregate.
+Stale commits and superseded owner transitions also fail this aggregate.
+`http_5xx` remains in every derivable per-episode safety row and the summary,
+but does not fail `passed`. `http_5xx_by_role` reports Drain cost as closed
+`{role, arm, http_5xx}` rows, summed across all attempted episodes. HTTP errors
+and retries by role and client submission errors remain in the episode's `http`
+and `submission_errors` metrics. Retried control-plane/client 5xx are drain cost;
+coincident lost, duplicated or stale results still fail through their existing
+counters. A 5xx remains an engine outcome for the infrastructure-invalid guard.
+Verification re-derives the corrected safety and role/arm counts from raw bytes.
+Pre-R318 retained reports are compared using their historical predicate and
+without the new breakdown; all other fields must match. No retained bytes change.
+The committed-only dispatch view marks an old row's unavailable role explicitly
+as `unavailable`; raw-evidence verification recovers the actual role.
 Unavailable lease audit evidence is explicit and cannot pass safety. Campaign
 validity and K7 safety use this aggregate in addition to the contributing
 population; excluded attempts can never erase a safety failure.

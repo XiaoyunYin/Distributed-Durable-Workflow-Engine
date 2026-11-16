@@ -354,6 +354,7 @@ SAFETY = obj(
     failed_workflows=int,
     canceled_workflows=int,
     http_5xx=int,
+    http_5xx_by_role=array(obj(role=str, arm=enum("baseline", "treatment"), http_5xx=int)),
     passed=bool,
 )
 SCHEMAS = {

@@ -44,7 +44,7 @@ from dur053_k4_collectors import (
     structured_log,
     utc,
 )
-from dur053_k4_evidence import FILES, safety_evidence, summaries
+from dur053_k4_evidence import FILES, recorded_derivation, safety_evidence, summaries
 from dur053_k4_evidence import episode as derive_episode
 from dur053_k4_interventions import (
     ENGINE_ROLES,
@@ -2240,19 +2240,19 @@ def verify_engineering(root, checker):
         m["episodes"] == list(SMOKE_CELLS) and m["status"] == "PASS" and m["cleanup"] == "PASS",
         "k4-engineering-coverage",
     )
-    for name in m["episodes"]:
-        value = derive_episode(root / name, f, checker)
-        require(
-            value == json.loads((root / name / "metrics.json").read_bytes())
-            and value["valid"]
-            and value["status"] == "PASS",
-            "k4-engineering-metrics",
-        )
-        metrics.append(value)
-    require(
-        summaries(metrics) == json.loads((root / "summary.json").read_bytes()),
-        "k4-engineering-summary",
+    retained, _ = recorded_derivation(
+        root,
+        f,
+        checker,
+        m["episodes"],
+        m["episodes"],
+        metrics_guard="k4-engineering-metrics",
+        summary_guard="k4-engineering-summary",
     )
+    for old in retained:
+        value = derive_episode(root / old["episode"], f, checker)
+        require(value["valid"] and value["status"] == "PASS", "k4-engineering-metrics")
+        metrics.append(value)
     registered = load(root / REGISTERED_SMOKE / "episode.json")
     confirmation = load(root / REGISTERED_SMOKE / "confirmation.json")
     require(

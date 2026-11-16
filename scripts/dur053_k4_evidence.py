@@ -11,6 +11,7 @@ import subprocess
 from collections import Counter, defaultdict
 from datetime import UTC, datetime
 from decimal import Decimal
+from enum import Enum
 from pathlib import Path
 
 from dur053_k3_policy import require
@@ -37,6 +38,53 @@ FILES = {
     "witness": "witness.json",
     "observers": "observers.json",
 }
+
+
+class Derivation(Enum):
+    HISTORICAL = "pre-R318-R319"
+    CORRECTED = "R318-R319"
+
+
+def reporting_rules(document):
+    """The role breakdown marks reports produced by the corrected driver.
+
+    Select rules, never project fields: the entire derived document must equal
+    the recording. All newly produced reports include the breakdown, even empty.
+    """
+    if isinstance(document, dict):
+        if "http_5xx_by_role" in document:
+            return Derivation.CORRECTED
+        children = document.values()
+    elif isinstance(document, list):
+        children = document
+    else:
+        return Derivation.HISTORICAL
+    return (
+        Derivation.CORRECTED
+        if any(reporting_rules(v) is Derivation.CORRECTED for v in children)
+        else Derivation.HISTORICAL
+    )
+
+
+def recorded_derivation(root, f, checker, names, attempted, *, metrics_guard, summary_guard):
+    """Prove retained reports exactly under their producer's derivation rules."""
+    stored = json.loads((root / "summary.json").read_bytes())
+    rules = reporting_rules(stored)
+    values = []
+    for name in names:
+        value = episode(root / name, f, checker, rules=rules)
+        require(
+            value == json.loads((root / name / "metrics.json").read_bytes()),
+            metrics_guard,
+        )
+        values.append(value)
+    rows = [
+        row
+        for name in attempted
+        if (row := safety_evidence(root / name, checker, rules=rules)) is not None
+    ]
+    require(summaries(values, safety_rows=rows, rules=rules) == stored, summary_guard)
+    return values, rows
 
 
 def population(values: list[float], *, missing=0, censored=0, long=False) -> dict:
@@ -371,7 +419,7 @@ def schedule_stop_timely(root, m, rate):
     )
 
 
-def episode(root: Path, f: dict, checker: Path) -> dict:
+def episode(root: Path, f: dict, checker: Path, *, rules=Derivation.CORRECTED) -> dict:
     m = load(root / "episode.json")
     if m["metrics"] == "not-derivable":
         from dur053_record_k4 import stopped_intake
@@ -697,7 +745,9 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
                 need(False, "k4-endpoint-removal-missing")
     leases = docs["leases"]["rows"]
     reacquire = partition_reacquisition(t, leases, m["intervention"])
-    stalls = assignment_stalls(docs["kafka"]["rows"], arrivals, t, m["reconciliation_end"])
+    stalls = assignment_stalls(
+        docs["kafka"]["rows"], arrivals, t, m["reconciliation_end"], rules=rules
+    )
     # Setup generations may end before the first registered arrival. Retain
     # their censoring, but gate the intervention's membership changes only.
     intervention_changes = {
@@ -919,7 +969,22 @@ def episode(root: Path, f: dict, checker: Path) -> dict:
         / m["W"]
     )
     metrics["slo"]["wilson_95_descriptive"] = wilson(within, accepted)
-    metrics["safety"] = safety_evidence(root, checker)
+    metrics["safety"] = safety_evidence(root, checker, rules=rules)
+    if rules is Derivation.CORRECTED and m["status"] == "FAIL" and metrics["valid"] and not outcome:
+        # The old driver persisted its derived FAIL in episode.json. Undo that
+        # feedback only when R319 removed the historical censoring gate.
+        historical_stalls = assignment_stalls(
+            docs["kafka"]["rows"],
+            arrivals,
+            t,
+            m["reconciliation_end"],
+            rules=Derivation.HISTORICAL,
+        )
+        if any(
+            row["censored"] and row["eligible_undisposed"] and row["change"] in intervention_changes
+            for row in historical_stalls
+        ):
+            metrics["status"] = "PASS"
     return metrics
 
 
@@ -1002,7 +1067,7 @@ def partition_reacquisition(t, leases, intervention):
     return reacquire
 
 
-def assignment_stalls(rows, arrivals, t, end):
+def assignment_stalls(rows, arrivals, t, end, *, rules=Derivation.CORRECTED):
     result = []
     for change in sorted({r["change"] for r in rows}):
         group = [r for r in rows if r["change"] == change]
@@ -1045,13 +1110,14 @@ def assignment_stalls(rows, arrivals, t, end):
         ]
         useful = min((r["at"] for r in disposed), default=None)
         # A generation stops offering disposition opportunities at its next
-        # revoke/lost callback. Later arrivals belong to a later generation.
+        # group revoke/lost callback, including a joining member with generation -1.
+        # Later arrivals belong to a later generation.
         generation_end = min(
             (
                 r["at"]
                 for r in rows
                 if r["event"] in {"revoke", "rebalance_start"}
-                and r["generation"] == generation
+                and (rules is Derivation.CORRECTED or r["generation"] == generation)
                 and stable_at is not None
                 and r["at"] > stable_at
             ),
@@ -1188,7 +1254,7 @@ def replica_metrics(t, m):
     )
 
 
-def safety_evidence(root, checker):
+def safety_evidence(root, checker, *, rules=Derivation.CORRECTED):
     """All attempted episodes with timeline bytes remain visible to acceptance."""
     timeline = root / "timeline.json"
     if not timeline.exists():
@@ -1198,7 +1264,7 @@ def safety_evidence(root, checker):
     arrivals = load(root / "arrivals.json")["rows"] if (root / "arrivals.json").exists() else []
     accepted = [a for a in arrivals if a["outcome"] == "accepted"]
     check = run_checker(checker, root) if (root / "leases.json").exists() else None
-    return dict(
+    result = dict(
         episode=root.name,
         unavailable=[] if check else [root.name + ": lease audit unavailable"],
         lost_accepted=sum(
@@ -1221,26 +1287,62 @@ def safety_evidence(root, checker):
         failed_workflows=sum(w["state"] == "FAILED" for w in t["workflows"]),
         canceled_workflows=sum(w["state"] == "CANCELED" for w in t["workflows"]),
         http_5xx=sum(r["status"] >= 500 for r in t["http"]),
+        http_5xx_by_role=[
+            dict(role=role, arm=load(root / "episode.json")["arm"], http_5xx=count)
+            for role, count in sorted(
+                Counter(r["role"] for r in t["http"] if r["status"] >= 500).items()
+            )
+        ],
     )
 
+    if rules is Derivation.HISTORICAL:
+        del result["http_5xx_by_role"]
+    return result
 
-def safety_aggregate(rows):
+
+def safety_aggregate(rows, *, rules=Derivation.CORRECTED):
     from dur053_k4_schema import SAFETY, validate
 
-    keys = set(SAFETY) - {"episodes", "unavailable", "passed"}
+    keys = set(SAFETY) - {"episodes", "unavailable", "passed", "http_5xx_by_role"}
     result = {key: sum(row[key] for row in rows) for key in keys}
-    passed = not any(result.values())
+    passed = not any(
+        result[key] for key in (keys - {"http_5xx"} if rules is Derivation.CORRECTED else keys)
+    )
+    by_role = Counter()
+    for row in rows:
+        # Dispatch's committed-only view cannot recover roles absent from old rows.
+        breakdown = row.get("http_5xx_by_role", [])
+        if "http_5xx_by_role" not in row and row["http_5xx"]:
+            breakdown = [
+                dict(
+                    role="unavailable",
+                    arm=episode_identity(row["episode"])["arm"],
+                    http_5xx=row["http_5xx"],
+                )
+            ]
+        for item in breakdown:
+            by_role[item["role"], item["arm"]] += item["http_5xx"]
+    result["http_5xx_by_role"] = [
+        dict(role=role, arm=arm, http_5xx=count) for (role, arm), count in sorted(by_role.items())
+    ]
     unavailable = [item for row in rows for item in row.get("unavailable", [])]
     result.update(
         episodes=[row["episode"] for row in rows],
         unavailable=unavailable,
         passed=passed and not unavailable,
     )
-    validate(result, SAFETY)
+    if rules is Derivation.HISTORICAL:
+        del result["http_5xx_by_role"]
+    validate(
+        result,
+        SAFETY
+        if rules is Derivation.CORRECTED
+        else {k: v for k, v in SAFETY.items() if k != "http_5xx_by_role"},
+    )
     return result
 
 
-def summaries(metrics: list[dict], *, safety_rows=None) -> dict:
+def summaries(metrics: list[dict], *, safety_rows=None, rules=Derivation.CORRECTED) -> dict:
     by_id = {m["replacement_for"] or m["episode"]: m for m in metrics}
     require(len(by_id) == len(metrics), "k4-summary-duplicate")
     paired = []
@@ -1317,7 +1419,8 @@ def summaries(metrics: list[dict], *, safety_rows=None) -> dict:
             )
         )
     aggregate = safety_aggregate(
-        safety_rows if safety_rows is not None else [m["safety"] for m in metrics if "safety" in m]
+        safety_rows if safety_rows is not None else [m["safety"] for m in metrics if "safety" in m],
+        rules=rules,
     )
     gates = {}
     campaign_safe = (
@@ -1449,9 +1552,12 @@ def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
                 intake=False,
             )
             if legacy:
-                document = legacy_reclassification(root, f, checker, load(root / "manifest.json"))
+                stored = json.loads((path.parent / "reclassification.json").read_bytes())
+                document = legacy_reclassification(
+                    root, f, checker, load(root / "manifest.json"), rules=reporting_rules(stored)
+                )
                 require(
-                    document == json.loads((path.parent / "reclassification.json").read_bytes()),
+                    document == stored,
                     "k4-legacy-reclassification",
                 )
                 require(m["dispositions"] == document["dispositions"], "k4-legacy-dispositions")
@@ -1464,28 +1570,36 @@ def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
                     if (s := safety_evidence(root / name, checker)) is not None
                 )
                 continue
-            for name in metric_episodes(m, root):
-                value = episode(root / name, f, checker)
-                stored = json.loads((root / name / "metrics.json").read_bytes())
-                require(value == stored, "k4-stored-metrics")
+            retained, retained_safety = recorded_derivation(
+                root,
+                f,
+                checker,
+                metric_episodes(m, root),
+                m["episodes"],
+                metrics_guard="k4-stored-metrics",
+                summary_guard="k4-stored-summary",
+            )
+            corrected = (
+                reporting_rules(json.loads((root / "summary.json").read_bytes()))
+                is Derivation.CORRECTED
+            )
+            for old in retained:
+                name = old["episode"]
+                value = old if corrected else episode(root / name, f, checker)
                 validate_disposition(
                     root, next(d for d in m["dispositions"] if d["episode"] == name), metrics=value
                 )
                 if name in contributions(m):
                     metrics.append(value)
                     verified.append(name)
-            job_safety = [
-                s
-                for name in m["episodes"]
-                if (s := safety_evidence(root / name, checker)) is not None
-            ]
-            safety_rows.extend(job_safety)
-            computed = summaries(
-                [episode(root / name, f, checker) for name in metric_episodes(m, root)],
-                safety_rows=job_safety,
-            )
-            require(
-                computed == json.loads((root / "summary.json").read_bytes()), "k4-stored-summary"
+            safety_rows.extend(
+                retained_safety
+                if corrected
+                else [
+                    row
+                    for name in m["episodes"]
+                    if (row := safety_evidence(root / name, checker)) is not None
+                ]
             )
     result = summaries(metrics, safety_rows=safety_rows)
     result["retained_jobs"] = [
