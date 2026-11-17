@@ -57,7 +57,7 @@ def legacy_reclassification(source, f, checker, m, *, rules=None):
         episode,
         producer_rules,
         safety_evidence,
-        summaries,
+        stored_summaries,
     )
 
     rules = Derivation.CORRECTED if rules is None else rules
@@ -115,7 +115,7 @@ def legacy_reclassification(source, f, checker, m, *, rules=None):
             validate_disposition(source, original)
             derived = dict(original)
         dispositions.append(derived)
-    old_summary = summaries(values, rules=Derivation.HISTORICAL)
+    old_summary = stored_summaries(values, rules=Derivation.HISTORICAL)
     del old_summary["safety"]
     del old_summary["reactions"]
     require(
@@ -130,7 +130,7 @@ def legacy_reclassification(source, f, checker, m, *, rules=None):
         if (s := safety_evidence(source / name, checker, rules=rules)) is not None
     ]
     contributing = {d["episode"] for d in dispositions if d["classification"] == "valid"}
-    summary = summaries(
+    summary = stored_summaries(
         [v for v in values if v["episode"] in contributing], safety_rows=safety_rows, rules=rules
     )
     return dict(
@@ -418,14 +418,11 @@ TIMING_ISSUES = {"k4-confirmation-boundary", "k4-harness-confirmation-deadline"}
 
 def confirmation_miss(ep, c, metrics):
     issues = set(metrics["issues"])
-    return (
-        bool(issues & TIMING_ISSUES)
-        and (
-            c["intervention"] > ep["confirmation_deadline"]
-            or (
-                bool(c["overlap"])
-                and all(not o["at"] <= c["intervention"] <= o["end"] for o in c["overlap"])
-            )
+    return bool(issues & TIMING_ISSUES) and (
+        c["intervention"] > ep["confirmation_deadline"]
+        or (
+            bool(c["overlap"])
+            and all(not o["at"] <= c["intervention"] <= o["end"] for o in c["overlap"])
         )
     )
 

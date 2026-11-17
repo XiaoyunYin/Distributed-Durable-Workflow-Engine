@@ -104,7 +104,13 @@ def recorded_derivation(
         for name in attempted
         if (row := safety_evidence(root / name, checker, rules=rules)) is not None
     ]
-    require(summaries(values, safety_rows=rows, rules=rules) == stored, summary_guard)
+    retained_k7 = not (
+        isinstance(stored, dict) and stored.get("k7_decision") == "verify-evidence-only"
+    )
+    require(
+        summaries(values, safety_rows=rows, rules=rules, retained_k7=retained_k7) == stored,
+        summary_guard,
+    )
     return values, rows
 
 
@@ -538,8 +544,10 @@ def episode(root: Path, f: dict, checker: Path, *, rules=Derivation.CORRECTED) -
         "k4-confirmation-singleton-denial",
     }
     issues = [v for v in confirmation_issues if not outcome or v not in outcome_checks]
-    if outcome and not c["overlap"] and not (
-        c["kind"] == "scale-down" and rules is Derivation.CORRECTED
+    if (
+        outcome
+        and not c["overlap"]
+        and not (c["kind"] == "scale-down" and rules is Derivation.CORRECTED)
     ):
         issues.append("k4-confirmation-overlap")
 
@@ -1193,6 +1201,7 @@ def assignment_stalls(rows, arrivals, t, end, *, rules=Derivation.CORRECTED):
 
 
 def busy_removals(c, samples, t, intervals):
+    """Retained v1 report derivation only; never use for a current K7 decision."""
     busy, idle, ambiguous, interrupted = [], [], False, 0
     removed = {v["pod_uid"] for v in c["targets"]}
     for target in c["targets"]:
@@ -1236,6 +1245,133 @@ def busy_removals(c, samples, t, intervals):
         busy_upper=math.fsum(r["upper"] for r in rows)
         if all(r["upper"] is not None for r in rows)
         else None,
+    )
+
+
+# The committed k3-pilot-v1/freeze.json records no observer sampling interval.
+# The frozen producer's start_samples ticks once per second; Round 330 therefore
+# selects the specified fallback, before inspecting any K7 outcome table.
+K7_SNAPSHOT_MAX_AGE = 2.0
+K7_REMOVAL_SCHEMA = "dur053.k7-removal.r321.v1"
+
+
+def k7_removal_classification(root: Path, *, busy_upper):
+    """Derive R321 decisions from hash-verified raw episode evidence, not v1 metrics."""
+    m = load(root / "episode.json")
+    c = load(root / "confirmation.json")
+    t = load(root / "timeline.json")
+    samples = load(root / "observers.json")["rows"]
+    events, stream_error = [], False
+    path = root / "streams/pods.jsonl"
+    if path.exists():
+        try:
+            for line in path.read_text(encoding="utf-8").splitlines():
+                row = json.loads(line)
+                events.append(dict(received=row["received"], **json.loads(row["source"])))
+        except (ValueError, KeyError, TypeError):
+            stream_error = True
+    slack = max((b["width"] for b in m["clock_brackets"]), default=0.0)
+    return classify_k7_removals(
+        c,
+        samples,
+        t,
+        events,
+        busy_upper=busy_upper,
+        clock_slack=slack,
+        stream_error=stream_error,
+    )
+
+
+def classify_k7_removals(c, samples, t, events, *, busy_upper, clock_slack, stream_error=False):
+    """R321 v1: B=2 seconds, first deletion event, latest preceding observer row."""
+    removed = {v["pod_uid"] for v in c["targets"]}
+    busy, idle, targets, interrupted = set(), set(), [], 0
+    ambiguous = stream_error or not removed or busy_upper is None
+    for target in c["targets"]:
+        uid = target["pod_uid"]
+        detail = dict(
+            pod_uid=uid,
+            removal=None,
+            snapshot_at=None,
+            snapshot_age=None,
+            request_estimate=None,
+            issues=[],
+        )
+        targets.append(detail)
+        event = next(
+            (
+                e
+                for e in events
+                if e.get("object", {}).get("metadata", {}).get("uid") == uid
+                and e["object"]["metadata"].get("deletionTimestamp")
+            ),
+            None,
+        )
+        if event is None:
+            detail["issues"].append("missing-deletion-event")
+            ambiguous = True
+            continue
+        try:
+            at = finite(event["received"], "k7-removal-received", zero=True)
+            detail["removal"] = at
+            metadata = event["object"]["metadata"]
+            grace = metadata["deletionGracePeriodSeconds"]
+            require(type(grace) in (int, float) and grace >= 0, "k7-removal-grace")
+            deadline = datetime.fromisoformat(metadata["deletionTimestamp"].replace("Z", "+00:00"))
+            require(deadline.tzinfo is not None, "k7-removal-timezone")
+            request = deadline.timestamp() - grace
+            detail["request_estimate"] = request
+            require(abs(request - at) <= 1.0 + clock_slack, "k7-removal-clock")
+        except (ValueError, KeyError, TypeError, OverflowError):
+            detail["issues"].append("deletion-clock-mismatch-or-missing")
+            ambiguous = True
+            continue
+        before = [s for s in samples if not s["error"] and s["at"] <= at]
+        sample = max(before, key=lambda s: s["at"], default=None)
+        if sample is None or at - sample["at"] > K7_SNAPSHOT_MAX_AGE:
+            detail["issues"].append("missing-or-stale-snapshot")
+            ambiguous = True
+            continue
+        snapshot_at = sample["at"]
+        detail.update(snapshot_at=snapshot_at, snapshot_age=at - snapshot_at)
+        if not any(p["pod_uid"] == uid and p["role"] == "worker" for p in sample["pods"]):
+            detail["issues"].append("target-not-worker-in-snapshot")
+            ambiguous = True
+            continue
+        claims = [r for r in sample["active_claims"] if r["pod_uid"] == uid]
+        joined = [
+            v
+            for v in t["invocations"]
+            if any(v["identity"] == r["identity"] for r in claims)
+            and v["start"] <= snapshot_at
+            and (v["finish"] is None or v["finish"] > snapshot_at)
+        ]
+        if len(joined) != len(claims):
+            detail["issues"].append("claim-invocation-join")
+            ambiguous = True
+        if claims:
+            busy.add(uid)
+            interrupted += len(claims)
+        claimed_uids = {r["pod_uid"] for r in sample["active_claims"]}
+        idle.update(
+            p["pod_uid"]
+            for p in sample["pods"]
+            if p["role"] == "worker"
+            and p["eligible"]
+            and p["ready"]
+            and p["pod_uid"] not in removed | claimed_uids
+        )
+    return dict(
+        schema=K7_REMOVAL_SCHEMA,
+        snapshot_max_age=K7_SNAPSHOT_MAX_AGE,
+        snapshot_bound_source="frozen-config-no-interval:Round-330-fallback",
+        clock_bracket_slack=clock_slack,
+        targets=targets,
+        busy_uids=sorted(busy),
+        idle_survivors=sorted(idle),
+        interrupted_claims=interrupted,
+        ambiguous=ambiguous,
+        busy_upper=busy_upper,
     )
 
 
@@ -1365,7 +1501,8 @@ def safety_aggregate(rows, *, rules=Derivation.CORRECTED):
     return result
 
 
-def summaries(metrics: list[dict], *, safety_rows=None, rules=Derivation.CORRECTED) -> dict:
+def stored_summaries(metrics: list[dict], *, safety_rows=None, rules=Derivation.CORRECTED) -> dict:
+    """Reproduce v1 retained documents, including their defective K7 field."""
     by_id = {m["replacement_for"] or m["episode"]: m for m in metrics}
     require(len(by_id) == len(metrics), "k4-summary-duplicate")
     paired = []
@@ -1512,6 +1649,41 @@ def summaries(metrics: list[dict], *, safety_rows=None, rules=Derivation.CORRECT
     )
 
 
+def summaries(
+    metrics: list[dict],
+    *,
+    safety_rows=None,
+    rules=Derivation.CORRECTED,
+    k7_removals=None,
+    retained_k7=False,
+) -> dict:
+    """Report K7 only with the independently derived R321 classification."""
+    if retained_k7:
+        return stored_summaries(metrics, safety_rows=safety_rows, rules=rules)
+    values = []
+    available = k7_removals is not None
+    for metric in metrics:
+        cell = episode_identity(metric["episode"])
+        if (
+            cell["event"] == "worker scale-down 4 to 2"
+            and cell["arm"] == "treatment"
+            and metric.get("metrics") != "not-derivable"
+        ):
+            removal = (k7_removals or {}).get(metric["episode"])
+            if removal is None or removal.get("schema") != K7_REMOVAL_SCHEMA:
+                available = False
+            else:
+                metric = dict(metric, busy_removals=removal)
+        values.append(metric)
+    result = stored_summaries(values, safety_rows=safety_rows, rules=rules)
+    if not available:
+        result["k7"] = {d: dict(status="verify-evidence-only") for d in ("short", "long")}
+        result["k7_decision"] = "verify-evidence-only"
+    else:
+        result["k7_removal_classifications"] = k7_removals
+    return result
+
+
 def history_view(repository: Path) -> dict:
     """Dispatch view of intake-validated, committed documents; no raw payload IO."""
     from dur053_record_k4 import inventory
@@ -1544,7 +1716,11 @@ def history_view(repository: Path) -> dict:
     return result
 
 
-def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
+def verify_evidence(repository: Path, checker: Path, *, store="github", jobs=None) -> dict:
+    """Verify all jobs, or explicit (job, run_id) pairs with full inventory binding.
+
+    A scoped result is incomplete and cannot stand in for campaign acceptance.
+    """
     from dur053_record_k4 import (
         contributions,
         inventory,
@@ -1557,10 +1733,15 @@ def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
 
     f = frozen(repository)
     manifests, ledger = inventory(repository)
+    if jobs is not None:
+        require(set(jobs) <= {(m["job"], m["run_id"]) for _, m in manifests}, "k4-job-scope")
     metrics = []
     verified = []
     safety_rows = []
+    k7_removals = {}
     for path, m in manifests:
+        if jobs is not None and (m["job"], m["run_id"]) not in jobs:
+            continue
         legacy = (path.parent / "reclassification.json").exists()
         reader = materialize_job
         with reader(path.parent, repository, store=store) as root:
@@ -1587,7 +1768,15 @@ def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
                 )
                 require(m["dispositions"] == document["dispositions"], "k4-legacy-dispositions")
                 for name in contributions(m):
-                    metrics.append(episode(root / name, f, checker))
+                    value = episode(root / name, f, checker)
+                    metrics.append(value)
+                    if (
+                        episode_identity(name)["event"] == "worker scale-down 4 to 2"
+                        and value.get("metrics") != "not-derivable"
+                    ):
+                        k7_removals[name] = k7_removal_classification(
+                            root / name, busy_upper=value["busy_removals"]["busy_upper"]
+                        )
                     verified.append(name)
                 safety_rows.extend(
                     s
@@ -1614,6 +1803,13 @@ def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
                 )
                 if name in contributions(m):
                     metrics.append(value)
+                    if (
+                        episode_identity(name)["event"] == "worker scale-down 4 to 2"
+                        and value.get("metrics") != "not-derivable"
+                    ):
+                        k7_removals[name] = k7_removal_classification(
+                            root / name, busy_upper=value["busy_removals"]["busy_upper"]
+                        )
                     verified.append(name)
             safety_rows.extend(
                 retained_safety
@@ -1624,7 +1820,7 @@ def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
                     if (row := safety_evidence(root / name, checker)) is not None
                 ]
             )
-    result = summaries(metrics, safety_rows=safety_rows)
+    result = summaries(metrics, safety_rows=safety_rows, k7_removals=k7_removals)
     result["retained_jobs"] = [
         dict(
             job=m["job"],
@@ -1635,8 +1831,13 @@ def verify_evidence(repository: Path, checker: Path, *, store="github") -> dict:
             pending=m["pending"],
         )
         for _, m in manifests
+        if jobs is None or (m["job"], m["run_id"]) in jobs
     ]
-    result["schedule"] = remaining(f, verified, ledger["entries"])
+    # A partial verified population cannot satisfy remaining()'s full-ledger
+    # progress binding, and must not be offered as a dispatch schedule.
+    result["schedule"] = remaining(f, verified, ledger["entries"]) if jobs is None else None
+    if jobs is not None:
+        result["verification_scope"] = sorted(jobs)
     result["complete"] = not result["missing_episodes"] and all(m["complete"] for m in metrics)
     result["valid"] = (
         result["complete"] and result["safety"]["passed"] and all(m["valid"] for m in metrics)

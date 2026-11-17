@@ -1779,3 +1779,32 @@ PASS/valid/complete; the busy `long-core-1-pair-3-baseline` is unchanged apart
 from the additive removal label. Earlier scale-down episodes had retained busy
 overlap. R319's long treatment remains PASS. K7 retains idle removals with zero
 excess under its registered rule rather than excluding them from the comparison.
+
+
+### B.7 R321 note (Round 331)
+
+The separately versioned `dur053.k7-removal.r321.v1` classification anchors each
+removed worker to `received` of its first `streams/pods.jsonl` event carrying a
+`metadata.deletionTimestamp`. The event's timestamp minus
+`deletionGracePeriodSeconds` must agree with receipt within +/-1 second (whole
+second RFC3339 truncation) plus the maximum retained DB clock-bracket width;
+a missing event, grace value, or inconsistent clock is ambiguous.
+
+Use the latest error-free observer row at or before that receipt, with age at
+most B = 2.0 seconds. The committed `k3-pilot-v1/freeze.json` records no observer
+sampling interval, so this is Round 330's fallback, fixed before deriving the
+outcome table. The producer's `start_samples` loop ticks once per second; no
+measured gap or outcome selects B. An absent worker target or missing/stale row
+is ambiguous. Busy means at least one active claim on the target in that row;
+idle survivors are eligible, ready workers neither removed nor claimed there.
+The claim/invocation join is checked at the snapshot time.
+
+The K7 thresholds, any-ambiguity veto, cost bounds, five treatment episodes per
+arm, and campaign safety composition are unchanged: aggregate safety must pass,
+every registered episode must be present, and all contributing metrics must be
+valid and complete. K4 acceptance remains a later task. Stored v1 metrics,
+summary and legacy reclassification guards still reproduce their original
+producer reports byte for byte. Current `verify_evidence` reports derive the
+versioned classification from verified raw assets; `history_view` and other
+reports without that classification mark K7 `verify-evidence-only`, rather than
+publishing a decision from the retained defective `busy_removals` field.
