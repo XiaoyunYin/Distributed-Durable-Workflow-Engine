@@ -322,7 +322,7 @@ def test_safety_aggregate_includes_excluded_and_unexercised(tmp_path, freeze, ch
         write(tmp_path / name / "timeline.json", docs["timeline"])
         rows.append(evidence.safety_evidence(tmp_path / name, checker))
     aggregate = evidence.safety_aggregate(rows)
-    summary = evidence.summaries([], safety_rows=rows)
+    summary = evidence.summaries([], safety_rows=rows, k7_removals={})
     assert aggregate["failed_workflows"] == 2 and aggregate["http_5xx"] == 2
     assert not summary["safety"]["passed"], "excluded engine failure hidden from safety aggregate"
     assert not any(g["safety"] for g in summary["k7"].values())

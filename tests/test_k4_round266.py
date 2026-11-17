@@ -184,6 +184,19 @@ def legacy_download(tmp_path, monkeypatch):
 
     monkeypatch.setattr(evidence, "episode", recompute)
     monkeypatch.setattr(evidence, "safety_evidence", safety)
+    # This compact fixture also omits the raw R321 observer/watch exports.
+    # Keep its removal evidence ambiguous; real assets exercise the raw path.
+    monkeypatch.setattr(
+        evidence,
+        "k7_removal_classification",
+        lambda path, *, busy_upper: dict(
+            schema=evidence.K7_REMOVAL_SCHEMA,
+            busy_uids=[],
+            idle_survivors=[],
+            ambiguous=True,
+            busy_upper=busy_upper,
+        ),
+    )
     monkeypatch.setattr(
         payload, "FILTERS", [dict(id=lzma.FILTER_LZMA2, preset=0, dict_size=1 << 20)]
     )

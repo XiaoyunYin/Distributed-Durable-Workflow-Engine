@@ -454,7 +454,7 @@ def test_stopped_intake_charges_failure_and_prevents_go(tmp_path, freeze):
     value = recorder.stopped_intake(tmp_path, m)
     assert value["metrics"] == "not-derivable" and value["status"] == "FAIL"
     summary = evidence.summaries([value])
-    assert summary["k7_decision"] == "NO-GO"
+    assert summary["k7_decision"] == "verify-evidence-only"
     d["classification"] = "infrastructure-invalid"
     d.update(reason="collection-failure", evidence=["incident"])
     with pytest.raises(ValueError, match="engine-outcome-not-infrastructure"):
