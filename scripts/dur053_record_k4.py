@@ -418,11 +418,14 @@ TIMING_ISSUES = {"k4-confirmation-boundary", "k4-harness-confirmation-deadline"}
 
 def confirmation_miss(ep, c, metrics):
     issues = set(metrics["issues"])
-    return bool(issues & TIMING_ISSUES) and (
-        c["intervention"] > ep["confirmation_deadline"]
-        or (
-            bool(c["overlap"])
-            and all(not o["at"] <= c["intervention"] <= o["end"] for o in c["overlap"])
+    return (
+        bool(issues & TIMING_ISSUES)
+        and (
+            c["intervention"] > ep["confirmation_deadline"]
+            or (
+                bool(c["overlap"])
+                and all(not o["at"] <= c["intervention"] <= o["end"] for o in c["overlap"])
+            )
         )
     )
 
