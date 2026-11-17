@@ -1739,6 +1739,25 @@ def verify_evidence(repository: Path, checker: Path, *, store="github", jobs=Non
     verified = []
     safety_rows = []
     k7_removals = {}
+    removal_classifications = {}
+
+    def classify_removal(root, name, value):
+        confirmation_path = root / name / "confirmation.json"
+        has_targets = confirmation_path.is_file() and bool(load(confirmation_path)["targets"])
+        # Preserve the exact R333 K7 population independently of publication.
+        k7_input = (
+            episode_identity(name)["event"] == "worker scale-down 4 to 2"
+            and value.get("metrics") != "not-derivable"
+        )
+        if has_targets or k7_input:
+            removal = k7_removal_classification(
+                root / name, busy_upper=value.get("busy_removals", {}).get("busy_upper")
+            )
+            if has_targets:
+                removal_classifications[name] = removal
+            if k7_input:
+                k7_removals[name] = removal
+
     for path, m in manifests:
         if jobs is not None and (m["job"], m["run_id"]) not in jobs:
             continue
@@ -1770,13 +1789,7 @@ def verify_evidence(repository: Path, checker: Path, *, store="github", jobs=Non
                 for name in contributions(m):
                     value = episode(root / name, f, checker)
                     metrics.append(value)
-                    if (
-                        episode_identity(name)["event"] == "worker scale-down 4 to 2"
-                        and value.get("metrics") != "not-derivable"
-                    ):
-                        k7_removals[name] = k7_removal_classification(
-                            root / name, busy_upper=value["busy_removals"]["busy_upper"]
-                        )
+                    classify_removal(root, name, value)
                     verified.append(name)
                 safety_rows.extend(
                     s
@@ -1803,13 +1816,7 @@ def verify_evidence(repository: Path, checker: Path, *, store="github", jobs=Non
                 )
                 if name in contributions(m):
                     metrics.append(value)
-                    if (
-                        episode_identity(name)["event"] == "worker scale-down 4 to 2"
-                        and value.get("metrics") != "not-derivable"
-                    ):
-                        k7_removals[name] = k7_removal_classification(
-                            root / name, busy_upper=value["busy_removals"]["busy_upper"]
-                        )
+                    classify_removal(root, name, value)
                     verified.append(name)
             safety_rows.extend(
                 retained_safety
@@ -1821,6 +1828,9 @@ def verify_evidence(repository: Path, checker: Path, *, store="github", jobs=Non
                 ]
             )
     result = summaries(metrics, safety_rows=safety_rows, k7_removals=k7_removals)
+    from dur053_k4_projection import reporting_projection
+
+    result.update(reporting_projection(metrics, [m for _, m in manifests], removal_classifications))
     result["retained_jobs"] = [
         dict(
             job=m["job"],
@@ -1862,4 +1872,6 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import dur053_k4_evidence as _module
+
+    raise SystemExit(_module.main())
