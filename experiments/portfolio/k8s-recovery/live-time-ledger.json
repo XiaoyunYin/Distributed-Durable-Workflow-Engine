@@ -386,6 +386,33 @@
       "run_id": "43926971212",
       "status": "CARRY_OVER",
       "tree_sha": "1697fb41e5e52f63e7d517d10d6815a3d4d572bd"
+    },
+    {
+      "artifact": "experiments/portfolio/k8s-recovery/k4-v1/k4-4-c1/43979634795/manifest.json",
+      "artifact_sha256": "25788a1f0385e34f6e6fa09897850806448e557309ea6e16f868277ef685568c",
+      "category": "k4-4-c1",
+      "charged_seconds": 7358,
+      "head_sha": "4b529463027a60a666d57ee9d46ef2bef3e79e95",
+      "intake_sha256": "29e0b3b4646fadb9abbc14b1b1a6bd9872d23250298cbba66e6f032101cacc82",
+      "job_id": "133692473816",
+      "k4_episodes": [
+        "long-core-6-pair-0-treatment",
+        "long-core-6-pair-0-baseline",
+        "long-core-6-pair-1-baseline",
+        "long-core-6-pair-1-treatment",
+        "long-core-6-pair-2-treatment",
+        "long-core-6-pair-2-baseline",
+        "long-core-6-pair-3-baseline",
+        "long-core-6-pair-3-treatment",
+        "long-core-6-pair-4-treatment",
+        "long-core-6-pair-4-baseline",
+        "short-coverage-0-0-treatment"
+      ],
+      "merge_ref_sha": "4b529463027a60a666d57ee9d46ef2bef3e79e95",
+      "payload_index_sha256": "0ee6976bf4da1df7106012223257f1683faa7e5e2059d41ccf7e869794bf6d7f",
+      "run_id": "43979634795",
+      "status": "FAIL",
+      "tree_sha": "8c16733db169d479a48eabc62703af3a8179139f"
     }
   ],
   "limit_seconds": 259200,
