@@ -1808,3 +1808,32 @@ producer reports byte for byte. Current `verify_evidence` reports derive the
 versioned classification from verified raw assets; `history_view` and other
 reports without that classification mark K7 `verify-evidence-only`, rather than
 publishing a decision from the retained defective `busy_removals` field.
+
+
+### Amendment B.8 - K6 pre-data registration (Round 346)
+
+1. **K6 storage.** Extend B.4.1's archive format, 45,000,000-byte per-archive
+   and 1,440,000,000-byte per-job limits, release-asset tag
+   `dur053-evidence-<job>-<run>` (run ID), hash binding, byte retention and
+   fail-closed history rules to K6 job payloads with K6 manifest, index,
+   intake and episode identities. K3/K4 records and readers stay unchanged.
+2. **Remaining schedule.** Interpret lines 325-334 at each pre-dispatch and
+   pre-episode recheck. Add actual ledger charges to K3 freeze estimates for
+   unstarted episodes. Use measured per-job setup from the most recent
+   comparable jobs (currently 334.94 s/job replacing 300 s). Add the K6a
+   Phase D/H hosted-smoke grant/sink/approval overhead to every remaining
+   effect and effect-control episode. As K6 data accrue, substitute measured
+   K6 per-episode costs for the remaining episodes of the same arm, counting
+   each overhead once. K4 workload multipliers are sensitivities only. If
+   the full remaining schedule exceeds the cap, stop and report completed,
+   failed, invalid and unperformed IDs and reasons, including during K5.
+   The cap, minima, order and prohibition on acceleration remain in force.
+3. **Time-only continuation.** Keep the three frozen K6 groups. Only a
+   time-only, intact, unstarted suffix of an admitted group may move in order
+   to `k6-<n>-c<m>`, with fresh setup, a full reservation and a committed
+   hash-bound predecessor. Exclude started, failed, completed and unsupported
+   episodes. Infrastructure-invalid episodes retain the one-linked-replacement
+   rule. Full-campaign insufficiency still stops execution.
+4. **Pre-data design record.** The [K6 design](k6-design.md) at the commit
+   adding this amendment registers the K6 cell bindings, identity/grant
+   contract and per-arm I-label expectations before any K6 data.
