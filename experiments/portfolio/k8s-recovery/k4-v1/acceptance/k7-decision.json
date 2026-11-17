@@ -1,0 +1,294 @@
+{
+  "arms": {
+    "long": {
+      "complete_pairs": true,
+      "decision": "NO-GO",
+      "eligible": 5,
+      "excess": [
+        -18.00103430747986,
+        31.72314231395721,
+        -9.000313448905946,
+        27.206899380683897,
+        27.221185278892516
+      ],
+      "median_excess": 27.206899380683897,
+      "safety": false,
+      "treatment_rows": [
+        {
+          "ambiguous": false,
+          "busy_uids": [
+            "9441b0c5-74c3-44cb-9e58-243939c47a77"
+          ],
+          "busy_upper": 180.01034307479858,
+          "episode": "long-core-1-pair-0-treatment",
+          "excess": -18.00103430747986,
+          "idle_survivors": [
+            "4999d51c-be6e-478b-a580-4dc523f5dcb9",
+            "abb76623-6224-426b-985f-461f0b28c547"
+          ],
+          "reexecuted_lower": 0.0,
+          "reexecuted_unknown": 0,
+          "wasted_lower": 0.0,
+          "wasted_unknown": 0
+        },
+        {
+          "ambiguous": false,
+          "busy_uids": [
+            "463ea5e8-2ae8-4ebd-af73-7a079cfa3735"
+          ],
+          "busy_upper": 132.77536702156067,
+          "episode": "long-core-1-pair-1-treatment",
+          "excess": 31.72314231395721,
+          "idle_survivors": [
+            "9c5f9f43-13fb-4f4c-81f3-343a0247bc52"
+          ],
+          "reexecuted_lower": 45.00067901611328,
+          "reexecuted_unknown": 0,
+          "wasted_lower": 0.0,
+          "wasted_unknown": 0
+        },
+        {
+          "ambiguous": false,
+          "busy_uids": [
+            "432905f4-5e3d-4d20-8f1b-5a3a49b96337"
+          ],
+          "busy_upper": 90.00313448905945,
+          "episode": "long-core-1-pair-2-treatment",
+          "excess": -9.000313448905946,
+          "idle_survivors": [
+            "205e4d15-861f-4201-905c-b5140eb05706"
+          ],
+          "reexecuted_lower": 0.0,
+          "reexecuted_unknown": 0,
+          "wasted_lower": 0.0,
+          "wasted_unknown": 0
+        },
+        {
+          "ambiguous": false,
+          "busy_uids": [
+            "40b937f4-6733-4499-bae8-cf8c78ef394a",
+            "5232e533-3289-4b41-84ce-defe4795ba9e"
+          ],
+          "busy_upper": 177.9449942111969,
+          "episode": "long-core-1-pair-3-treatment",
+          "excess": 27.206899380683897,
+          "idle_survivors": [
+            "2eff9ce3-a668-4b87-9bc1-724e5467f023",
+            "ad48b96c-b8b5-4f5f-bed8-1e397e652a71"
+          ],
+          "reexecuted_lower": 45.00139880180359,
+          "reexecuted_unknown": 0,
+          "wasted_lower": 0.0,
+          "wasted_unknown": 0
+        },
+        {
+          "ambiguous": false,
+          "busy_uids": [
+            "cd9809d6-67ca-4b10-9c6c-c3cf3c7dd455"
+          ],
+          "busy_upper": 177.80280756950378,
+          "episode": "long-core-1-pair-4-treatment",
+          "excess": 27.221185278892516,
+          "idle_survivors": [
+            "44185a43-c0ba-40c3-9bc2-e9d460860a13"
+          ],
+          "reexecuted_lower": 45.001466035842896,
+          "reexecuted_unknown": 0,
+          "wasted_lower": 0.0,
+          "wasted_unknown": 0
+        }
+      ]
+    },
+    "short": {
+      "complete_pairs": true,
+      "decision": "NO-GO",
+      "eligible": 0,
+      "excess": [
+        -5.0,
+        -5.0,
+        -5.0,
+        -5.0,
+        -5.0
+      ],
+      "median_excess": -5.0,
+      "safety": false,
+      "treatment_rows": [
+        {
+          "ambiguous": false,
+          "busy_uids": [
+            "0acc95d7-34e9-4338-9c6e-8b68e328bebc",
+            "f7b7658e-6205-4643-af17-b749df0460c5"
+          ],
+          "busy_upper": 42.462932109832764,
+          "episode": "short-core-1-pair-0-treatment",
+          "excess": -5.0,
+          "idle_survivors": [],
+          "reexecuted_lower": 0.0,
+          "reexecuted_unknown": 0,
+          "wasted_lower": 0.0,
+          "wasted_unknown": 0
+        },
+        {
+          "ambiguous": false,
+          "busy_uids": [
+            "047f5694-682d-44b6-b56e-9402b515222f",
+            "c32eabbc-c02a-468c-a84c-ff77dbd0de2d"
+          ],
+          "busy_upper": 40.69638204574585,
+          "episode": "short-core-1-pair-1-treatment",
+          "excess": -5.0,
+          "idle_survivors": [],
+          "reexecuted_lower": 0.0,
+          "reexecuted_unknown": 0,
+          "wasted_lower": 0.0,
+          "wasted_unknown": 0
+        },
+        {
+          "ambiguous": false,
+          "busy_uids": [
+            "3de2cc42-7b6c-48ec-b1c5-1e18b1e8f880",
+            "54c8b26b-34f3-4960-9816-8c0e30315033"
+          ],
+          "busy_upper": 46.46555423736572,
+          "episode": "short-core-1-pair-2-treatment",
+          "excess": -5.0,
+          "idle_survivors": [],
+          "reexecuted_lower": 0.0,
+          "reexecuted_unknown": 0,
+          "wasted_lower": 0.0,
+          "wasted_unknown": 0
+        },
+        {
+          "ambiguous": false,
+          "busy_uids": [
+            "35de82a5-c0c6-40b3-8e13-fc841d1e3eb3",
+            "b83da945-0921-49b4-a7cb-dd80690eca80"
+          ],
+          "busy_upper": 39.8687469959259,
+          "episode": "short-core-1-pair-3-treatment",
+          "excess": -5.0,
+          "idle_survivors": [],
+          "reexecuted_lower": 0.0,
+          "reexecuted_unknown": 0,
+          "wasted_lower": 0.0,
+          "wasted_unknown": 0
+        },
+        {
+          "ambiguous": false,
+          "busy_uids": [
+            "06ff1133-cc8b-4b28-9e35-0781a082f948",
+            "b30016de-bbbd-4dd6-bac3-bfe2ab378ae9"
+          ],
+          "busy_upper": 45.17261457443237,
+          "episode": "short-core-1-pair-4-treatment",
+          "excess": -5.0,
+          "idle_survivors": [],
+          "reexecuted_lower": 0.0,
+          "reexecuted_unknown": 0,
+          "wasted_lower": 0.0,
+          "wasted_unknown": 0
+        }
+      ]
+    }
+  },
+  "campaign_safety_input": {
+    "aggregate_passed": true,
+    "complete": false,
+    "invalid_incomplete_contributing_episodes": [
+      {
+        "complete": false,
+        "disposition": {
+          "classification": "valid",
+          "episode": "long-core-6-pair-2-treatment",
+          "evidence": [],
+          "reason": "",
+          "replacement_for": ""
+        },
+        "episode": "long-core-6-pair-2-treatment",
+        "issues": [
+          "k4-assignment-disposition-censored"
+        ],
+        "job": "k4-4-c1",
+        "run_id": "43979634795",
+        "status": "FAIL",
+        "valid": false
+      }
+    ],
+    "invalid_pairs": [
+      {
+        "abandoned": -1,
+        "cost_difference": {
+          "busy_seconds": {
+            "lower": -70.45228123664856,
+            "upper": -4.957352876663208
+          },
+          "reexecuted_seconds": {
+            "lower": -90.00140738487244,
+            "upper": -90.00140738487244
+          },
+          "wasted_original_seconds": {
+            "lower": -60.787150859832764,
+            "upper": -4.956298589706421
+          }
+        },
+        "duration": "long",
+        "episodes": [
+          "long-core-6-pair-2-baseline",
+          "long-core-6-pair-2-treatment"
+        ],
+        "event": "node drain/PDB eviction",
+        "latency_difference": {
+          "max": -23.920082330703735,
+          "p50": -0.0013306140899658203,
+          "p90": 0.07350969314575195,
+          "p99": "NOT ESTIMATED"
+        },
+        "pair": 2,
+        "replaced": false,
+        "scalar_difference": {
+          "accepted": 0,
+          "accepted_results": 0,
+          "duplicate_executions": -2,
+          "offered": 0,
+          "rejected": 0,
+          "results_during_drain": 2,
+          "stale_committed": 0,
+          "stale_rejected": 0,
+          "submission_errors": 0,
+          "superseded_owner_transitions": 0,
+          "throughput": 0.00277764969576641,
+          "uncertain": 0,
+          "unsent": 0
+        },
+        "valid": false
+      }
+    ],
+    "missing_episodes": [],
+    "registered_input_by_arm": {
+      "long": false,
+      "short": false
+    },
+    "valid": false
+  },
+  "consequence": "K7 NO-GO means no controller implementation or controller efficacy claim.",
+  "disclosure_if_safety_true": {
+    "label": "Non-registered K4 closeout disclosure; not the registered decision",
+    "long_arm_would_be": "GO",
+    "scope": "Only the campaign safety input is hypothetically true. The published long arm has five eligible episodes, complete pairs and positive median excess; the short arm has zero eligible episodes and negative median. This disclosure does not evaluate a new gate or authorize implementation.",
+    "short_arm_would_be": "NO-GO",
+    "supports_controller_claim": false
+  },
+  "no_go_budget_release_arithmetic_only": {
+    "applicable": true,
+    "episode_seconds": 11100,
+    "reset_seconds": 1200,
+    "scope": "Protocol-v2 Amendment B arithmetic only; no ledger/schedule change or new cells",
+    "setup_seconds": 300,
+    "total_seconds": 12600
+  },
+  "not_derived": [],
+  "registered_campaign_decision": "NO-GO",
+  "schema": "dur053.k4-acceptance.k7.v1",
+  "source": "k4-summary.json",
+  "source_sha256": "1064542377797b02d72b5a6f59d009e80f0c78149bea35282db20b154d6eef9a"
+}
