@@ -1,0 +1,67 @@
+{
+  "command": "/usr/bin/time -v python3 scripts/dur053_k4_evidence.py verify-evidence --checker /home/ubuntu/checker --repository /home/ubuntu/repo --store /home/ubuntu/store",
+  "exit_code": 0,
+  "host": {
+    "ami": "ami-054378e21be05e358",
+    "go": "1.27.4",
+    "instance_type": "r7i.xlarge",
+    "os": "Ubuntu 24.04",
+    "python": "3.12.3",
+    "region": "us-west-1",
+    "service": "AWS EC2"
+  },
+  "identical_tree": true,
+  "max_rss_kb": 394212,
+  "merged_as": "d3853ec4687033611004ba3815a5098ae4fb04df",
+  "output": {
+    "file": "k4-summary.json",
+    "sha256": "1064542377797b02d72b5a6f59d009e80f0c78149bea35282db20b154d6eef9a",
+    "size_bytes": 3007623
+  },
+  "ran_by": "Claude",
+  "review_round": 339,
+  "store": [
+    {
+      "asset_count": 25,
+      "tag": "dur053-evidence-k4-1-43536422415"
+    },
+    {
+      "asset_count": 4,
+      "tag": "dur053-evidence-k4-1-43646226152"
+    },
+    {
+      "asset_count": 26,
+      "tag": "dur053-evidence-k4-1-c1-43681029839"
+    },
+    {
+      "asset_count": 26,
+      "tag": "dur053-evidence-k4-2-43714142099"
+    },
+    {
+      "asset_count": 16,
+      "tag": "dur053-evidence-k4-2-c1-43776853010"
+    },
+    {
+      "asset_count": 20,
+      "tag": "dur053-evidence-k4-3-43815170801"
+    },
+    {
+      "asset_count": 12,
+      "tag": "dur053-evidence-k4-3-c1-43884577546"
+    },
+    {
+      "asset_count": 20,
+      "tag": "dur053-evidence-k4-4-43926971212"
+    },
+    {
+      "asset_count": 13,
+      "tag": "dur053-evidence-k4-4-c1-43979634795"
+    },
+    {
+      "asset_count": 22,
+      "tag": "dur053-evidence-k4-5-44012912592"
+    }
+  ],
+  "verification_commit": "745faff63bc3ac2ffb9c4553478327dc5e241151",
+  "wall_seconds": 3826
+}

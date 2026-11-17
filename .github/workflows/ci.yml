@@ -188,6 +188,10 @@ jobs:
         shell: pwsh
         run: ./scripts/check.ps1
 
+      - name: Check frozen K4 acceptance reports offline
+        shell: bash
+        run: python3 scripts/dur053_k4_report.py check
+
       - name: Measure B.6.2 checker capacity on committed short-1
         shell: bash
         run: |
