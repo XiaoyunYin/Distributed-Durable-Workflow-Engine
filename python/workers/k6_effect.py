@@ -23,6 +23,7 @@ if TYPE_CHECKING:
     from workers.runner import ActivityTask, WorkerControl
 
 LOG = logging.getLogger(__name__)
+OBSERVATION_PREFIX = "DUR053_K6_OBSERVATION "
 PRE_CALL_SECONDS = 5
 SIGNATURE_HEADER = "X-Dur053-K6-Receipt-Signature"
 VERSION_HEADER = "X-Dur053-K6-Receipt-Version"
@@ -126,7 +127,11 @@ def endpoint(url: str) -> tuple[str, int]:
 
 
 def observation(key_hash: str, stage: str, started: int) -> None:
-    LOG.info("k6_timing %s %s %d", key_hash, stage, time.monotonic_ns() - started)
+    emit_observation(f"k6_timing {key_hash} {stage} {time.monotonic_ns() - started}")
+
+
+def emit_observation(message: str) -> None:
+    print(f"{OBSERVATION_PREFIX}{message}", flush=True)
 
 
 class EffectAdapter:
@@ -174,14 +179,10 @@ class EffectAdapter:
                 )
                 reply = connection.getresponse()
                 body = reply.read(8193)
-                LOG.info(
-                    "k6_exchange %s %s %s %s %d %d",
-                    digest(str(request["request_id"])),
-                    digest(invocation),
-                    hashlib.sha256(wire).hexdigest(),
-                    hashlib.sha256(body).hexdigest(),
-                    len(body),
-                    reply.status,
+                emit_observation(
+                    f"k6_exchange {digest(str(request['request_id']))} {digest(invocation)} "
+                    f"{hashlib.sha256(wire).hexdigest()} {hashlib.sha256(body).hexdigest()} "
+                    f"{len(body)} {reply.status}"
                 )
                 if operation == "lookup" and reply.status == 404 and body == b"K6_SINK_MISSING\n":
                     return None, True

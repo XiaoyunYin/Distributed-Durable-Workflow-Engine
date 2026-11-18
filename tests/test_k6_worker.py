@@ -6,12 +6,19 @@ import hashlib
 import io
 import json
 import logging
+import sys
 import threading
 import traceback
 import urllib.error
+from contextlib import redirect_stdout
+from io import StringIO
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+import dur053_k6_d_smoke as phase_d  # noqa: E402
 from workers import k6_effect
 from workers.control import ControlClient, ControlError
 from workers.kafka_worker import RetryingControl, handle_delivery
@@ -192,7 +199,7 @@ def test_success_requires_and_passes_detached_sink_signature(delivery):
     assert delivery.results() == [("OUTCOME_UNKNOWN", None)], "unsigned sink response succeeded"
 
 
-def test_uncertain_apply_reports_unknown_before_same_key_lookup(delivery, caplog):
+def test_uncertain_apply_reports_unknown_before_same_key_lookup(delivery, caplog, capsys):
     delivery.replies["apply"] = "timeout"
     with caplog.at_level(logging.INFO):
         delivery.run()
@@ -207,8 +214,35 @@ def test_uncertain_apply_reports_unknown_before_same_key_lookup(delivery, caplog
     apply.pop("request_id")
     assert apply == lookup
     assert delivery.results()[-1][1]["operation"] == "lookup"
-    assert f"k6_timing {hash_text('registered-key')} lookup " in caplog.text
-    assert all(secret not in caplog.text for secret in (CLAIM, GRANT, TOKEN, SIGNATURE))
+    observations = capsys.readouterr().out
+    assert f"DUR053_K6_OBSERVATION k6_timing {hash_text('registered-key')} lookup " in observations
+    assert all(
+        secret not in caplog.text + observations for secret in (CLAIM, GRANT, TOKEN, SIGNATURE)
+    )
+
+
+def test_observations_parse_with_worker_entrypoint_logging(delivery):
+    output = StringIO()
+    root = logging.getLogger()
+    original_handlers, original_level = root.handlers[:], root.level
+    root.handlers.clear()
+    try:
+        logging.basicConfig(level=logging.INFO)
+        with redirect_stdout(output):
+            delivery.run()
+    finally:
+        root.handlers.clear()
+        root.handlers.extend(original_handlers)
+        root.setLevel(original_level)
+    prefixed = "".join(
+        f"[pod/worker-0/worker] {line}" for line in output.getvalue().splitlines(keepends=True)
+    )
+    observations = phase_d.collect(prefixed, "", "", "")
+    assert observations["worker"], "DUR053_K6_OBSERVATION missing exchange"
+    assert observations["worker_timings"], "DUR053_K6_OBSERVATION missing timings"
+    assert len(observations["worker"]) == 1
+    assert {phase for _, phase, _ in observations["worker_timings"]} >= {"claim", "delay", "apply"}
+    assert observations["matched_lines"]["worker"] == 4
 
 
 def test_engine_rejected_apply_proof_is_recovered_only_by_lookup(delivery, monkeypatch):

@@ -29,6 +29,51 @@ from dur053_k6_registry import build_registry  # noqa: E402
 from test_k6_phase_b import StubK3Driver  # noqa: E402
 from test_k6_phase_c import ENDPOINTS, fixture  # noqa: E402
 
+
+def test_role_logs_use_unlimited_tail_for_selector_and_previous_pod_reads():
+    matrix = object.__new__(phase_d.Matrix)
+    calls = []
+
+    def fake_k(step, *args):
+        calls.append((step, args))
+        if step == "D_ROLE_PODS":
+            return json.dumps(
+                {
+                    "items": [
+                        {
+                            "metadata": {"name": "worker-0"},
+                            "status": {
+                                "containerStatuses": [{"name": "worker", "restartCount": 1}]
+                            },
+                        }
+                    ]
+                }
+            ).encode()
+        return b"[pod/worker-0/worker] DUR053_K6_OBSERVATION k6_timing " + b"a" * 64 + b" claim 1\n"
+
+    matrix.k = fake_k
+    matrix.logs("worker")
+
+    selector = next(args for step, args in calls if step == "D_ROLE_LOGS")
+    previous = next(args for step, args in calls if step == "D_ROLE_PREVIOUS_LOGS")
+    assert "-l" in selector and "app=worker" in selector
+    assert "--tail=-1" in selector
+    assert "worker-0" in previous and "--previous" in previous
+    assert "--tail=-1" in previous
+
+
+def test_role_logs_fail_credential_scan_without_retaining_them(tmp_path):
+    evidence = phase_d.PhaseDEvidence(tmp_path)
+    evidence.retain_role_logs(
+        {"worker": "credential eyJabcdefghijk.abcdefghijk.abcdefghijk was planted"}
+    )
+
+    with pytest.raises(SmokeFailure, match="^CREDENTIAL_SCAN_FAILED$"):
+        evidence.scan()
+
+    assert not (tmp_path / "role-logs-worker.log").exists()
+
+
 IMAGES = {
     kind: f"localhost:5001/d2a-{kind.replace('_', '-')}@sha256:{str(index) * 64}"
     for index, kind in enumerate(("runtime", "worker", "old_runtime", "old_worker"))
@@ -124,8 +169,8 @@ def test_observer_timing_collects_reads_and_witness_acks_by_independent_hash():
         key = op["logical_key"]
         rows.append({"workflow_id": op["submission_key"], "stages_ns": {"approval": [99]}})
         for stage in ("claim", "apply"):
-            worker_log.append(f"INFO k6_timing {identity(key)} {stage} 10\n")
-        worker_log.append(f"INFO k6_timing {identity(key)} delay 5000000000\n")
+            worker_log.append(f"DUR053_K6_OBSERVATION k6_timing {identity(key)} {stage} 10\n")
+        worker_log.append(f"DUR053_K6_OBSERVATION k6_timing {identity(key)} delay 5000000000\n")
         for operation in ("allocate", "apply"):
             body = identity(key + operation)
             request = key + operation

@@ -14980,6 +14980,64 @@
       "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_uncertain_apply_reports_unknown_before_same_key_lookup"],
       "expected": "uncertain apply was replayed instead of looked up",
       "requires_database": false
+    },
+    {
+      "id": "k6d2a-root-logger-observations",
+      "kind": "behavioral",
+      "file": "python/workers/k6_effect.py",
+      "old": "    print(f\"{OBSERVATION_PREFIX}{message}\", flush=True)",
+      "new": "    LOG.info(message)  # mutation: use the root logger's colon-prefixed format",
+      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_observations_parse_with_worker_entrypoint_logging"],
+      "expected": "DUR053_K6_OBSERVATION missing exchange",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2a-unlimited-role-log-tail",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_d_smoke.py",
+      "old": "                \"--prefix\",\n                \"--tail=-1\",\n            ).decode()\n",
+      "new": "                \"--prefix\",\n            ).decode()  # mutation: selector defaults to ten lines\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_d.py::test_role_logs_use_unlimited_tail_for_selector_and_previous_pod_reads"
+      ],
+      "expected": "assert \"--tail=-1\" in selector",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2a-kubectl-prefix-parser",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_d_smoke.py",
+      "old": "    prefix = r\"^(?:\\[pod/[^\\]\\r\\n]+\\] )?DUR053_K6_OBSERVATION \"",
+      "new": "    prefix = r\"^(?:[^\\r\\n]* \\| )?DUR053_K6_OBSERVATION \"  # mutation: wrong kubectl prefix",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_worker.py::test_observations_parse_with_worker_entrypoint_logging"
+      ],
+      "expected": "DUR053_K6_OBSERVATION missing exchange",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2a-role-log-credential-scan",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_d_smoke.py",
+      "old": "    def scan(self) -> None:\n        for _role, logs in getattr(self, \"role_logs\", {}).items():\n            self.check(logs.encode())\n        super().scan()\n        counts = getattr(self, \"matched_lines\", None)\n        if counts is not None:\n            row = next(\n                (\n                    outcome\n                    for outcome in self.report[\"outcomes\"]\n                    if outcome.get(\"step\") == \"d-seal-export-and-join\"\n                ),\n                None,\n            )\n            if row is not None:\n                row[\"matched_lines\"] = counts\n                self.checkpoint()\n        for role, logs in getattr(self, \"role_logs\", {}).items():\n            self.write_bytes(f\"role-logs-{role}.log\", logs.encode())\n",
+      "new": "    def scan(self) -> None:\n        super().scan()\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_d.py::test_role_logs_fail_credential_scan_without_retaining_them"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
     }
   ]
 }

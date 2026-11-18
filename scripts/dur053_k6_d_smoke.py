@@ -87,6 +87,32 @@ finally:
 class PhaseDEvidence(Evidence):
     schema = "dur053.k6-phase-d-smoke.v1"
 
+    def retain_role_logs(self, logs: dict[str, str]) -> None:
+        self.role_logs = logs
+
+    def retain_matched_lines(self, counts: dict[str, int]) -> None:
+        self.matched_lines = counts
+
+    def scan(self) -> None:
+        for _role, logs in getattr(self, "role_logs", {}).items():
+            self.check(logs.encode())
+        super().scan()
+        counts = getattr(self, "matched_lines", None)
+        if counts is not None:
+            row = next(
+                (
+                    outcome
+                    for outcome in self.report["outcomes"]
+                    if outcome.get("step") == "d-seal-export-and-join"
+                ),
+                None,
+            )
+            if row is not None:
+                row["matched_lines"] = counts
+                self.checkpoint()
+        for role, logs in getattr(self, "role_logs", {}).items():
+            self.write_bytes(f"role-logs-{role}.log", logs.encode())
+
 
 def plan() -> tuple[dict, dict[str, list[dict]]]:
     blocks = {}
@@ -587,7 +613,32 @@ class Matrix(Deployment):
         return samples
 
     def logs(self, role: str) -> str:
-        return self.k("D_ROLE_LOGS", "-n", NS, "logs", "deployment/" + role, "--tail=2000").decode()
+        pods = json.loads(
+            self.k("D_ROLE_PODS", "-n", NS, "get", "pods", "-l", "app=" + role, "-o", "json")
+        )["items"]
+        collected = [
+            self.k(
+                "D_ROLE_LOGS",
+                "-n",
+                NS,
+                "logs",
+                "-l",
+                "app=" + role,
+                "--all-containers=true",
+                "--max-log-requests=100",
+                "--prefix",
+                "--tail=-1",
+            ).decode()
+        ]
+        for pod in pods:
+            name = pod["metadata"]["name"]
+            statuses = pod.get("status", {}).get("containerStatuses", [])
+            for container in statuses:
+                container_name = container["name"]
+                args = ["-n", NS, "logs", name, "-c", container_name, "--prefix", "--tail=-1"]
+                if container.get("restartCount", 0):
+                    collected.append(self.k("D_ROLE_PREVIOUS_LOGS", *args, "--previous").decode())
+        return "".join(collected)
 
     def diagnostics(self) -> None:
         pods = json.loads(self.k("D_DIAGNOSTICS", "-n", NS, "get", "pods", "-o", "json"))["items"]
@@ -760,11 +811,19 @@ class Matrix(Deployment):
                     blocks[name] = self.block(name, workloads[name], plans, approve)
                     row.update(workflows=10, cooperating=8)
         with evidence.step("d-seal-export-and-join") as row:
-            worker_log, allocator_log = self.logs("worker"), self.logs(CONTROL)
-            sink_log = self.logs(SINK)
+            role_logs = {
+                "worker": self.logs("worker"),
+                "allocator": self.logs(CONTROL),
+                "sink": self.logs(SINK),
+                "relay": self.logs(RELAY),
+            }
+            worker_log, allocator_log = role_logs["worker"], role_logs["allocator"]
+            sink_log = role_logs["sink"]
+            evidence.retain_role_logs(role_logs)
 
             def complete_witness():
-                observations = collect(worker_log, allocator_log, sink_log, self.logs(RELAY))
+                observations = collect(worker_log, allocator_log, sink_log, role_logs["relay"])
+                evidence.retain_matched_lines(observations["matched_lines"])
                 closes = sum(event == "close" for _, event, _ in observations["witness_timings"])
                 return observations if closes >= len(plans) else None
 
@@ -806,6 +865,7 @@ class Matrix(Deployment):
                 applications=verdict["applications"],
                 joined=len(verdict["joined"]),
                 dispatched=len(plans),
+                matched_lines=observations["matched_lines"],
             )
         with evidence.step("e-overhead-and-revoke") as row:
             add_timings(blocks, plans, snapshot, observations)
@@ -823,6 +883,7 @@ class Matrix(Deployment):
 
 def collect(worker_log: str, allocator_log: str, sink_log: str, relay_log: str) -> dict:
     h = r"([0-9a-f]{64})"
+    prefix = r"^(?:\[pod/[^\]\r\n]+\] )?DUR053_K6_OBSERVATION "
     workers = [
         dict(
             zip(
@@ -838,7 +899,9 @@ def collect(worker_log: str, allocator_log: str, sink_log: str, relay_log: str) 
                 strict=True,
             )
         )
-        for match in re.findall(rf" k6_exchange {h} {h} {h} {h} (\d+) (\d+)\s*$", worker_log, re.M)
+        for match in re.findall(
+            rf"{prefix}k6_exchange {h} {h} {h} {h} (\d+) (\d+)\s*$", worker_log, re.M
+        )
     ]
     return {
         "worker": workers,
@@ -849,7 +912,9 @@ def collect(worker_log: str, allocator_log: str, sink_log: str, relay_log: str) 
         "worker_timings": [
             (key, phase, int(ns))
             for key, phase, ns in re.findall(
-                rf" k6_timing {h} (claim|delay|apply|lookup) (\d+)\s*$", worker_log, re.M
+                rf"{prefix}k6_timing {h} (claim|delay|apply|lookup) (\d+)\s*$",
+                worker_log,
+                re.M,
             )
         ],
         "grant_timings": [
@@ -866,6 +931,25 @@ def collect(worker_log: str, allocator_log: str, sink_log: str, relay_log: str) 
                 rf" k6_witness {h} (\w+) (\d+)\s*$", relay_log, re.M
             )
         ],
+        "matched_lines": {
+            "worker": len(workers)
+            + len(
+                re.findall(
+                    rf"{prefix}k6_timing {h} (claim|delay|apply|lookup) (\d+)\s*$",
+                    worker_log,
+                    re.M,
+                )
+            ),
+            "allocator": len(re.findall(r" k6_allocation \{[^\n]+\}$", allocator_log, re.M)),
+            "sink": len(
+                re.findall(
+                    rf" k6_grant {h} (allocate|apply|lookup) (read|recheck) (\d+)\s*$",
+                    sink_log,
+                    re.M,
+                )
+            ),
+            "relay": len(re.findall(rf" k6_witness {h} (\w+) (\d+)\s*$", relay_log, re.M)),
+        },
     }
 
 
