@@ -149,9 +149,9 @@ func authorize(ctx context.Context, reader GrantReader, request Request, uncerta
 		return authorization{}, errDenied
 	}
 	storedHash, err := state.CanonicalPayloadHash(grant.CanonicalArguments)
-	proposal := hash([]byte(grant.Target + "\x00" + storedHash + "\x00" + grant.ExpectedResourceRevision))
-	scope := hash([]byte(proposal + "\x00" + grant.ExpectedResourceRevision + "\x00" + request.LogicalKey + "\x00" + grant.Target))
-	if err != nil || canonicalHash != storedHash || grant.ProposalHash != proposal || grant.ScopeHash != scope {
+	proposal, proposalErr := state.K6ProposalHash(grant.Target, grant.CanonicalArguments, grant.ExpectedResourceRevision)
+	scope := state.K6GrantScopeHash(proposal, grant.ExpectedResourceRevision, request.LogicalKey, grant.Target)
+	if err != nil || proposalErr != nil || canonicalHash != storedHash || grant.ProposalHash != proposal || grant.ScopeHash != scope {
 		return authorization{}, errDenied
 	}
 	// The engine sample lies inside the request bracket. Anchor the remaining

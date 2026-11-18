@@ -14712,6 +14712,134 @@
       ],
       "expected": "allocation retry changed the issued fence",
       "requires_database": true
+    },
+    {
+      "id": "k6c2-relay-forward-before-ack",
+      "kind": "behavioral",
+      "file": "internal/k6ingress/relay.go",
+      "old": "\t\t\trecord.ConnectionHash = Hash(binding)\n\t\t}\n\t}\n\tif err := r.admit(&record); err != nil {",
+      "new": "\t\t\trecord.ConnectionHash = Hash(binding)\n\t\t}\n\t}\n\tif sink != nil {\n\t\t_, _ = sink.Write(request.wire)\n\t}\n\tif err := r.admit(&record); err != nil {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/k6ingress",
+        "-run",
+        "^TestK6RelayRequiresJournalACK$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "relay sent the request without a durable journal ACK",
+      "requires_database": false
+    },
+    {
+      "id": "k6c2-relay-rewrites-authorization",
+      "kind": "behavioral",
+      "file": "internal/k6ingress/relay.go",
+      "old": "outbound := request.wire",
+      "new": "outbound := bytes.Replace(request.wire, []byte(\"Bearer \"), []byte(\"Modified \"), 1)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/k6ingress",
+        "-run",
+        "^TestK6RelayPreservesAuthorizationAndWire$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "relay changed original wire bytes or Authorization",
+      "requires_database": false
+    },
+    {
+      "id": "k6c2-relay-exposes-allocator",
+      "kind": "behavioral",
+      "file": "internal/k6ingress/relay.go",
+      "old": "(request.RequestURI == \"/v1/apply\" || request.RequestURI == \"/v1/lookup\")",
+      "new": "(request.RequestURI == \"/v1/apply\" || request.RequestURI == \"/v1/lookup\" || request.RequestURI == \"/v1/allocate\")",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/k6ingress",
+        "-run",
+        "^TestK6RelayOrdinaryRoutes$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "ordinary relay exposed a forbidden route",
+      "requires_database": false
+    },
+    {
+      "id": "k6c2-join-accepts-bypass",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_join.py",
+      "old": "require(not calls, \"SINK_UNWITNESSED_CALL\")",
+      "new": "require(True, \"SINK_UNWITNESSED_CALL\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_join_rejects_bypass_call_without_ingress"
+      ],
+      "expected": "accepted a sink call with no ingress record",
+      "requires_database": false
+    },
+    {
+      "id": "k6c2-join-counts-relay-sends",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_join.py",
+      "old": "application_count = len(snapshot[\"journal\"])",
+      "new": "application_count = sum(rows[0][\"operation\"] == \"apply\" for rows in deliveries.values())",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_join_counts_database_mutations_not_relay_sends"
+      ],
+      "expected": "counted two relay sends as two database applications",
+      "requires_database": false
+    },
+    {
+      "id": "k6c2-render-unaccounted-sink-client",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_render.py",
+      "old": "set(clients) == expected and len(workloads) == len(expected)",
+      "new": "expected <= set(clients)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_render_rejects_unaccounted_sink_db_client"
+      ],
+      "expected": "renderer accepted an unaccounted sink DB client",
+      "requires_database": false
+    },
+    {
+      "id": "k6c2-state-grant-scope-separator",
+      "kind": "behavioral",
+      "file": "internal/state/m4.go",
+      "old": "sum := sha256.Sum256([]byte(proposalHashValue + \"\\x00\" + expectedResourceRevision + \"\\x00\" + logicalEffectKey + \"\\x00\" + target))",
+      "new": "sum := sha256.Sum256([]byte(proposalHashValue + \"\\x01\" + expectedResourceRevision + \"\\x00\" + logicalEffectKey + \"\\x00\" + target))",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/effects/k6sink",
+        "-run",
+        "^TestK6SinkAcceptsStateGrant$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "registered K6 grant scope changed",
+      "requires_database": false
     }
   ]
 }

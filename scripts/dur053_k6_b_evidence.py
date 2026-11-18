@@ -26,11 +26,13 @@ def reason(error: BaseException) -> str:
 
 
 class Evidence:
+    schema = "dur053.k6-phase-b-smoke.v1"
+
     def __init__(self, root: Path) -> None:
         self.root = root
         self.secrets: set[bytes] = set()
         self.report: dict = {
-            "schema": "dur053.k6-phase-b-smoke.v1",
+            "schema": self.schema,
             "status": "FAIL",
             "reason": "SMOKE_INCOMPLETE",
             "measurement_claim": False,
@@ -51,7 +53,9 @@ class Evidence:
             raise SmokeFailure("CREDENTIAL_SCAN_FAILED")
 
     def write(self, name: str, document: object) -> None:
-        data = (json.dumps(document, indent=2, sort_keys=True) + "\n").encode()
+        self.write_bytes(name, (json.dumps(document, indent=2, sort_keys=True) + "\n").encode())
+
+    def write_bytes(self, name: str, data: bytes) -> None:
         self.check(data)
         temporary = self.root / f".{name}.tmp"
         temporary.write_bytes(data)
