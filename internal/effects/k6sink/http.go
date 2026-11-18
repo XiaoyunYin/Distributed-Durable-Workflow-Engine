@@ -1,0 +1,161 @@
+package k6sink
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+	"unicode/utf8"
+
+	"durable-agent-execution-engine/internal/k6auth"
+	"durable-agent-execution-engine/internal/state"
+)
+
+const maxBody = 64 << 10
+
+type HTTPConfig struct {
+	Worker                        WorkerIdentity
+	EnginePeerURI, IngressPeerURI string
+	ClockUncertainty              time.Duration
+}
+
+type handler struct {
+	cfg      HTTPConfig
+	reviewer k6auth.Reviewer
+	reader   GrantReader
+	store    backend
+	now      func() time.Time
+}
+
+func NewHandler(cfg HTTPConfig, reviewer k6auth.Reviewer, reader GrantReader, store *Store) (http.Handler, error) {
+	if store == nil {
+		return nil, errDenied
+	}
+	return newHandler(cfg, reviewer, reader, store)
+}
+
+func newHandler(cfg HTTPConfig, reviewer k6auth.Reviewer, reader GrantReader, store backend) (*handler, error) {
+	isPeer := func(identity string) bool {
+		u, err := url.Parse(identity)
+		return err == nil && u.Scheme == "spiffe" && u.Host != "" && u.Path != "" &&
+			u.RawQuery == "" && u.Fragment == "" && u.User == nil
+	}
+	if !identifier(cfg.Worker.Namespace) || !identifier(cfg.Worker.ServiceAccount) ||
+		!identifier(cfg.Worker.ServiceAccountUID) || !isPeer(cfg.EnginePeerURI) || !isPeer(cfg.IngressPeerURI) ||
+		cfg.EnginePeerURI == cfg.IngressPeerURI || cfg.ClockUncertainty <= 0 ||
+		reviewer == nil || reader == nil || store == nil {
+		return nil, errDenied
+	}
+	return &handler{cfg, reviewer, reader, store, time.Now}, nil
+}
+
+func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost || r.URL.RawQuery != "" {
+		http.NotFound(w, r)
+		return
+	}
+	var operation, peer string
+	switch r.URL.Path {
+	case "/v1/apply":
+		operation, peer = "apply", h.cfg.IngressPeerURI
+	case "/v1/lookup":
+		operation, peer = "lookup", h.cfg.IngressPeerURI
+	case "/v1/allocate":
+		operation, peer = "allocate", h.cfg.EnginePeerURI
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	if r.TLS == nil || len(r.TLS.VerifiedChains) == 0 || len(r.TLS.VerifiedChains[0]) == 0 {
+		http.Error(w, errDenied.Error(), http.StatusForbidden)
+		return
+	}
+	uris := r.TLS.VerifiedChains[0][0].URIs
+	if len(uris) != 1 || uris[0].String() != peer {
+		http.Error(w, errDenied.Error(), http.StatusForbidden)
+		return
+	}
+	binding, err := r.TLS.ExportKeyingMaterial("EXPORTER-dur053-k6-sink", nil, 32)
+	if err != nil {
+		http.Error(w, errDenied.Error(), http.StatusForbidden)
+		return
+	}
+	ctx, cancel := context.WithTimeout(r.Context(), 7*time.Second)
+	defer cancel()
+	if operation == "allocate" {
+		if len(r.Header.Values("Authorization")) != 0 {
+			http.Error(w, errDenied.Error(), http.StatusForbidden)
+			return
+		}
+	} else {
+		headers := r.Header.Values("Authorization")
+		if len(headers) != 1 || !strings.HasPrefix(headers[0], "Bearer ") {
+			http.Error(w, errDenied.Error(), http.StatusForbidden)
+			return
+		}
+		expiry, err := h.cfg.Worker.authenticate(ctx, h.reviewer, strings.TrimPrefix(headers[0], "Bearer "), h.now)
+		if err != nil {
+			http.Error(w, errDenied.Error(), http.StatusForbidden)
+			return
+		}
+		// Preserve monotonic bounds even if the process wall clock changes.
+		var cancelWorkerTimeout context.CancelFunc
+		ctx, cancelWorkerTimeout = context.WithTimeout(ctx, expiry.Sub(h.now()))
+		defer cancelWorkerTimeout()
+	}
+	body, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxBody))
+	if err != nil {
+		var limit *http.MaxBytesError
+		if errors.As(err, &limit) {
+			http.Error(w, "K6_SINK_BODY_LIMIT", http.StatusRequestEntityTooLarge)
+		} else {
+			http.Error(w, "K6_SINK_BODY", http.StatusBadRequest)
+		}
+		return
+	}
+	var request Request
+	decoder := json.NewDecoder(bytes.NewReader(body))
+	decoder.DisallowUnknownFields()
+	if !utf8.Valid(body) || state.ValidateK6Arguments(body) != nil || decoder.Decode(&request) != nil ||
+		(operation == "allocate" && request.Fence != 0) || (operation != "allocate" && request.Fence <= 0) {
+		http.Error(w, "K6_SINK_BODY", http.StatusBadRequest)
+		return
+	}
+	readCtx, cancelRead := context.WithTimeout(ctx, 2*time.Second)
+	auth, err := authorize(readCtx, h.reader, request, h.cfg.ClockUncertainty)
+	cancelRead()
+	if err != nil {
+		http.Error(w, errDenied.Error(), http.StatusForbidden)
+		return
+	}
+	ctx, cancelGrant := context.WithDeadline(ctx, auth.deadline)
+	defer cancelGrant()
+	d := delivery{operation, hash(body), hash(binding), request, auth}
+	out, err := h.store.execute(ctx, d, func(ctx context.Context) (time.Time, error) {
+		readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+		defer cancel()
+		return recheck(readCtx, h.reader, request, auth, h.cfg.ClockUncertainty)
+	})
+	switch {
+	case errors.Is(err, errDenied):
+		http.Error(w, errDenied.Error(), http.StatusForbidden)
+	case err != nil:
+		http.Error(w, errUnavailable.Error(), http.StatusServiceUnavailable)
+	default:
+		switch out.outcome {
+		case "APPLIED", "DUPLICATE", "FOUND", "ALLOCATED":
+			w.Header().Set("Content-Type", "application/json")
+			w.Header().Set("Cache-Control", "no-store")
+			_, _ = w.Write(out.body)
+		case "MISSING":
+			http.Error(w, "K6_SINK_MISSING", http.StatusNotFound)
+		default:
+			http.Error(w, "K6_SINK_"+out.outcome, http.StatusConflict)
+		}
+	}
+}

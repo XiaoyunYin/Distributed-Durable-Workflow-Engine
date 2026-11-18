@@ -177,6 +177,7 @@ def main() -> int:
             "./internal/engine",
             "./internal/invariants",
             "./internal/state",
+            "./internal/effects/k6sink",
             "-count=1",
         ]
         baseline_started = time.perf_counter()

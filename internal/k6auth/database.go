@@ -44,6 +44,9 @@ func openDatabaseRole(ctx context.Context, dsn, role string) (*pgxpool.Pool, err
 		return nil, ErrDenied
 	}
 	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheStatement
+	if role == ReaderRole {
+		cfg.ConnConfig.RuntimeParams["application_name"] = "dur053-k6-sink-grant-reader"
+	}
 	cfg.MaxConns = 2
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {

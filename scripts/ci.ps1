@@ -62,6 +62,27 @@ try {
     }
 
     if ($WithServices) {
+        Write-Host "Running DUR-053 sink contract tests in isolated PostgreSQL databases."
+        $values = @{}
+        foreach ($line in (Get-Content -LiteralPath '.env')) {
+            if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
+        }
+        $port = $values['POSTGRES_PORT']
+        if ([string]::IsNullOrWhiteSpace($port)) { $port = '5432' }
+        $user = [uri]::EscapeDataString($values['POSTGRES_USER'])
+        $password = [uri]::EscapeDataString($values['POSTGRES_PASSWORD'])
+        $database = [uri]::EscapeDataString($values['POSTGRES_DB'])
+        $previousSinkAdminURL = $env:DUR053_SINK_TEST_ADMIN_URL
+        $sinkTestArgs = @('test', '-p', '1')
+        if ($WithRace) { $sinkTestArgs += '-race' }
+        try {
+            $env:DUR053_SINK_TEST_ADMIN_URL = "postgresql://${user}:${password}@127.0.0.1:${port}/${database}?sslmode=disable"
+            & go @sinkTestArgs ./internal/effects/k6sink -run 'K6Sink' -count=1 -v
+            if ($LASTEXITCODE -ne 0) { throw "DUR-053 sink PostgreSQL checks failed." }
+        } finally {
+            $env:DUR053_SINK_TEST_ADMIN_URL = $previousSinkAdminURL
+        }
+
         Write-Host "Running DUR-005 through DUR-018 PostgreSQL/Kafka integration tests."
         & go test ./internal/state -run '^TestPostgresStateRepository$' -count=1 -v
         if ($LASTEXITCODE -ne 0) { throw "DUR-005 PostgreSQL integration tests failed." }
