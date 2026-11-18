@@ -242,6 +242,7 @@ class Driver:
         timeout: float = 180,
         allowed: bool = False,
         record: bool = True,
+        env: dict[str, str] | None = None,
     ) -> subprocess.CompletedProcess[str]:
         if self.live_start is not None:
             remaining = self.live_reservation - (time.monotonic() - self.live_start)
@@ -251,7 +252,7 @@ class Driver:
             result = subprocess.run(
                 args,
                 cwd=ROOT,
-                env=self.env,
+                env=self.env if env is None else env,
                 input=data,
                 capture_output=True,
                 text=True,
@@ -1604,8 +1605,12 @@ class Driver:
         }
 
 
-def run(scenario: str, output: Path, scratch_root: Path) -> int:
+def run(
+    scenario: str, output: Path, scratch_root: Path, k6_output: Path | None = None
+) -> int:
     supported(scenario)
+    k6_exit = 0
+    phase_b_started = False
     fresh_output(output)
     scratch_root.mkdir(parents=True, exist_ok=True)
     scratch = scratch_root / ("kind-" + secrets.token_hex(8))
@@ -1664,7 +1669,8 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
                 "tests",
                 "-p",
                 "test_k3_*.py",
-            ]
+            ],
+            env={key: value for key, value in d.env.items() if key != "DUR053_K6_B_OUTPUT"},
         )
         d.install()
         if scenario == "cleanup":
@@ -1727,6 +1733,16 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
                 manifest["cluster_started"] = d.cluster_started
                 for arm in ("kind", "kind-baseline"):
                     d.batch(arm, addresses)
+                if k6_output:
+                    phase_b_started = True
+                    from dur053_k6_b_smoke import record_handoff_failure
+                    from dur053_k6_b_smoke import run as phase_b
+
+                    try:
+                        k6_exit = phase_b(Path(k6_output), d, addresses["192.0.2.1"])
+                    except Exception as error:
+                        record_handoff_failure(Path(k6_output), error)
+                        k6_exit = 1
         manifest["status"] = "PASS"
     except Exception as error:
         manifest["error"] = (
@@ -1773,7 +1789,11 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
         manifest["charged_seconds"] = 0
         manifest["artifact_sha256"] = artifact_hashes(output)
         save(output / "manifest.json", manifest)
-    return 0 if manifest["status"] == "PASS" else 1
+        if k6_output and not phase_b_started:
+            from dur053_k6_b_smoke import inherited_failure
+
+            inherited_failure(Path(k6_output))
+    return k6_exit if manifest["status"] == "PASS" else 1
 
 
 def main() -> int:
@@ -1781,8 +1801,13 @@ def main() -> int:
     parser.add_argument("--scenario", required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--scratch-root", type=Path, required=True)
+    parser.add_argument("--k6-output", type=Path)
     args = parser.parse_args()
-    return run(args.scenario, args.output.resolve(), args.scratch_root.resolve())
+    k6_output = args.k6_output
+    if args.scenario == "smoke" and k6_output is None:
+        configured = os.getenv("DUR053_K6_B_OUTPUT")
+        k6_output = Path(configured) if configured else None
+    return run(args.scenario, args.output.resolve(), args.scratch_root.resolve(), k6_output)
 
 
 if __name__ == "__main__":

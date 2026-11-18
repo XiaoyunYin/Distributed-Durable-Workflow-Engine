@@ -20,8 +20,9 @@ type Credentials struct {
 // Provision installs one episode on a dedicated DB cluster. PostgreSQL has no
 // per-role DENY ACL, so PUBLIC CONNECT must be removed from every other
 // connectable database in this cluster. The installation refuses role reuse.
-// Setup retains the generated credentials privately by role.
-func Provision(ctx context.Context, admin *pgx.Conn, namespace string, cutoff time.Time, uncertainty time.Duration) (Credentials, error) {
+// engineRoles identifies deployed roles whose preexisting CONNECT access must
+// become explicit before PUBLIC is revoked. Setup retains credentials by role.
+func Provision(ctx context.Context, admin *pgx.Conn, namespace string, cutoff time.Time, uncertainty time.Duration, engineRoles ...string) (Credentials, error) {
 	if namespace == "" || cutoff.IsZero() || uncertainty < 0 || uncertainty%time.Microsecond != 0 || cutoff.Nanosecond()%1000 != 0 {
 		return Credentials{}, ErrDenied
 	}
@@ -41,6 +42,28 @@ func Provision(ctx context.Context, admin *pgx.Conn, namespace string, cutoff ti
 	others, err := pgx.CollectRows(rows, pgx.RowTo[string])
 	if err != nil {
 		return Credentials{}, ErrDenied
+	}
+	for _, role := range engineRoles {
+		if role == "" || role == ReaderRole || role == DecisionRole || role == "public" {
+			return Credentials{}, ErrDenied
+		}
+		// Preserve existing effective access, including access through PUBLIC.
+		// Do not give an engine role access to a database it could not use.
+		for _, name := range append(others, database) {
+			var allowed bool
+			if err := tx.QueryRow(ctx, `SELECT pg_catalog.has_database_privilege($1::name, $2::text, 'CONNECT')`, role, name).Scan(&allowed); err != nil {
+				return Credentials{}, ErrDenied
+			}
+			if !allowed {
+				if name == database {
+					return Credentials{}, ErrDenied
+				}
+				continue
+			}
+			if _, err := tx.Exec(ctx, `GRANT CONNECT ON DATABASE `+pgx.Identifier{name}.Sanitize()+` TO `+pgx.Identifier{role}.Sanitize()); err != nil {
+				return Credentials{}, ErrDenied
+			}
+		}
 	}
 	for _, other := range others {
 		if _, err := tx.Exec(ctx, `REVOKE CONNECT ON DATABASE `+pgx.Identifier{other}.Sanitize()+` FROM PUBLIC`); err != nil {

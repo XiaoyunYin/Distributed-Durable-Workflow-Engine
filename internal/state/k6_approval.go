@@ -13,6 +13,14 @@ import (
 
 var ErrK6ArgumentsNotCanonical = errors.New("K6 approval arguments are not canonical")
 
+// K6ProposalHash derives the exact proposal digest from the approver's plan.
+func K6ProposalHash(target string, arguments json.RawMessage, revision string) (string, error) {
+	if err := ValidateK6Arguments(arguments); err != nil {
+		return "", err
+	}
+	return proposalHash(target, arguments, revision)
+}
+
 // K6ExistingIntent identifies the logical operation's non-replaceable intent.
 type K6ExistingIntent struct{ IntentID string }
 
