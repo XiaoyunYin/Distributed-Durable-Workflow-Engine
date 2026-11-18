@@ -172,6 +172,49 @@ def validate_chaos_render(objects):
     return found
 
 
+def render_chaos_backend(base, scratch, output):
+    import yaml
+
+    tool = LOCK["tools"]["helm"]
+    data = download(tool["url"], tool["sha256"])
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
+        data = archive.extractfile(tool["member"]).read()
+    path = scratch / "bin/helm"
+    path.write_bytes(data)
+    path.chmod(0o755)
+    base.command([str(path), "version"])
+    chart = LOCK["artifacts"]["chaos-chart"]
+    chart_path = scratch / "chaos-mesh.tgz"
+    chart_path.write_bytes(download(chart["url"], chart["sha256"]))
+    save(output / "chaos-values.json", chaos_values())
+    rendered = base.command(
+        [
+            str(path),
+            "template",
+            "chaos-mesh",
+            str(chart_path),
+            "--namespace",
+            "chaos-mesh",
+            "--values",
+            str(output / "chaos-values.json"),
+        ]
+    ).stdout
+    found = validate_chaos_render([obj for obj in yaml.safe_load_all(rendered) if obj])
+    (output / "chaos-mesh.yaml").write_text(rendered, encoding="utf-8", newline="\n")
+    crd = LOCK["addons"]["chaos"]
+    (output / "chaos-crds.yaml").write_bytes(download(crd["url"], crd["sha256"]))
+    return found
+
+
+def install_chaos_backend(base, output):
+    base.apply(dict(apiVersion="v1", kind="Namespace", metadata=dict(name="chaos-mesh")))
+    base.k("apply", "--server-side", "-f", str(output / "chaos-crds.yaml"), timeout=180)
+    base.k("wait", "crd", "--all", "--for=condition=Established", "--timeout=120s")
+    base.k("apply", "-f", str(output / "chaos-mesh.yaml"), timeout=180)
+    for target in ("deployment/chaos-controller-manager", "daemonset/chaos-daemon"):
+        base.k("-n", "chaos-mesh", "rollout", "status", target, "--timeout=180s", timeout=190)
+
+
 def lineage_identity(configs):
     for target in ("runtime", "worker"):
         a, prime = (copy.deepcopy(configs[lineage][target]) for lineage in ("a", "a-prime"))
@@ -253,37 +296,7 @@ class K4Driver:
 
     def install(self):
         self.base.install()
-        tool = LOCK["tools"]["helm"]
-        data = download(tool["url"], tool["sha256"])
-        with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as archive:
-            data = archive.extractfile(tool["member"]).read()
-        path = self.scratch / "bin/helm"
-        path.write_bytes(data)
-        path.chmod(0o755)
-        self.base.command(["helm", "version"])
-        chart = LOCK["artifacts"]["chaos-chart"]
-        path = self.scratch / "chaos-mesh.tgz"
-        path.write_bytes(download(chart["url"], chart["sha256"]))
-        save(self.output / "chaos-values.json", chaos_values())
-        rendered = self.base.command(
-            [
-                "helm",
-                "template",
-                "chaos-mesh",
-                str(path),
-                "--namespace",
-                "chaos-mesh",
-                "--values",
-                str(self.output / "chaos-values.json"),
-            ]
-        ).stdout
-        import yaml
-
-        objects = [o for o in yaml.safe_load_all(rendered) if o]
-        self.base.addon_images.update(validate_chaos_render(objects))
-        (self.output / "chaos-mesh.yaml").write_text(rendered, encoding="utf-8", newline="\n")
-        crd = LOCK["addons"]["chaos"]
-        (self.output / "chaos-crds.yaml").write_bytes(download(crd["url"], crd["sha256"]))
+        self.base.addon_images.update(render_chaos_backend(self.base, self.scratch, self.output))
 
     def build(self):
         # One compilation per target. The two lineage variants only add a label.
@@ -363,16 +376,7 @@ class K4Driver:
                 self.base.prepare_addon(name)
         self.base.preload_addons()
         addresses = self.base.cluster()
-        self.base.apply(dict(apiVersion="v1", kind="Namespace", metadata=dict(name="chaos-mesh")))
-        self.base.k(
-            "apply", "--server-side", "-f", str(self.output / "chaos-crds.yaml"), timeout=180
-        )
-        self.base.k("wait", "crd", "--all", "--for=condition=Established", "--timeout=120s")
-        self.base.k("apply", "-f", str(self.output / "chaos-mesh.yaml"), timeout=180)
-        for target in ("deployment/chaos-controller-manager", "daemonset/chaos-daemon"):
-            self.base.k(
-                "-n", "chaos-mesh", "rollout", "status", target, "--timeout=180s", timeout=190
-            )
+        install_chaos_backend(self.base, self.output)
         self.validate_backend()
         self.base.images = dict(self.images["a"])
         for arm in ("kind", "kind-baseline"):

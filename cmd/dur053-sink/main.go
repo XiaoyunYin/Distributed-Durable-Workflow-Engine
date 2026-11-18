@@ -19,6 +19,7 @@ import (
 
 	"durable-agent-execution-engine/internal/effects/k6sink"
 	"durable-agent-execution-engine/internal/k6auth"
+	"durable-agent-execution-engine/internal/k6hook"
 )
 
 type serveConfig struct {
@@ -100,18 +101,23 @@ func serve(ctx context.Context, path string) error {
 		}
 		receiptKey = ed25519.NewKeyFromSeed(cfg.ReceiptSigningSeed)
 	}
+	hook, err := k6hook.FromEnvironment("sink", "")
+	if err != nil {
+		return err
+	}
 	handler, err := k6sink.NewHandler(k6sink.HTTPConfig{
 		Worker: cfg.Worker, EnginePeerURI: cfg.EnginePeerURI, IngressPeerURI: cfg.IngressPeerURI,
 		ClockUncertainty: time.Duration(cfg.ClockUncertaintyMicros) * time.Microsecond,
 		ReceiptKey:       receiptKey,
 		ObserveTimings:   cfg.ObserveTimings,
+		Hook:             hook,
 	}, reviewer, reader, store)
 	if err != nil {
 		return errors.New("K6_SINK_IDENTITY_CONFIG")
 	}
 	server := &http.Server{
 		Addr: cfg.Address, Handler: handler, TLSConfig: tlsConfig, ReadHeaderTimeout: 2 * time.Second,
-		ReadTimeout: 4 * time.Second, WriteTimeout: 12 * time.Second, IdleTimeout: 10 * time.Second,
+		ReadTimeout: 4 * time.Second, WriteTimeout: k6sink.ResponseTimeout(hook), IdleTimeout: 10 * time.Second,
 		MaxHeaderBytes: 24 << 10, ErrorLog: log.New(io.Discard, "", 0),
 	}
 	done := make(chan error, 1)

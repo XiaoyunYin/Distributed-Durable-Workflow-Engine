@@ -614,13 +614,23 @@ class Matrix(Deployment):
 
     def logs(self, role: str) -> str:
         pods = json.loads(
-            self.k("D_ROLE_PODS", "-n", NS, "get", "pods", "-l", "app=" + role, "-o", "json")
+            self.k(
+                "D_ROLE_PODS",
+                "-n",
+                self.namespace,
+                "get",
+                "pods",
+                "-l",
+                "app=" + role,
+                "-o",
+                "json",
+            )
         )["items"]
         collected = [
             self.k(
                 "D_ROLE_LOGS",
                 "-n",
-                NS,
+                self.namespace,
                 "logs",
                 "-l",
                 "app=" + role,
@@ -635,13 +645,24 @@ class Matrix(Deployment):
             statuses = pod.get("status", {}).get("containerStatuses", [])
             for container in statuses:
                 container_name = container["name"]
-                args = ["-n", NS, "logs", name, "-c", container_name, "--prefix", "--tail=-1"]
+                args = [
+                    "-n",
+                    self.namespace,
+                    "logs",
+                    name,
+                    "-c",
+                    container_name,
+                    "--prefix",
+                    "--tail=-1",
+                ]
                 if container.get("restartCount", 0):
                     collected.append(self.k("D_ROLE_PREVIOUS_LOGS", *args, "--previous").decode())
         return "".join(collected)
 
     def diagnostics(self) -> None:
-        pods = json.loads(self.k("D_DIAGNOSTICS", "-n", NS, "get", "pods", "-o", "json"))["items"]
+        pods = json.loads(
+            self.k("D_DIAGNOSTICS", "-n", self.namespace, "get", "pods", "-o", "json")
+        )["items"]
         diagnostics = []
         for pod in pods:
             status = pod["status"]

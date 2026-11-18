@@ -21,6 +21,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"durable-agent-execution-engine/internal/k6hook"
 )
 
 const relayPeer = "spiffe://episode/relay"
@@ -98,7 +100,7 @@ type upstream struct {
 	connection string
 }
 
-func fixtureRelay(t *testing.T, witness recorderFunc) (string, *tls.Config, <-chan upstream) {
+func fixtureRelay(t *testing.T, witness recorderFunc, hooks ...k6hook.Client) (string, *tls.Config, <-chan upstream) {
 	t.Helper()
 	config := credentials(t)
 	sinkConfig := config.Clone()
@@ -119,13 +121,20 @@ func fixtureRelay(t *testing.T, witness recorderFunc) (string, *tls.Config, <-ch
 			return
 		}
 		atSink <- upstream{message.wire, Hash(binding)}
-		_, _ = io.WriteString(conn, "HTTP/1.1 200 OK\r\nContent-Length: 7\r\nConnection: close\r\n\r\nreceipt")
+		body := "receipt"
+		if len(hooks) != 0 {
+			body = `{"application_id":"app"}`
+		}
+		_, _ = fmt.Fprintf(conn, "HTTP/1.1 200 OK\r\nContent-Length: %d\r\nConnection: close\r\n\r\n%s", len(body), body)
 	})
 	workerConfig := config.Clone()
 	workerConfig.Certificates = config.Certificates[:1]
 	upstreamConfig := workerConfig.Clone()
 	upstreamConfig.ServerName = "sink.test"
 	relay := &Relay{SinkAddress: address, SinkPeer: sinkPeer, SinkTLS: upstreamConfig, Witness: witness}
+	if len(hooks) != 0 {
+		relay.Hook = hooks[0]
+	}
 	return listen(t, workerConfig, relay.Handle), workerConfig, atSink
 }
 

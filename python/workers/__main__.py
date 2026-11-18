@@ -11,11 +11,17 @@ import sys
 import threading
 import time
 import urllib.request
+from collections.abc import Callable
+from functools import partial
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from typing import TYPE_CHECKING
 
 from workers import __version__
 from workers.lifecycle import WorkerLifecycle, worker_identity
 from workers.witness import campaign_witness, configured_witness
+
+if TYPE_CHECKING:
+    from workers.k6_effect import EffectAdapter
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -68,7 +74,7 @@ class HealthHandler(BaseHTTPRequestHandler):
         return
 
 
-def run() -> None:
+def run(effect_factory: Callable[[], EffectAdapter] | None = None) -> None:
     from faults.client import FailpointClient
 
     from workers.kafka_worker import start_pool
@@ -131,7 +137,12 @@ def run() -> None:
 
     threads = []
     if brokers := os.getenv("KAFKA_BOOTSTRAP_SERVERS"):
-        threads = start_pool(
+        start = (
+            partial(start_pool, effect_factory=effect_factory)
+            if effect_factory is not None
+            else start_pool
+        )
+        threads = start(
             brokers,
             os.getenv("CONTROL_API_URL", "http://127.0.0.1:8080"),
             worker_identity(),

@@ -13,6 +13,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"durable-agent-execution-engine/internal/k6hook"
 )
 
 const MaxBody = 64 << 10
@@ -23,6 +25,7 @@ type Relay struct {
 	SinkPeer    string
 	SinkTLS     *tls.Config
 	Witness     interface{ Record(Record) error }
+	Hook        k6hook.Client
 	admission   sync.Mutex
 	ordinal     uint64
 }
@@ -92,6 +95,9 @@ func allowedRoute(request *http.Request) bool {
 }
 
 func (r *Relay) Handle(worker *tls.Conn) {
+	if r.handleCampaign(worker) {
+		return
+	}
 	defer worker.Close()
 	if worker.SetDeadline(time.Now().Add(18*time.Second)) != nil {
 		return

@@ -40,6 +40,7 @@ type Record struct {
 	Event          string    `json:"event"`
 	HighWater      uint64    `json:"high_water,omitempty"`
 	Ordinal        uint64    `json:"ordinal,omitempty"`
+	Copy           int       `json:"copy,omitempty"`
 	Method         string    `json:"method,omitempty"`
 	Operation      string    `json:"operation,omitempty"`
 	InvocationHash string    `json:"invocation_hash,omitempty"`
@@ -86,6 +87,7 @@ func (r Record) valid(relay, sink string) bool {
 	rejected := r.Operation == "rejected" && (r.Method == "POST" || r.Method == "OTHER") && r.ConnectionHash == ""
 	if r.Ordinal == 0 || (!allowed && !rejected) ||
 		r.HighWater != 0 || r.Length < 0 || r.Length > MaxBody ||
+		!validCampaignRecord(r) ||
 		(r.ConnectionHash != "" && !hexHash.MatchString(r.ConnectionHash)) || !hexHash.MatchString(r.WorkerBinding) {
 		return false
 	}
@@ -104,7 +106,7 @@ func (r Record) valid(relay, sink string) bool {
 	case "sink_send_failed", "no_response", "worker_drop", "close":
 		return r.Status == 0 && r.Length == 0 && r.BodyHash == "" && r.WireLength == 0 && r.WireHash == ""
 	default:
-		return false
+		return validCampaignEvent(r)
 	}
 }
 

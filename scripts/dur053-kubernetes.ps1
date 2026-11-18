@@ -12,8 +12,8 @@ param(
 )
 $ErrorActionPreference = "Stop"
 if ($Scenario -eq "faults-smoke") {
-    if ($Context -ne "kind" -or $K6Phase -cnotin @("A", "B", "C", "D") -or -not $OutputRoot) {
-        throw "faults-smoke requires -Context kind, -K6Phase A, B, C or D, and a fresh -OutputRoot."
+    if ($Context -ne "kind" -or $K6Phase -cnotin @("A", "B", "C", "D", "D2b") -or -not $OutputRoot) {
+        throw "faults-smoke requires -Context kind, -K6Phase A, B, C, D or D2b, and a fresh -OutputRoot."
     }
     $env:PYTHONDONTWRITEBYTECODE = "1"
     $driver = switch -CaseSensitive ($K6Phase) {
@@ -21,6 +21,7 @@ if ($Scenario -eq "faults-smoke") {
         "B" { "dur053_k6_b_smoke.py" }
         "C" { "dur053_k6_c_smoke.py" }
         "D" { "dur053_k6_d_smoke.py" }
+        "D2b" { "dur053_k6_d2b_smoke.py" }
     }
     & python "$PSScriptRoot/$driver" --output-root $OutputRoot
     if ($LASTEXITCODE -ne 0) { throw "DUR-053 K6 Phase $K6Phase FAIL. See retained evidence." }

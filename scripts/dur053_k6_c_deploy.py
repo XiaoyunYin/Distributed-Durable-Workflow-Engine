@@ -72,6 +72,9 @@ class Deployment(Smoke):
 
     def build(self) -> None:
         super().build()
+        self.build_effect()
+
+    def build_effect(self, tag: str = "") -> None:
         for path, package in (
             (self.sink, "dur053-sink"),
             (self.relay, "dur053-k6-relay"),
@@ -86,6 +89,7 @@ class Deployment(Smoke):
                 "1",
                 "-buildvcs=false",
                 "-trimpath",
+                *(["-tags", tag] if tag else []),
                 "-o",
                 str(path),
                 "./cmd/" + package,
@@ -102,7 +106,7 @@ class Deployment(Smoke):
         (context / "Dockerfile").write_text(
             "FROM scratch\nCOPY sink relay probe /\nUSER 65532:65532\n", encoding="utf-8"
         )
-        image_tag = "localhost:5001/dur053-k6-effect:candidate"
+        image_tag = "localhost:5001/dur053-k6-effect" + ("-campaign" if tag else "") + ":candidate"
         self.command(
             "EFFECT_IMAGE_BUILD",
             "docker",
@@ -146,7 +150,7 @@ class Deployment(Smoke):
             "effect-image.json",
             {
                 "image": self.image,
-                "relay_build": "ordinary",
+                "relay_build": tag or "ordinary",
                 "binaries": {
                     p.name: hashlib.sha256(p.read_bytes()).hexdigest()
                     for p in (self.sink, self.relay, self.probe_bin, self.witness)
