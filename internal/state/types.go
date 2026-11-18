@@ -110,6 +110,7 @@ type Store struct {
 	recordLeaseAcquisitions  bool
 	dur050Admission          AdmissionGateConfig
 	dur050TransactionTimings bool
+	k6Approval               bool
 }
 
 // StoreOptions contains campaign-specific runtime behavior and optional
@@ -120,6 +121,7 @@ type StoreOptions struct {
 	RecordLeaseAcquisitions  bool
 	DUR050Admission          AdmissionGateConfig
 	DUR050TransactionTimings bool
+	K6Approval               bool
 }
 
 // AdmissionGateConfig is opt-in and applies only to dur050-* namespaces.
@@ -614,7 +616,8 @@ func New(pool *pgxpool.Pool) *Store {
 
 func NewWithOptions(pool *pgxpool.Pool, options StoreOptions) *Store {
 	return &Store{pool: pool, recordLeaseAcquisitions: options.RecordLeaseAcquisitions,
-		dur050Admission: options.DUR050Admission, dur050TransactionTimings: options.DUR050TransactionTimings}
+		dur050Admission: options.DUR050Admission, dur050TransactionTimings: options.DUR050TransactionTimings,
+		k6Approval: options.K6Approval}
 }
 
 // SetTelemetry attaches the bounded process registry used for operational
