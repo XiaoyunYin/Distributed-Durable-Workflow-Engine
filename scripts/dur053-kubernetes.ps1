@@ -7,9 +7,19 @@ param(
     [string]$PilotJob,
     [string]$K4Job,
     [string]$ReplacementFor,
-    [string]$Checker
+    [string]$Checker,
+    [string]$K6Phase
 )
 $ErrorActionPreference = "Stop"
+if ($Scenario -eq "faults-smoke") {
+    if ($Context -ne "kind" -or $K6Phase -cne "A" -or -not $OutputRoot) {
+        throw "Phase A faults-smoke requires -Context kind -K6Phase A and a fresh -OutputRoot."
+    }
+    $env:PYTHONDONTWRITEBYTECODE = "1"
+    & python "$PSScriptRoot/dur053_k6_smoke.py" --output-root $OutputRoot
+    if ($LASTEXITCODE -ne 0) { throw "DUR-053 K6 Phase A FAIL; see retained evidence." }
+    return
+}
 if ($Context -eq "kind") {
     if ($Scenario -notin @("package-check", "smoke", "cleanup", "pilot", "pilot-smoke", "lifecycle", "lifecycle-smoke", "verify-evidence")) { throw "Scenario is not implemented." }
     if (-not $OutputRoot) { throw "Kind scenarios require a fresh -OutputRoot outside the repository." }

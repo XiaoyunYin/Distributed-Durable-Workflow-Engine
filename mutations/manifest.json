@@ -14088,6 +14088,118 @@
       "command": ["python", "-m", "pytest", "-q", "tests/test_k4_round311.py::test_idle_scale_down_is_valid_complete"],
       "expected": "R320 status echoed the recorded FAIL",
       "requires_database": false
+    },
+    {
+      "id": "k6a-group-order",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_registry.py",
+      "old": "    require(same(value[\"groups\"], expected[\"groups\"]), \"k6-group-order-membership\")\n",
+      "new": "    require(same(sorted(value[\"groups\"], key=lambda group: group[\"job\"]), expected[\"groups\"]), \"k6-group-order-membership\")\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_registry.py::test_registry_refuses_group_order"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6a-coverage-row",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_registry.py",
+      "old": "    require(same(value[\"coverage\"], expected[\"coverage\"]), \"k6-coverage-registration\")\n",
+      "new": "    require(all(row in expected[\"coverage\"] for row in value[\"coverage\"]), \"k6-coverage-registration\")\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_registry.py::test_registry_refuses_coverage_row_changes"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6a-seed",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_registry.py",
+      "old": "        require(same(row[\"seed\"], registered[\"seed\"]), \"k6-episode-seed\")\n",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_registry.py::test_manifest_refuses_wrong_episode_identity"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6a-unfunded-schedule",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_admission.py",
+      "old": "    elif total is not None and total > CAP:\n",
+      "new": "    elif total is not None and total - math.fsum(cost for key, cost in expected_by_episode.items() if key not in k6_rows) > CAP:\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_admission.py::test_refuse_unfunded_full_schedule"
+      ],
+      "expected": "admitted an unfunded K6 and K5 schedule",
+      "requires_database": false
+    },
+    {
+      "id": "k6a-near-ceiling",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_admission.py",
+      "old": "        if workflow + need > WORKFLOW_LIMIT:\n",
+      "new": "        if workflow + need - CLOSEOUT > WORKFLOW_LIMIT:\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_admission.py::test_refuse_near_workflow_ceiling"
+      ],
+      "expected": "admitted an episode beyond the workflow ceiling",
+      "requires_database": false
+    },
+    {
+      "id": "k6a-missing-effect-overhead",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_admission.py",
+      "old": "    if missing_effect:\n",
+      "new": "    if missing_effect and not remaining:\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_admission.py::test_refuse_effect_without_smoke_overhead"
+      ],
+      "expected": "admitted an effect episode without measured overhead",
+      "requires_database": false
+    },
+    {
+      "id": "k6a-pooled-cost-unit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_admission.py",
+      "old": "    k6_rows = {row[\"episode\"]: row for row in registry[\"episodes\"]}\n",
+      "new": "    k6_rows = {row[\"episode\"]: dict(row, cost_unit=row[\"arm\"]) for row in registry[\"episodes\"]}\n",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_admission.py::test_round351_cost_substitution_uses_maximum_in_exact_cell"
+      ],
+      "expected": "pooled costs across K6 cells",
+      "requires_database": false
     }
   ]
 }
