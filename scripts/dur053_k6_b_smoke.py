@@ -1075,6 +1075,30 @@ def inherited_failure(output: Path) -> None:
         evidence.checkpoint()
 
 
+def record_handoff_failure(output: Path, error: BaseException) -> None:
+    output.mkdir(parents=True, exist_ok=True)
+    report_path = output / "smoke.json"
+    prior = None
+    if report_path.is_file():
+        try:
+            prior = json.loads(report_path.read_bytes())
+        except (OSError, ValueError):
+            prior = None
+    evidence = Evidence(output)
+    if (
+        isinstance(prior, dict)
+        and prior.get("schema") == "dur053.k6-phase-b-smoke.v1"
+        and isinstance(prior.get("outcomes"), list)
+    ):
+        evidence.report = prior
+    failure = evidence.safe_reason(error)
+    evidence.report.update(status="FAIL", reason=failure)
+    evidence.report["outcomes"].append(
+        {"step": "phase-b-handoff", "status": "FAIL", "reason": failure}
+    )
+    evidence.checkpoint()
+
+
 def run(output: Path, harness: Driver | None = None, address: str | None = None) -> int:
     output = output.resolve()
     require(not output.is_relative_to(ROOT), "OUTPUT_INSIDE_REPOSITORY")
