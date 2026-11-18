@@ -16,13 +16,24 @@ import (
 
 const reviewVersion = "authentication.k8s.io/v1"
 
+const SinkAudience = "dur053-k6-sink"
+
 type KubernetesReviewer struct {
 	endpoint   string
 	credential string
+	audience   string
 	client     *http.Client
 }
 
 func NewKubernetesReviewer(apiServer string, caPEM []byte, reviewerCredential string) (*KubernetesReviewer, error) {
+	return newKubernetesReviewer(apiServer, caPEM, reviewerCredential, Audience)
+}
+
+func NewSinkKubernetesReviewer(apiServer string, caPEM []byte, reviewerCredential string) (*KubernetesReviewer, error) {
+	return newKubernetesReviewer(apiServer, caPEM, reviewerCredential, SinkAudience)
+}
+
+func newKubernetesReviewer(apiServer string, caPEM []byte, reviewerCredential, audience string) (*KubernetesReviewer, error) {
 	server, err := url.Parse(apiServer)
 	roots := x509.NewCertPool()
 	if err != nil || server.Scheme != "https" || server.Hostname() == "" || server.User != nil ||
@@ -32,7 +43,7 @@ func NewKubernetesReviewer(apiServer string, caPEM []byte, reviewerCredential st
 	}
 	server.Path = "/apis/" + reviewVersion + "/tokenreviews"
 	return &KubernetesReviewer{
-		endpoint: server.String(), credential: reviewerCredential,
+		endpoint: server.String(), credential: reviewerCredential, audience: audience,
 		client: &http.Client{
 			Transport: &http.Transport{TLSClientConfig: &tls.Config{RootCAs: roots, MinVersion: tls.VersionTLS12}},
 			Timeout:   5 * time.Second,
@@ -61,7 +72,7 @@ func (r *KubernetesReviewer) Review(ctx context.Context, token string) (Review, 
 	request.Spec = &struct {
 		Token     string   `json:"token"`
 		Audiences []string `json:"audiences"`
-	}{Token: token, Audiences: []string{Audience}}
+	}{Token: token, Audiences: []string{r.audience}}
 	body, err := json.Marshal(request)
 	if err != nil {
 		return Review{}, ErrDenied

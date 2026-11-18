@@ -14572,6 +14572,146 @@
       ],
       "expected": "classifyConnectError() = \"CONNECT_FAILED\", want \"TCP_DIAL_TIMEOUT\"",
       "requires_database": false
+    },
+    {
+      "id": "k6c1-missing-fence",
+      "kind": "behavioral",
+      "file": "internal/effects/k6sink/store.go",
+      "old": "case issuedFence != latestFence:",
+      "new": "case false:",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/effects/k6sink",
+        "-run",
+        "^TestK6SinkFenceAndAllocation$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "lower issued fence mutated protected state",
+      "requires_database": true
+    },
+    {
+      "id": "k6c1-non-atomic-receipt",
+      "kind": "behavioral",
+      "file": "internal/effects/k6sink/store.go",
+      "old": "\n\tvar receipt Receipt\n\terr := scanReceipt(tx.QueryRow(ctx, `INSERT INTO k6_sink.receipts\n\t\t(workflow_id, logical_key, resource_id, canonical_hash, scope_hash, intent_id, expected_revision, applied_revision)\n\t\tVALUES ($1, $2, $3, $4, $5, $6, $7, $7::bigint + 1)\n\t\tRETURNING `+receiptColumns, r.WorkflowID, r.LogicalKey, r.ResourceID, d.auth.canonicalHash, r.ScopeHash,\n\t\tr.IntentID, d.auth.revision), &receipt)\n\tif err != nil {\n\t\treturn result{}, err\n\t}\n\treturn recordCall(ctx, tx, d, \"APPLIED\", &receipt)",
+      "new": "\n\tif _, err := tx.Exec(ctx, \"SAVEPOINT before_receipt\"); err != nil {\n\t\treturn result{}, err\n\t}\n\tvar receipt Receipt\n\terr := scanReceipt(tx.QueryRow(ctx, `INSERT INTO k6_sink.receipts\n\t\t(workflow_id, logical_key, resource_id, canonical_hash, scope_hash, intent_id, expected_revision, applied_revision)\n\t\tVALUES ($1, $2, $3, $4, $5, $6, $7, $7::bigint + 1)\n\t\tRETURNING `+receiptColumns, r.WorkflowID, r.LogicalKey, r.ResourceID, d.auth.canonicalHash, r.ScopeHash,\n\t\tr.IntentID, d.auth.revision), &receipt)\n\tif err != nil {\n\t\tif _, rollbackErr := tx.Exec(ctx, \"ROLLBACK TO SAVEPOINT before_receipt\"); rollbackErr != nil {\n\t\t\treturn result{}, rollbackErr\n\t\t}\n\t\tif commitErr := tx.Commit(ctx); commitErr != nil {\n\t\t\treturn result{}, commitErr\n\t\t}\n\t\treturn result{}, err\n\t}\n\treturn recordCall(ctx, tx, d, \"APPLIED\", &receipt)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/effects/k6sink",
+        "-run",
+        "^TestK6SinkAtomicJournalAndReceipt$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "receipt failure left a committed resource write or journal row",
+      "requires_database": true
+    },
+    {
+      "id": "k6c1-engine-receipt-count",
+      "kind": "behavioral",
+      "file": "internal/effects/k6sink/export.go",
+      "old": "applicationCount := len(s.Journal)",
+      "new": "applicationCount := expected",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/effects/k6sink",
+        "-run",
+        "^TestK6SinkCountsJournalInsteadOfEngineReceipts$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "engine receipt count concealed a second sink write",
+      "requires_database": false
+    },
+    {
+      "id": "k6c1-double-apply-one-receipt",
+      "kind": "behavioral",
+      "file": "internal/effects/k6sink/store.go",
+      "old": "\tif err := updateResource(ctx, tx, d); err != nil {\n\t\treturn result{}, err\n\t}",
+      "new": "\tif err := updateResource(ctx, tx, d); err != nil {\n\t\treturn result{}, err\n\t}\n\tagain := d\n\tagain.auth.revision++\n\tif err := updateResource(ctx, tx, again); err != nil {\n\t\treturn result{}, err\n\t}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/effects/k6sink",
+        "-run",
+        "^TestK6SinkCleanTwoDeliveries$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected one journaled application, counted 2",
+      "requires_database": true
+    },
+    {
+      "id": "k6c1-double-apply-hidden-journal-row",
+      "kind": "behavioral",
+      "file": "sink-migrations/000001_k6_sink.up.sql",
+      "old": "CREATE FUNCTION k6_sink.journal_resource_write() RETURNS trigger\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp\nAS $journal$\nBEGIN\n    IF NEW.latest_fence < OLD.latest_fence OR NEW.latest_fence - OLD.latest_fence > 1 THEN\n        RAISE EXCEPTION 'invalid resource fence advance';\n    END IF;\n    IF (NEW.state, NEW.revision, NEW.logical_key, NEW.intent_id)\n        IS DISTINCT FROM (OLD.state, OLD.revision, OLD.logical_key, OLD.intent_id) THEN\n        INSERT INTO k6_sink.journal\n            (resource_id, old_revision, revision, old_state_hash, state_hash, logical_key, intent_id)\n        VALUES (NEW.resource_id, OLD.revision, NEW.revision,\n            encode(sha256(convert_to(OLD.state::text, 'UTF8')), 'hex'),\n            encode(sha256(convert_to(NEW.state::text, 'UTF8')), 'hex'),\n            NEW.logical_key, NEW.intent_id);\n    END IF;\n    RETURN NEW;\nEND;\n$journal$;\nCREATE TRIGGER journal_resource_write AFTER UPDATE ON k6_sink.resources\nFOR EACH ROW EXECUTE FUNCTION k6_sink.journal_resource_write();\nREVOKE ALL ON FUNCTION k6_sink.journal_resource_write() FROM PUBLIC;\nGRANT INSERT ON k6_sink.journal TO k6_sink_journal_owner;\nALTER FUNCTION k6_sink.journal_resource_write() OWNER TO k6_sink_journal_owner;\n\n",
+      "new": "CREATE FUNCTION k6_sink.journal_resource_write() RETURNS trigger\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp\nAS $journal$\nBEGIN\n    IF NEW.latest_fence < OLD.latest_fence OR NEW.latest_fence - OLD.latest_fence > 1 THEN\n        RAISE EXCEPTION 'invalid resource fence advance';\n    END IF;\n    IF pg_trigger_depth() = 1 AND (NEW.state, NEW.revision, NEW.logical_key, NEW.intent_id)\n        IS DISTINCT FROM (OLD.state, OLD.revision, OLD.logical_key, OLD.intent_id) THEN\n        INSERT INTO k6_sink.journal\n            (resource_id, old_revision, revision, old_state_hash, state_hash, logical_key, intent_id)\n        VALUES (NEW.resource_id, OLD.revision, NEW.revision,\n            encode(sha256(convert_to(OLD.state::text, 'UTF8')), 'hex'),\n            encode(sha256(convert_to(NEW.state::text, 'UTF8')), 'hex'),\n            NEW.logical_key, NEW.intent_id);\n    END IF;\n    RETURN NEW;\nEND;\n$journal$;\nCREATE TRIGGER journal_resource_write AFTER UPDATE ON k6_sink.resources\nFOR EACH ROW EXECUTE FUNCTION k6_sink.journal_resource_write();\nREVOKE ALL ON FUNCTION k6_sink.journal_resource_write() FROM PUBLIC;\nGRANT INSERT ON k6_sink.journal TO k6_sink_journal_owner;\nALTER FUNCTION k6_sink.journal_resource_write() OWNER TO k6_sink_journal_owner;\n\n\nCREATE FUNCTION k6_sink.mutant_second_resource_write() RETURNS trigger\nLANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp\nAS $mutant$\nBEGIN\n    IF pg_trigger_depth() = 1 AND NEW.revision <> OLD.revision THEN\n        UPDATE k6_sink.resources SET revision = revision + 1 WHERE resource_id = NEW.resource_id;\n    END IF;\n    RETURN NEW;\nEND;\n$mutant$;\nCREATE TRIGGER z_mutant_second_resource_write AFTER UPDATE ON k6_sink.resources\nFOR EACH ROW EXECUTE FUNCTION k6_sink.mutant_second_resource_write();\n\n",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/effects/k6sink",
+        "-run",
+        "^TestK6SinkCleanTwoDeliveries$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "initial/final revision disagrees with journal count",
+      "requires_database": true
+    },
+    {
+      "id": "k6c1-changed-body-replay",
+      "kind": "behavioral",
+      "file": "internal/effects/k6sink/store.go",
+      "old": "return originalHash == bodyHash",
+      "new": "return true",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/effects/k6sink",
+        "-run",
+        "^TestK6SinkChangedBodyBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "changed request body was accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k6c1-non-idempotent-allocation",
+      "kind": "behavioral",
+      "file": "internal/effects/k6sink/store.go",
+      "old": "if issuedFence == 0 {",
+      "new": "if issuedFence != 0 {\n\t\tif err := tx.QueryRow(ctx, `UPDATE k6_sink.resources SET latest_fence = latest_fence + 1\n\t\t\tWHERE resource_id = $1 RETURNING latest_fence`, r.ResourceID).Scan(&issuedFence); err != nil {\n\t\t\treturn result{}, err\n\t\t}\n\t}\n\tif issuedFence == 0 {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/effects/k6sink",
+        "-run",
+        "^TestK6SinkFenceAndAllocation$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "allocation retry changed the issued fence",
+      "requires_database": true
     }
   ]
 }
