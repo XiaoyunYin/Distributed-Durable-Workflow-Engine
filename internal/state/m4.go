@@ -319,8 +319,14 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 	started := time.Now()
 	defer s.observeQuery(started)
 	defer s.observeTransaction()
-	if input.WorkflowID == "" || input.NodeID == "" || input.ActorID == "" || input.ValidUntil.IsZero() || !input.ValidUntil.After(time.Now()) {
+	if input.WorkflowID == "" || input.NodeID == "" || input.ActorID == "" || input.ValidUntil.IsZero() ||
+		(!s.k6Approval && !input.ValidUntil.After(time.Now())) {
 		return ApprovalIntent{}, errors.New("approval identity and future validity are required")
+	}
+	if s.k6Approval {
+		if err := ValidateK6Arguments(input.CanonicalArguments); err != nil {
+			return ApprovalIntent{}, err
+		}
 	}
 	hash, err := proposalHash(input.Target, input.CanonicalArguments, input.ExpectedResourceRevision)
 	if err != nil {
@@ -333,11 +339,28 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 		return ApprovalIntent{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := lockLease(ctx, tx, input.Lease); err != nil {
+	var window k6ApprovalWindow
+	var latest *time.Time
+	lockCtx := ctx
+	if s.k6Approval {
+		window, err = loadK6ApprovalWindow(ctx, tx)
+		if err != nil {
+			return ApprovalIntent{}, err
+		}
+		if !input.ValidUntil.Equal(window.cutoff) {
+			return ApprovalIntent{}, ErrApprovalMismatch
+		}
+		input.ValidUntil = window.cutoff
+		latest = &window.latest
+		var cancel context.CancelFunc
+		lockCtx, cancel = window.lockContext(ctx)
+		defer cancel()
+	}
+	if _, err := lockLease(lockCtx, tx, input.Lease); err != nil {
 		return ApprovalIntent{}, err
 	}
 	var workflow Workflow
-	if err := tx.QueryRow(ctx, `
+	if err := tx.QueryRow(lockCtx, `
 		SELECT workflow_id, namespace, submission_key, submission_payload_hash,
 			definition_id, definition_version, partition_id, state, revision,
 		created_at, updated_at
@@ -357,11 +380,23 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 	if workflow.Revision != input.ExpectedRevision {
 		return ApprovalIntent{}, fmt.Errorf("%w: expected %d, got %d", ErrRevisionConflict, input.ExpectedRevision, workflow.Revision)
 	}
+	var existing ApprovalIntent
+	if s.k6Approval {
+		if err := window.authorizeNode(lockCtx, tx, workflow, input.NodeID); err != nil {
+			return ApprovalIntent{}, err
+		}
+		err = scanApproval(tx.QueryRow(lockCtx, approvalSelect+`
+			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
+			ORDER BY created_at DESC LIMIT 1 FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration), &existing)
+		if err == nil && (existing.Decision != "PENDING" || existing.DispatchStatus != "NOT_GRANTED") {
+			return ApprovalIntent{}, &K6ExistingIntent{IntentID: existing.IntentID}
+		}
+	}
 	if workflow.State != StateRunnable && workflow.State != StateWaitingApproval {
 		return ApprovalIntent{}, fmt.Errorf("%w: workflow is not approval-ready", ErrInvalidTransition)
 	}
 	var nodeState WorkflowState
-	if err := tx.QueryRow(ctx, `SELECT state FROM engine.node_instances WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3 FOR UPDATE`,
+	if err := tx.QueryRow(lockCtx, `SELECT state FROM engine.node_instances WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3 FOR UPDATE`,
 		input.WorkflowID, input.NodeID, input.Iteration).Scan(&nodeState); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ApprovalIntent{}, ErrNodeNotFound
@@ -371,13 +406,22 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 	if nodeState != StateRunnable && nodeState != StateWaitingApproval {
 		return ApprovalIntent{}, fmt.Errorf("%w: node is not approval-ready", ErrInvalidTransition)
 	}
-	var existing ApprovalIntent
-	err = scanApproval(tx.QueryRow(ctx, approvalSelect+` WHERE intent_id = (
-		SELECT intent_id FROM engine.approval_action_intents
-		WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
-		  AND decision = 'PENDING' AND dispatch_status = 'NOT_GRANTED'
-		ORDER BY created_at DESC LIMIT 1 FOR UPDATE)`, input.WorkflowID, input.NodeID, input.Iteration), &existing)
-	if err == nil {
+	if !s.k6Approval {
+		err = scanApproval(tx.QueryRow(ctx, approvalSelect+` WHERE intent_id = (
+			SELECT intent_id FROM engine.approval_action_intents
+			WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3
+			  AND decision = 'PENDING' AND dispatch_status = 'NOT_GRANTED'
+			ORDER BY created_at DESC LIMIT 1 FOR UPDATE)`, input.WorkflowID, input.NodeID, input.Iteration), &existing)
+	}
+	if err == nil && existing.Decision == "PENDING" && existing.DispatchStatus == "NOT_GRANTED" {
+		if s.k6Approval {
+			if !existing.ValidUntil.Equal(window.cutoff) {
+				return ApprovalIntent{}, ErrApprovalMismatch
+			}
+			if err := window.check(ctx, tx); err != nil {
+				return ApprovalIntent{}, err
+			}
+		}
 		if existing.ProposalHash != hash {
 			return ApprovalIntent{}, ErrApprovalMismatch
 		}
@@ -386,7 +430,7 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 		}
 		return existing, nil
 	}
-	if !errors.Is(err, pgx.ErrNoRows) {
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
 		return ApprovalIntent{}, err
 	}
 	intentID := NewID()
@@ -396,15 +440,26 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 		newState = StateWaitingApproval
 		newRevision++
 	}
-	if _, err := tx.Exec(ctx, `
+	inserted, err := tx.Exec(ctx, `
 		INSERT INTO engine.approval_action_intents
 			(intent_id, workflow_id, node_id, iteration, proposal_hash,
 			 proposal_signature, target, canonical_arguments, expected_resource_revision,
 			 valid_until)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
+		SELECT $1::uuid, $2::text, $3::text, $4::integer, $5::text, $6::text,
+			$7::text, $8::jsonb, $9::text, $10::timestamptz
+		WHERE $11::timestamptz IS NULL OR pg_catalog.clock_timestamp() < $11`,
 		intentID, input.WorkflowID, input.NodeID, input.Iteration, hash, signature,
-		input.Target, input.CanonicalArguments, input.ExpectedResourceRevision, input.ValidUntil); err != nil {
+		input.Target, input.CanonicalArguments, input.ExpectedResourceRevision, input.ValidUntil, latest)
+	if err != nil {
 		return ApprovalIntent{}, fmt.Errorf("insert approval intent: %w", err)
+	}
+	if s.k6Approval {
+		if inserted.RowsAffected() != 1 {
+			return ApprovalIntent{}, ErrApprovalExpired
+		}
+		if err := verifyK6StoredArguments(ctx, tx, input, intentID, hash); err != nil {
+			return ApprovalIntent{}, err
+		}
 	}
 	if newState != workflow.State {
 		if _, err := tx.Exec(ctx, `
@@ -491,6 +546,9 @@ func (s *Store) RecordApprovalDecision(ctx context.Context, input ApprovalDecisi
 	started := time.Now()
 	defer s.observeQuery(started)
 	defer s.observeTransaction()
+	if s.k6Approval {
+		return ApprovalIntent{}, ErrApprovalUnauthorized
+	}
 	if input.IntentID == "" || input.ApproverID == "" || (input.Decision != "APPROVED" && input.Decision != "REJECTED") || input.ProposalHash == "" {
 		return ApprovalIntent{}, ErrApprovalUnauthorized
 	}
@@ -547,11 +605,24 @@ func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (Ap
 		return ApprovalGrant{}, err
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	if _, err := lockLease(ctx, tx, input.Lease); err != nil {
+	var window k6ApprovalWindow
+	var latest *time.Time
+	lockCtx := ctx
+	if s.k6Approval {
+		window, err = loadK6ApprovalWindow(ctx, tx)
+		if err != nil {
+			return ApprovalGrant{}, err
+		}
+		latest = &window.latest
+		var cancel context.CancelFunc
+		lockCtx, cancel = window.lockContext(ctx)
+		defer cancel()
+	}
+	if _, err := lockLease(lockCtx, tx, input.Lease); err != nil {
 		return ApprovalGrant{}, err
 	}
 	var workflow Workflow
-	if err := tx.QueryRow(ctx, `SELECT workflow_id, namespace, submission_key, submission_payload_hash, definition_id, definition_version, partition_id, state, revision, created_at, updated_at FROM engine.workflow_executions WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(
+	if err := tx.QueryRow(lockCtx, `SELECT workflow_id, namespace, submission_key, submission_payload_hash, definition_id, definition_version, partition_id, state, revision, created_at, updated_at FROM engine.workflow_executions WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(
 		&workflow.WorkflowID, &workflow.Namespace, &workflow.SubmissionKey, &workflow.PayloadHash,
 		&workflow.DefinitionID, &workflow.DefinitionVersion, &workflow.PartitionID, &workflow.State,
 		&workflow.Revision, &workflow.CreatedAt, &workflow.UpdatedAt); err != nil {
@@ -566,15 +637,31 @@ func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (Ap
 	if workflow.Revision != input.ExpectedRevision {
 		return ApprovalGrant{}, fmt.Errorf("%w: expected %d, got %d", ErrRevisionConflict, input.ExpectedRevision, workflow.Revision)
 	}
-	if workflow.State != StateWaitingApproval {
+	if s.k6Approval {
+		if err := window.authorizeNode(lockCtx, tx, workflow, input.NodeID); err != nil {
+			return ApprovalGrant{}, err
+		}
+	}
+	if !s.k6Approval && workflow.State != StateWaitingApproval {
 		return ApprovalGrant{}, fmt.Errorf("%w: workflow is not waiting for approval", ErrInvalidTransition)
 	}
 	var intent ApprovalIntent
-	if err := scanApproval(tx.QueryRow(ctx, approvalSelect+` WHERE intent_id = $1 AND workflow_id = $2 AND node_id = $3 AND iteration = $4 FOR UPDATE`, input.IntentID, input.WorkflowID, input.NodeID, input.Iteration), &intent); err != nil {
+	if err := scanApproval(tx.QueryRow(lockCtx, approvalSelect+` WHERE intent_id = $1 AND workflow_id = $2 AND node_id = $3 AND iteration = $4 FOR UPDATE`, input.IntentID, input.WorkflowID, input.NodeID, input.Iteration), &intent); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ApprovalGrant{}, ErrApprovalNotFound
 		}
 		return ApprovalGrant{}, err
+	}
+	if s.k6Approval {
+		if !intent.ValidUntil.Equal(window.cutoff) {
+			return ApprovalGrant{}, ErrApprovalMismatch
+		}
+		if intent.DispatchStatus == "GRANTED" || intent.DispatchStatus == "DISPATCHED" {
+			return ApprovalGrant{}, &K6AlreadyGranted{IntentID: intent.IntentID}
+		}
+		if workflow.State != StateWaitingApproval {
+			return ApprovalGrant{}, fmt.Errorf("%w: workflow is not waiting for approval", ErrInvalidTransition)
+		}
 	}
 	if intent.DispatchStatus != "NOT_GRANTED" {
 		return ApprovalGrant{}, ErrApprovalMismatch
@@ -621,17 +708,26 @@ func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (Ap
 	if intent.Decision != "APPROVED" || input.LogicalEffectKey == "" {
 		return ApprovalGrant{}, ErrApprovalMismatch
 	}
-	if !intent.ValidUntil.After(time.Now()) {
+	if s.k6Approval {
+		if err := window.check(ctx, tx); err != nil {
+			return ApprovalGrant{}, err
+		}
+	} else if !intent.ValidUntil.After(time.Now()) {
 		return ApprovalGrant{}, ErrApprovalExpired
 	}
 	grantToken := NewID()
 	grantScope := grantScopeHash(intent.ProposalHash, intent.ExpectedResourceRevision, input.LogicalEffectKey, intent.Target)
-	if _, err := tx.Exec(ctx, `
+	updated, err := tx.Exec(ctx, `
 		UPDATE engine.approval_action_intents
 		SET dispatch_status = 'GRANTED', grant_token = $2, grant_scope_hash = $3,
 			grant_expires_at = valid_until
-		WHERE intent_id = $1`, input.IntentID, grantToken, grantScope); err != nil {
+		WHERE intent_id = $1 AND ($4::timestamptz IS NULL OR pg_catalog.clock_timestamp() < $4)`,
+		input.IntentID, grantToken, grantScope, latest)
+	if err != nil {
 		return ApprovalGrant{}, err
+	}
+	if s.k6Approval && updated.RowsAffected() != 1 {
+		return ApprovalGrant{}, ErrApprovalExpired
 	}
 	newRevision := workflow.Revision + 1
 	if _, err := tx.Exec(ctx, `UPDATE engine.node_instances SET state = 'RUNNABLE', revision = revision + 1, updated_at = clock_timestamp() WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3`, input.WorkflowID, input.NodeID, input.Iteration); err != nil {

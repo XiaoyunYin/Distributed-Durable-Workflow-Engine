@@ -41,3 +41,8 @@ workflow transitions, keeping this campaign control table bounded to active
 work rather than becoming a second workflow-history ledger. Migration `000018`
 installs `pg_stat_statements`; the PostgreSQL service must preload the
 extension before this migration runs.
+Migration `000022` adds the private DUR-053 K6 authorization schema and
+function owners. A trusted setup process calls `internal/k6auth.Provision`
+on an isolated episode database cluster to install its cutoff, namespace,
+approver and restricted logins. The numbered migration alone creates no
+login credentials or active episode.
