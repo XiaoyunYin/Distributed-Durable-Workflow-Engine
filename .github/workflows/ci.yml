@@ -192,6 +192,24 @@ jobs:
         shell: bash
         run: python3 scripts/dur053_k4_report.py check
 
+      - name: Check K6 Phase A registry and admission offline
+        id: k6a-smoke
+        shell: bash
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          export PATH="$PWD/.venv/bin:$PATH"
+          out="$RUNNER_TEMP/k6-$GITHUB_RUN_ID-$GITHUB_JOB"
+          pwsh -File scripts/dur053-kubernetes.ps1 -Context kind -Scenario faults-smoke -K6Phase A -OutputRoot "$out"
+          python -m pytest -q -p no:cacheprovider tests/test_k6_registry.py tests/test_k6_admission.py
+
+      - name: Retain K6 Phase A engineering evidence
+        if: always() && steps.k6a-smoke.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: dur053-k6a-phase-a-${{ github.run_id }}
+          path: ${{ runner.temp }}/k6-${{ github.run_id }}-${{ github.job }}
+
       - name: Measure B.6.2 checker capacity on committed short-1
         shell: bash
         run: |
