@@ -23,6 +23,90 @@ from test_k6_worker import Delivery  # noqa: E402
 from workers.kafka_worker import handle_delivery  # noqa: E402
 
 TOKENS = {"relay": "a" * 64, "worker": "b" * 64}
+CHAOS_IMAGES = {
+    "ghcr.io/chaos-mesh/controller:v2@sha256:" + "1" * 64,
+    "ghcr.io/chaos-mesh/daemon:v2@sha256:" + "2" * 64,
+}
+
+
+def chaos_fixture():
+    objects = [
+        {
+            "kind": "Deployment",
+            "spec": {
+                "replicas": 1,
+                "template": {"spec": {"containers": [{"name": "controller"}]}},
+            },
+        },
+        {
+            "kind": "DaemonSet",
+            "spec": {"template": {"spec": {"containers": [{"name": "daemon"}]}}},
+        },
+    ]
+    pods = [
+        {
+            "metadata": {"name": name},
+            "status": {
+                "phase": "Running",
+                "conditions": [{"type": "Ready", "status": "True"}],
+                "containerStatuses": [
+                    {
+                        "image": image,
+                        "imageID": f"containerd://{repo}@{digest}",
+                        "ready": True,
+                    }
+                ],
+            },
+        }
+        for name, image, repo, digest in (
+            (
+                "controller-abc",
+                "ghcr.io/chaos-mesh/controller:v2",
+                "ghcr.io/chaos-mesh/controller",
+                "sha256:" + "1" * 64,
+            ),
+            (
+                "daemon-xyz",
+                "ghcr.io/chaos-mesh/daemon:v2",
+                "ghcr.io/chaos-mesh/daemon",
+                "sha256:" + "2" * 64,
+            ),
+        )
+    ]
+    return objects, pods
+
+
+def test_chaos_image_check_accepts_tag_only_image_with_locked_image_id_digest():
+    objects, pods = chaos_fixture()
+    assert smoke.chaos_image_diagnostic(objects, pods, 1, CHAOS_IMAGES) is None
+
+
+@pytest.mark.parametrize(
+    "failure", ["wrong-digest", "missing-component", "extra-container", "count-mismatch"]
+)
+def test_chaos_image_check_reports_mismatch_diagnostic(failure):
+    objects, pods = chaos_fixture()
+    if failure == "wrong-digest":
+        pods[0]["status"]["containerStatuses"][0]["imageID"] = (
+            "containerd://image@sha256:" + "3" * 64
+        )
+    elif failure == "missing-component":
+        pods.pop()
+    elif failure == "extra-container":
+        pods[0]["status"]["containerStatuses"].append(
+            {
+                "image": "ghcr.io/chaos-mesh/extra:v2",
+                "imageID": "containerd://extra@sha256:" + "4" * 64,
+                "ready": True,
+            }
+        )
+    else:
+        pods.append(pods[-1])
+    diagnostic = smoke.chaos_image_diagnostic(objects, pods, 1, CHAOS_IMAGES)
+    assert diagnostic is not None
+    assert "D2B_CHAOS_IMAGE_MISMATCH" in diagnostic
+    assert '"expected_digests"' in diagnostic
+    assert '"observed_pods"' in diagnostic
 
 
 @pytest.fixture

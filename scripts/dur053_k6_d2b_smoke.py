@@ -50,6 +50,84 @@ OVERHEAD = "effect-recovery-overhead.json"
 TRANSFER = re.compile(
     r"^(?:\[pod/[^\]\r\n]+\] )?DUR053_K6_OBSERVATION k6_transfer (\{[^\n]+\})$", re.M
 )
+IMAGE_DIGEST = re.compile(r"sha256:[0-9a-f]{64}$")
+
+
+def chaos_inventory(objects: list[dict], node_count: int) -> tuple[int, int]:
+    """Return the expected Chaos Mesh pod and container counts from rendered resources."""
+    pods = containers = 0
+    for resource in objects:
+        if resource.get("kind") not in {"Deployment", "DaemonSet"}:
+            continue
+        spec = resource["spec"]
+        replicas = spec.get("replicas", 1) if resource["kind"] == "Deployment" else node_count
+        pod_spec = spec["template"]["spec"]
+        pods += replicas
+        containers += replicas * len(pod_spec.get("containers", []))
+    return pods, containers
+
+
+def chaos_image_diagnostic(
+    objects: list[dict], pods: list[dict], node_count: int, locked_images: set[str]
+) -> str | None:
+    """Return a credential-free mismatch diagnostic, or None for the exact locked inventory."""
+    expected_pods, expected_containers = chaos_inventory(objects, node_count)
+    expected_digests = {image.rsplit("@", 1)[1] for image in locked_images if "@" in image}
+    running_digests = set()
+    ready_count = observed_count = 0
+    all_pods_ready = True
+    observed = []
+    for pod in pods:
+        statuses = pod.get("status", {}).get("containerStatuses", [])
+        conditions = pod.get("status", {}).get("conditions", [])
+        pod_ready = any(
+            row.get("type") == "Ready" and row.get("status") == "True" for row in conditions
+        )
+        all_pods_ready = all_pods_ready and pod_ready
+        observed.append(
+            {
+                "name": pod.get("metadata", {}).get("name"),
+                "phase": pod.get("status", {}).get("phase"),
+                "ready": pod_ready,
+                "containers": [
+                    {
+                        "image": row.get("image"),
+                        "imageID": row.get("imageID"),
+                        "ready": row.get("ready", False),
+                    }
+                    for row in statuses
+                ],
+            }
+        )
+        observed_count += len(statuses)
+        for row in statuses:
+            if row.get("ready"):
+                ready_count += 1
+                image_id = row.get("imageID", "")
+                digest = image_id.rsplit("@", 1)[-1]
+                if IMAGE_DIGEST.fullmatch(digest):
+                    running_digests.add(digest)
+    if (
+        len(pods) == expected_pods
+        and all_pods_ready
+        and observed_count == expected_containers
+        and ready_count == expected_containers
+        and running_digests == expected_digests
+    ):
+        return None
+    return "D2B_CHAOS_IMAGE_MISMATCH " + json.dumps(
+        {
+            "expected_pods": expected_pods,
+            "expected_containers": expected_containers,
+            "expected_digests": sorted(expected_digests),
+            "observed_pods": observed,
+            "ready_containers": ready_count,
+            "observed_containers": observed_count,
+            "running_digests": sorted(running_digests),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
 
 
 class D2bEvidence(PhaseDEvidence):
@@ -255,6 +333,8 @@ class Matrix(D2aMatrix):
         )
 
     def chaos(self) -> None:
+        import yaml
+
         backend = copy.copy(self.harness)
         backend.scratch = backend.output = self.scratch / "chaos"
         (backend.scratch / "bin").mkdir(parents=True)
@@ -263,23 +343,37 @@ class Matrix(D2aMatrix):
         backend.load_addons()
         self.chaos_started = True
         install_chaos_backend(backend, backend.output)
-        pods = json.loads(
-            self.k("D2B_CHAOS_IMAGES", "-n", "chaos-mesh", "get", "pods", "-o", "json")
-        )["items"]
+        objects = [
+            obj
+            for obj in yaml.safe_load_all((backend.output / "chaos-mesh.yaml").read_text())
+            if obj
+        ]
+        nodes = json.loads(self.k("D2B_CHAOS_NODES", "get", "nodes", "-o", "json"))["items"]
+        expected_pods, _ = chaos_inventory(objects, len(nodes))
+        pods = []
+        deadline = time.monotonic() + 180
+        while time.monotonic() < deadline:
+            pods = json.loads(
+                self.k("D2B_CHAOS_IMAGES", "-n", "chaos-mesh", "get", "pods", "-o", "json")
+            )["items"]
+            if len(pods) == expected_pods and all(
+                any(
+                    row.get("type") == "Ready" and row.get("status") == "True"
+                    for row in pod.get("status", {}).get("conditions", [])
+                )
+                for pod in pods
+            ):
+                break
+            time.sleep(2)
+        diagnostic = chaos_image_diagnostic(objects, pods, len(nodes), backend.addon_images)
+        if diagnostic is not None:
+            raise SmokeFailure(diagnostic)
         running = {
-            row["image"]: row["imageID"]
+            row["imageID"]: row["image"]
             for pod in pods
-            for row in pod["status"]["containerStatuses"]
-            if row["ready"]
+            for row in pod["status"].get("containerStatuses", [])
+            if row.get("ready")
         }
-        require(
-            set(running) == backend.addon_images
-            and len(pods) == 2
-            and all(
-                value.endswith("@" + image.split("@", 1)[1]) for image, value in running.items()
-            ),
-            "D2B_CHAOS_IMAGE_MISMATCH",
-        )
         for name in ("chaos-values.json", "chaos-mesh.yaml", "chaos-crds.yaml"):
             self.evidence.write_bytes(name, (backend.output / name).read_bytes())
         self.evidence.write(
