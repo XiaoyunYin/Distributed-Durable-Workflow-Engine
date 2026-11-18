@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const defaultRetryBudget = 3
@@ -319,6 +320,9 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 	started := time.Now()
 	defer s.observeQuery(started)
 	defer s.observeTransaction()
+	if input.NodeID == K6Activity && !s.k6Approval {
+		return ApprovalIntent{}, ErrGrantInvalid
+	}
 	if input.WorkflowID == "" || input.NodeID == "" || input.ActorID == "" || input.ValidUntil.IsZero() ||
 		(!s.k6Approval && !input.ValidUntil.After(time.Now())) {
 		return ApprovalIntent{}, errors.New("approval identity and future validity are required")
@@ -415,6 +419,16 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 	}
 	if err == nil && existing.Decision == "PENDING" && existing.DispatchStatus == "NOT_GRANTED" {
 		if s.k6Approval {
+			if input.NodeID == K6Activity {
+				var matches bool
+				if err := tx.QueryRow(lockCtx, `SELECT COALESCE(k6_logical_key=$2,false)
+					FROM engine.approval_action_intents WHERE intent_id=$1`, existing.IntentID, input.K6LogicalKey).Scan(&matches); err != nil {
+					return ApprovalIntent{}, err
+				}
+				if !matches {
+					return ApprovalIntent{}, ErrEffectIdentityMismatch
+				}
+			}
 			if !existing.ValidUntil.Equal(window.cutoff) {
 				return ApprovalIntent{}, ErrApprovalMismatch
 			}
@@ -458,6 +472,19 @@ func (s *Store) CreateApprovalIntent(ctx context.Context, input ApprovalIntentIn
 			return ApprovalIntent{}, ErrApprovalExpired
 		}
 		if err := verifyK6StoredArguments(ctx, tx, input, intentID, hash); err != nil {
+			return ApprovalIntent{}, err
+		}
+	}
+	if s.k6Approval && input.NodeID == K6Activity {
+		if input.K6LogicalKey == "" {
+			return ApprovalIntent{}, ErrEffectIdentityMismatch
+		}
+		if _, err := tx.Exec(lockCtx, `UPDATE engine.approval_action_intents
+			SET k6_logical_key = $2 WHERE intent_id = $1`, intentID, input.K6LogicalKey); err != nil {
+			var pgErr *pgconn.PgError
+			if errors.As(err, &pgErr) && pgErr.ConstraintName == "approval_k6_logical_key" {
+				return ApprovalIntent{}, ErrEffectIdentityMismatch
+			}
 			return ApprovalIntent{}, err
 		}
 	}
@@ -597,6 +624,9 @@ func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (Ap
 	started := time.Now()
 	defer s.observeQuery(started)
 	defer s.observeTransaction()
+	if input.NodeID == K6Activity && !s.k6Approval {
+		return ApprovalGrant{}, ErrGrantInvalid
+	}
 	if input.WorkflowID == "" || input.NodeID == "" || input.IntentID == "" || input.ActorID == "" {
 		return ApprovalGrant{}, errors.New("approval application identity is required")
 	}
@@ -655,6 +685,15 @@ func (s *Store) ApplyApproval(ctx context.Context, input ApplyApprovalInput) (Ap
 	if s.k6Approval {
 		if !intent.ValidUntil.Equal(window.cutoff) {
 			return ApprovalGrant{}, ErrApprovalMismatch
+		}
+		if input.NodeID == K6Activity {
+			var key *string
+			if err := tx.QueryRow(lockCtx, `SELECT k6_logical_key FROM engine.approval_action_intents WHERE intent_id=$1`, intent.IntentID).Scan(&key); err != nil {
+				return ApprovalGrant{}, err
+			}
+			if key == nil || *key != input.LogicalEffectKey {
+				return ApprovalGrant{}, ErrEffectIdentityMismatch
+			}
 		}
 		if intent.DispatchStatus == "GRANTED" || intent.DispatchStatus == "DISPATCHED" {
 			return ApprovalGrant{}, &K6AlreadyGranted{IntentID: intent.IntentID}
@@ -1165,11 +1204,20 @@ func (s *Store) ApplyEffect(ctx context.Context, input EffectApplyInput) (Effect
 // effect-service commit. The sink receipt is authoritative for the mutation;
 // a lost acknowledgement here is safe because a retry returns that receipt.
 func (s *Store) markGrantDispatched(ctx context.Context, intentID, grantToken string) error {
-	command, err := s.pool.Exec(ctx, `
+	return markGrantDispatched(ctx, s.pool, intentID, grantToken, nil)
+}
+
+type grantExecutor interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func markGrantDispatched(ctx context.Context, db grantExecutor, intentID, grantToken string, latest *time.Time) error {
+	command, err := db.Exec(ctx, `
 		UPDATE engine.approval_action_intents
 		SET dispatch_status = 'DISPATCHED'
 		WHERE intent_id = $1 AND grant_token = $2
-		  AND dispatch_status IN ('GRANTED', 'DISPATCHED')`, intentID, grantToken)
+		  AND dispatch_status IN ('GRANTED', 'DISPATCHED')
+		  AND ($3::timestamptz IS NULL OR pg_catalog.clock_timestamp() < $3)`, intentID, grantToken, latest)
 	if err != nil {
 		return err
 	}

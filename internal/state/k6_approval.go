@@ -140,11 +140,13 @@ func (w k6ApprovalWindow) authorizeNode(ctx context.Context, tx pgx.Tx, workflow
 		return ErrApprovalMismatch
 	}
 	var effectClass *string
-	if err := tx.QueryRow(ctx, `SELECT effect_classes ->> $3::text FROM engine.workflow_definitions
-		WHERE definition_id = $1 AND version = $2`, workflow.DefinitionID, workflow.DefinitionVersion, node).Scan(&effectClass); err != nil {
+	var activityVersion *string
+	if err := tx.QueryRow(ctx, `SELECT effect_classes ->> $3::text, activity_versions ->> $3::text FROM engine.workflow_definitions
+		WHERE definition_id = $1 AND version = $2`, workflow.DefinitionID, workflow.DefinitionVersion, node).Scan(&effectClass, &activityVersion); err != nil {
 		return err
 	}
-	if effectClass == nil || EffectClass(*effectClass) != EffectCooperating {
+	if effectClass == nil || EffectClass(*effectClass) != EffectCooperating ||
+		(node == K6Activity && (activityVersion == nil || *activityVersion != "v1")) {
 		return ErrEffectClassMismatch
 	}
 	return nil

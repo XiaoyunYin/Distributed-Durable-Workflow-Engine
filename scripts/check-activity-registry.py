@@ -5,6 +5,7 @@ CI checks the default and DUR048 deployment profiles. Image verification can
 pass --runtime/--worker JSON files exported from the exact candidate images.
 The database pre-rollout check is /runtime compatibility-check, not this check.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -15,26 +16,36 @@ import sys
 from pathlib import Path
 
 
-def registry_set(entries: object) -> set[tuple[str, str]]:
+def registry_set(entries: object) -> set[tuple[str, str, str]]:
     if not isinstance(entries, list) or not entries:
         raise ValueError("empty or invalid registry")
-    result: set[tuple[str, str]] = set()
+    result: dict[tuple[str, str], str] = {}
     for entry in entries:
-        if not isinstance(entry, dict) or set(entry) != {"name", "version"}:
+        if not isinstance(entry, dict) or (
+            set(entry) != {"name", "version"} and set(entry) != {"name", "version", "effect_class"}
+        ):
             raise ValueError("invalid registry entry")
         name, version = entry["name"], entry["version"]
         if not isinstance(name, str) or not name or not isinstance(version, str) or not version:
             raise ValueError("invalid activity name/version")
+        effect_class = entry.get("effect_class", "PURE_ACTIVITY")
+        if name == "dur053.cooperating":
+            if version != "v1" or effect_class != "COOPERATING_EFFECT":
+                raise ValueError("invalid K6 activity version or class")
+        elif effect_class != "PURE_ACTIVITY":
+            raise ValueError("invalid activity class")
         if (name, version) in result:
             raise ValueError("duplicate registry entry")
-        result.add((name, version))
-    return result
+        result[name, version] = effect_class
+    return {(name, version, effect_class) for (name, version), effect_class in result.items()}
 
 
 def check(runtime: object, worker: object) -> None:
     left, right = registry_set(runtime), registry_set(worker)
     if left != right:
-        raise ValueError(f"registry mismatch: Go-only={sorted(left-right)}, Python-only={sorted(right-left)}")
+        raise ValueError(
+            f"registry mismatch: Go-only={sorted(left - right)}, Python-only={sorted(right - left)}"
+        )
 
 
 def main() -> None:
@@ -55,8 +66,12 @@ def main() -> None:
             env["DUR053_ALLOW_FIXTURE_ACTIVITY"] = "1" if cpu else "0"
             env["DUR053_CPU_WORK_UNITS"] = "10000"
             env["PYTHONPATH"] = "python"
-            runtime = subprocess.check_output(["go", "run", "./cmd/runtime", "activity-registry"], env=env)
-            worker = subprocess.check_output([sys.executable, "-m", "workers", "activity-registry"], env=env)
+            runtime = subprocess.check_output(
+                ["go", "run", "./cmd/runtime", "activity-registry"], env=env
+            )
+            worker = subprocess.check_output(
+                [sys.executable, "-m", "workers", "activity-registry"], env=env
+            )
             check(json.loads(runtime), json.loads(worker))
             print(f"activity registry parity PASS: fixture={fixture}, cpu={cpu}")
 

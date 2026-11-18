@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -82,5 +83,64 @@ func TestK2PreRolloutCommand(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgresql://invalid:invalid@127.0.0.1:1/absent?sslmode=disable")
 	if err := registryCommand([]string{"compatibility-check", "--namespace", ns, "--worker-registry", path}, &bytes.Buffer{}); err == nil {
 		t.Fatal("pre-rollout database failure accepted")
+	}
+}
+
+func TestK6CompatibilityImageMatrix(t *testing.T) {
+	t.Setenv("DUR048_ALLOW_FIXTURE_ACTIVITY", "0")
+	t.Setenv("DUR053_ALLOW_FIXTURE_ACTIVITY", "0")
+	t.Setenv("DATABASE_URL", "postgresql://invalid:invalid@127.0.0.1:1/absent?sslmode=disable")
+	t.Setenv("DUR053_K6_ACTIVITY", "0")
+	dir := t.TempDir()
+	export := func(name string) string {
+		t.Helper()
+		path := filepath.Join(dir, name)
+		var output bytes.Buffer
+		if err := registryCommand([]string{"activity-registry"}, &output); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, output.Bytes(), 0600); err != nil {
+			t.Fatal(err)
+		}
+		return path
+	}
+	check := func(path string, extra ...string) error {
+		return registryCommand(append([]string{"compatibility-check", "--namespace", "episode", "--worker-registry", path}, extra...), &bytes.Buffer{})
+	}
+	old := export("old.json")
+	t.Setenv("DUR053_K6_ACTIVITY", "1")
+	newImage := export("new.json")
+	if err := check(old, "--no-surviving-workers"); err == nil || !strings.Contains(err.Error(), "registry mismatch") {
+		t.Fatalf("new runtime admitted old worker: %v", err)
+	}
+	if err := check(newImage, "--surviving-worker-registry", newImage, "--surviving-worker-registry", old); err == nil ||
+		!strings.Contains(err.Error(), "surviving consumer registry") {
+		t.Fatalf("mixed surviving consumers admitted: %v", err)
+	}
+	if err := check(newImage); err == nil || !strings.Contains(err.Error(), "surviving-worker inventory") {
+		t.Fatalf("unaccounted consumer inventory admitted: %v", err)
+	}
+	drift := filepath.Join(dir, "drift.json")
+	raw, err := os.ReadFile(newImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(drift, bytes.ReplaceAll(raw, []byte(state.EffectCooperating), []byte(state.EffectPure)), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := check(drift, "--no-surviving-workers"); err == nil || !strings.Contains(err.Error(), "effect class") {
+		t.Fatalf("same-version class drift admitted: %v", err)
+	}
+	candidate, err := readWorkerRegistry(newImage)
+	if err != nil || state.CheckRegistryParity(state.RuntimeRegistry(), candidate) != nil {
+		t.Fatalf("new/new manifests did not match: %v", err)
+	}
+	t.Setenv("DUR053_K6_ACTIVITY", "0")
+	if err := check(newImage); err == nil || !strings.Contains(err.Error(), "registry mismatch") {
+		t.Fatalf("old runtime admitted new worker: %v", err)
+	}
+	legacy, err := readWorkerRegistry(old)
+	if err != nil || state.CheckRegistryParity(state.RuntimeRegistry(), legacy) != nil {
+		t.Fatalf("opt-out manifests did not match: %v", err)
 	}
 }

@@ -272,6 +272,7 @@ type LeaseRef struct {
 }
 
 type OwnerTransitionInput struct {
+	k6Expired        bool
 	Lease            LeaseRef
 	WorkflowID       string
 	ExpectedRevision int64
@@ -317,6 +318,7 @@ type Attempt struct {
 }
 
 type ClaimInput struct {
+	K6Authenticated bool
 	ExpectedAttempt int64 // Optional transport fence; zero preserves direct API compatibility.
 	WorkflowID      string
 	NodeID          string
@@ -334,6 +336,7 @@ type ClaimResult struct {
 }
 
 type HeartbeatInput struct {
+	K6WorkerID    string
 	WorkflowID    string
 	NodeID        string
 	Iteration     int
@@ -472,6 +475,7 @@ type Checkpoint struct {
 }
 
 type ApprovalIntentInput struct {
+	K6LogicalKey             string
 	Lease                    LeaseRef
 	WorkflowID               string
 	NodeID                   string

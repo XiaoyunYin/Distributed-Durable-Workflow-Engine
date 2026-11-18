@@ -2411,8 +2411,8 @@
       "id": "k2b-referenced-version",
       "kind": "behavioral",
       "file": "internal/state/registry.go",
-      "old": "if !supported[ActivityVersion{name, version}] {",
-      "new": "if !supported[ActivityVersion{name, version}] && false {",
+      "old": "if !supported[ActivityVersion{Name: name, Version: version}] {",
+      "new": "if !supported[ActivityVersion{Name: name, Version: version}] && false {",
       "command": [
         "go",
         "test",
@@ -14839,6 +14839,106 @@
         "-v"
       ],
       "expected": "registered K6 grant scope changed",
+      "requires_database": false
+    },
+    {
+      "id": "k6d1-class-drift",
+      "kind": "behavioral",
+      "file": "internal/state/runtime.go",
+      "old": "definition.EffectClasses[nodeID] == entry.Class",
+      "new": "definition.EffectClasses[nodeID] == entry.Class || entry.Class == EffectCooperating",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/state",
+        "-run",
+        "^TestK6RegistryClass$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "K6 activity class drift accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k6d1-reuse-logical-key",
+      "kind": "behavioral",
+      "file": "migrations/000023_k6_dispatch.up.sql",
+      "old": "CREATE UNIQUE INDEX approval_k6_logical_key ON engine.approval_action_intents (k6_logical_key)",
+      "new": "CREATE UNIQUE INDEX approval_k6_logical_key ON engine.approval_action_intents (workflow_id, k6_logical_key)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/state",
+        "-run",
+        "^TestK6DispatchKeyReuse$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "second logical operation reused the first key",
+      "requires_database": true
+    },
+    {
+      "id": "k6d1-lookup-reapplies",
+      "kind": "behavioral",
+      "file": "internal/effects/k6sink/store.go",
+      "old": "return recordCall(ctx, tx, d, \"MISSING\", nil)",
+      "new": "return apply(ctx, tx, d)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/effects/k6sink",
+        "-run",
+        "^TestK6SinkReplacementLookupDoesNotApply$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "missing lookup applied a new effect",
+      "requires_database": true
+    },
+    {
+      "id": "k6d1-replacement-remints",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "\t\tif _, err := s.k6DispatchGrant(ctx, tx, input.WorkflowID, input.Iteration, *logicalEffectKey, *grantScopeHash); err != nil {\n\t\t\treturn TimeoutResult{}, err\n\t\t}\n\t\tif attemptState == AttemptClaimed {",
+      "new": "\t\tif _, err := s.k6DispatchGrant(ctx, tx, input.WorkflowID, input.Iteration, *logicalEffectKey, *grantScopeHash); err != nil {\n\t\t\treturn TimeoutResult{}, err\n\t\t}\n\t\tif attemptState == AttemptClaimed {\n\t\t\tif _, err := tx.Exec(ctx, `UPDATE engine.approval_action_intents SET grant_token=$4\n\t\t\t\tWHERE workflow_id=$1 AND node_id=$2 AND iteration=$3`,\n\t\t\t\tinput.WorkflowID, input.NodeID, input.Iteration, NewID()); err != nil {\n\t\t\t\treturn TimeoutResult{}, err\n\t\t\t}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/engine",
+        "-run",
+        "^TestK6ReplacementReusesGrant$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "replacement minted a different grant",
+      "requires_database": true
+    },
+    {
+      "id": "k6d1-worker-receipt-without-sink",
+      "kind": "behavioral",
+      "file": "internal/state/k6_dispatch.go",
+      "old": "r.ApplicationID != \"\" && k6receipt.Verify(key, claim, proof)",
+      "new": "r.ApplicationID != \"\" && (proof.Signature == \"\" || k6receipt.Verify(key, claim, proof))",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/state",
+        "-run",
+        "^TestK6ProofRequiresSinkVerification$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "unsigned worker receipt was trusted",
       "requires_database": false
     }
   ]

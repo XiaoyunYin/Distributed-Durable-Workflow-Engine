@@ -6,26 +6,18 @@ import (
 	"errors"
 	"time"
 
+	"durable-agent-execution-engine/internal/k6receipt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type Receipt struct {
-	WorkflowID       string `json:"workflow_id"`
-	LogicalKey       string `json:"logical_key"`
-	ResourceID       string `json:"resource_id"`
-	CanonicalHash    string `json:"canonical_hash"`
-	ScopeHash        string `json:"scope_hash"`
-	IntentID         string `json:"intent_id"`
-	ExpectedRevision int64  `json:"expected_revision"`
-	AppliedRevision  int64  `json:"applied_revision"`
-	ApplicationID    string `json:"application_id"`
-}
+type Receipt = k6receipt.Receipt
 
 type delivery struct {
 	operation, bodyHash, connectionHash string
 	request                             Request
 	auth                                authorization
+	cooperating                         bool
 }
 
 type result struct {
@@ -172,7 +164,34 @@ func perform(ctx context.Context, tx pgx.Tx, d delivery, check grantRecheck) (re
 		return recordCall(ctx, tx, d, "REQUEST_CONFLICT", nil)
 	}
 	if d.operation == "allocate" {
+		if d.cooperating && issuedFence == 0 {
+			var superseded bool
+			err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT FROM k6_sink.allocations
+				WHERE intent_id = $1 AND grant_hash = $2 AND attempt > $3)`,
+				r.IntentID, d.auth.grantHash, r.Attempt).Scan(&superseded)
+			if err != nil {
+				return result{}, err
+			}
+			if superseded {
+				return result{}, errDenied
+			}
+		}
 		return allocate(ctx, tx, d, issuedFence)
+	}
+
+	if d.cooperating && d.operation == "apply" && r.Attempt > 1 {
+		// The allocation was issued before this lookup. The resource lock
+		// excludes any old-fence application between the lookup and this write.
+		var observedAbsent bool
+		err := tx.QueryRow(ctx, `SELECT EXISTS (SELECT FROM k6_sink.lookup_misses
+			WHERE intent_id=$1 AND grant_hash=$2 AND attempt=$3)`,
+			r.IntentID, d.auth.grantHash, r.Attempt).Scan(&observedAbsent)
+		if err != nil {
+			return result{}, err
+		}
+		if !observedAbsent {
+			return result{}, errDenied
+		}
 	}
 
 	var receipt Receipt
@@ -193,12 +212,20 @@ func perform(ctx context.Context, tx pgx.Tx, d delivery, check grantRecheck) (re
 	case !errors.Is(err, pgx.ErrNoRows):
 		return result{}, err
 	case d.operation == "lookup":
+		if d.cooperating && r.Attempt > 1 && issuedFence == latestFence {
+			if _, err := tx.Exec(ctx, `INSERT INTO k6_sink.lookup_misses (intent_id, grant_hash, attempt)
+				SELECT $1,$2,$3 WHERE clock_timestamp() < $4 ON CONFLICT DO NOTHING`,
+				r.IntentID, d.auth.grantHash, r.Attempt, d.auth.sinkCutoff); err != nil {
+				return result{}, err
+			}
+		}
 		return recordCall(ctx, tx, d, "MISSING", nil)
 	case issuedFence != latestFence:
 		return recordCall(ctx, tx, d, "STALE_FENCE", nil)
 	case revision != d.auth.revision:
 		return recordCall(ctx, tx, d, "REVISION_CONFLICT", nil)
 	}
+
 	return apply(ctx, tx, d)
 }
 

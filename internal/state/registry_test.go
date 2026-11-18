@@ -6,11 +6,12 @@ import (
 )
 
 func TestK2RegistryParity(t *testing.T) {
-	good := []ActivityVersion{{"pure.echo", "v1"}, {"pure.add", "v1"}}
+	t.Setenv("DUR053_K6_ACTIVITY", "0")
+	good := []ActivityVersion{{"pure.echo", "v1", ""}, {"pure.add", "v1", ""}}
 	if CheckRegistryParity(nil, nil) == nil {
 		t.Fatal("registry parity guard bypassed: both empty")
 	}
-	for _, bad := range [][]ActivityVersion{nil, {}, {{"", "v1"}}, {{"pure.echo", ""}}, {{"pure.echo", "v1"}, {"pure.echo", "v1"}}, {{"pure.echo", "v1"}}, {{"pure.echo", "v2"}, {"pure.add", "v1"}}, {{"extra", "v1"}, {"pure.echo", "v1"}, {"pure.add", "v1"}}} {
+	for _, bad := range [][]ActivityVersion{nil, {}, {{"", "v1", ""}}, {{"pure.echo", "", ""}}, {{"pure.echo", "v1", ""}, {"pure.echo", "v1", ""}}, {{"pure.echo", "v1", ""}}, {{"pure.echo", "v2", ""}, {"pure.add", "v1", ""}}, {{"extra", "v1", ""}, {"pure.echo", "v1", ""}, {"pure.add", "v1", ""}}} {
 		if CheckRegistryParity(good, bad) == nil {
 			t.Fatalf("registry parity guard bypassed: %v", bad)
 		}
@@ -18,7 +19,7 @@ func TestK2RegistryParity(t *testing.T) {
 			t.Fatalf("registry parity guard bypassed: %v", bad)
 		}
 	}
-	for _, invalid := range [][]ActivityVersion{nil, {{"", "v1"}}, {{"pure.echo", ""}}, {{"pure.echo", "v1"}, {"pure.echo", "v1"}}} {
+	for _, invalid := range [][]ActivityVersion{nil, {{"", "v1", ""}}, {{"pure.echo", "", ""}}, {{"pure.echo", "v1", ""}, {"pure.echo", "v1", ""}}} {
 		if _, err := registrySet(invalid); err == nil {
 			t.Fatalf("registry parity guard bypassed: invalid manifest %v", invalid)
 		}
@@ -66,7 +67,7 @@ func TestK2ReferencedVersionsGate(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	extended := append(append([]ActivityVersion{}, candidate...), ActivityVersion{"future", "v2"})
+	extended := append(append([]ActivityVersion{}, candidate...), ActivityVersion{"future", "v2", ""})
 	for _, status := range []string{"RUNNABLE", "WAITING_ACTIVITY", "WAITING_TIMER", "WAITING_APPROVAL", "PAUSED_UNSUPPORTED_VERSION", "RECONCILIATION_REQUIRED"} {
 		_, err := store.pool.Exec(ctx, `UPDATE engine.workflow_executions SET state=$2 WHERE workflow_id=$1`, id, status)
 		if err != nil {

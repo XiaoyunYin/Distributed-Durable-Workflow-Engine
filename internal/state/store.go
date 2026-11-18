@@ -35,6 +35,16 @@ func NewFromURL(ctx context.Context, databaseURL string) (*Store, error) {
 	return newFromURL(ctx, databaseURL, 8, false)
 }
 
+// NewK6RuntimeFromURL uses the normal role pool and enables the K6 approval
+// transactions only for callers using the split, opt-in runtime.
+func NewK6RuntimeFromURL(ctx context.Context, databaseURL string) (*Store, error) {
+	store, err := NewFromURL(ctx, databaseURL)
+	if err == nil {
+		store.k6Approval = true
+	}
+	return store, err
+}
+
 // NewCampaignFromURL bounds the campaign fixture writer to its registered
 // two-connection budget. Default runtime/Compose pools remain unchanged.
 func NewCampaignFromURL(ctx context.Context, databaseURL string) (*Store, error) {
@@ -764,7 +774,7 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 	if revision != input.ExpectedRevision {
 		return fmt.Errorf("%w: expected %d, got %d", ErrRevisionConflict, input.ExpectedRevision, revision)
 	}
-	if !legalTransition(state, input.NewState) {
+	if !legalTransition(state, input.NewState) && !input.k6Expired {
 		return fmt.Errorf("%w: %s -> %s", ErrInvalidTransition, state, input.NewState)
 	}
 	var currentAttemptNumber *int64
@@ -776,6 +786,15 @@ func (s *Store) ApplyOwnerTransition(ctx context.Context, input OwnerTransitionI
 			FOR UPDATE`, input.WorkflowID, input.NodeID, input.Iteration).Scan(&currentAttemptNumber); err != nil {
 			return fmt.Errorf("lock node: %w", err)
 		}
+	}
+	if input.k6Expired {
+		if state != StateRunnable && state != StateWaitingApproval && state != StateWaitingActivity {
+			return ErrInvalidTransition
+		}
+		if err := s.expireK6Attempt(ctx, tx, input, namespace, currentAttemptNumber); err != nil {
+			return err
+		}
+		input.AttemptNumber = currentAttemptNumber
 	}
 	if input.NewState == StateCanceled && state == StateWaitingActivity {
 		if input.NodeID == "" {
@@ -1206,6 +1225,11 @@ func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt,
 	if authoritativeClass == EffectCooperating && input.LogicalEffectKey == "" {
 		return Attempt{}, errors.New("cooperating effects require a logical effect key")
 	}
+	if input.NodeID == K6Activity {
+		if _, err := s.k6DispatchGrant(ctx, tx, input.WorkflowID, input.Iteration, input.LogicalEffectKey, input.GrantScopeHash); err != nil {
+			return Attempt{}, err
+		}
+	}
 	var currentAttempt int64
 	var nodeState WorkflowState
 	if err := tx.QueryRow(ctx, `
@@ -1308,18 +1332,22 @@ func (s *Store) ClaimAttempt(ctx context.Context, input ClaimInput) (ClaimResult
 	var existingCurrent bool
 	var existingState AttemptState
 	var existingDeadline *time.Time
+	var existingWorker *string
 	err = tx.QueryRow(ctx, `
 		SELECT workflow_id, node_id, iteration, attempt_number, claim_token::text,
-			effect_class, is_current, state, heartbeat_deadline
+			effect_class, is_current, state, heartbeat_deadline, worker_id
 		FROM engine.activity_attempts
 		WHERE worker_request_id = $1
 		FOR UPDATE`, input.RequestID).Scan(&existingWorkflowID, &existingNodeID, &existingIteration,
-		&existingNumber, &existingToken, &existingClass, &existingCurrent, &existingState, &existingDeadline)
+		&existingNumber, &existingToken, &existingClass, &existingCurrent, &existingState, &existingDeadline, &existingWorker)
 	if err == nil {
 		if existingWorkflowID != input.WorkflowID || existingNodeID != input.NodeID || existingIteration != input.Iteration {
 			return ClaimResult{}, ErrClaimRequestConflict
 		}
 		if existingToken == nil || !existingCurrent || existingState != AttemptClaimed {
+			return ClaimResult{}, ErrStaleClaim
+		}
+		if input.NodeID == K6Activity && (!input.K6Authenticated || !s.k6Approval || existingWorker == nil || *existingWorker != input.WorkerID) {
 			return ClaimResult{}, ErrStaleClaim
 		}
 		if input.ExpectedAttempt != 0 && existingNumber != input.ExpectedAttempt {
@@ -1363,6 +1391,9 @@ func (s *Store) ClaimAttempt(ctx context.Context, input ClaimInput) (ClaimResult
 			return ClaimResult{}, ErrAttemptNotCurrent
 		}
 		return ClaimResult{}, fmt.Errorf("lock dispatchable attempt: %w", err)
+	}
+	if input.NodeID == K6Activity && (!input.K6Authenticated || !s.k6Approval || effectClass != EffectCooperating) {
+		return ClaimResult{}, ErrStaleClaim
 	}
 	token = NewID()
 	attemptLease := input.AttemptLease
@@ -1431,6 +1462,16 @@ func (s *Store) HeartbeatAttempt(ctx context.Context, input HeartbeatInput) (tim
 	if currentAttempt != input.AttemptNumber {
 		return time.Time{}, ErrStaleClaim
 	}
+	if input.NodeID == K6Activity {
+		if !s.k6Approval || input.K6WorkerID == "" {
+			return time.Time{}, ErrStaleClaim
+		}
+		claim := k6Claim{ResultInput: ResultInput{WorkflowID: input.WorkflowID, Iteration: input.Iteration,
+			AttemptNumber: input.AttemptNumber, ClaimToken: input.ClaimToken}, workerID: input.K6WorkerID}
+		if _, err := currentK6Attempt(ctx, tx, claim, true); err != nil {
+			return time.Time{}, err
+		}
+	}
 	var deadline time.Time
 	if err := tx.QueryRow(ctx, `
 		UPDATE engine.activity_attempts
@@ -1460,6 +1501,13 @@ func (s *Store) RecordResult(ctx context.Context, input ResultInput) error {
 // A retry of an already committed result returns the same receipt without
 // writing another outbox event.
 func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (ResultReceipt, error) {
+	if input.NodeID == K6Activity {
+		return ResultReceipt{}, ErrGrantInvalid
+	}
+	return s.recordResultReceipt(ctx, input, nil)
+}
+
+func (s *Store) recordResultReceipt(ctx context.Context, input ResultInput, k6 *k6Completion) (ResultReceipt, error) {
 	started := time.Now()
 	defer s.observeQuery(started)
 	defer s.observeTransaction()
@@ -1483,15 +1531,24 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 	if err != nil {
 		return ResultReceipt{}, err
 	}
-	defer func() { _ = tx.Rollback(ctx) }()
+	defer func(rollbackCtx context.Context) { _ = tx.Rollback(rollbackCtx) }(ctx)
+	if k6 != nil {
+		if _, err := lockLease(ctx, tx, k6.lease); err != nil {
+			return ResultReceipt{}, err
+		}
+	}
 	var workflowState WorkflowState
+	var partitionID int16
 	if err := tx.QueryRow(ctx, `
-		SELECT state FROM engine.workflow_executions
-		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState); err != nil {
+		SELECT state, partition_id FROM engine.workflow_executions
+		WHERE workflow_id = $1 FOR UPDATE`, input.WorkflowID).Scan(&workflowState, &partitionID); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return ResultReceipt{}, ErrWorkflowNotFound
 		}
 		return ResultReceipt{}, fmt.Errorf("lock workflow for result: %w", err)
+	}
+	if k6 != nil && partitionID != k6.lease.PartitionID {
+		return ResultReceipt{}, ErrLeaseNotOwned
 	}
 	var nodeCurrentAttempt *int64
 	if err := tx.QueryRow(ctx, `
@@ -1554,6 +1611,14 @@ func (s *Store) RecordResultReceipt(ctx context.Context, input ResultInput) (Res
 	}
 	if nodeCurrentAttempt == nil || *nodeCurrentAttempt != input.AttemptNumber || !current || state != AttemptClaimed {
 		return ResultReceipt{}, ErrAttemptNotCurrent
+	}
+	if k6 != nil {
+		if err := s.acknowledgeK6Result(ctx, tx, &input, k6); err != nil {
+			return ResultReceipt{}, err
+		}
+		var cancel context.CancelFunc
+		ctx, cancel = context.WithDeadline(ctx, k6.lockBy)
+		defer cancel()
 	}
 	disposition := "NONE"
 	if input.AttemptState == AttemptSucceeded {
@@ -1666,6 +1731,30 @@ func (s *Store) TimeoutAttempt(ctx context.Context, input TimeoutInput) (Timeout
 		dispatchLease = DefaultDispatchLease
 	}
 	newRevision := revision + 1
+	if input.NodeID == K6Activity {
+		if logicalEffectKey == nil || grantScopeHash == nil {
+			return TimeoutResult{}, ErrGrantInvalid
+		}
+		var receiptPending bool
+		if err := tx.QueryRow(ctx, `SELECT k6_proof IS NOT NULL FROM engine.activity_attempts
+			WHERE workflow_id=$1 AND node_id=$2 AND iteration=$3 AND attempt_number=$4`,
+			input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber).Scan(&receiptPending); err != nil {
+			return TimeoutResult{}, err
+		}
+		if receiptPending {
+			return TimeoutResult{}, ErrK6ResultPending
+		}
+		if _, err := s.k6DispatchGrant(ctx, tx, input.WorkflowID, input.Iteration, *logicalEffectKey, *grantScopeHash); err != nil {
+			return TimeoutResult{}, err
+		}
+		if attemptState == AttemptClaimed {
+			if _, err := tx.Exec(ctx, `UPDATE engine.activity_attempts SET outcome_disposition='OUTCOME_UNKNOWN'
+				WHERE workflow_id=$1 AND node_id=$2 AND iteration=$3 AND attempt_number=$4`,
+				input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber); err != nil {
+				return TimeoutResult{}, err
+			}
+		}
+	}
 	if attemptState == AttemptDispatchable {
 		if _, err := tx.Exec(ctx, `UPDATE engine.activity_attempts SET updated_at = clock_timestamp() WHERE workflow_id = $1 AND node_id = $2 AND iteration = $3 AND attempt_number = $4`, input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber); err != nil {
 			return TimeoutResult{}, err

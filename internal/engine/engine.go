@@ -209,6 +209,7 @@ type Engine struct {
 	// ExternalActivities leaves attempts to Kafka workers. The scheduler only
 	// creates dispatches, consumes durable results, and recovers expired claims.
 	ExternalActivities bool
+	K6                 *K6Options
 	OwnerID            string
 	WorkerID           string
 	ActorID            string
@@ -345,12 +346,16 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 		if err != nil {
 			return RunResult{}, err
 		}
-		if terminal(wf.State) || wf.State == state.StatePausedUnsupportedVersion || wf.State == state.StateWaitingApproval || wf.State == state.StateReconciliationRequired {
+		if terminal(wf.State) || wf.State == state.StatePausedUnsupportedVersion || wf.State == state.StateReconciliationRequired ||
+			(wf.State == state.StateWaitingApproval && e.K6 == nil) {
 			return RunResult{Workflow: wf, Blocked: !terminal(wf.State)}, nil
 		}
 		for _, node := range graph.Nodes {
 			if node.Kind == "activity" {
-				if _, supported := state.RuntimeVersion(definition, node.ID); !supported {
+				if _, supported := state.RuntimeVersion(definition, node.ID); !supported || (node.ID == state.K6Activity && e.K6 == nil) {
+					if wf.State == state.StateWaitingApproval || (node.ID == state.K6Activity && wf.State != state.StateRunnable) {
+						return RunResult{Workflow: wf, Blocked: true}, nil
+					}
 					ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
 					err := e.Store.ApplyOwnerTransition(ctx, state.OwnerTransitionInput{Lease: ref, WorkflowID: wf.WorkflowID,
 						ExpectedRevision: wf.Revision, NewState: state.StatePausedUnsupportedVersion,
@@ -392,13 +397,18 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 		if err != nil {
 			return RunResult{}, err
 		}
-		if progressed, err := e.advanceDueTimer(ctx, wf, nodes, lease, actorID); err != nil {
-			return RunResult{}, err
-		} else if progressed {
-			continue
+		if e.K6 == nil || wf.State != state.StateWaitingApproval {
+			if progressed, err := e.advanceDueTimer(ctx, wf, nodes, lease, actorID); err != nil {
+				return RunResult{}, err
+			} else if progressed {
+				continue
+			}
 		}
 		progressed := false
 		for _, node := range nodes {
+			if e.K6 != nil && wf.State == state.StateWaitingApproval && (node.NodeID != state.K6Activity || node.State != state.StateWaitingApproval) {
+				continue
+			}
 			definitionNode, ok := graph.Nodes[node.NodeID]
 			if !ok {
 				return RunResult{}, fmt.Errorf("node %q is not in definition", node.NodeID)
@@ -413,6 +423,14 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 					return RunResult{}, err
 				}
 				nodeProgress = true
+			case state.StateWaitingApproval:
+				if e.K6 != nil && node.NodeID == state.K6Activity {
+					ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
+					nodeProgress, err = e.prepareK6Activity(ctx, wf, node, ref, actorID)
+					if err != nil {
+						return RunResult{}, err
+					}
+				}
 			case state.StateWaitingActivity:
 				nodeProgress, err = e.recoverActivity(ctx, wf, node, definitionNode, graph, lease, workerID, actorID)
 				if err != nil {
@@ -533,6 +551,11 @@ func (e *Engine) advanceFromControl(ctx context.Context, wf state.Workflow, node
 
 func (e *Engine) runActivity(ctx context.Context, wf state.Workflow, node state.NodeInstance, definitionNode Node,
 	graph Graph, lease state.LeaseRef, workerID, actorID string) error {
+	if e.ExternalActivities && node.NodeID == state.K6Activity {
+		if progressed, err := e.prepareK6Activity(ctx, wf, node, lease, actorID); progressed || err != nil {
+			return err
+		}
+	}
 	transitionNode := state.StateWaitingActivity
 	if err := e.Store.ApplyOwnerTransition(ctx, state.OwnerTransitionInput{Lease: lease, WorkflowID: wf.WorkflowID,
 		ExpectedRevision: wf.Revision, NewState: state.StateWaitingActivity, NodeID: node.NodeID,
@@ -556,9 +579,24 @@ func (e *Engine) startActivity(ctx context.Context, wf state.Workflow, node stat
 		return fmt.Errorf("no effect class for activity %q", node.NodeID)
 	}
 	logicalKey := wf.WorkflowID + ":" + node.NodeID + ":" + fmt.Sprint(node.Iteration)
+	scope := node.NodeID
+	if e.ExternalActivities && node.NodeID == state.K6Activity {
+		op, err := e.K6.Plan.operation(wf, node)
+		if err != nil {
+			return err
+		}
+		intent, err := e.Store.K6Intent(ctx, wf.WorkflowID, node.Iteration, op.LogicalKey)
+		if err != nil {
+			return err
+		}
+		if !op.matches(intent) {
+			return state.ErrEffectIdentityMismatch
+		}
+		logicalKey, scope = op.LogicalKey, intent.GrantScopeHash
+	}
 	attempt, err := e.Store.CreateAttempt(ctx, state.AttemptInput{Lease: lease, WorkflowID: wf.WorkflowID,
 		NodeID: node.NodeID, Iteration: node.Iteration, ExpectedRevision: wf.Revision,
-		EffectClass: effectClass, LogicalEffectKey: logicalKey, GrantScopeHash: node.NodeID,
+		EffectClass: effectClass, LogicalEffectKey: logicalKey, GrantScopeHash: scope,
 		DispatchLease: e.AttemptLease, ActorID: actorID})
 	if err != nil {
 		return err
@@ -672,6 +710,9 @@ func (e *Engine) recoverActivity(ctx context.Context, wf state.Workflow, node st
 	ref := state.LeaseRef{PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch}
 	if node.CurrentAttempt == nil {
 		if err := e.startActivity(ctx, wf, node, definitionNode, graph, ref, workerID, actorID); err != nil {
+			if e.K6 != nil && node.NodeID == state.K6Activity && errors.Is(err, state.ErrApprovalExpired) {
+				return true, e.Store.ExpireK6Operation(ctx, ref, wf, node, actorID)
+			}
 			return false, err
 		}
 		return true, nil
@@ -686,6 +727,11 @@ func (e *Engine) recoverActivity(ctx context.Context, wf state.Workflow, node st
 			return false, err
 		}
 		return true, nil
+	}
+	if e.K6 != nil && node.NodeID == state.K6Activity {
+		if progressed, err := e.recoverK6Attempt(ctx, wf, node, attempt, ref, actorID); progressed || err != nil {
+			return progressed, err
+		}
 	}
 	databaseNow, err := e.Store.DatabaseTime(ctx)
 	if err != nil {

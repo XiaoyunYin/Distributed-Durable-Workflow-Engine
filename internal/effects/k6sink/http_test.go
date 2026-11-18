@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/ecdsa"
+	"crypto/ed25519"
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/tls"
@@ -21,6 +22,7 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/k6auth"
+	"durable-agent-execution-engine/internal/k6receipt"
 	"durable-agent-execution-engine/internal/state"
 )
 
@@ -362,5 +364,52 @@ func TestK6SinkRevisionChainDetectsMissingJournal(t *testing.T) {
 	snapshot.Resources[0].Revision = 2
 	if snapshot.CheckApplications(1) != nil || snapshot.CheckRevisionChain() == nil {
 		t.Fatal("initial/final revision does not expose the missing mutation")
+	}
+}
+
+func TestK6SinkSignsCommittedLookup(t *testing.T) {
+	public, signer, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := testHTTP
+	cfg.ReceiptKey = signer
+	grants := testGrants{}
+	req := testRequest()
+	req.NodeID, req.Attempt, req.Fence = state.K6Activity, 2, 19
+	req = grants.add(t, req, time.Now().Add(time.Minute))
+	receipt := Receipt{WorkflowID: req.WorkflowID, ResourceID: req.ResourceID,
+		IntentID: req.IntentID, ScopeHash: req.ScopeHash, LogicalKey: req.LogicalKey,
+		AppliedRevision: 1, ApplicationID: "application"}
+	handler, err := newHandler(cfg, testReviewer(), grants, backendFunc(func(_ context.Context, d delivery, _ grantRecheck) (result, error) {
+		if !d.cooperating || d.operation != "lookup" {
+			t.Error("lookup did not use the K6 operation")
+		}
+		return result{outcome: "FOUND", body: asJSON(t, receipt)}, nil
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients := newTestServer(t, handler)
+	call, err := http.NewRequest(http.MethodPost, clients.url+"/v1/lookup", bytes.NewReader(asJSON(t, req)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	call.Header.Set("Authorization", "Bearer "+workerToken(t, nil))
+	response, err := clients.ingress.Do(call)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer response.Body.Close()
+	var proof k6receipt.Proof
+	proof.Operation, proof.Signature = "lookup", response.Header.Get(k6receipt.SignatureHeader)
+	claim := k6receipt.Claim{NodeID: req.NodeID, Attempt: req.Attempt, Fence: req.Fence}
+	if response.StatusCode != 200 || json.NewDecoder(response.Body).Decode(&proof.Receipt) != nil ||
+		!k6receipt.Verify(public, claim, proof) {
+		t.Fatal("authenticated sink did not sign committed lookup")
+	}
+	proof.Operation = "apply"
+	if k6receipt.Verify(public, claim, proof) {
+		t.Fatal("lookup proof could be reused as an apply response")
 	}
 }

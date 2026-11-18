@@ -3,6 +3,7 @@ package api
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -15,6 +16,7 @@ import (
 	"strings"
 	"time"
 
+	"durable-agent-execution-engine/internal/k6receipt"
 	"durable-agent-execution-engine/internal/partition"
 	"durable-agent-execution-engine/internal/state"
 	"durable-agent-execution-engine/internal/telemetry"
@@ -61,6 +63,18 @@ type Server struct {
 	demandAuth       *DemandBearerAuthenticator
 	demandRepository DemandRepository
 	demandNamespace  string
+	k6               *K6WorkerControl
+}
+
+type K6WorkerControl struct {
+	Store      *state.Store
+	Allocator  state.K6Allocator
+	ReceiptKey ed25519.PublicKey
+}
+
+func (s *Server) WithK6WorkerControl(control *K6WorkerControl) *Server {
+	s.k6 = control
+	return s
 }
 
 func NewServer(repository Repository) *Server {
@@ -208,6 +222,7 @@ type claimAttemptResponse struct {
 	ClaimToken        string            `json:"claim_token"`
 	EffectClass       state.EffectClass `json:"effect_class"`
 	HeartbeatDeadline time.Time         `json:"heartbeat_deadline"`
+	K6Dispatch        *state.K6Dispatch `json:"k6_dispatch,omitempty"`
 }
 
 type heartbeatResponse struct {
@@ -252,19 +267,35 @@ func (s *Server) claimAttempt(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "worker_id, request_id, and a non-negative attempt_lease_ms are required", nil)
 		return
 	}
-	claim, err := repository.ClaimAttempt(r.Context(), state.ClaimInput{
+	input := state.ClaimInput{
 		WorkflowID: workflowID, NodeID: nodeID, Iteration: iteration,
 		WorkerID: request.WorkerID, RequestID: request.RequestID,
 		AttemptLease:    time.Duration(request.AttemptLeaseMS) * time.Millisecond,
 		ExpectedAttempt: request.ExpectedAttempt,
-	})
+		K6Authenticated: s.k6 != nil && r.TLS != nil && authenticatedIdentity(r.Context()) != "",
+	}
+	if nodeID == state.K6Activity && (!input.K6Authenticated || input.ExpectedAttempt <= 0) {
+		writeRepositoryError(w, state.ErrStaleClaim)
+		return
+	}
+	claim, err := repository.ClaimAttempt(r.Context(), input)
 	if err != nil {
 		writeRepositoryError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, claimAttemptResponse{AttemptNumber: claim.AttemptNumber,
+	response := claimAttemptResponse{AttemptNumber: claim.AttemptNumber,
 		ClaimToken: claim.ClaimToken, EffectClass: claim.EffectClass,
-		HeartbeatDeadline: claim.HeartbeatDeadline})
+		HeartbeatDeadline: claim.HeartbeatDeadline}
+	if nodeID == state.K6Activity {
+		envelope, err := s.k6.Store.K6ClaimEnvelope(r.Context(), input, claim, s.k6.Allocator)
+		if err != nil {
+			writeRepositoryError(w, err)
+			return
+		}
+		response.K6Dispatch = &envelope
+		w.Header().Set("Cache-Control", "no-store")
+	}
+	writeJSON(w, http.StatusOK, response)
 }
 
 func (s *Server) heartbeatAttempt(w http.ResponseWriter, r *http.Request) {
@@ -286,11 +317,19 @@ func (s *Server) heartbeatAttempt(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "attempt_number, claim_token, and a non-negative extension_ms are required", nil)
 		return
 	}
-	deadline, err := repository.HeartbeatAttempt(r.Context(), state.HeartbeatInput{
+	input := state.HeartbeatInput{
 		WorkflowID: workflowID, NodeID: nodeID, Iteration: iteration,
 		AttemptNumber: request.AttemptNumber, ClaimToken: request.ClaimToken,
 		Extension: time.Duration(request.ExtensionMS) * time.Millisecond,
-	})
+	}
+	if nodeID == state.K6Activity {
+		input.K6WorkerID = authenticatedIdentity(r.Context())
+		if s.k6 == nil || r.TLS == nil || input.K6WorkerID == "" {
+			writeRepositoryError(w, state.ErrStaleClaim)
+			return
+		}
+	}
+	deadline, err := repository.HeartbeatAttempt(r.Context(), input)
 	if err != nil {
 		writeRepositoryError(w, err)
 		return
@@ -317,6 +356,12 @@ func (s *Server) recordResult(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "INVALID_REQUEST", "attempt_number and claim_token are required", nil)
 		return
 	}
+	if nodeID == state.K6Activity {
+		s.stageK6Result(w, r, state.ResultInput{WorkflowID: workflowID, NodeID: nodeID,
+			Iteration: iteration, AttemptNumber: request.AttemptNumber, ClaimToken: request.ClaimToken,
+			AttemptState: request.AttemptState, Payload: request.Payload})
+		return
+	}
 	if request.AttemptState != state.AttemptSucceeded && request.AttemptState != state.AttemptFailedRetryable && request.AttemptState != state.AttemptFailedFinal {
 		writeRepositoryError(w, state.ErrInvalidAttemptState)
 		return
@@ -332,6 +377,37 @@ func (s *Server) recordResult(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, receipt)
+}
+
+func (s *Server) stageK6Result(w http.ResponseWriter, r *http.Request, input state.ResultInput) {
+	worker := authenticatedIdentity(r.Context())
+	if s.k6 == nil || r.TLS == nil || worker == "" {
+		writeRepositoryError(w, state.ErrStaleClaim)
+		return
+	}
+	var proof *k6receipt.Proof
+	switch input.AttemptState {
+	case state.AttemptSucceeded:
+		proof = new(k6receipt.Proof)
+		decoder := json.NewDecoder(bytes.NewReader(input.Payload))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(proof); err != nil || decoder.Decode(new(any)) != io.EOF {
+			writeRepositoryError(w, state.ErrGrantInvalid)
+			return
+		}
+	case state.AttemptOutcomeUnknown:
+		// Only the signal is persisted. There is no trusted result yet.
+	default:
+		writeRepositoryError(w, state.ErrInvalidAttemptState)
+		return
+	}
+	if err := s.k6.Store.StageK6Result(r.Context(), input, worker, proof, s.k6.ReceiptKey); err != nil {
+		writeRepositoryError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusAccepted, state.ResultReceipt{Disposition: "PENDING_VERIFICATION",
+		WorkflowID: input.WorkflowID, NodeID: input.NodeID, Iteration: input.Iteration,
+		AttemptNumber: input.AttemptNumber, AttemptState: input.AttemptState})
 }
 
 func decodeLease(request leaseRequest) state.LeaseRef {
@@ -867,6 +943,8 @@ func makeHistoryView(record state.TransitionRecord) historyView {
 
 func writeRepositoryError(w http.ResponseWriter, err error) {
 	switch {
+	case errors.Is(err, state.ErrK6Unavailable):
+		writeError(w, http.StatusServiceUnavailable, "K6_DISPATCH_UNAVAILABLE", "K6 dispatch is unavailable", nil)
 	case errors.Is(err, state.ErrAdmissionLimit):
 		w.Header().Set("Retry-After", "1")
 		writeError(w, http.StatusTooManyRequests, "ADMISSION_LIMIT", "campaign admission limit is full", nil)

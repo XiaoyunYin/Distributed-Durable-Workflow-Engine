@@ -11,18 +11,26 @@ import (
 )
 
 type ActivityVersion struct {
-	Name    string `json:"name"`
-	Version string `json:"version"`
+	Name    string      `json:"name"`
+	Version string      `json:"version"`
+	Class   EffectClass `json:"effect_class,omitempty"`
 }
+
+const K6Activity = "dur053.cooperating"
+
+func K6Enabled() bool { return os.Getenv("DUR053_K6_ACTIVITY") == "1" }
 
 // RuntimeRegistry is the effective allowlist used by dispatch and image export.
 func RuntimeRegistry() []ActivityVersion {
-	entries := []ActivityVersion{{"pure.add", "v1"}, {"pure.echo", "v1"}}
+	entries := []ActivityVersion{{"pure.add", "v1", ""}, {"pure.echo", "v1", ""}}
 	if os.Getenv("DUR048_ALLOW_FIXTURE_ACTIVITY") == "1" {
-		entries = append(entries, ActivityVersion{"dur048.sleep", "v1"})
+		entries = append(entries, ActivityVersion{"dur048.sleep", "v1", ""})
 	}
 	if os.Getenv("DUR053_ALLOW_FIXTURE_ACTIVITY") == "1" {
-		entries = append(entries, ActivityVersion{"dur053.cpu", "v1"})
+		entries = append(entries, ActivityVersion{"dur053.cpu", "v1", ""})
+	}
+	if K6Enabled() {
+		entries = append(entries, ActivityVersion{K6Activity, "v1", EffectCooperating})
 	}
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name < entries[j].Name })
 	return entries
@@ -34,8 +42,15 @@ func registrySet(entries []ActivityVersion) (map[ActivityVersion]bool, error) {
 	}
 	result := map[ActivityVersion]bool{}
 	for _, entry := range entries {
+		if entry.Class == EffectPure {
+			entry.Class = ""
+		}
 		if entry.Name == "" || entry.Version == "" || result[entry] {
 			return nil, errors.New("invalid or duplicate activity registry entry")
+		}
+		if (entry.Name == K6Activity && (entry.Version != "v1" || entry.Class != EffectCooperating)) ||
+			(entry.Name != K6Activity && entry.Class != "") {
+			return nil, errors.New("invalid activity effect class")
 		}
 		result[entry] = true
 	}
@@ -76,7 +91,7 @@ func (s *Store) CheckActivityCompatibility(ctx context.Context, namespace string
 	}
 	ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	rows, err := s.pool.Query(ctx, `SELECT d.activity_versions
+	rows, err := s.pool.Query(ctx, `SELECT d.activity_versions, d.effect_classes
         FROM engine.workflow_definitions d
         WHERE EXISTS (SELECT 1 FROM engine.workflow_executions w
           WHERE w.namespace=$1 AND w.definition_id=d.definition_id AND w.definition_version=d.version
@@ -86,8 +101,8 @@ func (s *Store) CheckActivityCompatibility(ctx context.Context, namespace string
 	}
 	defer rows.Close()
 	for rows.Next() {
-		var raw []byte
-		if err := rows.Scan(&raw); err != nil {
+		var raw, rawClasses []byte
+		if err := rows.Scan(&raw, &rawClasses); err != nil {
 			return err
 		}
 		var versions map[string]string
@@ -97,8 +112,22 @@ func (s *Store) CheckActivityCompatibility(ctx context.Context, namespace string
 		if versions == nil {
 			return errors.New("invalid referenced activity versions")
 		}
+		var classes map[string]EffectClass
+		if err := json.Unmarshal(rawClasses, &classes); err != nil {
+			return errors.New("invalid referenced activity effect classes")
+		}
 		for name, version := range versions {
-			if !supported[ActivityVersion{name, version}] {
+			class := classes[name]
+			if name == K6Activity {
+				if class != EffectCooperating || !supported[ActivityVersion{name, version, class}] {
+					return fmt.Errorf("referenced activity unsupported: %s/%s", name, version)
+				}
+				continue
+			}
+			if class != "" && class != EffectPure {
+				return fmt.Errorf("referenced activity class unsupported: %s/%s", name, version)
+			}
+			if !supported[ActivityVersion{Name: name, Version: version}] {
 				return fmt.Errorf("referenced activity unsupported: %s/%s", name, version)
 			}
 		}

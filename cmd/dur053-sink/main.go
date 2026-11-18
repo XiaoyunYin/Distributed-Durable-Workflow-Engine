@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"crypto/ed25519"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
@@ -30,6 +31,7 @@ type serveConfig struct {
 	ServerCertificate, ServerKey, ClientCA []byte
 	SinkDSN, GrantReaderDSN                string
 	ClockUncertaintyMicros                 int64
+	ReceiptSigningSeed                     []byte
 }
 
 func loadPrivateConfig(path string, config any) error {
@@ -90,9 +92,17 @@ func serve(ctx context.Context, path string) error {
 		return errors.New("K6_SINK_OWN_DB")
 	}
 	defer store.Close()
+	var receiptKey ed25519.PrivateKey
+	if len(cfg.ReceiptSigningSeed) != 0 {
+		if len(cfg.ReceiptSigningSeed) != ed25519.SeedSize {
+			return errors.New("K6_SINK_RECEIPT_CONFIG")
+		}
+		receiptKey = ed25519.NewKeyFromSeed(cfg.ReceiptSigningSeed)
+	}
 	handler, err := k6sink.NewHandler(k6sink.HTTPConfig{
 		Worker: cfg.Worker, EnginePeerURI: cfg.EnginePeerURI, IngressPeerURI: cfg.IngressPeerURI,
 		ClockUncertainty: time.Duration(cfg.ClockUncertaintyMicros) * time.Microsecond,
+		ReceiptKey:       receiptKey,
 	}, reviewer, reader, store)
 	if err != nil {
 		return errors.New("K6_SINK_IDENTITY_CONFIG")

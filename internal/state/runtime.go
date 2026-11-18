@@ -14,9 +14,12 @@ func (s *Store) RuntimeWork(ctx context.Context, namespace, after string, limit 
 	}
 	rows, err := s.pool.Query(ctx, `SELECT workflow_id FROM engine.workflow_executions
 		WHERE namespace = $1 AND workflow_id > $2 AND (state IN ('RUNNABLE','WAITING_ACTIVITY','WAITING_TIMER')
+		OR ($4 AND state = 'WAITING_APPROVAL' AND EXISTS (
+			SELECT FROM engine.node_instances n WHERE n.workflow_id = workflow_executions.workflow_id
+			AND n.node_id = 'dur053.cooperating' AND n.state = 'WAITING_APPROVAL'))
 		OR EXISTS (SELECT 1 FROM engine.scheduler_wakeups sw WHERE sw.workflow_id=workflow_executions.workflow_id AND sw.state <> 'CONSUMED')
 		OR EXISTS (SELECT 1 FROM engine.cancellation_requests cr WHERE cr.workflow_id=workflow_executions.workflow_id AND cr.status='PENDING'))
-		ORDER BY workflow_id LIMIT $3`, namespace, after, limit)
+		ORDER BY workflow_id LIMIT $3`, namespace, after, limit, s.k6Approval)
 	if err != nil {
 		return nil, err
 	}
@@ -86,7 +89,7 @@ func (s *Store) AcknowledgeWorkflowWakeups(ctx context.Context, lease LeaseRef, 
 }
 
 // RuntimeActivity is read from authoritative node/definition rows, never from
-// caller-supplied broker input. This local deployment only allowlists pure work.
+// caller-supplied broker input. Cooperating arguments travel only in the claim envelope.
 type RuntimeActivity struct {
 	WorkflowID      string          `json:"workflow_id"`
 	NodeID          string          `json:"node_id"`
@@ -104,7 +107,16 @@ func RuntimeVersion(definition Definition, nodeID string) (string, bool) {
 	}
 	version := versions[nodeID]
 	for _, entry := range RuntimeRegistry() {
-		if entry.Name == nodeID && entry.Version == version && definition.EffectClasses[nodeID] == EffectPure {
+		if !(entry.Name == nodeID && entry.Version == version) {
+			continue
+		}
+		if entry.Name == K6Activity {
+			if definition.EffectClasses[nodeID] == entry.Class {
+				return version, true
+			}
+			return version, false
+		}
+		if definition.EffectClasses[nodeID] == EffectPure {
 			return version, true
 		}
 	}
@@ -145,6 +157,10 @@ func (s *Store) RuntimeActivity(ctx context.Context, namespace string, payload j
 	if !ok {
 		return nil, errors.New("activity is not enabled in the local runtime registry")
 	}
-	task.ActivityName, task.ActivityVersion, task.Input = task.NodeID, version, node.Input
+	task.ActivityName, task.ActivityVersion = task.NodeID, version
+	task.Input = node.Input
+	if task.NodeID == K6Activity {
+		task.Input = json.RawMessage(`null`)
+	}
 	return &task, nil
 }
