@@ -32,6 +32,7 @@ type serveConfig struct {
 	SinkDSN, GrantReaderDSN                string
 	ClockUncertaintyMicros                 int64
 	ReceiptSigningSeed                     []byte
+	ObserveTimings                         bool
 }
 
 func loadPrivateConfig(path string, config any) error {
@@ -103,6 +104,7 @@ func serve(ctx context.Context, path string) error {
 		Worker: cfg.Worker, EnginePeerURI: cfg.EnginePeerURI, IngressPeerURI: cfg.IngressPeerURI,
 		ClockUncertainty: time.Duration(cfg.ClockUncertaintyMicros) * time.Microsecond,
 		ReceiptKey:       receiptKey,
+		ObserveTimings:   cfg.ObserveTimings,
 	}, reviewer, reader, store)
 	if err != nil {
 		return errors.New("K6_SINK_IDENTITY_CONFIG")

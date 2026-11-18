@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net"
 	"os"
 	"path/filepath"
@@ -232,18 +233,20 @@ func (r *Receiver) Handle(conn *tls.Conn) {
 // has sent no record. A failure after dialing leaves the sequence ambiguous and
 // poisons the session. It must never be retried or silently sealed.
 type Client struct {
-	Address   string
-	TLS       *tls.Config
-	Session   string
-	RelayPeer string
-	SinkPeer  string
-	mu        sync.Mutex
-	sequence  uint64
-	poisoned  bool
-	sealed    bool
+	Address        string
+	TLS            *tls.Config
+	Session        string
+	RelayPeer      string
+	SinkPeer       string
+	ObserveTimings bool
+	mu             sync.Mutex
+	sequence       uint64
+	poisoned       bool
+	sealed         bool
 }
 
 func (c *Client) Record(record Record) error {
+	started := time.Now()
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.poisoned || c.sealed {
@@ -279,6 +282,9 @@ func (c *Client) Record(record Record) error {
 	c.poisoned = false
 	c.sequence++
 	c.sealed = record.Event == "seal"
+	if c.ObserveTimings && record.Event != "seal" {
+		log.Printf("k6_witness %s %s %d", record.RequestIDHash, record.Event, time.Since(started).Nanoseconds())
+	}
 	return nil
 }
 

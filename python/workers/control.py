@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import json
 import os
+import ssl
 import urllib.error
 import urllib.request
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from workers.k4_control import CURRENT, new_request
+from workers.registry import K6_ACTIVITY
 from workers.witness import campaign_witness
 
 
@@ -31,9 +33,34 @@ class ControlError(RuntimeError):
 @dataclass(frozen=True)
 class Claim:
     attempt_number: int
-    claim_token: str
+    claim_token: str = field(repr=False)
     effect_class: str
     heartbeat_deadline: str
+    k6_dispatch: Any = field(default=None, repr=False)
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self, req: Any, fp: Any, code: int, msg: str, headers: Any, newurl: str
+    ) -> None:
+        return None
+
+
+PRIVATE_CONTROL_CODES = {
+    "APPROVAL_EXPIRED",
+    "CLAIM_REQUEST_CONFLICT",
+    "DATABASE_UNAVAILABLE",
+    "INTERNAL_ERROR",
+    "INVALID_ATTEMPT_STATE",
+    "INVALID_GRANT",
+    "INVALID_REQUEST",
+    "K6_DISPATCH_UNAVAILABLE",
+    "NODE_NOT_FOUND",
+    "NOT_FOUND",
+    "RESULT_CONFLICT",
+    "STALE_ATTEMPT",
+    "STALE_CLAIM",
+}
 
 
 class ControlClient:
@@ -43,6 +70,16 @@ class ControlClient:
         self.base_url = base_url.rstrip("/")
         self.timeout = timeout
         self.traceparent = traceparent
+        self.tls_opener: urllib.request.OpenerDirector | None = None
+
+    def use_private_tls(self, ca_file: str) -> None:
+        context = ssl.create_default_context(cafile=ca_file)
+        context.minimum_version = ssl.TLSVersion.TLSv1_3
+        self.tls_opener = urllib.request.build_opener(
+            urllib.request.ProxyHandler({}),
+            urllib.request.HTTPSHandler(context=context),
+            NoRedirect(),
+        )
 
     def request_timeout(self) -> float:
         return self.timeout
@@ -110,8 +147,16 @@ class ControlClient:
                 token = Path(token_file).read_text(encoding="utf-8").strip()
                 if not token:
                     raise ValueError("empty projected token")
+                if self.tls_opener and (
+                    not token.isascii() or not token.isprintable() or " " in token
+                ):
+                    raise ValueError("invalid projected token")
                 headers["Authorization"] = f"Bearer {token}"
             except (OSError, ValueError) as error:
+                if self.tls_opener:
+                    raise ControlError(
+                        401, "TOKEN_UNAVAILABLE", "projected token unavailable"
+                    ) from None
                 raise ControlError(
                     401, "TOKEN_UNAVAILABLE", "projected token unavailable"
                 ) from error
@@ -122,7 +167,8 @@ class ControlClient:
             method="POST",
         )
         try:
-            with urllib.request.urlopen(request, timeout=self.request_timeout()) as response:  # noqa: S310
+            open_request = self.tls_opener.open if self.tls_opener else urllib.request.urlopen
+            with open_request(request, timeout=self.request_timeout()) as response:
                 if trace := CURRENT.get():
                     trace.status = response.status
                 decoded = json.loads(response.read())
@@ -131,6 +177,14 @@ class ControlClient:
                 decoded = json.loads(error.read())
             except (json.JSONDecodeError, UnicodeDecodeError):
                 decoded = {}
+            if self.tls_opener:
+                detail = decoded.get("error") if isinstance(decoded, dict) else None
+                code = detail.get("code") if isinstance(detail, dict) else None
+                if not isinstance(code, str) or code not in PRIVATE_CONTROL_CODES:
+                    code = "HTTP_ERROR"
+                raise ControlError(
+                    error.code, code, "private worker-control request rejected"
+                ) from None
             detail = decoded.get("error", {})
             raise ControlError(
                 error.code,
@@ -138,6 +192,10 @@ class ControlClient:
                 str(detail.get("message", error.reason)),
             ) from error
         except (urllib.error.URLError, TimeoutError) as error:
+            if self.tls_opener:
+                raise ControlError(
+                    503, "CONTROL_UNAVAILABLE", "private worker-control unavailable"
+                ) from None
             raise ControlError(503, "CONTROL_UNAVAILABLE", str(error)) from error
         if not isinstance(decoded, dict):
             raise ControlError(
@@ -173,11 +231,28 @@ class ControlClient:
                 "expected_attempt": expected_attempt,
             },
         )
+        if self.tls_opener and node_id == K6_ACTIVITY:
+            attempt = response.get("attempt_number")
+            token = response.get("claim_token")
+            if (
+                type(attempt) is not int
+                or attempt <= 0
+                or (expected_attempt != 0 and attempt != expected_attempt)
+                or not isinstance(token, str)
+                or not token
+                or not token.isascii()
+                or not token.isprintable()
+                or " " in token
+                or not isinstance(response.get("effect_class"), str)
+                or not isinstance(response.get("heartbeat_deadline"), str)
+            ):
+                raise ControlError(403, "K6_ENVELOPE_INVALID", "invalid K6 claim response")
         return Claim(
             attempt_number=int(response["attempt_number"]),
             claim_token=str(response["claim_token"]),
             effect_class=str(response["effect_class"]),
             heartbeat_deadline=str(response["heartbeat_deadline"]),
+            k6_dispatch=response.get("k6_dispatch"),
         )
 
     def heartbeat(

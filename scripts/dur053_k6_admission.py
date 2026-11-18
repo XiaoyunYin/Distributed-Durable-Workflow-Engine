@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
+from dur053_k6_overhead import read_effect_overhead
 from dur053_k6_registry import registered_schedule, require, validate_registry
 from dur053_schedule import CEILING, SETUP
 
@@ -76,6 +78,7 @@ def admit(
     progress: dict[str, EpisodeProgress],
     setup_seconds: float = MEASURED_SETUP,
     effect_overhead_seconds: float | None = None,
+    effect_overhead_record: Path | None = None,
     active_job: ActiveJob | None = None,
     workflow_elapsed: float = 0,
 ) -> dict:
@@ -91,6 +94,9 @@ def admit(
     require(type(ledger_actual) is int and ledger_actual >= 0, "k6-ledger-actual")
     setup = seconds(setup_seconds, "k6-setup-seconds")
     workflow = seconds(workflow_elapsed, "k6-workflow-elapsed")
+    if effect_overhead_record is not None:
+        require(effect_overhead_seconds is None, "k6-ambiguous-effect-overhead")
+        effect_overhead_seconds = read_effect_overhead(effect_overhead_record)
     if effect_overhead_seconds is not None:
         seconds(effect_overhead_seconds, "k6-effect-overhead-seconds")
 

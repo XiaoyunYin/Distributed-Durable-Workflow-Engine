@@ -41,6 +41,10 @@ def encoded(data: bytes) -> str:
 
 class Deployment(Smoke):
     database = ENGINE_DB
+    namespace = NS
+    sink_container = SINK_CONTAINER
+    sink_volume = VOLUME
+    live_worker = False
     inputs_schema = "dur053.k6-phase-c-inputs.v1"
 
     def __init__(self, evidence, scratch, harness):
@@ -176,13 +180,15 @@ class Deployment(Smoke):
                 self.k("API_ENDPOINT", "get", "endpoints", "kubernetes", "-o", "json")
             )["subsets"][0]["addresses"][0]["ip"],
         }
-        self.harness.databases.add(ENGINE_DB)
-        self.sql("ENGINE_EPISODE_DB", f'CREATE DATABASE "{ENGINE_DB}";')
+        self.harness.databases.add(self.database)
+        self.sql("ENGINE_EPISODE_DB", f'CREATE DATABASE "{self.database}";')
         self.engine_created = True
-        self.command("SINK_DISK_CREATE", "docker", "volume", "create", "--label", LABEL, VOLUME)
+        self.command(
+            "SINK_DISK_CREATE", "docker", "volume", "create", "--label", LABEL, self.sink_volume
+        )
         self.volume_created = True
         self.env["POSTGRES_PASSWORD"] = self.sink_admin_password
-        self.harness.created.add(SINK_CONTAINER)
+        self.harness.created.add(self.sink_container)
         try:
             self.command(
                 "SINK_POSTGRES_START",
@@ -190,13 +196,13 @@ class Deployment(Smoke):
                 "run",
                 "-d",
                 "--name",
-                SINK_CONTAINER,
+                self.sink_container,
                 "--label",
                 LABEL,
                 "--network",
                 "kind",
                 "--mount",
-                f"type=volume,src={VOLUME},dst=/var/lib/postgresql",
+                f"type=volume,src={self.sink_volume},dst=/var/lib/postgresql",
                 "-e",
                 "POSTGRES_PASSWORD",
                 "-e",
@@ -229,7 +235,7 @@ class Deployment(Smoke):
                 "SINK_POSTGRES_READY",
                 "docker",
                 "exec",
-                SINK_CONTAINER,
+                self.sink_container,
                 "pg_isready",
                 "-h",
                 "127.0.0.1",
@@ -244,7 +250,7 @@ class Deployment(Smoke):
             time.sleep(1)
         else:
             require(False, "SINK_POSTGRES_NOT_READY")
-        self.sink_address = self.instance_address(SINK_CONTAINER)
+        self.sink_address = self.instance_address(self.sink_container)
         self.endpoint_addresses["sink_db"] = self.sink_address
         self.endpoint_addresses["witness"] = str(
             ipaddress.IPv4Address(
@@ -264,7 +270,7 @@ class Deployment(Smoke):
             port.bind((self.endpoint_addresses["witness"], 0))
             self.endpoint_addresses["witness_port"] = str(port.getsockname()[1])
         rows = {}
-        for name, container in (("engine", ENGINE_CONTAINER), ("sink", SINK_CONTAINER)):
+        for name, container in (("engine", ENGINE_CONTAINER), ("sink", self.sink_container)):
             rows[name] = {
                 "container": self.command(
                     "DB_CONTAINER_ID",
@@ -279,7 +285,7 @@ class Deployment(Smoke):
                 "instance": self.psql(
                     name, "admin", "SELECT system_identifier FROM pg_control_system();"
                 ),
-                "disk": VOLUME if name == "sink" else None,
+                "disk": self.sink_volume if name == "sink" else None,
             }
         require(
             all(rows["engine"][field] != rows["sink"][field] for field in ("container", "instance"))
@@ -300,7 +306,7 @@ class Deployment(Smoke):
                 "PGAPPNAME=dur053-k6-c-" + role,
                 "-e",
                 "PGOPTIONS=-c statement_timeout=2500 -c lock_timeout=1000",
-                SINK_CONTAINER if sink else ENGINE_CONTAINER,
+                self.sink_container if sink else ENGINE_CONTAINER,
                 "psql",
                 "-X",
                 "-v",
@@ -430,7 +436,7 @@ class Deployment(Smoke):
                 "docker",
                 "cp",
                 str(self.scratch / ("sink-postgres." + suffix)),
-                f"{SINK_CONTAINER}:/tmp/sink-postgres.{suffix}",
+                f"{self.sink_container}:/tmp/sink-postgres.{suffix}",
             )
         self.command(
             "SINK_PG_TLS_FILES",
@@ -438,7 +444,7 @@ class Deployment(Smoke):
             "exec",
             "-u",
             "0",
-            SINK_CONTAINER,
+            self.sink_container,
             "sh",
             "-ec",
             'install -o postgres -g postgres -m 0600 /tmp/sink-postgres.key "$PGDATA/server.key"; '
@@ -537,15 +543,25 @@ class Deployment(Smoke):
             self.command("SINK_EXPORT", str(self.sink), "export", str(self.export_file))
         )
 
+    def topology(self, objects: list[dict]) -> list[dict]:
+        return objects
+
     def install_topology(self) -> tuple[dict, dict]:
-        objects = render(NS, self.image, self.endpoint_addresses)
+        objects = render(self.namespace, self.image, self.endpoint_addresses)
         budget = budget_for(objects)
+        objects = self.topology(objects)
         self.evidence.write("effect-topology.json", objects)
         self.evidence.write("connection-budget.json", budget)
-        identities, episode = self.identities(NS)
+        identities, episode = self.identities(self.namespace)
         self.create(
             "ENGINE_DB_SECRET",
-            obj("Secret", "campaign-db", NS, stringData={"url": self.admin_dsn}, type="Opaque"),
+            obj(
+                "Secret",
+                "campaign-db",
+                self.namespace,
+                stringData={"url": self.admin_dsn},
+                type="Opaque",
+            ),
         )
         for item in objects:
             if item["kind"] == "NetworkPolicy" or item["kind"] == "Service":
@@ -557,16 +573,18 @@ class Deployment(Smoke):
     def admin_dsn(self) -> str:
         return (
             self.dsn(ENGINE_ROLE, self.harness.password, "disable")
-            + "&application_name=dur053-k6-c-fixture"
+            + f"&application_name={self.namespace}-fixture"
         )
 
-    def deploy_effect(self, reviewer: str, reader_password: str, uncertainty_ns: int) -> None:
+    def deploy_effect(
+        self, reviewer: str, reader_password: str, uncertainty_ns: int, *, signing_seed: str = ""
+    ) -> None:
         sink_config = {
             "Address": f":{PORT}",
             "Worker": {
-                "Namespace": NS,
+                "Namespace": self.namespace,
                 "ServiceAccount": "k6-worker",
-                "ServiceAccountUID": self.uid(NS, "serviceaccount", "k6-worker"),
+                "ServiceAccountUID": self.uid(self.namespace, "serviceaccount", "k6-worker"),
             },
             "APIServer": "https://" + self.endpoint_addresses["api_service"],
             "APICA": self.ca_data,
@@ -582,11 +600,13 @@ class Deployment(Smoke):
             ),
             "ClockUncertaintyMicros": uncertainty_ns // 1000,
         }
+        if signing_seed:
+            sink_config.update(ReceiptSigningSeed=signing_seed, ObserveTimings=True)
         self.services = {
             name: self.k(
                 "EFFECT_SERVICE_IP",
                 "-n",
-                NS,
+                self.namespace,
                 "get",
                 "svc",
                 name,
@@ -606,6 +626,8 @@ class Deployment(Smoke):
             "WitnessAddress": self.witness_address,
             "WitnessName": "dur053-host-witness",
         }
+        if signing_seed:
+            relay_config["ObserveTimings"] = True
         for name, config in ((SINK, sink_config), (RELAY, relay_config)):
             data = {"config.json": encoded(json_data(config))}
             if name == SINK:
@@ -617,17 +639,26 @@ class Deployment(Smoke):
                 )
             self.create(
                 "EFFECT_SECRET",
-                obj("Secret", name + "-config", NS, data=data, immutable=True, type="Opaque"),
+                obj(
+                    "Secret",
+                    name + "-config",
+                    self.namespace,
+                    data=data,
+                    immutable=True,
+                    type="Opaque",
+                ),
             )
         for item in self.rendered:
             if item["kind"] in {"Deployment", "Pod"}:
                 self.create("EFFECT_WORKLOAD", item)
         for name in (SINK, RELAY):
             self.ready(name)
+        if self.live_worker:
+            return
         self.k(
             "FIXTURE_CLIENTS_READY",
             "-n",
-            NS,
+            self.namespace,
             "wait",
             "--for=condition=Ready",
             f"pod/{CLIENT}",
@@ -641,7 +672,7 @@ class Deployment(Smoke):
             self.k(
                 "EFFECT_ROLLOUT",
                 "-n",
-                NS,
+                self.namespace,
                 "rollout",
                 "status",
                 f"deployment/{name}",
@@ -655,7 +686,7 @@ class Deployment(Smoke):
                     self.k(
                         "EFFECT_POD_STATUS",
                         "-n",
-                        NS,
+                        self.namespace,
                         "get",
                         "pod",
                         "-l",
@@ -676,7 +707,7 @@ class Deployment(Smoke):
                     self.k(
                         "EFFECT_EXIT_CODES",
                         "-n",
-                        NS,
+                        self.namespace,
                         "logs",
                         "-l",
                         f"app={name}",
@@ -726,7 +757,7 @@ class Deployment(Smoke):
             self.k(
                 "EFFECT_PROBE",
                 "-n",
-                NS,
+                self.namespace,
                 "exec",
                 "-i",
                 pod,
@@ -742,7 +773,7 @@ class Deployment(Smoke):
         pod = self.k(
             "RELAY_SESSION_POD",
             "-n",
-            NS,
+            self.namespace,
             "get",
             "pod",
             "-l",
@@ -751,11 +782,13 @@ class Deployment(Smoke):
             "jsonpath={.items[0].metadata.name}",
         ).decode()
         require(bool(pod), "RELAY_SESSION_POD_MISSING")
-        self.k("RELAY_SCALE_DOWN", "-n", NS, "scale", f"deployment/{RELAY}", "--replicas=0")
+        self.k(
+            "RELAY_SCALE_DOWN", "-n", self.namespace, "scale", f"deployment/{RELAY}", "--replicas=0"
+        )
         self.k(
             "RELAY_DRAIN",
             "-n",
-            NS,
+            self.namespace,
             "wait",
             "--for=delete",
             f"pod/{pod}",
@@ -767,25 +800,27 @@ class Deployment(Smoke):
         failures = []
         operations = [self.stop_witness]
         if self.identity_created:
-            operations.append(lambda: self.teardown_identity(NS))
+            operations.append(lambda: self.teardown_identity(self.namespace))
         if self.provisioned:
             operations.append(
-                lambda: self.go("reset", DSN=self.admin_dsn, Episode={"Namespace": NS})
+                lambda: self.go("reset", DSN=self.admin_dsn, Episode={"Namespace": self.namespace})
             )
         if self.engine_created:
 
             def drop() -> None:
-                self.sql("ENGINE_EPISODE_DROP", f'DROP DATABASE "{ENGINE_DB}" WITH (FORCE);')
-                self.harness.databases.discard(ENGINE_DB)
+                self.sql("ENGINE_EPISODE_DROP", f'DROP DATABASE "{self.database}" WITH (FORCE);')
+                self.harness.databases.discard(self.database)
 
             operations.append(drop)
         if self.sink_created:
             operations.append(
-                lambda: self.command("SINK_POSTGRES_REMOVE", "docker", "rm", "-f", SINK_CONTAINER)
+                lambda: self.command(
+                    "SINK_POSTGRES_REMOVE", "docker", "rm", "-f", self.sink_container
+                )
             )
         if self.volume_created:
             operations.append(
-                lambda: self.command("SINK_DISK_REMOVE", "docker", "volume", "rm", VOLUME)
+                lambda: self.command("SINK_DISK_REMOVE", "docker", "volume", "rm", self.sink_volume)
             )
         for operation in operations:
             try:

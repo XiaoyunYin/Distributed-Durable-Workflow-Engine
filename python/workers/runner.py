@@ -6,12 +6,14 @@ import hashlib
 import json
 import logging
 import threading
+import time
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Protocol
 
 from workers.control import Claim, ControlClient, ControlError
-from workers.registry import ActivityRegistry
+from workers.k6_effect import EffectAdapter
+from workers.registry import K6_ACTIVITY, K6_EFFECT_CLASS, K6_VERSION, ActivityRegistry
 from workers.witness import configured_witness
 
 LOG = logging.getLogger(__name__)
@@ -72,6 +74,7 @@ class ActivityRunner:
         registry: ActivityRegistry,
         max_workers: int = 4,
         heartbeat_interval: float = 5.0,
+        k6: EffectAdapter | None = None,
     ) -> None:
         if max_workers <= 0 or heartbeat_interval <= 0:
             raise ValueError("max_workers and heartbeat_interval must be positive")
@@ -79,6 +82,7 @@ class ActivityRunner:
         self.registry = registry
         self.max_workers = max_workers
         self.heartbeat_interval = heartbeat_interval
+        self.k6 = k6
 
     def aborted(self) -> bool:
         check = getattr(self.control, "aborted", None)
@@ -87,7 +91,15 @@ class ActivityRunner:
     def run_task(self, task: ActivityTask) -> dict[str, Any]:
         # Resolve before claiming. A configuration error must not create a
         # claimed attempt that can only ever be retried.
-        activity = self.registry.resolve(task.activity_name, task.activity_version)
+        cooperating = (task.activity_name, task.activity_version) == (K6_ACTIVITY, K6_VERSION)
+        activity = (
+            None
+            if cooperating
+            else self.registry.resolve(task.activity_name, task.activity_version)
+        )
+        if cooperating and (self.k6 is None or task.node_id != K6_ACTIVITY):
+            raise ControlError(403, "K6_ACTIVITY_DISABLED", "K6 activity unavailable")
+        claim_started = time.monotonic_ns() if cooperating else 0
         try:
             claim = self.control.claim(
                 task.workflow_id,
@@ -100,6 +112,10 @@ class ActivityRunner:
         except ControlError as error:
             error.operation = "claim"
             raise
+        if not cooperating and (
+            claim.effect_class == K6_EFFECT_CLASS or claim.k6_dispatch is not None
+        ):
+            raise ControlError(403, "K6_ENVELOPE_INVALID", "unexpected K6 claim envelope")
         stop = threading.Event()
         definitive_heartbeat_errors: list[ControlError] = []
 
@@ -136,6 +152,21 @@ class ActivityRunner:
             target=heartbeat_loop, name="activity-heartbeat", daemon=True
         )
         heartbeat_thread.start()
+        if cooperating:
+            assert self.k6 is not None
+
+            def ensure_current() -> None:
+                if self.aborted():
+                    raise ControlError(503, "SHUTTING_DOWN", "worker is stopping")
+                if definitive_heartbeat_errors:
+                    raise definitive_heartbeat_errors[0]
+
+            try:
+                return self.k6.run(task, claim, self.control, ensure_current, claim_started)
+            finally:
+                stop.set()
+                heartbeat_thread.join(timeout=max(1.0, self.heartbeat_interval))
+        assert activity is not None
         witness = configured_witness()
         invocation = None
         if witness is not None:
