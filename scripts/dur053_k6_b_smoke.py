@@ -564,6 +564,11 @@ class Smoke:
             credential.unlink(missing_ok=True)
 
     def probe(self, ns: str, dsn: str, grant: dict, plan: dict, cutoff: str, *, mode: str) -> str:
+        return self.probe_result(ns, dsn, grant, plan, cutoff, mode=mode)["code"]
+
+    def probe_result(
+        self, ns: str, dsn: str, grant: dict, plan: dict, cutoff: str, *, mode: str
+    ) -> dict:
         result = json.loads(
             self.k(
                 "POD_GRANT_PROBE",
@@ -582,7 +587,21 @@ class Smoke:
         )
         code = result["code"]
         require(bool(re.fullmatch(r"[A-Z0-9_]{3,80}", code)), "POD_PROBE_INVALID_CODE")
-        return code
+        diagnostic = result.get("diagnostic", {})
+        require(isinstance(diagnostic, dict), "POD_PROBE_INVALID_DIAGNOSTIC")
+        types = diagnostic.get("error_types", [])
+        require(
+            isinstance(types, list) and all(isinstance(item, str) for item in types),
+            "POD_PROBE_INVALID_DIAGNOSTIC",
+        )
+        clean = {"error_types": types, "timeout": diagnostic.get("timeout", False)}
+        require(isinstance(clean["timeout"], bool), "POD_PROBE_INVALID_DIAGNOSTIC")
+        for key in ("errno", "op"):
+            value = diagnostic.get(key)
+            if value is not None:
+                require(isinstance(value, str), "POD_PROBE_INVALID_DIAGNOSTIC")
+                clean[key] = value
+        return {"code": code, "diagnostic": clean}
 
     def snapshot(self, dsn: str) -> str:
         digest = self.go("snapshot", DSN=dsn)["sha256"]
@@ -695,18 +714,20 @@ class Smoke:
     def network_denial(self, namespace: str, grant_args: tuple) -> None:
         policy = deny_egress(namespace)
         self.evidence.write("default-deny.json", policy)
+        network_codes = {"TCP_DIAL_TIMEOUT", "TCP_DIAL_REFUSED", "TCP_DIAL_UNREACHABLE"}
         with self.evidence.step("b-default-deny-egress") as row:
             row.update(self.expect_probe("EXACT_ROWS_1", *grant_args, mode="network"))
             self.create("DEFAULT_DENY_CREATE", policy)
             for _ in range(8):
-                actual = self.probe(*grant_args, mode="network")
-                if actual == "TCP_DIAL_TIMEOUT":
+                result = self.probe_result(*grant_args, mode="network")
+                actual = result["code"]
+                if actual in network_codes:
                     break
                 require(actual == "EXACT_ROWS_1", f"EXPECTED_NETWORK_DENIAL_GOT_{actual}")
                 time.sleep(1)
             else:
                 raise SmokeFailure("CALICO_DEFAULT_DENY_NOT_ENFORCED")
-            row.update(code=actual)
+            row.update(code=actual, diagnostic=result["diagnostic"])
         with self.evidence.step("c-connectivity-restored") as row:
             self.k(
                 "DEFAULT_DENY_DELETE",
@@ -719,16 +740,15 @@ class Smoke:
                 "--timeout=20s",
             )
             for _ in range(8):
-                actual = self.probe(*grant_args, mode="network")
+                result = self.probe_result(*grant_args, mode="network")
+                actual = result["code"]
                 if actual == "EXACT_ROWS_1":
                     break
-                require(
-                    actual == "TCP_DIAL_TIMEOUT", f"EXPECTED_RESTORED_CONNECTIVITY_GOT_{actual}"
-                )
+                require(actual in network_codes, f"EXPECTED_RESTORED_CONNECTIVITY_GOT_{actual}")
                 time.sleep(1)
             else:
                 raise SmokeFailure("CONNECTIVITY_NOT_RESTORED")
-            row.update(code=actual)
+            row.update(code=actual, diagnostic=result["diagnostic"])
 
     def authentication_denials(self, grant_args: tuple, reader_password: str) -> None:
         namespace, _, grant, plan, cutoff = grant_args

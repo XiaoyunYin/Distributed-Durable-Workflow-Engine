@@ -14552,6 +14552,26 @@
       ],
       "expected": "reset must remove and verify both logins and the episode row",
       "requires_database": false
+    },
+    {
+      "id": "dur053-k6-dial-timeout-classification",
+      "kind": "behavioral",
+      "file": "cmd/dur053-k6-fixture/main.go",
+      "old": "return \"TCP_DIAL_TIMEOUT\"",
+      "new": "return \"CONNECT_FAILED\" // mutation: hide a dial timeout behind a generic connect failure",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./cmd/dur053-k6-fixture",
+        "-run",
+        "^TestClassifyConnectError$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "classifyConnectError() = \"CONNECT_FAILED\", want \"TCP_DIAL_TIMEOUT\"",
+      "requires_database": false
     }
   ]
 }

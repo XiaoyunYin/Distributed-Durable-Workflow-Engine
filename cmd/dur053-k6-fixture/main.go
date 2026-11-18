@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"syscall"
 	"time"
 
 	"durable-agent-execution-engine/internal/invariants"
@@ -216,12 +217,14 @@ func apply(ctx context.Context, store *state.Store, in input) (any, error) {
 	}, nil
 }
 
-func probe(ctx context.Context, in input) map[string]string {
-	code := func(value string) map[string]string { return map[string]string{"code": value} }
+func probe(ctx context.Context, in input) map[string]any {
+	code := func(value string, err error) map[string]any {
+		return map[string]any{"code": value, "diagnostic": connectDiagnostic(err)}
+	}
 	if in.Probe == "read" || in.Probe == "empty" {
 		reader, err := k6auth.OpenGrantReader(ctx, in.DSN)
 		if err != nil {
-			return code("READER_CONNECT_FAILED")
+			return code("READER_CONNECT_FAILED", err)
 		}
 		defer reader.Close()
 		if in.Probe == "empty" {
@@ -231,7 +234,7 @@ func probe(ctx context.Context, in input) map[string]string {
 		}
 		grant, err := reader.ReadExactGrant(ctx, in.Grant)
 		if err != nil {
-			return code("READER_READ_FAILED")
+			return code("READER_READ_FAILED", err)
 		}
 		p := in.Plan
 		hash, err := state.K6ProposalHash(grant.Target, grant.CanonicalArguments, grant.ExpectedResourceRevision)
@@ -241,31 +244,83 @@ func probe(ctx context.Context, in input) map[string]string {
 			grant.Iteration != 0 || grant.Target != p.Target || grant.ExpectedResourceRevision != p.ResourceRevision ||
 			grant.ScopeHash != in.Grant.ScopeHash || grant.Decision != "APPROVED" || grant.DispatchStatus != "GRANTED" ||
 			!grant.ExpiresAt.Equal(in.Cutoff) || !grant.DBTime.Before(grant.ExpiresAt) {
-			return code("READER_TUPLE_MISMATCH")
+			return code("READER_TUPLE_MISMATCH", nil)
 		}
-		return code("EXACT_GRANT")
+		return code("EXACT_GRANT", nil)
 	}
 	return sqlProbe(ctx, in)
 }
 
-func sqlProbe(ctx context.Context, in input) map[string]string {
-	result := map[string]string{}
+func classifyConnectError(err error) string {
+	var pgErr *pgconn.PgError
+	var verifyErr x509.UnknownAuthorityError
+	var nameErr x509.HostnameError
+	if errors.As(err, &pgErr) {
+		return pgErr.Code
+	}
+	if errors.As(err, &verifyErr) || errors.As(err, &nameErr) {
+		return "TLS_VERIFY_FAILED"
+	}
+	if isTimeoutError(err) {
+		return "TCP_DIAL_TIMEOUT"
+	}
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		switch errno {
+		case syscall.ECONNREFUSED:
+			return "TCP_DIAL_REFUSED"
+		case syscall.EHOSTUNREACH, syscall.ENETUNREACH:
+			return "TCP_DIAL_UNREACHABLE"
+		}
+	}
+	return "CONNECT_FAILED"
+}
+
+func isTimeoutError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, context.DeadlineExceeded) || os.IsTimeout(err) {
+		return true
+	}
+	var netErr net.Error
+	return errors.As(err, &netErr) && netErr.Timeout()
+}
+
+func connectDiagnostic(err error) map[string]any {
+	types := []string{}
+	for current := err; current != nil; current = errors.Unwrap(current) {
+		types = append(types, fmt.Sprintf("%T", current))
+	}
+	diagnostic := map[string]any{"error_types": types, "timeout": isTimeoutError(err)}
+	var opErr *net.OpError
+	if errors.As(err, &opErr) {
+		diagnostic["op"] = opErr.Op
+	}
+	var errno syscall.Errno
+	if errors.As(err, &errno) {
+		name := fmt.Sprintf("ERRNO_%d", errno)
+		switch errno {
+		case syscall.ECONNREFUSED:
+			name = "ECONNREFUSED"
+		case syscall.EHOSTUNREACH:
+			name = "EHOSTUNREACH"
+		case syscall.ENETUNREACH:
+			name = "ENETUNREACH"
+		case syscall.ETIMEDOUT:
+			name = "ETIMEDOUT"
+		}
+		diagnostic["errno"] = name
+	}
+	return diagnostic
+}
+
+func sqlProbe(ctx context.Context, in input) map[string]any {
+	result := map[string]any{"diagnostic": connectDiagnostic(nil)}
 	conn, err := pgx.Connect(ctx, in.DSN)
 	if err != nil {
-		var pgErr *pgconn.PgError
-		var verifyErr x509.UnknownAuthorityError
-		var nameErr x509.HostnameError
-		var netErr *net.OpError
-		switch {
-		case errors.As(err, &pgErr):
-			result["code"] = pgErr.Code
-		case errors.As(err, &verifyErr), errors.As(err, &nameErr):
-			result["code"] = "TLS_VERIFY_FAILED"
-		case errors.As(err, &netErr) && netErr.Op == "dial" && netErr.Timeout():
-			result["code"] = "TCP_DIAL_TIMEOUT"
-		default:
-			result["code"] = "CONNECT_FAILED"
-		}
+		result["code"] = classifyConnectError(err)
+		result["diagnostic"] = connectDiagnostic(err)
 		return result
 	}
 	defer conn.Close(ctx)
@@ -293,6 +348,7 @@ func sqlProbe(ctx context.Context, in input) map[string]string {
 	}
 	if err != nil {
 		result["code"] = "QUERY_FAILED"
+		result["diagnostic"] = connectDiagnostic(err)
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) {
 			result["code"] = pgErr.Code

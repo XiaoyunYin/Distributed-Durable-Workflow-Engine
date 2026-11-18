@@ -15,7 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 import dur053_k3  # noqa: E402
 from dur053_k6_b_evidence import Evidence, SmokeFailure  # noqa: E402
-from dur053_k6_b_smoke import inherited_failure, run  # noqa: E402
+from dur053_k6_b_smoke import Smoke, inherited_failure, run  # noqa: E402
 from dur053_k6_identity import deny_egress, obj, render, validate_rendered  # noqa: E402
 
 NS = "dur053-k6-offline"
@@ -153,6 +153,67 @@ def test_k6_phase_b_rendered_identity() -> None:
     with pytest.raises(ValueError, match="K6_RENDERED_OBJECT_INVENTORY"):
         validate_rendered([*objects, obj("RoleBinding", "reader-binding", NS)], NS)
     assert deny_egress(NS)["spec"] == {"podSelector": {}, "policyTypes": ["Egress"], "egress": []}
+
+
+@pytest.mark.parametrize(
+    "denied_code",
+    ["TCP_DIAL_TIMEOUT", "TCP_DIAL_REFUSED", "TCP_DIAL_UNREACHABLE"],
+)
+def test_network_denial_accepts_network_codes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, denied_code: str
+) -> None:
+    smoke = Smoke.__new__(Smoke)
+    smoke.evidence = Evidence(tmp_path)
+    args = (NS, "dsn-is-never-recorded", {}, {}, "cutoff")
+    diagnostic = {
+        "error_types": ["*net.OpError"],
+        "errno": "ECONNREFUSED",
+        "op": "dial",
+        "timeout": False,
+    }
+    results = iter(
+        [
+            {"code": "EXACT_ROWS_1", "diagnostic": {"error_types": [], "timeout": False}},
+            {"code": denied_code, "diagnostic": diagnostic},
+            {"code": "EXACT_ROWS_1", "diagnostic": {"error_types": [], "timeout": False}},
+        ]
+    )
+    monkeypatch.setattr(smoke, "probe_result", lambda *_args, **_kwargs: next(results))
+    monkeypatch.setattr(smoke, "k", lambda *_args, **_kwargs: "")
+    monkeypatch.setattr(smoke, "create", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("dur053_k6_b_smoke.time.sleep", lambda *_args: None)
+
+    smoke.network_denial(NS, args)
+
+    report = json.loads((tmp_path / "smoke.json").read_bytes())
+    denial, restored = report["outcomes"]
+    assert denial["status"] == "PASS"
+    assert denial["code"] == denied_code
+    assert denial["diagnostic"] == diagnostic
+    assert restored["status"] == "PASS"
+    assert restored["code"] == "EXACT_ROWS_1"
+
+
+@pytest.mark.parametrize("denied_code", ["CONNECT_FAILED", "28P01"])
+def test_network_denial_rejects_non_network_codes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, denied_code: str
+) -> None:
+    smoke = Smoke.__new__(Smoke)
+    smoke.evidence = Evidence(tmp_path)
+    args = (NS, "dsn", {}, {}, "cutoff")
+    results = iter(
+        [
+            {"code": "EXACT_ROWS_1", "diagnostic": {"error_types": [], "timeout": False}},
+            {"code": denied_code, "diagnostic": {"error_types": [], "timeout": False}},
+        ]
+    )
+    monkeypatch.setattr(smoke, "probe_result", lambda *_args, **_kwargs: next(results))
+    monkeypatch.setattr(smoke, "k", lambda *_args, **_kwargs: "")
+    monkeypatch.setattr(smoke, "create", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr("dur053_k6_b_smoke.time.sleep", lambda *_args: None)
+
+    with pytest.raises(SmokeFailure, match=f"EXPECTED_NETWORK_DENIAL_GOT_{denied_code}"):
+        smoke.network_denial(NS, args)
 
 
 @pytest.mark.parametrize(
