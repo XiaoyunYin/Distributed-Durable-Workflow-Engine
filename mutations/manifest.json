@@ -15038,6 +15038,150 @@
       ],
       "expected": "DID NOT RAISE",
       "requires_database": false
+    },
+    {
+      "id": "k6d2b-silent-drop-no-ack",
+      "kind": "behavioral",
+      "file": "internal/k6hook/campaign.go",
+      "old": "r.Sequence > 0 && r.Hash == hash && r.Arm != \"\"",
+      "new": "r.Sequence > 0 && r.Arm != \"\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-tags",
+        "dur053_k6",
+        "./internal/k6hook",
+        "-run",
+        "^TestK6HookRejectsMismatchedACK$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "drop without a matching durable ACK was accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2b-forged-relay-actor",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_hook.py",
+      "old": "hmac.compare_digest(authorization, f\"Bearer {token}\")",
+      "new": "authorization.startswith(\"Bearer \")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_d2b.py::test_forged_relay_actor_is_rejected"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2b-sink-bypass",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_join.py",
+      "old": "require(not calls, \"SINK_UNWITNESSED_CALL\")",
+      "new": "require(not calls or exchange_reader is not None, \"SINK_UNWITNESSED_CALL\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_d2b.py::test_campaign_join_rejects_sink_bypass"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2b-repeated-arm",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_hook.py",
+      "old": "check(slot not in self.arms, \"HOOK_REPEATED_ARM\")",
+      "new": "check(True, \"HOOK_REPEATED_ARM\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_d2b.py::test_repeated_arm_is_rejected"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2b-missing-delivery",
+      "kind": "behavioral",
+      "file": "internal/k6ingress/relay_campaign.go",
+      "old": "\trecord.Event = \"sink_send\"\n\tif r.Witness.Record(record) != nil {",
+      "new": "\trecord.Event = \"sink_send\"\n\tif record.Copy != 2 && r.Witness.Record(record) != nil {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-tags",
+        "dur053_k6",
+        "./internal/k6ingress",
+        "-run",
+        "^TestTaggedRelayActionsAndControl$/^duplicate$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "duplicate did not record both deliveries and one worker reply",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2b-ack-before-fsync",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_hook.py",
+      "old": "os.fsync(self.file.fileno())",
+      "new": "pass  # mutant acknowledges the append without fsync",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_d2b.py::test_no_ack_or_action_if_fsync_fails"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2b-ordinary-go-enables",
+      "kind": "behavioral",
+      "file": "internal/k6hook/default.go",
+      "old": "func FromEnvironment(string, string) (Client, error) { return nil, nil }",
+      "new": "type ordinaryHook struct{}\n\nfunc (ordinaryHook) Hit(string, Fields) (Hold, error) { return nil, nil }\n\nfunc FromEnvironment(string, string) (Client, error) { return ordinaryHook{}, nil }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/k6hook",
+        "-run",
+        "^TestOrdinaryBuildIgnoresAllCampaignSettings$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "ordinary build enabled campaign fault configuration",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2b-ordinary-python-enables",
+      "kind": "behavioral",
+      "file": "python/workers/k6_effect.py",
+      "old": "        pass\n\n    def result_observed",
+      "new": "        if os.getenv(\"DUR053_K6_HOOK_URL\"):\n            https = http.client.HTTPSConnection(\"127.0.0.1\", 1, timeout=1)\n            try:\n                https.request(\"POST\", \"/v1/hook\")\n            finally:\n                https.close()\n\n    def result_observed",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_d2b.py::test_ordinary_python_worker_has_no_campaign_entry_point_or_hold"
+      ],
+      "expected": "ordinary worker activated the campaign",
+      "requires_database": false
     }
   ]
 }

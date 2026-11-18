@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"syscall"
 
+	"durable-agent-execution-engine/internal/k6hook"
 	"durable-agent-execution-engine/internal/k6ingress"
 )
 
@@ -50,6 +51,10 @@ func run(ctx context.Context, args []string) error {
 		ObserveTimings: config.ObserveTimings,
 	}
 	relay := &k6ingress.Relay{SinkAddress: config.SinkAddress, SinkPeer: config.SinkPeer, SinkTLS: sinkTLS, Witness: witness}
+	relay.Hook, err = k6hook.FromEnvironment("relay", witness.Session)
+	if err != nil {
+		return err
+	}
 	if err := k6ingress.Serve(ctx, config.Address, workerTLS, relay.Handle); err != nil {
 		return err
 	}

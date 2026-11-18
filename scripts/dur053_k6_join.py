@@ -264,6 +264,7 @@ def verify(
     allocations: list[dict],
     denied_requests: list[tuple[str, str]],
     worker_observations: list[dict],
+    exchange_reader=None,
 ) -> dict:
     """Every sink call must have exactly one independently observed arrival."""
     deliveries, marks = sessions(records, relay_peer, sink_peer)
@@ -318,17 +319,22 @@ def verify(
     applied: Counter[str] = Counter()
     joined = []
     bindings = set()
-    for (session, ordinal), rows in deliveries.items():
-        inbound, response = verified_exchange(rows)
-        worker = workers.pop(inbound["worker_binding"], None)
-        require(
-            worker is not None
-            and worker["request_hash"] == inbound["body_hash"]
-            and worker["response_hash"] == response["body_hash"]
-            and worker["response_length"] == response["length"]
-            and worker["status"] == response["status"],
-            "WORKER_OBSERVATION_MISMATCH",
-        )
+    exchanges = (
+        exchange_reader(deliveries)
+        if exchange_reader is not None
+        else ((*verified_exchange(rows), True) for rows in deliveries.values())
+    )
+    for inbound, response, delivered in exchanges:
+        if delivered:
+            worker = workers.pop(inbound["worker_binding"], None)
+            require(
+                worker is not None
+                and worker["request_hash"] == inbound["body_hash"]
+                and worker["response_hash"] == response["body_hash"]
+                and worker["response_length"] == response["length"]
+                and worker["status"] == response["status"],
+                "WORKER_OBSERVATION_MISMATCH",
+            )
         if inbound["operation"] == "rejected":
             require(
                 response["status"] == 404
@@ -353,13 +359,18 @@ def verify(
             expected_denials[denial] -= 1
             continue
         match_call(call, inbound)
+        if exchange_reader is not None:
+            require(
+                identity(call["message_id"]) == inbound["invocation_hash"],
+                "SINK_INVOCATION_MISMATCH",
+            )
         app_id = match_apply(call, response, receipts)
         if app_id is not None:
             applied[app_id] += 1
         joined.append(
             {
-                "session": session,
-                "ordinal": ordinal,
+                "session": inbound["session"],
+                "ordinal": inbound["ordinal"],
                 "call_id": call["call_id"],
                 "connection_hash": binding,
                 "request_id_hash": inbound["request_id_hash"],

@@ -54,7 +54,12 @@ def effect_topology(objects: list[dict]) -> list[dict]:
 
 
 def render(
-    images: dict[str, str], endpoints: dict[str, str], public_key: str, plan_hash: str
+    images: dict[str, str],
+    endpoints: dict[str, str],
+    public_key: str,
+    plan_hash: str,
+    *,
+    namespace: str = NS,
 ) -> list[dict]:
     if any(not DIGEST.fullmatch(images[kind]) for kind in ("runtime", "worker")):
         raise ValueError("D_RUNTIME_IMAGE_DIGEST")
@@ -82,7 +87,7 @@ def render(
     result = []
     for kind, name in selection:
         item = stock[kind, name]
-        item["metadata"]["namespace"] = NS
+        item["metadata"]["namespace"] = namespace
         if kind == "NetworkPolicy":
             data = json.dumps(item)
             for placeholder, address in endpoints.items():
@@ -184,11 +189,17 @@ def render(
                 ]
         result.append(item)
     result += [
-        policy(NS, "observer-api-only", OBSERVER, "Egress", [traffic("to", 8080, pod_peer("api"))]),
+        policy(
+            namespace,
+            "observer-api-only",
+            OBSERVER,
+            "Egress",
+            [traffic("to", 8080, pod_peer("api"))],
+        ),
         obj(
             "Endpoints",
             "kafka",
-            NS,
+            namespace,
             subsets=[
                 {
                     "addresses": [{"ip": endpoints["192.0.2.2"]}],

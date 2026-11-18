@@ -150,11 +150,29 @@ class EffectAdapter:
             os.getenv("DUR053_K6_SINK_TOKEN_FILE", ""),
         )
 
+    def identifier(self, scope: dict[str, Any], phase: str) -> str:
+        return str(uuid.uuid4())
+
+    def transfer(
+        self,
+        stage: str,
+        operation: str,
+        scope: dict[str, Any],
+        request: dict[str, Any],
+        invocation: str,
+        wire: bytes,
+    ) -> None:
+        pass
+
+    def result_observed(self, scope: dict[str, Any], invocation: str, state: str) -> None:
+        pass
+
     def exchange(
         self, operation: str, scope: dict[str, Any], request: dict[str, Any], invocation: str
     ) -> tuple[dict[str, Any] | None, bool]:
         """Return proof or a confirmed lookup miss. All other replies are uncertain."""
         started = time.monotonic_ns()
+        wire = b""
         try:
             context = ssl.create_default_context(cafile=self.ca_file)
             context.minimum_version = ssl.TLSVersion.TLSv1_3
@@ -166,6 +184,7 @@ class EffectAdapter:
             )
             try:
                 wire = json.dumps(request, separators=(",", ":"), allow_nan=False).encode()
+                self.transfer("pre-send", operation, scope, request, invocation, wire)
                 connection.request(
                     "POST",
                     f"/v1/{operation}",
@@ -177,6 +196,7 @@ class EffectAdapter:
                         "X-Dur053-Invocation": invocation,
                     },
                 )
+                self.transfer("sent", operation, scope, request, invocation, wire)
                 reply = connection.getresponse()
                 body = reply.read(8193)
                 emit_observation(
@@ -217,6 +237,9 @@ class EffectAdapter:
                 return {"operation": operation, "receipt": receipt, "signature": signature}, False
             finally:
                 connection.close()
+        except TimeoutError:
+            self.transfer("timeout", operation, scope, request, invocation, wire)
+            return None, False
         except (OSError, ValueError, http.client.HTTPException, RecursionError):
             return None, False
         finally:
@@ -232,19 +255,19 @@ class EffectAdapter:
     ) -> dict[str, Any]:
         scope = envelope(task, claim)
         observation(digest(scope["logical_key"]), "claim", claim_started)
-        invocation = str(uuid.uuid4())
+        invocation = self.identifier(scope, "invocation")
         request = {field: scope[field] for field in REQUEST_FIELDS}
         request["message_id"] = invocation
 
         def exchange(operation: str) -> tuple[dict[str, Any] | None, bool]:
             ensure_current()
-            request["request_id"] = str(uuid.uuid4())
+            request["request_id"] = self.identifier(scope, operation)
             return self.exchange(operation, scope, request, invocation)
 
         def report(state: str, payload: Any) -> dict[str, Any]:
             ensure_current()
             try:
-                return control.result(
+                result = control.result(
                     task.workflow_id,
                     task.node_id,
                     task.iteration,
@@ -253,6 +276,8 @@ class EffectAdapter:
                     state,
                     payload,
                 )
+                self.result_observed(scope, invocation, state)
+                return result
             except ControlError as error:
                 # Keep the server's fixed disposition code, without its body or exception context.
                 raise ControlError(

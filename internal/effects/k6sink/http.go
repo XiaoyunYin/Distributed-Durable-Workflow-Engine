@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"durable-agent-execution-engine/internal/k6auth"
+	"durable-agent-execution-engine/internal/k6hook"
 	"durable-agent-execution-engine/internal/k6receipt"
 	"durable-agent-execution-engine/internal/state"
 )
@@ -27,6 +28,7 @@ type HTTPConfig struct {
 	ClockUncertainty              time.Duration
 	ReceiptKey                    ed25519.PrivateKey
 	ObserveTimings                bool
+	Hook                          k6hook.Client
 }
 
 type handler struct {
@@ -181,6 +183,9 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 					}
 					claim := k6receipt.Claim{NodeID: request.NodeID, Iteration: int(*request.Iteration), Attempt: request.Attempt, Fence: request.Fence}
 					w.Header().Set(k6receipt.SignatureHeader, k6receipt.Sign(h.cfg.ReceiptKey, claim, operation, receipt))
+					if out.outcome == "APPLIED" {
+						h.afterCommit(r, request, receipt, hash(binding), hash(out.body))
+					}
 				}
 			}
 			w.Header().Set("Content-Type", "application/json")

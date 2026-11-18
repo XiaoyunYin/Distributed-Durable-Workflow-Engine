@@ -1,0 +1,4 @@
+ARG WORKER_IMAGE
+FROM ${WORKER_IMAGE}
+COPY campaign/k6/dur053_k6_campaign /app/python/dur053_k6_campaign
+ENTRYPOINT ["python", "-m", "dur053_k6_campaign"]

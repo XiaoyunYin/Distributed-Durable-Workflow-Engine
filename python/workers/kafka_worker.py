@@ -14,6 +14,8 @@ import os
 import threading
 import time
 import uuid
+from collections.abc import Callable
+from functools import partial
 from typing import Any
 
 from kafka import ConsumerRebalanceListener, KafkaConsumer
@@ -176,6 +178,7 @@ def handle_delivery(
     lifecycle: WorkerLifecycle | None = None,
     executor: BoundedExecutor | None = None,
     assignment: Assignment | None = None,
+    effect_factory: Callable[[], EffectAdapter] | None = None,
 ) -> threading.Event | None:
     if lifecycle is not None and not lifecycle.can_start():
         return None
@@ -243,7 +246,10 @@ def handle_delivery(
             ) == (K6_ACTIVITY, K6_VERSION):
                 if control.tls_opener is None or not os.getenv("WORKER_TOKEN_FILE"):
                     raise ControlError(503, "K6_TLS_CONFIG", "missing K6 control configuration")
-                effect = EffectAdapter.configured()
+                if effect_factory is not None:
+                    effect = effect_factory()
+                else:
+                    effect = EffectAdapter.configured()
             receipt = ActivityRunner(control, default_registry(), k6=effect).run_task(work)
             if witness := campaign_witness():
                 witness.trace(
@@ -324,6 +330,7 @@ def start_pool(
     stop: threading.Event,
     slots: int = 4,
     lifecycle: WorkerLifecycle | None = None,
+    effect_factory: Callable[[], EffectAdapter] | None = None,
 ) -> list[threading.Thread]:
     if slots < 1 or slots > 16:
         raise ValueError("WORKER_SLOTS must be between 1 and 16")
@@ -333,6 +340,7 @@ def start_pool(
             threading.Thread(
                 target=consume_slot,
                 args=(brokers, url, f"{worker_id}-{slot}", lifecycle, executor),
+                kwargs={"effect_factory": effect_factory} if effect_factory is not None else {},
                 name=f"kafka-slot-{slot}",
                 daemon=True,
             )
@@ -452,8 +460,18 @@ class CallbackTrace(ConsumerRebalanceListener):  # type: ignore[misc]
 
 
 def consume_slot(
-    brokers: str, url: str, worker_id: str, lifecycle: WorkerLifecycle, executor: BoundedExecutor
+    brokers: str,
+    url: str,
+    worker_id: str,
+    lifecycle: WorkerLifecycle,
+    executor: BoundedExecutor,
+    effect_factory: Callable[[], EffectAdapter] | None = None,
 ) -> None:
+    deliver = (
+        partial(handle_delivery, effect_factory=effect_factory)
+        if effect_factory is not None
+        else handle_delivery
+    )
     active: threading.Event | None = None
     while lifecycle.can_start():
         consumer = None
@@ -495,7 +513,7 @@ def consume_slot(
                     continue
                 for records in records_by_partition.values():
                     for message in records:
-                        active = handle_delivery(
+                        active = deliver(
                             consumer, message, control, worker_id, lifecycle, executor, assignment
                         )
         except Exception:
