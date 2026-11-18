@@ -14940,6 +14940,46 @@
       ],
       "expected": "unsigned worker receipt was trusted",
       "requires_database": false
+    },
+    {
+      "id": "k6d2a-broker-target-key",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "                effect = EffectAdapter.configured()",
+      "new": "                effect = EffectAdapter.configured()\n                send = effect.exchange\n\n                def from_broker(operation, scope, request, invocation):\n                    text = json.loads(message.value)\n                    return send(operation, scope, {**request, \"resource_id\": text[\"resource_id\"], \"logical_key\": text[\"logical_key\"]}, invocation)\n\n                effect.exchange = from_broker",
+      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_kafka_uses_claim_envelope_instead_of_broker_target_and_key"],
+      "expected": "broker supplied the effect target or key",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2a-skip-pre-call-delay",
+      "kind": "behavioral",
+      "file": "python/workers/k6_effect.py",
+      "old": "        time.sleep(PRE_CALL_SECONDS)",
+      "new": "        pass",
+      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_waits_five_seconds_before_first_sink_request"],
+      "expected": "registered pre-call delay was skipped",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2a-success-without-sink-signature",
+      "kind": "behavioral",
+      "file": "python/workers/k6_effect.py",
+      "old": "                    or not signature\n                    or not re.fullmatch(r\"[A-Za-z0-9_-]{86}\", signature)",
+      "new": "                    or (signature is not None and not re.fullmatch(r\"[A-Za-z0-9_-]{86}\", signature))",
+      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_success_requires_and_passes_detached_sink_signature"],
+      "expected": "unsigned sink response succeeded",
+      "requires_database": false
+    },
+    {
+      "id": "k6d2a-uncertain-reapply",
+      "kind": "behavioral",
+      "file": "python/workers/k6_effect.py",
+      "old": "        unknown = report(\"OUTCOME_UNKNOWN\", None)\n        proof, _ = exchange(\"lookup\")",
+      "new": "        unknown = report(\"OUTCOME_UNKNOWN\", None)\n        proof, _ = exchange(\"apply\")",
+      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_uncertain_apply_reports_unknown_before_same_key_lookup"],
+      "expected": "uncertain apply was replayed instead of looked up",
+      "requires_database": false
     }
   ]
 }

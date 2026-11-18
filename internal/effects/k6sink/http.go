@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -25,6 +26,7 @@ type HTTPConfig struct {
 	EnginePeerURI, IngressPeerURI string
 	ClockUncertainty              time.Duration
 	ReceiptKey                    ed25519.PrivateKey
+	ObserveTimings                bool
 }
 
 type handler struct {
@@ -130,9 +132,17 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "K6_SINK_BODY", http.StatusBadRequest)
 		return
 	}
+	bodyHash := hash(body)
+	observe := func(stage string, started time.Time) {
+		if h.cfg.ObserveTimings {
+			log.Printf("k6_grant %s %s %s %d", bodyHash, operation, stage, time.Since(started).Nanoseconds())
+		}
+	}
+	started := time.Now()
 	readCtx, cancelRead := context.WithTimeout(ctx, 2*time.Second)
 	auth, err := authorize(readCtx, h.reader, request, h.cfg.ClockUncertainty)
 	cancelRead()
+	observe("read", started)
 	if err != nil {
 		http.Error(w, errDenied.Error(), http.StatusForbidden)
 		return
@@ -144,11 +154,14 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, errDenied.Error(), http.StatusForbidden)
 		return
 	}
-	d := delivery{operation, hash(body), hash(binding), request, auth, cooperating}
+	d := delivery{operation, bodyHash, hash(binding), request, auth, cooperating}
 	out, err := h.store.execute(ctx, d, func(ctx context.Context) (time.Time, error) {
+		started := time.Now()
 		readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		return recheck(readCtx, h.reader, request, auth, h.cfg.ClockUncertainty)
+		deadline, err := recheck(readCtx, h.reader, request, auth, h.cfg.ClockUncertainty)
+		observe("recheck", started)
+		return deadline, err
 	})
 	switch {
 	case errors.Is(err, errDenied):

@@ -597,8 +597,16 @@ def make_output(output: Path) -> Path:
     return output
 
 
-def run(output: Path, harness: Driver | None = None, address: str | None = None) -> int:
-    evidence = PhaseCEvidence(make_output(output))
+def run(
+    output: Path,
+    harness: Driver | None = None,
+    address: str | None = None,
+    *,
+    phase: str = "c",
+    evidence_type: type[Evidence] = PhaseCEvidence,
+    matrix_type: type[Deployment] = Matrix,
+) -> int:
+    evidence = evidence_type(make_output(output))
     owns_harness = harness is None
     scratch, smoke = None, None
     try:
@@ -608,7 +616,7 @@ def run(output: Path, harness: Driver | None = None, address: str | None = None)
                 "HOSTED_LINUX_RUNNER_REQUIRED",
             )
             scratch = Path(
-                tempfile.mkdtemp(prefix="dur053-k6-c-", dir=Path(os.environ["RUNNER_TEMP"]))
+                tempfile.mkdtemp(prefix=f"dur053-k6-{phase}-", dir=Path(os.environ["RUNNER_TEMP"]))
             )
         if owns_harness:
             with evidence.step("standalone-kind-harness"):
@@ -624,8 +632,8 @@ def run(output: Path, harness: Driver | None = None, address: str | None = None)
                 harness.preload_addons()
                 address = harness.cluster()["192.0.2.1"]
         require(harness is not None and address is not None, "KIND_HANDOFF_INCOMPLETE")
-        with evidence.step("build-phase-c-ordinary-binaries-and-image"):
-            smoke = Matrix(evidence, scratch, harness)
+        with evidence.step(f"build-phase-{phase}-ordinary-binaries-and-image"):
+            smoke = matrix_type(evidence, scratch, harness)
             smoke.build()
         with evidence.step("a-engine-tls-and-kind-issuer") as row:
             row.update(smoke.bootstrap(address))

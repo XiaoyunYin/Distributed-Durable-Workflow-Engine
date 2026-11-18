@@ -23,6 +23,7 @@ func run(ctx context.Context, args []string) error {
 	var config struct {
 		Address, SinkAddress, SinkName, SinkPeer, RelayPeer, WitnessAddress, WitnessName string
 		WorkerTLS, ClientTLS                                                             k6ingress.TLSFiles
+		ObserveTimings                                                                   bool
 	}
 	if err := k6ingress.ReadConfig(args[0], &config); err != nil {
 		return err
@@ -46,6 +47,7 @@ func run(ctx context.Context, args []string) error {
 	witness := &k6ingress.Client{
 		Address: config.WitnessAddress, TLS: witnessTLS, Session: hex.EncodeToString(nonce[:]),
 		RelayPeer: config.RelayPeer, SinkPeer: config.SinkPeer,
+		ObserveTimings: config.ObserveTimings,
 	}
 	relay := &k6ingress.Relay{SinkAddress: config.SinkAddress, SinkPeer: config.SinkPeer, SinkTLS: sinkTLS, Witness: witness}
 	if err := k6ingress.Serve(ctx, config.Address, workerTLS, relay.Handle); err != nil {

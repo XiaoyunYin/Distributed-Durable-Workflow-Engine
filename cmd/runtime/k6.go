@@ -5,11 +5,13 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"os"
@@ -24,8 +26,9 @@ import (
 )
 
 type k6Allocator struct {
-	url    string
-	client *http.Client
+	url          string
+	client       *http.Client
+	observerPeer string
 }
 
 func newK6Allocator(endpoint, peer string, credentials k6ingress.TLSFiles) (*k6Allocator, error) {
@@ -44,8 +47,17 @@ func newK6Allocator(endpoint, peer string, credentials k6ingress.TLSFiles) (*k6A
 		}
 		return nil
 	}
-	return &k6Allocator{url: u.String() + "/v1/allocate", client: &http.Client{
-		Transport:     &http.Transport{TLSClientConfig: cfg, IdleConnTimeout: 30 * time.Second},
+	observe := os.Getenv("DUR053_K6_OBSERVE") == "1"
+	var observerPeer string
+	if observe {
+		cert, err := x509.ParseCertificate(cfg.Certificates[0].Certificate[0])
+		if err != nil || len(cert.URIs) != 1 {
+			return nil, state.ErrK6Unavailable
+		}
+		observerPeer = cert.URIs[0].String()
+	}
+	return &k6Allocator{url: u.String() + "/v1/allocate", observerPeer: observerPeer, client: &http.Client{
+		Transport:     &http.Transport{TLSClientConfig: cfg, IdleConnTimeout: 30 * time.Second, DisableKeepAlives: observe},
 		Timeout:       4 * time.Second,
 		CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse },
 	}}, nil
@@ -80,10 +92,27 @@ func (a *k6Allocator) Allocate(ctx context.Context, dispatch state.K6Dispatch) (
 	var out struct {
 		Fence int64 `json:"fence"`
 	}
-	decoder := json.NewDecoder(io.LimitReader(response.Body, 1024))
+	reply, err := io.ReadAll(io.LimitReader(response.Body, 1025))
+	if err != nil || len(reply) > 1024 {
+		return 0, state.ErrK6Unavailable
+	}
+	decoder := json.NewDecoder(bytes.NewReader(reply))
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&out); err != nil || decoder.Decode(new(any)) != io.EOF || out.Fence <= 0 {
 		return 0, state.ErrK6Unavailable
+	}
+	if a.observerPeer != "" {
+		binding, err := response.TLS.ExportKeyingMaterial(k6ingress.BindingLabel, nil, 32)
+		if err != nil {
+			return 0, state.ErrK6Unavailable
+		}
+		observation, _ := json.Marshal(map[string]any{
+			"connection_hash": k6ingress.Hash(binding), "engine_peer": a.observerPeer,
+			"response_hash": k6ingress.Hash(reply), "response_length": len(reply), "fence": out.Fence,
+			"request_id": identity, "body_hash": k6ingress.Hash(body), "intent_id": dispatch.IntentID,
+			"resource_id": dispatch.ResourceID, "attempt": dispatch.Attempt, "logical_key": dispatch.LogicalKey,
+		})
+		log.Printf("k6_allocation %s", observation)
 	}
 	return out.Fence, nil
 }

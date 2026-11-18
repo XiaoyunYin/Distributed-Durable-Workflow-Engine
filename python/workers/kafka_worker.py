@@ -10,6 +10,7 @@ from __future__ import annotations
 import base64
 import json
 import logging
+import os
 import threading
 import time
 import uuid
@@ -21,8 +22,9 @@ from kafka.structs import OffsetAndMetadata, TopicPartition
 from workers.control import Claim, ControlClient, ControlError
 from workers.k4_control import CURRENT, new_request
 from workers.k4_witness import campaign_enabled
+from workers.k6_effect import EffectAdapter, endpoint
 from workers.lifecycle import BoundedExecutor, WorkerLifecycle
-from workers.registry import default_registry
+from workers.registry import K6_ACTIVITY, K6_VERSION, default_registry
 from workers.runner import ActivityRunner, ActivityTask
 from workers.witness import campaign_witness
 
@@ -44,6 +46,9 @@ class RetryingControl(ControlClient):
         self.expected_attempt = 0
         self.worker_id = ""
         self.last_result_retry_count = 0
+        if os.getenv("DUR053_K6_ACTIVITY") == "1":
+            endpoint(url)
+            self.use_private_tls(os.environ["DUR053_K6_CONTROL_CA_FILE"])
 
     def aborted(self) -> bool:
         return self.stop.is_set() or (self.lifecycle is not None and self.lifecycle.aborted())
@@ -231,7 +236,15 @@ def handle_delivery(
 
     def execute() -> None:
         try:
-            receipt = ActivityRunner(control, default_registry()).run_task(work)
+            effect = None
+            if os.getenv("DUR053_K6_ACTIVITY") == "1" and (
+                work.activity_name,
+                work.activity_version,
+            ) == (K6_ACTIVITY, K6_VERSION):
+                if control.tls_opener is None or not os.getenv("WORKER_TOKEN_FILE"):
+                    raise ControlError(503, "K6_TLS_CONFIG", "missing K6 control configuration")
+                effect = EffectAdapter.configured()
+            receipt = ActivityRunner(control, default_registry(), k6=effect).run_task(work)
             if witness := campaign_witness():
                 witness.trace(
                     "result_disposition",
