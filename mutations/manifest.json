@@ -14285,7 +14285,7 @@
       "id": "k6b1-token-before-warmup",
       "kind": "behavioral",
       "file": "internal/k6auth/adapter.go",
-      "old": " || issuedAt.Before(warmupStart)",
+      "old": " || issuedAt.Before(warmupStart.Truncate(time.Second))",
       "new": "",
       "command": [
         "go",

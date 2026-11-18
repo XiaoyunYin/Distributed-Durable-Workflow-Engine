@@ -441,15 +441,16 @@ func TestK6PostgresLoginPrivileges(t *testing.T) {
 	}
 	for _, test := range []struct {
 		conn *pgx.Conn
+		role string
 		sql  string
-	}{{f.reader, `SELECT * FROM k6_auth.approval_decision(NULL,NULL,NULL,NULL,NULL,NULL,NULL)`},
-		{f.decision, `SELECT * FROM k6_auth.read_exact_grant(NULL,NULL,NULL,NULL,NULL,NULL,NULL,NULL)`},
-		{f.reader, `SELECT k6_auth.grant_is_live(NULL,NULL)`}} {
+	}{{f.reader, f.reader.Config().User, `SELECT * FROM k6_auth.approval_decision(pg_catalog.gen_random_uuid(),'workflow','node',0,'hash','subject','APPROVED')`},
+		{f.decision, f.decision.Config().User, `SELECT * FROM k6_auth.read_exact_grant(pg_catalog.gen_random_uuid(),'token','workflow','node',0,'key','scope','target')`},
+		{f.reader, f.reader.Config().User, `SELECT k6_auth.grant_is_live(pg_catalog.clock_timestamp(),pg_catalog.clock_timestamp())`}} {
 		before := f.snapshot(t)
 		_, err := test.conn.Exec(f.ctx, test.sql)
 		var pgErr *pgconn.PgError
 		if !errors.As(err, &pgErr) || pgErr.Code != "42501" {
-			t.Fatal("login could execute a function outside its role")
+			t.Fatalf("role %q could execute %s (error: %v)", test.role, test.sql, err)
 		}
 		f.unchanged(t, before)
 	}

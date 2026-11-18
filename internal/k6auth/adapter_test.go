@@ -177,6 +177,22 @@ func TestK6TokenWindow(t *testing.T) {
 	}
 }
 
+func TestK6TokenWindowFractionalWarmupStart(t *testing.T) {
+	episode, now, _, _ := identityFixture()
+	warmupStart := episode.WarmupStart.Add(500 * time.Millisecond)
+	deadline := episode.LastPlannedArrival.Add(episode.TwoL)
+
+	// A token issued 0.2 seconds after warmup has this whole-second JWT iat.
+	if err := ValidateTokenWindow(now, time.Unix(warmupStart.Unix(), 0), deadline.Add(time.Second),
+		warmupStart, episode.LastPlannedArrival, episode.TwoL); err != nil {
+		t.Fatalf("token issued 0.2 seconds after fractional warmup start was refused: %v", err)
+	}
+	if err := ValidateTokenWindow(now, episode.WarmupStart.Add(-time.Second), deadline.Add(time.Second),
+		warmupStart, episode.LastPlannedArrival, episode.TwoL); err == nil {
+		t.Fatal("token issued one second before the truncated warmup second was accepted")
+	}
+}
+
 func TestK6AdapterRedactsCredentials(t *testing.T) {
 	episode, now, claims, review := identityFixture()
 	token := jwt(t, claims)

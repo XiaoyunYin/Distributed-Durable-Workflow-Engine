@@ -43,7 +43,7 @@ func (e Episode) subject() string { return "system:serviceaccount:" + e.Namespac
 // lifetime against the episode manifest. The endpoint must remain usable at
 // the final required instant, so equality at exp is insufficient.
 func ValidateTokenWindow(now, issuedAt, expiresAt, warmupStart, lastPlannedArrival time.Time, twoL time.Duration) error {
-	if warmupStart.IsZero() || issuedAt.IsZero() || now.Before(warmupStart) || issuedAt.Before(warmupStart) ||
+	if warmupStart.IsZero() || issuedAt.IsZero() || now.Before(warmupStart) || issuedAt.Before(warmupStart.Truncate(time.Second)) ||
 		issuedAt.After(now) || !now.Before(expiresAt) || lastPlannedArrival.Before(warmupStart) || twoL <= 0 {
 		return ErrDenied
 	}
