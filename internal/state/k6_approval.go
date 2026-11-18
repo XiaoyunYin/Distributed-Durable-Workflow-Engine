@@ -21,6 +21,11 @@ func K6ProposalHash(target string, arguments json.RawMessage, revision string) (
 	return proposalHash(target, arguments, revision)
 }
 
+// K6GrantScopeHash derives the persisted K6 dispatch grant scope.
+func K6GrantScopeHash(proposal, revision, key, target string) string {
+	return grantScopeHash(proposal, revision, key, target)
+}
+
 // K6ExistingIntent identifies the logical operation's non-replaceable intent.
 type K6ExistingIntent struct{ IntentID string }
 

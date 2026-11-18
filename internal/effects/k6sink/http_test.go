@@ -86,12 +86,11 @@ func (g testGrants) ReadExactGrant(_ context.Context, req k6auth.ExactGrantReque
 
 func (g testGrants) add(t *testing.T, req Request, expires time.Time) Request {
 	t.Helper()
-	canonicalHash, err := state.CanonicalPayloadHash(req.Arguments)
+	proposal, err := state.K6ProposalHash(req.ResourceID, req.Arguments, req.ExpectedRevision)
 	if err != nil {
 		t.Fatal(err)
 	}
-	proposal := hash([]byte(req.ResourceID + "\x00" + canonicalHash + "\x00" + req.ExpectedRevision))
-	req.ScopeHash = hash([]byte(proposal + "\x00" + req.ExpectedRevision + "\x00" + req.LogicalKey + "\x00" + req.ResourceID))
+	req.ScopeHash = state.K6GrantScopeHash(proposal, req.ExpectedRevision, req.LogicalKey, req.ResourceID)
 	g[req.GrantToken] = k6auth.ExactGrant{
 		WorkflowID: req.WorkflowID, NodeID: req.NodeID, Iteration: *req.Iteration, IntentID: req.IntentID,
 		Target: req.ResourceID, CanonicalArguments: req.Arguments, ExpectedResourceRevision: req.ExpectedRevision,
@@ -108,6 +107,20 @@ func testRequest() Request {
 		LogicalKey: "logical", ResourceID: "resource", ExpectedRevision: "0",
 		Arguments: json.RawMessage(`{"private-state":"DO-NOT-EXPORT","nested":[2,{"é":true}]}`),
 		Attempt:   1, MessageID: "message-1", RequestID: "apply-1",
+	}
+}
+
+func TestK6SinkAcceptsStateGrant(t *testing.T) {
+	req := testRequest()
+	req.Arguments = json.RawMessage(`{"value":1}`)
+	grants := testGrants{}
+	req = grants.add(t, req, time.Now().Add(time.Minute))
+	// A fixed vector also catches a format change shared by issuance and authorization.
+	if req.ScopeHash != "513101f18e16b44382ba3fc1c77806118ec38228cba888cb3f92b18b647ecc1b" {
+		t.Fatal("registered K6 grant scope changed")
+	}
+	if _, err := authorize(context.Background(), grants, req, time.Millisecond); err != nil {
+		t.Fatal("sink rejected an engine-format grant")
 	}
 }
 

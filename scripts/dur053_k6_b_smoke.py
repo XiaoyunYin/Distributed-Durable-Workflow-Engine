@@ -66,6 +66,9 @@ def json_data(document: object) -> bytes:
 
 
 class Smoke:
+    database = DATABASE
+    inputs_schema = "dur053.k6-phase-b-inputs.v1"
+
     def __init__(self, evidence: Evidence, scratch: Path, harness: Driver) -> None:
         self.evidence, self.scratch, self.harness = evidence, scratch, harness
         self.deadline = datetime.now(UTC) + timedelta(minutes=25)
@@ -81,7 +84,7 @@ class Smoke:
         self.evidence.write(
             "inputs.json",
             {
-                "schema": "dur053.k6-phase-b-inputs.v1",
+                "schema": self.inputs_schema,
                 "revision": self.command("SOURCE_REVISION", "git", "rev-parse", "HEAD")
                 .decode()
                 .strip(),
@@ -345,7 +348,7 @@ class Smoke:
         parameters = {"sslmode": mode, "connect_timeout": 2}
         if ca:
             parameters["sslrootcert"] = ca
-        return f"postgresql://{role}:{password}@{self.address}:5432/{DATABASE}?" + urlencode(
+        return f"postgresql://{role}:{password}@{self.address}:5432/{self.database}?" + urlencode(
             parameters
         )
 

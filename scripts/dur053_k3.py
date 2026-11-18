@@ -1606,11 +1606,16 @@ class Driver:
 
 
 def run(
-    scenario: str, output: Path, scratch_root: Path, k6_output: Path | None = None
+    scenario: str,
+    output: Path,
+    scratch_root: Path,
+    k6_output: Path | None = None,
+    k6_c_output: Path | None = None,
 ) -> int:
     supported(scenario)
     k6_exit = 0
     phase_b_started = False
+    phase_c_started = False
     fresh_output(output)
     scratch_root.mkdir(parents=True, exist_ok=True)
     scratch = scratch_root / ("kind-" + secrets.token_hex(8))
@@ -1670,7 +1675,11 @@ def run(
                 "-p",
                 "test_k3_*.py",
             ],
-            env={key: value for key, value in d.env.items() if key != "DUR053_K6_B_OUTPUT"},
+            env={
+                key: value
+                for key, value in d.env.items()
+                if key not in {"DUR053_K6_B_OUTPUT", "DUR053_K6_C_OUTPUT"}
+            },
         )
         d.install()
         if scenario == "cleanup":
@@ -1743,6 +1752,26 @@ def run(
                     except Exception as error:
                         record_handoff_failure(Path(k6_output), error)
                         k6_exit = 1
+                if k6_c_output:
+                    phase_c_started = True
+                    try:
+                        import dur053_k6_c_smoke
+
+                        if k6_exit:
+                            dur053_k6_c_smoke.inherited_failure(
+                                k6_c_output, "PHASE_B_FAILED_BEFORE_PHASE_C"
+                            )
+                        else:
+                            k6_exit = dur053_k6_c_smoke.run(k6_c_output, d, addresses["192.0.2.1"])
+                    except Exception as error:
+                        k6_exit = 1
+                        try:
+                            from dur053_k6_c_smoke import record_handoff_failure as phase_c_failed
+
+                            phase_c_failed(k6_c_output, error)
+                        except Exception:
+                            # An invalid evidence path must not mark K3 failed.
+                            pass
         manifest["status"] = "PASS"
     except Exception as error:
         manifest["error"] = (
@@ -1793,6 +1822,10 @@ def run(
             from dur053_k6_b_smoke import inherited_failure
 
             inherited_failure(Path(k6_output))
+        if k6_c_output and not phase_c_started:
+            from dur053_k6_c_smoke import inherited_failure as phase_c_skipped
+
+            phase_c_skipped(k6_c_output)
     return k6_exit if manifest["status"] == "PASS" else 1
 
 
@@ -1802,12 +1835,19 @@ def main() -> int:
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--scratch-root", type=Path, required=True)
     parser.add_argument("--k6-output", type=Path)
+    parser.add_argument("--k6-c-output", type=Path)
     args = parser.parse_args()
     k6_output = args.k6_output
     if args.scenario == "smoke" and k6_output is None:
         configured = os.getenv("DUR053_K6_B_OUTPUT")
         k6_output = Path(configured) if configured else None
-    return run(args.scenario, args.output.resolve(), args.scratch_root.resolve(), k6_output)
+    k6_c_output = args.k6_c_output
+    if args.scenario == "smoke" and k6_c_output is None:
+        configured = os.getenv("DUR053_K6_C_OUTPUT")
+        k6_c_output = Path(configured) if configured else None
+    return run(
+        args.scenario, args.output.resolve(), args.scratch_root.resolve(), k6_output, k6_c_output
+    )
 
 
 if __name__ == "__main__":

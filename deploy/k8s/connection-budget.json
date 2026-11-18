@@ -1,5 +1,14 @@
 {
   "max_connections": 100,
+  "sink_db": {
+    "max_connections": 30,
+    "replicas": 1,
+    "max_surge": 1,
+    "pool_per_process": 4,
+    "jobs": {"migrate": 2, "checker": 2, "exporter": 1},
+    "administration": 3,
+    "reserved": 3
+  },
   "reserved_and_admin": 8,
   "future_clients": {
     "monitor": 2,
