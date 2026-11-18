@@ -3,6 +3,7 @@ package k6sink
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
 	"encoding/json"
 	"errors"
 	"io"
@@ -13,6 +14,7 @@ import (
 	"unicode/utf8"
 
 	"durable-agent-execution-engine/internal/k6auth"
+	"durable-agent-execution-engine/internal/k6receipt"
 	"durable-agent-execution-engine/internal/state"
 )
 
@@ -22,6 +24,7 @@ type HTTPConfig struct {
 	Worker                        WorkerIdentity
 	EnginePeerURI, IngressPeerURI string
 	ClockUncertainty              time.Duration
+	ReceiptKey                    ed25519.PrivateKey
 }
 
 type handler struct {
@@ -48,6 +51,7 @@ func newHandler(cfg HTTPConfig, reviewer k6auth.Reviewer, reader GrantReader, st
 	if !identifier(cfg.Worker.Namespace) || !identifier(cfg.Worker.ServiceAccount) ||
 		!identifier(cfg.Worker.ServiceAccountUID) || !isPeer(cfg.EnginePeerURI) || !isPeer(cfg.IngressPeerURI) ||
 		cfg.EnginePeerURI == cfg.IngressPeerURI || cfg.ClockUncertainty <= 0 ||
+		(len(cfg.ReceiptKey) != 0 && len(cfg.ReceiptKey) != ed25519.PrivateKeySize) ||
 		reviewer == nil || reader == nil || store == nil {
 		return nil, errDenied
 	}
@@ -135,7 +139,12 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	ctx, cancelGrant := context.WithDeadline(ctx, auth.deadline)
 	defer cancelGrant()
-	d := delivery{operation, hash(body), hash(binding), request, auth}
+	cooperating := request.NodeID == state.K6Activity
+	if cooperating && len(h.cfg.ReceiptKey) == 0 {
+		http.Error(w, errDenied.Error(), http.StatusForbidden)
+		return
+	}
+	d := delivery{operation, hash(body), hash(binding), request, auth, cooperating}
 	out, err := h.store.execute(ctx, d, func(ctx context.Context) (time.Time, error) {
 		readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
@@ -149,6 +158,18 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		switch out.outcome {
 		case "APPLIED", "DUPLICATE", "FOUND", "ALLOCATED":
+			if cooperating {
+				w.Header().Set(k6receipt.ProtocolHeader, "1")
+				if operation != "allocate" {
+					var receipt Receipt
+					if json.Unmarshal(out.body, &receipt) != nil {
+						http.Error(w, errUnavailable.Error(), http.StatusServiceUnavailable)
+						return
+					}
+					claim := k6receipt.Claim{NodeID: request.NodeID, Iteration: int(*request.Iteration), Attempt: request.Attempt, Fence: request.Fence}
+					w.Header().Set(k6receipt.SignatureHeader, k6receipt.Sign(h.cfg.ReceiptKey, claim, operation, receipt))
+				}
+			}
 			w.Header().Set("Content-Type", "application/json")
 			w.Header().Set("Cache-Control", "no-store")
 			_, _ = w.Write(out.body)

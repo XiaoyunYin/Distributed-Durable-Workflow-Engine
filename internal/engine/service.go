@@ -13,6 +13,7 @@ import (
 const schedulerIterationTimeout = 5 * time.Second
 
 type ServeOptions struct {
+	K6                 *K6Options
 	AfterLeaseAcquired func(context.Context, state.Lease) error
 	Tracing            *telemetry.Tracing
 	Drain              <-chan struct{}
@@ -31,6 +32,7 @@ func ServeWithOptions(ctx context.Context, store *state.Store, namespace string,
 	}
 	runner := New(store, nil)
 	runner.ExternalActivities = true
+	runner.K6 = options.K6
 	runner.AfterLeaseAcquired = options.AfterLeaseAcquired
 	runner.Tracing = options.Tracing
 	runner.LegacyShutdown = options.LegacyShutdown
@@ -63,6 +65,7 @@ func ServeWithOptions(ctx context.Context, store *state.Store, namespace string,
 				iterationCancel()
 				if runErr != nil && !errors.Is(runErr, state.ErrLeaseNotOwned) &&
 					!errors.Is(runErr, state.ErrLeaseAcquisitionTimeout) &&
+					!errors.Is(runErr, state.ErrK6ResultPending) &&
 					!errors.Is(runErr, state.ErrRevisionConflict) && !errors.Is(runErr, state.ErrAttemptNotCurrent) {
 					slog.Warn("scheduler pass failed", "workflow_id", id, "error", runErr)
 				}

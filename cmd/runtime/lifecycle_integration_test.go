@@ -221,6 +221,11 @@ func TestK1RuntimeSignalCompetingAcquisition(t *testing.T) {
 	}
 }
 
+func TestK1ReferenceRuntimeBuilds(t *testing.T) {
+	// Keep the frozen reference build covered without requiring PostgreSQL.
+	_ = k1ReferenceRuntime(t)
+}
+
 func TestK1PythonDrainResultsAndReplacement(t *testing.T) {
 	ctx, store, _ := k1Database(t)
 	server := httptest.NewServer(api.NewServer(store).Handler())
@@ -415,6 +420,12 @@ func k1ReferenceRuntime(t *testing.T) string {
 		t.Fatal(err)
 	}
 	destination := t.TempDir()
+	// These K6-only files depend on fields in current lifecycle files replaced
+	// below with frozen pre-K1 fixtures. Keep them out of the reference tree.
+	k6OnlyFiles := map[string]bool{
+		"internal/engine/k6.go": true,
+		"cmd/runtime/k6.go":     true,
+	}
 	for _, directory := range []string{"internal", "cmd/runtime"} {
 		err := filepath.WalkDir(filepath.Join(root, directory), func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {
@@ -427,6 +438,9 @@ func k1ReferenceRuntime(t *testing.T) string {
 				return nil
 			}
 			relative, _ := filepath.Rel(root, path)
+			if k6OnlyFiles[filepath.ToSlash(relative)] {
+				return nil
+			}
 			// The pre-K1 runtime had only main.go and scheduler.go.
 			if directory == "cmd/runtime" {
 				return nil
@@ -485,7 +499,7 @@ func k1ReferenceRuntime(t *testing.T) string {
 	}
 	buildCtx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-	command := exec.CommandContext(buildCtx, "go", "build", "-o", binary, "./cmd/runtime")
+	command := exec.CommandContext(buildCtx, "go", "build", "-p", "1", "-o", binary, "./cmd/runtime")
 	command.Dir = destination
 	if output, err := command.CombinedOutput(); err != nil {
 		t.Fatalf("pre-K1 reference build: %v %s", err, output)

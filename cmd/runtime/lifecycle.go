@@ -44,6 +44,10 @@ func main() {
 	ctx, stop := k4SignalContext(context.Background(), signal.Notify, signal.Stop)
 	defer stop()
 	if mode == "legacy" {
+		if state.K6Enabled() {
+			slog.Error("K6 requires the split drain runtime")
+			os.Exit(1)
+		}
 		legacyServe(ctx, stop)
 		return
 	}
@@ -199,6 +203,10 @@ func serveLifecycle(signalCtx context.Context) error {
 			return err
 		}
 	}
+	k6, err := loadK6RuntimeConfig(*rolesFlag, roles, reviewer)
+	if err != nil {
+		return err
+	}
 	roleName := envOrDefault("RUNTIME_ROLE", "runtime")
 	metrics := telemetry.New(roleName)
 	tracing, err := telemetry.NewTracing(context.Background(), "durable-runtime-"+roleName, os.Getenv("OTEL_EXPORTER_OTLP_ENDPOINT"))
@@ -215,6 +223,8 @@ func serveLifecycle(signalCtx context.Context) error {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		if roles["demand"] {
 			store, err = state.NewDemandFromURL(ctx, url)
+		} else if k6.scheduler != nil || k6.worker != nil {
+			store, err = state.NewK6RuntimeFromURL(ctx, url)
 		} else {
 			store, err = state.NewFromURL(ctx, url)
 		}
@@ -227,9 +237,13 @@ func serveLifecycle(signalCtx context.Context) error {
 	var draining atomic.Bool
 	handlerStore := store
 	apiServer := api.NewServer(store).WithRoutes(routes).WithAuthentication(reviewer).WithDemandAuthentication(demandAuth).WithTracing(tracing).WithDemand(store, os.Getenv("RUNTIME_NAMESPACE"))
+	if k6.worker != nil {
+		k6.worker.Store = store
+		apiServer.WithK6WorkerControl(k6.worker)
+	}
 	apiHandler := apiServer.Handler()
 	handler := lifecycleHandlerWithAPI(roleName, handlerStore, metrics, tracing, &draining, apiHandler, routes == api.RoutesCombined)
-	server := &http.Server{Addr: *addr, Handler: handler, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
+	server := &http.Server{Addr: *addr, Handler: handler, TLSConfig: k6.tls, ReadHeaderTimeout: 5 * time.Second, ReadTimeout: 10 * time.Second, WriteTimeout: 10 * time.Second, IdleTimeout: 60 * time.Second}
 	listener, err := net.Listen("tcp", *addr)
 	if err != nil {
 		if store != nil {
@@ -256,7 +270,12 @@ func serveLifecycle(signalCtx context.Context) error {
 	httpDone := make(chan struct{})
 	group.Go(func() error {
 		defer close(httpDone)
-		err := server.Serve(listener)
+		var err error
+		if k6.tls != nil {
+			err = server.ServeTLS(listener, "", "")
+		} else {
+			err = server.Serve(listener)
+		}
 		if errors.Is(err, http.ErrServerClosed) {
 			return nil
 		}
@@ -282,6 +301,7 @@ func serveLifecycle(signalCtx context.Context) error {
 		scheduler = startRoleWithFailure(&group, recordFatal, func(ctx context.Context, drain <-chan struct{}) error {
 			options := schedulerOptions(tracing)
 			options.Drain = drain
+			options.K6 = k6.scheduler
 			return serveScheduler(ctx, store, envOrDefault("RUNTIME_NAMESPACE", "local-runtime"), wake, options)
 		})
 	}

@@ -88,3 +88,19 @@ def test_registry_cli_rejects_mismatched_images(tmp_path: Path) -> None:
     )
     assert result.returncode != 0, "registry CLI mismatch guard bypassed"
     assert "registry mismatch" in result.stderr
+
+
+def test_k6_worker_manifest_opt_in_and_class(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("DUR053_K6_ACTIVITY", "0")
+    old = default_registry().manifest()
+    monkeypatch.setenv("DUR053_K6_ACTIVITY", "1")
+    candidate = default_registry().manifest()
+    entry = {"name": "dur053.cooperating", "version": "v1", "effect_class": "COOPERATING_EFFECT"}
+    assert entry in candidate
+    assert [item for item in candidate if item != entry] == old
+    CHECK.check(candidate, candidate)
+    for left, right in ((old, candidate), (candidate, old)):
+        with pytest.raises(ValueError, match="registry mismatch"):
+            CHECK.check(left, right)
+    with pytest.raises(ValueError, match="invalid K6 activity version or class"):
+        CHECK.check(candidate, [*old, {**entry, "effect_class": "PURE_ACTIVITY"}])

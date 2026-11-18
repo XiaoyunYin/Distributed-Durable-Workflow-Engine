@@ -3,6 +3,8 @@ package k6sink
 import (
 	"bytes"
 	"context"
+	"crypto/ed25519"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -17,6 +19,7 @@ import (
 	"time"
 
 	"durable-agent-execution-engine/internal/k6auth"
+	"durable-agent-execution-engine/internal/state"
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -85,12 +88,18 @@ func newTestDB(t *testing.T) testDB {
 		}
 	})
 	admin := testPool(t, adminURL, name, "")
-	sql, err := os.ReadFile(filepath.Join("..", "..", "..", "sink-migrations", "000001_k6_sink.up.sql"))
+	paths, err := filepath.Glob(filepath.Join("..", "..", "..", "sink-migrations", "*.up.sql"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := admin.Exec(ctx, string(sql)); err != nil {
-		t.Fatalf("sink migration: %v", err)
+	for _, path := range paths {
+		sql, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := admin.Exec(ctx, string(sql)); err != nil {
+			t.Fatalf("sink migration: %v", err)
+		}
 	}
 	return testDB{admin, testPool(t, adminURL, name, "k6_sink_service"),
 		testPool(t, adminURL, name, "k6_sink_exporter"), name, adminURL}
@@ -433,7 +442,7 @@ func TestK6SinkSQLWriteCutoff(t *testing.T) {
 	if err := db.admin.QueryRow(ctx, "SELECT clock_timestamp()").Scan(&auth.sinkCutoff); err != nil {
 		t.Fatal(err)
 	}
-	del := delivery{"apply", hash(asJSON(t, req)), "test-connection", req, auth}
+	del := delivery{"apply", hash(asJSON(t, req)), "test-connection", req, auth, false}
 	_, err = (&Store{db.service}).execute(ctx, del, func(context.Context) (time.Time, error) {
 		return auth.deadline, nil
 	})
@@ -568,5 +577,46 @@ func TestK6SinkDatabasePrivileges(t *testing.T) {
 		if !errors.As(err, &denied) || denied.Code != "42501" {
 			t.Fatalf("expected SQLSTATE 42501 for %s, got %v", check.sql, err)
 		}
+	}
+}
+
+func TestK6SinkReplacementLookupDoesNotApply(t *testing.T) {
+	db := newTestDB(t)
+	grants := testGrants{}
+	req := testRequest()
+	req.NodeID = state.K6Activity
+	req = grants.add(t, req, time.Now().Add(time.Minute))
+	_, signer, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	cfg := testHTTP
+	cfg.ReceiptKey = signer
+	handler, err := newHandler(cfg, testReviewer(), grants, &Store{db.service})
+	if err != nil {
+		t.Fatal(err)
+	}
+	clients := newTestServer(t, handler)
+	first := req
+	first.Fence = issueFence(t, clients, first, "allocate-first")
+	req.Attempt = 2
+	req.Fence = issueFence(t, clients, req, "allocate-replacement")
+	req.RequestID = "blind-application"
+	workerCall(t, clients, "apply", req, http.StatusForbidden)
+	req.RequestID = "replacement-missing-lookup"
+	response, err := post(clients.ingress, clients.url+"/v1/lookup", workerToken(t, nil), asJSON(t, req))
+	if err != nil || response.status != http.StatusNotFound || len(db.snapshot(t).Journal) != 0 {
+		t.Fatal("missing lookup applied a new effect")
+	}
+	first.RequestID = "old-fence-application"
+	workerCall(t, clients, "apply", first, http.StatusConflict)
+	req.RequestID = "known-missing-application"
+	committed := workerCall(t, clients, "apply", req, http.StatusOK)
+	req.Attempt++
+	req.Fence = issueFence(t, clients, req, "allocate-recovery")
+	req.RequestID = "recovery-lookup"
+	found := workerCall(t, clients, "lookup", req, http.StatusOK)
+	if !bytes.Equal(committed, found) || len(db.snapshot(t).Journal) != 1 {
+		t.Fatal("replacement lookup did not recover the same committed receipt")
 	}
 }
