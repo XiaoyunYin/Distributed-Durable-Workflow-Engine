@@ -14440,6 +14440,118 @@
       ],
       "expected": "stored argument hash mismatch was committed",
       "requires_database": true
+    },
+    {
+      "id": "k6b2-request-unbound",
+      "kind": "behavioral",
+      "file": "internal/k6auth/tokenrequest.go",
+      "old": "request.Spec.BoundObjectRef = &BoundObjectReference{APIVersion: \"v1\", Kind: \"Secret\", Name: secret, UID: uid}",
+      "new": "request.Spec.BoundObjectRef = nil",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/k6auth",
+        "-run",
+        "^TestK6BoundTokenRequest$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "TokenRequest must bind exact episode Secret kind, name and UID",
+      "requires_database": false
+    },
+    {
+      "id": "k6b2-request-wrong-audience",
+      "kind": "behavioral",
+      "file": "internal/k6auth/tokenrequest.go",
+      "old": "request.Spec.Audiences = []string{Audience}",
+      "new": "request.Spec.Audiences = []string{\"different-audience\"}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/k6auth",
+        "-run",
+        "^TestK6BoundTokenRequest$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "TokenRequest must use the sole registered approval audience",
+      "requires_database": false
+    },
+    {
+      "id": "k6b2-request-extra-audience",
+      "kind": "behavioral",
+      "file": "internal/k6auth/tokenrequest.go",
+      "old": "request.Spec.Audiences = []string{Audience}",
+      "new": "request.Spec.Audiences = []string{Audience, \"extra-audience\"}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/k6auth",
+        "-run",
+        "^TestK6BoundTokenRequest$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "TokenRequest must use the sole registered approval audience",
+      "requires_database": false
+    },
+    {
+      "id": "k6b2-reviewer-rbac",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_identity.py",
+      "old": "    \"verbs\": [\"create\"],\n}",
+      "new": "    \"verbs\": [\"create\", \"list\"],\n}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_b.py::test_k6_phase_b_rendered_identity"
+      ],
+      "expected": "K6_REVIEWER_RULE",
+      "requires_database": false
+    },
+    {
+      "id": "k6b2-operator-rendering",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_identity.py",
+      "old": "        obj(\"Namespace\", namespace),",
+      "new": "        obj(\"Namespace\", namespace),\n        obj(\"Deployment\", \"operator\", namespace),",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_b.py::test_k6_phase_b_rendered_identity"
+      ],
+      "expected": "K6_OPERATOR_OBJECT_OR_MOUNT",
+      "requires_database": false
+    },
+    {
+      "id": "k6b2-reset-leaves-login",
+      "kind": "behavioral",
+      "file": "internal/k6auth/deprovision.go",
+      "old": "for _, role := range []string{ReaderRole, DecisionRole} {",
+      "new": "for _, role := range []string{ReaderRole, DecisionRole} {\n\t\tif role == DecisionRole { continue }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/k6auth",
+        "-run",
+        "^TestK6DeprovisionRemovesBothLogins$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "reset must remove and verify both logins and the episode row",
+      "requires_database": false
     }
   ]
 }

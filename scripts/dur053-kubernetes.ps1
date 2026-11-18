@@ -12,12 +12,13 @@ param(
 )
 $ErrorActionPreference = "Stop"
 if ($Scenario -eq "faults-smoke") {
-    if ($Context -ne "kind" -or $K6Phase -cne "A" -or -not $OutputRoot) {
-        throw "Phase A faults-smoke requires -Context kind -K6Phase A and a fresh -OutputRoot."
+    if ($Context -ne "kind" -or $K6Phase -cnotin @("A", "B") -or -not $OutputRoot) {
+        throw "faults-smoke requires -Context kind, -K6Phase A or B, and a fresh -OutputRoot."
     }
     $env:PYTHONDONTWRITEBYTECODE = "1"
-    & python "$PSScriptRoot/dur053_k6_smoke.py" --output-root $OutputRoot
-    if ($LASTEXITCODE -ne 0) { throw "DUR-053 K6 Phase A FAIL; see retained evidence." }
+    $driver = if ($K6Phase -ceq "A") { "dur053_k6_smoke.py" } else { "dur053_k6_b_smoke.py" }
+    & python "$PSScriptRoot/$driver" --output-root $OutputRoot
+    if ($LASTEXITCODE -ne 0) { throw "DUR-053 K6 Phase $K6Phase FAIL. See retained evidence." }
     return
 }
 if ($Context -eq "kind") {

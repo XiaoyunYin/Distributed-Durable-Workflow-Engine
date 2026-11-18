@@ -44,6 +44,7 @@ func openDatabaseRole(ctx context.Context, dsn, role string) (*pgxpool.Pool, err
 		return nil, ErrDenied
 	}
 	cfg.ConnConfig.DefaultQueryExecMode = pgx.QueryExecModeCacheStatement
+	cfg.MaxConns = 2
 	pool, err := pgxpool.NewWithConfig(ctx, cfg)
 	if err != nil {
 		return nil, ErrDenied

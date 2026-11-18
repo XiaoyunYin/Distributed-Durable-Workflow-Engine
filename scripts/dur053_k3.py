@@ -1606,6 +1606,8 @@ class Driver:
 
 def run(scenario: str, output: Path, scratch_root: Path) -> int:
     supported(scenario)
+    k6_output = os.getenv("DUR053_K6_B_OUTPUT") if scenario == "smoke" else None
+    k6_exit = 0
     fresh_output(output)
     scratch_root.mkdir(parents=True, exist_ok=True)
     scratch = scratch_root / ("kind-" + secrets.token_hex(8))
@@ -1727,6 +1729,10 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
                 manifest["cluster_started"] = d.cluster_started
                 for arm in ("kind", "kind-baseline"):
                     d.batch(arm, addresses)
+                if k6_output:
+                    from dur053_k6_b_smoke import run as phase_b
+
+                    k6_exit = phase_b(Path(k6_output), d, addresses["192.0.2.1"])
         manifest["status"] = "PASS"
     except Exception as error:
         manifest["error"] = (
@@ -1773,7 +1779,11 @@ def run(scenario: str, output: Path, scratch_root: Path) -> int:
         manifest["charged_seconds"] = 0
         manifest["artifact_sha256"] = artifact_hashes(output)
         save(output / "manifest.json", manifest)
-    return 0 if manifest["status"] == "PASS" else 1
+        if k6_output:
+            from dur053_k6_b_smoke import inherited_failure
+
+            inherited_failure(Path(k6_output))
+    return k6_exit if manifest["status"] == "PASS" else 1
 
 
 def main() -> int:

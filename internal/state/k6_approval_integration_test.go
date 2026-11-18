@@ -67,7 +67,7 @@ func newK6Fixture(t *testing.T, lifetime time.Duration, tracer pgx.QueryTracer) 
 		}
 		if provisioned {
 			for _, role := range []string{k6auth.ReaderRole, k6auth.DecisionRole} {
-				if _, err := admin.Exec(cleanup, `DROP ROLE `+role); err != nil {
+				if _, err := admin.Exec(cleanup, `DROP ROLE IF EXISTS `+role); err != nil {
 					t.Error(err)
 				}
 			}
@@ -373,6 +373,65 @@ func TestK6PostgresEpisodeIsolation(t *testing.T) {
 		t.Fatal("reader crossed episode namespace")
 	}
 	f.unchanged(t, before)
+}
+
+func TestK6PostgresDeprovisionAndReprovision(t *testing.T) {
+	f := newK6Fixture(t, time.Minute, nil)
+	if err := k6auth.Deprovision(f.ctx, f.admin, "another-episode"); !errors.Is(err, k6auth.ErrDenied) {
+		t.Fatal("reset accepted another episode")
+	}
+	if err := f.reader.Close(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.decision.Close(f.ctx); err != nil {
+		t.Fatal(err)
+	}
+	if err := k6auth.Deprovision(f.ctx, f.admin, k6TestNamespace); err != nil {
+		t.Fatal("could not remove first K6 installation")
+	}
+	var absent bool
+	if err := f.admin.QueryRow(f.ctx, `SELECT NOT EXISTS (SELECT FROM k6_auth.episode)
+		AND NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname IN ($1,$2))`,
+		k6auth.ReaderRole, k6auth.DecisionRole).Scan(&absent); err != nil || !absent {
+		t.Fatal("first episode or login survived reset")
+	}
+	engineRole := "k6_engine_" + strings.ReplaceAll(NewID(), "-", "")
+	quotedRole := pgx.Identifier{engineRole}.Sanitize()
+	database := pgx.Identifier{f.admin.Config().Database}.Sanitize()
+	f.sql(t, `CREATE ROLE `+quotedRole+` LOGIN PASSWORD 'fixture-only-password'`)
+	t.Cleanup(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_, err := f.admin.Exec(ctx, `REVOKE CONNECT ON DATABASE `+database+` FROM `+quotedRole+
+			`; DROP ROLE `+quotedRole)
+		if err != nil {
+			t.Error(err)
+		}
+	})
+	// This non-superuser engine identity initially relies solely on PUBLIC.
+	f.sql(t, `GRANT CONNECT ON DATABASE `+database+` TO PUBLIC`)
+	const second = "k6-episode-second"
+	credentials, err := k6auth.Provision(f.ctx, f.admin, second, f.cutoff.Add(time.Minute), 2*time.Millisecond, engineRole)
+	if err != nil || credentials.ReaderPassword == f.readerConfig.Password || credentials.DecisionPassword == f.decisionConfig.Password {
+		t.Fatal("second episode did not provision fresh logins")
+	}
+	cfg := f.admin.Config().Copy()
+	cfg.User, cfg.Password = engineRole, "fixture-only-password"
+	conn, err := pgx.ConnectConfig(f.ctx, cfg)
+	if err != nil {
+		t.Fatal("non-superuser engine login lost CONNECT after provision")
+	}
+	_ = conn.Close(f.ctx)
+	if err := f.admin.QueryRow(f.ctx, `SELECT EXISTS (
+		SELECT FROM pg_catalog.pg_database d CROSS JOIN LATERAL pg_catalog.aclexplode(d.datacl) a
+		JOIN pg_catalog.pg_roles r ON r.oid = a.grantee
+		WHERE d.datname = pg_catalog.current_database() AND r.rolname = $1 AND a.privilege_type = 'CONNECT'
+	)`, engineRole).Scan(&absent); err != nil || !absent {
+		t.Fatal("non-superuser engine role lacks explicit CONNECT")
+	}
+	if err := k6auth.Deprovision(f.ctx, f.admin, second); err != nil {
+		t.Fatal("could not remove second K6 installation")
+	}
 }
 
 func TestK6PostgresLoginPrivileges(t *testing.T) {
