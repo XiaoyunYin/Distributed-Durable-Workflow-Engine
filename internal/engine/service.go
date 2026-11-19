@@ -19,6 +19,14 @@ type ServeOptions struct {
 	Tracing                 *telemetry.Tracing
 	Drain                   <-chan struct{}
 	LegacyShutdown          bool
+	LeaseTakeover           LeaseTakeoverHooks
+}
+
+// LeaseTakeoverHooks connects the tagged scheduler to the two hook-5 boundaries.
+// A nil callback uses the normal store operation and iteration deadline.
+type LeaseTakeoverHooks struct {
+	Acquire       func(context.Context, *state.Store, state.Workflow, string, time.Duration) (state.Lease, bool, func() (bool, error), error)
+	CreateAttempt func(context.Context, context.Context, *state.Store, state.AttemptInput) (state.Attempt, error)
 }
 
 // Serve scans one explicit namespace. It never executes activities in the
@@ -36,6 +44,8 @@ func ServeWithOptions(ctx context.Context, store *state.Store, namespace string,
 	runner.K6 = options.K6
 	runner.AfterLeaseAcquired = options.AfterLeaseAcquired
 	runner.BeforeResultConsumption = options.BeforeResultConsumption
+	runner.leaseTakeover = options.LeaseTakeover
+	runner.schedulerContext = ctx
 	runner.Tracing = options.Tracing
 	runner.LegacyShutdown = options.LegacyShutdown
 	runner.OwnerID, runner.ActorID = state.NewID(), "runtime-scheduler"

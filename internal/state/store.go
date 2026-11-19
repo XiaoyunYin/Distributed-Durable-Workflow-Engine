@@ -581,6 +581,10 @@ func scanWorkflow(row pgx.Row) (Workflow, error) {
 }
 
 func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID string, ttl time.Duration) (Lease, bool, error) {
+	return s.acquireLease(ctx, partitionID, ownerID, ttl, nil)
+}
+
+func (s *Store) acquireLease(ctx context.Context, partitionID int16, ownerID string, ttl time.Duration, capture func(pgx.Tx) error) (Lease, bool, error) {
 	started := time.Now()
 	defer s.observeQuery(started)
 	defer s.observeTransaction()
@@ -638,6 +642,11 @@ func (s *Store) AcquireLease(ctx context.Context, partitionID int16, ownerID str
 		VALUES ($1, $2, $3, $4, $5, clock_timestamp())`,
 			NewID(), lease.PartitionID, lease.OwnerID, lease.Epoch, lease.LeaseExpiresAt); err != nil {
 			return Lease{}, false, fmt.Errorf("record lease acquisition: %w", err)
+		}
+	}
+	if capture != nil {
+		if err := capture(tx); err != nil {
+			return Lease{}, false, err
 		}
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -1137,6 +1146,10 @@ func nullableIteration(nodeID string, iteration int) *int {
 }
 
 func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt, error) {
+	return s.createAttempt(ctx, input, s.pool.Begin)
+}
+
+func (s *Store) createAttempt(ctx context.Context, input AttemptInput, begin func(context.Context) (pgx.Tx, error)) (Attempt, error) {
 	started := time.Now()
 	defer s.observeQuery(started)
 	defer s.observeTransaction()
@@ -1149,7 +1162,7 @@ func (s *Store) CreateAttempt(ctx context.Context, input AttemptInput) (Attempt,
 	if input.DispatchLease == 0 {
 		input.DispatchLease = DefaultDispatchLease
 	}
-	tx, err := s.pool.Begin(ctx)
+	tx, err := begin(ctx)
 	if err != nil {
 		return Attempt{}, err
 	}

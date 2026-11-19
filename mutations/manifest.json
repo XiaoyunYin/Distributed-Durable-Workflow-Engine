@@ -15425,6 +15425,121 @@
       ],
       "expected": "E1_WITNESS_ROW_CLAIM_TOKEN",
       "requires_database": false
+    },
+    {
+      "id": "k6e2-harness-issued-write",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e2_join.py",
+      "old": "(\n            call[\"operation\"],\n            call[\"pid\"],\n            call[\"process_start_id\"],\n            call[\"session\"],\n            call[\"pod_uid\"],\n        )",
+      "new": "(\n            \"CreateAttempt\",\n            int(before[\"process_start_id\"].split(\":\")[0]),\n            before[\"process_start_id\"],\n            before[\"session_uuid\"],\n            before[\"uid\"],\n        )",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_e2.py::test_requires_released_deployed_call_over_identical_harness_write"
+      ],
+      "expected": "E2_DEPLOYED_CALL_ORIGIN_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6e2-untyped-rejection",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e2_join.py",
+      "old": "expect(\"E2_TYPED_REJECTION\", call[\"outcome\"], \"ErrLeaseNotOwned\")",
+      "new": "expect(\"E2_TYPED_REJECTION\", bool(call[\"outcome\"]), True)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_e2.py::test_only_typed_lease_rejection_counts"
+      ],
+      "expected": "E2_TYPED_REJECTION_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6e2-old-epoch-commit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e2_join.py",
+      "old": "expect(\"E2_I3_STALE_MUTATION\", old, [])",
+      "new": "expect(\"E2_I3_STALE_MUTATION\", old, old)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_e2.py::test_stale_commit_rejected_for_each_watched_table"
+      ],
+      "expected": "E2_I3_STALE_MUTATION_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6e2-early-peer-resume",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e2_join.py",
+      "old": "[(r[\"arm\"], r[\"event\"]) for r in selected],\n        [(arm[\"arm\"], event) for arm, event in expected],",
+      "new": "sorted((r[\"arm\"], r[\"event\"]) for r in selected),\n        sorted((arm[\"arm\"], event) for arm, event in expected),",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_e2.py::test_successor_release_must_follow_predecessor_rejection"
+      ],
+      "expected": "E2_RELEASE_ORDER_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6e2-missing-peer-ack",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e2_smoke.py",
+      "old": "return arm if arm[\"state\"] == \"held\" else None",
+      "new": "return arm if companion or arm[\"state\"] == \"held\" else None",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_e2.py::test_waits_for_successor_ack"
+      ],
+      "expected": "E2_MISSING_SUCCESSOR_ACK_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6e2-missing-backend-join",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e2_join.py",
+      "old": "{k: call[\"objects\"].get(k) for k in backend_keys},",
+      "new": "{k: fields[\"objects\"][k] for k in backend_keys},",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_e2.py::test_original_backend_lifetime_joins_resumed_pid"
+      ],
+      "expected": "E2_RESUMED_DB_BACKEND_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6e2-ordinary-go-enables",
+      "kind": "behavioral",
+      "file": "cmd/runtime/k6_hooks_default.go",
+      "old": "import (\n\t\"durable-agent-execution-engine/internal/engine\"\n\t\"durable-agent-execution-engine/internal/state\"\n)\n\nfunc configureK6SchedulerHook(*engine.ServeOptions) error { return nil }",
+      "new": "import (\n\t\"context\"\n\t\"time\"\n\t\"durable-agent-execution-engine/internal/engine\"\n\t\"durable-agent-execution-engine/internal/state\"\n)\n\nfunc configureK6SchedulerHook(options *engine.ServeOptions) error {\n\toptions.LeaseTakeover.Acquire = func(ctx context.Context, _ *state.Store, _ state.Workflow, _ string, _ time.Duration) (state.Lease, bool, func() (bool, error), error) {\n\t\t<-ctx.Done()\n\t\treturn state.Lease{}, false, nil, ctx.Err()\n\t}\n\toptions.LeaseTakeover.CreateAttempt = func(ctx, _ context.Context, _ *state.Store, _ state.AttemptInput) (state.Attempt, error) {\n\t\t<-ctx.Done()\n\t\treturn state.Attempt{}, ctx.Err()\n\t}\n\treturn nil\n}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./cmd/runtime",
+        "-run",
+        "^TestOrdinaryRuntimeHasNoLeaseTakeoverHooks$",
+        "-count=1"
+      ],
+      "expected": "ordinary runtime enabled lease takeover",
+      "requires_database": false
     }
   ]
 }
