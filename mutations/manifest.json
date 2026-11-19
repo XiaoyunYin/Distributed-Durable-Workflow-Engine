@@ -15393,6 +15393,22 @@
       ],
       "expected": "assert '192.0.2.1' == 'https://192.0.2.1:443'",
       "requires_database": false
+    },
+    {
+      "id": "k6e1-e1-requires-api-server-addresses",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e1_smoke.py",
+      "old": "    for key in (\"192.0.2.1\", \"192.0.2.2\", \"192.0.2.3\", \"192.0.2.4\"):",
+      "new": "    for key in (\"192.0.2.1\", \"192.0.2.2\"):",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_hooks.py::test_e1_addresses_require_all_dependency_addresses"
+      ],
+      "expected": "E1_ADDRESS_INVALID",
+      "requires_database": false
     }
   ]
 }

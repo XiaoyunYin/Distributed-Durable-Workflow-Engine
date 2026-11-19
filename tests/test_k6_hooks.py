@@ -39,6 +39,7 @@ from dur053_k6_e1_smoke import (  # noqa: E402
     e1_receiver_address,
     e1_receiver_san,
     e1_receiver_url,
+    ensure_no_e1_placeholders,
     pushed_digest,
     workload,
 )
@@ -74,10 +75,24 @@ def test_e1_pushed_digest_requires_exactly_one_repository_match(digests):
         pushed_digest(digests, "localhost:5001/dur053-k6-e1-worker")
 
 
-def test_e1_ignores_addresses_for_unused_keys():
-    assert e1_addresses(
-        {"192.0.2.1": "192.0.2.10", "192.0.2.2": "192.0.2.20", "unused": "not-an-ip"}
-    ) == {"192.0.2.1": "192.0.2.10", "192.0.2.2": "192.0.2.20"}
+def test_e1_addresses_require_all_dependency_addresses():
+    addresses = {
+        "192.0.2.1": "192.0.2.10",
+        "192.0.2.2": "192.0.2.20",
+        "192.0.2.3": "10.96.0.1",
+        "192.0.2.4": "172.18.0.2",
+        "unused": "not-an-ip",
+    }
+    assert e1_addresses(addresses) == {key: addresses[key] for key in addresses if key != "unused"}
+    for key in ("192.0.2.3", "192.0.2.4"):
+        missing = addresses.copy()
+        del missing[key]
+        with pytest.raises(SmokeFailure, match="E1_ADDRESS_INVALID"):
+            e1_addresses(missing)
+        invalid = addresses.copy()
+        invalid[key] = "not-an-ip"
+        with pytest.raises(SmokeFailure, match="E1_ADDRESS_INVALID"):
+            e1_addresses(invalid)
 
 
 def test_e1_receiver_bind_and_certificate_use_kind_gateway_not_engine_db():
@@ -549,6 +564,51 @@ def test_e1_render_binds_only_the_five_hooks_to_tagged_roles():
         ]
     assert set(CELLS) == {f"hook-{i}" for i in range(5)}
     assert all(workload(cell)[0]["initial_node_id"] == "pure.echo" for cell in CELLS)
+
+
+def test_e1_render_substitutes_api_addresses_and_rejects_placeholders():
+    addresses = {
+        "192.0.2.1": "172.18.0.10",
+        "192.0.2.2": "172.18.0.20",
+        "192.0.2.3": "10.96.0.1",
+        "192.0.2.4": "172.18.0.2",
+    }
+    base = json.loads((ROOT / "deploy/k8s/base/resources.yaml").read_bytes())["items"]
+    rendered = json.dumps(base)
+    for placeholder, address in addresses.items():
+        rendered = rendered.replace(placeholder + "/32", address + "/32")
+    substituted = json.loads(rendered)
+    manifests = deployment_objects(
+        substituted,
+        {"runtime": "tagged-go", "worker": "tagged-python"},
+        "172.18.0.1",
+        443,
+    )
+    for name in ("api-egress", "worker-control-egress"):
+        policy = next(
+            item
+            for item in manifests
+            if item["kind"] == "NetworkPolicy" and item["metadata"]["name"] == name
+        )
+        cidrs = {
+            peer["ipBlock"]["cidr"]
+            for rule in policy["spec"]["egress"]
+            for peer in rule.get("to", [])
+            if "ipBlock" in peer
+        }
+        assert {"10.96.0.1/32", "172.18.0.2/32"} <= cidrs
+        assert not any(cidr.startswith("192.0.2.") for cidr in cidrs)
+    ensure_no_e1_placeholders(manifests)
+
+    unresolved = [
+        {
+            "kind": "NetworkPolicy",
+            "metadata": {"name": "api-egress"},
+            "spec": {"egress": [{"to": [{"ipBlock": {"cidr": "192.0.2.3/32"}}]}]},
+        }
+    ]
+    with pytest.raises(SmokeFailure, match="E1_PLACEHOLDER_UNRESOLVED NetworkPolicy/api-egress"):
+        ensure_no_e1_placeholders(unresolved)
 
 
 def test_e1_chaos_scope_requires_exact_container_ack():

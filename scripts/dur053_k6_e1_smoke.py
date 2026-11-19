@@ -146,12 +146,40 @@ def pushed_digest(repo_digests: object, repository: str) -> str:
 
 def e1_addresses(addresses: dict[str, str]) -> dict[str, str]:
     result = {}
-    for key in ("192.0.2.1", "192.0.2.2"):
+    for key in ("192.0.2.1", "192.0.2.2", "192.0.2.3", "192.0.2.4"):
         try:
             result[key] = str(ipaddress.IPv4Address(addresses[key]))
         except (KeyError, ValueError, TypeError):
             raise SmokeFailure("E1_ADDRESS_INVALID") from None
     return result
+
+
+def ensure_no_e1_placeholders(objects: list[dict]) -> None:
+    placeholder_range = ipaddress.IPv4Network("192.0.2.0/24")
+    address_pattern = re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?:/\d{1,2})?(?![\d.])")
+
+    def contains_placeholder(value: object) -> bool:
+        if isinstance(value, dict):
+            return any(contains_placeholder(child) for child in value.values())
+        if isinstance(value, list):
+            return any(contains_placeholder(child) for child in value)
+        if not isinstance(value, str):
+            return False
+        for match in address_pattern.finditer(value):
+            candidate = match.group()
+            try:
+                network = ipaddress.ip_network(candidate, strict=False)
+            except ValueError:
+                continue
+            if network.version == 4 and network.overlaps(placeholder_range):
+                return True
+        return False
+
+    for item in objects:
+        if contains_placeholder(item):
+            kind = item.get("kind", "unknown")
+            name = item.get("metadata", {}).get("name", "unknown")
+            raise SmokeFailure(f"E1_PLACEHOLDER_UNRESOLVED {kind}/{name}")
 
 
 def e1_receiver_address(command, engine_address: str) -> str:
@@ -440,6 +468,7 @@ class Matrix(Smoke):
             self.receiver_address,
             port,
         )
+        ensure_no_e1_placeholders(objects)
         self.evidence.write("topology.json", objects)
         self.create("E1_NAMESPACE", obj("Namespace", NS, None))
         self.namespace_started = True
