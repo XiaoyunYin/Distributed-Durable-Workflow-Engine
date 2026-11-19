@@ -22,6 +22,7 @@ from workers.witness import campaign_witness, configured_witness
 
 if TYPE_CHECKING:
     from workers.k6_effect import EffectAdapter
+    from workers.kafka_worker import ControlFactory
     from workers.runner import DeploymentHook
 
 
@@ -79,6 +80,7 @@ def run(
     effect_factory: Callable[[], EffectAdapter] | None = None,
     *,
     deployment_hook: DeploymentHook | None = None,
+    control_factory: ControlFactory | None = None,
 ) -> None:
     from faults.client import FailpointClient
 
@@ -149,6 +151,8 @@ def run(
         )
         if deployment_hook is not None:
             start = partial(start, deployment_hook=deployment_hook)
+        if control_factory is not None:
+            start = partial(start, control_factory=control_factory)
         threads = start(
             brokers,
             os.getenv("CONTROL_API_URL", "http://127.0.0.1:8080"),

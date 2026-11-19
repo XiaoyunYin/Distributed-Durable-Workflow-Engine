@@ -731,6 +731,7 @@ jobs:
           DUR053_K6_D2B_OUTPUT: ${{ runner.temp }}/dur053-k6-d2b
           DUR053_K6_E1_OUTPUT: ${{ runner.temp }}/dur053-k6-e1
           DUR053_K6_E2_OUTPUT: ${{ runner.temp }}/dur053-k6-e2
+          DUR053_K6_F1A_OUTPUT: ${{ runner.temp }}/dur053-k6-f1a
         run: ./scripts/dur053-kubernetes.ps1 -Context kind -Scenario smoke -OutputRoot (Join-Path $env:RUNNER_TEMP "dur053-k3-smoke")
       - name: Retain evidence including failures
         if: always()
@@ -790,6 +791,15 @@ jobs:
         with:
           name: dur053-k6-e2-${{ github.run_id }}
           path: ${{ runner.temp }}/dur053-k6-e2/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Retain K6 Phase F1a evidence including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dur053-k6-f1a-${{ github.run_id }}
+          path: ${{ runner.temp }}/dur053-k6-f1a/
           if-no-files-found: error
           retention-days: 30
 

@@ -147,6 +147,9 @@ class RetryingControl(ControlClient):
         )
 
 
+ControlFactory = Callable[[str, threading.Event, WorkerLifecycle], RetryingControl]
+
+
 def delivery_body(message: Any) -> dict[str, Any]:
     headers = dict(message.headers or [])
 
@@ -351,6 +354,7 @@ def start_pool(
     lifecycle: WorkerLifecycle | None = None,
     effect_factory: Callable[[], EffectAdapter] | None = None,
     deployment_hook: DeploymentHook | None = None,
+    control_factory: ControlFactory | None = None,
 ) -> list[threading.Thread]:
     if slots < 1 or slots > 16:
         raise ValueError("WORKER_SLOTS must be between 1 and 16")
@@ -359,6 +363,8 @@ def start_pool(
         hooks: dict[str, Any] = {"effect_factory": effect_factory} if effect_factory else {}
         if deployment_hook is not None:
             hooks["deployment_hook"] = deployment_hook
+        if control_factory is not None:
+            hooks["control_factory"] = control_factory
         threads = [
             threading.Thread(
                 target=consume_slot,
@@ -490,6 +496,7 @@ def consume_slot(
     executor: BoundedExecutor,
     effect_factory: Callable[[], EffectAdapter] | None = None,
     deployment_hook: DeploymentHook | None = None,
+    control_factory: ControlFactory | None = None,
 ) -> None:
     deliver = (
         partial(handle_delivery, effect_factory=effect_factory)
@@ -519,7 +526,7 @@ def consume_slot(
                 assignment.trace = CallbackTrace(worker_id)
                 assignment.trace.attach(consumer)
             consumer.subscribe([TASK_TOPIC], listener=assignment)
-            control = RetryingControl(url, lifecycle.abort, lifecycle)
+            control = (control_factory or RetryingControl)(url, lifecycle.abort, lifecycle)
             while lifecycle.can_start():
                 busy = active is not None and not active.is_set()
                 partitions = consumer.assignment()
