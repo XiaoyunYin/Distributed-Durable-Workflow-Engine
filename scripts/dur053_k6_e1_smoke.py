@@ -10,7 +10,7 @@ import re
 import secrets
 import tempfile
 import time
-from contextlib import ExitStack
+from contextlib import ExitStack, contextmanager
 from hashlib import sha256
 from pathlib import Path
 from uuid import UUID
@@ -98,6 +98,61 @@ with urllib.request.urlopen("http://worker:8081/witness", timeout=4) as response
 class E1Evidence(Evidence):
     schema = "dur053.k6-phase-e1-smoke.v1"
 
+    def __init__(self, root: Path) -> None:
+        self.current_step = "setup"
+        self.current_command = ""
+        super().__init__(root)
+
+    @contextmanager
+    def step(self, name: str):
+        previous_step, previous_command = self.current_step, self.current_command
+        self.current_step, self.current_command = name, ""
+        try:
+            with super().step(name) as row:
+                yield row
+        except BaseException:
+            raise
+        else:
+            self.current_step, self.current_command = previous_step, previous_command
+
+    def safe_reason(self, error: BaseException) -> str:
+        if isinstance(error, SmokeFailure):
+            return super().safe_reason(error)
+        detail = (
+            f"UNEXPECTED_{type(error).__name__.upper()}"
+            f" step={self.current_step}"
+            f" command={self.current_command or 'none'}"
+            f" message={str(error)[:300]}"
+        )
+        try:
+            self.check(detail.encode())
+        except SmokeFailure:
+            return "CREDENTIAL_SCAN_FAILED"
+        return detail
+
+
+def pushed_digest(repo_digests: object, repository: str) -> str:
+    require(isinstance(repo_digests, list), "E1_IMAGE_DIGEST_INVALID")
+    matches = [
+        value
+        for value in repo_digests
+        if isinstance(value, str) and value.partition("@")[0] == repository
+    ]
+    require(len(matches) == 1, "E1_IMAGE_DIGEST_AMBIGUOUS")
+    digest = matches[0]
+    require(bool(DIGEST.fullmatch(digest)), "E1_TAGGED_IMAGE_DIGEST")
+    return digest
+
+
+def e1_addresses(addresses: dict[str, str]) -> dict[str, str]:
+    result = {}
+    for key in ("192.0.2.1", "192.0.2.2"):
+        try:
+            result[key] = str(ipaddress.IPv4Address(addresses[key]))
+        except (KeyError, ValueError, TypeError):
+            raise SmokeFailure("E1_ADDRESS_INVALID") from None
+    return result
+
 
 def compact(data) -> str:
     return json.dumps(data, separators=(",", ":"))
@@ -173,7 +228,7 @@ class Matrix(Smoke):
 
     def __init__(self, evidence, scratch, harness, addresses):
         super().__init__(evidence, scratch, harness)
-        self.addresses = {key: str(ipaddress.IPv4Address(ip)) for key, ip in addresses.items()}
+        self.addresses = e1_addresses(addresses)
         self.address = self.addresses["192.0.2.1"]
         self.broker = self.addresses["192.0.2.2"]
         self.chaos_started = self.namespace_started = self.database_started = False
@@ -182,6 +237,10 @@ class Matrix(Smoke):
         self.hook_log = scratch / "hook.jsonl"
         self.kafka_probe = scratch / "kafka-read"
         self.tags: dict[str, str] = {}
+
+    def command(self, stage: str, *args: str, **kwargs) -> bytes:
+        self.evidence.current_command = stage
+        return super().command(stage, *args, **kwargs)
 
     def build(self) -> None:
         runtime = self.scratch / "runtime"
@@ -235,7 +294,7 @@ class Matrix(Smoke):
                 timeout=300,
             )
             self.command("E1_IMAGE_PUSH", "docker", "push", ref, timeout=120)
-            (digest,) = json.loads(
+            raw_digests = json.loads(
                 self.command(
                     "E1_IMAGE_DIGEST",
                     "docker",
@@ -245,7 +304,7 @@ class Matrix(Smoke):
                     ref,
                 )
             )
-            require(bool(DIGEST.fullmatch(digest)), "E1_TAGGED_IMAGE_DIGEST")
+            digest = pushed_digest(raw_digests, f"localhost:5001/dur053-k6-e1-{role}")
             self.command(
                 "E1_IMAGE_KIND_LOAD",
                 "docker",
@@ -442,8 +501,12 @@ class Matrix(Smoke):
         raise SmokeFailure(code)
 
     def process(self, actor: str) -> tuple[dict, dict]:
-        (pod,) = self.pods(actor)
-        (container,) = pod["status"]["containerStatuses"]
+        pods = self.pods(actor)
+        require(len(pods) == 1, "E1_TARGET_POD_CARDINALITY")
+        pod = pods[0]
+        containers = pod.get("status", {}).get("containerStatuses", [])
+        require(len(containers) == 1, "E1_TARGET_CONTAINER_CARDINALITY")
+        container = containers[0]
         require(
             ready(pod) and container["containerID"].startswith("containerd://"),
             "E1_TARGET_NOT_RUNNING",
@@ -466,14 +529,22 @@ class Matrix(Smoke):
         ).decode()
         with self.receiver.lock:
             target = dict(self.receiver.targets.get(actor, {}))
+        stat_fields = stat.rsplit(")", 1)
+        require(len(stat_fields) == 2, "E1_PROCESS_STAT_FORMAT")
+        stat_fields = stat_fields[1].split()
+        require(len(stat_fields) > 19, "E1_PROCESS_STAT_FORMAT")
+        try:
+            session_uuid = str(UUID(target["session"]))
+        except (KeyError, ValueError, TypeError):
+            raise SmokeFailure("E1_TARGET_SESSION_UUID") from None
         expect(
             "E1_ACK_PROCESS_BINDING",
             (target.get("uid"), target.get("process_start_id")),
-            (pod["metadata"]["uid"], "1:" + stat.rsplit(")", 1)[1].split()[19]),
+            (pod["metadata"]["uid"], "1:" + stat_fields[19]),
         )
         return pod, {
             **target,
-            "session_uuid": str(UUID(target["session"])),
+            "session_uuid": session_uuid,
             "pod": pod["metadata"]["name"],
             "container": container["name"],
             "container_id": container["containerID"],
@@ -484,7 +555,11 @@ class Matrix(Smoke):
     def wait_replacement(self, actor: str, before: dict, target: dict) -> dict:
         def restarted():
             pod = self.get("pod", target["pod"])
-            (container,) = pod.get("status", {}).get("containerStatuses", [{}])
+            containers = pod.get("status", {}).get("containerStatuses", [])
+            if not containers:
+                return None
+            require(len(containers) == 1, "E1_REPLACEMENT_CONTAINER_CARDINALITY")
+            container = containers[0]
             with self.receiver.lock:
                 registered = self.receiver.targets.get(actor, {})
             return (
@@ -738,7 +813,10 @@ class Matrix(Smoke):
                 by(samples["worker_control_pods"], uid=snapshot["claims"][0]["pod_uid"]),
             )
         elif cell == "hook-3":
-            part = int(objects["partition"])
+            try:
+                part = int(objects["partition"])
+            except (KeyError, ValueError, TypeError):
+                raise SmokeFailure("E1_KAFKA_PARTITION_INVALID") from None
             samples["offset_db"] = self.partition_db(part)
             samples["broker_log"] = self.kafka(TASKS, part)
             samples["broker_group"] = self.kafka(TASKS, part, GROUP)

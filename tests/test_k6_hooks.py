@@ -29,7 +29,16 @@ from dur053_k6_e1_join import (  # noqa: E402
     relay_after,
     relay_at_hold,
 )
-from dur053_k6_e1_smoke import ACTORS, CELLS, NS, deployment_objects, workload  # noqa: E402
+from dur053_k6_e1_smoke import (  # noqa: E402
+    ACTORS,
+    CELLS,
+    NS,
+    E1Evidence,
+    deployment_objects,
+    e1_addresses,
+    pushed_digest,
+    workload,
+)
 from workers.control import Claim  # noqa: E402
 from workers.kafka_worker import handle_delivery  # noqa: E402
 from workers.registry import ActivityRegistry  # noqa: E402
@@ -39,6 +48,45 @@ ROOT = Path(__file__).resolve().parents[1]
 TOKEN = "a" * 64
 WORKER = {"actor": "worker", "uid": "pod-uid", "process_start_id": "1:50", "session": "b" * 32}
 WORKFLOW, EVENT = "e1-hook-3", "event"
+
+
+def test_e1_pushed_digest_selects_its_repository_from_multiple_entries():
+    selected = "localhost:5001/dur053-k6-e1-worker@sha256:" + "a" * 64
+    base = "localhost:5001/dur053-worker@sha256:" + "b" * 64
+    assert pushed_digest([base, selected], "localhost:5001/dur053-k6-e1-worker") == selected
+
+
+@pytest.mark.parametrize(
+    "digests",
+    [
+        ["localhost:5001/other@sha256:" + "a" * 64],
+        [
+            "localhost:5001/dur053-k6-e1-worker@sha256:" + "a" * 64,
+            "localhost:5001/dur053-k6-e1-worker@sha256:" + "b" * 64,
+        ],
+    ],
+)
+def test_e1_pushed_digest_requires_exactly_one_repository_match(digests):
+    with pytest.raises(SmokeFailure, match="E1_IMAGE_DIGEST_AMBIGUOUS"):
+        pushed_digest(digests, "localhost:5001/dur053-k6-e1-worker")
+
+
+def test_e1_ignores_addresses_for_unused_keys():
+    assert e1_addresses(
+        {"192.0.2.1": "192.0.2.10", "192.0.2.2": "192.0.2.20", "unused": "not-an-ip"}
+    ) == {"192.0.2.1": "192.0.2.10", "192.0.2.2": "192.0.2.20"}
+
+
+def test_e1_unexpected_error_is_diagnosable_and_fails_closed_on_credentials(tmp_path):
+    evidence = E1Evidence(tmp_path)
+    evidence.current_step = "a-build-tagged-images"
+    evidence.current_command = "E1_IMAGE_DIGEST"
+    assert evidence.safe_reason(ValueError("bad digest")) == (
+        "UNEXPECTED_VALUEERROR step=a-build-tagged-images "
+        "command=E1_IMAGE_DIGEST message=bad digest"
+    )
+    evidence.secret("private-token")
+    assert evidence.safe_reason(ValueError("private-token")) == "CREDENTIAL_SCAN_FAILED"
 
 
 def delivered(commit):
