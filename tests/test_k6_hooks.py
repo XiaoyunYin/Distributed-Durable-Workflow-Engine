@@ -4,8 +4,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import socket
+import subprocess
 import sys
+from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from threading import Thread
 from types import SimpleNamespace
 
 import pytest
@@ -33,7 +39,11 @@ from dur053_k6_e1_smoke import (  # noqa: E402
     ACTORS,
     CELLS,
     NS,
+    READ_WITNESS,
+    READ_WITNESS_INVENTORY,
+    SUBMIT_TRACED,
     E1Evidence,
+    Matrix,
     deployment_objects,
     e1_addresses,
     e1_receiver_address,
@@ -43,10 +53,12 @@ from dur053_k6_e1_smoke import (  # noqa: E402
     pushed_digest,
     workload,
 )
+from workers import __main__ as worker_main  # noqa: E402
 from workers.control import Claim  # noqa: E402
 from workers.kafka_worker import handle_delivery  # noqa: E402
 from workers.registry import ActivityRegistry  # noqa: E402
 from workers.runner import ActivityRunner, ActivityTask  # noqa: E402
+from workers.witness import InvocationWitness  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 TOKEN = "a" * 64
@@ -83,7 +95,9 @@ def test_e1_addresses_require_all_dependency_addresses():
         "192.0.2.4": "172.18.0.2",
         "unused": "not-an-ip",
     }
-    assert e1_addresses(addresses) == {key: addresses[key] for key in addresses if key != "unused"}
+    assert e1_addresses(addresses) == {
+        key: addresses[key] for key in addresses if key != "unused"
+    }, "E1_API_SERVER_ADDRESSES_DROPPED"
     for key in ("192.0.2.3", "192.0.2.4"):
         missing = addresses.copy()
         del missing[key]
@@ -93,6 +107,188 @@ def test_e1_addresses_require_all_dependency_addresses():
         invalid[key] = "not-an-ip"
         with pytest.raises(SmokeFailure, match="E1_ADDRESS_INVALID"):
             e1_addresses(invalid)
+
+
+def run_observer(code, *args, data=None):
+    return subprocess.run(
+        [sys.executable, "-c", code, *map(str, args)],
+        input=data,
+        capture_output=True,
+        check=False,
+        timeout=8,
+    )
+
+
+def assert_observer_failure(result, label):
+    assert result.returncode == 1
+    assert result.stdout == b""
+    assert result.stderr.replace(b"\r\n", b"\n") == (label + "\n").encode("ascii")
+
+
+@contextmanager
+def serve_observer_http(handler):
+    with ThreadingHTTPServer(("127.0.0.1", 0), handler) as server:
+        thread = Thread(target=server.serve_forever)
+        thread.start()
+        try:
+            yield f"127.0.0.1:{server.server_port}"
+        finally:
+            server.shutdown()
+            thread.join()
+
+
+def witness_fixture(root, *, head=None, row=None):
+    pod = root / "worker-pod"
+    pod.mkdir()
+    session = {
+        "event": "session",
+        "session": "worker-session",
+        "pod_uid": WORKER["uid"],
+        "sequence": 1,
+        **(head or {}),
+    }
+    invocation = {
+        "event": "start",
+        "session": session["session"],
+        "workflow_id": WORKFLOW,
+        "sequence": 2,
+        **(row or {}),
+    }
+    rows = [session, invocation]
+    (pod / "session.jsonl").write_bytes(b"".join(json.dumps(row).encode() + b"\n" for row in rows))
+
+
+@pytest.mark.parametrize("create_root", [False, True], ids=["missing", "empty"])
+def test_e1_witness_empty_directory_has_safe_label(tmp_path, create_root):
+    root = tmp_path / "witness"
+    if create_root:
+        root.mkdir()
+    assert_observer_failure(run_observer(READ_WITNESS, WORKFLOW, root), "E1_WITNESS_DIR_EMPTY")
+
+
+def test_e1_witness_bad_head_has_safe_label(tmp_path):
+    witness_fixture(tmp_path, head={"event": "fixture-private-value"})
+    assert_observer_failure(
+        run_observer(READ_WITNESS, WORKFLOW, tmp_path), "E1_WITNESS_HEAD_INVALID"
+    )
+
+
+def test_e1_witness_sequence_gap_has_safe_label(tmp_path):
+    witness_fixture(tmp_path, row={"sequence": 3, "claim_token": TOKEN})
+    assert_observer_failure(run_observer(READ_WITNESS, WORKFLOW, tmp_path), "E1_WITNESS_SEQUENCE")
+
+
+def test_e1_witness_missing_claim_token_has_safe_label(tmp_path):
+    witness_fixture(tmp_path)
+    assert_observer_failure(
+        run_observer(READ_WITNESS, WORKFLOW, tmp_path), "E1_WITNESS_ROW_CLAIM_TOKEN"
+    )
+
+
+class ObserverFixtureHandler(BaseHTTPRequestHandler):
+    def log_message(self, *_args):
+        pass
+
+    def do_GET(self):
+        self.send_response(503)
+        self.end_headers()
+        self.wfile.write(b"fixture-private-value")
+
+    def do_POST(self):
+        request = self.rfile.read(int(self.headers["Content-Length"]))
+        accepted = (
+            self.path == "/v1/workflows"
+            and self.headers["Authorization"] == "Bearer " + TOKEN
+            and self.headers["Content-Type"] == "application/json"
+            and self.headers["traceparent"] == "fixture-trace"
+            and request == b'{"work":"fixture"}'
+        )
+        self.send_response(201 if accepted else 401)
+        self.end_headers()
+        response = {"workflow": {"workflow_id": WORKFLOW}, "created": True} if accepted else {}
+        self.wfile.write(json.dumps({**response, "private": TOKEN}).encode())
+
+
+def test_e1_witness_inventory_http_503_has_safe_label():
+    with serve_observer_http(ObserverFixtureHandler) as address:
+        result = run_observer(READ_WITNESS_INVENTORY, address)
+    assert_observer_failure(result, "E1_WITNESS_HTTP_503")
+
+
+def test_e1_witness_inventory_unreachable_has_safe_label():
+    with socket.socket() as bound:
+        bound.bind(("127.0.0.1", 0))
+        result = run_observer(READ_WITNESS_INVENTORY, f"127.0.0.1:{bound.getsockname()[1]}")
+    assert_observer_failure(result, "E1_WITNESS_HTTP_UNREACHABLE")
+
+
+def test_e1_witness_scripts_join_real_worker_inventory_and_session(tmp_path, monkeypatch):
+    directory = tmp_path / "worker-pod"
+    directory.mkdir()
+    witness = InvocationWitness(str(directory), directory.name, WORKER["uid"])
+    invocation = witness.begin({"workflow_id": WORKFLOW, "claim_token": TOKEN})
+    witness.end(invocation, "SUCCEEDED")
+    monkeypatch.setattr(worker_main, "configured_witness", lambda: witness)
+    with serve_observer_http(worker_main.HealthHandler) as address:
+        inventory_result = run_observer(READ_WITNESS_INVENTORY, address)
+    file_result = run_observer(READ_WITNESS, WORKFLOW, tmp_path)
+    for result in (inventory_result, file_result):
+        assert result.returncode == 0, result.stderr
+        assert result.stderr == b""
+        assert TOKEN.encode() not in result.stdout
+    inventory = json.loads(inventory_result.stdout)
+    ledger = json.loads(file_result.stdout)
+    assert inventory == witness.inventory()
+    assert ledger["sessions"][inventory["file"]] == {
+        "pod_uid": inventory["pod_uid"],
+        "rows": inventory["written"],
+        "sha256": inventory["sha256"],
+    }
+    assert [row["event"] for row in ledger["rows"]] == ["start", "end"]
+    assert all(
+        row["token_hash"] == hashlib.sha256(TOKEN.encode()).hexdigest() for row in ledger["rows"]
+    )
+
+
+def test_e1_submit_token_read_failure_has_safe_label(tmp_path):
+    result = run_observer(SUBMIT_TRACED, "fixture-trace", tmp_path / "missing-token", "unused")
+    assert_observer_failure(result, "E1_SUBMIT_TOKEN_READ_FAILED")
+
+
+def test_e1_submit_only_returns_accepted_workflow_fields(tmp_path):
+    token = tmp_path / "token"
+    token.write_text(TOKEN, encoding="ascii")
+    with serve_observer_http(ObserverFixtureHandler) as address:
+        rejected = run_observer(SUBMIT_TRACED, "fixture-trace", token, address, data=b"{}")
+        accepted = run_observer(
+            SUBMIT_TRACED, "fixture-trace", token, address, data=b'{"work":"fixture"}'
+        )
+    assert_observer_failure(rejected, "E1_SUBMIT_HTTP_401")
+    assert accepted.returncode == 0, accepted.stderr
+    assert accepted.stderr == b""
+    assert json.loads(accepted.stdout) == {"status": 201, "workflow_id": WORKFLOW, "created": True}
+
+
+@pytest.mark.parametrize(
+    ("stderr", "detail"),
+    [
+        (b"E1_WITNESS_HTTP_503\ncommand terminated with exit code 1\n", "_E1_WITNESS_HTTP_503"),
+        (b"fixture-private-value\ncommand terminated with exit code 1\n", ""),
+        (b"E1_WITNESS_HTTP_503\ncommand terminated with exit code 2\n", ""),
+    ],
+)
+def test_e1_observer_command_preserves_only_safe_remote_exit_labels(
+    tmp_path, monkeypatch, stderr, detail
+):
+    matrix = Matrix.__new__(Matrix)
+    matrix.evidence = E1Evidence(tmp_path)
+    matrix.deadline = datetime.now(UTC) + timedelta(seconds=30)
+    matrix.env = {}
+    monkeypatch.setattr(
+        subprocess, "run", lambda *_args, **_kwargs: SimpleNamespace(returncode=1, stderr=stderr)
+    )
+    with pytest.raises(SmokeFailure, match=f"^E1_OBSERVER_WITNESS_INVENTORY_EXIT_1{detail}$"):
+        matrix.observe_worker("WITNESS_INVENTORY", READ_WITNESS_INVENTORY, "worker:8081")
 
 
 def test_e1_receiver_bind_and_certificate_use_kind_gateway_not_engine_db():

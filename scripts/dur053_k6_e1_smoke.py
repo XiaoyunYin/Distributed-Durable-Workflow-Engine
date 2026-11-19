@@ -26,7 +26,6 @@ from dur053_k6_c_smoke import make_output
 from dur053_k6_d2b_smoke import Matrix as D2bMatrix
 from dur053_k6_d2b_smoke import hook_pod
 from dur053_k6_d_render import mount, set_env
-from dur053_k6_d_smoke import SUBMIT
 from dur053_k6_e1_join import (
     EVENTS,
     GROUP,
@@ -65,34 +64,161 @@ CONTROL = "unarmed-control"
 ROLES = ("api", "worker-control", "scheduler", "relay", "worker", "observer")
 DEFINITION = "e1-pure-echo"
 WORKER_LINE = re.compile(r"^DUR053_K6_OBSERVATION k6_deployed_worker (\{[^\n]+\})$", re.M)
-SUBMIT_TRACED = SUBMIT.replace(
-    '"Content-Type":"application/json"',
-    '"Content-Type":"application/json","traceparent":sys.argv[1]',
+OBSERVER_SCRIPT = """
+import json
+import sys
+
+def fail(code):
+    print(code, file=sys.stderr)
+    raise SystemExit(1)
+
+def run(main, unexpected):
+    try:
+        main()
+    except Exception:
+        fail(unexpected)
+"""
+SUBMIT_TRACED = (
+    OBSERVER_SCRIPT
+    + """
+import http.client
+import re
+
+def submit():
+    traceparent, token_path, address = sys.argv[1:]
+    try:
+        with open(token_path) as source:
+            token = source.read().strip()
+    except (OSError, UnicodeError):
+        fail("E1_SUBMIT_TOKEN_READ_FAILED")
+    if not token:
+        fail("E1_SUBMIT_TOKEN_EMPTY")
+
+    connection = http.client.HTTPConnection(address, timeout=5)
+    try:
+        connection.request(
+            "POST", "/v1/workflows", body=sys.stdin.buffer.read(),
+            headers={"Authorization": "Bearer " + token, "Content-Type": "application/json",
+                     "traceparent": traceparent},
+        )
+        response = connection.getresponse()
+        if response.status != 201:
+            fail(f"E1_SUBMIT_HTTP_{response.status}")
+        try:
+            body = json.load(response)
+            workflow = body["workflow"]["workflow_id"]
+            created = body["created"]
+        except (KeyError, TypeError, ValueError):
+            fail("E1_SUBMIT_RESPONSE_INVALID")
+        if (not isinstance(workflow, str) or not re.fullmatch(r"[a-z0-9-]{1,64}", workflow)
+                or type(created) is not bool):
+            fail("E1_SUBMIT_RESPONSE_INVALID")
+        print(json.dumps({"status": response.status, "workflow_id": workflow, "created": created}))
+    except TimeoutError:
+        fail("E1_SUBMIT_HTTP_TIMEOUT")
+    except (OSError, http.client.HTTPException):
+        fail("E1_SUBMIT_HTTP_UNREACHABLE")
+    finally:
+        connection.close()
+
+run(submit, "E1_SUBMIT_UNEXPECTED")
+"""
 )
-READ_WITNESS = """
-import hashlib,json,pathlib,sys
-rows=[]
-sessions={}
-for path in sorted(pathlib.Path("/witness").glob("*/*.jsonl")):
-    raw=path.read_bytes()
-    lines=raw.splitlines()
-    head=json.loads(lines[0])
-    assert head["event"] == "session" and raw.endswith(b"\n")
-    sessions[path.name]={"pod_uid":head["pod_uid"],"rows":len(lines),
-                         "sha256":hashlib.sha256(raw).hexdigest()}
-    for sequence,line in enumerate(lines,1):
-        row=json.loads(line)
-        assert row["sequence"] == sequence and row["session"] == head["session"]
-        if row.get("workflow_id")==sys.argv[1]:
-            row["token_hash"]=hashlib.sha256(row.pop("claim_token").encode()).hexdigest()
-            rows.append(row)
-print(json.dumps({"rows":rows,"sessions":sessions}))
+READ_WITNESS = (
+    OBSERVER_SCRIPT
+    + r"""
+import hashlib
+import pathlib
+
+def read_witness():
+    workflow, root = sys.argv[1:]
+    rows = []
+    sessions = {}
+    try:
+        paths = sorted(pathlib.Path(root).glob("*/*.jsonl"))
+    except OSError:
+        fail("E1_WITNESS_DIR_UNREADABLE")
+    if not paths:
+        fail("E1_WITNESS_DIR_EMPTY")
+    for path in paths:
+        try:
+            raw = path.read_bytes()
+        except OSError:
+            fail("E1_WITNESS_FILE_UNREADABLE")
+        lines = raw.splitlines()
+        if not lines:
+            fail("E1_WITNESS_HEAD_INVALID")
+        if not raw.endswith(b"\n"):
+            fail("E1_WITNESS_FILE_TRUNCATED")
+        try:
+            head = json.loads(lines[0])
+            if (head["event"] != "session" or not isinstance(head["pod_uid"], str)
+                    or not head["pod_uid"] or not isinstance(head["session"], str)
+                    or not head["session"]):
+                fail("E1_WITNESS_HEAD_INVALID")
+        except (KeyError, TypeError, ValueError):
+            fail("E1_WITNESS_HEAD_INVALID")
+        if path.name in sessions:
+            fail("E1_WITNESS_SESSION_FILE_DUPLICATE")
+        sessions[path.name] = {"pod_uid": head["pod_uid"], "rows": len(lines),
+                               "sha256": hashlib.sha256(raw).hexdigest()}
+        for sequence, line in enumerate(lines, 1):
+            try:
+                row = head if sequence == 1 else json.loads(line)
+            except ValueError:
+                fail("E1_WITNESS_ROW_INVALID")
+            if not isinstance(row, dict):
+                fail("E1_WITNESS_ROW_INVALID")
+            if (type(row.get("sequence")) is not int or row["sequence"] != sequence
+                    or row.get("session") != head["session"]):
+                fail("E1_WITNESS_SEQUENCE")
+            if row.get("workflow_id") == workflow:
+                token = row.pop("claim_token", None)
+                if not isinstance(token, str) or not token:
+                    fail("E1_WITNESS_ROW_CLAIM_TOKEN")
+                try:
+                    row["token_hash"] = hashlib.sha256(token.encode()).hexdigest()
+                except UnicodeError:
+                    fail("E1_WITNESS_ROW_CLAIM_TOKEN_ENCODING")
+                rows.append(row)
+    print(json.dumps({"rows": rows, "sessions": sessions}))
+
+run(read_witness, "E1_WITNESS_UNEXPECTED")
 """
-READ_WITNESS_INVENTORY = """
-import json,urllib.request
-with urllib.request.urlopen("http://worker:8081/witness", timeout=4) as response:
-    print(json.dumps(json.load(response)))
+)
+READ_WITNESS_INVENTORY = (
+    OBSERVER_SCRIPT
+    + """
+import http.client
+
+def read_inventory():
+    connection = http.client.HTTPConnection(sys.argv[1], timeout=4)
+    try:
+        connection.request("GET", "/witness")
+        response = connection.getresponse()
+        if response.status != 200:
+            fail(f"E1_WITNESS_HTTP_{response.status}")
+        try:
+            inventory = json.load(response)
+        except ValueError:
+            fail("E1_WITNESS_INVENTORY_INVALID")
+        fields = {"session": str, "pod_name": str, "pod_uid": str, "file": str,
+                  "attempted": int, "written": int, "errors": int, "sha256": str, "complete": bool}
+        if not isinstance(inventory, dict) or any(
+            type(inventory.get(field)) is not kind for field, kind in fields.items()
+        ):
+            fail("E1_WITNESS_INVENTORY_INVALID")
+        print(json.dumps({field: inventory[field] for field in fields}))
+    except TimeoutError:
+        fail("E1_WITNESS_HTTP_TIMEOUT")
+    except (OSError, http.client.HTTPException):
+        fail("E1_WITNESS_HTTP_UNREACHABLE")
+    finally:
+        connection.close()
+
+run(read_inventory, "E1_WITNESS_INVENTORY_UNEXPECTED")
 """
+)
 
 
 class E1Evidence(Evidence):
@@ -667,24 +793,29 @@ class Matrix(Smoke):
         self.evidence.check(result)
         return result
 
-    def observe_worker(self, code: str, *args: str, data: bytes | None = None):
-        return json.loads(
-            self.k(
-                "E1_OBSERVER",
-                "-n",
-                NS,
-                "exec",
-                "-i",
-                "deployment/observer",
-                "--",
-                "python",
-                "-c",
-                code,
-                *args,
-                data=data,
-                timeout=8,
-            )
+    def observe_worker(self, script: str, code: str, *args: str, data: bytes | None = None):
+        stage = f"E1_OBSERVER_{script}"
+        output = self.k(
+            stage,
+            "-n",
+            NS,
+            "exec",
+            "--quiet",
+            "-i",
+            "deployment/observer",
+            "--",
+            "python",
+            "-c",
+            code,
+            *args,
+            data=data,
+            timeout=8,
+            kubectl_exec=True,
         )
+        try:
+            return json.loads(output)
+        except ValueError:
+            raise SmokeFailure(f"{stage}_OUTPUT_INVALID") from None
 
     def kafka(self, topic: str, partition: int = -1, group: str = "") -> dict:
         started = time.time_ns()
@@ -779,7 +910,14 @@ class Matrix(Smoke):
     def offer(self, cell: str) -> tuple[str, str]:
         payload, body_hash, traceparent = workload(cell)
         started = time.time_ns()
-        response = self.observe_worker(SUBMIT_TRACED, traceparent, data=json_data(payload))
+        response = self.observe_worker(
+            "SUBMIT",
+            SUBMIT_TRACED,
+            traceparent,
+            "/identity/token",
+            "api:8080",
+            data=json_data(payload),
+        )
         workflow = payload["workflow_id"]
         self.evidence.write(
             f"{cell}-submission.json",
@@ -798,8 +936,8 @@ class Matrix(Smoke):
         return workflow, body_hash
 
     def invocations(self, workflow: str) -> dict:
-        inventory = self.observe_worker(READ_WITNESS_INVENTORY)
-        value = self.observe_worker(READ_WITNESS, workflow)
+        inventory = self.observe_worker("WITNESS_INVENTORY", READ_WITNESS_INVENTORY, "worker:8081")
+        value = self.observe_worker("WITNESS", READ_WITNESS, workflow, "/witness")
         expect("E1_WITNESS_COMPLETE", inventory["complete"], True)
         expect(
             "E1_WITNESS_INVENTORY_JOIN",
@@ -909,7 +1047,9 @@ class Matrix(Smoke):
 
             snapshot = self.wait_for(ingested, "E1_SCHEDULER_RESULT_INBOX_NOT_VISIBLE", seconds=6)
             samples["db"] = snapshot
-            samples["activity_witness"] = self.observe_worker(READ_WITNESS, workflow)
+            samples["activity_witness"] = self.observe_worker(
+                "WITNESS", READ_WITNESS, workflow, "/witness"
+            )
             self.evidence.write(f"{cell}-hold.json", samples)
             before = receipt_at_hold(objects, snapshot, target)
             rows = samples["activity_witness"]["rows"]

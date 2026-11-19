@@ -15407,7 +15407,23 @@
         "-q",
         "tests/test_k6_hooks.py::test_e1_addresses_require_all_dependency_addresses"
       ],
-      "expected": "E1_ADDRESS_INVALID",
+      "expected": "E1_API_SERVER_ADDRESSES_DROPPED",
+      "requires_database": false
+    },
+    {
+      "id": "k6e1-e1-witness-missing-claim-token-label",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e1_smoke.py",
+      "old": "fail(\"E1_WITNESS_ROW_CLAIM_TOKEN\")",
+      "new": "raise SystemExit(1)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_hooks.py::test_e1_witness_missing_claim_token_has_safe_label"
+      ],
+      "expected": "E1_WITNESS_ROW_CLAIM_TOKEN",
       "requires_database": false
     }
   ]
