@@ -139,13 +139,14 @@ func cloneEvent(event state.OutboxEvent) state.OutboxEvent {
 }
 
 type RelayConfig struct {
-	OwnerID       string
-	PartitionID   *int16
-	BatchSize     int
-	ClaimLease    time.Duration
-	RetryBackoff  time.Duration
-	PollInterval  time.Duration
-	AfterBoundary func(string) error
+	OwnerID            string
+	PartitionID        *int16
+	BatchSize          int
+	ClaimLease         time.Duration
+	RetryBackoff       time.Duration
+	PollInterval       time.Duration
+	AfterBoundary      func(string) error
+	AfterClaimBoundary func(string, state.OutboxEvent) error
 	// OnError observes durable relay-loop failures while the loop remains
 	// alive for a later retry. Runtime wiring uses this for logs/metrics.
 	OnError func(error)
@@ -233,7 +234,7 @@ func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
 			report.Quarantined++
 			continue
 		}
-		if err := r.boundary("before_publish"); err != nil {
+		if err := r.publicationBoundary("before_publish", event); err != nil {
 			if span != nil {
 				span.End()
 			}
@@ -241,7 +242,7 @@ func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
 		}
 		publishErr := r.Broker.Publish(eventCtx, event)
 		if publishErr == nil {
-			if err := r.boundary("after_broker_ack"); err != nil {
+			if err := r.publicationBoundary("after_broker_ack", event); err != nil {
 				if span != nil {
 					span.End()
 				}
@@ -283,6 +284,15 @@ func (r *Relay) boundary(name string) error {
 		return nil
 	}
 	return r.Config.AfterBoundary(name)
+}
+
+func (r *Relay) publicationBoundary(name string, event state.OutboxEvent) error {
+	if r.Config.AfterClaimBoundary != nil {
+		if err := r.Config.AfterClaimBoundary(name, event); err != nil {
+			return err
+		}
+	}
+	return r.boundary(name)
 }
 
 // Run reacts quickly to PostgreSQL NOTIFY but always keeps a ticker-based

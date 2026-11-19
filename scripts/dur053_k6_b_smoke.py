@@ -113,6 +113,7 @@ class Smoke:
         timeout: float = 45,
         isolated: bool = False,
         codes: tuple[int, ...] = (0,),
+        kubectl_exec: bool = False,
     ) -> bytes:
         remaining = (self.deadline - datetime.now(UTC)).total_seconds()
         require(remaining > 0, "ENGINEERING_DEADLINE")
@@ -134,6 +135,8 @@ class Smoke:
             # Credential-bearing subprocesses can print arbitrary data.
             # Keep only fixed diagnostics and never their stdout/stderr.
             err = result.stderr.decode(errors="replace").strip()
+            if kubectl_exec:
+                err = err.removesuffix(f"\ncommand terminated with exit code {result.returncode}")
             detail = (
                 err
                 if SAFE_CODE.fullmatch(err)

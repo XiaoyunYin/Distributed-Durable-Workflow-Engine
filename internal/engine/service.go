@@ -13,11 +13,12 @@ import (
 const schedulerIterationTimeout = 5 * time.Second
 
 type ServeOptions struct {
-	K6                 *K6Options
-	AfterLeaseAcquired func(context.Context, state.Lease) error
-	Tracing            *telemetry.Tracing
-	Drain              <-chan struct{}
-	LegacyShutdown     bool
+	K6                      *K6Options
+	AfterLeaseAcquired      func(context.Context, state.Lease) error
+	BeforeResultConsumption func(state.ConsumeResultInput, state.Attempt) error
+	Tracing                 *telemetry.Tracing
+	Drain                   <-chan struct{}
+	LegacyShutdown          bool
 }
 
 // Serve scans one explicit namespace. It never executes activities in the
@@ -34,6 +35,7 @@ func ServeWithOptions(ctx context.Context, store *state.Store, namespace string,
 	runner.ExternalActivities = true
 	runner.K6 = options.K6
 	runner.AfterLeaseAcquired = options.AfterLeaseAcquired
+	runner.BeforeResultConsumption = options.BeforeResultConsumption
 	runner.Tracing = options.Tracing
 	runner.LegacyShutdown = options.LegacyShutdown
 	runner.OwnerID, runner.ActorID = state.NewID(), "runtime-scheduler"

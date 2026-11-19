@@ -302,6 +302,9 @@ func serveLifecycle(signalCtx context.Context) error {
 			options := schedulerOptions(tracing)
 			options.Drain = drain
 			options.K6 = k6.scheduler
+			if err := configureK6SchedulerHook(&options); err != nil {
+				return err
+			}
 			return serveScheduler(ctx, store, envOrDefault("RUNTIME_NAMESPACE", "local-runtime"), wake, options)
 		})
 	}
@@ -313,9 +316,15 @@ func serveLifecycle(signalCtx context.Context) error {
 		} else {
 			relay = startRoleWithFailure(&group, recordFatal, func(ctx context.Context, drain <-chan struct{}) error {
 				defer broker.Close()
-				return transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: state.NewID(), Tracing: tracing, Drain: drain,
-					OnError:   func(err error) { metrics.RecordRelayFailure(); slog.Warn("relay pass failed", "error", err) },
-					OnSuccess: func(transport.RelayReport) { metrics.MarkDurableReady() }}).Run(ctx)
+				owner := state.NewID()
+				hook, err := k6RelayHook(owner)
+				if err != nil {
+					return err
+				}
+				return transport.NewRelay(store, broker, transport.RelayConfig{OwnerID: owner, Tracing: tracing, Drain: drain,
+					AfterClaimBoundary: hook,
+					OnError:            func(err error) { metrics.RecordRelayFailure(); slog.Warn("relay pass failed", "error", err) },
+					OnSuccess:          func(transport.RelayReport) { metrics.MarkDurableReady() }}).Run(ctx)
 			})
 		}
 	}

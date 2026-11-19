@@ -1113,6 +1113,9 @@ class Driver:
     def reset_episode(self, namespace: str, database: str) -> None:
         self.k("delete", "namespace", namespace, "--wait=true", "--timeout=120s", timeout=130)
         self.drop(database)
+        self.reset_transport()
+
+    def reset_transport(self) -> None:
         self.topics("--delete")
         topic_command = [
             "docker",
@@ -1614,6 +1617,7 @@ def run(
     k6_c_output: Path | None = None,
     k6_d_output: Path | None = None,
     k6_d2b_output: Path | None = None,
+    k6_e1_output: Path | None = None,
 ) -> int:
     supported(scenario)
     k6_exit = 0
@@ -1621,6 +1625,7 @@ def run(
     phase_c_started = False
     phase_d_started = False
     phase_d2b_started = False
+    phase_e1_started = False
     fresh_output(output)
     scratch_root.mkdir(parents=True, exist_ok=True)
     scratch = scratch_root / ("kind-" + secrets.token_hex(8))
@@ -1822,6 +1827,19 @@ def run(
                             from dur053_k6_d2b_smoke import record_handoff_failure as d2b_failed
 
                             d2b_failed(k6_d2b_output, error)
+                if k6_e1_output:
+                    phase_e1_started = True
+                    try:
+                        import dur053_k6_e1_smoke
+
+                        e1_exit = dur053_k6_e1_smoke.run(k6_e1_output, d, addresses)
+                        k6_exit = k6_exit or e1_exit
+                    except Exception as error:
+                        k6_exit = 1
+                        with suppress(Exception):
+                            from dur053_k6_e1_smoke import record_handoff_failure as e1_failed
+
+                            e1_failed(k6_e1_output, error)
         manifest["status"] = "PASS"
     except Exception as error:
         manifest["error"] = (
@@ -1888,6 +1906,11 @@ def run(
                 from dur053_k6_d2b_smoke import inherited_failure as d2b_skipped
 
                 d2b_skipped(k6_d2b_output)
+        if k6_e1_output and not phase_e1_started:
+            with suppress(Exception):
+                from dur053_k6_e1_smoke import inherited_failure as e1_skipped
+
+                e1_skipped(k6_e1_output)
     return k6_exit if manifest["status"] == "PASS" else 1
 
 
@@ -1900,6 +1923,7 @@ def main() -> int:
     parser.add_argument("--k6-c-output", type=Path)
     parser.add_argument("--k6-d-output", type=Path)
     parser.add_argument("--k6-d2b-output", type=Path)
+    parser.add_argument("--k6-e1-output", type=Path)
     args = parser.parse_args()
     k6_output = args.k6_output
     if args.scenario == "smoke" and k6_output is None:
@@ -1917,6 +1941,10 @@ def main() -> int:
     if args.scenario == "smoke" and k6_d2b_output is None:
         configured = os.getenv("DUR053_K6_D2B_OUTPUT")
         k6_d2b_output = Path(configured) if configured else None
+    k6_e1_output = args.k6_e1_output
+    if args.scenario == "smoke" and k6_e1_output is None:
+        configured = os.getenv("DUR053_K6_E1_OUTPUT")
+        k6_e1_output = Path(configured) if configured else None
     return run(
         args.scenario,
         args.output.resolve(),
@@ -1925,6 +1953,7 @@ def main() -> int:
         k6_c_output,
         k6_d_output,
         k6_d2b_output,
+        k6_e1_output,
     )
 
 

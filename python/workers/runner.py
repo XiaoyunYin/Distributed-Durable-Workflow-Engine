@@ -7,6 +7,7 @@ import json
 import logging
 import threading
 import time
+from collections.abc import Callable
 from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Protocol
@@ -17,6 +18,7 @@ from workers.registry import K6_ACTIVITY, K6_EFFECT_CLASS, K6_VERSION, ActivityR
 from workers.witness import configured_witness
 
 LOG = logging.getLogger(__name__)
+DeploymentHook = Callable[[str, dict[str, str]], None]
 
 
 class WorkerControl(Protocol):
@@ -75,6 +77,7 @@ class ActivityRunner:
         max_workers: int = 4,
         heartbeat_interval: float = 5.0,
         k6: EffectAdapter | None = None,
+        deployment_hook: DeploymentHook | None = None,
     ) -> None:
         if max_workers <= 0 or heartbeat_interval <= 0:
             raise ValueError("max_workers and heartbeat_interval must be positive")
@@ -83,6 +86,7 @@ class ActivityRunner:
         self.max_workers = max_workers
         self.heartbeat_interval = heartbeat_interval
         self.k6 = k6
+        self.deployment_hook = deployment_hook
 
     def aborted(self) -> bool:
         check = getattr(self.control, "aborted", None)
@@ -116,6 +120,18 @@ class ActivityRunner:
             claim.effect_class == K6_EFFECT_CLASS or claim.k6_dispatch is not None
         ):
             raise ControlError(403, "K6_ENVELOPE_INVALID", "unexpected K6 claim envelope")
+        hook_fields: dict[str, str] = {}
+        if self.deployment_hook is not None and not cooperating:
+            hook_fields = {
+                "workflow": task.workflow_id,
+                "node": task.node_id,
+                "iteration": str(task.iteration),
+                "attempt": str(claim.attempt_number),
+                "worker": task.worker_id,
+                "request": task.request_id,
+                "token_hash": hashlib.sha256(claim.claim_token.encode()).hexdigest(),
+            }
+            self.deployment_hook("attempt_claimed", hook_fields)
         stop = threading.Event()
         definitive_heartbeat_errors: list[ControlError] = []
 
@@ -184,6 +200,17 @@ class ActivityRunner:
             )
         attempt_state = "ABORTED"
         try:
+            if self.deployment_hook is not None:
+                self.deployment_hook(
+                    "activity_start",
+                    {
+                        **hook_fields,
+                        "invocation": str(
+                            (invocation or {}).get("invocation_id")
+                            or (invocation or {}).get("id", "")
+                        ),
+                    },
+                )
             payload = activity(task.input)
         except Exception as error:
             payload = {"error": str(error), "type": type(error).__name__}
