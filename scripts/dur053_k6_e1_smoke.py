@@ -154,6 +154,35 @@ def e1_addresses(addresses: dict[str, str]) -> dict[str, str]:
     return result
 
 
+def e1_receiver_address(command, engine_address: str) -> str:
+    gateway = (
+        command(
+            "E1_KIND_BRIDGE_GATEWAY",
+            "docker",
+            "inspect",
+            "--format",
+            '{{(index .NetworkSettings.Networks "kind").Gateway}}',
+            CLUSTER + "-control-plane",
+        )
+        .decode()
+        .strip()
+    )
+    try:
+        gateway = str(ipaddress.IPv4Address(gateway))
+    except ipaddress.AddressValueError:
+        raise SmokeFailure("E1_RECEIVER_GATEWAY_INVALID") from None
+    require(gateway != engine_address, "E1_RECEIVER_GATEWAY_DB_COLLISION")
+    return gateway
+
+
+def e1_receiver_san(address: str) -> str:
+    return f"subjectAltName=IP:{address}"
+
+
+def e1_receiver_url(address: str, port: int) -> str:
+    return f"https://{address}:{port}"
+
+
 def compact(data) -> str:
     return json.dumps(data, separators=(",", ":"))
 
@@ -175,7 +204,7 @@ def workload(cell: str) -> tuple[dict, str, str]:
     )
 
 
-def deployment_objects(objects: list[dict], tags: dict, address: str, ip: str, port: int) -> list:
+def deployment_objects(objects: list[dict], tags: dict, receiver_address: str, port: int) -> list:
     result = []
     for item in json.loads(json.dumps(objects).replace("dur053-kind", NS)):
         kind, name = item["kind"], item["metadata"]["name"]
@@ -192,7 +221,7 @@ def deployment_objects(objects: list[dict], tags: dict, address: str, ip: str, p
                 # role before offering work. The registered matrix is untouched.
                 spec["replicas"] = 1
                 container["image"] = tags["worker" if name == "worker" else "runtime"]
-                hook_pod(item, name, address, {})
+                hook_pod(item, name, e1_receiver_url(receiver_address, port), {})
             if name == "worker":
                 set_env(container, DUR053_K6_DEPLOYED_HOOKS="1")
             if name in {"scheduler", "worker-control"}:
@@ -216,7 +245,13 @@ def deployment_objects(objects: list[dict], tags: dict, address: str, ip: str, p
             item["subjects"] = [r for r in item["subjects"] if r["name"] != "operator"]
         result.append(item)
     result += [
-        policy(NS, f"e1-hook-{actor}", actor, "Egress", [traffic("to", port, ip_peer(ip))])
+        policy(
+            NS,
+            f"e1-hook-{actor}",
+            actor,
+            "Egress",
+            [traffic("to", port, ip_peer(receiver_address))],
+        )
         for actor in ACTORS
     ]
     return result
@@ -229,8 +264,9 @@ class Matrix(Smoke):
     def __init__(self, evidence, scratch, harness, addresses):
         super().__init__(evidence, scratch, harness)
         self.addresses = e1_addresses(addresses)
-        self.address = self.addresses["192.0.2.1"]
+        self.engine_address = self.addresses["192.0.2.1"]
         self.broker = self.addresses["192.0.2.2"]
+        self.receiver_address = ""
         self.chaos_started = self.namespace_started = self.database_started = False
         self.live_chaos: set[str] = set()
         self.previous: dict[str, bytes] = {}
@@ -353,7 +389,7 @@ class Matrix(Smoke):
             "-subj",
             "/CN=dur053-hook",
             "-addext",
-            f"subjectAltName=IP:{self.address}",
+            e1_receiver_san(self.receiver_address),
             "-keyout",
             str(key),
             "-out",
@@ -399,7 +435,10 @@ class Matrix(Smoke):
             self.evidence.write(f"kafka-initial-{topic}.json", sample)
             expect("E1_FRESH_BROKER_TOPIC", broker_records(sample["value"], 8), [])
         objects = deployment_objects(
-            source, self.tags, f"https://{self.address}:{port}", self.address, port
+            source,
+            self.tags,
+            self.receiver_address,
+            port,
         )
         self.evidence.write("topology.json", objects)
         self.create("E1_NAMESPACE", obj("Namespace", NS, None))
@@ -423,7 +462,7 @@ class Matrix(Smoke):
             "E1_INFRASTRUCTURE", {"apiVersion": "v1", "kind": "List", "items": infrastructure}
         )
         for name, ip, service_port in (
-            ("postgres", self.address, 5432),
+            ("postgres", self.engine_address, 5432),
             ("kafka", self.broker, 19092),
         ):
             self.create(
@@ -1096,13 +1135,14 @@ def run(output: Path, harness, addresses: dict[str, str]) -> int:
         with evidence.step("a-locked-chaos-backend"):
             D2bMatrix.chaos(smoke)
         with evidence.step("b-private-engine-topology"):
+            smoke.receiver_address = e1_receiver_address(smoke.command, smoke.engine_address)
             tokens = {actor: secrets.token_hex(32) for actor in ACTORS}
             for token in tokens.values():
                 evidence.secret(token)
             cert, key = smoke.tls()
             smoke.receiver = Receiver(smoke.hook_log, tokens)
             stack.callback(smoke.receiver.file.close)
-            port = stack.enter_context(serve(smoke.receiver, smoke.address, cert, key))
+            port = stack.enter_context(serve(smoke.receiver, smoke.receiver_address, cert, key))
             smoke.setup(port, cert, tokens)
             streams = Streams(harness, NS, scratch / "streams")
             stack.callback(streams.close)

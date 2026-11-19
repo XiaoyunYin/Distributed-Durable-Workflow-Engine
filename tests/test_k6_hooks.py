@@ -36,6 +36,9 @@ from dur053_k6_e1_smoke import (  # noqa: E402
     E1Evidence,
     deployment_objects,
     e1_addresses,
+    e1_receiver_address,
+    e1_receiver_san,
+    e1_receiver_url,
     pushed_digest,
     workload,
 )
@@ -75,6 +78,31 @@ def test_e1_ignores_addresses_for_unused_keys():
     assert e1_addresses(
         {"192.0.2.1": "192.0.2.10", "192.0.2.2": "192.0.2.20", "unused": "not-an-ip"}
     ) == {"192.0.2.1": "192.0.2.10", "192.0.2.2": "192.0.2.20"}
+
+
+def test_e1_receiver_bind_and_certificate_use_kind_gateway_not_engine_db():
+    calls = []
+
+    def inspect(*args):
+        calls.append(args)
+        return b"172.18.0.1\n"
+
+    gateway = e1_receiver_address(inspect, "172.18.0.4")
+
+    assert gateway == "172.18.0.1"
+    assert gateway != "172.18.0.4"
+    assert calls == [
+        (
+            "E1_KIND_BRIDGE_GATEWAY",
+            "docker",
+            "inspect",
+            "--format",
+            '{{(index .NetworkSettings.Networks "kind").Gateway}}',
+            "dur053-k3a-control-plane",
+        )
+    ]
+    assert e1_receiver_san(gateway) == "subjectAltName=IP:172.18.0.1"
+    assert e1_receiver_url(gateway, 44321) == "https://172.18.0.1:44321"
 
 
 def test_e1_unexpected_error_is_diagnosable_and_fails_closed_on_credentials(tmp_path):
@@ -489,7 +517,6 @@ def test_e1_render_binds_only_the_five_hooks_to_tagged_roles():
     manifests = deployment_objects(
         base,
         {"runtime": "tagged-go", "worker": "tagged-python"},
-        "https://192.0.2.1:443",
         "192.0.2.1",
         443,
     )
@@ -499,13 +526,27 @@ def test_e1_render_binds_only_the_five_hooks_to_tagged_roles():
             continue
         name = item["metadata"]["name"]
         (container,) = item["spec"]["template"]["spec"]["containers"]
-        env = {row["name"] for row in container["env"]}
+        env = {row["name"]: row.get("value") for row in container["env"]}
         if "DUR053_K6_HOOK_URL" in env:
             hook_roles.add(name)
+            assert env["DUR053_K6_HOOK_URL"] == "https://192.0.2.1:443"
             assert container["image"] == ("tagged-python" if name == "worker" else "tagged-go")
         else:
             assert container["image"] not in {"tagged-go", "tagged-python"}
     assert hook_roles == set(ACTORS)
+    hook_policies = [
+        item
+        for item in manifests
+        if item["kind"] == "NetworkPolicy" and item["metadata"]["name"].startswith("e1-hook-")
+    ]
+    assert len(hook_policies) == len(ACTORS)
+    for item in hook_policies:
+        assert item["spec"]["egress"] == [
+            {
+                "to": [{"ipBlock": {"cidr": "192.0.2.1/32"}}],
+                "ports": [{"protocol": "TCP", "port": 443}],
+            }
+        ]
     assert set(CELLS) == {f"hook-{i}" for i in range(5)}
     assert all(workload(cell)[0]["initial_node_id"] == "pure.echo" for cell in CELLS)
 
