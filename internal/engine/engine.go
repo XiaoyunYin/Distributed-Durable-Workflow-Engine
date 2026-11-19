@@ -230,6 +230,8 @@ type Engine struct {
 	// BeforeResultConsumption observes a successful external receipt before
 	// ConsumeResult starts its fenced transaction.
 	BeforeResultConsumption func(state.ConsumeResultInput, state.Attempt) error
+	leaseTakeover           LeaseTakeoverHooks
+	schedulerContext        context.Context
 }
 
 type RunResult struct {
@@ -300,7 +302,14 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 	if ttl <= 0 {
 		ttl = time.Minute
 	}
-	lease, acquired, err := e.Store.AcquireLease(ctx, wf.PartitionID, ownerID, ttl)
+	var lease state.Lease
+	var acquired bool
+	var afterCommit func() (bool, error)
+	if e.leaseTakeover.Acquire != nil {
+		lease, acquired, afterCommit, err = e.leaseTakeover.Acquire(ctx, e.Store, wf, ownerID, ttl)
+	} else {
+		lease, acquired, err = e.Store.AcquireLease(ctx, wf.PartitionID, ownerID, ttl)
+	}
 	if err != nil {
 		return RunResult{}, err
 	}
@@ -334,6 +343,17 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 		defer releaseCancel()
 		_ = e.Store.ReleaseLease(releaseCtx, ref)
 	}()
+	if afterCommit != nil {
+		released, err := afterCommit()
+		if err != nil {
+			return RunResult{}, err
+		}
+		if released {
+			var cancel context.CancelFunc
+			ctx, cancel = context.WithTimeout(e.schedulerContext, schedulerIterationTimeout)
+			defer cancel()
+		}
+	}
 	if e.AfterLeaseAcquired != nil {
 		if err := e.AfterLeaseAcquired(ctx, lease); err != nil {
 			return RunResult{}, err
@@ -597,10 +617,17 @@ func (e *Engine) startActivity(ctx context.Context, wf state.Workflow, node stat
 		}
 		logicalKey, scope = op.LogicalKey, intent.GrantScopeHash
 	}
-	attempt, err := e.Store.CreateAttempt(ctx, state.AttemptInput{Lease: lease, WorkflowID: wf.WorkflowID,
+	input := state.AttemptInput{Lease: lease, WorkflowID: wf.WorkflowID,
 		NodeID: node.NodeID, Iteration: node.Iteration, ExpectedRevision: wf.Revision,
 		EffectClass: effectClass, LogicalEffectKey: logicalKey, GrantScopeHash: scope,
-		DispatchLease: e.AttemptLease, ActorID: actorID})
+		DispatchLease: e.AttemptLease, ActorID: actorID}
+	var attempt state.Attempt
+	var err error
+	if e.leaseTakeover.CreateAttempt != nil && e.ExternalActivities && effectClass == state.EffectPure {
+		attempt, err = e.leaseTakeover.CreateAttempt(ctx, e.schedulerContext, e.Store, input)
+	} else {
+		attempt, err = e.Store.CreateAttempt(ctx, input)
+	}
 	if err != nil {
 		return err
 	}

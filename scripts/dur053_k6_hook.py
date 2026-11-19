@@ -102,6 +102,7 @@ class Receiver:
         seconds: int,
         *,
         companion: bool = False,
+        share_primary_deadline: bool = False,
     ) -> dict:
         with self.lock:
             check(valid(episode) and valid(boundary) and 0 < seconds <= 60, "HOOK_ARM_SHAPE")
@@ -125,6 +126,14 @@ class Receiver:
             )
             arm_id = uuid4().hex
             until = now_ms() + seconds * 1000
+            if share_primary_deadline:
+                check(companion, "HOOK_SHARED_DEADLINE_COMPANION")
+                primary = self.arms[episode]
+                check(
+                    not self.expire(primary) and primary["state"] == "held",
+                    "HOOK_SHARED_DEADLINE_PRIMARY_NOT_HELD",
+                )
+                until = primary["until_ms"]
             ack = self.append(
                 "arm",
                 episode=episode,

@@ -5,6 +5,7 @@ package main
 import (
 	"crypto/sha256"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 
@@ -15,6 +16,9 @@ import (
 )
 
 func configureK6SchedulerHook(options *engine.ServeOptions) error {
+	if os.Getenv("DUR053_K6_LEASE_TAKEOVER_ROLE") != "" {
+		return configureK6LeaseTakeover(options)
+	}
 	client, err := k6hook.FromEnvironment("scheduler", strings.ReplaceAll(state.K4Session, "-", ""))
 	if err != nil || client == nil {
 		return err
