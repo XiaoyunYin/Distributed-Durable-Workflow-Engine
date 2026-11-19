@@ -97,6 +97,34 @@ class Hook:
         raise ValueError("K6_HOOK_EXPIRED")
 
 
+class Deployment:
+    def __init__(self) -> None:
+        self.hook = Hook()
+
+    def observe(self, boundary: str, fields: dict[str, str]) -> None:
+        objects = dict(fields)
+        workflow = objects.pop("workflow")
+        invocation = objects.pop("invocation", "")
+        if boundary != "activity_start":
+            objects["cell"] = {"attempt_claimed": "hook-2", "before_offset_ack": "hook-3"}[boundary]
+            self.hook.hit(
+                boundary,
+                {"key": workflow, "invocation": invocation, "objects": objects},
+            )
+        emit_observation(
+            "k6_deployed_worker "
+            + json.dumps(
+                {
+                    **self.hook.identity,
+                    **fields,
+                    "boundary": boundary,
+                    "at_ns": time.time_ns(),
+                },
+                separators=(",", ":"),
+            )
+        )
+
+
 class Adapter(EffectAdapter):
     @classmethod
     def factory(cls) -> Callable[[], EffectAdapter]:

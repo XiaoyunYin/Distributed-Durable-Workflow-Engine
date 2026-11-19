@@ -227,6 +227,9 @@ type Engine struct {
 	// AfterBoundary is a test-only crash injector. Returning an error models a
 	// process crash immediately after the named repository transaction commits.
 	AfterBoundary func(string) error
+	// BeforeResultConsumption observes a successful external receipt before
+	// ConsumeResult starts its fenced transaction.
+	BeforeResultConsumption func(state.ConsumeResultInput, state.Attempt) error
 }
 
 type RunResult struct {
@@ -681,11 +684,12 @@ func (e *Engine) executeAttempt(ctx context.Context, wf state.Workflow, node sta
 		return err
 	}
 	return e.consumeRecordedResult(ctx, wf.WorkflowID, node, claim.AttemptNumber, result.AttemptState,
-		result.RetryAfter, lease, actorID)
+		result.RetryAfter, lease, actorID, nil)
 }
 
 func (e *Engine) consumeRecordedResult(ctx context.Context, workflowID string, node state.NodeInstance,
-	attemptNumber int64, attemptState state.AttemptState, retryAfter time.Duration, lease state.LeaseRef, actorID string) error {
+	attemptNumber int64, attemptState state.AttemptState, retryAfter time.Duration, lease state.LeaseRef, actorID string,
+	external *state.Attempt) error {
 	wf, err := e.Store.GetWorkflow(ctx, workflowID)
 	if err != nil {
 		return err
@@ -698,6 +702,16 @@ func (e *Engine) consumeRecordedResult(ctx context.Context, workflowID string, n
 		consume.RetryAfter = &retryAfter
 	} else if attemptState == state.AttemptFailedFinal {
 		consume.NewWorkflowState = state.StateFailed
+	}
+	if external != nil && attemptState == state.AttemptSucceeded {
+		if err := e.boundary("result_recorded"); err != nil {
+			return err
+		}
+		if e.BeforeResultConsumption != nil {
+			if err := e.BeforeResultConsumption(consume, *external); err != nil {
+				return err
+			}
+		}
 	}
 	if _, err := e.Store.ConsumeResult(ctx, consume); err != nil {
 		return err
@@ -722,8 +736,12 @@ func (e *Engine) recoverActivity(ctx context.Context, wf state.Workflow, node st
 		return false, err
 	}
 	if !attempt.IsCurrent && terminalAttempt(attempt.State) && len(attempt.Result) > 0 {
+		var external *state.Attempt
+		if e.ExternalActivities {
+			external = &attempt
+		}
 		if err := e.consumeRecordedResult(ctx, wf.WorkflowID, node, attempt.AttemptNumber, attempt.State,
-			e.RetryBackoff, ref, actorID); err != nil {
+			e.RetryBackoff, ref, actorID, external); err != nil {
 			return false, err
 		}
 		return true, nil

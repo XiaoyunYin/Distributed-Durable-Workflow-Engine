@@ -27,7 +27,7 @@ from workers.k4_witness import campaign_enabled
 from workers.k6_effect import EffectAdapter, endpoint
 from workers.lifecycle import BoundedExecutor, WorkerLifecycle
 from workers.registry import K6_ACTIVITY, K6_VERSION, default_registry
-from workers.runner import ActivityRunner, ActivityTask
+from workers.runner import ActivityRunner, ActivityTask, DeploymentHook
 from workers.witness import campaign_witness
 
 LOG = logging.getLogger(__name__)
@@ -179,6 +179,7 @@ def handle_delivery(
     executor: BoundedExecutor | None = None,
     assignment: Assignment | None = None,
     effect_factory: Callable[[], EffectAdapter] | None = None,
+    deployment_hook: DeploymentHook | None = None,
 ) -> threading.Event | None:
     if lifecycle is not None and not lifecycle.can_start():
         return None
@@ -212,6 +213,21 @@ def handle_delivery(
     if assignment is not None and not assignment.current(message, generation):
         return None
     if response["commit_offset"]:
+        if deployment_hook is not None:
+            deployment_hook(
+                "before_offset_ack",
+                {
+                    "workflow": dict(message.headers or []).get("workflow-id", b"").decode(),
+                    "worker": worker_id,
+                    "consumer": GROUP,
+                    "event": delivery_body(message)["event_id"],
+                    "topic": message.topic,
+                    "partition": str(message.partition),
+                    "offset": str(message.offset),
+                    "next_offset": str(response["next_offset"]),
+                    "disposition": response["disposition"],
+                },
+            )
         consumer.commit(
             {
                 TopicPartition(message.topic, message.partition): OffsetAndMetadata(
@@ -250,7 +266,10 @@ def handle_delivery(
                     effect = effect_factory()
                 else:
                     effect = EffectAdapter.configured()
-            receipt = ActivityRunner(control, default_registry(), k6=effect).run_task(work)
+            runner = ActivityRunner(
+                control, default_registry(), k6=effect, deployment_hook=deployment_hook
+            )
+            receipt = runner.run_task(work)
             if witness := campaign_witness():
                 witness.trace(
                     "result_disposition",
@@ -331,16 +350,20 @@ def start_pool(
     slots: int = 4,
     lifecycle: WorkerLifecycle | None = None,
     effect_factory: Callable[[], EffectAdapter] | None = None,
+    deployment_hook: DeploymentHook | None = None,
 ) -> list[threading.Thread]:
     if slots < 1 or slots > 16:
         raise ValueError("WORKER_SLOTS must be between 1 and 16")
     if lifecycle is not None and not lifecycle.legacy:
         executor = BoundedExecutor(lifecycle, slots)
+        hooks: dict[str, Any] = {"effect_factory": effect_factory} if effect_factory else {}
+        if deployment_hook is not None:
+            hooks["deployment_hook"] = deployment_hook
         threads = [
             threading.Thread(
                 target=consume_slot,
                 args=(brokers, url, f"{worker_id}-{slot}", lifecycle, executor),
-                kwargs={"effect_factory": effect_factory} if effect_factory is not None else {},
+                kwargs=hooks,
                 name=f"kafka-slot-{slot}",
                 daemon=True,
             )
@@ -466,12 +489,15 @@ def consume_slot(
     lifecycle: WorkerLifecycle,
     executor: BoundedExecutor,
     effect_factory: Callable[[], EffectAdapter] | None = None,
+    deployment_hook: DeploymentHook | None = None,
 ) -> None:
     deliver = (
         partial(handle_delivery, effect_factory=effect_factory)
         if effect_factory is not None
         else handle_delivery
     )
+    if deployment_hook is not None:
+        deliver = partial(deliver, deployment_hook=deployment_hook)
     active: threading.Event | None = None
     while lifecycle.can_start():
         consumer = None

@@ -22,6 +22,7 @@ from workers.witness import campaign_witness, configured_witness
 
 if TYPE_CHECKING:
     from workers.k6_effect import EffectAdapter
+    from workers.runner import DeploymentHook
 
 
 class HealthHandler(BaseHTTPRequestHandler):
@@ -74,7 +75,11 @@ class HealthHandler(BaseHTTPRequestHandler):
         return
 
 
-def run(effect_factory: Callable[[], EffectAdapter] | None = None) -> None:
+def run(
+    effect_factory: Callable[[], EffectAdapter] | None = None,
+    *,
+    deployment_hook: DeploymentHook | None = None,
+) -> None:
     from faults.client import FailpointClient
 
     from workers.kafka_worker import start_pool
@@ -142,6 +147,8 @@ def run(effect_factory: Callable[[], EffectAdapter] | None = None) -> None:
             if effect_factory is not None
             else start_pool
         )
+        if deployment_hook is not None:
+            start = partial(start, deployment_hook=deployment_hook)
         threads = start(
             brokers,
             os.getenv("CONTROL_API_URL", "http://127.0.0.1:8080"),

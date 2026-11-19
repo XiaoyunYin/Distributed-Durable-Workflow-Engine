@@ -174,25 +174,26 @@ def hook_pod(item: dict, actor: str, address: str, workload: dict) -> None:
         set_env(container, DUR053_K6_HOOK_WORKLOAD=json_data(workload).decode())
 
 
-def kill_object(worker: dict, name: str) -> dict:
+def kill_object(worker: dict, name: str, namespace: str = NS) -> dict:
     return {
         "apiVersion": "chaos-mesh.org/v1alpha1",
         "kind": "PodChaos",
-        "metadata": {"namespace": NS, "name": name},
+        "metadata": {"namespace": namespace, "name": name},
         "spec": {
             "action": "container-kill",
             "mode": "one",
-            "selector": {"namespaces": [NS], "pods": {NS: [worker["pod"]]}},
+            "selector": {"namespaces": [namespace], "pods": {namespace: [worker["pod"]]}},
             "containerNames": [worker["container"]],
         },
     }
 
 
-def exact_chaos_ack(status: dict, target: dict) -> bool:
+def exact_chaos_ack(status: dict, target: dict, namespace: str = NS) -> bool:
     if not chaos_ack(status):
         return False
     selection = status["status"]["experiment"]["containerRecords"]
-    return [row.get("id") for row in selection] == [f"{NS}/{target['pod']}/{target['container']}"]
+    expected = f"{namespace}/{target['pod']}/{target['container']}"
+    return [row.get("id") for row in selection] == [expected]
 
 
 def worker_observations(records: list[dict], raw: list[dict]) -> list[dict]:
@@ -478,7 +479,19 @@ class Matrix(D2aMatrix):
         ).decode()
 
     def kill(self, cell: str, ack: dict, before: dict, worker: dict, streams: Streams) -> dict:
-        chaos = kill_object(worker, "d2b-" + cell)
+        return self.kill_container(cell, ack, worker, streams, "d2b")
+
+    def kill_container(
+        self,
+        cell: str,
+        ack: dict,
+        worker: dict,
+        streams: Streams,
+        prefix: str,
+        *,
+        before_inject=None,
+    ) -> dict:
+        chaos = kill_object(worker, prefix + "-" + cell, self.namespace)
         name = chaos["metadata"]["name"]
         self.evidence.write(name + "-manifest.json", chaos)
         self.k(
@@ -490,6 +503,8 @@ class Matrix(D2aMatrix):
             data=json_data(chaos),
             timeout=4,
         )
+        if before_inject is not None:
+            before_inject()
         issued = time.time_ns()
         self.receiver.note(cell, ack, "inject", target=worker, issued_ns=issued)
         self.live_chaos.add(name)
@@ -498,7 +513,7 @@ class Matrix(D2aMatrix):
         def backend_ack():
             current = self.get("podchaos", name)
             self.evidence.write(name + "-backend-status.json", current)
-            return current if exact_chaos_ack(current, worker) else None
+            return current if exact_chaos_ack(current, worker, self.namespace) else None
 
         backend = self.wait_for(backend_ack, "D2B_CHAOS_TARGET_ACK_MISSING", seconds=18)
         acknowledged = time.time_ns()
@@ -533,7 +548,7 @@ class Matrix(D2aMatrix):
         self.k(
             "D2B_KILL_REMOVE",
             "-n",
-            NS,
+            self.namespace,
             "delete",
             "podchaos",
             name,
@@ -546,7 +561,7 @@ class Matrix(D2aMatrix):
             not self.k(
                 "D2B_KILL_ABSENT",
                 "-n",
-                NS,
+                self.namespace,
                 "get",
                 "podchaos",
                 name,
@@ -556,7 +571,10 @@ class Matrix(D2aMatrix):
             ),
             "D2B_KILL_STILL_PRESENT",
         )
-        return {"death_ns": death_ns, "acknowledged_ns": acknowledged}
+        result = {"death_ns": death_ns, "acknowledged_ns": acknowledged}
+        if prefix != "d2b":
+            result.update(issued_ns=issued, death_observed_ns=int(death["received"] * 10**9))
+        return result
 
     def wait_replacement(self, before: dict, target: dict, death: dict) -> dict:
         def replacement():

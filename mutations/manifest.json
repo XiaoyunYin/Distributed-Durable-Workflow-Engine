@@ -15198,6 +15198,153 @@
       ],
       "expected": "D2B_CHAOS_IMAGE_MISMATCH",
       "requires_database": false
+    },
+    {
+      "id": "k6e1-ack-before-fsync",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_hook.py",
+      "old": "os.fsync(self.file.fileno())",
+      "new": "pass  # mutation: acknowledge without fsync",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_hooks.py::test_deployed_worker_cannot_commit_before_reach_fsync"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6e1-stale-session-reuse",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_hook.py",
+      "old": "check(target == self.targets.get(actor), \"HOOK_TARGET_STALE\")",
+      "new": "pass  # mutation: accept a previously registered session",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_hooks.py::test_stale_deployed_session_cannot_take_over_arm"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6e1-ordinary-go-enables",
+      "kind": "behavioral",
+      "file": "cmd/runtime/k6_hooks_default.go",
+      "old": "func configureK6SchedulerHook(*engine.ServeOptions) error { return nil }",
+      "new": "func configureK6SchedulerHook(options *engine.ServeOptions) error {\n\toptions.BeforeResultConsumption = func(state.ConsumeResultInput, state.Attempt) error { return nil }\n\treturn nil\n}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./cmd/runtime",
+        "-run",
+        "^TestOrdinaryRuntimeHasNoDeployedHooks$",
+        "-count=1"
+      ],
+      "expected": "ordinary runtime enabled the deployed scheduler hook",
+      "requires_database": false
+    },
+    {
+      "id": "k6e1-ordinary-python-enables",
+      "kind": "behavioral",
+      "file": "python/workers/kafka_worker.py",
+      "old": "    if response[\"commit_offset\"]:\n        if deployment_hook is not None:",
+      "new": "    if response[\"commit_offset\"]:\n        if deployment_hook is None and os.getenv(\"DUR053_K6_DEPLOYED_HOOKS\") == \"1\":\n            from dur053_k6_campaign.worker import Deployment\n            deployment_hook = Deployment().observe\n        if deployment_hook is not None:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_hooks.py::test_ordinary_worker_never_loads_deployed_hooks"
+      ],
+      "expected": "ordinary worker activated deployed hook",
+      "requires_database": false
+    },
+    {
+      "id": "k6e1-hook-0-broker-copy",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e1_join.py",
+      "old": "expect(\"E1_BEFORE_PUBLISH_BROKER_COPIES\", len(records), 0)",
+      "new": "pass  # mutation: accept mismatched broker copies",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_hooks.py::test_hook0_rejects_broker_copy_before_publish"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6e1-hook-1-broker-copy",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e1_join.py",
+      "old": "expect(\"E1_AFTER_ACK_BROKER_COPIES\", len(records), 1)",
+      "new": "pass  # mutation: accept mismatched broker copies",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_hooks.py::test_hook1_requires_independent_broker_copy_at_ack"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6e1-hook-2-claim-audit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e1_join.py",
+      "old": "claim = one(\"E1_WORKER_CONTROL_COMMIT_AUDIT\", db[\"claims\"])",
+      "new": "claim = attempt  # mutation: substitute the attempt for the commit audit",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_hooks.py::test_hook2_requires_worker_control_commit_audit"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6e1-hook-3-group-offset",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e1_join.py",
+      "old": "expect(\"E1_I7_HELD_KAFKA_COMMIT\", sample[\"next\"] if sample[\"next\"] != -1 else 0, offset)",
+      "new": "expect(\"E1_I7_HELD_KAFKA_COMMIT\", int(objects[\"offset\"]), offset)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_hooks.py::test_hook3_requires_sampled_broker_group_offset"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6e1-hook-4-kafka-receipt",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e1_join.py",
+      "old": "    one(\n        \"E1_DEPLOYED_KAFKA_RECEIPT\",\n        by(db[\"inbox\"], consumer_id=SCHEDULERS, event_id=event[\"event_id\"], disposition=\"ACCEPTED\"),\n    )",
+      "new": "    # mutation: trust the receipt without an accepted scheduler inbox record",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_hooks.py::test_hook4_requires_durable_kafka_receipt_before_consumption"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
     }
   ]
 }
