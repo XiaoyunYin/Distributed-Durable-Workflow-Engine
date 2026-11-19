@@ -139,10 +139,62 @@ class E2Evidence(E1Evidence):
     schema = "dur053.k6-phase-e2-smoke.v1"
 
 
-def deployment_objects(objects: list[dict], tags: dict, address: str, port: int) -> list[dict]:
-    result = json.loads(
-        json.dumps(e1_objects(objects, tags, address, port)).replace(E1_NAMESPACE, NS)
-    )
+def rewrite_namespace(objects: list[dict]) -> list[dict]:
+    # The inherited e1-hook-relay, e1-hook-worker and e1-hook-scheduler policy
+    # names are local identifiers. Service addresses use short names, and
+    # namespace selectors identify keda and kube-system.
+    for item in objects:
+        kind, metadata = item["kind"], item["metadata"]
+        if kind == "Namespace" and metadata["name"] == E1_NAMESPACE:
+            metadata["name"] = NS
+        if metadata.get("namespace") == E1_NAMESPACE:
+            metadata["namespace"] = NS
+        if kind == "ClusterRoleBinding":
+            for subject in item["subjects"]:
+                if subject.get("namespace") == E1_NAMESPACE:
+                    subject["namespace"] = NS
+    return objects
+
+
+def rendered_strings(value, path=()):
+    if isinstance(value, str):
+        yield path, value
+    elif isinstance(value, dict):
+        for key, child in value.items():
+            yield from rendered_strings(child, (*path, key))
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            yield from rendered_strings(child, (*path, index))
+
+
+def audit_topology(objects: list[dict], built_images: set[str]) -> None:
+    for item in objects:
+        kind = item["kind"]
+        location = f"{kind}/{item['metadata']['name']}"
+        image_paths = set()
+        if kind in {"Deployment", "Job"}:
+            pod = item["spec"]["template"]["spec"]
+            for group in ("containers", "initContainers"):
+                for index, container in enumerate(pod.get(group, [])):
+                    image = container.get("image")
+                    require(
+                        isinstance(image, str) and image in built_images,
+                        f"E2_IMAGE_NOT_BUILT {location}/{container['name']}",
+                    )
+                    # Verified image fields may use the inherited repositories
+                    # dur053-k6-e1-runtime and dur053-k6-e1-worker.
+                    image_paths.add(("spec", "template", "spec", group, index, "image"))
+        for path, value in rendered_strings(item):
+            require(
+                path in image_paths or E1_NAMESPACE not in value,
+                f"E2_NAMESPACE_UNREWRITTEN {location}/" + "/".join(map(str, path)),
+            )
+
+
+def deployment_objects(
+    objects: list[dict], tags: dict, ordinary_images: dict, address: str, port: int
+) -> list[dict]:
+    result = rewrite_namespace(e1_objects(objects, tags, address, port))
     for item in result:
         if item["kind"] in {"ClusterRole", "ClusterRoleBinding"}:
             item["metadata"]["name"] = TOKEN_REVIEW
@@ -175,7 +227,35 @@ def deployment_objects(objects: list[dict], tags: dict, address: str, port: int)
             set_env(container, RUNTIME_ROLES="scheduler")
     result.append(peer)
     ensure_no_e1_placeholders(result)
+    audit_topology(result, {*tags.values(), *ordinary_images.values()})
     return result
+
+
+def pod_state(pod: dict) -> dict:
+    status = pod.get("status", {})
+    containers = []
+    for group in ("containerStatuses", "initContainerStatuses"):
+        for container in status.get(group, []):
+            state = container.get("state", {})
+            containers.append(
+                {
+                    "name": container["name"],
+                    "image": container["image"],
+                    "restartCount": container["restartCount"],
+                    "waitingReason": state.get("waiting", {}).get("reason"),
+                    "terminatedReason": state.get("terminated", {}).get("reason"),
+                    "exitCode": state.get("terminated", {}).get("exitCode"),
+                }
+            )
+    return {
+        "name": pod["metadata"]["name"],
+        "phase": status.get("phase"),
+        "conditions": [
+            {"type": condition["type"], "status": condition["status"]}
+            for condition in status.get("conditions", [])
+        ],
+        "containers": containers,
+    }
 
 
 class LeaseTakeover(Matrix):
@@ -223,7 +303,9 @@ class LeaseTakeover(Matrix):
         renderer.scratch = renderer.output = self.scratch / "render"
         renderer.scratch.mkdir()
         _, source = renderer.render("kind", self.addresses)
-        objects = deployment_objects(source, self.tags, self.receiver_address, port)
+        objects = deployment_objects(
+            source, self.tags, self.harness.images, self.receiver_address, port
+        )
         self.evidence.write("topology.json", objects)
         renderer.reset_transport()
         for topic in (EVENTS, TASKS):
@@ -304,8 +386,13 @@ class LeaseTakeover(Matrix):
             },
         )
         for role in ROLES:
+            self.rollout(role)
+
+    def rollout(self, role: str) -> None:
+        stage = "E2_ROLLOUT_" + role.upper().replace("-", "_")
+        try:
             self.k(
-                "E2_ROLLOUT",
+                stage,
                 "-n",
                 NS,
                 "rollout",
@@ -314,6 +401,22 @@ class LeaseTakeover(Matrix):
                 "--timeout=180s",
                 timeout=190,
             )
+        except SmokeFailure as error:
+            reason = self.evidence.safe_reason(error)
+            if not reason.startswith(stage + "_"):
+                reason = f"{stage}_{reason}"
+            report = {"role": role, "reason": reason}
+            try:
+                report["pods"] = [pod_state(pod) for pod in self.deployment_pods(role)]
+            except SmokeFailure as listing_error:
+                report["pod_list_error"] = self.evidence.safe_reason(listing_error)
+            except (KeyError, TypeError, ValueError):
+                report["pod_list_error"] = "E2_PODS_OUTPUT_INVALID"
+            self.evidence.write("rollout-failure.json", report)
+            raise SmokeFailure(reason) from None
+
+    def deployment_pods(self, role: str) -> list[dict]:
+        return self.pods({"scheduler": PREDECESSOR, "scheduler-peer": SUCCESSOR}.get(role, role))
 
     def pods(self, role: str) -> list[dict]:
         selector = {
@@ -684,18 +787,24 @@ class LeaseTakeover(Matrix):
             return
         failures = {}
         for role in ROLES:
-            if role == "scheduler-peer":
-                continue  # Both scheduler pods have app=scheduler.
-            for pod in self.pods(role):
+            container = "scheduler" if role == "scheduler-peer" else role
+            for pod in self.deployment_pods(role):
                 name = pod["metadata"]["name"]
                 try:
-                    raw = self.role_log(name, role)
+                    raw = self.role_log(name, container)
                     self.evidence.write_bytes(f"{name}.log", raw)
-                    if any(c["restartCount"] for c in pod["status"].get("containerStatuses", [])):
-                        prior = self.role_log(name, role, previous=True)
+                    if any(
+                        c["restartCount"]
+                        for c in pod.get("status", {}).get("containerStatuses", [])
+                    ):
+                        prior = self.role_log(name, container, previous=True)
                         self.evidence.write_bytes(f"{name}-previous.log", prior)
                 except SmokeFailure as error:
                     failures[name] = self.evidence.safe_reason(error)
+                    self.evidence.write(
+                        f"{name}-log-failure.json",
+                        {"role": role, "reason": failures[name], "pod": pod_state(pod)},
+                    )
         expect("E2_ROLE_LOG_FAILURES", failures, {})
 
     def teardown(self, stack: ExitStack) -> None:

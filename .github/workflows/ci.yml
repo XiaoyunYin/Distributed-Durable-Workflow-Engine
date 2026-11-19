@@ -288,6 +288,27 @@ jobs:
         shell: pwsh
         run: ./scripts/bootstrap.ps1 -StartServices
 
+      - name: Run tagged K6 Go tests against PostgreSQL
+        shell: pwsh
+        env:
+          DURABLE_REQUIRE_DATABASE: '1'
+        run: |
+          $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
+          try {
+            docker compose @compose stop runtime-a runtime-b worker-a worker-b
+            if ($LASTEXITCODE -ne 0) { throw 'Could not isolate runtime/worker relays.' }
+
+            go test -p 1 -count=1 -v -tags dur053_k6 ./internal/faults ./internal/k6hook ./internal/k6ingress ./internal/state ./cmd/runtime |
+              Tee-Object -Variable taggedResults
+            if ($LASTEXITCODE -ne 0) { throw 'Tagged K6 Go tests failed.' }
+            if (-not ($taggedResults -cmatch '^--- PASS: TestK6LeaseTakeoverPinsIdleBackendAndFencesOriginalAttempt \(')) {
+              throw 'The tagged K6 lease takeover database test did not pass.'
+            }
+          } finally {
+            docker compose @compose up -d --wait runtime-a runtime-b worker-a worker-b
+            if ($LASTEXITCODE -ne 0) { throw 'Could not restore runtime/worker services.' }
+          }
+
       - name: Run service-backed checks and race tests
         shell: pwsh
         run: ./scripts/ci.ps1 -WithServices -WithRace

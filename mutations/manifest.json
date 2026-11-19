@@ -15523,6 +15523,22 @@
       "requires_database": false
     },
     {
+      "id": "k6e2-blanket-namespace-replace",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_e2_smoke.py",
+      "old": "result = rewrite_namespace(e1_objects(objects, tags, address, port))",
+      "new": "result = json.loads(json.dumps(e1_objects(objects, tags, address, port)).replace(E1_NAMESPACE, NS))",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_e2.py::test_render_preserves_pushed_image_refs"
+      ],
+      "expected": "E2_IMAGE_NOT_BUILT Deployment/scheduler/scheduler",
+      "requires_database": false
+    },
+    {
       "id": "k6e2-ordinary-go-enables",
       "kind": "behavioral",
       "file": "cmd/runtime/k6_hooks_default.go",

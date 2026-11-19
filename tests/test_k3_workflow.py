@@ -84,6 +84,7 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
         "Set up Python",
         "Set up uv",
         "Bootstrap the isolated service stack",
+        "Run tagged K6 Go tests against PostgreSQL",
         "Run service-backed checks and race tests",
         "Start isolated DUR-055 PostgreSQL and pgvector",
         "Validate DUR-055 PostgreSQL FTS and pgvector retrieval",
@@ -92,6 +93,14 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
         "Upload service diagnostics",
         "Tear down the isolated service stack",
     ]
+    tagged = services["Run tagged K6 Go tests against PostgreSQL"]
+    assert "shell: pwsh" in tagged
+    assert "DURABLE_REQUIRE_DATABASE: '1'" in tagged
+    assert (
+        "go test -p 1 -count=1 -v -tags dur053_k6 ./internal/faults ./internal/k6hook "
+        "./internal/k6ingress ./internal/state ./cmd/runtime" in tagged
+    )
+    assert r"^--- PASS: TestK6LeaseTakeoverPinsIdleBackendAndFencesOriginalAttempt \(" in tagged
     assert (
         "./scripts/ci.ps1 -WithServices -WithRace"
         in services["Run service-backed checks and race tests"]

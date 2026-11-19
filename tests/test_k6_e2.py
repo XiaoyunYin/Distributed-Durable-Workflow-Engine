@@ -37,14 +37,33 @@ def test_compile_every_deployed_observer_script():
     assert smoke.SUBMIT_TRACED is observers.SUBMIT_TRACED
 
 
-def test_render_two_schedulers_with_distinct_hook_identities_and_no_placeholders():
+@pytest.fixture
+def render_inputs():
     base = json.loads((ROOT / "deploy/k8s/base/resources.yaml").read_bytes())["items"]
     addresses = ("172.18.0.10", "172.18.0.20", "10.96.0.1", "172.18.0.2")
     raw = json.dumps(base)
     for index, address in enumerate(addresses, 1):
         raw = raw.replace(f"192.0.2.{index}/32", f"{address}/32")
-    tags = {"runtime": "tagged-go", "worker": "tagged-python"}
-    objects = smoke.deployment_objects(json.loads(raw), tags, "172.18.0.1", 443)
+    tags = {
+        "runtime": "localhost:5001/dur053-k6-e1-runtime@sha256:" + "a" * 64,
+        "worker": "localhost:5001/dur053-k6-e1-worker@sha256:" + "b" * 64,
+    }
+    ordinary = {
+        "runtime": "localhost:5001/dur053-runtime@sha256:" + "c" * 64,
+        "worker": "localhost:5001/dur053-worker@sha256:" + "d" * 64,
+    }
+    for name, image in ordinary.items():
+        raw = raw.replace(f"dur053/{name}:UNBOUND", image)
+    source = json.loads(raw)
+    for item in source:
+        if item["kind"] not in {"Namespace", "ClusterRole", "ClusterRoleBinding"}:
+            item["metadata"]["namespace"] = "dur053-kind"
+    return source, tags, ordinary
+
+
+def test_render_two_schedulers_with_distinct_hook_identities_and_no_placeholders(render_inputs):
+    source, tags, ordinary = render_inputs
+    objects = smoke.deployment_objects(source, tags, ordinary, "172.18.0.1", 443)
     schedulers = {
         item["metadata"]["name"]: item["spec"]
         for item in objects
@@ -66,8 +85,163 @@ def test_render_two_schedulers_with_distinct_hook_identities_and_no_placeholders
         assert env["DUR053_K6_LEASE_TAKEOVER_WORKFLOW"]["value"] == smoke.WORKFLOW
         assert env["DUR053_K6_HOOK_URL"]["value"] == "https://172.18.0.1:443"
         assert env["DUR053_K6_HOOK_TOKEN"]["valueFrom"]["secretKeyRef"]["name"] == f"hook-{role}"
+    base = json.loads((ROOT / "deploy/k8s/base/resources.yaml").read_bytes())["items"]
     with pytest.raises(SmokeFailure, match="E1_PLACEHOLDER_UNRESOLVED"):
-        smoke.deployment_objects(base, tags, "172.18.0.1", 443)
+        smoke.deployment_objects(base, tags, ordinary, "172.18.0.1", 443)
+
+
+def test_render_preserves_pushed_image_refs(render_inputs):
+    source, tags, ordinary = render_inputs
+    objects = smoke.deployment_objects(source, tags, ordinary, "172.18.0.1", 443)
+    deployments = {
+        item["metadata"]["name"]: item["spec"]["template"]["spec"]["containers"][0]["image"]
+        for item in objects
+        if item["kind"] == "Deployment"
+    }
+    assert deployments == {
+        "api": ordinary["runtime"],
+        "observer": ordinary["worker"],
+        "relay": tags["runtime"],
+        "scheduler": tags["runtime"],
+        "scheduler-peer": tags["runtime"],
+        "worker": tags["worker"],
+        "worker-control": ordinary["runtime"],
+    }
+    for item in objects:
+        kind, metadata = item["kind"], item["metadata"]
+        if kind == "Namespace":
+            assert metadata["name"] == smoke.NS
+        elif kind == "ClusterRoleBinding":
+            assert metadata["name"] == item["roleRef"]["name"] == smoke.TOKEN_REVIEW
+            assert {subject["name"]: subject["namespace"] for subject in item["subjects"]} == {
+                "api": smoke.NS,
+                "worker-control": smoke.NS,
+            }
+        elif kind != "ClusterRole":
+            assert metadata["namespace"] == smoke.NS
+
+
+@pytest.mark.parametrize("kind", ["Deployment", "Job"])
+@pytest.mark.parametrize("group", ["containers", "initContainers"])
+def test_image_audit_rejects_unbuilt_container(kind, group):
+    image = "localhost:5001/dur053-runtime@sha256:" + "a" * 64
+    wrong_repo = image.replace("dur053-runtime", "other-runtime")
+    item = {
+        "kind": kind,
+        "metadata": {"name": "sample"},
+        "spec": {"template": {"spec": {group: [{"name": "probe", "image": wrong_repo}]}}},
+    }
+    with pytest.raises(SmokeFailure, match=f"^E2_IMAGE_NOT_BUILT {kind}/sample/probe$"):
+        smoke.audit_topology([item], {image})
+
+
+def test_render_rejects_unrewritten_namespace_outside_verified_images(render_inputs):
+    source, tags, ordinary = render_inputs
+    api = next(
+        item for item in source if item["kind"] == "Service" and item["metadata"]["name"] == "api"
+    )
+    api["metadata"]["annotations"] = {"unexpected": f"api.{smoke.E1_NAMESPACE}.svc"}
+    with pytest.raises(
+        SmokeFailure, match="^E2_NAMESPACE_UNREWRITTEN Service/api/metadata/annotations/unexpected$"
+    ):
+        smoke.deployment_objects(source, tags, ordinary, "172.18.0.1", 443)
+
+
+def test_rollout_and_unreadable_logs_retain_sanitized_pod_state(tmp_path, monkeypatch):
+    evidence = smoke.E2Evidence(tmp_path)
+    evidence.secret("credential-in-free-text")
+    driver = smoke.LeaseTakeover.__new__(smoke.LeaseTakeover)
+    driver.evidence = evidence
+    driver.hook_log = tmp_path / "hook.jsonl"
+    driver.namespace_started = True
+    image = "localhost:5001/dur053-k6-e1-runtime@sha256:" + "a" * 64
+    pod = {
+        "metadata": {"name": "scheduler-sample"},
+        "status": {
+            "phase": "Pending",
+            "message": "credential-in-free-text",
+            "conditions": [
+                {"type": "Ready", "status": "False", "message": "credential-in-free-text"}
+            ],
+            "containerStatuses": [
+                {
+                    "name": "scheduler",
+                    "image": image,
+                    "restartCount": 0,
+                    "state": {
+                        "waiting": {
+                            "reason": "ImagePullBackOff",
+                            "message": "credential-in-free-text",
+                        }
+                    },
+                }
+            ],
+            "initContainerStatuses": [
+                {
+                    "name": "init",
+                    "image": image,
+                    "restartCount": 1,
+                    "state": {
+                        "terminated": {
+                            "reason": "Completed",
+                            "exitCode": 0,
+                            "message": "credential-in-free-text",
+                        }
+                    },
+                }
+            ],
+        },
+    }
+
+    def kubectl(stage, *args, **_kwargs):
+        if "rollout" in args:
+            assert args[4] == "deployment/scheduler"
+            raise SmokeFailure(f"{stage}_EXIT_1_WAIT_TIMEOUT")
+        if "logs" in args:
+            assert args[3:] == ("scheduler-sample", "-c", "scheduler")
+            raise SmokeFailure(f"{stage}_EXIT_1")
+        return encode({"items": [pod] if f"{smoke.ROLE_LABEL}=predecessor" in args else []})
+
+    monkeypatch.setattr(driver, "k", kubectl)
+    reason = "E2_ROLLOUT_SCHEDULER_EXIT_1_WAIT_TIMEOUT"
+    with pytest.raises(SmokeFailure, match=f"^{reason}$"):
+        driver.rollout("scheduler")
+    summary = {
+        "name": "scheduler-sample",
+        "phase": "Pending",
+        "conditions": [{"type": "Ready", "status": "False"}],
+        "containers": [
+            {
+                "name": "scheduler",
+                "image": image,
+                "restartCount": 0,
+                "waitingReason": "ImagePullBackOff",
+                "terminatedReason": None,
+                "exitCode": None,
+            },
+            {
+                "name": "init",
+                "image": image,
+                "restartCount": 1,
+                "waitingReason": None,
+                "terminatedReason": "Completed",
+                "exitCode": 0,
+            },
+        ],
+    }
+    assert json.loads((tmp_path / "rollout-failure.json").read_bytes()) == {
+        "role": "scheduler",
+        "reason": reason,
+        "pods": [summary],
+    }
+    with pytest.raises(SmokeFailure, match="^E2_ROLE_LOG_FAILURES"):
+        driver.diagnostics()
+    assert json.loads((tmp_path / "scheduler-sample-log-failure.json").read_bytes()) == {
+        "role": "scheduler",
+        "reason": "E2_ROLE_LOG_EXIT_1",
+        "pod": summary,
+    }
+    evidence.scan()
 
 
 @pytest.fixture
