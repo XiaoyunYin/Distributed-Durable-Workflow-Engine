@@ -31,7 +31,7 @@ from dur053_k6_chaos import (
     select_target,
 )
 from dur053_k6_d2b_smoke import Matrix as D2bMatrix
-from dur053_k6_d_render import mount, set_env
+from dur053_k6_d_render import set_env
 from dur053_k6_e1_join import EVENTS, TASKS, broker_records, by, expect, one
 from dur053_k6_e1_smoke import (
     DEFINITION,
@@ -46,15 +46,20 @@ from dur053_k6_e1_smoke import (
 from dur053_k6_e2_smoke import pod_state, rendered_strings
 from dur053_k6_f1a_inputs import (
     CONTROL_URL,
+    GATE_SECONDS,
     LEASE_KEY,
+    LEASE_MS,
+    RELEASE_MARKER,
     attempt_fields,
     chain_counters,
     claim_rows,
     first_fenced_transition,
     invocation_identity,
+    ns,
     partition_replacement,
     require_drop_rise,
     require_stale,
+    result_after_activity,
     route_rows,
     stale_candidate_failure,
     terminal_winner,
@@ -68,6 +73,9 @@ JsonObject = dict[str, Any]
 CELLS = ("medium-0", "medium-1", "medium-4")
 SOURCE_NAMESPACE = "dur053-kind"
 SCHEDULER_HOLD_MS = "4000"  # Below the scheduler's five-second iteration deadline.
+CONTROL_VOLUME = "f1a-control"
+CONTROL_DIRECTORY = str(Path(RELEASE_MARKER).parent.as_posix())
+RELEASE_ENV = "DUR053_F1A_RELEASE_MARKER"
 
 READ_SEALS = (
     OBSERVER_SCRIPT
@@ -133,15 +141,17 @@ import re
 from pathlib import Path
 
 def release():
-    invocation, = sys.argv[1:]
+    marker_path, invocation = sys.argv[1:]
     if invocation and not re.fullmatch(r"[0-9a-f-]{36}", invocation):
         fail("F1A_RELEASE_INVOCATION_INVALID")
-    suffix = "-" + invocation if invocation else ""
+    marker = Path(marker_path)
+    if invocation:
+        marker = marker.with_name(marker.name + "-" + invocation)
     try:
-        Path("/witness/f1a-release" + suffix).touch(exist_ok=False)
-    except OSError:
-        fail("F1A_RELEASE_MARKER_WRITE")
-    print(json.dumps({"released": True}))
+        marker.touch(exist_ok=False)
+    except OSError as error:
+        fail("F1A_RELEASE_MARKER_WRITE_ERRNO_" + str(error.errno))
+    print(json.dumps({"released": True, "marker": str(marker)}))
 
 run(release, "F1A_RELEASE_UNEXPECTED")
 """
@@ -189,6 +199,83 @@ def audit_topology(objects: list[JsonObject], pushed: set[str]) -> None:
                 )
 
 
+def audit_control_mounts(objects: list[JsonObject], namespace: str) -> None:
+    expected = {
+        ("worker", "containers", "worker", "witness", "/witness", False),
+        ("worker", "initContainers", "witness-directory", "witness", "/witness", False),
+        ("observer", "containers", "observer", "witness", "/witness", True),
+        ("worker", "containers", "worker", CONTROL_VOLUME, CONTROL_DIRECTORY, True),
+        ("observer", "containers", "observer", CONTROL_VOLUME, CONTROL_DIRECTORY, False),
+    }
+    claims = {}
+    observed = []
+    for item in objects:
+        kind, name = item["kind"], item["metadata"]["name"]
+        if kind == "PersistentVolumeClaim" and name in {"witness", CONTROL_VOLUME}:
+            expect("F1A_CONTROL_PVC_NAMESPACE", item["metadata"].get("namespace"), namespace)
+            require(name not in claims, f"F1A_CONTROL_PVC_DUPLICATE {name}")
+            claims[name] = item["spec"]
+        if kind == "Pod":
+            pod = item["spec"]
+        elif kind in {"Deployment", "Job", "ReplicaSet", "DaemonSet", "StatefulSet"}:
+            pod = item["spec"]["template"]["spec"]
+        elif kind == "CronJob":
+            pod = item["spec"]["jobTemplate"]["spec"]["template"]["spec"]
+        else:
+            continue
+        volumes = {volume["name"]: volume for volume in pod.get("volumes", [])}
+        for group in ("containers", "initContainers", "ephemeralContainers"):
+            for container in pod.get(group, []):
+                owner = (name, group, container["name"])
+                location = f"{kind}/{name}/{group}/{container['name']}"
+                mounted = container.get("volumeMounts", []) + container.get("volumeDevices", [])
+                for mount in mounted:
+                    path = mount.get("mountPath", mount.get("devicePath"))
+                    volume = volumes.get(mount["name"], {}).get("persistentVolumeClaim", {})
+                    claim = volume.get("claimName")
+                    restricted = ("/witness", CONTROL_DIRECTORY)
+                    if claim not in {"witness", CONTROL_VOLUME} and not (
+                        path
+                        and any(path == root or path.startswith(root + "/") for root in restricted)
+                    ):
+                        continue
+                    readonly = mount.get("readOnly", False)
+                    require(type(readonly) is bool, f"F1A_CONTROL_MOUNT_READONLY_FLAG {location}")
+                    if claim == "witness" and readonly is not True:
+                        require(
+                            kind == "Deployment" and name == "worker",
+                            f"F1A_WITNESS_WRITABLE_OUTSIDE_WORKER {location}",
+                        )
+                    require(
+                        claim != CONTROL_VOLUME
+                        or readonly is True
+                        or (
+                            kind == "Deployment" and owner == ("observer", "containers", "observer")
+                        ),
+                        f"F1A_CONTROL_WRITABLE_OUTSIDE_OBSERVER {location}",
+                    )
+                    require(
+                        kind == "Deployment"
+                        and "mountPath" in mount
+                        and not {"subPath", "subPathExpr", "mountPropagation"} & mount.keys()
+                        and not (volume.get("readOnly") and not readonly),
+                        f"F1A_CONTROL_MOUNT_SOURCE {location}/{path}",
+                    )
+                    observed.append((*owner, claim, path, readonly))
+                if kind == "Deployment" and owner == ("worker", "containers", "worker"):
+                    expect(
+                        "F1A_GATE_RELEASE_PATH_MISMATCH",
+                        by(container.get("env", []), name=RELEASE_ENV),
+                        [{"name": RELEASE_ENV, "value": RELEASE_MARKER}],
+                    )
+    expect("F1A_CONTROL_PVC_INVENTORY", sorted(claims), [CONTROL_VOLUME, "witness"])
+    require(
+        not any(spec.get("volumeName") for spec in claims.values()),
+        "F1A_CONTROL_PVC_MUST_BE_INDEPENDENT",
+    )
+    expect("F1A_CONTROL_MOUNT_INVENTORY", sorted(observed, key=str), sorted(expected, key=str))
+
+
 def deployment_objects(
     source: list[JsonObject],
     namespace: str,
@@ -205,6 +292,10 @@ def deployment_objects(
         if kind == "Deployment" and name not in ROLES:
             continue
         rewrite_namespace(item, namespace)
+        if kind == "PersistentVolumeClaim" and name == "witness":
+            control = copy.deepcopy(item)
+            control["metadata"]["name"] = CONTROL_VOLUME
+            result.append(control)
         if kind in {"ClusterRole", "ClusterRoleBinding"}:
             item["metadata"]["name"] = namespace + "-tokenreview"
         if kind == "ClusterRoleBinding":
@@ -235,17 +326,33 @@ def deployment_objects(
                     RUNTIME_NAMESPACE=namespace,
                     DUR053_K6_CHAOS_SMOKE="1",
                     WORKER_SLOTS="2",
+                    **{RELEASE_ENV: RELEASE_MARKER},
                 )
             if name == "scheduler":
                 deployment["replicas"] = 2
                 if scheduler_hold:
                     set_env(container, RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS=SCHEDULER_HOLD_MS)
             if name == "observer":
-                mount(
-                    pod, "witness", "/witness", {"persistentVolumeClaim": {"claimName": "witness"}}
+                pod["volumes"].append(
+                    {"name": "witness", "persistentVolumeClaim": {"claimName": "witness"}}
+                )
+                container["volumeMounts"].append(
+                    {"name": "witness", "mountPath": "/witness", "readOnly": True}
+                )
+            if name in {"observer", "worker"}:
+                pod["volumes"].append(
+                    {"name": CONTROL_VOLUME, "persistentVolumeClaim": {"claimName": CONTROL_VOLUME}}
+                )
+                container["volumeMounts"].append(
+                    {
+                        "name": CONTROL_VOLUME,
+                        "mountPath": CONTROL_DIRECTORY,
+                        "readOnly": name == "worker",
+                    }
                 )
         result.append(item)
     audit_topology(result, {*tags.values(), *ordinary.values()})
+    audit_control_mounts(result, namespace)
     return result
 
 
@@ -259,10 +366,6 @@ def failure_label(error: SmokeFailure) -> str:
 
 def ready(pod: JsonObject) -> bool:
     return bool(k4_ready(pod))  # type: ignore[no-untyped-call]
-
-
-def ns(timestamp: str) -> int:
-    return int(datetime.fromisoformat(timestamp).timestamp() * 1e9)
 
 
 class F1aSmoke(Matrix):
@@ -410,13 +513,17 @@ class F1aSmoke(Matrix):
         renderer.scratch = renderer.output = self.scratch / self.cell_id
         renderer.scratch.mkdir()
         _, source = renderer.render("kind", self.addresses)
-        objects = deployment_objects(
-            source,
-            self.namespace,
-            self.tags,
-            self.harness.images,
-            scheduler_hold=self.cell_id == "medium-1",
-        )
+        try:
+            objects = deployment_objects(
+                source,
+                self.namespace,
+                self.tags,
+                self.harness.images,
+                scheduler_hold=self.cell_id == "medium-1",
+            )
+        except SmokeFailure as error:
+            self.retain("render-failure", {"reason": self.evidence.safe_reason(error)})
+            raise
         self.retain("topology", objects)
         renderer.reset_transport()
         for topic in (EVENTS, TASKS):
@@ -557,27 +664,38 @@ class F1aSmoke(Matrix):
         return workflow, fingerprint
 
     def cut(self, workflow: str) -> JsonObject:
-        result = self.snapshot(workflow)
-        for entry in result["audit"]:
-            entry["observed_ns"] = ns(entry["finalized_at"])
+        try:
+            result = self.snapshot(workflow)
+        except (TypeError, ValueError):
+            raise SmokeFailure("F1A_ENGINE_CUT_INVALID_JSON") from None
+        try:
+            for entry in result["audit"]:
+                entry["observed_ns"] = ns(entry["finalized_at"])
+        except (KeyError, TypeError, ValueError):
+            self.retain("engine-audit-invalid", result)
+            raise SmokeFailure("F1A_ENGINE_AUDIT_FINALIZATION_INVALID") from None
         return result
 
     def witness(self) -> tuple[list[JsonObject], list[JsonObject]]:
         seals = self.exec_python("WITNESS", "deployment/observer", READ_SEALS)
         observed: list[JsonObject] = []
-        for bundle in seals:
-            seal = bundle["inventory"]
-            expect("F1A_WITNESS_COMPLETE", (seal["complete"], seal["errors"]), (True, 0))
-            observed.extend(
-                {
-                    **json.loads(line),
-                    "stream": key,
-                    "session": seal["session"],
-                    "pod_uid": seal["pod_uid"],
-                }
-                for key, rows in bundle["streams"].items()
-                for line in rows["data"].splitlines()
-            )
+        try:
+            for bundle in seals:
+                seal = bundle["inventory"]
+                expect("F1A_WITNESS_COMPLETE", (seal["complete"], seal["errors"]), (True, 0))
+                for key, rows in bundle["streams"].items():
+                    for line in rows["data"].splitlines():
+                        row = json.loads(line)
+                        scope = {field: seal[field] for field in ("pod_uid", "session")}
+                        if key == "trace":
+                            for field, value in scope.items():
+                                expect(f"F1A_WITNESS_ROW_{field.upper()}", row.get(field), value)
+                        observed.append({**row, **scope, "stream": key})
+        except (SmokeFailure, AttributeError, KeyError, TypeError, ValueError) as error:
+            self.retain("witness-invalid", seals)
+            if isinstance(error, SmokeFailure):
+                raise
+            raise SmokeFailure("F1A_WITNESS_ROW_SHAPE") from None
         return observed, seals
 
     def proc_start(self, node: str, pid: int) -> str | None:
@@ -938,32 +1056,112 @@ class F1aSmoke(Matrix):
         )
         expect("F1A_ROLE_LOG_FAILURES", list(failures), [])
 
+    def clear_namespace(self, namespace: str, timeout: int) -> None:
+        self.k(
+            "F1A_NAMESPACE_CLEANUP",
+            "delete",
+            "namespace",
+            namespace,
+            "--ignore-not-found",
+            f"--timeout={timeout}s",
+            timeout=timeout + 5,
+        )
+        expect(
+            "F1A_CLEANUP_NAMESPACE_STILL_PRESENT",
+            self.k(
+                "F1A_CLEANUP_NAMESPACE_READ",
+                "get",
+                "namespace",
+                namespace,
+                "--ignore-not-found",
+                "-o",
+                "name",
+                timeout=6,
+            )
+            .decode()
+            .split(),
+            [],
+        )
+
     def clear_episode(self) -> None:
-        with ExitStack() as cleanup:
-            if self.database_started:
-                cleanup.callback(self.harness.drop, self.database)
-            if self.namespace_started:
-                cleanup.callback(
-                    self.k,
-                    "F1A_RBAC_CLEANUP",
-                    "delete",
-                    f"clusterrole/{self.namespace}-tokenreview",
-                    f"clusterrolebinding/{self.namespace}-tokenreview",
+        journal: JsonObject = {"namespace": self.namespace, "database": self.database, "steps": []}
+        failures = []
+
+        def run_step(label: str, action: Callable[[], Any]) -> None:
+            entry: JsonObject = {"label": label, "started_ns": time.time_ns()}
+            try:
+                action()
+            except Exception as error:
+                failures.append(label)
+                entry["reason"] = self.evidence.safe_reason(error)
+            journal["steps"].append({**entry, "observed_ns": time.time_ns()})
+
+        def volumes() -> None:
+            def reclaimed() -> tuple[bool | None, JsonObject]:
+                entries = json.loads(
+                    self.k("F1A_CLEANUP_PV_READ", "get", "pv", "-o", "json", timeout=6)
+                )["items"]
+                remaining = [
+                    {
+                        "name": item["metadata"]["name"],
+                        "claim": claim,
+                        "phase": item["status"]["phase"],
+                    }
+                    for item in entries
+                    if (claim := item["spec"].get("claimRef", {})).get("namespace")
+                    == self.namespace
+                ]
+                journal["remaining_volumes"] = remaining
+                return (None if remaining else True), {
+                    "volumes": remaining,
+                    "candidates": [candidate(None, None, "F1A_CLEANUP_PV_STILL_BOUND")],
+                }
+
+            self.poll(reclaimed, "F1A_CLEANUP_PV_RECLAIM", time.monotonic() + 25)
+
+        def rbac() -> None:
+            refs = (
+                f"clusterrole/{self.namespace}-tokenreview",
+                f"clusterrolebinding/{self.namespace}-tokenreview",
+            )
+            self.k("F1A_RBAC_CLEANUP", "delete", *refs, "--ignore-not-found", timeout=10)
+            expect(
+                "F1A_CLEANUP_RBAC_STILL_PRESENT",
+                self.k(
+                    "F1A_CLEANUP_RBAC_READ",
+                    "get",
+                    *refs,
                     "--ignore-not-found",
+                    "-o",
+                    "name",
+                    timeout=6,
                 )
-                cleanup.callback(
-                    self.k,
-                    "F1A_NAMESPACE_CLEANUP",
-                    "delete",
-                    "namespace",
-                    self.namespace,
-                    "--ignore-not-found",
-                    "--timeout=90s",
-                    timeout=95,
-                )
+                .decode()
+                .split(),
+                [],
+            )
+
+        deadline = self.deadline
+        self.deadline = datetime.now(UTC) + timedelta(seconds=180)
+        try:
             if self.chaos_run is not None and self.chaos_run.possibly_created:
-                cleanup.callback(self.chaos_run.remove)
-        self.namespace_started = self.database_started = False
+                run_step("F1A_CLEANUP_CHAOS", self.chaos_run.remove)
+            if self.namespace_started:
+                run_step("F1A_CLEANUP_NAMESPACE", lambda: self.clear_namespace(self.namespace, 90))
+                if "F1A_CLEANUP_NAMESPACE" not in failures:
+                    self.namespace_started = False
+                    run_step("F1A_CLEANUP_PV_RECLAIM", volumes)
+                run_step("F1A_CLEANUP_RBAC", rbac)
+            if self.database_started:
+                run_step("F1A_CLEANUP_DATABASE", lambda: self.harness.drop(self.database))
+                if "F1A_CLEANUP_DATABASE" not in failures:
+                    self.database_started = False
+        finally:
+            self.deadline = deadline
+            self.retain("cleanup", journal)
+        require(
+            not failures, f"F1A_CLEANUP_FAILED {failures!r} evidence={self.cell_id}-cleanup.json"
+        )
 
     def cell_setup(self, cell: str) -> None:
         self.cell_id = cell
@@ -1345,13 +1543,26 @@ class F1aSmoke(Matrix):
         self.retain("partition-restored", restored)
         # Let only the original real ActivityRunner finish. Its own result
         # call carries the old token. The replacement remains held.
-        self.release_activity(active["invocation"]["invocation"])
-
-        rejected = self.wait_stale(target, active["attempt"], replacement_ns, restored["at_ns"])
+        waiting = active["invocation"]
+        marker = self.release_activity(waiting)
+        rejected = self.wait_stale(
+            target,
+            active["attempt"],
+            waiting["invocation"],
+            marker,
+            replacement_ns,
+            restored["at_ns"],
+        )
         return proof, absent_ns, rejected
 
     def wait_stale(
-        self, target: Target, attempt: JsonObject, replacement_ns: int, restored_ns: int
+        self,
+        target: Target,
+        attempt: JsonObject,
+        invocation: str,
+        marker: JsonObject,
+        replacement_ns: int,
+        restored_ns: int,
     ) -> JsonObject:
         order = {
             "token_hash": attempt["token_hash"],
@@ -1360,10 +1571,18 @@ class F1aSmoke(Matrix):
         }
 
         def stale() -> tuple[JsonObject | None, JsonObject]:
-            rows, seals = self.witness()
             failures = []
-            diagnostics = {"witness_rows": rows, "seals": seals, "candidates": failures, **order}
+            routes = []
+            diagnostics = {
+                "marker": marker,
+                "target": asdict(target),
+                "candidates": failures,
+                **order,
+            }
             try:
+                rows, seals = self.witness()
+                diagnostics.update(witness_rows=rows, seals=seals)
+                self.require_healthy_gates(rows)
                 routes = by(
                     route_rows(
                         rows, target, attempt["workflow_id"], attempt=attempt["attempt_number"]
@@ -1372,70 +1591,193 @@ class F1aSmoke(Matrix):
                     node=attempt["node_id"],
                     iteration=attempt["iteration"],
                 )
-            except SmokeFailure as error:
-                failures.append(
-                    candidate(attempt["attempt_number"], target.uid, failure_label(error))
-                )
-                return None, diagnostics
-            try:
                 proof = require_stale(routes, **order)
-            except SmokeFailure:
-                failures.extend(
-                    candidate(row["attempt_number"], row["pod_uid"], label)
-                    for row in routes
-                    if (label := stale_candidate_failure(row, **order))
+                started = one(
+                    "F1A_STALE_INVOCATION",
+                    by(
+                        rows,
+                        event="start",
+                        id=invocation,
+                        pod_uid=target.uid,
+                        session=target.session,
+                        identity=invocation_identity(attempt, self.namespace),
+                    ),
                 )
-                if not failures:
-                    failures.append(
-                        candidate(
-                            attempt["attempt_number"],
-                            target.uid,
-                            "F1A_CANDIDATE_STALE_RESULT_ROUTE_MISSING",
-                        )
+                completion = result_after_activity(rows, started, attempt, proof, marker)
+            except SmokeFailure as error:
+                label = failure_label(error)
+                if label == "F1A_TYPED_STALE_REJECTION":
+                    failures.extend(
+                        candidate(row["attempt_number"], row["pod_uid"], reason)
+                        for row in routes
+                        if (reason := stale_candidate_failure(row, **order))
                     )
+                    label = "F1A_CANDIDATE_STALE_RESULT_ROUTE_MISSING"
+                if not failures:
+                    failures.append(candidate(attempt["attempt_number"], target.uid, label))
                 return None, diagnostics
-            self.retain("stale-rejection", {"response": proof, "seals": seals, "routes": routes})
+            except (KeyError, TypeError, ValueError):
+                failures.append(
+                    candidate(attempt["attempt_number"], target.uid, "F1A_STALE_SAMPLE_SHAPE")
+                )
+                return None, diagnostics
+            self.retain(
+                "stale-rejection",
+                {
+                    "response": proof,
+                    "seals": seals,
+                    "routes": routes,
+                    "marker": marker,
+                    **completion,
+                },
+            )
             return proof, diagnostics
 
-        return self.poll(stale, "F1A_TYPED_STALE_REJECTION", time.monotonic() + 16)
+        return self.poll(stale, "F1A_TYPED_STALE_REJECTION", time.monotonic() + LEASE_MS / 1000)
 
-    def release_activity(self, invocation: str = "") -> None:
-        expect(
-            "F1A_RELEASE",
-            self.exec_python("RELEASE", "deployment/observer", RELEASE_ACTIVITY, invocation),
-            {"released": True},
-        )
+    def release_activity(
+        self, waiting: JsonObject | None = None, *, all_workers: bool = False
+    ) -> JsonObject:
+        invocation = waiting["invocation"] if waiting and not all_workers else ""
+        marker = RELEASE_MARKER + (f"-{invocation}" if invocation else "")
+        observation = {
+            "started_ns": time.time_ns(),
+            "marker": marker,
+            "waiting": waiting,
+            "claim_lease_ms": LEASE_MS,
+            "gate_seconds": GATE_SECONDS,
+        }
+        try:
+            if waiting is not None:
+                gate_start = waiting.get("gate_started_ns")
+                require(type(gate_start) is int, "F1A_RELEASE_GATE_START_MISSING")
+                observation["gate_remaining_ns"] = (
+                    gate_start + GATE_SECONDS * 10**9 - observation["started_ns"]
+                )
+                require(observation["gate_remaining_ns"] > 0, "F1A_RELEASE_AFTER_GATE_BOUND")
+            response = self.exec_python(
+                "RELEASE", "deployment/observer", RELEASE_ACTIVITY, RELEASE_MARKER, invocation
+            )
+            observation.update(response=response, observed_ns=time.time_ns())
+            expect("F1A_RELEASE_RECEIPT", response, {"released": True, "marker": marker})
+        except SmokeFailure as error:
+            observation["reason"] = self.evidence.safe_reason(error)
+            raise
+        finally:
+            self.retain("release-" + (invocation if invocation else "all"), observation)
+        return observation
 
-    def finish(self, workflow: str) -> tuple[JsonObject, JsonObject, list[JsonObject]]:
-        self.release_activity()
+    def require_healthy_gates(self, rows: list[JsonObject]) -> None:
+        for event, label in (
+            ("f1a_activity_control_missing", "F1A_ACTIVITY_CONTROL_MISSING"),
+            ("f1a_activity_control_unreadable", "F1A_ACTIVITY_CONTROL_UNREADABLE"),
+            ("f1a_activity_expired", "F1A_ACTIVITY_GATE_NEVER_EXPIRED"),
+        ):
+            failed = by(rows, event=event)
+            if failed:
+                self.retain("gate-failure", {"label": label, "rows": failed})
+                raise SmokeFailure(label)
+
+    def finish(
+        self, workflow: str, waiting: JsonObject | None = None
+    ) -> tuple[JsonObject, JsonObject, list[JsonObject]]:
+        marker = self.release_activity(waiting, all_workers=True)
 
         def terminal() -> tuple[tuple[JsonObject, JsonObject, list[JsonObject]] | None, JsonObject]:
-            cut = self.cut(workflow)
-            rows, seals = self.witness()
-            self.retain("terminal-cut", cut)
-            self.retain("terminal-witness", seals)
-            expect("F1A_ACTIVITY_GATE_NEVER_EXPIRED", by(rows, event="f1a_activity_expired"), [])
-            attempts = [r for r in cut["attempts"] if r["is_current"] or r["state"] == "SUCCEEDED"]
-            diagnostics = {"cut": cut, "witness_rows": rows, "seals": seals, "candidates": []}
+            diagnostics: JsonObject = {"marker": marker, "candidates": []}
             try:
+                cut = self.cut(workflow)
+                diagnostics["cut"] = cut
+                self.retain("terminal-cut", cut)
+                rows, seals = self.witness()
+                diagnostics.update(witness_rows=rows, seals=seals)
+                self.retain("terminal-witness", seals)
+                self.require_healthy_gates(rows)
+                expect("F1A_TERMINAL_WORKFLOW_ID", cut["workflow"].get("workflow_id"), workflow)
                 expect("F1A_TERMINAL_WORKFLOW_STATE", cut["workflow"]["state"], "SUCCEEDED")
-                winner = terminal_winner(cut, rows, self.pods("worker"), self.namespace)
-            except SmokeFailure as error:
-                for attempt in attempts or [{"attempt_number": None, "token_hash": None}]:
+                pods = self.pods("worker")
+                diagnostics["pods"] = [
+                    {
+                        **pod_state(p),
+                        "uid": p["metadata"]["uid"],
+                        "service_account": p["spec"].get("serviceAccountName"),
+                    }
+                    for p in pods
+                ]
+                winner = terminal_winner(cut, rows, pods, self.namespace, marker)
+            except (SmokeFailure, KeyError, TypeError, ValueError) as error:
+                label = (
+                    failure_label(error)
+                    if isinstance(error, SmokeFailure)
+                    else "F1A_TERMINAL_SAMPLE_SHAPE"
+                )
+                attempts = diagnostics.get("cut", {}).get("attempts", [])
+                for attempt in attempts if isinstance(attempts, list) else []:
+                    if not isinstance(attempt, dict) or not (
+                        attempt.get("is_current") or attempt.get("state") == "SUCCEEDED"
+                    ):
+                        continue
                     uids = {
                         r["pod_uid"]
-                        for r in rows
-                        if r.get("identity", {}).get("token_hash") == attempt["token_hash"]
-                        and r["event"] == "start"
+                        for r in diagnostics.get("witness_rows", [])
+                        if r.get("event") == "start"
+                        and r.get("identity", {}).get("token_hash") == attempt.get("token_hash")
                     }
                     diagnostics["candidates"].extend(
-                        candidate(attempt["attempt_number"], uid, failure_label(error))
+                        candidate(attempt.get("attempt_number"), uid, label)
                         for uid in sorted(uids) or [None]
                     )
+                if not diagnostics["candidates"]:
+                    diagnostics["candidates"].append(candidate(None, None, label))
                 return None, diagnostics
             return (cut, winner, seals), diagnostics
 
-        return self.poll(terminal, "F1A_TERMINAL", time.monotonic() + 60)
+        return self.poll(terminal, "F1A_TERMINAL", time.monotonic() + GATE_SECONDS)
+
+    def reconcile_scheduler(
+        self, before: JsonObject, final: JsonObject, issued_ns: int, target: Target
+    ) -> JsonObject:
+        report: JsonObject = {
+            "before": before,
+            "final": final,
+            "issued_ns": issued_ns,
+            "interrupted_target": asdict(target),
+        }
+        try:
+            pods = {p["metadata"]["uid"]: p for p in self.pods("scheduler") if ready(p)}
+            report["ready_pods"] = {uid: pod_state(p) for uid, p in pods.items()}
+            sessions = {
+                uid: {
+                    entry["session_id"] for entry in by(final["audit"], pod_uid=uid, kind="acquire")
+                }
+                for uid in pods
+            }
+            fenced = first_fenced_transition(before, final, issued_ns, target, sessions)
+            report["fenced"] = fenced
+            acquire = fenced["acquire"]
+            author = self.identity("scheduler", pods[acquire["pod_uid"]], acquire["session_id"])
+            report["author"] = asdict(author)
+            if author.uid == target.uid:
+                expect(
+                    "F1A_FENCED_SCHEDULER_RESTARTED_PROCESS",
+                    author.container_id != target.container_id
+                    and author.process != target.process
+                    and author.restart_count > target.restart_count,
+                    True,
+                )
+            author_logs = self.scheduler_acquisitions(author)
+            self.retain("fenced-scheduler-witness", author_logs)
+            author_log = self.scheduler_acquisition(author, acquire, author_logs)
+            expect("F1A_FENCED_SCHEDULER_PROCESS", author_log is not None, True)
+            bind(author, self.reobserve(author))
+            return {**fenced, "process": asdict(author), "acquisition_log": author_log}
+        except (SmokeFailure, KeyError, TypeError, ValueError) as error:
+            report["reason"] = self.evidence.safe_reason(error)
+            if isinstance(error, SmokeFailure):
+                raise
+            raise SmokeFailure("F1A_FENCED_RECONCILIATION_SHAPE") from None
+        finally:
+            self.retain("fenced-reconciliation", report)
 
     def exercise(self, row: JsonObject, coverage: JsonObject) -> JsonObject:
         self.retain(
@@ -1447,8 +1789,8 @@ class F1aSmoke(Matrix):
                     "submissions": 1,
                     "workload": "pure.echo/v1",
                     "gate": "sealed activity entry with heartbeat",
-                    "claim_and_heartbeat_lease_ms": 16000,
-                    "gate_bound_seconds": 60,
+                    "claim_and_heartbeat_lease_ms": LEASE_MS,
+                    "gate_bound_seconds": GATE_SECONDS,
                     "scheduler_acquire_hold_ms": int(SCHEDULER_HOLD_MS)
                     if self.cell_id == "medium-1"
                     else 0,
@@ -1553,7 +1895,10 @@ class F1aSmoke(Matrix):
             replacement = self.ready_replacement(target, before_uids, absent_ns)
             if replacement.role == "scheduler":
                 self.scheduler_reconnect(replacement, absent_ns)
-        final, winning, seals = self.finish(workflow)
+        final, winning, seals = self.finish(
+            workflow, active["invocation"] if target.role == "scheduler" else None
+        )
+        self.retain("terminal-winner", winning)
         winner = winning["attempt"]
         if target.role == "worker":
             expect(
@@ -1569,36 +1914,20 @@ class F1aSmoke(Matrix):
                 attempt_fields(winner),
                 attempt_fields(partition_proof["replacement"]),
             )
+            if partition_proof["replacement"]["token_hash"] is not None:
+                expect(
+                    "F1A_PARTITION_REPLACEMENT_WINNING_TOKEN",
+                    winner["token_hash"],
+                    partition_proof["replacement"]["token_hash"],
+                )
             expect(
                 "F1A_RESULT_AFTER_TYPED_REJECTION",
-                winning["result"]["at_ns"] > rejected["at_ns"],
+                winning["result"]["sent_ns"] > rejected["at_ns"],
                 True,
             )
         fenced = None
         if replacement is not None and replacement.role == "scheduler":
-            live = {p["metadata"]["uid"] for p in self.pods("scheduler") if ready(p)}
-            sessions = {
-                uid: {
-                    entry["session_id"] for entry in by(final["audit"], pod_uid=uid, kind="acquire")
-                }
-                for uid in live
-            }
-            fenced = first_fenced_transition(cut, final, chaos.issued_ns, target, sessions)
-            acquire = fenced["acquire"]
-            pod = one(
-                "F1A_FENCED_SCHEDULER_POD",
-                [
-                    p
-                    for p in self.pods("scheduler")
-                    if ready(p) and p["metadata"]["uid"] == acquire["pod_uid"]
-                ],
-            )
-            author = self.identity("scheduler", pod, acquire["session_id"])
-            author_logs = self.scheduler_acquisitions(author)
-            self.retain("fenced-scheduler-witness", author_logs)
-            author_log = self.scheduler_acquisition(author, acquire, author_logs)
-            expect("F1A_FENCED_SCHEDULER_PROCESS", author_log is not None, True)
-            fenced.update(process=asdict(author), acquisition_log=author_log)
+            fenced = self.reconcile_scheduler(cut, final, chaos.issued_ns, target)
         checker = {
             "workflow": workflow,
             "body_hash": fingerprint,
@@ -1616,9 +1945,16 @@ class F1aSmoke(Matrix):
             "engine_cut": final,
             "witness": seals,
         }
-        for topic in (EVENTS, TASKS):
-            self.retain("kafka-final-" + topic, self.kafka(topic))
         self.retain("checker-inputs", checker)
+        for topic in (EVENTS, TASKS):
+            try:
+                self.retain("kafka-final-" + topic, self.kafka(topic))
+            except (SmokeFailure, TypeError, ValueError) as error:
+                self.retain(
+                    "kafka-final-failure",
+                    {"topic": topic, "reason": self.evidence.safe_reason(error)},
+                )
+                raise SmokeFailure(f"F1A_FINAL_KAFKA_SAMPLE {topic}") from None
         return {
             "workflow": workflow,
             "registered": checker["registered"],
@@ -1724,19 +2060,12 @@ def run(output: Path, harness: Driver, addresses: dict[str, str]) -> int:
                     )
             if smoke is not None and smoke.chaos_started:
                 smoke.cell_id = "setup"
+                smoke.deadline = datetime.now(UTC) + timedelta(seconds=120)
                 for stage, operation in (
                     ("d-chaos-role-logs", lambda: smoke.collect_role_logs("chaos-mesh", ())),
                     (
                         "d-chaos-cleanup",
-                        lambda: smoke.k(
-                            "F1A_CHAOS_NAMESPACE_CLEANUP",
-                            "delete",
-                            "namespace",
-                            "chaos-mesh",
-                            "--ignore-not-found",
-                            "--timeout=50s",
-                            timeout=55,
-                        ),
+                        lambda: smoke.clear_namespace("chaos-mesh", 50),
                     ),
                 ):
                     try:

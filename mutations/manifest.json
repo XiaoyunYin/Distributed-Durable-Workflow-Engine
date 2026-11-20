@@ -15684,6 +15684,22 @@
       ],
       "expected": "F1A_BODY_ID_USED_AS_AUTHENTICATED_PRINCIPAL",
       "requires_database": false
+    },
+    {
+      "id": "k6f1a-observer-writable-witness",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1a_smoke.py",
+      "old": "{\"name\": \"witness\", \"mountPath\": \"/witness\", \"readOnly\": True}",
+      "new": "{\"name\": \"witness\", \"mountPath\": \"/witness\", \"readOnly\": False}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_chaos.py::test_render_observer_witness_stays_read_only"
+      ],
+      "expected": "F1A_OBSERVER_WITNESS_WRITABLE",
+      "requires_database": false
     }
   ]
 }

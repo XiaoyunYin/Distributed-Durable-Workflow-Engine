@@ -82,14 +82,30 @@ def activity_gate(boundary: str, fields: dict[str, str]) -> None:
     witness = campaign_witness()
     if witness is None:
         raise ValueError("F1A_WORKER_WITNESS_REQUIRED")
+    started_ns = time.time_ns()
     deadline = time.monotonic() + GATE_SECONDS
-    release = Path("/witness") / "f1a-release"
-    invocation_release = release.with_name(f"f1a-release-{fields['invocation']}")
-    while time.monotonic() < deadline:
-        if release.is_file() or invocation_release.is_file():
-            witness.trace("f1a_activity_release", {**fields, "at_ns": time.time_ns()})
-            return
-        witness.trace("f1a_activity_wait", {**fields, "at_ns": time.time_ns()})
-        time.sleep(0.5)
-    witness.trace("f1a_activity_expired", {**fields, "at_ns": time.time_ns()})
+    trace: dict[str, str | int] = {**fields, "gate_started_ns": started_ns}
+    release = Path(os.environ.get("DUR053_F1A_RELEASE_MARKER", ""))
+    try:
+        if not release.name or not release.is_absolute() or not release.parent.is_dir():
+            witness.trace("f1a_activity_control_missing", {**trace, "at_ns": time.time_ns()})
+            raise ValueError("F1A_ACTIVITY_CONTROL_MISSING")
+        invocation_release = release.with_name(f"{release.name}-{fields['invocation']}")
+        while time.monotonic() < deadline:
+            for marker in (invocation_release, release):
+                if marker.is_file():
+                    witness.trace(
+                        "f1a_activity_release",
+                        {**trace, "marker": str(marker), "at_ns": time.time_ns()},
+                    )
+                    return
+            witness.trace("f1a_activity_wait", {**trace, "at_ns": time.time_ns()})
+            time.sleep(0.5)
+    except OSError as error:
+        witness.trace(
+            "f1a_activity_control_unreadable",
+            {**trace, "at_ns": time.time_ns(), "errno": error.errno},
+        )
+        raise ValueError("F1A_ACTIVITY_CONTROL_UNREADABLE") from None
+    witness.trace("f1a_activity_expired", {**trace, "at_ns": time.time_ns()})
     raise TimeoutError("F1A_ACTIVITY_GATE_EXPIRED")

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from datetime import datetime
 from typing import Any
 
 from dur053_k6_b_evidence import SmokeFailure
@@ -11,8 +12,16 @@ from dur053_k6_chaos import Target
 from dur053_k6_e1_join import by, expect, one
 
 CONTROL_URL = "http://worker-control:8080"
+RELEASE_MARKER = "/f1a-control/f1a-release"
+LEASE_MS = 16_000
+GATE_SECONDS = 60
 ATTEMPT_KEY = ("workflow_id", "node_id", "iteration", "attempt_number")
 LEASE_KEY = ("partition_id", "owner_id", "epoch")
+
+
+def ns(timestamp: str) -> int:
+    parsed = datetime.fromisoformat(timestamp)
+    return int(parsed.timestamp()) * 10**9 + parsed.microsecond * 1000
 
 
 def worker_principal(pod: dict[str, Any]) -> str:
@@ -49,8 +58,59 @@ def invocation_identity(attempt: dict[str, Any], namespace: str) -> dict[str, An
     }
 
 
+def result_after_activity(
+    rows: list[dict[str, Any]],
+    started: dict[str, Any],
+    attempt: dict[str, Any],
+    result: dict[str, Any],
+    marker: dict[str, Any],
+) -> dict[str, Any]:
+    scope = {key: started[key] for key in ("session", "pod_uid")}
+    finished = one(
+        "F1A_WINNING_ACTIVITY_FINISHED",
+        by(rows, event="finish", id=started["id"], identity=started["identity"], **scope),
+    )
+    release = one(
+        "F1A_ACTIVITY_RELEASE_OBSERVATION",
+        by(rows, event="f1a_activity_release", invocation=started["id"], **scope),
+    )
+    identity = started["identity"]
+    expect(
+        "F1A_ACTIVITY_RELEASE_IDENTITY",
+        [
+            release[key]
+            for key in ("workflow", "node", "iteration", "attempt", "token_hash", "request")
+        ],
+        [
+            identity["workflow"],
+            identity["node"],
+            str(identity["iteration"]),
+            str(identity["attempt"]),
+            identity["token_hash"],
+            attempt["worker_request_id"],
+        ],
+    )
+    expect("F1A_ACTIVITY_RELEASE_MARKER", release["marker"], marker["marker"])
+    expect(
+        "F1A_ACTIVITY_RELEASE_GATE_BOUND",
+        0 <= release["at_ns"] - release["gate_started_ns"] < GATE_SECONDS * 10**9,
+        True,
+    )
+    expect(
+        "F1A_ACTIVITY_RELEASE_RESULT_ORDER",
+        marker["started_ns"] <= release["at_ns"] <= result["sent_ns"] <= result["at_ns"]
+        and started["at"] <= release["at"] <= finished["at"] <= result["at"],
+        True,
+    )
+    return {"release": release, "finish": finished}
+
+
 def terminal_winner(
-    cut: dict[str, Any], rows: list[dict[str, Any]], pods: list[dict[str, Any]], namespace: str
+    cut: dict[str, Any],
+    rows: list[dict[str, Any]],
+    pods: list[dict[str, Any]],
+    namespace: str,
+    marker: dict[str, Any],
 ) -> dict[str, Any]:
     winner = one("F1A_WINNING_ATTEMPT", by(cut["attempts"], is_current=False, state="SUCCEEDED"))
     started = one(
@@ -64,15 +124,10 @@ def terminal_winner(
     expect("F1A_WINNING_WORKER_PRINCIPAL", winner["worker_id"], principal)
     claim = one("F1A_WINNING_CLAIM", claim_rows(cut, winner, principal))
     scope = {key: started[key] for key in ("session", "pod_uid")}
-    one(
-        "F1A_WINNING_ACTIVITY_FINISHED",
-        by(rows, event="finish", id=started["id"], identity=started["identity"], **scope),
-    )
     identity = started["identity"]
-    results = by(
+    routes = by(
         rows,
         event="f1a_http",
-        operation="result",
         workflow=identity["workflow"],
         node=identity["node"],
         iteration=identity["iteration"],
@@ -81,6 +136,8 @@ def terminal_winner(
         status=200,
         **scope,
     )
+    claimed = one("F1A_WINNING_CLAIM_RESPONSE", by(routes, operation="claim"))
+    results = by(routes, operation="result")
     expected_path = (
         f"/v1/workflows/{identity['workflow']}/nodes/{identity['node']}"
         f"/iterations/{identity['iteration']}/result"
@@ -94,7 +151,39 @@ def terminal_winner(
         ),
         True,
     )
-    return {"attempt": winner, "claim": claim, "invocation": started, "result": results[0]}
+    expect(
+        "F1A_WINNING_CLAIM_ROUTE",
+        (claimed["base_url"], claimed["path"], claimed["container_id"]),
+        (CONTROL_URL, expected_path.removesuffix("result") + "claim", started["pod_uid"]),
+    )
+    for result in results:
+        expect("F1A_WINNING_RESULT_PROCESS", result["process"], claimed["process"])
+        expect("F1A_WINNING_RESULT_POD_HINT", result["container_id"], started["pod_uid"])
+    result = min(results, key=lambda row: row["at_ns"])
+    completion = result_after_activity(rows, started, winner, result, marker)
+    recorded = one(
+        "F1A_WINNING_RESULT_COMMIT",
+        by(
+            cut["history"],
+            **attempt_fields(winner),
+            reason="ATTEMPT_RESULT_RECORDED",
+            actor_kind="worker",
+            actor_id=principal,
+        ),
+    )
+    expect(
+        "F1A_WINNING_RESULT_WITHIN_LEASE",
+        ns(recorded["created_at"]) <= ns(winner["heartbeat_deadline"]),
+        True,
+    )
+    return {
+        "attempt": winner,
+        "claim": claim,
+        "invocation": started,
+        "result": result,
+        "result_history": recorded,
+        **completion,
+    }
 
 
 def partition_replacement(cut: dict[str, Any], attempt: dict[str, Any]) -> dict[str, Any]:
@@ -120,6 +209,11 @@ def partition_replacement(cut: dict[str, Any], attempt: dict[str, Any]) -> dict[
     history = one(
         "F1A_REPLACEMENT_COMMITTED_HISTORY",
         by(cut["history"], reason="TIMEOUT_REPLACEMENT", **key),
+    )
+    expect(
+        "F1A_REPLACEMENT_AFTER_OLD_LEASE",
+        ns(history["created_at"]) >= ns(old["heartbeat_deadline"]),
+        True,
     )
     return {"replacement": replacement, "old": old, "replacement_history": history}
 
@@ -239,6 +333,8 @@ def first_fenced_transition(
     expect("F1A_FENCED_TRANSITION_MISSING", bool(history), True)
     first = min(history, key=lambda row: row["event_order"])
     transition = workflow_transitions[first["transition_id"]]
+    expect("F1A_RECOVERY_HISTORY_ACTOR", transition["actor_kind"], "scheduler")
+    expect("F1A_RECOVERY_PARTITION", first["partition_id"], after["workflow"]["partition_id"])
     expect("F1A_RECOVERY_HISTORY_EPOCH", transition["scheduler_epoch"], first["epoch"])
     expect("F1A_RECOVERY_SESSION", first["session_id"] != target.session, True)
     expect(

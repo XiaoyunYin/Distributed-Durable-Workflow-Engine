@@ -5,6 +5,7 @@ import hashlib
 import json
 import sys
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -26,6 +27,7 @@ from dur053_k6_chaos import (  # noqa: E402
 )
 from dur053_k6_f1a_inputs import (  # noqa: E402
     CONTROL_URL,
+    RELEASE_MARKER,
     chain_counters,
     first_fenced_transition,
     partition_replacement,
@@ -40,6 +42,7 @@ from dur053_k6_f1a_smoke import (  # noqa: E402
     READ_SEALS,
     RELEASE_ACTIVITY,
     SUBMIT_TRACED,
+    audit_control_mounts,
     audit_topology,
     deployment_objects,
 )
@@ -580,6 +583,13 @@ def role_log(log):
     ).encode()
 
 
+def run_44647473830(cell):
+    # Selected pre-release rows from the hosted run. Tests extend them with the
+    # shapes emitted by ActivityRunner, the HTTP tracer and transition_history.
+    source = ROOT / "tests/fixtures/k6_f1a_hosted.json"
+    return json.loads(source.read_bytes())[cell]
+
+
 def test_scheduler_selection_and_confirmation_join_hosted_role_log(tmp_path, monkeypatch):
     target, cut, log = hosted_scheduler()
     smoke = offline_smoke(tmp_path, monkeypatch, target, cut, [])
@@ -599,21 +609,9 @@ def test_scheduler_selection_and_confirmation_join_hosted_role_log(tmp_path, mon
 
 
 def test_first_fenced_transition_joins_the_committed_lease():
-    author, cut, _ = hosted_scheduler()
-    killed = replace(author, session="old-session", container_id="containerd://old-container")
-    acquisition = cut["audit"][0]
-    issued_ns = acquisition["observed_ns"] - 100
-    transition_id = "61af2dfc-9a2a-4467-aa48-44d09103eda4"
-    transition = {
-        **acquisition,
-        "kind": "history",
-        "event_order": 23,
-        "transition_id": transition_id,
-        "observed_ns": issued_ns + 200,
-    }
-    history = [{"transition_id": transition_id, "scheduler_epoch": 1, "workflow_id": "e1-medium-1"}]
-    earlier_acquisition = {**acquisition, "event_order": 20}
-    after = {"audit": [earlier_acquisition, acquisition, transition], "history": history}
+    killed, author, cut, after, issued_ns, _ = fenced_rows()
+    acquisition = after["audit"][-2]
+    transition = after["audit"][-1]
     live = {author.uid: {author.session}}
     assert first_fenced_transition(cut, after, issued_ns, killed, live) == {
         "acquire": acquisition,
@@ -624,6 +622,74 @@ def test_first_fenced_transition_joins_the_committed_lease():
         first_fenced_transition(
             cut, {**after, "audit": [wrong_pod, transition]}, issued_ns, killed, live
         )
+
+
+def fenced_rows():
+    fixture = run_44647473830("medium-1")
+    killed = Target(**fixture["target"])
+    author = replace(Target(**fixture["replacement_target"]), session="restarted-scheduler")
+    before = fixture["before"]
+    issued_ns = fixture["removed"]["issued_ns"]
+    sample = before["audit"][-1]
+    acquisition = {
+        **sample,
+        "owner_id": "new-lease-owner",
+        "session_id": author.session,
+        "epoch": sample["epoch"] + 1,
+        "event_order": sample["event_order"] + 1,
+        "at": "2026-11-20T01:11:00.000001+00:00",
+        "finalized_at": "2026-11-20T01:11:00.000002+00:00",
+        "observed_ns": f1a.ns("2026-11-20T01:11:00.000002+00:00"),
+        "transaction_id": "12252",
+    }
+    transition_id = "61af2dfc-9a2a-4467-aa48-44d09103eda4"
+    transition = {
+        **acquisition,
+        "kind": "history",
+        "event_order": acquisition["event_order"] + 1,
+        "transition_id": transition_id,
+        "observed_ns": acquisition["observed_ns"] + 5 * 10**9,
+        "transaction_id": "12253",
+    }
+    history = {
+        **fixture["history"],
+        "transition_id": transition_id,
+        "reason": "RESULT_CONSUMED",
+        "scheduler_epoch": acquisition["epoch"],
+        "revision": 5,
+    }
+    after = {
+        **before,
+        "history": [*before["history"], history],
+        "audit": [*before["audit"], acquisition, transition],
+    }
+    log = {
+        **fixture["scheduler_log"],
+        "session": author.session,
+        "owner": acquisition["owner_id"],
+        "epoch": acquisition["epoch"],
+        "timestamp": "2026-11-20T01:11:00.023574896Z",
+    }
+    return killed, author, before, after, issued_ns, log
+
+
+def test_scheduler_reconciliation_retains_restarted_container_and_wrong_session(
+    tmp_path, monkeypatch
+):
+    killed, author, before, after, issued_ns, log = fenced_rows()
+    smoke = offline_smoke(tmp_path, monkeypatch, author, after, [])
+    smoke.role_log = lambda *_: role_log(log)
+    smoke.reobserve = lambda t: t
+    proof = smoke.reconcile_scheduler(before, after, issued_ns, killed)
+    assert proof["process"]["uid"] == killed.uid
+    assert proof["process"]["container_id"] != killed.container_id
+    assert proof["acquisition_log"] == log
+    log["session"] = killed.session
+    with pytest.raises(SmokeFailure, match="F1A_FENCED_SCHEDULER_PROCESS"):
+        smoke.reconcile_scheduler(before, after, issued_ns, killed)
+    report = json.loads((tmp_path / "medium-1-fenced-reconciliation.json").read_bytes())
+    assert report["final"] == after
+    assert report["reason"].startswith("F1A_FENCED_SCHEDULER_PROCESS")
 
 
 def test_backend_records_use_hosted_pod_names_and_container_name():
@@ -658,57 +724,168 @@ def test_backend_records_use_hosted_pod_names_and_container_name():
             backend_selected(obj, target, names)
 
 
+def result_witness(fixture, marker, *, status=200, code="OK"):
+    wait = fixture["wait"]
+    started = {
+        **fixture["start"],
+        "pod_uid": wait["pod_uid"],
+        "session": wait["session"],
+        "stream": "invocations",
+    }
+    released = {
+        **wait,
+        "event": "f1a_activity_release",
+        "marker": marker["marker"],
+        "gate_started_ns": fixture["claim_response"]["at_ns"] + 10**6,
+        "at_ns": marker["started_ns"] + 10**6,
+        "at": wait["at"] + 10,
+    }
+    finished = {**started, "event": "finish", "at": released["at"] + 0.001}
+    result = {
+        **fixture["claim_response"],
+        "operation": "result",
+        "status": status,
+        "code": code,
+        "path": fixture["claim_response"]["path"].removesuffix("claim") + "result",
+        "sent_ns": released["at_ns"] + 10**6,
+        "at_ns": released["at_ns"] + 2 * 10**6,
+        "at": released["at"] + 0.002,
+    }
+    return [started, wait, fixture["claim_response"], released, finished, result]
+
+
+def terminal_fixture(cell):
+    fixture = run_44647473830(cell)
+    worker = fixture["wait"]
+    target = replace(
+        TARGET,
+        namespace=fixture["attempt"]["worker_id"].split(":")[2],
+        pod=worker["worker"].rsplit("-", 1)[0],
+        uid=worker["pod_uid"],
+        session=worker["session"],
+    )
+    # The old medium-0 pod is gone. Use the replacement UID and a future claim
+    # with the same worker/worker-control split seen in all three claim rows.
+    now_ns = fixture["recovery_ns"]
+    if cell == "medium-0":
+        target = replace(Target(**fixture["replacement_target"]), session="replacement-session")
+        now_ns = f1a.ns(fixture["attempt"]["heartbeat_deadline"]) + 3 * 10**9
+    marker = {"started_ns": now_ns, "marker": RELEASE_MARKER}
+    rows = result_witness(fixture, marker)
+    attempt = {
+        **fixture["attempt"],
+        "state": "SUCCEEDED",
+        "is_current": False,
+        "result": {"echo": "fixture"},
+        "outcome_disposition": "KNOWN_SUCCESS",
+    }
+    claim = fixture["claim"]
+    if cell == "medium-0":
+        request = f"{target.pod}-0:replacement-request"
+        token_hash = "a1" * 32
+        principal = (
+            f"system:serviceaccount:{target.namespace}:worker:pod:{target.pod}:uid:{target.uid}"
+        )
+        keys = {
+            "worker_id": principal,
+            "worker_request_id": request,
+            "attempt_number": 2,
+            "token_hash": token_hash,
+        }
+        attempt.update(**keys, heartbeat_deadline="2026-11-20T01:09:50.000000+00:00")
+        claim.update(keys)
+        for row in rows:
+            row.update(pod_uid=target.uid, session=target.session)
+            if row["stream"] == "invocations":
+                row["identity"] = {**row["identity"], "attempt": 2, "token_hash": token_hash}
+            else:
+                row.update(container_id=target.uid, token_hash=token_hash)
+                if row["event"] == "f1a_http":
+                    row.update(attempt_number=2, process=target.process)
+                else:
+                    row.update(attempt="2", request=request, worker=target.pod + "-0")
+        rows[3]["gate_started_ns"] = now_ns - 10**6
+    history = {
+        **fixture["history"],
+        "attempt_number": attempt["attempt_number"],
+        "actor_kind": "worker",
+        "actor_id": attempt["worker_id"],
+        "scheduler_epoch": None,
+        "reason": "ATTEMPT_RESULT_RECORDED",
+        "created_at": datetime.fromtimestamp((now_ns + 2 * 10**6) / 10**9, UTC).isoformat(),
+    }
+    workflow = {**fixture["workflow"], "state": "SUCCEEDED"}
+    cut = {"workflow": workflow, "attempts": [attempt], "claims": [claim], "history": [history]}
+    return target, cut, rows, marker
+
+
 def test_terminal_join_binds_winner_to_pod_session_and_claim():
-    target, cut, rows = hosted_worker("medium-0")
+    target, cut, rows, marker = terminal_fixture("medium-0")
     attempt = cut["attempts"][0]
-    attempt.update(state="SUCCEEDED", is_current=False, result={"echo": "fixture"})
-    started = rows[0]
-    finished = {**started, "event": "finish"}
-    result = http_row(target, attempt, "result")
-    rows.extend([finished, result])
-    assert terminal_winner(cut, rows, [pod_for(target)], target.namespace) == {
+    started, _, _, released, finished, result = rows
+    assert cut["claims"][0]["pod_uid"] != started["pod_uid"]
+    assert terminal_winner(cut, rows, [pod_for(target)], target.namespace, marker) == {
         "attempt": attempt,
         "claim": cut["claims"][0],
         "invocation": started,
         "result": result,
+        "finish": finished,
+        "release": released,
+        "result_history": cut["history"][0],
     }
     finished["session"] = result["request"]
     with pytest.raises(SmokeFailure, match="F1A_WINNING_ACTIVITY_FINISHED"):
-        terminal_winner(cut, rows, [pod_for(target)], target.namespace)
+        terminal_winner(cut, rows, [pod_for(target)], target.namespace, marker)
     finished["session"] = started["session"]
     cut["claims"][0]["worker_id"] = rows[1]["worker"]
     with pytest.raises(SmokeFailure, match="F1A_WINNING_CLAIM"):
-        terminal_winner(cut, rows, [pod_for(target)], target.namespace)
+        terminal_winner(cut, rows, [pod_for(target)], target.namespace, marker)
+
+
+def test_finish_retains_terminal_cut_rows_and_expired_lease(tmp_path, monkeypatch):
+    target, cut, rows, marker = terminal_fixture("medium-1")
+    smoke = offline_smoke(tmp_path, monkeypatch, target, cut, rows)
+    smoke.release_activity = lambda *_args, **_kw: marker
+    assert smoke.finish(cut["workflow"]["workflow_id"])[1]["result"] == rows[-1]
+    cut["attempts"][0]["heartbeat_deadline"] = cut["claims"][0]["finalized_at"]
+    with pytest.raises(SmokeFailure, match="F1A_WINNING_RESULT_WITHIN_LEASE"):
+        smoke.finish(cut["workflow"]["workflow_id"])
+    report = json.loads((tmp_path / "medium-1-terminal-timeout-witness.json").read_bytes())
+    assert report["witness_rows"] == rows
+    assert report["cut"] == cut
+    assert report["candidates"][0]["pod_uid"] == target.uid
+
+
+def test_release_retains_gate_clock_and_uses_observer(tmp_path, monkeypatch):
+    fixture = run_44647473830("medium-4")
+    target = Target(**fixture["target"])
+    smoke = offline_smoke(tmp_path, monkeypatch, target, {}, [])
+    wait = {**fixture["wait"], "gate_started_ns": fixture["claim_response"]["at_ns"]}
+    smoke.exec_python = lambda *args: pytest.fail(f"unexpected release {args[:2]}")
+    now_ns = wait["gate_started_ns"] + f1a.GATE_SECONDS * 10**9
+    monkeypatch.setattr(f1a.time, "time_ns", lambda: now_ns)
+    with pytest.raises(SmokeFailure, match="F1A_RELEASE_AFTER_GATE_BOUND"):
+        smoke.release_activity(wait)
+    path = tmp_path / f"medium-4-release-{wait['invocation']}.json"
+    assert json.loads(path.read_bytes())["gate_remaining_ns"] == 0
+    monkeypatch.setattr(f1a.time, "time_ns", lambda: fixture["recovery_ns"])
+
+    def release(stage, pod, script, marker, invocation):
+        assert (stage, pod, script) == ("RELEASE", "deployment/observer", RELEASE_ACTIVITY)
+        assert (marker, invocation) == (RELEASE_MARKER, wait["invocation"])
+        return {"released": True, "marker": f"{marker}-{invocation}"}
+
+    smoke.exec_python = release
+    assert smoke.release_activity(wait)["response"]["released"] is True
+    assert json.loads(path.read_bytes())["gate_remaining_ns"] > 0
 
 
 def test_medium4_replacement_joins_immediate_attempt_and_old_history():
-    _, cut, _ = hosted_worker("medium-4")
-    attempt = cut["attempts"][0]
-    old = {**attempt, "is_current": False, "state": "TIMED_OUT"}
-    replacement = {
-        **attempt,
-        "attempt_number": 2,
-        "state": "DISPATCHABLE",
-        "worker_id": None,
-        "worker_request_id": None,
-        "token_hash": None,
-    }
-    history = {
-        "transition_id": "61af2dfc-9a2a-4467-aa48-44d09103eda4",
-        "workflow_id": "e1-medium-4",
-        "revision": 3,
-        "actor_kind": "scheduler",
-        "actor_id": "scheduler-owner",
-        "scheduler_epoch": 6,
-        "node_id": "pure.echo",
-        "iteration": 0,
-        "attempt_number": 1,
-        "old_state": "RUNNING",
-        "new_state": "RUNNING",
-        "reason": "TIMEOUT_REPLACEMENT",
-        "created_at": attempt["heartbeat_deadline"],
-    }
-    cut.update(attempts=[old, replacement], history=[history])
+    fixture = run_44647473830("medium-4")
+    attempt, old, replacement, history = (
+        fixture[key] for key in ("attempt", "old", "replacement", "replacement_history")
+    )
+    cut = {"attempts": [old, replacement], "history": [history]}
     assert partition_replacement(cut, attempt) == {
         "old": old,
         "replacement": replacement,
@@ -721,19 +898,37 @@ def test_medium4_replacement_joins_immediate_attempt_and_old_history():
     history["attempt_number"] = 2
     with pytest.raises(SmokeFailure, match="F1A_REPLACEMENT_COMMITTED_HISTORY"):
         partition_replacement(cut, attempt)
+    history["attempt_number"] = 1
+    history["created_at"] = fixture["claim"]["at"]
+    with pytest.raises(SmokeFailure, match="F1A_REPLACEMENT_AFTER_OLD_LEASE"):
+        partition_replacement(cut, attempt)
 
 
 def test_stale_result_timeout_retains_hosted_shape_and_token_mismatch(tmp_path, monkeypatch):
-    target, cut, rows = hosted_worker("medium-4")
-    attempt = cut["attempts"][0]
-    result = http_row(target, attempt, "result", status=409, code="STALE_ATTEMPT")
-    rows.append(result)
-    smoke = offline_smoke(tmp_path, monkeypatch, target, cut, rows)
-    assert smoke.wait_stale(target, attempt, 20, 30) == result
+    fixture = run_44647473830("medium-4")
+    target = Target(**fixture["target"])
+    invocation = fixture["start"]["id"]
+    marker = {
+        "started_ns": fixture["recovery_ns"] + 10**6,
+        "marker": RELEASE_MARKER + "-" + invocation,
+    }
+    rows = result_witness(fixture, marker, status=409, code="STALE_ATTEMPT")
+    result = rows[-1]
+    rows.append(fixture["failure"])
+    smoke = offline_smoke(tmp_path, monkeypatch, target, {}, rows)
+    args = (
+        target,
+        fixture["attempt"],
+        invocation,
+        marker,
+        fixture["replacement_ns"],
+        fixture["recovery_ns"],
+    )
+    assert smoke.wait_stale(*args) == result
     result["token_hash"] = "af" * 32
     label = "F1A_CANDIDATE_STALE_TOKEN_HASH_MISMATCH"
     with pytest.raises(SmokeFailure, match=label):
-        smoke.wait_stale(target, attempt, 20, 30)
+        smoke.wait_stale(*args)
     evidence = json.loads(
         (tmp_path / "medium-4-typed-stale-rejection-timeout-witness.json").read_bytes()
     )
@@ -769,22 +964,26 @@ def test_audit_rejects_an_unrewritten_namespace():
         pytest.fail("F1A_UNREWRITTEN_NAMESPACE_ACCEPTED")
 
 
-def test_render_real_objects_preserves_pushed_image_names_and_two_by_two_topology():
+def render_real_objects():
     base = (ROOT / "deploy/k8s/base/resources.yaml").read_text(encoding="utf-8")
     data = json.loads(
         base.replace("dur053/runtime:UNBOUND", RUNTIME).replace("dur053/worker:UNBOUND", WORKER)
     )
     items = data["items"]
     for item in items:
-        if item["kind"] in {"Deployment", "Service", "Job"}:
+        if item["kind"] in {"Deployment", "Service", "Job", "PersistentVolumeClaim"}:
             item["metadata"]["namespace"] = "dur053-kind"
     items = [row for row in items if row["kind"] != "NetworkPolicy"]
-    rendered = deployment_objects(
+    return deployment_objects(
         items,
         "episode",
         {"runtime": TAGGED_RUNTIME, "worker": TAGGED_WORKER},
         {"runtime": RUNTIME, "worker": WORKER},
     )
+
+
+def test_render_real_objects_preserves_pushed_image_names_and_two_by_two_topology():
+    rendered = render_real_objects()
     roles = {
         row["metadata"]["name"]: row["spec"] for row in rendered if row["kind"] == "Deployment"
     }
@@ -794,6 +993,154 @@ def test_render_real_objects_preserves_pushed_image_names_and_two_by_two_topolog
     assert {item["name"]: item.get("value") for item in worker["env"]}["WORKER_SLOTS"] == "2"
     assert not any(item["kind"] in {"ScaledObject", "HorizontalPodAutoscaler"} for item in rendered)
     assert topology_object(RUNTIME)["metadata"]["namespace"] == "episode"
+
+
+def test_render_observer_witness_stays_read_only():
+    try:
+        objects = render_real_objects()
+    except SmokeFailure as error:
+        assert (
+            str(error)
+            == "F1A_WITNESS_WRITABLE_OUTSIDE_WORKER Deployment/observer/containers/observer"
+        )
+        pytest.fail("F1A_OBSERVER_WITNESS_WRITABLE")
+    mounts = {}
+    for item in objects:
+        name = item["metadata"]["name"]
+        if item["kind"] == "Deployment" and name in {"observer", "worker"}:
+            pod = item["spec"]["template"]["spec"]
+            sources = {v["name"]: v.get("persistentVolumeClaim") for v in pod["volumes"]}
+            for mount in pod["containers"][0]["volumeMounts"]:
+                if claim := sources[mount["name"]]:
+                    mounts[name, mount["mountPath"]] = (
+                        claim["claimName"],
+                        mount.get("readOnly", False),
+                    )
+    assert mounts == {
+        ("observer", "/witness"): ("witness", True),
+        ("worker", "/witness"): ("witness", False),
+        ("observer", "/f1a-control"): ("f1a-control", False),
+        ("worker", "/f1a-control"): ("f1a-control", True),
+    }, "F1A_OBSERVER_WITNESS_WRITABLE"
+
+
+@pytest.mark.parametrize(
+    ("change", "label"),
+    [
+        ("worker-control-writable", "F1A_CONTROL_WRITABLE_OUTSIDE_OBSERVER"),
+        ("different-gate-path", "F1A_GATE_RELEASE_PATH_MISMATCH"),
+        ("observer-control-readonly", "F1A_CONTROL_MOUNT_INVENTORY"),
+        ("witness-alias", "F1A_WITNESS_WRITABLE_OUTSIDE_WORKER"),
+    ],
+)
+def test_control_mount_audit_rejects_invalid_render(change, label):
+    objects = render_real_objects()
+    pods = {
+        row["metadata"]["name"]: row["spec"]["template"]["spec"]
+        for row in objects
+        if row["kind"] == "Deployment"
+    }
+    worker = pods["worker"]["containers"][0]
+    observer = pods["observer"]["containers"][0]
+    if change == "different-gate-path":
+        next(row for row in worker["env"] if row["name"] == f1a.RELEASE_ENV)["value"] = "/witness"
+    elif change == "witness-alias":
+        pod = pods["relay"]
+        pod["volumes"].append({"name": "other", "persistentVolumeClaim": {"claimName": "witness"}})
+        pod["containers"][0]["volumeMounts"].append({"name": "other", "mountPath": "/other"})
+    else:
+        container = observer if change == "observer-control-readonly" else worker
+        next(row for row in container["volumeMounts"] if row["name"] == f1a.CONTROL_VOLUME)[
+            "readOnly"
+        ] = container is observer
+    with pytest.raises(SmokeFailure, match=label):
+        audit_control_mounts(objects, "episode")
+
+
+def test_release_script_and_worker_gate_share_scoped_then_global_marker(
+    tmp_path, monkeypatch, capsys
+):
+    monkeypatch.syspath_prepend(str(ROOT / "campaign/k6"))
+    from dur053_k6_campaign import chaos_smoke
+
+    marker = tmp_path / "f1a-release"
+    observed = []
+    monkeypatch.setenv(f1a.RELEASE_ENV, str(marker))
+    monkeypatch.setattr(
+        chaos_smoke,
+        "campaign_witness",
+        lambda: SimpleNamespace(trace=lambda event, fields: observed.append((event, fields))),
+    )
+    invocation = run_44647473830("medium-4")["start"]["id"]
+
+    def release(scope):
+        monkeypatch.setattr(sys, "argv", ["-c", str(marker), scope])
+        exec(compile(RELEASE_ACTIVITY, "<release>", "exec"), {})
+        return json.loads(capsys.readouterr().out)["marker"]
+
+    scoped = release(invocation)
+    assert not marker.exists()
+    chaos_smoke.activity_gate("activity_start", {"invocation": invocation})
+    assert observed[-1][0] == "f1a_activity_release"
+    assert observed[-1][1]["marker"] == scoped
+    assert release("") == str(marker)
+    chaos_smoke.activity_gate("activity_start", {"invocation": "replacement"})
+    assert observed[-1][1]["marker"] == str(marker)
+    monkeypatch.setenv(f1a.RELEASE_ENV, str(tmp_path / "missing" / marker.name))
+    with pytest.raises(ValueError, match="F1A_ACTIVITY_CONTROL_MISSING"):
+        chaos_smoke.activity_gate("activity_start", {"invocation": invocation})
+    assert observed[-1][0] == "f1a_activity_control_missing"
+
+
+@pytest.mark.parametrize("lingers", [False, True])
+def test_cleanup_reclaims_both_claims_and_continues_after_failure(tmp_path, monkeypatch, lingers):
+    target = Target(**run_44647473830("medium-4")["target"])
+    assert run_44647473830("cleanup")[-1]["step"] == "d-chaos-cleanup"
+    smoke = offline_smoke(tmp_path, monkeypatch, target, {}, [])
+    calls = []
+    smoke.database = smoke.namespace.replace("-", "_")
+    smoke.deadline = datetime(2026, 11, 19, tzinfo=UTC)
+    smoke.namespace_started = smoke.database_started = True
+    smoke.chaos_run = SimpleNamespace(possibly_created=True, remove=lambda: calls.append("chaos"))
+    smoke.harness = SimpleNamespace(drop=lambda _: calls.append("db"))
+
+    def k(stage, *args, **kwargs):
+        calls.append(stage)
+        assert smoke.deadline > datetime.now(UTC)
+        if args[:2] == ("get", "pv"):
+            items = (
+                [
+                    {
+                        "metadata": {"name": "pvc-control"},
+                        "spec": {"claimRef": {"name": "f1a-control", "namespace": smoke.namespace}},
+                        "status": {"phase": "Released"},
+                    }
+                ]
+                if lingers
+                else []
+            )
+            return json.dumps({"items": items}).encode()
+        return b""
+
+    smoke.k = k
+    if lingers:
+        with pytest.raises(SmokeFailure, match="F1A_CLEANUP_PV_RECLAIM"):
+            smoke.clear_episode()
+    else:
+        smoke.clear_episode()
+    assert calls == [
+        "chaos",
+        "F1A_NAMESPACE_CLEANUP",
+        "F1A_CLEANUP_NAMESPACE_READ",
+        "F1A_CLEANUP_PV_READ",
+        "F1A_RBAC_CLEANUP",
+        "F1A_CLEANUP_RBAC_READ",
+        "db",
+    ]
+    report = json.loads((tmp_path / "medium-4-cleanup.json").read_bytes())
+    assert bool(report["remaining_volumes"]) == lingers
+    if lingers:
+        assert "F1A_CLEANUP_PV_STILL_BOUND" in report["steps"][2]["reason"]
 
 
 def test_ci_handoff_is_a_sibling_and_always_uploads():
