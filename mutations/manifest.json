@@ -16055,6 +16055,198 @@
       ],
       "expected": "F2_MISSING_B_WITNESS_ACCEPTED",
       "requires_database": false
+    },
+    {
+      "id": "k6f3-offset-sign",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "abs(delta - seconds * SECOND)",
+      "new": "abs(abs(delta) - abs(seconds) * SECOND)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_wrong_sign_fails"
+      ],
+      "expected": "F3_MUT_OFFSET_SIGN",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-distinguishable-zero",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "flat = all(abs(delta) <= width for delta, width in deltas)",
+      "new": "flat = all(abs(delta) <= width + TOLERANCE_NS for delta, width in deltas)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_small_shift_is_distinguishable_from_zero"
+      ],
+      "expected": "F3_MUT_DISTINGUISHABLE_ZERO",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-offset-tolerance",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "abs(delta - seconds * SECOND) <= width + TOLERANCE_NS",
+      "new": "abs(delta - seconds * SECOND) <= width + 2 * TOLERANCE_NS",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_offset_outside_tolerance_fails"
+      ],
+      "expected": "F3_MUT_OFFSET_TOLERANCE",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-baseline-restoration",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "abs(offset - base) <= width + base_width + TOLERANCE_NS",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_after_removal_must_restore_baseline"
+      ],
+      "expected": "F3_MUT_RESTORATION",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-in-process-binding",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "{key: answer[key] for key in identity}, identity)",
+      "new": "identity, identity)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_in_process_binding_rejects_drift"
+      ],
+      "expected": "F3_MUT_PROCESS_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-exact-pod-selector",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "expect(\"F3_CHAOS_SPEC\", obj[\"spec\"], expected)",
+      "new": "expect(\"F3_CHAOS_SPEC\", obj[\"spec\"][\"mode\"], \"one\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_cr_rejects_broadened_pod_selector"
+      ],
+      "expected": "F3_MUT_EXACT_POD",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-db-deadline-ttl",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "abs(elapsed - ttl_ns) <= TTL_TOLERANCE_NS",
+      "new": "True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_deadline_uses_database_time_plus_configured_ttl"
+      ],
+      "expected": "F3_MUT_DEADLINE_TTL",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-no-spurious-takeover",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "\"F3_NO_SPURIOUS_TAKEOVER\",\n                tuple(lease[k] for k in (\"partition_id\", \"owner_id\", \"epoch\")),",
+      "new": "\"F3_NO_SPURIOUS_TAKEOVER\",\n                owner_key,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_owner_and_epoch_cannot_change_between_cuts"
+      ],
+      "expected": "F3_MUT_NO_TAKEOVER",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-not-exercised-i12",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "witnesses = predicates",
+      "new": "witnesses = {**predicates, \"I12\": deadline_ids}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_whole_tail_not_exercised"
+      ],
+      "expected": "F3_MUT_UNEXERCISED_I12",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-not-exercised-replicate",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "\"passing_replicate\": confirmation == CONFIRMED,",
+      "new": "\"passing_replicate\": True,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_whole_tail_not_exercised"
+      ],
+      "expected": "F3_MUT_UNEXERCISED_REPLICATE",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-derive-b-and-i12",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "witnesses = {**predicates, \"I12\": deadline_ids}",
+      "new": "witnesses = {name: ids for name, ids in predicates.items() if name != \"I6\"}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_whole_tail_for_each_cell"
+      ],
+      "expected": "F3_MUT_COVERAGE",
+      "requires_database": false
+    },
+    {
+      "id": "k6f3-positive-control",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f3_inputs.py",
+      "old": "clock_proof(control, seconds)[\"confirmation\"], CONFIRMED",
+      "new": "CONFIRMED, CONFIRMED",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f3.py::test_whole_tail_harness_failure"
+      ],
+      "expected": "F3_MUT_CONTROL_REQUIRED",
+      "requires_database": false
     }
   ]
 }
