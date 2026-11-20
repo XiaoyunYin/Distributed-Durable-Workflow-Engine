@@ -47,7 +47,7 @@ def durable_hold(raw: bytes, arm: JsonObject, issued_ns: int) -> JsonObject:
         by([json.loads(line) for line in raw.splitlines()], arm=arm["arm"], event="held"),
     )
     expect("F1B_ACK_BEFORE_INJECTION", held["at_ns"] < issued_ns, True)
-    return reach
+    return {**reach, "hold_ack_ns": held["at_ns"]}
 
 
 def require_hold(cell: str, reach: JsonObject, target: Target, cut: JsonObject) -> JsonObject:

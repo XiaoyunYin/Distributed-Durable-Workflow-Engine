@@ -65,7 +65,7 @@ from dur053_k6_identity import obj
 from dur053_k6_registry import read_registry
 
 ROLE_LABEL = "dur053-f1b-role"
-PREFIX = "DUR053_K6_OBSERVATION f1b "
+PREFIX = b"DUR053_K6_OBSERVATION f1b "
 MONITOR_SQL = r"""
 BEGIN READ WRITE;
 \set probe_epoch -1
@@ -359,14 +359,119 @@ class F1bSmoke(F1aSmoke):
         return cut
 
     def scheduler_rows(self, target: Target, reach: JsonObject) -> list[JsonObject]:
-        raw = self.role_log(target.pod, target.container).decode()
-        rows = [
-            json.loads(line.removeprefix(PREFIX))
-            for line in raw.splitlines()
-            if line.startswith(PREFIX)
-        ]
+        raw = self.role_log(target.pod, target.container)
+        self.evidence.write_bytes(f"{self.cell_id}-scheduler-observations.log", raw)
+        rows = []
+        for number, line in enumerate(raw.splitlines(), 1):
+            _, _, body = line.partition(b" ")  # kubectl's source timestamp
+            if not body.startswith(PREFIX):
+                continue
+            try:
+                row = json.loads(body.removeprefix(PREFIX).decode())
+            except (UnicodeDecodeError, json.JSONDecodeError):
+                raise SmokeFailure(f"F1B_SCHEDULER_OBSERVATION_INVALID line={number}") from None
+            if not isinstance(row, dict):
+                raise SmokeFailure(f"F1B_SCHEDULER_OBSERVATION_INVALID line={number}")
+            rows.append(row)
         self.retain("scheduler-observations", rows)
         return process_rows(rows, target, reach)
+
+    def confirm_partition(
+        self,
+        target: Target,
+        reach: JsonObject,
+        arm: JsonObject,
+        active_ns: int,
+        chain: str,
+        baseline: JsonObject,
+        deadline: float,
+    ) -> JsonObject:
+        cell = self.cell_id
+        locked = cell == "medium-2"
+        hold_ack_ns = reach["hold_ack_ns"]
+        idle_timeout_ms = int(reach["fields"]["objects"]["idle_timeout_ms"]) if locked else None
+        conditions = {
+            "drop_packet_rise": False,
+            "drop_byte_rise": False,
+            "failed_pool_probe": False,
+            "authenticated_hook_poll": False,
+        }
+        if locked:
+            conditions["peer_waiter"] = False
+        evidence = {
+            "hold_ack_ns": hold_ack_ns,
+            "active_ns": active_ns,
+            "idle_timeout_ms": idle_timeout_ms,
+            "failed_pool_probes": [],
+            "authenticated_hook_polls": [],
+            "drop_baseline": baseline,
+            "drop_current": None,
+        }
+
+        def missing_conditions() -> list[str]:
+            return [condition for condition, observed in conditions.items() if not observed]
+
+        def check_lock(sample: JsonObject) -> None:
+            if locked and sample["backend"] is None:
+                missing = [*missing_conditions(), "live_held_backend"]
+                self.retain("during-injection", {**evidence, "monitor": sample, "missing": missing})
+                raise SmokeFailure(
+                    "F1B_IDLE_BOUND_BEFORE_CONFIRMATION "
+                    f"hold_ack_ns={hold_ack_ns} active_ns={active_ns} "
+                    f"idle_timeout_ms={idle_timeout_ms} observed_ns={sample['at_ns']} "
+                    f"missing={','.join(missing)}"
+                )
+            require_lock(cell, reach, sample)
+
+        def during() -> JsonObject | None:
+            monitor = self.monitor(reach, "while-injected")
+            if locked:
+                conditions["peer_waiter"] = bool(monitor["peer_waiters"])
+            # Before reading new signals, a disappeared backend is reported
+            # with the most recent observations already in evidence.
+            check_lock(monitor)
+            require(self.held() is not None, "F1B_HOLD_LOST_DURING_INJECTION")
+            drops = self.counters(target, chain)
+            rows = self.scheduler_rows(target, reach)
+            failed = [
+                r
+                for r in by(rows, event="pool_probe", outcome="unreachable")
+                if r["started_ns"] > active_ns
+            ]
+            journal = [json.loads(line) for line in self.journal_bytes().splitlines()]
+            polls = [r for r in by(journal, arm=arm["arm"], event="wait") if r["at_ns"] > active_ns]
+            conditions.update(
+                drop_packet_rise=drops is not None and drops["packets"] > baseline["packets"],
+                drop_byte_rise=drops is not None and drops["bytes"] > baseline["bytes"],
+                failed_pool_probe=bool(failed),
+                authenticated_hook_poll=bool(polls),
+            )
+            missing = missing_conditions()
+            evidence.update(
+                monitor=monitor,
+                failed_pool_probes=failed,
+                authenticated_hook_polls=polls,
+                drop_current=drops,
+                missing=missing,
+            )
+            self.retain("during-injection", evidence)
+            if missing or drops is None:
+                return None
+            require_drop_rise(baseline, drops)
+            bind(target, self.reobserve(target))
+            # A second live backend check brackets the network observations.
+            confirmed = self.monitor(reach, "after-network-confirmation")
+            check_lock(confirmed)
+            timing = {
+                "confirmed_ns": confirmed["at_ns"],
+                "hold_ack_to_confirmation_ns": confirmed["at_ns"] - hold_ack_ns,
+            }
+            self.retain(
+                "during-injection", {**evidence, **timing, "confirmation_monitor": confirmed}
+            )
+            return {"failed": failed, "polls": polls, "drops": drops, "lock": monitor, **timing}
+
+        return self.sample_until(during, "F1B_ACTIVE_PARTITION", deadline, target)
 
     def held(self) -> JsonObject | None:
         arm = self.receiver.observe(self.cell_id)
@@ -474,54 +579,7 @@ class F1bSmoke(F1aSmoke):
         if baseline is None:
             raise SmokeFailure("F1B_DROP_BASELINE_MISSING")
 
-        def during() -> JsonObject | None:
-            monitor = self.monitor(reach, "while-injected")
-            require(self.held() is not None, "F1B_HOLD_LOST_DURING_INJECTION")
-            require_lock(cell, reach, monitor)
-            drops = self.counters(target, chain)
-            rows = self.scheduler_rows(target, reach)
-            failed = [
-                r
-                for r in by(rows, event="pool_probe", outcome="unreachable")
-                if r["started_ns"] > active_ns
-            ]
-            journal = [json.loads(line) for line in self.journal_bytes().splitlines()]
-            polls = [r for r in by(journal, arm=arm["arm"], event="wait") if r["at_ns"] > active_ns]
-            self.retain(
-                "during-injection",
-                {
-                    "active_ns": active_ns,
-                    "monitor": monitor,
-                    "failed_pool_probes": failed,
-                    "authenticated_hook_polls": polls,
-                    "drop_baseline": baseline,
-                    "drop_current": drops,
-                },
-            )
-            if (
-                not drops
-                or not failed
-                or not polls
-                or (cell == "medium-2" and not monitor["peer_waiters"])
-            ):
-                return None
-            if not all(drops[k] > baseline[k] for k in ("packets", "bytes")):
-                return None
-            require_drop_rise(baseline, drops)
-            bind(target, self.reobserve(target))
-            # Both the lock check and same-PID network failures are bracketed
-            # by the injection and this second live backend check.
-            confirmed = self.monitor(reach, "after-network-confirmation")
-            require_lock(cell, reach, confirmed)
-            return {
-                "failed": failed,
-                "polls": polls,
-                "drops": drops,
-                "lock": monitor,
-                "confirmed_ns": confirmed["at_ns"],
-            }
-
-        active = self.sample_until(during, "F1B_ACTIVE_PARTITION", start + 14, target)
+        active = self.confirm_partition(target, reach, arm, active_ns, chain, baseline, start + 14)
         clear = None
         termination = None
         if cell == "medium-2":

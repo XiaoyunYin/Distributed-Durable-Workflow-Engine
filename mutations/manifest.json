@@ -441,8 +441,8 @@
       "id": "k1-hook-release",
       "kind": "behavioral",
       "file": "internal/engine/engine.go",
-      "old": "_ = e.Store.ReleaseLease(releaseCtx, ref)",
-      "new": "if hookPassed { _ = e.Store.ReleaseLease(releaseCtx, ref) }",
+      "old": "releaseErr := e.Store.ReleaseLease(releaseCtx, ref)",
+      "new": "var releaseErr error\n\t\tif hookPassed {\n\t\t\treleaseErr = e.Store.ReleaseLease(releaseCtx, ref)\n\t\t}",
       "command": [
         "go",
         "test",
@@ -4609,8 +4609,8 @@
       "id": "k3-k3b-scenario-not-implemented",
       "kind": "behavioral",
       "file": "scripts/dur053_k3_policy.py",
-      "old": "require(scenario in {\"package-check\", \"smoke\", \"cleanup\"}, \"K3b: scenario not implemented\")",
-      "new": "require(True, 'K3b: scenario not implemented')",
+      "old": "scenario in {\"package-check\", \"smoke\", \"chaos-smoke\", \"cleanup\"},\n        \"K3b: scenario not implemented\",",
+      "new": "True,\n        \"K3b: scenario not implemented\",",
       "command": [
         "python",
         "-m",
@@ -6229,8 +6229,8 @@
       "id": "k3-smoke-no-cluster-zero-live-seconds",
       "kind": "behavioral",
       "file": "scripts/dur053_k3.py",
-      "old": "if scenario != \"smoke\" or not cluster_started:\n        return 0",
-      "new": "if scenario != \"smoke\":\n        return 0  # mutation: charge smoke when cluster never started",
+      "old": "if scenario not in {\"smoke\", \"chaos-smoke\"} or not cluster_started:\n        return 0",
+      "new": "if scenario not in {\"smoke\", \"chaos-smoke\"}:\n        return 0  # mutation: charge smoke when cluster never started",
       "command": [
         "python",
         "tests/test_k3_driver.py",
@@ -15756,7 +15756,7 @@
       "id": "k6f1b-missing-ack",
       "kind": "behavioral",
       "file": "scripts/dur053_k6_f1b_inputs.py",
-      "old": "    reach = acknowledged(raw, arm)\n    held = one(\n        \"F1B_ACK_HELD\",\n        by([json.loads(line) for line in raw.splitlines()], arm=arm[\"arm\"], event=\"held\"),\n    )\n    expect(\"F1B_ACK_BEFORE_INJECTION\", held[\"at_ns\"] < issued_ns, True)\n    return reach",
+      "old": "    reach = acknowledged(raw, arm)\n    held = one(\n        \"F1B_ACK_HELD\",\n        by([json.loads(line) for line in raw.splitlines()], arm=arm[\"arm\"], event=\"held\"),\n    )\n    expect(\"F1B_ACK_BEFORE_INJECTION\", held[\"at_ns\"] < issued_ns, True)\n    return {**reach, \"hold_ack_ns\": held[\"at_ns\"]}",
       "new": "    return {**arm[\"reach\"], \"target\": arm[\"target\"]}",
       "command": [
         "python",
@@ -15910,6 +15910,22 @@
         "tests/test_k6_f1b.py::test_pinned_chaos_mesh_ipset_and_kernel_scope"
       ],
       "expected": "F1B_EXTRA_KERNEL_DROP_TARGET_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-scheduler-log-timestamp",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_smoke.py",
+      "old": "_, _, body = line.partition(b\" \")  # kubectl's source timestamp",
+      "new": "body = line",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_scheduler_rows_parse_timestamped_observations"
+      ],
+      "expected": "F1B_TIMESTAMPED_SCHEDULER_OBSERVATIONS_MISSING",
       "requires_database": false
     }
   ]

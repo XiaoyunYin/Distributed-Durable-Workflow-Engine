@@ -34,6 +34,7 @@ from dur053_k6_f1b_inputs import (  # noqa: E402
     verify_kernel_rule,
     verify_rule,
 )
+from dur053_k6_f1b_smoke import F1bEvidence, F1bSmoke  # noqa: E402
 from dur053_k6_hook import Receiver, encode  # noqa: E402
 from dur053_k6_registry import read_registry  # noqa: E402
 
@@ -94,6 +95,124 @@ def lock_fixture(cell):
         "read_only": "on",
         "backend": backend,
     }
+
+
+@pytest.fixture
+def f1b_smoke(tmp_path):
+    # Exercise the real F1b methods and evidence writes without starting kind.
+    smoke = object.__new__(F1bSmoke)
+    smoke.cell_id = "medium-2"
+    smoke.evidence = F1bEvidence(tmp_path)
+    smoke.monitor_samples = []
+    return smoke
+
+
+def test_scheduler_rows_parse_timestamped_observations(f1b_smoke, tmp_path, monkeypatch):
+    # The probe is from run 44678222396. The call uses the same hosted identity
+    # and hold fields with the fenced_call shape emitted after release.
+    raw = (ROOT / "tests/fixtures/k6_f1b_scheduler_log.txt").read_bytes()
+    # The exact prefix must occur at the start of the application message.
+    raw += b"2026-11-20T05:13:26.000000001Z ignored DUR053_K6_OBSERVATION f1b bad JSON\n"
+    target = replace(
+        TARGET,
+        pod="scheduler-bcd7ddf69-ggg4w",
+        uid="c62b26eb-b491-4960-bf68-9ae6a2bd283a",
+        process="1:111146",
+        session="52b8b7a2cc344f08b08d5f6ebb2a476b",
+    )
+    reach = {"fields": {"key": "e1-medium-2", "invocation": "a726d3f9-5dc6-41b9-a277-c2b53cd11de2"}}
+    monkeypatch.setattr(f1b_smoke, "role_log", lambda pod, container: raw)
+    rows = f1b_smoke.scheduler_rows(target, reach)
+    assert [(row["event"], row["outcome"]) for row in rows] == [
+        ("pool_probe", "unreachable"),
+        ("fenced_call", "SESSION_LOST"),
+    ], "F1B_TIMESTAMPED_SCHEDULER_OBSERVATIONS_MISSING"
+    assert rows[0]["started_ns"] == 1795151585085112604
+    assert rows[1]["operation"] == "RenewLease"
+    assert rows[1]["objects"]["transaction"] == "1805"
+    assert (tmp_path / "medium-2-scheduler-observations.log").read_bytes() == raw
+    assert json.loads((tmp_path / "medium-2-scheduler-observations.json").read_bytes()) == rows
+
+
+@pytest.mark.parametrize("payload", [b'{"event":', b"[]", b'{"event":"\xff"}'])
+def test_scheduler_rows_reject_malformed_observation(f1b_smoke, tmp_path, monkeypatch, payload):
+    raw = b"2026-11-20T05:13:05.785902401Z DUR053_K6_OBSERVATION f1b " + payload + b"\n"
+    monkeypatch.setattr(f1b_smoke, "role_log", lambda pod, container: raw)
+    with pytest.raises(SmokeFailure, match=r"^F1B_SCHEDULER_OBSERVATION_INVALID line=1$"):
+        f1b_smoke.scheduler_rows(TARGET, {})
+    assert (tmp_path / "medium-2-scheduler-observations.log").read_bytes() == raw
+
+
+@pytest.mark.parametrize("gone_at", ["while-injected", "after-network-confirmation", None])
+def test_during_injection_records_idle_bound_race(f1b_smoke, tmp_path, monkeypatch, gone_at):
+    reach, monitor = lock_fixture("medium-2")
+    reach["hold_ack_ns"] = ack_ns = 1795151583337513227
+    active_ns = 1795151584384985513
+    gone_ns = 1795151595763796416
+    confirmed_ns = active_ns + 900_000_000
+    arm = {"arm": "test-arm"}
+
+    def sample(_reach, stage):
+        if stage == gone_at:
+            return {
+                **monitor,
+                "at_ns": gone_ns,
+                "backend": None,
+                "sqlstate": "00000",
+                "probe_epoch": OLD["epoch"],
+                "peer_waiters": [],
+            }
+        return {**monitor, "at_ns": confirmed_ns, "peer_waiters": [938]}
+
+    monkeypatch.setattr(f1b_smoke, "monitor", sample)
+    monkeypatch.setattr(f1b_smoke, "held", lambda: arm)
+    monkeypatch.setattr(f1b_smoke, "counters", lambda *_: {"packets": 43, "bytes": 2606})
+    monkeypatch.setattr(f1b_smoke, "reobserve", lambda _: TARGET)
+    monkeypatch.setattr(
+        f1b_smoke,
+        "scheduler_rows",
+        lambda *_: [{"event": "pool_probe", "outcome": "unreachable", "started_ns": active_ns + 1}],
+    )
+    poll = {**arm, "event": "wait", "at_ns": active_ns + 1}
+    monkeypatch.setattr(f1b_smoke, "journal_bytes", lambda: json.dumps(poll).encode())
+
+    baseline = {"packets": 2, "bytes": 125}
+    if gone_at is None:
+        result = f1b_smoke.confirm_partition(
+            TARGET, reach, arm, active_ns, "out", baseline, time.monotonic() + 5
+        )
+        assert result["hold_ack_to_confirmation_ns"] == confirmed_ns - ack_ns
+        missing = []
+    else:
+        with pytest.raises(SmokeFailure, match=r"^F1B_IDLE_BOUND_BEFORE_CONFIRMATION ") as failure:
+            f1b_smoke.confirm_partition(
+                TARGET, reach, arm, active_ns, "out", baseline, time.monotonic() + 5
+            )
+        missing = ["live_held_backend"]
+        if gone_at == "while-injected":
+            missing = [
+                "drop_packet_rise",
+                "drop_byte_rise",
+                "failed_pool_probe",
+                "authenticated_hook_poll",
+                "peer_waiter",
+                *missing,
+            ]
+        assert str(failure.value) == (
+            f"F1B_IDLE_BOUND_BEFORE_CONFIRMATION hold_ack_ns={ack_ns} active_ns={active_ns} "
+            f"idle_timeout_ms=12000 observed_ns={gone_ns} missing={','.join(missing)}"
+        )
+    evidence = json.loads((tmp_path / "medium-2-during-injection.json").read_bytes())
+    assert (evidence["hold_ack_ns"], evidence["active_ns"], evidence["idle_timeout_ms"]) == (
+        ack_ns,
+        active_ns,
+        12000,
+    )
+    assert evidence["missing"] == missing
+    if gone_at is None:
+        assert evidence["hold_ack_to_confirmation_ns"] == confirmed_ns - ack_ns
+    else:
+        assert evidence["monitor"]["backend"] is None
 
 
 @pytest.mark.parametrize("cell", CELLS)
@@ -159,7 +278,9 @@ def test_missing_and_late_durable_ack(tmp_path):
         assert receiver.rows[-1]["event"] == "wait"
         arm = receiver.observe(cell)
         held_ns = receiver.rows[-2]["at_ns"]
-        assert durable_hold(p.read_bytes(), arm, held_ns + 1)["target"] == IDENTITY
+        held = durable_hold(p.read_bytes(), arm, held_ns + 1)
+        assert held["target"] == IDENTITY
+        assert held["hold_ack_ns"] == held_ns
         reject(
             lambda: durable_hold(p.read_bytes(), arm, held_ns),
             "F1B_ACK_BEFORE_INJECTION",
