@@ -80,6 +80,7 @@ func lifecycleHandlerWithAPI(role string, store *state.Store, metrics *telemetry
 		health(w, r)
 	})
 	mux.Handle("GET /metrics", metricsHandler(role, metrics))
+	registerK6Clock(mux, role)
 	if store != nil {
 		mux.Handle("/v1/", apiHandler)
 		if combined && envOrDefault("RUNTIME_ENGINE_MODE", "disabled") == "readiness" {

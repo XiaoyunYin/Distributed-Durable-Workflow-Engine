@@ -521,6 +521,9 @@ class F1aSmoke(Matrix):
     def prepare_episode_dependencies(self) -> None:
         pass
 
+    def reset_episode_transport(self, renderer: Driver) -> None:
+        renderer.reset_transport()
+
     def setup_episode(self) -> None:
         renderer = copy.copy(self.harness)
         renderer.scratch = renderer.output = self.scratch / self.cell_id
@@ -532,7 +535,7 @@ class F1aSmoke(Matrix):
             self.retain("render-failure", {"reason": self.evidence.safe_reason(error)})
             raise
         self.retain("topology", objects)
-        renderer.reset_transport()
+        self.reset_episode_transport(renderer)
         for topic in (EVENTS, TASKS):
             sample = self.kafka(topic)
             self.retain("kafka-initial-" + topic, sample)

@@ -300,7 +300,7 @@ class Chaos:
             time.sleep(0.25)
         raise SmokeFailure("F1A_CHAOS_REMOVAL observed=present expected=absent")
 
-    def recovery_watch(self, version: str) -> None:
+    def recovery_watch(self, version: str) -> list[dict[str, Any]]:
         query = urlencode(
             {
                 "fieldSelector": f"metadata.name={self.name}",
@@ -326,3 +326,4 @@ class Chaos:
             ),
             True,
         )
+        return rows

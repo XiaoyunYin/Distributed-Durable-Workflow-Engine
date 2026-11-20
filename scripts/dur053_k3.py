@@ -663,6 +663,34 @@ class Driver:
             ),
             90,
         )
+        self.start_kafka(kafka)
+        self.topics("--create")
+        addresses = {
+            "192.0.2.1": self.kind_address(pg),
+            "192.0.2.2": self.kind_address(kafka),
+        }
+        addresses["192.0.2.3"] = json.loads(
+            self.k("get", "service", "kubernetes", "-o", "json").stdout
+        )["spec"]["clusterIP"]
+        addresses["192.0.2.4"] = json.loads(
+            self.k("get", "endpoints", "kubernetes", "-o", "json").stdout
+        )["subsets"][0]["addresses"][0]["ip"]
+        save(self.output / "dependency-addresses.json", addresses)
+        return addresses
+
+    def kind_address(self, container: str) -> str:
+        return self.command(
+            [
+                "docker",
+                "inspect",
+                "--format",
+                '{{(index .NetworkSettings.Networks "kind").IPAddress}}',
+                container,
+            ]
+        ).stdout.strip()
+
+    def start_kafka(self, kafka: str, *, alias: str = "kafka") -> None:
+        self.created.add(kafka)
         settings = {
             "KAFKA_NODE_ID": "1",
             "KAFKA_PROCESS_ROLES": "broker,controller",
@@ -690,7 +718,7 @@ class Driver:
             "--network",
             "kind",
             "--network-alias",
-            "kafka",
+            alias,
         ]
         for key, value in settings.items():
             args.extend(["-e", key + "=" + value])
@@ -714,33 +742,13 @@ class Driver:
             ),
             120,
         )
-        self.topics("--create")
-        addresses = {}
-        for placeholder, container in (("192.0.2.1", pg), ("192.0.2.2", kafka)):
-            addresses[placeholder] = self.command(
-                [
-                    "docker",
-                    "inspect",
-                    "--format",
-                    '{{(index .NetworkSettings.Networks "kind").IPAddress}}',
-                    container,
-                ]
-            ).stdout.strip()
-        addresses["192.0.2.3"] = json.loads(
-            self.k("get", "service", "kubernetes", "-o", "json").stdout
-        )["spec"]["clusterIP"]
-        addresses["192.0.2.4"] = json.loads(
-            self.k("get", "endpoints", "kubernetes", "-o", "json").stdout
-        )["subsets"][0]["addresses"][0]["ip"]
-        save(self.output / "dependency-addresses.json", addresses)
-        return addresses
 
-    def topics(self, action: str) -> None:
+    def topics(self, action: str, *, kafka: str = CLUSTER + "-kafka") -> None:
         for topic in ("durable-agent.tasks.v1", "durable-agent.events.v1"):
             args = [
                 "docker",
                 "exec",
-                CLUSTER + "-kafka",
+                kafka,
                 "/opt/kafka/bin/kafka-topics.sh",
                 "--bootstrap-server",
                 "localhost:19092",
@@ -1634,6 +1642,7 @@ def run(
     k6_f1a_output: Path | None = None,
     k6_f1b_output: Path | None = None,
     k6_f2_output: Path | None = None,
+    k6_f3_output: Path | None = None,
 ) -> int:
     supported(scenario)
     started = time.monotonic()
@@ -1647,6 +1656,7 @@ def run(
     phase_f1a_started = False
     phase_f1b_started = False
     phase_f2_started = False
+    phase_f3_started = False
     fresh_output(output)
     scratch_root.mkdir(parents=True, exist_ok=True)
     scratch = scratch_root / ("kind-" + secrets.token_hex(8))
@@ -1671,7 +1681,10 @@ def run(
     save(output / "manifest.json", manifest)
     try:
         if scenario == "chaos-smoke":
-            require(k6_f1a_output and k6_f1b_output and k6_f2_output, "phase-f-output-roots-required")
+            require(
+                k6_f1a_output and k6_f1b_output and k6_f2_output and k6_f3_output,
+                "phase-f-output-roots-required",
+            )
         manifest["merge_ref_sha"] = d.command(
             ["git", "rev-parse", "HEAD"], record=False
         ).stdout.strip()
@@ -1921,6 +1934,20 @@ def run(
                             from dur053_k6_f2_smoke import record_handoff_failure as f2_failed
 
                             f2_failed(k6_f2_output, error)
+                if k6_f3_output:
+                    phase_f3_started = True
+                    try:
+                        import dur053_k6_f3_smoke
+
+                        require(k6_f1b_output is not None, "f3-campaign-build-required")
+                        f3_exit = dur053_k6_f3_smoke.run(k6_f3_output, d, addresses, k6_f1b_output)
+                        k6_exit = k6_exit or f3_exit
+                    except Exception as error:
+                        k6_exit = 1
+                        with suppress(Exception):
+                            from dur053_k6_f3_smoke import inherited_failure as f3_failed
+
+                            f3_failed(k6_f3_output, "F3_HANDOFF_" + type(error).__name__.upper())
         if scenario == "chaos-smoke" and k6_exit:
             manifest["error"] = "K6_PHASE_F_SMOKE_FAILED"
         else:
@@ -2020,6 +2047,11 @@ def run(
                 from dur053_k6_f2_smoke import inherited_failure as f2_skipped
 
                 f2_skipped(k6_f2_output)
+        if k6_f3_output and not phase_f3_started:
+            with suppress(Exception):
+                from dur053_k6_f3_smoke import inherited_failure as f3_skipped
+
+                f3_skipped(k6_f3_output)
     return k6_exit if manifest["status"] == "PASS" else 1
 
 
@@ -2037,6 +2069,7 @@ def main() -> int:
     parser.add_argument("--k6-f1a-output", type=Path)
     parser.add_argument("--k6-f1b-output", type=Path)
     parser.add_argument("--k6-f2-output", type=Path)
+    parser.add_argument("--k6-f3-output", type=Path)
     args = parser.parse_args()
     k6_output = args.k6_output
     if args.scenario == "smoke" and k6_output is None:
@@ -2074,6 +2107,10 @@ def main() -> int:
     if args.scenario == "chaos-smoke" and k6_f2_output is None:
         configured = os.getenv("DUR053_K6_F2_OUTPUT")
         k6_f2_output = Path(configured) if configured else None
+    k6_f3_output = args.k6_f3_output
+    if args.scenario == "chaos-smoke" and k6_f3_output is None:
+        configured = os.getenv("DUR053_K6_F3_OUTPUT")
+        k6_f3_output = Path(configured) if configured else None
     return run(
         args.scenario,
         args.output.resolve(),
@@ -2087,6 +2124,7 @@ def main() -> int:
         k6_f1a_output,
         k6_f1b_output,
         k6_f2_output,
+        k6_f3_output,
     )
 
 

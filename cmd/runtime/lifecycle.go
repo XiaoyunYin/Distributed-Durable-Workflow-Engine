@@ -305,6 +305,7 @@ func serveLifecycle(signalCtx context.Context) error {
 			if err := configureK6SchedulerHook(&options); err != nil {
 				return err
 			}
+			configureK6ClockLease(ctx, &options)
 			return serveScheduler(ctx, store, envOrDefault("RUNTIME_NAMESPACE", "local-runtime"), wake, options)
 		})
 	}
