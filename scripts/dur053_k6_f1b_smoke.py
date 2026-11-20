@@ -354,6 +354,8 @@ class F1bSmoke(F1aSmoke):
 
     def fence_cut(self, stage: str) -> JsonObject:
         cut: JsonObject = self.snapshot(self.workflow, lease_writes=True)
+        # The snapshot orders audit rows by event_order in the same read-only cut as writes.
+        cut["acquisitions"] = by(cut["audit"], kind="acquire", partition_id=self.partition)
         self.retain(stage, cut)
         expect("F1B_CUT_READ_ONLY", cut["read_only"], "on")
         return cut
@@ -706,53 +708,7 @@ class F1bSmoke(F1aSmoke):
             released["at_ns"],
         )
         bind(target, self.reobserve(target))
-        rejected = self.fence_cut("after-original-rejection")
-        reject_stale_writes(rejected, write, old, successor_held=False)
-        _, winner, witness = self.finish(workflow)
-        expect(
-            "F1B_PEER_ATTEMPT_TERMINAL_WINNER",
-            winner["attempt"]["attempt_number"],
-            progress["attempt_number"],
-        )
-        expect(
-            "F1B_RESULT_AFTER_TYPED_REJECTION",
-            calls[-1]["at_ns"] < winner["result"]["sent_ns"],
-            True,
-        )
-        self.terminal(workflow)  # Reconcile all published outbox events and dispositions.
-        reconciled = self.fence_cut("post-rejection-final-writes")
-        reject_stale_writes(reconciled, write, old, successor_held=False)
-        if cell == "medium-2":
-            expect(
-                "F1B_HELD_RENEWAL_NEVER_COMMITTED",
-                by(reconciled["writes"], xid=reach["fields"]["objects"]["transaction"]),
-                [],
-            )
-        for topic in (EVENTS, TASKS):
-            self.retain("kafka-final-" + topic, self.kafka(topic))
-        # Normalize the sealed F1a witnesses for the shared engineering predicates.
-        invocations = [
-            {
-                "event": "start",
-                "invocation_id": winner["invocation"]["id"],
-                "token_hash": winner["invocation"]["identity"]["token_hash"],
-            },
-            {
-                "event": "end",
-                "invocation_id": winner["finish"]["id"],
-                "outcome": winner["attempt"]["state"],
-            },
-        ]
-        predicates = base_inputs(cell, workflow, fingerprint, reconciled, invocations)["predicates"]
-        predicates["I3"] = {
-            "original_acquire_order": old["event_order"],
-            "peer_acquire_order": acquisition["event_order"],
-            "peer_write_commit_order": write["commit_order"],
-            "original_stale_invocation": reach["fields"]["invocation"],
-        }
-        expect("F1B_COVERAGE_MATCH", sorted(predicates), sorted(coverage["invariants_covered"]))
-        self.retain(
-            "checker-inputs",
+        self.reconcile_rejection(
             {
                 "workflow": workflow,
                 "body_hash": fingerprint,
@@ -770,17 +726,75 @@ class F1bSmoke(F1aSmoke):
                 "restoration": reconnect,
                 "release": released,
                 "fenced_calls": calls,
-                "engine_cut": reconciled,
-                "predicates": predicates,
-                "winning_claim": winner["claim"],
-                "witness": witness,
             },
+            old,
+            write,
         )
         return {
             "workflow": workflow,
             "confirmation": "CONFIRMED",
             "registered": coverage["invariants_covered"],
         }
+
+    def reconcile_rejection(self, inputs: JsonObject, old: JsonObject, write: JsonObject) -> None:
+        workflow = self.workflow
+        rejected = self.fence_cut("after-original-rejection")
+        reject_stale_writes(rejected, write, old, successor_held=False)
+        _, winner, witness = self.finish(workflow)
+        expect(
+            "F1B_PEER_ATTEMPT_TERMINAL_WINNER",
+            winner["attempt"]["attempt_number"],
+            inputs["peer_progress"]["attempt_number"],
+        )
+        expect(
+            "F1B_RESULT_AFTER_TYPED_REJECTION",
+            inputs["fenced_calls"][-1]["at_ns"] < winner["result"]["sent_ns"],
+            True,
+        )
+        self.terminal(workflow)  # Reconcile all published outbox events and dispositions.
+        reconciled = self.fence_cut("post-rejection-final-writes")
+        reject_stale_writes(reconciled, write, old, successor_held=False)
+        if self.cell_id == "medium-2":
+            expect(
+                "F1B_HELD_RENEWAL_NEVER_COMMITTED",
+                by(reconciled["writes"], xid=inputs["hold"]["fields"]["objects"]["transaction"]),
+                [],
+            )
+        for topic in (EVENTS, TASKS):
+            self.retain("kafka-final-" + topic, self.kafka(topic))
+        # Normalize the sealed F1a witnesses for the shared engineering predicates.
+        invocations = [
+            {
+                "event": "start",
+                "invocation_id": winner["invocation"]["id"],
+                "token_hash": winner["invocation"]["identity"]["token_hash"],
+            },
+            {
+                "event": "end",
+                "invocation_id": winner["finish"]["id"],
+                "outcome": winner["attempt"]["state"],
+            },
+        ]
+        predicates = base_inputs(
+            self.cell_id, workflow, inputs["body_hash"], reconciled, invocations
+        )["predicates"]
+        predicates["I3"] = {
+            "original_acquire_order": old["event_order"],
+            "peer_acquire_order": inputs["peer_acquisition"]["event_order"],
+            "peer_write_commit_order": write["commit_order"],
+            "original_stale_invocation": inputs["hold"]["fields"]["invocation"],
+        }
+        expect("F1B_COVERAGE_MATCH", sorted(predicates), sorted(inputs["registered"]))
+        self.retain(
+            "checker-inputs",
+            {
+                **inputs,
+                "engine_cut": reconciled,
+                "predicates": predicates,
+                "winning_claim": winner["claim"],
+                "witness": witness,
+            },
+        )
 
     def cleanup_cell(self) -> None:
         with ExitStack() as cleanup:

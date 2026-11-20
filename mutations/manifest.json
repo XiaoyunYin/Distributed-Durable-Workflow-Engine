@@ -15927,6 +15927,22 @@
       ],
       "expected": "F1B_TIMESTAMPED_SCHEDULER_OBSERVATIONS_MISSING",
       "requires_database": false
+    },
+    {
+      "id": "k6f1b-reacquisition-evidence",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_smoke.py",
+      "old": "cut[\"acquisitions\"] = by(cut[\"audit\"], kind=\"acquire\", partition_id=self.partition)",
+      "new": "cut[\"acquisitions\"] = []",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_hosted_reacquisition_allows_original_session"
+      ],
+      "expected": "E2_I3_STALE_MUTATION",
+      "requires_database": false
     }
   ]
 }

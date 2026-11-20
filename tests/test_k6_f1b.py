@@ -6,7 +6,7 @@ import json
 import sys
 import time
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from uuid import UUID
 
@@ -17,7 +17,10 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from dur053_k6_b_evidence import SmokeFailure  # noqa: E402
 from dur053_k6_chaos import Target, render_chaos  # noqa: E402
-from dur053_k6_f1a_inputs import chain_counters, claim_rows  # noqa: E402
+from dur053_k6_e1_join import EVENTS, SCHEDULERS, TASKS, by  # noqa: E402
+from dur053_k6_e2_join import reject_stale_writes  # noqa: E402
+from dur053_k6_f1a_inputs import RELEASE_MARKER, chain_counters, claim_rows  # noqa: E402
+from dur053_k6_f1a_smoke import READ_SEALS, RELEASE_ACTIVITY  # noqa: E402
 from dur053_k6_f1b_inputs import (  # noqa: E402
     BOUNDARIES,
     CELLS,
@@ -40,6 +43,7 @@ from dur053_k6_registry import read_registry  # noqa: E402
 
 ENGINE = "172.19.0.5"
 HOSTED = json.loads((ROOT / "tests/fixtures/k6_f1a_hosted.json").read_bytes())["medium-1"]
+REJECTION_FIXTURE = ROOT / "tests/fixtures/k6_f1b_rejection_hosted.json"
 TARGET = Target(**{**HOSTED["target"], "session": UUID(HOSTED["target"]["session"]).hex})
 IDENTITY = {
     "actor": "scheduler",
@@ -105,6 +109,249 @@ def f1b_smoke(tmp_path):
     smoke.evidence = F1bEvidence(tmp_path)
     smoke.monitor_samples = []
     return smoke
+
+
+@pytest.fixture(params=CELLS)
+def hosted_rejection(request, f1b_smoke):
+    # Both rejected cuts and takeover joins come from hosted run 44685492351.
+    fixture = json.loads(REJECTION_FIXTURE.read_bytes())
+    episode = fixture[request.param]
+    workflow = episode["rejected"]["workflow"]
+    f1b_smoke.cell_id = request.param
+    f1b_smoke.workflow = workflow["workflow_id"]
+    f1b_smoke.partition = workflow["partition_id"]
+    f1b_smoke.namespace = workflow["namespace"]
+    return episode, fixture["completion_template"]
+
+
+def test_hosted_reacquisition_allows_original_session(hosted_rejection, f1b_smoke, monkeypatch):
+    episode, _ = hosted_rejection
+    rejected = episode["rejected"]
+    old = rejected["audit"][0]
+    monkeypatch.setattr(f1b_smoke, "pg", lambda _sql: json.dumps(rejected))
+
+    cut = f1b_smoke.fence_cut("after-original-rejection")
+    reject_stale_writes(cut, episode["takeover"]["write"], old, successor_held=False)
+    assert cut["acquisitions"] == by(rejected["audit"], kind="acquire")
+    expected = [1, 9, 11] if f1b_smoke.cell_id == "medium-2" else [1, 9, 10]
+    assert [r["epoch"] for r in by(cut["acquisitions"], session_id=old["session_id"])] == expected
+
+
+@pytest.mark.parametrize("defect", ["old-epoch", "missing-acquisition", "late-acquisition"])
+def test_hosted_rejection_rejects_stale_write(hosted_rejection, f1b_smoke, monkeypatch, defect):
+    episode, _ = hosted_rejection
+    cut = episode["rejected"]
+    old = cut["audit"][0]
+    takeover = episode["takeover"]["write"]
+    acquire = next(r for r in cut["audit"] if r["kind"] == "acquire" and r["epoch"] == 9)
+    committed = by(cut["writes"], relation="partition_leases", xid=acquire["transaction_id"])[0]
+    followup = by(cut["writes"], commit_order=committed["commit_order"] + 1)[0]
+    if defect == "old-epoch":
+        followup["epoch"] = old["epoch"]
+    elif defect == "missing-acquisition":
+        cut["writes"].remove(committed)  # Keep the matching audit row without its durable write.
+    else:
+        committed["commit_order"], followup["commit_order"] = (
+            followup["commit_order"],
+            committed["commit_order"],
+        )
+        cut["writes"].sort(key=lambda row: row["commit_order"])
+    monkeypatch.setattr(f1b_smoke, "pg", lambda _sql: json.dumps(cut))
+
+    with pytest.raises(SmokeFailure, match=r"^E2_I3_STALE_MUTATION "):
+        reject_stale_writes(
+            f1b_smoke.fence_cut("after-original-rejection"), takeover, old, successor_held=False
+        )
+
+
+def complete_hosted_cut(rejected, template, finished_at):
+    # The F1b run stopped with a claimed attempt. Extend it with the observed F1a
+    # terminal row shapes, keeping F1b's submission, winning attempt and claim.
+    workflow = rejected["workflow"]
+    attempt = rejected["attempts"][0]
+    acquisition = rejected["audit"][-1]
+    history = [
+        {
+            **row,
+            "workflow_id": workflow["workflow_id"],
+            "created_at": finished_at,
+            "actor_id": attempt["worker_id"] if row["actor_kind"] == "worker" else row["actor_id"],
+            "scheduler_epoch": acquisition["epoch"] if row["scheduler_epoch"] else None,
+        }
+        for row in template["history"]
+    ]
+    events = [
+        {
+            **row,
+            "workflow_id": workflow["workflow_id"],
+            "traceparent": workflow["traceparent"],
+            "published_at": finished_at,
+        }
+        for row in template["outbox"]
+    ]
+    return {
+        **rejected,
+        "workflow": {**workflow, "state": "SUCCEEDED", "revision": history[-1]["revision"]},
+        "attempts": [{**attempt, "state": "SUCCEEDED", "is_current": False}],
+        "history": rejected["history"] + history,
+        "outbox": rejected["outbox"] + events,
+        "publications": rejected["publications"]
+        + [{**row, "published_at": finished_at} for row in template["publications"]],
+    }
+
+
+def complete_hosted_witness(rejected, template, released_ns):
+    attempt = rejected["attempts"][0]
+    workflow = attempt["workflow_id"]
+    _, _, namespace, account, _, pod, _, uid = attempt["worker_id"].split(":")
+    request = attempt["worker_request_id"]
+    session = template["invocation"]["session"]
+    delta_ns = released_ns - template["release"]["at_ns"]
+    streams = {"trace": [], "invocations": []}
+    for value in template.values():
+        row = dict(value)
+        stream = row.pop("stream")
+        row.update(pod_uid=uid, session=session)
+        if stream == "invocations":
+            row["identity"] = {
+                **row["identity"],
+                "namespace": namespace,
+                "workflow": workflow,
+                "token_hash": attempt["token_hash"],
+            }
+        else:
+            row.update(workflow=workflow, container_id=uid, token_hash=attempt["token_hash"])
+            if row["event"] == "f1a_http":
+                row["path"] = (
+                    f"/v1/workflows/{workflow}/nodes/pure.echo/iterations/0/{row['operation']}"
+                )
+            else:
+                row.update(request=request, worker=request.split(":", 1)[0])
+            for key in ("at_ns", "sent_ns", "gate_started_ns"):
+                if key in row:
+                    row[key] += delta_ns
+        streams[stream].append(json.dumps(row))
+    seal = {
+        "inventory": {"complete": True, "errors": 0, "pod_uid": uid, "session": session},
+        "streams": {key: {"data": "\n".join(rows) + "\n"} for key, rows in streams.items()},
+    }
+    return seal, {
+        "metadata": {"namespace": namespace, "name": pod, "uid": uid},
+        "spec": {"serviceAccountName": account},
+    }
+
+
+def test_hosted_post_rejection_tail(hosted_rejection, f1b_smoke, tmp_path, monkeypatch):
+    episode, template = hosted_rejection
+    rejected, takeover, calls = (episode[key] for key in ("rejected", "takeover", "fenced_calls"))
+    old = rejected["audit"][0]
+    cell = f1b_smoke.cell_id
+    workflow = f1b_smoke.workflow
+    coverage = episode["coverage"]
+    released_ns = rejected["sample_observed_ns"] + 10**7
+    finished_at = datetime.fromtimestamp((released_ns + 10**8) / 10**9, UTC).isoformat()
+    finished = complete_hosted_cut(rejected, template, finished_at)
+    seal, pod = complete_hosted_witness(rejected, template["witness"], released_ns)
+    inbox = [
+        {
+            **by(rejected["inbox"], consumer_id=SCHEDULERS)[0],
+            "event_id": row["event_id"],
+            "kafka_offset": index,
+            "recorded_at": finished_at,
+        }
+        for index, row in enumerate(template["outbox"], start=1)
+    ]
+    reconciled = {**finished, "inbox": finished["inbox"] + inbox}
+    samples = iter(
+        [
+            (True, rejected),
+            (False, finished),  # F1a finish can see the winner before transport reconciles.
+            (False, finished),
+            (False, reconciled),
+            (True, reconciled),
+        ]
+    )
+
+    def pg(sql):
+        writes, cut = next(samples)
+        assert ("FROM k6_e2.writes" in sql) is writes
+        return json.dumps(
+            {
+                key: value
+                for key, value in cut.items()
+                if writes or key not in {"writes", "read_only"}
+            }
+        )
+
+    def exec_python(stage, deployment, script, *args):
+        assert deployment == "deployment/observer"
+        if stage == "RELEASE":
+            assert (script, args) == (RELEASE_ACTIVITY, (RELEASE_MARKER, ""))
+            return {"released": True, "marker": RELEASE_MARKER}
+        assert (stage, script, args) == ("WITNESS", READ_SEALS, ())
+        return [seal]
+
+    monkeypatch.setattr(time, "time_ns", lambda: released_ns - 10**6)
+    monkeypatch.setattr(f1b_smoke, "pg", pg)
+    monkeypatch.setattr(f1b_smoke, "exec_python", exec_python)
+    monkeypatch.setattr(f1b_smoke, "pods", lambda _role: [pod])
+    monkeypatch.setattr(f1b_smoke, "kafka", lambda topic: {"topic": topic})
+    inputs = {
+        "workflow": workflow,
+        "body_hash": rejected["workflow"]["submission_payload_hash"],
+        "registered": coverage["invariants_covered"],
+        "not_covered": coverage["invariants_not_covered"],
+        "hold": {"fields": {"objects": calls[0]["objects"], "invocation": calls[0]["invocation"]}},
+        "peer_acquisition": takeover["acquisition"],
+        "peer_progress": takeover["progress"],
+        "fenced_calls": calls,
+    }
+    f1b_smoke.reconcile_rejection(inputs, old, takeover["write"])
+
+    def evidence(label):
+        return json.loads((tmp_path / f"{cell}-{label}.json").read_bytes())
+
+    checker = evidence("checker-inputs")
+    assert checker["engine_cut"] == evidence("post-rejection-final-writes")
+    assert (
+        checker["engine_cut"]["acquisitions"]
+        == evidence("after-original-rejection")["acquisitions"]
+    )
+    assert checker["engine_cut"]["inbox"] == reconciled["inbox"]
+    assert checker["winning_claim"] == rejected["claims"][0]
+    assert checker["witness"] == [seal]
+    assert set(checker["predicates"]) == set(coverage["invariants_covered"])
+    assert checker["predicates"]["I3"] == {
+        "original_acquire_order": old["event_order"],
+        "peer_acquire_order": takeover["acquisition"]["event_order"],
+        "peer_write_commit_order": takeover["write"]["commit_order"],
+        "original_stale_invocation": calls[0]["invocation"],
+    }
+    assert all(checker[key] == value for key, value in inputs.items())
+    assert evidence("kafka-final-" + EVENTS) == {"topic": EVENTS}
+    assert evidence("kafka-final-" + TASKS) == {"topic": TASKS}
+
+    # Inject a stale write seen only after reconciliation to exercise the second join.
+    writes = reconciled["writes"]
+    original_write = by(writes, xid=old["transaction_id"], relation="partition_leases")[0]
+    stale = {**original_write, "xid": "4000", "commit_order": writes[-1]["commit_order"] + 1}
+    contaminated = {**reconciled, "writes": [*writes, stale]}
+    samples = iter([(True, rejected), (False, finished), (False, reconciled), (True, contaminated)])
+    with pytest.raises(SmokeFailure, match=r"^E2_I3_STALE_MUTATION "):
+        f1b_smoke.reconcile_rejection(inputs, old, takeover["write"])
+
+    if cell == "medium-2":
+        # Replace the pre-takeover write witness with the held XID to isolate the rollback check.
+        renewed = {**original_write, "xid": calls[0]["objects"]["transaction"]}
+        with_renewal = {
+            **reconciled,
+            "writes": [renewed if row == original_write else row for row in writes],
+        }
+        samples = iter(
+            [(True, rejected), (False, finished), (False, reconciled), (True, with_renewal)]
+        )
+        with pytest.raises(SmokeFailure, match=r"^F1B_HELD_RENEWAL_NEVER_COMMITTED "):
+            f1b_smoke.reconcile_rejection(inputs, old, takeover["write"])
 
 
 def test_scheduler_rows_parse_timestamped_observations(f1b_smoke, tmp_path, monkeypatch):
