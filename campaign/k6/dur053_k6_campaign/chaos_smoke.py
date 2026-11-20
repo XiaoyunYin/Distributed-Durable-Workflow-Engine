@@ -68,6 +68,10 @@ class SmokeControl(RetryingControl):
                 {**fields, "at_ns": time.time_ns(), "status": error.status, "code": error.code},
             )
             raise
+        if operation == "claim":
+            # A PURE claim can send expected_attempt=0. The receipt carries the actual identity.
+            fields["attempt_number"] = result["attempt_number"]
+            fields["token_hash"] = hashlib.sha256(result["claim_token"].encode()).hexdigest()
         witness.trace("f1a_http", {**fields, "at_ns": time.time_ns(), "status": 200, "code": "OK"})
         return result
 

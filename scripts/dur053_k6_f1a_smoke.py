@@ -46,11 +46,19 @@ from dur053_k6_e1_smoke import (
 from dur053_k6_e2_smoke import pod_state, rendered_strings
 from dur053_k6_f1a_inputs import (
     CONTROL_URL,
+    LEASE_KEY,
+    attempt_fields,
     chain_counters,
+    claim_rows,
     first_fenced_transition,
+    invocation_identity,
+    partition_replacement,
     require_drop_rise,
     require_stale,
     route_rows,
+    stale_candidate_failure,
+    terminal_winner,
+    worker_principal,
 )
 from dur053_k6_identity import obj
 from dur053_k6_registry import read_registry
@@ -241,14 +249,12 @@ def deployment_objects(
     return result
 
 
-def poll[T](check: Callable[[], tuple[T | None, Any]], stage: str, deadline: float) -> T:
-    observed = None
-    while time.monotonic() < deadline:
-        result, observed = check()
-        if result is not None and time.monotonic() < deadline:
-            return result
-        time.sleep(0.3)
-    raise SmokeFailure(f"{stage} observed={observed!r} expected=confirmed_before_deadline")
+def candidate(attempt: int | None, pod_uid: str | None, label: str) -> JsonObject:
+    return {"attempt_number": attempt, "pod_uid": pod_uid, "label": label}
+
+
+def failure_label(error: SmokeFailure) -> str:
+    return str(error).split()[0]
 
 
 def ready(pod: JsonObject) -> bool:
@@ -280,6 +286,31 @@ class F1aSmoke(Matrix):
 
     def retain(self, label: str, data: Any) -> None:
         self.evidence.write(f"{self.cell_id}-{label}.json", data)
+
+    def poll[T](
+        self, check: Callable[[], tuple[T | None, JsonObject]], stage: str, deadline: float
+    ) -> T:
+        observed: JsonObject = {
+            "candidates": [candidate(None, None, "F1A_CANDIDATE_NO_SAMPLE_BEFORE_DEADLINE")]
+        }
+        witness_rows = []
+        while time.monotonic() < deadline:
+            result, observed = check()
+            witness_rows = observed.get("witness_rows") or witness_rows
+            if result is not None:
+                if time.monotonic() < deadline:
+                    return result
+                observed["candidates"].append(
+                    candidate(None, None, "F1A_CANDIDATE_SAMPLE_COMPLETED_AFTER_DEADLINE")
+                )
+                break
+            time.sleep(0.3)
+        label = stage.removeprefix("F1A_").lower().replace("_", "-") + "-timeout-witness"
+        self.retain(label, {**observed, "witness_rows": witness_rows})
+        raise SmokeFailure(
+            f"{stage} observed={observed['candidates']!r} "
+            f"expected=confirmed_before_deadline evidence={self.cell_id}-{label}.json"
+        )
 
     def backend(self) -> None:
         import yaml  # type: ignore[import-untyped]
@@ -629,124 +660,197 @@ class F1aSmoke(Matrix):
             target.role, self.objects("F1A_RECHECK_TARGET", "pod", target.pod), target.session
         )
 
+    def worker_candidate(
+        self,
+        attempt: JsonObject,
+        entry: JsonObject,
+        pod: JsonObject | None,
+        cut: JsonObject,
+        rows: list[JsonObject],
+        *,
+        heartbeat: bool,
+    ) -> tuple[Target, JsonObject]:
+        require(pod is not None, "F1A_CANDIDATE_WORKER_POD_UID_MISSING")
+        assert pod is not None
+        require(
+            ready(pod) and not pod["metadata"].get("deletionTimestamp"),
+            "F1A_CANDIDATE_WORKER_POD_NOT_READY",
+        )
+        principal = worker_principal(pod)
+        require(principal == attempt["worker_id"], "F1A_CANDIDATE_WORKER_PRINCIPAL_MISMATCH")
+        require(
+            entry["worker"].startswith(pod["metadata"]["name"] + "-"),
+            "F1A_CANDIDATE_WORKER_SLOT_MISMATCH",
+        )
+        require(
+            entry["request"] == attempt["worker_request_id"],
+            "F1A_CANDIDATE_WORKER_REQUEST_MISMATCH",
+        )
+        identity = invocation_identity(attempt, self.namespace)
+        expect(
+            "F1A_CANDIDATE_WORKER_INVOCATION_KEY",
+            (entry["node"], entry["iteration"], entry["attempt"]),
+            (identity["node"], str(identity["iteration"]), str(identity["attempt"])),
+        )
+        scope = {key: entry[key] for key in ("session", "pod_uid")}
+        event = {"id": entry["invocation"], "identity": identity, **scope}
+        one("F1A_CANDIDATE_WORKER_SEALED_START_MISSING", by(rows, event="start", **event))
+        require(
+            not by(rows, event="finish", **event)
+            and not any(
+                by(rows, event=boundary, invocation=entry["invocation"], **scope)
+                for boundary in ("f1a_activity_release", "f1a_activity_expired")
+            ),
+            "F1A_CANDIDATE_WORKER_INVOCATION_INACTIVE",
+        )
+        claim = one(
+            "F1A_CANDIDATE_WORKER_COMMITTED_CLAIM_MISSING", claim_rows(cut, attempt, principal)
+        )
+        target = self.identity("worker", pod, entry["session"])
+        routes = by(
+            route_rows(rows, target, attempt["workflow_id"], attempt=attempt["attempt_number"]),
+            node=attempt["node_id"],
+            iteration=attempt["iteration"],
+            token_hash=attempt["token_hash"],
+        )
+        require(
+            bool(by(routes, operation="claim", status=200)),
+            "F1A_CANDIDATE_WORKER_CLAIM_ROUTE_MISSING",
+        )
+        require(
+            not heartbeat or bool(by(routes, operation="heartbeat", status=200)),
+            "F1A_CANDIDATE_WORKER_HEARTBEAT_ROUTE_MISSING",
+        )
+        return target, {"invocation": entry, "claim": claim, "attempt": attempt, "routes": routes}
+
     def active_worker(self, workflow: str, *, heartbeat: bool) -> tuple[list[Target], JsonObject]:
-        def active() -> tuple[tuple[list[Target], JsonObject] | None, Any]:
+        def active() -> tuple[tuple[list[Target], JsonObject] | None, JsonObject]:
             cut = self.cut(workflow)
             rows, seals = self.witness()
             attempts = by(cut["attempts"], is_current=True, state="CLAIMED", attempt_number=1)
-            pods = {p["metadata"]["uid"]: p for p in self.pods("worker") if ready(p)}
+            pods = {p["metadata"]["uid"]: p for p in self.pods("worker")}
+            failures = [
+                candidate(1, uid, "F1A_CANDIDATE_WORKER_CURRENT_CLAIM_MISSING")
+                for uid in pods or [None]
+                if not attempts
+            ]
             matches, witnesses = [], {}
             for attempt in attempts:
-                for entry in by(
-                    rows,
-                    event="f1a_activity_wait",
-                    workflow=workflow,
-                    token_hash=attempt["token_hash"],
-                ):
-                    if entry["pod_uid"] not in pods:
-                        continue
-                    if not any(
-                        row["event"] == "start"
-                        and row.get("id") == entry["invocation"]
-                        and row.get("session") == entry["session"]
-                        for row in rows
-                    ):
-                        continue
-                    if by(rows, event="f1a_activity_release", invocation=entry["invocation"]):
-                        continue
-                    pod = pods[entry["pod_uid"]]
-                    if entry["worker"] != attempt["worker_id"] or not entry["worker"].startswith(
-                        pod["metadata"]["name"] + "-"
-                    ):
-                        continue
-                    if entry["pod_uid"] in witnesses:
-                        continue
-                    target = self.identity("worker", pod, entry["session"])
-                    routes = route_rows(rows, target, workflow, attempt=1)
-                    claim = by(
-                        cut["claims"], token_hash=entry["token_hash"], worker_id=entry["worker"]
+                number = attempt["attempt_number"]
+                waiting = {
+                    (entry["pod_uid"], entry["session"], entry["invocation"]): entry
+                    for entry in by(
+                        rows,
+                        event="f1a_activity_wait",
+                        workflow=workflow,
+                        token_hash=attempt["token_hash"],
                     )
-                    if not claim or (
-                        heartbeat and not by(routes, operation="heartbeat", status=200)
-                    ):
-                        continue
-                    expect(
-                        "F1A_ACTIVE_CLAIM_ROUTE",
-                        bool(by(routes, operation="claim", status=200)),
-                        True,
-                    )
-                    matches.append(target)
-                    witnesses[target.uid] = {
-                        "invocation": entry,
-                        "claim": claim[0],
-                        "attempt": attempt,
-                        "routes": routes,
-                    }
-            if not matches:
-                return None, {
-                    "attempts": attempts,
-                    "worker_uids": list(pods),
-                    "witness_sessions": len(seals),
                 }
+                waiting_uids = {uid for uid, _, _ in waiting}
+                for uid in pods or [None]:
+                    if uid not in waiting_uids:
+                        failures.append(
+                            candidate(number, uid, "F1A_CANDIDATE_WORKER_WAIT_FOR_TOKEN_MISSING")
+                        )
+                for (uid, _, _), entry in waiting.items():
+                    try:
+                        target, proof = self.worker_candidate(
+                            attempt, entry, pods.get(uid), cut, rows, heartbeat=heartbeat
+                        )
+                    except SmokeFailure as error:
+                        failures.append(candidate(number, uid, failure_label(error)))
+                        continue
+                    if uid not in witnesses:
+                        matches.append(target)
+                        witnesses[uid] = proof
+            observed = {"cut": cut, "seals": seals, "witness_rows": rows, "candidates": failures}
+            if not matches:
+                return None, observed
             self.retain(
                 "active-worker",
                 {"cut": cut, "seals": seals, "candidates": list(witnesses.values())},
             )
-            return (matches, witnesses), None
+            return (matches, witnesses), observed
 
-        return poll(active, "F1A_WARMUP_ACTIVE_WORKER", time.monotonic() + 32)
+        return self.poll(active, "F1A_WARMUP_ACTIVE_WORKER", time.monotonic() + 32)
+
+    def scheduler_lease(
+        self, workflow: str, stage: str, *, bound: Target | None = None
+    ) -> tuple[Target, JsonObject, JsonObject]:
+        def active() -> tuple[tuple[Target, JsonObject, JsonObject] | None, JsonObject]:
+            cut = self.cut(workflow)
+            pods = {p["metadata"]["uid"]: p for p in self.pods("scheduler")}
+            attempt = next((r["attempt_number"] for r in cut["attempts"] if r["is_current"]), None)
+            leases = [
+                r
+                for r in cut["leases"]
+                if r["live"] and r["owner_id"] and ns(r["lease_expires_at"]) > time.time_ns()
+            ]
+            failures, logs = [], []
+            observed = {"cut": cut, "candidates": failures, "witness_rows": logs}
+            if not leases:
+                uids = [bound.uid] if bound else (pods or [None])
+                failures.extend(
+                    candidate(attempt, uid, "F1A_CANDIDATE_SCHEDULER_LIVE_LEASE_MISSING")
+                    for uid in uids
+                )
+                return None, observed
+            lease = one("F1A_CURRENT_LEASE", leases)
+            acquisitions = by(
+                cut["audit"], kind="acquire", **{key: lease[key] for key in LEASE_KEY}
+            )
+            if not acquisitions:
+                uids = [bound.uid] if bound else (pods or [None])
+                failures.extend(
+                    candidate(attempt, uid, "F1A_CANDIDATE_SCHEDULER_COMMITTED_ACQUIRE_MISSING")
+                    for uid in uids
+                )
+                return None, observed
+            entry = max(acquisitions, key=lambda r: r["event_order"])
+            uid = bound.uid if bound else entry["pod_uid"]
+            pod = pods.get(uid)
+            try:
+                expect("F1A_CANDIDATE_SCHEDULER_POD_UID_MISMATCH", entry["pod_uid"], uid)
+                if bound:
+                    expect(
+                        "F1A_CANDIDATE_SCHEDULER_SESSION_MISMATCH",
+                        entry["session_id"],
+                        bound.session,
+                    )
+                require(
+                    pod is not None and ready(pod) and not pod["metadata"].get("deletionTimestamp"),
+                    "F1A_CANDIDATE_SCHEDULER_POD_NOT_READY",
+                )
+                assert pod is not None
+                target = self.identity("scheduler", pod, entry["session_id"])
+                if bound:
+                    bind(bound, target)
+                logs.extend(self.scheduler_acquisitions(target))
+                acquired = self.scheduler_acquisition(target, entry, logs)
+                require(acquired is not None, "F1A_CANDIDATE_SCHEDULER_ACQUISITION_LOG_MISSING")
+                assert acquired is not None
+            except SmokeFailure as error:
+                failures.append(candidate(attempt, uid, failure_label(error)))
+                return None, observed
+            # Re-check expiry after Kubernetes, CRI and log reads.
+            if ns(lease["lease_expires_at"]) <= time.time_ns():
+                failures.append(
+                    candidate(attempt, uid, "F1A_CANDIDATE_SCHEDULER_LEASE_EXPIRED_DURING_READ")
+                )
+                return None, observed
+            return (target, cut, acquired), observed
+
+        return self.poll(active, stage, time.monotonic() + 16)
 
     def active_scheduler(self, workflow: str) -> tuple[list[Target], JsonObject]:
-        def active() -> tuple[tuple[list[Target], JsonObject] | None, Any]:
-            cut = self.cut(workflow)
-            leases = [row for row in cut["leases"] if row["live"] and row["owner_id"]]
-            leases = [row for row in leases if ns(row["lease_expires_at"]) > time.time_ns()]
-            if not leases:
-                return None, cut["leases"]
-            lease = one("F1A_CURRENT_LEASE", leases)
-            acquiring = by(
-                cut["audit"], kind="acquire", owner_id=lease["owner_id"], epoch=lease["epoch"]
-            )
-            if not acquiring:
-                return None, lease
-            entry = one("F1A_ACTIVE_SCHEDULER_ACQUIRE", acquiring)
-            pods = [
-                p
-                for p in self.pods("scheduler")
-                if ready(p) and p["metadata"]["uid"] == entry["pod_uid"]
-            ]
-            if not pods:
-                return None, entry["pod_uid"]
-            return ([self.identity("scheduler", pods[0], entry["session_id"])], cut), None
-
-        return poll(active, "F1A_ACTIVE_SCHEDULER", time.monotonic() + 16)
+        target, cut, acquired = self.scheduler_lease(workflow, "F1A_ACTIVE_SCHEDULER")
+        self.retain("scheduler-selected-acquisition", acquired)
+        return [target], cut
 
     def ensure_scheduler_lease(self, target: Target, workflow: str) -> JsonObject:
-        def active() -> tuple[JsonObject | None, Any]:
-            cut = self.cut(workflow)
-            active_leases = [
-                lease
-                for lease in cut["leases"]
-                if lease["live"]
-                and by(
-                    cut["audit"],
-                    kind="acquire",
-                    owner_id=lease["owner_id"],
-                    epoch=lease["epoch"],
-                    pod_uid=target.uid,
-                    session_id=target.session,
-                )
-            ]
-            if not active_leases:
-                return None, cut["leases"]
-            lease = active_leases[0]
-            acquired = self.scheduler_acquisition(target, lease)
-            if not acquired:
-                return None, lease
-            self.retain("scheduler-acquisition", acquired)
-            return cut, None
-
-        return poll(active, "F1A_BOUND_SCHEDULER_LEASE", time.monotonic() + 16)
+        _, cut, acquired = self.scheduler_lease(workflow, "F1A_BOUND_SCHEDULER_LEASE", bound=target)
+        self.retain("scheduler-acquisition", acquired)
+        return cut
 
     def role_log(self, pod: str, role: str, *, previous: bool = False) -> bytes:
         raw = self.k(
@@ -764,25 +868,35 @@ class F1aSmoke(Matrix):
         self.evidence.check(raw)
         return raw
 
-    def scheduler_acquisition(self, target: Target, lease: JsonObject) -> JsonObject | None:
-        raw = self.role_log(target.pod, "scheduler")
-        for line in raw.decode().splitlines():
+    def scheduler_acquisitions(self, target: Target) -> list[JsonObject]:
+        rows = []
+        for line in self.role_log(target.pod, "scheduler").decode().splitlines():
             entry = structured_log(line)  # type: ignore[no-untyped-call]
-            if (
-                entry
-                and entry.get("event") == "scheduler_acquisition"
-                and entry["boundary"] == "after_lease_acquired_hold_enter"
-                and entry["pod_uid"] == target.uid
-                and entry["session"] == target.session
-                and entry["owner"] == lease["owner_id"]
-                and entry["epoch"] == lease["epoch"]
-                and entry["partition"] == lease["partition_id"]
-            ):
-                expect(
-                    "F1A_SCHEDULER_ACQUISITION_PID", str(entry["pid"]), target.process.split(":")[0]
-                )
-                return cast(JsonObject, entry)
-        return None
+            if entry and entry.get("event") == "scheduler_acquisition":
+                rows.append(entry)
+        return rows
+
+    def scheduler_acquisition(
+        self, target: Target, acquire: JsonObject, rows: list[JsonObject]
+    ) -> JsonObject | None:
+        # F1a injects metadata.uid as CONTAINER_ID. CRI identity is in Target.
+        expect("F1A_SCHEDULER_AUDIT_POD_HINT", acquire["container_id"], target.uid)
+        found = by(
+            rows,
+            boundary="after_lease_acquired_hold_enter",
+            pod_uid=target.uid,
+            session=target.session,
+            owner=acquire["owner_id"],
+            epoch=acquire["epoch"],
+            partition=acquire["partition_id"],
+        )
+        after_commit = [row for row in found if ns(row["timestamp"]) >= acquire["observed_ns"]]
+        if not after_commit:
+            return None
+        entry = min(after_commit, key=lambda r: ns(r["timestamp"]))
+        expect("F1A_SCHEDULER_LOG_POD_HINT", entry["container_id"], target.uid)
+        expect("F1A_SCHEDULER_ACQUISITION_PID", str(entry["pid"]), target.process.split(":")[0])
+        return entry
 
     def collect_role_logs(self, namespace: str, roles: tuple[str, ...]) -> None:
         failures = {}
@@ -913,18 +1027,29 @@ class F1aSmoke(Matrix):
         issued_ns = chaos.issued_ns
         assert issued_ns is not None
 
-        def dead() -> tuple[JsonObject | None, Any]:
+        def dead() -> tuple[JsonObject | None, JsonObject]:
             self.streams.check()
             with self.streams.lock:
                 exits = list(self.streams.cri_exits)
             process = self.proc_start(target.node, target.host_pid)
             old_pods = [p for p in self.pods(target.role) if p["metadata"]["uid"] == target.uid]
-            if process == target.process or (target.role == "worker" and old_pods):
-                return None, {"old_process": process, "old_uid_present": bool(old_pods)}
+            observed = {
+                "old_process": process,
+                "old_uid_present": bool(old_pods),
+                "cri_exits": exits,
+            }
+            if process == target.process:
+                label = "F1A_CANDIDATE_KILLED_PROCESS_STILL_RUNNING"
+            elif target.role == "worker" and old_pods:
+                label = "F1A_CANDIDATE_KILLED_WORKER_UID_STILL_PRESENT"
+            else:
+                label = None
             cid = target.container_id
             matches = [row for row in exits if row["container_id"] == cid.split("://")[1]]
-            if not matches and time.time_ns() - issued_ns < 8e9:
-                return None, {"process": process, "cri_exit": "waiting"}
+            if label is None and not matches and time.time_ns() - issued_ns < 8e9:
+                label = "F1A_CANDIDATE_KILLED_CONTAINER_EXIT_NOT_YET_OBSERVED"
+            if label:
+                return None, {**observed, "candidates": [candidate(1, target.uid, label)]}
             proof = prove_death(target, issued_ns, process, exits)
             self.retain(
                 "process-death",
@@ -935,24 +1060,30 @@ class F1aSmoke(Matrix):
                     "old_pod": pod_state(old_pods[0]) if old_pods else None,
                 },
             )
-            return proof, None
+            return proof, {**observed, "candidates": []}
 
-        return poll(dead, "F1A_KILL_DEATH", time.monotonic() + 18)
+        return self.poll(dead, "F1A_KILL_DEATH", time.monotonic() + 18)
 
     def ready_replacement(self, target: Target, before_uids: set[str], absent_ns: int) -> Target:
-        def healthy() -> tuple[Target | None, Any]:
+        def healthy() -> tuple[Target | None, JsonObject]:
             pods = self.pods(target.role)
+            failures = []
+            observed = {"pods": [pod_state(p) for p in pods], "candidates": failures}
             for pod in pods:
-                if not ready(pod) or pod["metadata"].get("deletionTimestamp"):
-                    continue
                 uid = pod["metadata"]["uid"]
                 if uid in before_uids and uid != target.uid:
+                    continue
+                if not ready(pod) or pod["metadata"].get("deletionTimestamp"):
+                    failures.append(candidate(1, uid, "F1A_CANDIDATE_REPLACEMENT_POD_NOT_READY"))
                     continue
                 row = one(
                     "F1A_REPLACEMENT_CONTAINER",
                     by(pod["status"]["containerStatuses"], name=target.container),
                 )
                 if row["containerID"] == target.container_id:
+                    failures.append(
+                        candidate(1, uid, "F1A_CANDIDATE_REPLACEMENT_CONTAINER_UNCHANGED")
+                    )
                     continue
                 if uid == target.uid:
                     expect("F1A_RESTART_COUNT", row["restartCount"], target.restart_count + 1)
@@ -985,10 +1116,12 @@ class F1aSmoke(Matrix):
                         False,
                     )
                 self.retain("ready-replacement", proof)
-                return replacement, None
-            return None, [pod_state(p) for p in pods]
+                return replacement, observed
+            if not failures:
+                failures.append(candidate(1, None, "F1A_CANDIDATE_REPLACEMENT_POD_MISSING"))
+            return None, observed
 
-        return poll(healthy, "F1A_READY_REPLACEMENT", time.monotonic() + 65)
+        return self.poll(healthy, "F1A_READY_REPLACEMENT", time.monotonic() + 65)
 
     def scheduler_reconnect(self, replacement: Target, absent_ns: int) -> None:
         service = self.objects("F1A_POSTGRES_SERVICE", "service", "postgres")
@@ -1000,7 +1133,7 @@ class F1aSmoke(Matrix):
             [self.engine_address],
         )
 
-        def connections() -> tuple[JsonObject | None, Any]:
+        def connections() -> tuple[JsonObject | None, JsonObject]:
             raw = self.command(
                 "F1A_SCHEDULER_CONNECTIONS",
                 "docker",
@@ -1016,11 +1149,9 @@ class F1aSmoke(Matrix):
                 "established",
                 timeout=5,
             ).decode()
-            matches = [
-                line
-                for line in raw.splitlines()
-                if service_peer in line.split() and f"pid={replacement.host_pid}," in line
-            ]
+            # ss -Htnp with a TCP state filter omits the state column.
+            owned = [line for line in raw.splitlines() if f"pid={replacement.host_pid}," in line]
+            matches = [line for line in owned if service_peer in line.split()]
             proof = {
                 "at_ns": time.time_ns(),
                 "postgres_connections": matches,
@@ -1028,24 +1159,30 @@ class F1aSmoke(Matrix):
                 "service_peer": service_peer,
                 "engine_address": self.engine_address,
             }
+            observed = {**proof, "established": raw.splitlines(), "candidates": []}
             if not matches:
-                return None, {"established": len(raw.splitlines()), "matching": 0}
+                label = (
+                    "F1A_CANDIDATE_SCHEDULER_POSTGRES_PEER_MISSING"
+                    if owned
+                    else "F1A_CANDIDATE_SCHEDULER_OWNED_SOCKET_MISSING"
+                )
+                return None, {**observed, "candidates": [candidate(1, replacement.uid, label)]}
             bind(replacement, self.reobserve(replacement))
             prove_restoration(absent_ns, proof, {"connected": True})
             self.retain("scheduler-restoration", proof)
-            return proof, None
+            return proof, observed
 
-        poll(connections, "F1A_SCHEDULER_RECONNECT", time.monotonic() + 20)
+        self.poll(connections, "F1A_SCHEDULER_RECONNECT", time.monotonic() + 20)
 
     def partition_chain(self, chaos: Chaos, target: Target) -> str:
         sources = self.objects("F1A_POD_NETWORK", "podnetworkchaos", target.pod)
+        self.retain("pod-network-chaos", sources)
         found = [
             row
-            for row in sources["spec"]["iptables"]
+            for row in sources.get("spec", {}).get("iptables", [])
             if row["source"] == f"{self.namespace}/{chaos.name}" and row["direction"] == "output"
         ]
         chain: str = one("F1A_CHAOS_DROP_CHAIN", found)["name"]
-        self.retain("pod-network-chaos", sources)
         return chain
 
     def counters(self, target: Target, chain: str) -> dict[str, int] | None:
@@ -1104,7 +1241,7 @@ class F1aSmoke(Matrix):
         ack_ns = time.time_ns()
         samples: list[JsonObject] = []
 
-        def partitioned() -> tuple[tuple[JsonObject, int] | None, Any]:
+        def partitioned() -> tuple[tuple[JsonObject, int] | None, JsonObject]:
             bind(target, self.reobserve(target))
             backend = chaos.sample("partition-active")
             expect(
@@ -1114,85 +1251,88 @@ class F1aSmoke(Matrix):
             )
             cut = self.cut(workflow)
             rows, seals = self.witness()
-            routes = route_rows(rows, target, workflow, attempt=1)
-            token = active["claim"]["token_hash"]
+            attempt = active["attempt"]
+            routes = by(
+                route_rows(rows, target, workflow, attempt=attempt["attempt_number"]),
+                node=attempt["node_id"],
+                iteration=attempt["iteration"],
+                token_hash=attempt["token_hash"],
+            )
             failed = [
                 row
                 for row in routes
-                if row["at_ns"] > ack_ns
-                and row["token_hash"] == token
-                and row["code"] == "CONTROL_UNAVAILABLE"
+                if row["at_ns"] > ack_ns and row["code"] == "CONTROL_UNAVAILABLE"
             ]
             witnesses = [
                 row
                 for row in by(
-                    rows, event="f1a_activity_wait", invocation=active["invocation"]["invocation"]
+                    rows,
+                    event="f1a_activity_wait",
+                    invocation=active["invocation"]["invocation"],
+                    session=target.session,
+                    pod_uid=target.uid,
+                    token_hash=attempt["token_hash"],
                 )
                 if row["at_ns"] > ack_ns
-                and row["session"] == target.session
-                and row["pod_uid"] == target.uid
             ]
             live = self.counters(target, chain)
-            replacements = [
-                row for row in by(cut["attempts"], is_current=True) if row["attempt_number"] > 1
-            ]
-            superseded = by(
-                cut["attempts"],
-                attempt_number=1,
-                token_hash=token,
-                is_current=False,
-                state="TIMED_OUT",
-            )
             diagnostics = {
+                "cut": cut,
+                "seals": seals,
+                "witness_rows": rows,
                 "failure_count": len(failed),
                 "witness_ticks": len(witnesses),
                 "baseline": baseline,
                 "drops": live,
-                "attempts": cut["attempts"],
+                "candidates": [],
             }
-            samples.append({"at_ns": time.time_ns(), **diagnostics})
+            try:
+                require(bool(failed), "F1A_CANDIDATE_PARTITION_CONTROL_FAILURE_MISSING")
+                require(len(witnesses) >= 2, "F1A_CANDIDATE_PARTITION_INVOCATION_TICKS_MISSING")
+                require(live is not None, "F1A_CANDIDATE_PARTITION_DROP_JUMP_MISSING")
+                assert live is not None
+                require_drop_rise(baseline, live)
+                replacement = partition_replacement(cut, attempt)
+            except SmokeFailure as error:
+                diagnostics["candidates"].append(
+                    candidate(attempt["attempt_number"], target.uid, failure_label(error))
+                )
+                result = None
+            else:
+                expect("F1A_STABLE_WORKER_CONTROL", self.targets_behind_service(), endpoints)
+                proof = {
+                    "cut": cut,
+                    "seals": seals,
+                    "routes": routes,
+                    **replacement,
+                    "witness": witnesses,
+                    "counters": {"before": baseline, "during": live},
+                    "failure": failed[0],
+                }
+                self.retain("partition-confirmed", proof)
+                result = (proof, cut["sample_observed_ns"])
+            samples.append(
+                {
+                    "at_ns": time.time_ns(),
+                    "attempts": cut["attempts"],
+                    **{
+                        key: diagnostics[key]
+                        for key in (
+                            "failure_count",
+                            "witness_ticks",
+                            "baseline",
+                            "drops",
+                            "candidates",
+                        )
+                    },
+                }
+            )
             self.retain("active-partition-samples", samples)
-            if (
-                not failed
-                or len(witnesses) < 2
-                or not live
-                or not all(live[key] > baseline[key] for key in baseline)
-                or not replacements
-                or not superseded
-            ):
-                return None, diagnostics
-            require_drop_rise(baseline, live)
-            expect("F1A_STABLE_WORKER_CONTROL", self.targets_behind_service(), endpoints)
-            replacement = one("F1A_PARTITION_REPLACEMENT", replacements)
-            old = superseded[0]
-            expect(
-                "F1A_REPLACEMENT_SAME_INVOCATION_KEY",
-                [
-                    replacement[key]
-                    for key in ("workflow_id", "node_id", "iteration", "attempt_number")
-                ],
-                [old[key] for key in ("workflow_id", "node_id", "iteration")]
-                + [old["attempt_number"] + 1],
-            )
-            committed = one(
-                "F1A_REPLACEMENT_COMMITTED_HISTORY",
-                by(cut["history"], reason="TIMEOUT_REPLACEMENT"),
-            )
-            proof = {
-                "cut": cut,
-                "seals": seals,
-                "routes": routes,
-                "replacement": replacement,
-                "old": old,
-                "replacement_history": committed,
-                "witness": witnesses,
-                "counters": {"before": baseline, "during": live},
-                "failure": failed[0],
-            }
-            self.retain("partition-confirmed", proof)
-            return (proof, cut["sample_observed_ns"]), diagnostics
+            return result, diagnostics
 
-        proof, replacement_ns = poll(partitioned, "F1A_PARTITION_UNCONFIRMED", chaos.deadline - 8)
+        proof, replacement_ns = self.poll(
+            partitioned, "F1A_PARTITION_UNCONFIRMED", chaos.deadline - 8
+        )
         absent_ns = chaos.remove()
         expect(
             "F1A_PARTITION_REMOVAL_BOUND",
@@ -1207,23 +1347,57 @@ class F1aSmoke(Matrix):
         # call carries the old token. The replacement remains held.
         self.release_activity(active["invocation"]["invocation"])
 
-        def stale() -> tuple[JsonObject | None, Any]:
+        rejected = self.wait_stale(target, active["attempt"], replacement_ns, restored["at_ns"])
+        return proof, absent_ns, rejected
+
+    def wait_stale(
+        self, target: Target, attempt: JsonObject, replacement_ns: int, restored_ns: int
+    ) -> JsonObject:
+        order = {
+            "token_hash": attempt["token_hash"],
+            "replacement_observed_ns": replacement_ns,
+            "restored_ns": restored_ns,
+        }
+
+        def stale() -> tuple[JsonObject | None, JsonObject]:
             rows, seals = self.witness()
-            routes = by(route_rows(rows, target, workflow, attempt=1), operation="result")
+            failures = []
+            diagnostics = {"witness_rows": rows, "seals": seals, "candidates": failures, **order}
             try:
-                proof = require_stale(
-                    routes,
-                    token_hash=active["claim"]["token_hash"],
-                    replacement_observed_ns=replacement_ns,
-                    restored_ns=restored["at_ns"],
+                routes = by(
+                    route_rows(
+                        rows, target, attempt["workflow_id"], attempt=attempt["attempt_number"]
+                    ),
+                    operation="result",
+                    node=attempt["node_id"],
+                    iteration=attempt["iteration"],
                 )
             except SmokeFailure as error:
-                return None, str(error)
+                failures.append(
+                    candidate(attempt["attempt_number"], target.uid, failure_label(error))
+                )
+                return None, diagnostics
+            try:
+                proof = require_stale(routes, **order)
+            except SmokeFailure:
+                failures.extend(
+                    candidate(row["attempt_number"], row["pod_uid"], label)
+                    for row in routes
+                    if (label := stale_candidate_failure(row, **order))
+                )
+                if not failures:
+                    failures.append(
+                        candidate(
+                            attempt["attempt_number"],
+                            target.uid,
+                            "F1A_CANDIDATE_STALE_RESULT_ROUTE_MISSING",
+                        )
+                    )
+                return None, diagnostics
             self.retain("stale-rejection", {"response": proof, "seals": seals, "routes": routes})
-            return proof, None
+            return proof, diagnostics
 
-        rejected = poll(stale, "F1A_TYPED_STALE_REJECTION", time.monotonic() + 16)
-        return proof, absent_ns, rejected
+        return self.poll(stale, "F1A_TYPED_STALE_REJECTION", time.monotonic() + 16)
 
     def release_activity(self, invocation: str = "") -> None:
         expect(
@@ -1232,15 +1406,36 @@ class F1aSmoke(Matrix):
             {"released": True},
         )
 
-    def finish(self, workflow: str) -> JsonObject:
+    def finish(self, workflow: str) -> tuple[JsonObject, JsonObject, list[JsonObject]]:
         self.release_activity()
 
-        def terminal() -> tuple[JsonObject | None, Any]:
+        def terminal() -> tuple[tuple[JsonObject, JsonObject, list[JsonObject]] | None, JsonObject]:
             cut = self.cut(workflow)
-            state = cut["workflow"]["state"]
-            return (cut if state == "SUCCEEDED" else None), state
+            rows, seals = self.witness()
+            self.retain("terminal-cut", cut)
+            self.retain("terminal-witness", seals)
+            expect("F1A_ACTIVITY_GATE_NEVER_EXPIRED", by(rows, event="f1a_activity_expired"), [])
+            attempts = [r for r in cut["attempts"] if r["is_current"] or r["state"] == "SUCCEEDED"]
+            diagnostics = {"cut": cut, "witness_rows": rows, "seals": seals, "candidates": []}
+            try:
+                expect("F1A_TERMINAL_WORKFLOW_STATE", cut["workflow"]["state"], "SUCCEEDED")
+                winner = terminal_winner(cut, rows, self.pods("worker"), self.namespace)
+            except SmokeFailure as error:
+                for attempt in attempts or [{"attempt_number": None, "token_hash": None}]:
+                    uids = {
+                        r["pod_uid"]
+                        for r in rows
+                        if r.get("identity", {}).get("token_hash") == attempt["token_hash"]
+                        and r["event"] == "start"
+                    }
+                    diagnostics["candidates"].extend(
+                        candidate(attempt["attempt_number"], uid, failure_label(error))
+                        for uid in sorted(uids) or [None]
+                    )
+                return None, diagnostics
+            return (cut, winner, seals), diagnostics
 
-        return poll(terminal, "F1A_TERMINAL", time.monotonic() + 60)
+        return self.poll(terminal, "F1A_TERMINAL", time.monotonic() + 60)
 
     def exercise(self, row: JsonObject, coverage: JsonObject) -> JsonObject:
         self.retain(
@@ -1307,10 +1502,21 @@ class F1aSmoke(Matrix):
             ),
             True,
         )
-        rows, _ = self.witness()
+        rows, seals = self.witness()
+        invocation = active["invocation"]
+        same_process = {key: invocation[key] for key in ("pod_uid", "session")}
+        inactive = by(rows, event="finish", id=invocation["invocation"], **same_process) + [
+            event
+            for boundary in ("f1a_activity_release", "f1a_activity_expired")
+            for event in by(
+                rows, event=boundary, invocation=invocation["invocation"], **same_process
+            )
+        ]
+        if inactive:
+            self.retain("invocation-inactive-at-apply", {"rows": inactive, "seals": seals})
         expect(
             "F1A_INVOCATION_ACTIVE_AT_APPLY",
-            not by(rows, event="finish", id=active["invocation"]["invocation"]),
+            not inactive,
             True,
         )
         if target.role == "scheduler":
@@ -1319,18 +1525,26 @@ class F1aSmoke(Matrix):
         chaos.apply(lambda: self.reobserve(target))
         assert chaos.issued_ns is not None
 
-        def acknowledge() -> tuple[JsonObject | None, Any]:
-            obj = chaos.sample("injection")
-            return (obj if obj and backend_selected(obj, target, peer_names) else None), (
-                obj.get("status", {}) if obj else "absent"
+        def acknowledge() -> tuple[JsonObject | None, JsonObject]:
+            observed = chaos.sample("injection")
+            proof = (
+                observed if observed and backend_selected(observed, target, peer_names) else None
             )
+            label = (
+                "F1A_CANDIDATE_BACKEND_ACK_MISSING"
+                if observed
+                else "F1A_CANDIDATE_BACKEND_CR_ABSENT"
+            )
+            return proof, {
+                "object": observed,
+                "candidates": [candidate(1, target.uid, label)] if not proof else [],
+            }
 
-        poll(acknowledge, "F1A_BACKEND_ACK", time.monotonic() + 18)
+        self.poll(acknowledge, "F1A_BACKEND_ACK", time.monotonic() + 18)
         chaos.events()
-        rejected = None
-        replacement = None
+        rejected = replacement = partition_proof = None
         if partition:
-            _, absent_ns, rejected = self.check_partition(
+            partition_proof, absent_ns, rejected = self.check_partition(
                 chaos, target, active, workflow, endpoints
             )
         else:
@@ -1339,22 +1553,8 @@ class F1aSmoke(Matrix):
             replacement = self.ready_replacement(target, before_uids, absent_ns)
             if replacement.role == "scheduler":
                 self.scheduler_reconnect(replacement, absent_ns)
-        final = self.finish(workflow)
-        worker_rows, seals = self.witness()
-        self.retain("terminal-cut", final)
-        self.retain("terminal-witness", seals)
-        expect("F1A_ACTIVITY_GATE_NEVER_EXPIRED", by(worker_rows, event="f1a_activity_expired"), [])
-        winner = one(
-            "F1A_WINNING_ATTEMPT", by(final["attempts"], is_current=False, state="SUCCEEDED")
-        )
-        winning_claim = one(
-            "F1A_WINNING_CLAIM",
-            by(
-                final["claims"],
-                token_hash=winner["token_hash"],
-                attempt_number=winner["attempt_number"],
-            ),
-        )
+        final, winning, seals = self.finish(workflow)
+        winner = winning["attempt"]
         if target.role == "worker":
             expect(
                 "F1A_WINNER_REPLACED",
@@ -1362,37 +1562,17 @@ class F1aSmoke(Matrix):
                 and winner["token_hash"] != active["claim"]["token_hash"],
                 True,
             )
-        started = one(
-            "F1A_WINNING_INVOCATION",
-            [
-                event
-                for event in by(worker_rows, event="start")
-                if event["identity"]["token_hash"] == winner["token_hash"]
-            ],
-        )
-        expect(
-            "F1A_WINNING_ACTIVITY_FINISHED",
-            len(by(worker_rows, event="finish", id=started["id"])),
-            1,
-        )
-        results = by(
-            worker_rows,
-            event="f1a_http",
-            operation="result",
-            workflow=workflow,
-            token_hash=winner["token_hash"],
-            status=200,
-            session=started["session"],
-            pod_uid=started["pod_uid"],
-        )
-        expect(
-            "F1A_WINNING_RESULT_ROUTE",
-            bool(results) and all(result["base_url"] == CONTROL_URL for result in results),
-            True,
-        )
         if rejected is not None:
+            assert partition_proof is not None
             expect(
-                "F1A_RESULT_AFTER_TYPED_REJECTION", results[0]["at_ns"] > rejected["at_ns"], True
+                "F1A_PARTITION_REPLACEMENT_WON",
+                attempt_fields(winner),
+                attempt_fields(partition_proof["replacement"]),
+            )
+            expect(
+                "F1A_RESULT_AFTER_TYPED_REJECTION",
+                winning["result"]["at_ns"] > rejected["at_ns"],
+                True,
             )
         fenced = None
         if replacement is not None and replacement.role == "scheduler":
@@ -1414,7 +1594,9 @@ class F1aSmoke(Matrix):
                 ],
             )
             author = self.identity("scheduler", pod, acquire["session_id"])
-            author_log = self.scheduler_acquisition(author, acquire)
+            author_logs = self.scheduler_acquisitions(author)
+            self.retain("fenced-scheduler-witness", author_logs)
+            author_log = self.scheduler_acquisition(author, acquire, author_logs)
             expect("F1A_FENCED_SCHEDULER_PROCESS", author_log is not None, True)
             fenced.update(process=asdict(author), acquisition_log=author_log)
         checker = {
@@ -1426,9 +1608,9 @@ class F1aSmoke(Matrix):
             "arm": row,
             "target": asdict(target),
             "removal_absent_ns": absent_ns,
-            "winning_claim": winning_claim,
-            "winning_invocation": started,
-            "winning_result": results[0],
+            "winning_claim": winning["claim"],
+            "winning_invocation": winning["invocation"],
+            "winning_result": winning["result"],
             "stale_rejection": rejected,
             "fenced_transition": fenced,
             "engine_cut": final,
