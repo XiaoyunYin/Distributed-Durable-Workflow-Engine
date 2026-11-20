@@ -68,7 +68,7 @@ def download(url: str, sha256: str) -> bytes:
 
 
 def elapsed_live_seconds(scenario: str, cluster_started: bool, cleanup_seconds: int) -> int:
-    if scenario != "smoke" or not cluster_started:
+    if scenario not in {"smoke", "chaos-smoke"} or not cluster_started:
         return 0
     return max(1, cleanup_seconds)
 
@@ -402,12 +402,24 @@ class Driver:
         tree = self.scratch / ("package-" + arm)
         shutil.copytree(K8S, tree)
         p = tree / "base/resources.yaml"
-        content = p.read_text()
-        for name, digest in self.images.items():
-            content = content.replace(f"dur053/{name}:UNBOUND", digest)
-        for placeholder, address in (endpoints or {}).items():
-            content = content.replace(placeholder + "/32", address + "/32")
-        p.write_text(content)
+        resources = json.loads(p.read_bytes())
+        images = {f"dur053/{name}:UNBOUND": digest for name, digest in self.images.items()}
+        cidrs = {
+            f"{placeholder}/32": f"{address}/32"
+            for placeholder, address in (endpoints or {}).items()
+        }
+        for item in resources["items"]:
+            if item["kind"] in {"Deployment", "Job"}:
+                pod = item["spec"]["template"]["spec"]
+                for container in pod.get("containers", []) + pod.get("initContainers", []):
+                    container["image"] = images.get(container["image"], container["image"])
+            if item["kind"] == "NetworkPolicy":
+                for direction, field in (("ingress", "from"), ("egress", "to")):
+                    for rule in item["spec"].get(direction, []):
+                        for peer in rule.get(field, []):
+                            if block := peer.get("ipBlock"):
+                                block["cidr"] = cidrs.get(block["cidr"], block["cidr"])
+        save(p, resources)
         built = self.command(["kustomize", "build", str(tree / "overlays" / arm)]).stdout
         path = self.output / (arm + ".yaml")
         path.write_text(built, encoding="utf-8", newline="\n")
@@ -1620,8 +1632,10 @@ def run(
     k6_e1_output: Path | None = None,
     k6_e2_output: Path | None = None,
     k6_f1a_output: Path | None = None,
+    k6_f1b_output: Path | None = None,
 ) -> int:
     supported(scenario)
+    started = time.monotonic()
     k6_exit = 0
     phase_b_started = False
     phase_c_started = False
@@ -1630,6 +1644,7 @@ def run(
     phase_e1_started = False
     phase_e2_started = False
     phase_f1a_started = False
+    phase_f1b_started = False
     fresh_output(output)
     scratch_root.mkdir(parents=True, exist_ok=True)
     scratch = scratch_root / ("kind-" + secrets.token_hex(8))
@@ -1646,13 +1661,15 @@ def run(
             "no SLO freeze or pilot result",
         ],
         "registered_live_seconds": 0,
-        "live_ceiling_seconds": LIVE_RESERVATION if scenario == "smoke" else 0,
+        "live_ceiling_seconds": LIVE_RESERVATION if scenario in {"smoke", "chaos-smoke"} else 0,
         "budget_scope": "engineering-validation",
         "measurement_claim": False,
         "cluster_started": False,
     }
     save(output / "manifest.json", manifest)
     try:
+        if scenario == "chaos-smoke":
+            require(k6_f1a_output and k6_f1b_output, "phase-f-output-roots-required")
         manifest["merge_ref_sha"] = d.command(
             ["git", "rev-parse", "HEAD"], record=False
         ).stdout.strip()
@@ -1663,7 +1680,10 @@ def run(
         manifest["job_key"] = os.getenv("GITHUB_JOB")
         if os.getenv("GITHUB_ACTIONS"):
             repo, run_id = os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_RUN_ID"]
-            job_name = "DUR-053 kind smoke" if scenario == "smoke" else "DUR-053 package check"
+            job_name = {
+                "smoke": "DUR-053 kind smoke",
+                "chaos-smoke": "DUR-053 Phase F kind smoke",
+            }.get(scenario, "DUR-053 package check")
             jobs = github(f"repos/{repo}/actions/runs/{run_id}/jobs?per_page=100")["jobs"]
             runner_name = os.getenv("RUNNER_NAME")
             mine = [
@@ -1672,6 +1692,7 @@ def run(
                 if runner_name
                 and j.get("runner_name") == runner_name
                 and j.get("status") == "in_progress"
+                and j["name"] == job_name
             ]
             if not mine:
                 mine = [j for j in jobs if j["name"] == job_name]
@@ -1753,15 +1774,16 @@ def run(
             _, treatment = d.render("kind")
             _, baseline = d.render("kind-baseline")
             matched_arms(treatment, baseline)
-            if scenario == "smoke":
+            if scenario in {"smoke", "chaos-smoke"}:
                 d.preload_addons()
                 for arm in ("kind", "kind-baseline"):
                     shutil.rmtree(scratch / ("package-" + arm))
                     (output / (arm + ".yaml")).rename(output / (arm + "-unbound-endpoints.yaml"))
                 addresses = d.cluster()
                 manifest["cluster_started"] = d.cluster_started
-                for arm in ("kind", "kind-baseline"):
-                    d.batch(arm, addresses)
+                if scenario == "smoke":
+                    for arm in ("kind", "kind-baseline"):
+                        d.batch(arm, addresses)
                 if k6_output:
                     phase_b_started = True
                     from dur053_k6_b_smoke import record_handoff_failure
@@ -1870,7 +1892,23 @@ def run(
                             from dur053_k6_f1a_smoke import record_handoff_failure as f1a_failed
 
                             f1a_failed(k6_f1a_output, error)
-        manifest["status"] = "PASS"
+                if k6_f1b_output:
+                    phase_f1b_started = True
+                    try:
+                        import dur053_k6_f1b_smoke
+
+                        f1b_exit = dur053_k6_f1b_smoke.run(k6_f1b_output, d, addresses)
+                        k6_exit = k6_exit or f1b_exit
+                    except Exception as error:
+                        k6_exit = 1
+                        with suppress(Exception):
+                            from dur053_k6_f1b_smoke import record_handoff_failure as f1b_failed
+
+                            f1b_failed(k6_f1b_output, error)
+        if scenario == "chaos-smoke" and k6_exit:
+            manifest["error"] = "K6_PHASE_F_SMOKE_FAILED"
+        else:
+            manifest["status"] = "PASS"
     except Exception as error:
         manifest["error"] = (
             str(error).replace(d.password, "[REDACTED]").replace(d.demand_token, "[REDACTED]")
@@ -1914,6 +1952,11 @@ def run(
             manifest["cleanup"].get("elapsed_live_seconds", LIVE_RESERVATION),
         )
         manifest["charged_seconds"] = 0
+        manifest["elapsed_total_seconds"] = round(time.monotonic() - started, 3)
+        if job_started := os.getenv("DUR053_KIND_JOB_STARTED"):
+            manifest["job_elapsed_seconds_through_cleanup"] = round(
+                time.time() - int(job_started), 3
+            )
         manifest["artifact_sha256"] = artifact_hashes(output)
         save(output / "manifest.json", manifest)
         if k6_output and not phase_b_started:
@@ -1951,6 +1994,11 @@ def run(
                 from dur053_k6_f1a_smoke import inherited_failure as f1a_skipped
 
                 f1a_skipped(k6_f1a_output)
+        if k6_f1b_output and not phase_f1b_started:
+            with suppress(Exception):
+                from dur053_k6_f1b_smoke import inherited_failure as f1b_skipped
+
+                f1b_skipped(k6_f1b_output)
     return k6_exit if manifest["status"] == "PASS" else 1
 
 
@@ -1966,6 +2014,7 @@ def main() -> int:
     parser.add_argument("--k6-e1-output", type=Path)
     parser.add_argument("--k6-e2-output", type=Path)
     parser.add_argument("--k6-f1a-output", type=Path)
+    parser.add_argument("--k6-f1b-output", type=Path)
     args = parser.parse_args()
     k6_output = args.k6_output
     if args.scenario == "smoke" and k6_output is None:
@@ -1992,9 +2041,13 @@ def main() -> int:
         configured = os.getenv("DUR053_K6_E2_OUTPUT")
         k6_e2_output = Path(configured) if configured else None
     k6_f1a_output = args.k6_f1a_output
-    if args.scenario == "smoke" and k6_f1a_output is None:
+    if args.scenario == "chaos-smoke" and k6_f1a_output is None:
         configured = os.getenv("DUR053_K6_F1A_OUTPUT")
         k6_f1a_output = Path(configured) if configured else None
+    k6_f1b_output = args.k6_f1b_output
+    if args.scenario == "chaos-smoke" and k6_f1b_output is None:
+        configured = os.getenv("DUR053_K6_F1B_OUTPUT")
+        k6_f1b_output = Path(configured) if configured else None
     return run(
         args.scenario,
         args.output.resolve(),
@@ -2006,6 +2059,7 @@ def main() -> int:
         k6_e1_output,
         k6_e2_output,
         k6_f1a_output,
+        k6_f1b_output,
     )
 
 

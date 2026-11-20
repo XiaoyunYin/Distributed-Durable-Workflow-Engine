@@ -702,6 +702,10 @@ func (s *Store) RenewLease(ctx context.Context, ref LeaseRef, ttl time.Duration)
 	if err != nil {
 		return Lease{}, err
 	}
+	ctx, err = k6BeforeRenewLease(ctx, tx, current)
+	if err != nil {
+		return Lease{}, err
+	}
 	var renewedExpiry time.Time
 	if err := tx.QueryRow(ctx, `
 		UPDATE engine.partition_leases

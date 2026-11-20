@@ -72,6 +72,28 @@ def test_ci_k3_outputs_are_isolated_and_lock_evidence_is_uploaded() -> None:
     assert "${{ runner.temp }}/dur053-k3-lock/" in upload
 
 
+def test_phase_f_has_its_own_pr_only_kind_job_and_artifacts() -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    ordinary = dict(_job_steps(workflow, "k3-smoke"))
+    chaos = dict(_job_steps(workflow, "k6-phase-f-smoke"))
+    jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
+    for job in ("k3-smoke", "k6-phase-f-smoke"):
+        assert "    if: github.event_name == 'pull_request'" in jobs[job]
+        assert "    timeout-minutes: 70" in jobs[job]
+        assert "DUR053_KIND_JOB_STARTED=" in jobs[job]
+    assert "DUR053_K6_F1" not in ordinary["Run smoke"]
+    assert all(
+        f"DUR053_K6_{phase}_OUTPUT" in ordinary["Run smoke"] for phase in ("D2B", "E1", "E2")
+    )
+    assert "-Scenario chaos-smoke" in chaos["Run Phase F chaos smokes"]
+    for phase in ("F1A", "F1B"):
+        assert f"DUR053_K6_{phase}_OUTPUT" in chaos["Run Phase F chaos smokes"]
+    for path in ("phase-f-kind", "f1a", "f1b"):
+        assert any(
+            f"dur053-k6-{path}/" in step and "if: always()" in step for step in chaos.values()
+        )
+
+
 def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
@@ -98,9 +120,12 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
     assert "DURABLE_REQUIRE_DATABASE: '1'" in tagged
     assert (
         "go test -p 1 -count=1 -v -tags dur053_k6 ./internal/faults ./internal/k6hook "
-        "./internal/k6ingress ./internal/state ./cmd/runtime" in tagged
+        "./internal/k6ingress ./internal/state ./internal/engine ./cmd/runtime" in tagged
     )
-    assert r"^--- PASS: TestK6LeaseTakeoverPinsIdleBackendAndFencesOriginalAttempt \(" in tagged
+    assert r"^--- PASS: $testName \(" in tagged
+    assert "'TestK6LeaseTakeoverPinsIdleBackendAndFencesOriginalAttempt'" in tagged
+    assert "'TestK6RenewalIdleTimeoutTerminatesRealTransaction'" in tagged
+    assert "'TestK6SchedulerRenewalDefersFencedReleaseAfterTakeover'" in tagged
     assert (
         "./scripts/ci.ps1 -WithServices -WithRace"
         in services["Run service-backed checks and race tests"]

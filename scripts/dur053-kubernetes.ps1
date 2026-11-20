@@ -28,7 +28,7 @@ if ($Scenario -eq "faults-smoke") {
     return
 }
 if ($Context -eq "kind") {
-    if ($Scenario -notin @("package-check", "smoke", "cleanup", "pilot", "pilot-smoke", "lifecycle", "lifecycle-smoke", "verify-evidence")) { throw "Scenario is not implemented." }
+    if ($Scenario -notin @("package-check", "smoke", "chaos-smoke", "cleanup", "pilot", "pilot-smoke", "lifecycle", "lifecycle-smoke", "verify-evidence")) { throw "Scenario is not implemented." }
     if (-not $OutputRoot) { throw "Kind scenarios require a fresh -OutputRoot outside the repository." }
     $kindScratch = if ($IsWindows) { "D:\coding agent files\durable-engine\codex\k3a" } else {
         if (-not $env:RUNNER_TEMP) { throw "RUNNER_TEMP is required." }

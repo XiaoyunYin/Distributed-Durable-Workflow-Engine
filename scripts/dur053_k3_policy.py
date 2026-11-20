@@ -495,7 +495,10 @@ def scratch_ownership(scratch: Path, root: Path) -> None:
 
 
 def supported(scenario: str) -> None:
-    require(scenario in {"package-check", "smoke", "cleanup"}, "K3b: scenario not implemented")
+    require(
+        scenario in {"package-check", "smoke", "chaos-smoke", "cleanup"},
+        "K3b: scenario not implemented",
+    )
 
 
 def artifact_hashes(output: Path) -> dict[str, str]:
