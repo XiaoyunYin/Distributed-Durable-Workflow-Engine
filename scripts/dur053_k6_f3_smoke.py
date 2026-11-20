@@ -243,7 +243,11 @@ class F3Smoke(F2Smoke):
         self.restart_target = self.probe_topic = self.chaos_run = None
         self.workflow = workload(cell)[0]["workflow_id"]
         self.broker_name = CLUSTER + "-f3-" + cell
-        self.harness.start_kafka(self.broker_name, alias=self.broker_name)
+        # The same advertised host resolves on the Docker bridge and through
+        # the episode's Kubernetes Service. A bare "kafka" inside Docker would
+        # refer to the broker serving the earlier phases.
+        broker_dns = f"kafka.{self.namespace}.svc.cluster.local"
+        self.harness.start_kafka(self.broker_name, alias=broker_dns)
         self.broker = self.harness.kind_address(self.broker_name)
         self.addresses["192.0.2.2"] = self.broker
         self.setup_episode()
@@ -262,9 +266,9 @@ class F3Smoke(F2Smoke):
             GRANT SELECT ON ALL TABLES IN SCHEMA engine, k6_f3 TO {self.monitor_role};
         """)
 
-    def reset_episode_transport(self, renderer: Driver) -> None:
+    def reset_episode_transport(self, _renderer: Driver) -> None:
         assert self.broker_name
-        renderer.topics("--create", kafka=self.broker_name)
+        self.harness.topics("--create", kafka=self.broker_name)
         self.retain(
             "dedicated-topics",
             self.command(
