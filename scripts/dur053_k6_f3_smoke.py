@@ -213,6 +213,17 @@ class TimeChaos(Chaos):
             self.on_absent()
         rows = super().recovery_watch(version)
         self.deleted = one("F3_DELETED_WATCH", by(rows, type="DELETED"))["object"]
+        records = self.deleted.get("status", {}).get("experiment", {}).get("containerRecords", [])
+        expect(
+            "F3_DELETED_INJECTION_REMAINING",
+            [
+                record
+                for record in records
+                if record["phase"] != "Not Injected"
+                or record.get("injectedCount", 0) != record.get("recoveredCount", 0)
+            ],
+            [],
+        )
         if self.injection:
             recovery(self.deleted, self.injection)
         return rows
@@ -673,7 +684,7 @@ class F3Smoke(F2Smoke):
         held_owner = None
         if role == "scheduler":
             scheduler, held_owner = self.held_lease()
-            if static["target"]["uid"] != scheduler.uid:
+            if static["target"]["container_id"] != scheduler.container_id:
                 static = self.static(scheduler)
             else:
                 static["target"] = asdict(scheduler)

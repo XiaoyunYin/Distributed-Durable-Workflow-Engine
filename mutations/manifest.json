@@ -16140,7 +16140,7 @@
       "id": "k6f3-exact-pod-selector",
       "kind": "behavioral",
       "file": "scripts/dur053_k6_f3_inputs.py",
-      "old": "expect(\"F3_CHAOS_SPEC\", obj[\"spec\"], time_spec(target, seconds))",
+      "old": "expect(\"F3_CHAOS_SPEC\", obj[\"spec\"], expected)",
       "new": "expect(\"F3_CHAOS_SPEC\", obj[\"spec\"][\"mode\"], \"one\")",
       "command": [
         "python",

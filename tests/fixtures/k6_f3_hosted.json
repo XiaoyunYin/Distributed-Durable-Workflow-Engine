@@ -1,5 +1,260 @@
 {
   "build_sha256": "147f31ffa14d38afdb8bd3db012e7dca70bf5499217e9f8012d72a3c197ee1f4",
+  "deleted_cr": {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "TimeChaos",
+    "metadata": {
+      "creationTimestamp": "2026-11-20T14:20:46Z",
+      "deletionGracePeriodSeconds": 0,
+      "deletionTimestamp": "2026-11-20T14:20:46Z",
+      "finalizers": [
+        "chaos-mesh/records"
+      ],
+      "generation": 8,
+      "managedFields": [
+        {
+          "apiVersion": "chaos-mesh.org/v1alpha1",
+          "fieldsType": "FieldsV1",
+          "fieldsV1": {
+            "f:metadata": {
+              "f:finalizers": {
+                ".": {},
+                "v:\"chaos-mesh/records\"": {}
+              }
+            },
+            "f:status": {
+              "f:conditions": {},
+              "f:experiment": {
+                "f:containerRecords": {},
+                "f:desiredPhase": {}
+              }
+            }
+          },
+          "manager": "chaos-controller-manager",
+          "operation": "Update",
+          "time": "2026-11-20T14:20:46Z"
+        },
+        {
+          "apiVersion": "chaos-mesh.org/v1alpha1",
+          "fieldsType": "FieldsV1",
+          "fieldsV1": {
+            "f:spec": {
+              ".": {},
+              "f:clockIds": {},
+              "f:containerNames": {},
+              "f:duration": {},
+              "f:mode": {},
+              "f:selector": {
+                ".": {},
+                "f:pods": {
+                  ".": {},
+                  "f:dur053-k6-f3-medium-8": {}
+                }
+              },
+              "f:timeOffset": {}
+            }
+          },
+          "manager": "kubectl-create",
+          "operation": "Update",
+          "time": "2026-11-20T14:20:46Z"
+        }
+      ],
+      "name": "medium-8-594926fa37ab",
+      "namespace": "dur053-k6-f3-medium-8",
+      "resourceVersion": "10768",
+      "uid": "b7914406-2808-49ff-9916-e64f7c63b01f"
+    },
+    "spec": {
+      "clockIds": [
+        "CLOCK_REALTIME"
+      ],
+      "containerNames": [
+        "scheduler"
+      ],
+      "duration": "60s",
+      "mode": "one",
+      "selector": {
+        "namespaces": [
+          "dur053-k6-f3-medium-8"
+        ],
+        "pods": {
+          "dur053-k6-f3-medium-8": [
+            "scheduler-6cc48d8857-8rhnx"
+          ]
+        }
+      },
+      "timeOffset": "30s"
+    },
+    "status": {
+      "conditions": [
+        {
+          "status": "True",
+          "type": "Selected"
+        },
+        {
+          "status": "True",
+          "type": "AllInjected"
+        },
+        {
+          "status": "False",
+          "type": "AllRecovered"
+        },
+        {
+          "status": "False",
+          "type": "Paused"
+        }
+      ],
+      "experiment": {
+        "containerRecords": [
+          {
+            "events": [
+              {
+                "operation": "Apply",
+                "timestamp": "2026-11-20T14:20:46Z",
+                "type": "Succeeded"
+              },
+              {
+                "operation": "Recover",
+                "timestamp": "2026-11-20T14:20:46Z",
+                "type": "Succeeded"
+              }
+            ],
+            "id": "dur053-k6-f3-medium-8/scheduler-6cc48d8857-8rhnx/scheduler",
+            "injectedCount": 1,
+            "phase": "Not Injected",
+            "recoveredCount": 1,
+            "selectorKey": "."
+          }
+        ],
+        "desiredPhase": "Stop"
+      }
+    }
+  },
+  "injected_cr": {
+    "apiVersion": "chaos-mesh.org/v1alpha1",
+    "kind": "TimeChaos",
+    "metadata": {
+      "creationTimestamp": "2026-11-20T14:20:46Z",
+      "deletionGracePeriodSeconds": 0,
+      "deletionTimestamp": "2026-11-20T14:20:46Z",
+      "finalizers": [
+        "chaos-mesh/records"
+      ],
+      "generation": 6,
+      "managedFields": [
+        {
+          "apiVersion": "chaos-mesh.org/v1alpha1",
+          "fieldsType": "FieldsV1",
+          "fieldsV1": {
+            "f:metadata": {
+              "f:finalizers": {
+                ".": {},
+                "v:\"chaos-mesh/records\"": {}
+              }
+            },
+            "f:status": {
+              "f:conditions": {},
+              "f:experiment": {
+                "f:containerRecords": {},
+                "f:desiredPhase": {}
+              }
+            }
+          },
+          "manager": "chaos-controller-manager",
+          "operation": "Update",
+          "time": "2026-11-20T14:20:46Z"
+        },
+        {
+          "apiVersion": "chaos-mesh.org/v1alpha1",
+          "fieldsType": "FieldsV1",
+          "fieldsV1": {
+            "f:spec": {
+              ".": {},
+              "f:clockIds": {},
+              "f:containerNames": {},
+              "f:duration": {},
+              "f:mode": {},
+              "f:selector": {
+                ".": {},
+                "f:pods": {
+                  ".": {},
+                  "f:dur053-k6-f3-medium-8": {}
+                }
+              },
+              "f:timeOffset": {}
+            }
+          },
+          "manager": "kubectl-create",
+          "operation": "Update",
+          "time": "2026-11-20T14:20:46Z"
+        }
+      ],
+      "name": "medium-8-594926fa37ab",
+      "namespace": "dur053-k6-f3-medium-8",
+      "resourceVersion": "10759",
+      "uid": "b7914406-2808-49ff-9916-e64f7c63b01f"
+    },
+    "spec": {
+      "clockIds": [
+        "CLOCK_REALTIME"
+      ],
+      "containerNames": [
+        "scheduler"
+      ],
+      "duration": "60s",
+      "mode": "one",
+      "selector": {
+        "namespaces": [
+          "dur053-k6-f3-medium-8"
+        ],
+        "pods": {
+          "dur053-k6-f3-medium-8": [
+            "scheduler-6cc48d8857-8rhnx"
+          ]
+        }
+      },
+      "timeOffset": "30s"
+    },
+    "status": {
+      "conditions": [
+        {
+          "status": "True",
+          "type": "Selected"
+        },
+        {
+          "status": "True",
+          "type": "AllInjected"
+        },
+        {
+          "status": "False",
+          "type": "AllRecovered"
+        },
+        {
+          "status": "False",
+          "type": "Paused"
+        }
+      ],
+      "experiment": {
+        "containerRecords": [
+          {
+            "events": [
+              {
+                "operation": "Apply",
+                "timestamp": "2026-11-20T14:20:46Z",
+                "type": "Succeeded"
+              }
+            ],
+            "id": "dur053-k6-f3-medium-8/scheduler-6cc48d8857-8rhnx/scheduler",
+            "injectedCount": 1,
+            "phase": "Injected",
+            "recoveredCount": 0,
+            "selectorKey": "."
+          }
+        ],
+        "desiredPhase": "Run"
+      }
+    }
+  },
   "marker": {
     "claim_lease_ms": 16000,
     "gate_seconds": 60,
@@ -21,91 +276,8 @@
     },
     "workflow": "e1-f2-medium-5-0"
   },
-  "recovered": {
-    "conditions": [
-      {
-        "status": "True",
-        "type": "Selected"
-      },
-      {
-        "status": "True",
-        "type": "AllInjected"
-      },
-      {
-        "status": "False",
-        "type": "AllRecovered"
-      },
-      {
-        "status": "False",
-        "type": "Paused"
-      }
-    ],
-    "experiment": {
-      "containerRecords": [
-        {
-          "events": [
-            {
-              "operation": "Apply",
-              "timestamp": "2026-11-20T10:07:34Z",
-              "type": "Succeeded"
-            },
-            {
-              "operation": "Recover",
-              "timestamp": "2026-11-20T10:07:37Z",
-              "type": "Succeeded"
-            }
-          ],
-          "id": "dur053-k6-f1a-medium-0/worker-85b7ccd7f5-kjt5k",
-          "injectedCount": 1,
-          "phase": "Not Injected",
-          "recoveredCount": 1,
-          "selectorKey": "."
-        }
-      ],
-      "desiredPhase": "Stop"
-    }
-  },
   "scheduler_log": "2026-11-20T10:09:11.047831772Z 2026/11/20 10:09:11 INFO runtime started addr=[::]:8080 roles=scheduler,ingestor",
   "source_run": 44715668834,
-  "status": {
-    "conditions": [
-      {
-        "status": "True",
-        "type": "Selected"
-      },
-      {
-        "status": "True",
-        "type": "AllInjected"
-      },
-      {
-        "status": "False",
-        "type": "AllRecovered"
-      },
-      {
-        "status": "False",
-        "type": "Paused"
-      }
-    ],
-    "experiment": {
-      "containerRecords": [
-        {
-          "events": [
-            {
-              "operation": "Apply",
-              "timestamp": "2026-11-20T10:07:34Z",
-              "type": "Succeeded"
-            }
-          ],
-          "id": "dur053-k6-f1a-medium-0/worker-85b7ccd7f5-kjt5k",
-          "injectedCount": 1,
-          "phase": "Injected",
-          "recoveredCount": 0,
-          "selectorKey": "."
-        }
-      ],
-      "desiredPhase": "Run"
-    }
-  },
   "terminal": {
     "at_ns": 1795169947690070054,
     "db_at": "2026-11-20T10:19:07.688342+00:00",
@@ -479,6 +651,7 @@
       }
     }
   },
+  "timechaos_source_run": 44748335808,
   "topics": {
     "durable-agent.events.v1": {
       "observed_ns": 1795169947948634302,

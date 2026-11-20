@@ -34,26 +34,18 @@ def mark(seconds):
     return {"monotonic_ns": now, "wall_ns": int(ORIGIN.timestamp()) * SECOND + now}
 
 
-def cr(target, seconds, status):
-    status = deepcopy(status)
-    status["experiment"]["containerRecords"][0]["id"] = (
+def cr(target, seconds, observed_cr):
+    result = deepcopy(observed_cr)
+    result["status"]["experiment"]["containerRecords"][0]["id"] = (
         f"{target['namespace']}/{target['pod']}/{target['container']}"
     )
-    # The Phase F1a CR status provides the controller event and record shape.
-    return {
-        "kind": "TimeChaos",
-        "apiVersion": "chaos-mesh.org/v1alpha1",
-        "metadata": {"namespace": target["namespace"], "uid": "cr-" + target["uid"]},
-        "spec": {
-            "selector": {"pods": {target["namespace"]: [target["pod"]]}},
-            "mode": "one",
-            "timeOffset": f"{seconds}s",
-            "clockIds": ["CLOCK_REALTIME"],
-            "containerNames": [target["container"]],
-            "duration": "60s",
-        },
-        "status": status,
+    result["metadata"].update(namespace=target["namespace"], uid="cr-" + target["uid"])
+    result["spec"]["selector"] = {
+        "namespaces": [target["namespace"]],
+        "pods": {target["namespace"]: [target["pod"]]},
     }
+    result["spec"].update(timeOffset=f"{seconds}s", containerNames=[target["container"]])
+    return result
 
 
 def clock_evidence(hosted, target, seconds, shift):
@@ -81,7 +73,7 @@ def clock_evidence(hosted, target, seconds, shift):
                 },
             }
         )
-    injected = cr(target, seconds, hosted["status"])
+    injected = cr(target, seconds, hosted["injected_cr"])
     return {
         "target": target,
         "bindings": [deepcopy(target) for _ in range(3)],
@@ -89,7 +81,7 @@ def clock_evidence(hosted, target, seconds, shift):
         "identity": identity,
         "injected": injected,
         "last_status": deepcopy(injected),
-        "deleted": cr(target, seconds, hosted["recovered"]),
+        "deleted": cr(target, seconds, hosted["deleted_cr"]),
         "remaining": [],
         "samples": samples,
         "marks": {
@@ -349,10 +341,15 @@ def test_in_process_binding_rejects_drift(key, other):
     rejected(data, "F3_CLOCK_PROCESS_DRIFT", "F3_MUT_PROCESS_BINDING")
 
 
-def test_cr_rejects_broadened_pod_selector():
+@pytest.mark.parametrize("selector_field", ["pods", "namespaces"])
+def test_cr_rejects_broadened_pod_selector(selector_field):
     data = fixture("medium-8")
     fault = data["fault"]
-    fault["injected"]["spec"]["selector"]["pods"][fault["target"]["namespace"]].append("peer")
+    selector = fault["injected"]["spec"]["selector"]
+    if selector_field == "pods":
+        selector["pods"][fault["target"]["namespace"]].append("peer")
+    else:
+        selector["namespaces"].append("peer")
     rejected(data, "F3_CHAOS_SPEC", "F3_MUT_EXACT_POD")
 
 

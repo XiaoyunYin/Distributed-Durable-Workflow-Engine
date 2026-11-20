@@ -47,7 +47,10 @@ def acknowledge(obj: dict, target: dict, seconds: int) -> bool:
     # Compare the stored CR with the registration and the exact bound pod/container.
     expect("F3_CHAOS_API", (obj["apiVersion"], obj["kind"]), (API, "TimeChaos"))
     expect("F3_CHAOS_NAMESPACE", obj["metadata"]["namespace"], target["namespace"])
-    expect("F3_CHAOS_SPEC", obj["spec"], time_spec(target, seconds))
+    expected = time_spec(target, seconds)
+    # The pinned admission webhook adds the CR's own namespace to the selector.
+    expected["selector"]["namespaces"] = [target["namespace"]]
+    expect("F3_CHAOS_SPEC", obj["spec"], expected)
     status = obj.get("status", {})
     conditions = {row["type"]: row["status"] for row in status.get("conditions", [])}
     if conditions.get("AllInjected") != "True":
