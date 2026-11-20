@@ -1619,6 +1619,7 @@ def run(
     k6_d2b_output: Path | None = None,
     k6_e1_output: Path | None = None,
     k6_e2_output: Path | None = None,
+    k6_f1a_output: Path | None = None,
 ) -> int:
     supported(scenario)
     k6_exit = 0
@@ -1628,6 +1629,7 @@ def run(
     phase_d2b_started = False
     phase_e1_started = False
     phase_e2_started = False
+    phase_f1a_started = False
     fresh_output(output)
     scratch_root.mkdir(parents=True, exist_ok=True)
     scratch = scratch_root / ("kind-" + secrets.token_hex(8))
@@ -1855,6 +1857,19 @@ def run(
                             from dur053_k6_e2_smoke import record_handoff_failure as e2_failed
 
                             e2_failed(k6_e2_output, error)
+                if k6_f1a_output:
+                    phase_f1a_started = True
+                    try:
+                        import dur053_k6_f1a_smoke
+
+                        f1a_exit = dur053_k6_f1a_smoke.run(k6_f1a_output, d, addresses)
+                        k6_exit = k6_exit or f1a_exit
+                    except Exception as error:
+                        k6_exit = 1
+                        with suppress(Exception):
+                            from dur053_k6_f1a_smoke import record_handoff_failure as f1a_failed
+
+                            f1a_failed(k6_f1a_output, error)
         manifest["status"] = "PASS"
     except Exception as error:
         manifest["error"] = (
@@ -1931,6 +1946,11 @@ def run(
                 from dur053_k6_e2_smoke import inherited_failure as e2_skipped
 
                 e2_skipped(k6_e2_output)
+        if k6_f1a_output and not phase_f1a_started:
+            with suppress(Exception):
+                from dur053_k6_f1a_smoke import inherited_failure as f1a_skipped
+
+                f1a_skipped(k6_f1a_output)
     return k6_exit if manifest["status"] == "PASS" else 1
 
 
@@ -1945,6 +1965,7 @@ def main() -> int:
     parser.add_argument("--k6-d2b-output", type=Path)
     parser.add_argument("--k6-e1-output", type=Path)
     parser.add_argument("--k6-e2-output", type=Path)
+    parser.add_argument("--k6-f1a-output", type=Path)
     args = parser.parse_args()
     k6_output = args.k6_output
     if args.scenario == "smoke" and k6_output is None:
@@ -1970,6 +1991,10 @@ def main() -> int:
     if args.scenario == "smoke" and k6_e2_output is None:
         configured = os.getenv("DUR053_K6_E2_OUTPUT")
         k6_e2_output = Path(configured) if configured else None
+    k6_f1a_output = args.k6_f1a_output
+    if args.scenario == "smoke" and k6_f1a_output is None:
+        configured = os.getenv("DUR053_K6_F1A_OUTPUT")
+        k6_f1a_output = Path(configured) if configured else None
     return run(
         args.scenario,
         args.output.resolve(),
@@ -1980,6 +2005,7 @@ def main() -> int:
         k6_d2b_output,
         k6_e1_output,
         k6_e2_output,
+        k6_f1a_output,
     )
 
 

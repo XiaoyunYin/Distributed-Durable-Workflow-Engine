@@ -15556,6 +15556,150 @@
       ],
       "expected": "ordinary runtime enabled lease takeover",
       "requires_database": false
+    },
+    {
+      "id": "k6f1a-partition-direction",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_chaos.py",
+      "old": "spec[\"direction\"] = \"to\"",
+      "new": "spec[\"direction\"] = \"from\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_chaos.py::test_partition_direction_exact"
+      ],
+      "expected": "F1A_PARTITION_DIRECTION_OR_SELECTOR_CHANGED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1a-repicked-target",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_chaos.py",
+      "old": "        bind(self.target, reobserve())",
+      "new": "        pass  # mutation: accept a repicked or restarted target",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_chaos.py::test_apply_rejects_repicked_or_restarted_target"
+      ],
+      "expected": "F1A_REPICKED_OR_RESTARTED_TARGET_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1a-backend-only-restore",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_chaos.py",
+      "old": "        expect(f\"F1A_RESTORE_{key.upper()}\", observation.get(key), expected)",
+      "new": "        pass  # mutation: accept backend-only restoration",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_chaos.py::test_restoration_requires_independent_connected_response"
+      ],
+      "expected": "F1A_BACKEND_ONLY_RESTORATION_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1a-status-only-death",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_chaos.py",
+      "old": "    expect(\"F1A_PROCESS_DEATH\", old_process == target.process, False)",
+      "new": "    expect(\"F1A_PROCESS_DEATH\", False, False)  # mutation: status acknowledgement proves death",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_chaos.py::test_ack_cannot_prove_death_of_live_process"
+      ],
+      "expected": "F1A_ACK_ACCEPTED_AS_PROCESS_DEATH",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1a-untyped-rejection",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1a_inputs.py",
+      "old": "row[\"status\"] == 409 and row[\"code\"] in {\"STALE_CLAIM\", \"STALE_ATTEMPT\"}",
+      "new": "row[\"status\"] == 409",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_chaos.py::test_partition_requires_typed_stale_after_commit_and_removal"
+      ],
+      "expected": "F1A_UNTYPED_STALE_REJECTION_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1a-unpushed-image",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1a_smoke.py",
+      "old": "value in pushed and bool(DIGEST.fullmatch(value))",
+      "new": "bool(DIGEST.fullmatch(value))",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_chaos.py::test_audit_rejects_an_unpushed_digest"
+      ],
+      "expected": "F1A_UNPUSHED_IMAGE_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1a-unrewritten-namespace",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1a_smoke.py",
+      "old": "SOURCE_NAMESPACE not in value and \"UNBOUND\" not in value",
+      "new": "\"UNBOUND\" not in value",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_chaos.py::test_audit_rejects_an_unrewritten_namespace"
+      ],
+      "expected": "F1A_UNREWRITTEN_NAMESPACE_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1a-worker-body-principal",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1a_smoke.py",
+      "old": "require(principal == attempt[\"worker_id\"], \"F1A_CANDIDATE_WORKER_PRINCIPAL_MISMATCH\")",
+      "new": "require(entry[\"worker\"] == attempt[\"worker_id\"], \"F1A_CANDIDATE_WORKER_PRINCIPAL_MISMATCH\")",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_chaos.py::test_active_worker_joins_hosted_authenticated_principal"
+      ],
+      "expected": "F1A_BODY_ID_USED_AS_AUTHENTICATED_PRINCIPAL",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1a-observer-writable-witness",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1a_smoke.py",
+      "old": "{\"name\": \"witness\", \"mountPath\": \"/witness\", \"readOnly\": True}",
+      "new": "{\"name\": \"witness\", \"mountPath\": \"/witness\", \"readOnly\": False}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_chaos.py::test_render_observer_witness_stays_read_only"
+      ],
+      "expected": "F1A_OBSERVER_WITNESS_WRITABLE",
+      "requires_database": false
     }
   ]
 }

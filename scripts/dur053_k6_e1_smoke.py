@@ -414,6 +414,7 @@ def deployment_objects(objects: list[dict], tags: dict, receiver_address: str, p
 class Matrix(Smoke):
     namespace = NS
     inputs_schema = "dur053.k6-phase-e1-inputs.v1"
+    image_repository = "dur053-k6-e1"
 
     def __init__(self, evidence, scratch, harness, addresses):
         super().__init__(evidence, scratch, harness)
@@ -459,7 +460,8 @@ class Matrix(Smoke):
         for role in ("runtime", "worker"):
             base = self.harness.images[role]
             require(bool(DIGEST.fullmatch(base)), "E1_ORDINARY_IMAGE_DIGEST")
-            ref = f"localhost:5001/dur053-k6-e1-{role}:candidate"
+            repository = f"localhost:5001/{self.image_repository}-{role}"
+            ref = repository + ":candidate"
             if role == "runtime":
                 source, arg, context = dockerfile, "BASE", self.scratch
             else:
@@ -494,7 +496,7 @@ class Matrix(Smoke):
                     ref,
                 )
             )
-            digest = pushed_digest(raw_digests, f"localhost:5001/dur053-k6-e1-{role}")
+            digest = pushed_digest(raw_digests, repository)
             self.command(
                 "E1_IMAGE_KIND_LOAD",
                 "docker",
