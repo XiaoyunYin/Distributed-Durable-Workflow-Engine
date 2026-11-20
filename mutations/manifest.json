@@ -15943,6 +15943,118 @@
       ],
       "expected": "E2_I3_STALE_MUTATION",
       "requires_database": false
+    },
+    {
+      "id": "k6f2-relay-publish-progress",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f2_inputs.py",
+      "old": "published(held), published(initial)",
+      "new": "published(initial), published(initial)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f2.py::test_relay_publish_progress"
+      ],
+      "expected": "F2_RELAY_PUBLISH_PROGRESS_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f2-probe-health",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f2_inputs.py",
+      "old": "value[\"produced\"], value[\"read_back\"]",
+      "new": "value[\"produced\"], True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f2.py::test_probe_topic_requires_read_back"
+      ],
+      "expected": "F2_UNHEALTHY_PROBE_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f2-pg-postmaster-start",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f2_inputs.py",
+      "old": "ns(after[\"postmaster_start\"]) > ns(before[\"postmaster_start\"])",
+      "new": "ns(after[\"postmaster_start\"]) >= ns(before[\"postmaster_start\"])",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f2.py::test_pg_requires_new_postmaster"
+      ],
+      "expected": "F2_OLD_POSTMASTER_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f2-pg-retained-hash",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f2_inputs.py",
+      "old": "\"F2_PG_RETAINED_HASH\", after[\"retained\"][name][\"hash\"], before[\"retained\"][name][\"hash\"]",
+      "new": "\"F2_PG_RETAINED_HASH\", before[\"retained\"][name][\"hash\"], before[\"retained\"][name][\"hash\"]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f2.py::test_pg_requires_retained_hash"
+      ],
+      "expected": "F2_CHANGED_RETAINED_HASH_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f2-pinned-ip",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f2_inputs.py",
+      "old": "\"F2_\" + label + \"_ADDRESS_CHANGED\", after[\"ip\"], before[\"ip\"]",
+      "new": "\"F2_\" + label + \"_ADDRESS_CHANGED\", before[\"ip\"], before[\"ip\"]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f2.py::test_pinned_address"
+      ],
+      "expected": "F2_CHANGED_PINNED_ADDRESS_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f2-kafka-retained-high-water",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f2_inputs.py",
+      "old": "after[topic][part] >= offset",
+      "new": "after[topic][part] >= 0",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f2.py::test_kafka_low_high_water"
+      ],
+      "expected": "F2_KAFKA_LOST_HIGH_WATER_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f2-b-derived-coverage",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f2_inputs.py",
+      "old": "\"F2_B_COVERAGE_INCOMPLETE\", (covered, sorted(predicates)), (list(BASE), sorted(BASE))",
+      "new": "\"F2_B_COVERAGE_INCOMPLETE\", covered, covered",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f2.py::test_coverage_derived_from_witnesses"
+      ],
+      "expected": "F2_MISSING_B_WITNESS_ACCEPTED",
+      "requires_database": false
     }
   ]
 }

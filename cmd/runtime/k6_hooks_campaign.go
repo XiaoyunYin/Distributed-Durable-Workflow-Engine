@@ -46,10 +46,13 @@ func k6RelayHook(owner string) (func(string, state.OutboxEvent) error, error) {
 	if err != nil || client == nil {
 		return nil, err
 	}
+	stall := os.Getenv("DUR053_K6_RELAY_STALL") == "1"
 	return func(boundary string, event state.OutboxEvent) error {
 		cell := "hook-0"
 		if boundary == "after_broker_ack" {
 			cell = "hook-1"
+		} else if boundary == "before_publish" && stall {
+			cell = "medium-5"
 		}
 		return faults.HoldK6(client, boundary, k6hook.Fields{Key: event.WorkflowID,
 			Objects: map[string]string{
