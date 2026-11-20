@@ -16,6 +16,9 @@ import (
 )
 
 func configureK6SchedulerHook(options *engine.ServeOptions) error {
+	if os.Getenv("DUR053_K6_PARTITION_CELL") != "" {
+		return configureK6Partition(options)
+	}
 	if os.Getenv("DUR053_K6_LEASE_TAKEOVER_ROLE") != "" {
 		return configureK6LeaseTakeover(options)
 	}

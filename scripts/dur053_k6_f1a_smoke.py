@@ -371,6 +371,7 @@ def ready(pod: JsonObject) -> bool:
 class F1aSmoke(Matrix):
     inputs_schema = "dur053.k6-phase-f1a-inputs.v1"
     image_repository = "dur053-k6-f1a"
+    scheduler_replicas = 2
 
     def __init__(
         self, evidence: F1aEvidence, scratch: Path, harness: Driver, addresses: dict[str, str]
@@ -508,19 +509,25 @@ class F1aSmoke(Matrix):
             self.retain("rollout-failure", diagnostic)
             raise
 
+    def render_episode(self, source: list[JsonObject]) -> list[JsonObject]:
+        return deployment_objects(
+            source,
+            self.namespace,
+            self.tags,
+            self.harness.images,
+            scheduler_hold=self.cell_id == "medium-1",
+        )
+
+    def prepare_episode_dependencies(self) -> None:
+        pass
+
     def setup_episode(self) -> None:
         renderer = copy.copy(self.harness)
         renderer.scratch = renderer.output = self.scratch / self.cell_id
         renderer.scratch.mkdir()
         _, source = renderer.render("kind", self.addresses)
         try:
-            objects = deployment_objects(
-                source,
-                self.namespace,
-                self.tags,
-                self.harness.images,
-                scheduler_hold=self.cell_id == "medium-1",
-            )
+            objects = self.render_episode(source)
         except SmokeFailure as error:
             self.retain("render-failure", {"reason": self.evidence.safe_reason(error)})
             raise
@@ -542,6 +549,7 @@ class F1aSmoke(Matrix):
         self.create(
             "F1A_DB_SECRET", obj("Secret", "campaign-db", self.namespace, stringData={"url": dsn})
         )
+        self.prepare_episode_dependencies()
         self.create(
             "F1A_INFRASTRUCTURE",
             {
@@ -633,9 +641,9 @@ class F1aSmoke(Matrix):
         )
         for role in ROLES:
             self.rollout(role)
-        for role in ("scheduler", "worker"):
+        for role, replicas in (("scheduler", self.scheduler_replicas), ("worker", 2)):
             pods = self.pods(role)
-            expect("F1A_TOPOLOGY_" + role.upper(), [ready(p) for p in pods], [True, True])
+            expect("F1A_TOPOLOGY_" + role.upper(), [ready(p) for p in pods], [True] * replicas)
         for kind in ("podchaos", "networkchaos"):
             expect("F1A_FRESH_CHAOS", self.objects("F1A_FRESH_CHAOS", kind)["items"], [])
 
@@ -728,14 +736,18 @@ class F1aSmoke(Matrix):
         expect("F1A_PROCESS_STAT_FORMAT", len(fields) > 19, True)
         return "1:" + fields[19]
 
-    def identity(self, role: str, pod: JsonObject, session: str) -> Target:
+    def identity(
+        self, role: str, pod: JsonObject, session: str, *, require_ready: bool = True
+    ) -> Target:
         name = pod["metadata"]["name"]
         uid = pod["metadata"]["uid"]
         node = pod["spec"]["nodeName"]
         row = one("F1A_WORKLOAD_CONTAINER", by(pod["status"]["containerStatuses"], name=role))
         container_id = row["containerID"]
         expect(
-            "F1A_TARGET_READY", ready(pod) and not pod["metadata"].get("deletionTimestamp"), True
+            "F1A_TARGET_READY",
+            (ready(pod) or not require_ready) and not pod["metadata"].get("deletionTimestamp"),
+            True,
         )
         expect("F1A_TARGET_CONTAINERD", container_id.startswith("containerd://"), True)
         image = self.tags["worker" if role == "worker" else "runtime"]
@@ -1383,7 +1395,7 @@ class F1aSmoke(Matrix):
         chain: str = one("F1A_CHAOS_DROP_CHAIN", found)["name"]
         return chain
 
-    def counters(self, target: Target, chain: str) -> dict[str, int] | None:
+    def daemon_network(self, target: Target, *args: str) -> str:
         daemon = json.loads(
             self.k(
                 "F1A_CHAOS_DAEMON",
@@ -1416,12 +1428,14 @@ class F1aSmoke(Matrix):
             "-t",
             str(target.host_pid),
             "-n",
-            "iptables-save",
-            "-c",
+            *args,
             timeout=6,
             kubectl_exec=True,
         )
-        return chain_counters(raw.decode(), chain)
+        return raw.decode()
+
+    def counters(self, target: Target, chain: str) -> dict[str, int] | None:
+        return chain_counters(self.daemon_network(target, "iptables-save", "-c"), chain)
 
     def check_partition(
         self,

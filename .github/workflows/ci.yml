@@ -298,11 +298,13 @@ jobs:
             docker compose @compose stop runtime-a runtime-b worker-a worker-b
             if ($LASTEXITCODE -ne 0) { throw 'Could not isolate runtime/worker relays.' }
 
-            go test -p 1 -count=1 -v -tags dur053_k6 ./internal/faults ./internal/k6hook ./internal/k6ingress ./internal/state ./cmd/runtime |
+            go test -p 1 -count=1 -v -tags dur053_k6 ./internal/faults ./internal/k6hook ./internal/k6ingress ./internal/state ./internal/engine ./cmd/runtime |
               Tee-Object -Variable taggedResults
             if ($LASTEXITCODE -ne 0) { throw 'Tagged K6 Go tests failed.' }
-            if (-not ($taggedResults -cmatch '^--- PASS: TestK6LeaseTakeoverPinsIdleBackendAndFencesOriginalAttempt \(')) {
-              throw 'The tagged K6 lease takeover database test did not pass.'
+            foreach ($testName in @('TestK6LeaseTakeoverPinsIdleBackendAndFencesOriginalAttempt', 'TestK6RenewalIdleTimeoutTerminatesRealTransaction', 'TestK6SchedulerRenewalDefersFencedReleaseAfterTakeover')) {
+              if (-not ($taggedResults -cmatch "^--- PASS: $testName \(")) {
+                throw "Required tagged PostgreSQL test did not pass ($testName)."
+              }
             }
           } finally {
             docker compose @compose up -d --wait runtime-a runtime-b worker-a worker-b
@@ -712,6 +714,8 @@ jobs:
     env:
       DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
     steps:
+      - name: Start kind job timer
+        run: echo "DUR053_KIND_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
       - name: Check out exact merge-ref source
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
@@ -731,7 +735,6 @@ jobs:
           DUR053_K6_D2B_OUTPUT: ${{ runner.temp }}/dur053-k6-d2b
           DUR053_K6_E1_OUTPUT: ${{ runner.temp }}/dur053-k6-e1
           DUR053_K6_E2_OUTPUT: ${{ runner.temp }}/dur053-k6-e2
-          DUR053_K6_F1A_OUTPUT: ${{ runner.temp }}/dur053-k6-f1a
         run: ./scripts/dur053-kubernetes.ps1 -Context kind -Scenario smoke -OutputRoot (Join-Path $env:RUNNER_TEMP "dur053-k3-smoke")
       - name: Retain evidence including failures
         if: always()
@@ -794,12 +797,56 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  k6-phase-f-smoke:
+    name: DUR-053 Phase F kind smoke
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 70
+    permissions:
+      contents: read
+    env:
+      DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+    steps:
+      - name: Start kind job timer
+        run: echo "DUR053_KIND_JOB_STARTED=$(date +%s)" >> "$GITHUB_ENV"
+      - name: Check out exact merge-ref source
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Set up Go for Phase F
+        uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5 # v5.5.0
+        with:
+          go-version: 1.27.4
+      - name: Run Phase F chaos smokes
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          DUR053_K6_F1A_OUTPUT: ${{ runner.temp }}/dur053-k6-f1a
+          DUR053_K6_F1B_OUTPUT: ${{ runner.temp }}/dur053-k6-f1b
+        run: ./scripts/dur053-kubernetes.ps1 -Context kind -Scenario chaos-smoke -OutputRoot (Join-Path $env:RUNNER_TEMP "dur053-k6-phase-f-kind")
+      - name: Retain Phase F kind evidence including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dur053-k6-phase-f-kind-${{ github.run_id }}
+          path: ${{ runner.temp }}/dur053-k6-phase-f-kind/
+          if-no-files-found: error
+          retention-days: 30
       - name: Retain K6 Phase F1a evidence including failures
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: dur053-k6-f1a-${{ github.run_id }}
           path: ${{ runner.temp }}/dur053-k6-f1a/
+          if-no-files-found: error
+          retention-days: 30
+      - name: Retain K6 Phase F1b evidence including failures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: dur053-k6-f1b-${{ github.run_id }}
+          path: ${{ runner.temp }}/dur053-k6-f1b/
           if-no-files-found: error
           retention-days: 30
 

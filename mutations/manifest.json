@@ -441,8 +441,8 @@
       "id": "k1-hook-release",
       "kind": "behavioral",
       "file": "internal/engine/engine.go",
-      "old": "_ = e.Store.ReleaseLease(releaseCtx, ref)",
-      "new": "if hookPassed { _ = e.Store.ReleaseLease(releaseCtx, ref) }",
+      "old": "releaseErr := e.Store.ReleaseLease(releaseCtx, ref)",
+      "new": "var releaseErr error\n\t\tif hookPassed {\n\t\t\treleaseErr = e.Store.ReleaseLease(releaseCtx, ref)\n\t\t}",
       "command": [
         "go",
         "test",
@@ -4609,8 +4609,8 @@
       "id": "k3-k3b-scenario-not-implemented",
       "kind": "behavioral",
       "file": "scripts/dur053_k3_policy.py",
-      "old": "require(scenario in {\"package-check\", \"smoke\", \"cleanup\"}, \"K3b: scenario not implemented\")",
-      "new": "require(True, 'K3b: scenario not implemented')",
+      "old": "scenario in {\"package-check\", \"smoke\", \"chaos-smoke\", \"cleanup\"},\n        \"K3b: scenario not implemented\",",
+      "new": "True,\n        \"K3b: scenario not implemented\",",
       "command": [
         "python",
         "-m",
@@ -6229,8 +6229,8 @@
       "id": "k3-smoke-no-cluster-zero-live-seconds",
       "kind": "behavioral",
       "file": "scripts/dur053_k3.py",
-      "old": "if scenario != \"smoke\" or not cluster_started:\n        return 0",
-      "new": "if scenario != \"smoke\":\n        return 0  # mutation: charge smoke when cluster never started",
+      "old": "if scenario not in {\"smoke\", \"chaos-smoke\"} or not cluster_started:\n        return 0",
+      "new": "if scenario not in {\"smoke\", \"chaos-smoke\"}:\n        return 0  # mutation: charge smoke when cluster never started",
       "command": [
         "python",
         "tests/test_k3_driver.py",
@@ -15699,6 +15699,249 @@
         "tests/test_k6_chaos.py::test_render_observer_witness_stays_read_only"
       ],
       "expected": "F1A_OBSERVER_WITNESS_WRITABLE",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-partition-direction",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_chaos.py",
+      "old": "spec[\"direction\"] = \"to\"",
+      "new": "spec[\"direction\"] = \"from\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_exact_postgres_partition"
+      ],
+      "expected": "F1B_PARTITION_SPEC_DRIFT",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-partition-target",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "return {\"externalTargets\": [str(engine_ip)]}",
+      "new": "return {\"externalTargets\": [\"192.0.2.11\"]}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_exact_postgres_partition"
+      ],
+      "expected": "F1B_PARTITION_SPEC_DRIFT",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-real-renewal-transaction",
+      "kind": "behavioral",
+      "file": "internal/state/store.go",
+      "old": "ctx, err = k6BeforeRenewLease(ctx, tx, current)",
+      "new": "ctx, err = ctx, nil",
+      "command": [
+        "go",
+        "test",
+        "-tags",
+        "dur053_k6",
+        "./internal/state",
+        "-run",
+        "^TestK6RenewalIdleTimeoutTerminatesRealTransaction$",
+        "-count=1"
+      ],
+      "expected": "F1B_REAL_RENEWAL_HOLD_REQUIRED",
+      "requires_database": true
+    },
+    {
+      "id": "k6f1b-missing-ack",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "    reach = acknowledged(raw, arm)\n    held = one(\n        \"F1B_ACK_HELD\",\n        by([json.loads(line) for line in raw.splitlines()], arm=arm[\"arm\"], event=\"held\"),\n    )\n    expect(\"F1B_ACK_BEFORE_INJECTION\", held[\"at_ns\"] < issued_ns, True)\n    return {**reach, \"hold_ack_ns\": held[\"at_ns\"]}",
+      "new": "    return {**arm[\"reach\"], \"target\": arm[\"target\"]}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_missing_and_late_durable_ack"
+      ],
+      "expected": "F1B_MISSING_ACK_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-late-ack",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "held[\"at_ns\"] < issued_ns",
+      "new": "held[\"at_ns\"] < issued_ns or True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_missing_and_late_durable_ack"
+      ],
+      "expected": "F1B_LATE_ACK_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-nowait-55p03",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "sample[\"sqlstate\"], \"55P03\" if locked else \"00000\"",
+      "new": "sample[\"sqlstate\"], sample[\"sqlstate\"] if locked else \"00000\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_medium2_requires_nowait_lock"
+      ],
+      "expected": "F1B_MISSING_NOWAIT_55P03_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-lock-clear-before-takeover",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "clear is not None and clear_candidate(clear, old[\"epoch\"])",
+      "new": "clear is not None",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_takeover_requires_committed_peer_after_lock_clear"
+      ],
+      "expected": "F1B_TAKEOVER_WITHOUT_LOCK_CLEAR_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-stale-call-commit",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "[(row[\"operation\"], row[\"outcome\"]) for row in calls], expected",
+      "new": "[(row[\"operation\"], row[\"outcome\"]) for row in calls], [(row[\"operation\"], row[\"outcome\"]) for row in calls]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_deployed_stale_call_is_typed_and_same_process"
+      ],
+      "expected": "F1B_COMMITTED_STALE_CALL_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-stale-call-source",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "for row in selected:",
+      "new": "for row in []:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_deployed_stale_call_is_typed_and_same_process"
+      ],
+      "expected": "F1B_HARNESS_OR_RESTARTED_STALE_CALL_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-reconnect-before-absence",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "observation[\"started_ns\"] > absent_ns and observation[\"backend_pid\"] > 0",
+      "new": "observation[\"backend_pid\"] > 0",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_restoration_requires_new_pool_query"
+      ],
+      "expected": "F1B_PRE_REMOVAL_RECONNECT_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-database-address-collision",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "expect(\"F1B_POSTGRES_TARGET_COLLISION\", collisions, [])",
+      "new": "expect(\"F1B_POSTGRES_TARGET_COLLISION\", [], [])",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_postgres_target_collision"
+      ],
+      "expected": "F1B_COLLIDING_PARTITION_TARGET_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-medium3-open-transaction",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "(backend[\"state\"], backend[\"in_transaction\"], backend[\"xid\"]),",
+      "new": "(backend[\"state\"], backend[\"in_transaction\"], backend[\"xid\"]) if locked else (\"idle\", False, None),",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_medium3_requires_idle_backend"
+      ],
+      "expected": "F1B_MEDIUM3_OPEN_TRANSACTION_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-packet-scope",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_inputs.py",
+      "old": "[str(ipaddress.ip_network(value)) for value in members(net)],",
+      "new": "[str(ipaddress.ip_network(value)) for value in members(net)[:1]],",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_pinned_chaos_mesh_ipset_and_kernel_scope"
+      ],
+      "expected": "F1B_EXTRA_KERNEL_DROP_TARGET_ACCEPTED",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-scheduler-log-timestamp",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_smoke.py",
+      "old": "_, _, body = line.partition(b\" \")  # kubectl's source timestamp",
+      "new": "body = line",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_scheduler_rows_parse_timestamped_observations"
+      ],
+      "expected": "F1B_TIMESTAMPED_SCHEDULER_OBSERVATIONS_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6f1b-reacquisition-evidence",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_f1b_smoke.py",
+      "old": "cut[\"acquisitions\"] = by(cut[\"audit\"], kind=\"acquire\", partition_id=self.partition)",
+      "new": "cut[\"acquisitions\"] = []",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_f1b.py::test_hosted_reacquisition_allows_original_session"
+      ],
+      "expected": "E2_I3_STALE_MUTATION",
       "requires_database": false
     }
   ]

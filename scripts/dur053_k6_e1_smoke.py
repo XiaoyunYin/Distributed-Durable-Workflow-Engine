@@ -836,9 +836,17 @@ class Matrix(Smoke):
         )
         return {"started_ns": started, "observed_ns": time.time_ns(), "value": json.loads(result)}
 
-    def snapshot(self, workflow: str) -> dict:
+    def snapshot(self, workflow: str, *, lease_writes: bool = False) -> dict:
         expect("E1_SAFE_WORKFLOW", bool(re.fullmatch(r"[a-z0-9-]{1,64}", workflow)), True)
         start = time.time_ns()
+        writes = (
+            """
+            , 'writes', ARRAY(SELECT to_jsonb(writes) FROM k6_e2.writes ORDER BY commit_order),
+            'read_only', current_setting('transaction_read_only')
+        """
+            if lease_writes
+            else ""
+        )
         rows = json.loads(
             self.pg(f"""
           BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY;
@@ -873,6 +881,7 @@ class Matrix(Smoke):
             'audit', ARRAY(SELECT to_jsonb(audit) - 'claim_identity' FROM engine.k4_audit audit
               JOIN w USING (partition_id) WHERE audit.kind = 'acquire'
                 OR audit.transition_id IN (SELECT transition_id FROM h) ORDER BY audit.event_order)
+            {writes}
           );
           COMMIT;
         """)

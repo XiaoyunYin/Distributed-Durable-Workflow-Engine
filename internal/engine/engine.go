@@ -334,14 +334,17 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 		if e.ExternalActivities && runErr == nil {
 			runErr = e.Store.AcknowledgeWorkflowWakeups(cleanup, ref, workflowID, result.Workflow.Revision)
 		}
-		if e.LegacyShutdown {
-			_ = e.Store.ReleaseLease(cleanup, ref)
-			return
+		releaseCtx := cleanup
+		if !e.LegacyShutdown {
+			// Wakeup acknowledgement must not consume the release budget.
+			var releaseCancel context.CancelFunc
+			releaseCtx, releaseCancel = context.WithTimeout(context.Background(), 2*time.Second)
+			defer releaseCancel()
 		}
-		// Wakeup acknowledgement must not consume the release budget.
-		releaseCtx, releaseCancel := context.WithTimeout(context.Background(), 2*time.Second)
-		defer releaseCancel()
-		_ = e.Store.ReleaseLease(releaseCtx, ref)
+		releaseErr := e.Store.ReleaseLease(releaseCtx, ref)
+		if e.leaseTakeover.AfterRelease != nil {
+			e.leaseTakeover.AfterRelease(ref, releaseErr)
+		}
 	}()
 	if afterCommit != nil {
 		released, err := afterCommit()
@@ -398,9 +401,14 @@ func (e *Engine) Run(ctx context.Context, workflowID string) (result RunResult, 
 	}
 	for steps := 0; steps < maxSteps; steps++ {
 		var renewedLease state.Lease
-		renewedLease, err = e.Store.RenewLease(ctx, state.LeaseRef{
+		ref := state.LeaseRef{
 			PartitionID: lease.PartitionID, OwnerID: lease.OwnerID, Epoch: lease.Epoch,
-		}, ttl)
+		}
+		if e.leaseTakeover.Renew != nil {
+			renewedLease, err = e.leaseTakeover.Renew(ctx, e.schedulerContext, e.Store, wf, ref, ttl)
+		} else {
+			renewedLease, err = e.Store.RenewLease(ctx, ref, ttl)
+		}
 		if err != nil {
 			return RunResult{}, err
 		}

@@ -22,11 +22,13 @@ type ServeOptions struct {
 	LeaseTakeover           LeaseTakeoverHooks
 }
 
-// LeaseTakeoverHooks connects the tagged scheduler to the two hook-5 boundaries.
+// LeaseTakeoverHooks connects the tagged scheduler to lease-fencing boundaries.
 // A nil callback uses the normal store operation and iteration deadline.
 type LeaseTakeoverHooks struct {
 	Acquire       func(context.Context, *state.Store, state.Workflow, string, time.Duration) (state.Lease, bool, func() (bool, error), error)
 	CreateAttempt func(context.Context, context.Context, *state.Store, state.AttemptInput) (state.Attempt, error)
+	Renew         func(context.Context, context.Context, *state.Store, state.Workflow, state.LeaseRef, time.Duration) (state.Lease, error)
+	AfterRelease  func(state.LeaseRef, error)
 }
 
 // Serve scans one explicit namespace. It never executes activities in the

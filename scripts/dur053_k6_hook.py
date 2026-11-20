@@ -41,7 +41,14 @@ def encode(row: dict) -> bytes:
 
 
 class Receiver:
-    def __init__(self, path: Path, tokens: dict[str, str], *, companion_boundary: str = "") -> None:
+    def __init__(
+        self,
+        path: Path,
+        tokens: dict[str, str],
+        *,
+        companion_boundary: str = "",
+        record_waits: bool = False,
+    ) -> None:
         check(
             bool(tokens)
             and len(set(tokens.values())) == len(tokens)
@@ -51,6 +58,7 @@ class Receiver:
         self.tokens = dict(tokens)
         check(companion_boundary == "" or valid(companion_boundary), "HOOK_COMPANION_BOUNDARY")
         self.companion_boundary = companion_boundary
+        self.record_waits = record_waits
         self.lock = threading.Lock()
         self.file: BinaryIO = os.fdopen(
             os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), "wb", buffering=0
@@ -307,6 +315,8 @@ class Receiver:
         if arm["state"] == "reached":
             self.append("held", arm=arm["arm"], ack=arm["ack"])
             arm["state"] = "held"
+        elif arm["state"] == "held" and self.record_waits:
+            self.append("wait", arm=arm["arm"], ack=arm["ack"])
         if arm["state"] == "authorized":
             self.append("command_issued", arm=arm["arm"], ack=arm["ack"], command=arm["command"])
             arm["state"] = "issued"

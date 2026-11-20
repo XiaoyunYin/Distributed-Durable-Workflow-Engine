@@ -9,6 +9,26 @@ import (
 	"durable-agent-execution-engine/internal/engine"
 )
 
+func TestOrdinaryRuntimeHasNoPartitionHolds(t *testing.T) {
+	for _, cell := range []string{"medium-2", "medium-3"} {
+		t.Run(cell, func(t *testing.T) {
+			t.Setenv("DUR053_K6_PARTITION_CELL", cell)
+			t.Setenv("DUR053_K6_PARTITION_WORKFLOW", "e1-"+cell)
+			t.Setenv("DUR053_K4_CAMPAIGN", "1")
+			t.Setenv("DUR053_K6_HOOK_URL", "https://127.0.0.1:1")
+			t.Setenv("DUR053_K6_HOOK_CA_FILE", "unreachable")
+			t.Setenv("DUR053_K6_HOOK_TOKEN", strings.Repeat("a", 64))
+			t.Setenv("POD_UID", "ordinary-runtime")
+			var options engine.ServeOptions
+			err := configureK6SchedulerHook(&options)
+			if err != nil || options.LeaseTakeover.Renew != nil ||
+				options.LeaseTakeover.AfterRelease != nil || options.LeaseTakeover.CreateAttempt != nil {
+				t.Fatalf("ordinary runtime enabled a partition hold: %v", err)
+			}
+		})
+	}
+}
+
 func TestOrdinaryRuntimeHasNoLeaseTakeoverHooks(t *testing.T) {
 	t.Setenv("DUR053_K4_CAMPAIGN", "1")
 	t.Setenv("DUR053_K6_DEPLOYED_HOOKS", "1")

@@ -1,0 +1,2691 @@
+{
+  "medium-2": {
+    "rejected": {
+      "attempts": [
+        {
+          "attempt_number": 1,
+          "effect_class": "PURE_ACTIVITY",
+          "heartbeat_deadline": "2026-11-20T06:19:28.198023+00:00",
+          "is_current": true,
+          "iteration": 0,
+          "node_id": "pure.echo",
+          "outcome_disposition": "NONE",
+          "result": null,
+          "result_hash": null,
+          "state": "CLAIMED",
+          "token_hash": "e3fb3e638ded7709c24f3226977b164883f5a069993dd02d06a8670e22e4faf9",
+          "worker_id": "system:serviceaccount:dur053-k6-f1b-medium-2:worker:pod:worker-8577cbcbcd-67dmp:uid:495488aa-c3a0-4f00-8146-d2154c28b8d6",
+          "worker_request_id": "worker-8577cbcbcd-67dmp-1:c2783ea2-aa90-4cbe-a1af-ebbc5408e707",
+          "workflow_id": "e1-medium-2"
+        }
+      ],
+      "audit": [
+        {
+          "at": "2026-11-20T06:18:57.104637+00:00",
+          "container_id": "9cef9a36-7211-4da3-993d-abbed544a03b",
+          "epoch": 1,
+          "event_order": 1,
+          "finalized_at": "2026-11-20T06:18:57.105796+00:00",
+          "kind": "acquire",
+          "owner_id": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "partition_id": 1,
+          "pod_uid": "9cef9a36-7211-4da3-993d-abbed544a03b",
+          "session_id": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+          "transaction_id": "1807",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:19:12.137722+00:00",
+          "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "epoch": 2,
+          "event_order": 2,
+          "finalized_at": "2026-11-20T06:19:12.138365+00:00",
+          "kind": "acquire",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "partition_id": 1,
+          "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "transaction_id": "1818",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:19:12.141229+00:00",
+          "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "epoch": 2,
+          "event_order": 3,
+          "finalized_at": "2026-11-20T06:19:12.142067+00:00",
+          "kind": "history",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "partition_id": 1,
+          "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "transaction_id": "1820",
+          "transition_id": "b1e35b92-bd4c-464e-8151-ea8574a7bf6e"
+        },
+        {
+          "at": "2026-11-20T06:19:12.144797+00:00",
+          "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "epoch": 2,
+          "event_order": 4,
+          "finalized_at": "2026-11-20T06:19:12.146105+00:00",
+          "kind": "history",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "partition_id": 1,
+          "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "transaction_id": "1821",
+          "transition_id": "6b0c1851-8ab1-4348-a995-447bd2be630e"
+        },
+        {
+          "at": "2026-11-20T06:19:12.637089+00:00",
+          "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "epoch": 3,
+          "event_order": 7,
+          "finalized_at": "2026-11-20T06:19:12.637344+00:00",
+          "kind": "acquire",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "partition_id": 1,
+          "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "transaction_id": "1829",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:19:13.136881+00:00",
+          "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "epoch": 4,
+          "event_order": 9,
+          "finalized_at": "2026-11-20T06:19:13.137071+00:00",
+          "kind": "acquire",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "partition_id": 1,
+          "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "transaction_id": "1833",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:19:13.636848+00:00",
+          "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "epoch": 5,
+          "event_order": 11,
+          "finalized_at": "2026-11-20T06:19:13.637128+00:00",
+          "kind": "acquire",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "partition_id": 1,
+          "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "transaction_id": "1837",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:19:14.136864+00:00",
+          "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "epoch": 6,
+          "event_order": 13,
+          "finalized_at": "2026-11-20T06:19:14.137071+00:00",
+          "kind": "acquire",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "partition_id": 1,
+          "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "transaction_id": "1841",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:19:14.636064+00:00",
+          "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "epoch": 7,
+          "event_order": 15,
+          "finalized_at": "2026-11-20T06:19:14.636298+00:00",
+          "kind": "acquire",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "partition_id": 1,
+          "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "transaction_id": "1845",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:19:15.136035+00:00",
+          "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "epoch": 8,
+          "event_order": 17,
+          "finalized_at": "2026-11-20T06:19:15.136192+00:00",
+          "kind": "acquire",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "partition_id": 1,
+          "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "transaction_id": "1849",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:19:15.559163+00:00",
+          "container_id": "9cef9a36-7211-4da3-993d-abbed544a03b",
+          "epoch": 9,
+          "event_order": 19,
+          "finalized_at": "2026-11-20T06:19:15.559803+00:00",
+          "kind": "acquire",
+          "owner_id": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "partition_id": 1,
+          "pod_uid": "9cef9a36-7211-4da3-993d-abbed544a03b",
+          "session_id": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+          "transaction_id": "1854",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:19:15.636716+00:00",
+          "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "epoch": 10,
+          "event_order": 21,
+          "finalized_at": "2026-11-20T06:19:15.636919+00:00",
+          "kind": "acquire",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "partition_id": 1,
+          "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "transaction_id": "1858",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:19:15.741638+00:00",
+          "container_id": "9cef9a36-7211-4da3-993d-abbed544a03b",
+          "epoch": 11,
+          "event_order": 23,
+          "finalized_at": "2026-11-20T06:19:15.741848+00:00",
+          "kind": "acquire",
+          "owner_id": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "partition_id": 1,
+          "pod_uid": "9cef9a36-7211-4da3-993d-abbed544a03b",
+          "session_id": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+          "transaction_id": "1862",
+          "transition_id": null
+        }
+      ],
+      "claims": [
+        {
+          "at": "2026-11-20T06:19:12.199584+00:00",
+          "attempt_number": 1,
+          "container_id": "2570e461-f1f9-4a38-8f3e-5206e6d03651",
+          "finalized_at": "2026-11-20T06:19:12.200179+00:00",
+          "iteration": 0,
+          "node_id": "pure.echo",
+          "order": 6,
+          "pod_uid": "2570e461-f1f9-4a38-8f3e-5206e6d03651",
+          "session": "d51c4a2a-2a9e-4026-8b2b-742c7edabb47",
+          "token_hash": "e3fb3e638ded7709c24f3226977b164883f5a069993dd02d06a8670e22e4faf9",
+          "transaction": "1828",
+          "worker_id": "system:serviceaccount:dur053-k6-f1b-medium-2:worker:pod:worker-8577cbcbcd-67dmp:uid:495488aa-c3a0-4f00-8146-d2154c28b8d6",
+          "worker_request_id": "worker-8577cbcbcd-67dmp-1:c2783ea2-aa90-4cbe-a1af-ebbc5408e707",
+          "workflow_id": "e1-medium-2"
+        }
+      ],
+      "db_at": "2026-11-20T06:19:16.058539+00:00",
+      "history": [
+        {
+          "actor_id": "system:serviceaccount:dur053-k6-f1b-medium-2:observer:pod:observer-6d7554cfb7-5v8sx:uid:61ed82ba-298a-4f79-9d9c-258542e806f4",
+          "actor_kind": "client",
+          "attempt_number": null,
+          "created_at": "2026-11-20T06:18:57.074266+00:00",
+          "iteration": null,
+          "new_state": "RUNNABLE",
+          "node_id": "pure.echo",
+          "old_state": null,
+          "reason": "WORKFLOW_CREATED",
+          "revision": 1,
+          "scheduler_epoch": null,
+          "transition_id": "7b12aa05-62f5-4ece-984c-5c6fffffd97d",
+          "workflow_id": "e1-medium-2"
+        },
+        {
+          "actor_id": "runtime-scheduler",
+          "actor_kind": "scheduler",
+          "attempt_number": null,
+          "created_at": "2026-11-20T06:19:12.141229+00:00",
+          "iteration": 0,
+          "new_state": "WAITING_ACTIVITY",
+          "node_id": "pure.echo",
+          "old_state": "RUNNABLE",
+          "reason": "ACTIVITY_SCHEDULED",
+          "revision": 2,
+          "scheduler_epoch": 2,
+          "transition_id": "b1e35b92-bd4c-464e-8151-ea8574a7bf6e",
+          "workflow_id": "e1-medium-2"
+        },
+        {
+          "actor_id": "runtime-scheduler",
+          "actor_kind": "scheduler",
+          "attempt_number": 1,
+          "created_at": "2026-11-20T06:19:12.144797+00:00",
+          "iteration": 0,
+          "new_state": "WAITING_ACTIVITY",
+          "node_id": "pure.echo",
+          "old_state": "WAITING_ACTIVITY",
+          "reason": "ATTEMPT_CREATED",
+          "revision": 3,
+          "scheduler_epoch": 2,
+          "transition_id": "6b0c1851-8ab1-4348-a995-447bd2be630e",
+          "workflow_id": "e1-medium-2"
+        }
+      ],
+      "inbox": [
+        {
+          "consumer_id": "runtime-schedulers-v1",
+          "disposition": "ACCEPTED",
+          "event_id": "4c79cca9-5c23-4e09-a71c-b665db88d7ee",
+          "kafka_offset": 0,
+          "kafka_partition": 3,
+          "reconciliation_reference": null,
+          "recorded_at": "2026-11-20T06:18:57.09895+00:00",
+          "topic": "durable-agent.events.v1"
+        },
+        {
+          "consumer_id": "runtime-workers-v1",
+          "disposition": "ACCEPTED",
+          "event_id": "bd92d482-2939-4ddd-932e-7c2459d96834",
+          "kafka_offset": 0,
+          "kafka_partition": 2,
+          "reconciliation_reference": null,
+          "recorded_at": "2026-11-20T06:19:12.186049+00:00",
+          "topic": "durable-agent.tasks.v1"
+        }
+      ],
+      "leases": [
+        {
+          "epoch": 11,
+          "lease_expires_at": null,
+          "live": null,
+          "owner_id": null,
+          "partition_id": 1,
+          "updated_at": "2026-11-20T06:19:15.743992+00:00"
+        }
+      ],
+      "outbox": [
+        {
+          "aggregate_revision": 1,
+          "claim_expires_at": null,
+          "claim_owner": null,
+          "event_id": "4c79cca9-5c23-4e09-a71c-b665db88d7ee",
+          "event_type": "workflow.created",
+          "publish_state": "PUBLISHED",
+          "published_at": "2026-11-20T06:18:57.097692+00:00",
+          "relay_attempts": 1,
+          "topic": "durable-agent.events.v1",
+          "traceparent": "00-d59f3470cddba866c17151700bd1a75b-8bb6576e1f0ff6be-01",
+          "workflow_id": "e1-medium-2"
+        },
+        {
+          "aggregate_revision": 3,
+          "claim_expires_at": null,
+          "claim_owner": null,
+          "event_id": "bd92d482-2939-4ddd-932e-7c2459d96834",
+          "event_type": "attempt.dispatch",
+          "publish_state": "PUBLISHED",
+          "published_at": "2026-11-20T06:19:12.159624+00:00",
+          "relay_attempts": 1,
+          "topic": "durable-agent.tasks.v1",
+          "traceparent": "00-d59f3470cddba866c17151700bd1a75b-8bb6576e1f0ff6be-01",
+          "workflow_id": "e1-medium-2"
+        }
+      ],
+      "publications": [
+        {
+          "broker_acknowledged": true,
+          "error": null,
+          "event_id": "4c79cca9-5c23-4e09-a71c-b665db88d7ee",
+          "publication_id": "f3bc4242-6c1c-4ef2-9ab0-fbc830ba327a",
+          "published_at": "2026-11-20T06:18:57.09719+00:00",
+          "relay_attempt": 1,
+          "relay_owner": "c304a983-eb43-40a8-a94e-bc0bec811438"
+        },
+        {
+          "broker_acknowledged": true,
+          "error": null,
+          "event_id": "bd92d482-2939-4ddd-932e-7c2459d96834",
+          "publication_id": "9c501419-613f-4d56-a7d9-d7afe66f7565",
+          "published_at": "2026-11-20T06:19:12.159481+00:00",
+          "relay_attempt": 1,
+          "relay_owner": "c304a983-eb43-40a8-a94e-bc0bec811438"
+        }
+      ],
+      "read_only": "on",
+      "result_evidence": [],
+      "sample_observed_ns": 1795155556063390744,
+      "sample_started_ns": 1795155556001229893,
+      "workflow": {
+        "created_at": "2026-11-20T06:18:57.07181+00:00",
+        "definition_id": "e1-pure-echo",
+        "definition_version": 1,
+        "namespace": "dur053-k6-f1b-medium-2",
+        "partition_id": 1,
+        "revision": 3,
+        "state": "WAITING_ACTIVITY",
+        "submission_key": "e1-medium-2",
+        "submission_payload_hash": "sub-v1:d59f3470cddba866c17151700bd1a75b8bb6576e1f0ff6bea5b417a2ece0c387",
+        "traceparent": "00-d59f3470cddba866c17151700bd1a75b-8bb6576e1f0ff6be-01",
+        "updated_at": "2026-11-20T06:19:12.144698+00:00",
+        "workflow_id": "e1-medium-2"
+      },
+      "writes": [
+        {
+          "commit_order": 1,
+          "epoch": null,
+          "id": 1,
+          "operation": "INSERT",
+          "owner_id": null,
+          "pid": 878,
+          "relation": "transition_history",
+          "row_identity": {
+            "attempt": null,
+            "event": null,
+            "iteration": null,
+            "node": "pure.echo",
+            "revision": 1,
+            "transition": "7b12aa05-62f5-4ece-984c-5c6fffffd97d",
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "",
+          "xid": "1803"
+        },
+        {
+          "commit_order": 2,
+          "epoch": null,
+          "id": 2,
+          "operation": "INSERT",
+          "owner_id": null,
+          "pid": 878,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "4c79cca9-5c23-4e09-a71c-b665db88d7ee",
+            "iteration": null,
+            "node": null,
+            "revision": 1,
+            "transition": null,
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "",
+          "xid": "1803"
+        },
+        {
+          "commit_order": 3,
+          "epoch": null,
+          "id": 3,
+          "operation": "UPDATE",
+          "owner_id": null,
+          "pid": 875,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "4c79cca9-5c23-4e09-a71c-b665db88d7ee",
+            "iteration": null,
+            "node": null,
+            "revision": 1,
+            "transition": null,
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "",
+          "xid": "1804"
+        },
+        {
+          "commit_order": 4,
+          "epoch": null,
+          "id": 4,
+          "operation": "UPDATE",
+          "owner_id": null,
+          "pid": 875,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "4c79cca9-5c23-4e09-a71c-b665db88d7ee",
+            "iteration": null,
+            "node": null,
+            "revision": 1,
+            "transition": null,
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "",
+          "xid": "1805"
+        },
+        {
+          "commit_order": 5,
+          "epoch": 1,
+          "id": 5,
+          "operation": "UPDATE",
+          "owner_id": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "pid": 877,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:12.103102+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:18:57.103261+00:00"
+          },
+          "session_id": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+          "xid": "1807"
+        },
+        {
+          "commit_order": 6,
+          "epoch": 2,
+          "id": 6,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:27.135968+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:12.136255+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1818"
+        },
+        {
+          "commit_order": 7,
+          "epoch": 2,
+          "id": 7,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:27.139389+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:12.13939+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1819"
+        },
+        {
+          "commit_order": 8,
+          "epoch": 2,
+          "id": 8,
+          "operation": "INSERT",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "transition_history",
+          "row_identity": {
+            "attempt": null,
+            "event": null,
+            "iteration": 0,
+            "node": "pure.echo",
+            "revision": 2,
+            "transition": "b1e35b92-bd4c-464e-8151-ea8574a7bf6e",
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1820"
+        },
+        {
+          "commit_order": 9,
+          "epoch": 2,
+          "id": 9,
+          "operation": "INSERT",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "activity_attempts",
+          "row_identity": {
+            "attempt": 1,
+            "event": null,
+            "iteration": 0,
+            "node": "pure.echo",
+            "revision": null,
+            "transition": null,
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1821"
+        },
+        {
+          "commit_order": 10,
+          "epoch": 2,
+          "id": 10,
+          "operation": "INSERT",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "transition_history",
+          "row_identity": {
+            "attempt": 1,
+            "event": null,
+            "iteration": 0,
+            "node": "pure.echo",
+            "revision": 3,
+            "transition": "6b0c1851-8ab1-4348-a995-447bd2be630e",
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1821"
+        },
+        {
+          "commit_order": 11,
+          "epoch": 2,
+          "id": 11,
+          "operation": "INSERT",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "bd92d482-2939-4ddd-932e-7c2459d96834",
+            "iteration": null,
+            "node": null,
+            "revision": 3,
+            "transition": null,
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1821"
+        },
+        {
+          "commit_order": 12,
+          "epoch": 2,
+          "id": 12,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:27.146731+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:12.146732+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1822"
+        },
+        {
+          "commit_order": 13,
+          "epoch": null,
+          "id": 13,
+          "operation": "UPDATE",
+          "owner_id": null,
+          "pid": 875,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "bd92d482-2939-4ddd-932e-7c2459d96834",
+            "iteration": null,
+            "node": null,
+            "revision": 3,
+            "transition": null,
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "",
+          "xid": "1823"
+        },
+        {
+          "commit_order": 14,
+          "epoch": 2,
+          "id": 14,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:12.149067+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1825"
+        },
+        {
+          "commit_order": 15,
+          "epoch": null,
+          "id": 15,
+          "operation": "UPDATE",
+          "owner_id": null,
+          "pid": 875,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "bd92d482-2939-4ddd-932e-7c2459d96834",
+            "iteration": null,
+            "node": null,
+            "revision": 3,
+            "transition": null,
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "",
+          "xid": "1826"
+        },
+        {
+          "commit_order": 16,
+          "epoch": null,
+          "id": 16,
+          "operation": "UPDATE",
+          "owner_id": null,
+          "pid": 879,
+          "relation": "activity_attempts",
+          "row_identity": {
+            "attempt": 1,
+            "event": null,
+            "iteration": 0,
+            "node": "pure.echo",
+            "revision": null,
+            "transition": null,
+            "workflow": "e1-medium-2"
+          },
+          "session_id": "d51c4a2a-2a9e-4026-8b2b-742c7edabb47",
+          "xid": "1828"
+        },
+        {
+          "commit_order": 17,
+          "epoch": 3,
+          "id": 17,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:27.636639+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:12.636851+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1829"
+        },
+        {
+          "commit_order": 18,
+          "epoch": 3,
+          "id": 18,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:27.638285+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:12.638285+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1830"
+        },
+        {
+          "commit_order": 19,
+          "epoch": 3,
+          "id": 19,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:12.639997+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1832"
+        },
+        {
+          "commit_order": 20,
+          "epoch": 4,
+          "id": 20,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:28.136527+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:13.136677+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1833"
+        },
+        {
+          "commit_order": 21,
+          "epoch": 4,
+          "id": 21,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:28.137716+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:13.137716+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1834"
+        },
+        {
+          "commit_order": 22,
+          "epoch": 4,
+          "id": 22,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:13.139272+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1836"
+        },
+        {
+          "commit_order": 23,
+          "epoch": 5,
+          "id": 23,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:28.636381+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:13.636587+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1837"
+        },
+        {
+          "commit_order": 24,
+          "epoch": 5,
+          "id": 24,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:28.637907+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:13.637907+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1838"
+        },
+        {
+          "commit_order": 25,
+          "epoch": 5,
+          "id": 25,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:13.639599+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1840"
+        },
+        {
+          "commit_order": 26,
+          "epoch": 6,
+          "id": 26,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:29.136541+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:14.136683+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1841"
+        },
+        {
+          "commit_order": 27,
+          "epoch": 6,
+          "id": 27,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:29.137708+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:14.137709+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1842"
+        },
+        {
+          "commit_order": 28,
+          "epoch": 6,
+          "id": 28,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:14.13906+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1844"
+        },
+        {
+          "commit_order": 29,
+          "epoch": 7,
+          "id": 29,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:29.6357+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:14.635857+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1845"
+        },
+        {
+          "commit_order": 30,
+          "epoch": 7,
+          "id": 30,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:29.636862+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:14.636864+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1846"
+        },
+        {
+          "commit_order": 31,
+          "epoch": 7,
+          "id": 31,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:14.638503+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1848"
+        },
+        {
+          "commit_order": 32,
+          "epoch": 8,
+          "id": 32,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:30.135771+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.135854+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1849"
+        },
+        {
+          "commit_order": 33,
+          "epoch": 8,
+          "id": 33,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:30.136688+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.136689+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1850"
+        },
+        {
+          "commit_order": 34,
+          "epoch": 8,
+          "id": 34,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.137522+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1852"
+        },
+        {
+          "commit_order": 35,
+          "epoch": 9,
+          "id": 35,
+          "operation": "UPDATE",
+          "owner_id": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "pid": 1202,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:30.557488+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.557666+00:00"
+          },
+          "session_id": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+          "xid": "1854"
+        },
+        {
+          "commit_order": 36,
+          "epoch": 9,
+          "id": 36,
+          "operation": "UPDATE",
+          "owner_id": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "pid": 1202,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:30.561466+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.561467+00:00"
+          },
+          "session_id": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+          "xid": "1855"
+        },
+        {
+          "commit_order": 37,
+          "epoch": 9,
+          "id": 37,
+          "operation": "UPDATE",
+          "owner_id": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "pid": 1202,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.564592+00:00"
+          },
+          "session_id": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+          "xid": "1857"
+        },
+        {
+          "commit_order": 38,
+          "epoch": 10,
+          "id": 38,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:30.636435+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.636531+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1858"
+        },
+        {
+          "commit_order": 39,
+          "epoch": 10,
+          "id": 39,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:30.637814+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.637815+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1859"
+        },
+        {
+          "commit_order": 40,
+          "epoch": 10,
+          "id": 40,
+          "operation": "UPDATE",
+          "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+          "pid": 918,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.639176+00:00"
+          },
+          "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+          "xid": "1861"
+        },
+        {
+          "commit_order": 41,
+          "epoch": 11,
+          "id": 41,
+          "operation": "UPDATE",
+          "owner_id": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "pid": 1202,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:30.74138+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.741459+00:00"
+          },
+          "session_id": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+          "xid": "1862"
+        },
+        {
+          "commit_order": 42,
+          "epoch": 11,
+          "id": 42,
+          "operation": "UPDATE",
+          "owner_id": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "pid": 1202,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:19:30.742449+00:00",
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.742449+00:00"
+          },
+          "session_id": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+          "xid": "1863"
+        },
+        {
+          "commit_order": 43,
+          "epoch": 11,
+          "id": 43,
+          "operation": "UPDATE",
+          "owner_id": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "pid": 1202,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 1,
+            "updated_at": "2026-11-20T06:19:15.743992+00:00"
+          },
+          "session_id": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+          "xid": "1865"
+        }
+      ]
+    },
+    "takeover": {
+      "acquisition": {
+        "at": "2026-11-20T06:19:12.137722+00:00",
+        "container_id": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+        "epoch": 2,
+        "event_order": 2,
+        "finalized_at": "2026-11-20T06:19:12.138365+00:00",
+        "kind": "acquire",
+        "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+        "partition_id": 1,
+        "pod_uid": "522c4a90-7eb1-4b0f-8073-dd0c0e85c624",
+        "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+        "transaction_id": "1818",
+        "transition_id": null
+      },
+      "write": {
+        "commit_order": 6,
+        "epoch": 2,
+        "id": 6,
+        "operation": "UPDATE",
+        "owner_id": "cbdfb3a9-def1-4383-81d1-a63bf5ac2e15",
+        "pid": 918,
+        "relation": "partition_leases",
+        "row_identity": {
+          "expires_at": "2026-11-20T06:19:27.135968+00:00",
+          "partition": 1,
+          "updated_at": "2026-11-20T06:19:12.136255+00:00"
+        },
+        "session_id": "4c3950cf-e30c-496d-8466-7ee20f997aa7",
+        "xid": "1818"
+      },
+      "progress": {
+        "actor_id": "runtime-scheduler",
+        "actor_kind": "scheduler",
+        "attempt_number": 1,
+        "created_at": "2026-11-20T06:19:12.144797+00:00",
+        "iteration": 0,
+        "new_state": "WAITING_ACTIVITY",
+        "node_id": "pure.echo",
+        "old_state": "WAITING_ACTIVITY",
+        "reason": "ATTEMPT_CREATED",
+        "revision": 3,
+        "scheduler_epoch": 2,
+        "transition_id": "6b0c1851-8ab1-4348-a995-447bd2be630e",
+        "workflow_id": "e1-medium-2"
+      }
+    },
+    "fenced_calls": [
+      {
+        "at_ns": 1795155555554100465,
+        "event": "fenced_call",
+        "invocation": "f60ea466-1e13-45d9-8ed6-d39748eca6ac",
+        "objects": {
+          "backend_pid": "877",
+          "backend_start_us": "1795155528232947",
+          "cell": "medium-2",
+          "db_time_us": "1795155537108168",
+          "epoch": "1",
+          "expires_us": "1795155552103102",
+          "idle_timeout_ms": "12000",
+          "owner": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "partition": "1",
+          "revision": "1",
+          "transaction": "1808"
+        },
+        "operation": "RenewLease",
+        "outcome": "SESSION_LOST",
+        "pid": 1,
+        "pod_uid": "9cef9a36-7211-4da3-993d-abbed544a03b",
+        "process_start_id": "1:76083",
+        "session": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+        "workflow": "e1-medium-2"
+      },
+      {
+        "at_ns": 1795155555555567836,
+        "event": "fenced_call",
+        "invocation": "f60ea466-1e13-45d9-8ed6-d39748eca6ac",
+        "objects": {
+          "backend_pid": "877",
+          "backend_start_us": "1795155528232947",
+          "cell": "medium-2",
+          "db_time_us": "1795155537108168",
+          "epoch": "1",
+          "expires_us": "1795155552103102",
+          "idle_timeout_ms": "12000",
+          "owner": "c169c218-1fe0-47e3-a1e4-07f6a801a592",
+          "partition": "1",
+          "revision": "1",
+          "transaction": "1808"
+        },
+        "operation": "ReleaseLease",
+        "outcome": "ErrLeaseNotOwned",
+        "pid": 1,
+        "pod_uid": "9cef9a36-7211-4da3-993d-abbed544a03b",
+        "process_start_id": "1:76083",
+        "session": "1730d6f5-7699-47af-9268-4aa2e79864c4",
+        "workflow": "e1-medium-2"
+      }
+    ],
+    "coverage": {
+      "invariants_covered": [
+        "I1",
+        "I2",
+        "I3",
+        "I4",
+        "I6",
+        "I11"
+      ],
+      "invariants_not_covered": [
+        "I5",
+        "I7",
+        "I8",
+        "I9",
+        "I10",
+        "I12",
+        "I13"
+      ]
+    }
+  },
+  "medium-3": {
+    "rejected": {
+      "attempts": [
+        {
+          "attempt_number": 1,
+          "effect_class": "PURE_ACTIVITY",
+          "heartbeat_deadline": "2026-11-20T06:21:08.885694+00:00",
+          "is_current": true,
+          "iteration": 0,
+          "node_id": "pure.echo",
+          "outcome_disposition": "NONE",
+          "result": null,
+          "result_hash": null,
+          "state": "CLAIMED",
+          "token_hash": "7883a4fb806c82e11a77b228d580d5bcc8ce4a77dbe4e59b62e77ac75939bd5f",
+          "worker_id": "system:serviceaccount:dur053-k6-f1b-medium-3:worker:pod:worker-5b67586bdf-vfwh9:uid:21cf5f3f-e3d8-452f-819a-7d4409ebec97",
+          "worker_request_id": "worker-5b67586bdf-vfwh9-0:a0551939-f198-4638-abe4-8f3cf5a84604",
+          "workflow_id": "e1-medium-3"
+        }
+      ],
+      "audit": [
+        {
+          "at": "2026-11-20T06:20:37.320071+00:00",
+          "container_id": "ca0d4fd9-49cd-463b-a119-8576510de1fc",
+          "epoch": 1,
+          "event_order": 1,
+          "finalized_at": "2026-11-20T06:20:37.320924+00:00",
+          "kind": "acquire",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "partition_id": 7,
+          "pod_uid": "ca0d4fd9-49cd-463b-a119-8576510de1fc",
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "transaction_id": "2046",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:20:37.325145+00:00",
+          "container_id": "ca0d4fd9-49cd-463b-a119-8576510de1fc",
+          "epoch": 1,
+          "event_order": 2,
+          "finalized_at": "2026-11-20T06:20:37.326283+00:00",
+          "kind": "history",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "partition_id": 7,
+          "pod_uid": "ca0d4fd9-49cd-463b-a119-8576510de1fc",
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "transaction_id": "2048",
+          "transition_id": "3e93c521-5faa-4ff4-8506-047e40a64345"
+        },
+        {
+          "at": "2026-11-20T06:20:52.816009+00:00",
+          "container_id": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "epoch": 2,
+          "event_order": 3,
+          "finalized_at": "2026-11-20T06:20:52.817071+00:00",
+          "kind": "acquire",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "partition_id": 7,
+          "pod_uid": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "transaction_id": "2083",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:20:52.821484+00:00",
+          "container_id": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "epoch": 2,
+          "event_order": 4,
+          "finalized_at": "2026-11-20T06:20:52.823146+00:00",
+          "kind": "history",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "partition_id": 7,
+          "pod_uid": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "transaction_id": "2085",
+          "transition_id": "61e89eab-b65f-4add-a865-ad32866d49ce"
+        },
+        {
+          "at": "2026-11-20T06:20:53.316155+00:00",
+          "container_id": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "epoch": 3,
+          "event_order": 7,
+          "finalized_at": "2026-11-20T06:20:53.316717+00:00",
+          "kind": "acquire",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "partition_id": 7,
+          "pod_uid": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "transaction_id": "2093",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:20:53.814622+00:00",
+          "container_id": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "epoch": 4,
+          "event_order": 9,
+          "finalized_at": "2026-11-20T06:20:53.814817+00:00",
+          "kind": "acquire",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "partition_id": 7,
+          "pod_uid": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "transaction_id": "2097",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:20:54.314302+00:00",
+          "container_id": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "epoch": 5,
+          "event_order": 11,
+          "finalized_at": "2026-11-20T06:20:54.31448+00:00",
+          "kind": "acquire",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "partition_id": 7,
+          "pod_uid": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "transaction_id": "2101",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:20:54.814528+00:00",
+          "container_id": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "epoch": 6,
+          "event_order": 13,
+          "finalized_at": "2026-11-20T06:20:54.814729+00:00",
+          "kind": "acquire",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "partition_id": 7,
+          "pod_uid": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "transaction_id": "2105",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:20:55.31454+00:00",
+          "container_id": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "epoch": 7,
+          "event_order": 15,
+          "finalized_at": "2026-11-20T06:20:55.314743+00:00",
+          "kind": "acquire",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "partition_id": 7,
+          "pod_uid": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "transaction_id": "2109",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:20:55.815595+00:00",
+          "container_id": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "epoch": 8,
+          "event_order": 17,
+          "finalized_at": "2026-11-20T06:20:55.815778+00:00",
+          "kind": "acquire",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "partition_id": 7,
+          "pod_uid": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "transaction_id": "2113",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:20:56.06955+00:00",
+          "container_id": "ca0d4fd9-49cd-463b-a119-8576510de1fc",
+          "epoch": 9,
+          "event_order": 19,
+          "finalized_at": "2026-11-20T06:20:56.069762+00:00",
+          "kind": "acquire",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "partition_id": 7,
+          "pod_uid": "ca0d4fd9-49cd-463b-a119-8576510de1fc",
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "transaction_id": "2119",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:20:56.074149+00:00",
+          "container_id": "ca0d4fd9-49cd-463b-a119-8576510de1fc",
+          "epoch": 10,
+          "event_order": 21,
+          "finalized_at": "2026-11-20T06:20:56.074342+00:00",
+          "kind": "acquire",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "partition_id": 7,
+          "pod_uid": "ca0d4fd9-49cd-463b-a119-8576510de1fc",
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "transaction_id": "2123",
+          "transition_id": null
+        },
+        {
+          "at": "2026-11-20T06:20:56.31478+00:00",
+          "container_id": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "epoch": 11,
+          "event_order": 23,
+          "finalized_at": "2026-11-20T06:20:56.315081+00:00",
+          "kind": "acquire",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "partition_id": 7,
+          "pod_uid": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "transaction_id": "2127",
+          "transition_id": null
+        }
+      ],
+      "claims": [
+        {
+          "at": "2026-11-20T06:20:52.888103+00:00",
+          "attempt_number": 1,
+          "container_id": "2231bb46-be8e-4275-a3b0-cd5dde7ddd55",
+          "finalized_at": "2026-11-20T06:20:52.888868+00:00",
+          "iteration": 0,
+          "node_id": "pure.echo",
+          "order": 6,
+          "pod_uid": "2231bb46-be8e-4275-a3b0-cd5dde7ddd55",
+          "session": "9acaadb7-a9fb-4804-abf7-ed1e58e1bf44",
+          "token_hash": "7883a4fb806c82e11a77b228d580d5bcc8ce4a77dbe4e59b62e77ac75939bd5f",
+          "transaction": "2092",
+          "worker_id": "system:serviceaccount:dur053-k6-f1b-medium-3:worker:pod:worker-5b67586bdf-vfwh9:uid:21cf5f3f-e3d8-452f-819a-7d4409ebec97",
+          "worker_request_id": "worker-5b67586bdf-vfwh9-0:a0551939-f198-4638-abe4-8f3cf5a84604",
+          "workflow_id": "e1-medium-3"
+        }
+      ],
+      "db_at": "2026-11-20T06:20:56.508912+00:00",
+      "history": [
+        {
+          "actor_id": "system:serviceaccount:dur053-k6-f1b-medium-3:observer:pod:observer-6d7554cfb7-bh9vd:uid:b72b4b8a-0b86-45fd-be3c-e25a1f583699",
+          "actor_kind": "client",
+          "attempt_number": null,
+          "created_at": "2026-11-20T06:20:37.288878+00:00",
+          "iteration": null,
+          "new_state": "RUNNABLE",
+          "node_id": "pure.echo",
+          "old_state": null,
+          "reason": "WORKFLOW_CREATED",
+          "revision": 1,
+          "scheduler_epoch": null,
+          "transition_id": "9fe56e82-e5b9-4c08-8658-d0aaf0a6dd32",
+          "workflow_id": "e1-medium-3"
+        },
+        {
+          "actor_id": "runtime-scheduler",
+          "actor_kind": "scheduler",
+          "attempt_number": null,
+          "created_at": "2026-11-20T06:20:37.325145+00:00",
+          "iteration": 0,
+          "new_state": "WAITING_ACTIVITY",
+          "node_id": "pure.echo",
+          "old_state": "RUNNABLE",
+          "reason": "ACTIVITY_SCHEDULED",
+          "revision": 2,
+          "scheduler_epoch": 1,
+          "transition_id": "3e93c521-5faa-4ff4-8506-047e40a64345",
+          "workflow_id": "e1-medium-3"
+        },
+        {
+          "actor_id": "runtime-scheduler",
+          "actor_kind": "scheduler",
+          "attempt_number": 1,
+          "created_at": "2026-11-20T06:20:52.821484+00:00",
+          "iteration": 0,
+          "new_state": "WAITING_ACTIVITY",
+          "node_id": "pure.echo",
+          "old_state": "WAITING_ACTIVITY",
+          "reason": "ATTEMPT_CREATED",
+          "revision": 3,
+          "scheduler_epoch": 2,
+          "transition_id": "61e89eab-b65f-4add-a865-ad32866d49ce",
+          "workflow_id": "e1-medium-3"
+        }
+      ],
+      "inbox": [
+        {
+          "consumer_id": "runtime-schedulers-v1",
+          "disposition": "ACCEPTED",
+          "event_id": "8ab78b4e-f430-43ae-bcec-a32f4bec2fd1",
+          "kafka_offset": 0,
+          "kafka_partition": 4,
+          "reconciliation_reference": null,
+          "recorded_at": "2026-11-20T06:20:37.311562+00:00",
+          "topic": "durable-agent.events.v1"
+        },
+        {
+          "consumer_id": "runtime-workers-v1",
+          "disposition": "ACCEPTED",
+          "event_id": "f57048f8-bfb6-4448-8e55-30c7c784a70b",
+          "kafka_offset": 0,
+          "kafka_partition": 5,
+          "reconciliation_reference": null,
+          "recorded_at": "2026-11-20T06:20:52.866049+00:00",
+          "topic": "durable-agent.tasks.v1"
+        }
+      ],
+      "leases": [
+        {
+          "epoch": 11,
+          "lease_expires_at": null,
+          "live": null,
+          "owner_id": null,
+          "partition_id": 7,
+          "updated_at": "2026-11-20T06:20:56.316962+00:00"
+        }
+      ],
+      "outbox": [
+        {
+          "aggregate_revision": 1,
+          "claim_expires_at": null,
+          "claim_owner": null,
+          "event_id": "8ab78b4e-f430-43ae-bcec-a32f4bec2fd1",
+          "event_type": "workflow.created",
+          "publish_state": "PUBLISHED",
+          "published_at": "2026-11-20T06:20:37.310428+00:00",
+          "relay_attempts": 1,
+          "topic": "durable-agent.events.v1",
+          "traceparent": "00-657aecabe378b0afd57467cda8070866-bea7a1f2036917f5-01",
+          "workflow_id": "e1-medium-3"
+        },
+        {
+          "aggregate_revision": 3,
+          "claim_expires_at": null,
+          "claim_owner": null,
+          "event_id": "f57048f8-bfb6-4448-8e55-30c7c784a70b",
+          "event_type": "attempt.dispatch",
+          "publish_state": "PUBLISHED",
+          "published_at": "2026-11-20T06:20:52.83677+00:00",
+          "relay_attempts": 1,
+          "topic": "durable-agent.tasks.v1",
+          "traceparent": "00-657aecabe378b0afd57467cda8070866-bea7a1f2036917f5-01",
+          "workflow_id": "e1-medium-3"
+        }
+      ],
+      "publications": [
+        {
+          "broker_acknowledged": true,
+          "error": null,
+          "event_id": "8ab78b4e-f430-43ae-bcec-a32f4bec2fd1",
+          "publication_id": "3881b161-ff59-4a5d-a2e1-d103cda5f12a",
+          "published_at": "2026-11-20T06:20:37.309934+00:00",
+          "relay_attempt": 1,
+          "relay_owner": "578370c8-5c5c-40e4-813f-079fa2d32a22"
+        },
+        {
+          "broker_acknowledged": true,
+          "error": null,
+          "event_id": "f57048f8-bfb6-4448-8e55-30c7c784a70b",
+          "publication_id": "0b126b93-0839-44ae-859f-726f48994421",
+          "published_at": "2026-11-20T06:20:52.836548+00:00",
+          "relay_attempt": 1,
+          "relay_owner": "578370c8-5c5c-40e4-813f-079fa2d32a22"
+        }
+      ],
+      "read_only": "on",
+      "result_evidence": [],
+      "sample_observed_ns": 1795155656512591273,
+      "sample_started_ns": 1795155656452953993,
+      "workflow": {
+        "created_at": "2026-11-20T06:20:37.287012+00:00",
+        "definition_id": "e1-pure-echo",
+        "definition_version": 1,
+        "namespace": "dur053-k6-f1b-medium-3",
+        "partition_id": 7,
+        "revision": 3,
+        "state": "WAITING_ACTIVITY",
+        "submission_key": "e1-medium-3",
+        "submission_payload_hash": "sub-v1:657aecabe378b0afd57467cda8070866bea7a1f2036917f5d624da33e1adb663",
+        "traceparent": "00-657aecabe378b0afd57467cda8070866-bea7a1f2036917f5-01",
+        "updated_at": "2026-11-20T06:20:52.821098+00:00",
+        "workflow_id": "e1-medium-3"
+      },
+      "writes": [
+        {
+          "commit_order": 1,
+          "epoch": null,
+          "id": 1,
+          "operation": "INSERT",
+          "owner_id": null,
+          "pid": 1266,
+          "relation": "transition_history",
+          "row_identity": {
+            "attempt": null,
+            "event": null,
+            "iteration": null,
+            "node": "pure.echo",
+            "revision": 1,
+            "transition": "9fe56e82-e5b9-4c08-8658-d0aaf0a6dd32",
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "",
+          "xid": "2042"
+        },
+        {
+          "commit_order": 2,
+          "epoch": null,
+          "id": 2,
+          "operation": "INSERT",
+          "owner_id": null,
+          "pid": 1266,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "8ab78b4e-f430-43ae-bcec-a32f4bec2fd1",
+            "iteration": null,
+            "node": null,
+            "revision": 1,
+            "transition": null,
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "",
+          "xid": "2042"
+        },
+        {
+          "commit_order": 3,
+          "epoch": null,
+          "id": 3,
+          "operation": "UPDATE",
+          "owner_id": null,
+          "pid": 1262,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "8ab78b4e-f430-43ae-bcec-a32f4bec2fd1",
+            "iteration": null,
+            "node": null,
+            "revision": 1,
+            "transition": null,
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "",
+          "xid": "2043"
+        },
+        {
+          "commit_order": 4,
+          "epoch": null,
+          "id": 4,
+          "operation": "UPDATE",
+          "owner_id": null,
+          "pid": 1262,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "8ab78b4e-f430-43ae-bcec-a32f4bec2fd1",
+            "iteration": null,
+            "node": null,
+            "revision": 1,
+            "transition": null,
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "",
+          "xid": "2044"
+        },
+        {
+          "commit_order": 5,
+          "epoch": 1,
+          "id": 5,
+          "operation": "UPDATE",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "pid": 1291,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:20:52.31864+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:37.318782+00:00"
+          },
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "xid": "2046"
+        },
+        {
+          "commit_order": 6,
+          "epoch": 1,
+          "id": 6,
+          "operation": "UPDATE",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "pid": 1291,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:20:52.32291+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:37.32291+00:00"
+          },
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "xid": "2047"
+        },
+        {
+          "commit_order": 7,
+          "epoch": 1,
+          "id": 7,
+          "operation": "INSERT",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "pid": 1291,
+          "relation": "transition_history",
+          "row_identity": {
+            "attempt": null,
+            "event": null,
+            "iteration": 0,
+            "node": "pure.echo",
+            "revision": 2,
+            "transition": "3e93c521-5faa-4ff4-8506-047e40a64345",
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "xid": "2048"
+        },
+        {
+          "commit_order": 8,
+          "epoch": 2,
+          "id": 8,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:07.813984+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:52.814332+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2083"
+        },
+        {
+          "commit_order": 9,
+          "epoch": 2,
+          "id": 9,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:07.818242+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:52.818242+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2084"
+        },
+        {
+          "commit_order": 10,
+          "epoch": 2,
+          "id": 10,
+          "operation": "INSERT",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "activity_attempts",
+          "row_identity": {
+            "attempt": 1,
+            "event": null,
+            "iteration": 0,
+            "node": "pure.echo",
+            "revision": null,
+            "transition": null,
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2085"
+        },
+        {
+          "commit_order": 11,
+          "epoch": 2,
+          "id": 11,
+          "operation": "INSERT",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "transition_history",
+          "row_identity": {
+            "attempt": 1,
+            "event": null,
+            "iteration": 0,
+            "node": "pure.echo",
+            "revision": 3,
+            "transition": "61e89eab-b65f-4add-a865-ad32866d49ce",
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2085"
+        },
+        {
+          "commit_order": 12,
+          "epoch": 2,
+          "id": 12,
+          "operation": "INSERT",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "f57048f8-bfb6-4448-8e55-30c7c784a70b",
+            "iteration": null,
+            "node": null,
+            "revision": 3,
+            "transition": null,
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2085"
+        },
+        {
+          "commit_order": 13,
+          "epoch": 2,
+          "id": 13,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:07.823832+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:52.823832+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2086"
+        },
+        {
+          "commit_order": 14,
+          "epoch": null,
+          "id": 14,
+          "operation": "UPDATE",
+          "owner_id": null,
+          "pid": 1262,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "f57048f8-bfb6-4448-8e55-30c7c784a70b",
+            "iteration": null,
+            "node": null,
+            "revision": 3,
+            "transition": null,
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "",
+          "xid": "2087"
+        },
+        {
+          "commit_order": 15,
+          "epoch": 2,
+          "id": 15,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:52.826406+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2089"
+        },
+        {
+          "commit_order": 16,
+          "epoch": null,
+          "id": 16,
+          "operation": "UPDATE",
+          "owner_id": null,
+          "pid": 1262,
+          "relation": "outbox",
+          "row_identity": {
+            "attempt": null,
+            "event": "f57048f8-bfb6-4448-8e55-30c7c784a70b",
+            "iteration": null,
+            "node": null,
+            "revision": 3,
+            "transition": null,
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "",
+          "xid": "2090"
+        },
+        {
+          "commit_order": 17,
+          "epoch": null,
+          "id": 17,
+          "operation": "UPDATE",
+          "owner_id": null,
+          "pid": 1268,
+          "relation": "activity_attempts",
+          "row_identity": {
+            "attempt": 1,
+            "event": null,
+            "iteration": 0,
+            "node": "pure.echo",
+            "revision": null,
+            "transition": null,
+            "workflow": "e1-medium-3"
+          },
+          "session_id": "9acaadb7-a9fb-4804-abf7-ed1e58e1bf44",
+          "xid": "2092"
+        },
+        {
+          "commit_order": 18,
+          "epoch": 3,
+          "id": 18,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:08.315585+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:53.31588+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2093"
+        },
+        {
+          "commit_order": 19,
+          "epoch": 3,
+          "id": 19,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:08.317563+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:53.317564+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2094"
+        },
+        {
+          "commit_order": 20,
+          "epoch": 3,
+          "id": 20,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:53.320585+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2096"
+        },
+        {
+          "commit_order": 21,
+          "epoch": 4,
+          "id": 21,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:08.814284+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:53.814428+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2097"
+        },
+        {
+          "commit_order": 22,
+          "epoch": 4,
+          "id": 22,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:08.815415+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:53.815415+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2098"
+        },
+        {
+          "commit_order": 23,
+          "epoch": 4,
+          "id": 23,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:53.817089+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2100"
+        },
+        {
+          "commit_order": 24,
+          "epoch": 5,
+          "id": 24,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:09.313989+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:54.314106+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2101"
+        },
+        {
+          "commit_order": 25,
+          "epoch": 5,
+          "id": 25,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:09.315+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:54.315+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2102"
+        },
+        {
+          "commit_order": 26,
+          "epoch": 5,
+          "id": 26,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:54.316163+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2104"
+        },
+        {
+          "commit_order": 27,
+          "epoch": 6,
+          "id": 27,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:09.814146+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:54.814338+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2105"
+        },
+        {
+          "commit_order": 28,
+          "epoch": 6,
+          "id": 28,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:09.815337+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:54.815338+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2106"
+        },
+        {
+          "commit_order": 29,
+          "epoch": 6,
+          "id": 29,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:54.816681+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2108"
+        },
+        {
+          "commit_order": 30,
+          "epoch": 7,
+          "id": 30,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:10.314141+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:55.314299+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2109"
+        },
+        {
+          "commit_order": 31,
+          "epoch": 7,
+          "id": 31,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:10.31529+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:55.315292+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2110"
+        },
+        {
+          "commit_order": 32,
+          "epoch": 7,
+          "id": 32,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:55.316663+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2112"
+        },
+        {
+          "commit_order": 33,
+          "epoch": 8,
+          "id": 33,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:10.815323+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:55.81541+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2113"
+        },
+        {
+          "commit_order": 34,
+          "epoch": 8,
+          "id": 34,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:10.81637+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:55.816371+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2114"
+        },
+        {
+          "commit_order": 35,
+          "epoch": 8,
+          "id": 35,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:55.817549+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2116"
+        },
+        {
+          "commit_order": 36,
+          "epoch": 9,
+          "id": 36,
+          "operation": "UPDATE",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "pid": 1291,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:11.069242+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:56.069339+00:00"
+          },
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "xid": "2119"
+        },
+        {
+          "commit_order": 37,
+          "epoch": 9,
+          "id": 37,
+          "operation": "UPDATE",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "pid": 1291,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:11.070363+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:56.070363+00:00"
+          },
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "xid": "2120"
+        },
+        {
+          "commit_order": 38,
+          "epoch": 9,
+          "id": 38,
+          "operation": "UPDATE",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "pid": 1291,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:56.07296+00:00"
+          },
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "xid": "2122"
+        },
+        {
+          "commit_order": 39,
+          "epoch": 10,
+          "id": 39,
+          "operation": "UPDATE",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "pid": 1291,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:11.073939+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:56.074014+00:00"
+          },
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "xid": "2123"
+        },
+        {
+          "commit_order": 40,
+          "epoch": 10,
+          "id": 40,
+          "operation": "UPDATE",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "pid": 1291,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:11.074858+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:56.074858+00:00"
+          },
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "xid": "2124"
+        },
+        {
+          "commit_order": 41,
+          "epoch": 10,
+          "id": 41,
+          "operation": "UPDATE",
+          "owner_id": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "pid": 1291,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:56.076772+00:00"
+          },
+          "session_id": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+          "xid": "2126"
+        },
+        {
+          "commit_order": 42,
+          "epoch": 11,
+          "id": 42,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:11.314312+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:56.314529+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2127"
+        },
+        {
+          "commit_order": 43,
+          "epoch": 11,
+          "id": 43,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": "2026-11-20T06:21:11.31604+00:00",
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:56.316041+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2129"
+        },
+        {
+          "commit_order": 44,
+          "epoch": 11,
+          "id": 44,
+          "operation": "UPDATE",
+          "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+          "pid": 1306,
+          "relation": "partition_leases",
+          "row_identity": {
+            "expires_at": null,
+            "partition": 7,
+            "updated_at": "2026-11-20T06:20:56.316962+00:00"
+          },
+          "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+          "xid": "2131"
+        }
+      ]
+    },
+    "takeover": {
+      "acquisition": {
+        "at": "2026-11-20T06:20:52.816009+00:00",
+        "container_id": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+        "epoch": 2,
+        "event_order": 3,
+        "finalized_at": "2026-11-20T06:20:52.817071+00:00",
+        "kind": "acquire",
+        "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+        "partition_id": 7,
+        "pod_uid": "a383b04b-27f8-4703-b8df-1c74c76c11e9",
+        "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+        "transaction_id": "2083",
+        "transition_id": null
+      },
+      "write": {
+        "commit_order": 8,
+        "epoch": 2,
+        "id": 8,
+        "operation": "UPDATE",
+        "owner_id": "f0bc1d32-3b72-43da-8599-43ba7eaa7531",
+        "pid": 1306,
+        "relation": "partition_leases",
+        "row_identity": {
+          "expires_at": "2026-11-20T06:21:07.813984+00:00",
+          "partition": 7,
+          "updated_at": "2026-11-20T06:20:52.814332+00:00"
+        },
+        "session_id": "13e21aec-3b11-49e2-9f67-31830bf5bb08",
+        "xid": "2083"
+      },
+      "progress": {
+        "actor_id": "runtime-scheduler",
+        "actor_kind": "scheduler",
+        "attempt_number": 1,
+        "created_at": "2026-11-20T06:20:52.821484+00:00",
+        "iteration": 0,
+        "new_state": "WAITING_ACTIVITY",
+        "node_id": "pure.echo",
+        "old_state": "WAITING_ACTIVITY",
+        "reason": "ATTEMPT_CREATED",
+        "revision": 3,
+        "scheduler_epoch": 2,
+        "transition_id": "61e89eab-b65f-4add-a865-ad32866d49ce",
+        "workflow_id": "e1-medium-3"
+      }
+    },
+    "fenced_calls": [
+      {
+        "at_ns": 1795155656068370002,
+        "event": "fenced_call",
+        "invocation": "3a4e7167-c26a-40d2-bcdc-f964fd262bba",
+        "objects": {
+          "backend_pid": "1291",
+          "backend_start_us": "1795155637314144",
+          "cell": "medium-3",
+          "epoch": "1",
+          "iteration": "0",
+          "node": "pure.echo",
+          "owner": "b0250e6f-df67-40e4-a1d7-85caf7a444f8",
+          "partition": "7",
+          "revision": "2"
+        },
+        "operation": "CreateAttempt",
+        "outcome": "ErrLeaseNotOwned",
+        "pid": 1,
+        "pod_uid": "ca0d4fd9-49cd-463b-a119-8576510de1fc",
+        "process_start_id": "1:86091",
+        "session": "6a380fca-3bfe-4fe4-bb7b-8b03815fa99a",
+        "workflow": "e1-medium-3"
+      }
+    ],
+    "coverage": {
+      "invariants_covered": [
+        "I1",
+        "I2",
+        "I3",
+        "I4",
+        "I6",
+        "I11"
+      ],
+      "invariants_not_covered": [
+        "I5",
+        "I7",
+        "I8",
+        "I9",
+        "I10",
+        "I12",
+        "I13"
+      ]
+    }
+  },
+  "completion_template": {
+    "history": [
+      {
+        "actor_id": "system:serviceaccount:dur053-k6-f1a-medium-1:worker:pod:worker-66fdbf67c9-9rg7n:uid:222e99fc-8937-4334-b621-fab9ba1e2fc6",
+        "actor_kind": "worker",
+        "attempt_number": 1,
+        "created_at": "2026-11-20T06:14:06.413862+00:00",
+        "iteration": 0,
+        "new_state": "WAITING_ACTIVITY",
+        "node_id": "pure.echo",
+        "old_state": "WAITING_ACTIVITY",
+        "reason": "ATTEMPT_RESULT_RECORDED",
+        "revision": 4,
+        "scheduler_epoch": null,
+        "transition_id": "a5b6a4e5-82b6-40c1-bc2f-c47e2e302ffb",
+        "workflow_id": "e1-medium-1"
+      },
+      {
+        "actor_id": "runtime-scheduler",
+        "actor_kind": "scheduler",
+        "attempt_number": 1,
+        "created_at": "2026-11-20T06:14:18.933093+00:00",
+        "iteration": 0,
+        "new_state": "RUNNABLE",
+        "node_id": "pure.echo",
+        "old_state": "WAITING_ACTIVITY",
+        "reason": "RESULT_CONSUMED",
+        "revision": 5,
+        "scheduler_epoch": 3,
+        "transition_id": "cad4cbab-0faa-43d5-8be8-8783ff680c52",
+        "workflow_id": "e1-medium-1"
+      },
+      {
+        "actor_id": "runtime-scheduler",
+        "actor_kind": "scheduler",
+        "attempt_number": null,
+        "created_at": "2026-11-20T06:14:18.937012+00:00",
+        "iteration": 0,
+        "new_state": "RUNNABLE",
+        "node_id": "pure.echo",
+        "old_state": "RUNNABLE",
+        "reason": "GRAPH_ADVANCED",
+        "revision": 6,
+        "scheduler_epoch": 3,
+        "transition_id": "be784e1e-2bc1-42cc-a989-c37189aa3a51",
+        "workflow_id": "e1-medium-1"
+      },
+      {
+        "actor_id": "runtime-scheduler",
+        "actor_kind": "scheduler",
+        "attempt_number": null,
+        "created_at": "2026-11-20T06:14:18.939775+00:00",
+        "iteration": 0,
+        "new_state": "SUCCEEDED",
+        "node_id": "done",
+        "old_state": "RUNNABLE",
+        "reason": "GRAPH_ADVANCED",
+        "revision": 7,
+        "scheduler_epoch": 3,
+        "transition_id": "39e62513-59b1-464a-a8e6-ff11b80d3cc2",
+        "workflow_id": "e1-medium-1"
+      }
+    ],
+    "outbox": [
+      {
+        "aggregate_revision": 4,
+        "claim_expires_at": null,
+        "claim_owner": null,
+        "event_id": "c3b148ca-d11b-42ac-9667-7c626aae28ff",
+        "event_type": "activity.result",
+        "publish_state": "PUBLISHED",
+        "published_at": "2026-11-20T06:14:06.429159+00:00",
+        "relay_attempts": 1,
+        "topic": "durable-agent.events.v1",
+        "traceparent": "00-c4a312ab3afba91526e6f4cd19bbfe31-de7716e6f83be77f-01",
+        "workflow_id": "e1-medium-1"
+      },
+      {
+        "aggregate_revision": 5,
+        "claim_expires_at": null,
+        "claim_owner": null,
+        "event_id": "d035be8c-115a-4619-8c41-28b459d3b706",
+        "event_type": "workflow.result_consumed",
+        "publish_state": "PUBLISHED",
+        "published_at": "2026-11-20T06:14:18.947348+00:00",
+        "relay_attempts": 1,
+        "topic": "durable-agent.events.v1",
+        "traceparent": "00-c4a312ab3afba91526e6f4cd19bbfe31-de7716e6f83be77f-01",
+        "workflow_id": "e1-medium-1"
+      },
+      {
+        "aggregate_revision": 6,
+        "claim_expires_at": null,
+        "claim_owner": null,
+        "event_id": "06af41c5-9a4c-4069-90f5-582ee9e6825c",
+        "event_type": "graph.advanced",
+        "publish_state": "PUBLISHED",
+        "published_at": "2026-11-20T06:14:18.960012+00:00",
+        "relay_attempts": 1,
+        "topic": "durable-agent.events.v1",
+        "traceparent": "00-c4a312ab3afba91526e6f4cd19bbfe31-de7716e6f83be77f-01",
+        "workflow_id": "e1-medium-1"
+      },
+      {
+        "aggregate_revision": 7,
+        "claim_expires_at": null,
+        "claim_owner": null,
+        "event_id": "6770e754-e4ec-4ef3-95d7-23b5c769aa96",
+        "event_type": "graph.advanced",
+        "publish_state": "PUBLISHED",
+        "published_at": "2026-11-20T06:14:18.972024+00:00",
+        "relay_attempts": 1,
+        "topic": "durable-agent.events.v1",
+        "traceparent": "00-c4a312ab3afba91526e6f4cd19bbfe31-de7716e6f83be77f-01",
+        "workflow_id": "e1-medium-1"
+      }
+    ],
+    "publications": [
+      {
+        "broker_acknowledged": true,
+        "error": null,
+        "event_id": "06af41c5-9a4c-4069-90f5-582ee9e6825c",
+        "publication_id": "8451685e-4c50-453d-8862-31a12a5f4846",
+        "published_at": "2026-11-20T06:14:18.959766+00:00",
+        "relay_attempt": 1,
+        "relay_owner": "7829257b-e531-43e6-8034-80bdc6dc3ddd"
+      },
+      {
+        "broker_acknowledged": true,
+        "error": null,
+        "event_id": "6770e754-e4ec-4ef3-95d7-23b5c769aa96",
+        "publication_id": "9216ef6c-b1af-4ead-98ef-31d00773166a",
+        "published_at": "2026-11-20T06:14:18.97186+00:00",
+        "relay_attempt": 1,
+        "relay_owner": "7829257b-e531-43e6-8034-80bdc6dc3ddd"
+      },
+      {
+        "broker_acknowledged": true,
+        "error": null,
+        "event_id": "c3b148ca-d11b-42ac-9667-7c626aae28ff",
+        "publication_id": "f15da722-d7c9-436f-ba91-4f6420879b65",
+        "published_at": "2026-11-20T06:14:06.429014+00:00",
+        "relay_attempt": 1,
+        "relay_owner": "7829257b-e531-43e6-8034-80bdc6dc3ddd"
+      },
+      {
+        "broker_acknowledged": true,
+        "error": null,
+        "event_id": "d035be8c-115a-4619-8c41-28b459d3b706",
+        "publication_id": "f808d198-7713-4626-ac9b-1c6f81281cfd",
+        "published_at": "2026-11-20T06:14:18.947104+00:00",
+        "relay_attempt": 1,
+        "relay_owner": "7829257b-e531-43e6-8034-80bdc6dc3ddd"
+      }
+    ],
+    "witness": {
+      "invocation": {
+        "at": 472.548968055,
+        "event": "start",
+        "id": "dc18dd63-0836-44b1-a8e1-624b7fd68fd5",
+        "identity": {
+          "attempt": 1,
+          "iteration": 0,
+          "namespace": "dur053-k6-f1a-medium-1",
+          "node": "pure.echo",
+          "token_hash": "6dbade8abb09dfc83b5d678142907bc99567d35ff974f67f53dfc3cbaf490967",
+          "workflow": "e1-medium-1"
+        },
+        "pod_uid": "222e99fc-8937-4334-b621-fab9ba1e2fc6",
+        "session": "2560485c-aa98-4282-8589-9efa6e74b684",
+        "stream": "invocations"
+      },
+      "release": {
+        "at": 479.06703831,
+        "at_ns": 1795155246406241469,
+        "attempt": "1",
+        "container_id": "222e99fc-8937-4334-b621-fab9ba1e2fc6",
+        "event": "f1a_activity_release",
+        "gate_started_ns": 1795155239888857115,
+        "invocation": "dc18dd63-0836-44b1-a8e1-624b7fd68fd5",
+        "iteration": "0",
+        "marker": "/f1a-control/f1a-release",
+        "node": "pure.echo",
+        "pod_uid": "222e99fc-8937-4334-b621-fab9ba1e2fc6",
+        "request": "worker-66fdbf67c9-9rg7n-1:51c733ea-c69d-4382-933b-f16923da0d11",
+        "session": "2560485c-aa98-4282-8589-9efa6e74b684",
+        "stream": "trace",
+        "timestamp": "2026-11-20T06:14:06.406248+00:00",
+        "token_hash": "6dbade8abb09dfc83b5d678142907bc99567d35ff974f67f53dfc3cbaf490967",
+        "worker": "worker-66fdbf67c9-9rg7n-1",
+        "workflow": "e1-medium-1"
+      },
+      "finish": {
+        "at": 479.06794104,
+        "event": "finish",
+        "id": "dc18dd63-0836-44b1-a8e1-624b7fd68fd5",
+        "identity": {
+          "attempt": 1,
+          "iteration": 0,
+          "namespace": "dur053-k6-f1a-medium-1",
+          "node": "pure.echo",
+          "token_hash": "6dbade8abb09dfc83b5d678142907bc99567d35ff974f67f53dfc3cbaf490967",
+          "workflow": "e1-medium-1"
+        },
+        "pod_uid": "222e99fc-8937-4334-b621-fab9ba1e2fc6",
+        "session": "2560485c-aa98-4282-8589-9efa6e74b684",
+        "stream": "invocations"
+      },
+      "result": {
+        "at": 479.077354196,
+        "at_ns": 1795155246416557901,
+        "attempt_number": 1,
+        "base_url": "http://worker-control:8080",
+        "code": "OK",
+        "container_id": "222e99fc-8937-4334-b621-fab9ba1e2fc6",
+        "event": "f1a_http",
+        "iteration": 0,
+        "node": "pure.echo",
+        "operation": "result",
+        "path": "/v1/workflows/e1-medium-1/nodes/pure.echo/iterations/0/result",
+        "pod_uid": "222e99fc-8937-4334-b621-fab9ba1e2fc6",
+        "process": "1:46498",
+        "request": "16d6beba-ae23-4e23-922d-977c689975b8",
+        "sent_ns": 1795155246408737076,
+        "session": "2560485c-aa98-4282-8589-9efa6e74b684",
+        "status": 200,
+        "stream": "trace",
+        "timestamp": "2026-11-20T06:14:06.416562+00:00",
+        "token_hash": "6dbade8abb09dfc83b5d678142907bc99567d35ff974f67f53dfc3cbaf490967",
+        "workflow": "e1-medium-1"
+      },
+      "claim": {
+        "at": 472.547440667,
+        "at_ns": 1795155239886645657,
+        "attempt_number": 1,
+        "base_url": "http://worker-control:8080",
+        "code": "OK",
+        "container_id": "222e99fc-8937-4334-b621-fab9ba1e2fc6",
+        "event": "f1a_http",
+        "iteration": 0,
+        "node": "pure.echo",
+        "operation": "claim",
+        "path": "/v1/workflows/e1-medium-1/nodes/pure.echo/iterations/0/claim",
+        "pod_uid": "222e99fc-8937-4334-b621-fab9ba1e2fc6",
+        "process": "1:46498",
+        "request": "926ecbf0-ef97-444d-9b09-6d97f61c5191",
+        "sent_ns": 1795155239876495484,
+        "session": "2560485c-aa98-4282-8589-9efa6e74b684",
+        "status": 200,
+        "timestamp": "2026-11-20T06:13:59.886649+00:00",
+        "token_hash": "6dbade8abb09dfc83b5d678142907bc99567d35ff974f67f53dfc3cbaf490967",
+        "workflow": "e1-medium-1",
+        "stream": "trace"
+      }
+    }
+  }
+}
