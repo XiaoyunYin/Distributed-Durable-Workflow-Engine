@@ -48,7 +48,8 @@ func validStructure(kind Kind, value any) bool {
 	case "workload":
 		return validValue(Integer, value) || validValue("numbers", value) ||
 			validValue("receipt", value) || validValue("arguments", value) ||
-			object(value, "digest:digest work_units:int", true)
+			object(value, "digest:digest work_units:int", true) ||
+			object(value, "error_present:bool type:text", true)
 	case "arguments":
 		return object(value, "position:int value:k6_literal cell:cell_label", false)
 	case "k6_literal":
@@ -108,30 +109,43 @@ func object(value any, fields string, required bool) bool {
 }
 
 // DecodeDatabaseStructure strips known free-text errors after decoding their
-// types. The public schema admits only the presence bit for that field.
+// types. The public schema admits only the presence bit for those fields.
 func DecodeDatabaseStructure(kind Kind, raw []byte) (any, error) {
-	if kind != "detail" {
-		return DecodeStructure(kind, raw)
-	}
 	value, err := parse(raw)
-	m, ok := value.(map[string]any)
-	if err != nil || !ok {
+	if err != nil || value == nil {
 		return nil, errShape
 	}
-	if reason, exists := m["reason"]; exists {
-		if _, ok := reason.(string); !ok {
-			return nil, errShape
+	if m, ok := value.(map[string]any); ok {
+		switch kind {
+		case "detail":
+			if !redactText(m, "reason", "reason_present") {
+				return nil, errShape
+			}
+		case "workload", "event":
+			if _, hasError := m["error"]; hasError && (len(m) != 2 || !redactText(m, "error", "error_present")) {
+				return nil, errShape
+			}
 		}
-		if _, exists := m["reason_present"]; exists {
-			return nil, errShape
-		}
-		delete(m, "reason")
-		m["reason_present"] = true
 	}
-	if !validValue(kind, m) {
+	if !validValue(kind, value) {
 		return nil, errShape
 	}
-	return m, nil
+	return value, nil
+}
+
+func redactText(m map[string]any, name, presence string) bool {
+	raw, exists := m[name]
+	if !exists {
+		return true
+	}
+	_, text := raw.(string)
+	_, alreadyRedacted := m[presence]
+	if !text || alreadyRedacted {
+		return false
+	}
+	delete(m, name)
+	m[presence] = true
+	return true
 }
 
 func decodeRow(spec Relation, line []byte) (Row, error) {

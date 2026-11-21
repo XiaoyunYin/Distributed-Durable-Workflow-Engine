@@ -122,14 +122,6 @@ const auditColumns = "at:time kind:text partition_id:int owner_id:text epoch:int
 
 var errShape = errors.New("K6_PUBLIC_ROW_SCHEMA")
 
-func DecodeStructure(kind Kind, raw []byte) (any, error) {
-	value, err := parse(raw)
-	if err != nil || value == nil || !validValue(kind, value) {
-		return nil, errShape
-	}
-	return value, nil
-}
-
 func ValidateRow(spec Relation, row Row) error {
 	if len(row) != len(spec.Columns) {
 		return errShape

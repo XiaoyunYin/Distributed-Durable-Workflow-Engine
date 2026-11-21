@@ -113,8 +113,8 @@
       "id": "k6g1-token-hashing",
       "kind": "behavioral",
       "file": "internal/invariants/k6live/export.go",
-      "old": "return k6v1.Hash([]byte(**value)), nil",
-      "new": "return strings.Repeat(\"0\", 64), nil // mutation: substitute a constant for token bytes",
+      "old": "return \"encode(sha256(convert_to(\" + source + \"::text, 'UTF8')), 'hex')\"",
+      "new": "return \"CASE WHEN \" + source + \" IS NOT NULL THEN repeat('0',64) END\" // mutation: substitute a constant for token bytes",
       "command": [
         "go",
         "test",

@@ -161,7 +161,9 @@ func sqlProjection(col k6v1.Column) string {
 		return "octet_length(" + source + ")::bigint"
 	case k6v1.Integer:
 		return source + "::bigint"
-	case k6v1.UUID, k6v1.Token:
+	case k6v1.Token:
+		return "encode(sha256(convert_to(" + source + "::text, 'UTF8')), 'hex')"
+	case k6v1.UUID:
 		return source + "::text"
 	default:
 		return source
@@ -281,9 +283,6 @@ func publicValue(kind k6v1.Kind, dest any) (any, error) {
 	switch value := dest.(type) {
 	case **string:
 		if *value != nil {
-			if kind == k6v1.Token {
-				return k6v1.Hash([]byte(**value)), nil
-			}
 			return **value, nil
 		}
 	case **int64:

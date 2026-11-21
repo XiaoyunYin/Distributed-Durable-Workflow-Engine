@@ -133,7 +133,8 @@ func seedK6Postgres(t *testing.T, conn *pgx.Conn) {
 		VALUES ('00000000-0000-0000-0000-000000000001','workflow','pure.echo',0,'hash','resource','{"position":3,"value":"k6"}',
 			clock_timestamp(),'`+grantSecret+`','`+nestedSecret+`');
 		INSERT INTO engine.attempt_result_evidence(evidence_id,workflow_id,node_id,iteration,attempt_number,claim_token,reconciliation_reference,payload,disposition)
-		VALUES ('00000000-0000-0000-0000-000000000003','workflow','pure.echo',0,1,'`+claimSecret+`','ref','{}','RECORDED_AS_EVIDENCE');
+		VALUES ('00000000-0000-0000-0000-000000000003','workflow','pure.echo',0,1,'`+claimSecret+`','ref',
+			jsonb_build_object('error','`+nestedSecret+`','type','RuntimeError'),'RECORDED_AS_EVIDENCE');
 		INSERT INTO engine.k4_audit(kind,at,partition_id,owner_id,epoch,session_id,pod_uid,container_id,transaction_id,claim_identity,finalized_at)
 		VALUES ('claim',clock_timestamp(),0,'',0,'session','uid','container','1',
 			jsonb_build_object('workflow_id','workflow','node_id','pure.echo','iteration',0,'attempt_number',1,
@@ -328,6 +329,19 @@ func TestK6EngineExport(t *testing.T) {
 		requireK6Finding(t, verdict, "TERMINAL_FINAL_UNIQUE")
 		execK6SQL(t, conn, `INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason)
 			VALUES (md5('1001')::uuid,'workflow',1001,'scheduler','actor','RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED')`)
+	})
+	t.Run("LiveIllegalEdge", func(t *testing.T) {
+		execK6SQL(t, conn, "UPDATE engine.transition_history SET new_state='REJECTED' WHERE revision=2")
+		dir, out, diag, code := liveK6(t, conn, dsn, false)
+		execK6SQL(t, conn, "UPDATE engine.transition_history SET new_state='RUNNABLE' WHERE revision=2")
+		if code != k6v1.Fail || diag != "" {
+			t.Fatalf("live illegal edge exit %d: %s", code, diag)
+		}
+		verdict := k6v1.Verify(inspectK6Output(t, dir, out, code))
+		requireK6Finding(t, verdict, "HISTORY_EDGE")
+		if verdict.RelationIntegrity != "covered/pass" || verdict.Labels[1].Outcome != "covered/fail" {
+			t.Fatal("illegal edge did not reach the independent history predicate")
+		}
 	})
 	t.Run("NestedSecrets", func(t *testing.T) {
 		for _, setter := range []string{
