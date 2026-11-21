@@ -71,6 +71,9 @@ func TestK6SubmissionIdentity(t *testing.T) {
 		mutant := cloneBundle(bundle)
 		resealK6Relation(t, mutant, relation, filterRows(mutant[k6v1.RelationPath(relation)].Data, warmup.Key), 1)
 		expect(t, mutant, "SUBMISSION_ACCEPT_MISSING")
+		execK6SQL(t, engine, "DELETE FROM engine.workflow_executions WHERE workflow_id=$1", warmup.Key)
+		defer minimalExecution(t, engine, warmup)
+		expect(t, acquireK6Fixture(t, config, plan, arrivals, k6v1.Fail), "SUBMISSION_ACCEPT_MISSING")
 	})
 	t.Run("N2ExtraDurable", func(t *testing.T) {
 		extra := uncertain
@@ -90,6 +93,7 @@ func TestK6SubmissionIdentity(t *testing.T) {
 		observed.PlanSHA256 = k6v1.Hash(bundle[k6v1.PlanPath].Data)
 		resealK6File(t, mutant, k6v1.ArrivalsPath, observed)
 		expect(t, mutant, "SUBMISSION_WORKFLOW_ALIAS")
+		expect(t, acquireK6Fixture(t, config, plan, observed, k6v1.Fail), "SUBMISSION_WORKFLOW_ALIAS")
 	})
 	t.Run("N2BodyHash", func(t *testing.T) {
 		execK6SQL(t, engine, "UPDATE engine.workflow_executions SET submission_payload_hash='wrong' WHERE workflow_id=$1", uncertain.Key)
@@ -103,6 +107,7 @@ func TestK6SubmissionIdentity(t *testing.T) {
 		observed.PlanSHA256 = k6v1.Hash(bundle[k6v1.PlanPath].Data)
 		resealK6File(t, mutant, k6v1.ArrivalsPath, observed)
 		expect(t, mutant, "SUBMISSION_ARRIVAL_MISSING", "SUBMISSION_DURABLE_WITHOUT_SEND")
+		expect(t, acquireK6Fixture(t, config, plan, observed, k6v1.Fail), "SUBMISSION_ARRIVAL_MISSING", "SUBMISSION_DURABLE_WITHOUT_SEND")
 	})
 	t.Run("N3ConsistentSubset", func(t *testing.T) {
 		mutant := cloneBundle(bundle)

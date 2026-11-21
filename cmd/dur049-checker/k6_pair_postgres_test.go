@@ -148,10 +148,26 @@ func TestK6SinkAndSources(t *testing.T) {
 		}
 		row["final_state_hash"] = k6v1.Hash([]byte("corruption"))
 		resealK6DatabaseRelation(t, broken, k6v1.SinkSnapshotPath, k6v1.SinkResources, canonical(t, row), 1)
+		var barrier k6v1.Barrier
+		if err := k6v1.DecodeStrict(broken[k6v1.BarrierPath].Data, &barrier); err != nil {
+			t.Fatal(err)
+		}
+		cut := &barrier.Attempts[barrier.SelectedGeneration-1].Databases[1]
+		cut.SnapshotSHA256 = k6v1.Hash(broken[k6v1.SinkSnapshotPath].Data)
+		for i, spec := range k6v1.SinkRelations() {
+			if spec.Name != k6v1.SinkResources {
+				continue
+			}
+			mark := k6v1.NewWatermark(spec)
+			mark.Add(row, k6v1.Hash(canonical(t, row)))
+			watermark := mark.Finish()
+			cut.Pre.Relations[i], cut.Cut[i], cut.Post.Relations[i] = watermark, watermark, watermark
+		}
+		resealK6File(t, broken, k6v1.BarrierPath, barrier)
 		broken["checker.json"] = &fstest.MapFile{Data: []byte(`{"status":"PASS"}`)}
 		result := k6v1.Verify(broken)
 		requireK6Finding(t, result, "SINK_REVISION_ENDPOINT")
-		if result.Labels[7].Outcome != "covered/fail" || result.Safety != "FAIL" {
+		if result.RelationIntegrity != "covered/pass" || result.Labels[7].Outcome != "covered/fail" || result.Safety != "FAIL" {
 			t.Fatal("sink corruption missed I8")
 		}
 	})
