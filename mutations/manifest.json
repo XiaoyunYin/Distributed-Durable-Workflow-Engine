@@ -2,6 +2,186 @@
   "schema": "dur-046-mutation-manifest.v1",
   "cases": [
     {
+      "id": "k6g1-census",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/census.go",
+      "old": "if classification == Unclassified {",
+      "new": "if classification == Unclassified && false { // mutation: admit unclassified relations",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6Census$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "unclassified relation accepted",
+      "requires_database": true
+    },
+    {
+      "id": "k6g1-count",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "if int64(len(rows)) != count {",
+      "new": "if int64(len(rows)) != count && false { // mutation: trust the declared count",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6EngineExport$/^ResealedMutants$/^bad-sql-count$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected RELATION_COUNT",
+      "requires_database": true
+    },
+    {
+      "id": "k6g1-digest",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "if hex.EncodeToString(hash.Sum(nil)) != entry.SHA256 {",
+      "new": "if hex.EncodeToString(hash.Sum(nil)) != entry.SHA256 && false { // mutation: trust the sealed digest",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6EngineExport$/^SealedIntegrity$/^digest$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected INDEX_DIGEST",
+      "requires_database": true
+    },
+    {
+      "id": "k6g1-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "if len(rows) > 0 && compareKeys(spec, rows[len(rows)-1], row) >= 0 {",
+      "new": "if len(rows) > 0 && compareKeys(spec, rows[len(rows)-1], row) >= 0 && false { // mutation: accept out-of-order rows",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6EngineExport$/^ResealedMutants$/^out-of-order$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected RELATION_ORDER_OR_DUPLICATE",
+      "requires_database": true
+    },
+    {
+      "id": "k6g1-history-continuity",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "if number(row[\"revision\"]) != int64(i+1) {",
+      "new": "if number(row[\"revision\"]) != int64(i+1) && false { // mutation: allow interior gaps",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6EngineExport$/^ResealedMutants$/^interior-gap$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected HISTORY_REVISION_GAP",
+      "requires_database": true
+    },
+    {
+      "id": "k6g1-terminal-uniqueness",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "if terminals != 1 || !aligned || !isTerminal(wf[\"state\"]) {",
+      "new": "if terminals < 1 || !aligned || !isTerminal(wf[\"state\"]) { // mutation: accept extra terminal revisions",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6EngineExport$/^ResealedMutants$/^double-terminal$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected TERMINAL_FINAL_UNIQUE",
+      "requires_database": true
+    },
+    {
+      "id": "k6g1-token-hashing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6live/export.go",
+      "old": "return k6v1.Hash([]byte(**value)), nil",
+      "new": "return strings.Repeat(\"0\", 64), nil // mutation: substitute a constant for token bytes",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6EngineExport$/^TokenHashing$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "token digest missing",
+      "requires_database": true
+    },
+    {
+      "id": "k6g1-closure",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/json.go",
+      "old": "import (\n\t\"bytes\"",
+      "new": "import (\n\t\"bytes\"\n\t_ \"durable-agent-execution-engine/internal/state\" // mutation: import the production model",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6Closure$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "forbidden dependency in K6 closure: durable-agent-execution-engine/internal/state",
+      "requires_database": false
+    },
+    {
+      "id": "k6g1-mode-exclusivity",
+      "kind": "behavioral",
+      "file": "cmd/dur049-checker/k6.go",
+      "old": "if (equal && len(args) != 1) || (!equal && len(args) != 2) {",
+      "new": "if (equal && len(args) != 1) || (!equal && len(args) < 2) { // mutation: ignore extra selectors",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6ModeExclusivity$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "mixed or invalid K6 selectors accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k6g1-strict-decoding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/json.go",
+      "old": "if _, duplicate := obj[name]; duplicate {",
+      "new": "if _, duplicate := obj[name]; duplicate && false { // mutation: accept duplicate keys",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6ModeStrictDecoding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "invalid K6 JSON accepted",
+      "requires_database": false
+    },
+    {
       "id": "api-duplicate-json",
       "kind": "behavioral",
       "file": "internal/api/server.go",
