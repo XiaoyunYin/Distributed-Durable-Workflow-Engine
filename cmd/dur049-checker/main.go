@@ -42,6 +42,9 @@ type fenceReport struct {
 }
 
 func main() {
+	if hasK6Selector(os.Args[1:]) {
+		os.Exit(k6Mode(os.Args[1:], os.Stdout, os.Stderr))
+	}
 	lifecyclePath := flag.String("lifecycle", "", "K4 offline lifecycle timeline (explicit mode)")
 	leaseAuditPath := flag.String("lease-audit", "", "K4 committed lease audit; required with lifecycle")
 	workflowIDs := flag.String("workflow-ids", "", "comma-separated workflow IDs to export")

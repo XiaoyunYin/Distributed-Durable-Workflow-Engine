@@ -107,6 +107,7 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
         "Set up uv",
         "Bootstrap the isolated service stack",
         "Run tagged K6 Go tests against PostgreSQL",
+        "Verify K6 G1 engine evidence on PostgreSQL",
         "Run service-backed checks and race tests",
         "Start isolated DUR-055 PostgreSQL and pgvector",
         "Validate DUR-055 PostgreSQL FTS and pgvector retrieval",
@@ -126,6 +127,12 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
     assert "'TestK6LeaseTakeoverPinsIdleBackendAndFencesOriginalAttempt'" in tagged
     assert "'TestK6RenewalIdleTimeoutTerminatesRealTransaction'" in tagged
     assert "'TestK6SchedulerRenewalDefersFencedReleaseAfterTakeover'" in tagged
+    k6_g1 = services["Verify K6 G1 engine evidence on PostgreSQL"]
+    assert "DURABLE_REQUIRE_DATABASE: '1'" in k6_g1
+    assert (
+        "go test -p 1 -count=1 -v ./cmd/dur049-checker "
+        "-run 'K6EngineExport|K6Census|LegacyParityPostgres'" in k6_g1
+    )
     assert (
         "./scripts/ci.ps1 -WithServices -WithRace"
         in services["Run service-backed checks and race tests"]

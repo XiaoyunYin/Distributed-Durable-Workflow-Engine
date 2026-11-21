@@ -311,6 +311,13 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Could not restore runtime/worker services.' }
           }
 
+      - name: Verify K6 G1 engine evidence on PostgreSQL
+        shell: bash
+        env:
+          DURABLE_REQUIRE_DATABASE: '1'
+          GOMAXPROCS: '2'
+        run: go test -p 1 -count=1 -v ./cmd/dur049-checker -run 'K6EngineExport|K6Census|LegacyParityPostgres'
+
       - name: Run service-backed checks and race tests
         shell: pwsh
         run: ./scripts/ci.ps1 -WithServices -WithRace
