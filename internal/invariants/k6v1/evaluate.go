@@ -94,9 +94,9 @@ func newResult(m Manifest, indexHash string) Result {
 		{"SignedProcessSkew", "DatabaseDeadline"}, {"ShutdownDisposition"},
 	} {
 		n := i + 1
-		reason := "slice_not_implemented:G1"
-		if n == 2 || n == 11 {
-			reason = "required_proof_missing:engine_history"
+		reason := "slice_not_implemented:G2a"
+		if n == 1 || n == 2 || n == 11 || (n == 8 && m.Sink != nil) {
+			reason = "predicate_partial:G2a"
 		}
 		r.Labels = append(r.Labels, Label{
 			ID: "I" + strconv.Itoa(n), Registered: m.Cell != "" && registered(n, m), Outcome: "NOT COVERED",
@@ -158,7 +158,7 @@ const (
 	history    = "engine.transition_history"
 )
 
-func evaluate(m Manifest, s Snapshot, rows map[string][]Row, indexHash string, issues []Finding) Result {
+func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals Arrivals, planOK, arrivalsOK bool, indexHash string, issues []Finding) Result {
 	r := newResult(m, indexHash)
 	for i := range issues {
 		r.failIntegrity(&issues[i])
@@ -167,7 +167,7 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, indexHash string, i
 	histories, haveHistory := rows[history]
 	specs := EngineRelations(m.Instrumented())
 	keys := map[string][]string{}
-	for _, spec := range specs {
+	for _, spec := range append(slices.Clone(specs), SinkRelations()...) {
 		keys[spec.Name] = spec.Keys
 	}
 	witness := func(relation string, row Row) Witness {
@@ -240,6 +240,10 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, indexHash string, i
 		r.Completeness = "FAIL"
 		r.RelationIntegrity = "covered/fail"
 	}
+	r.checkSubmissions(m, rows, plan, arrivals, planOK, arrivalsOK, witness, violate)
+	if m.Sink != nil {
+		r.checkSink(rows, byID, haveWorkflows, witness, violate)
+	}
 
 	groups := make(map[string][]Row, len(workflows))
 	for _, row := range histories {
@@ -301,19 +305,12 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, indexHash string, i
 		for _, row := range workflows {
 			label.Witnesses = append(label.Witnesses, witness(executions, row))
 		}
-		if haveHistory && haveWorkflows && (len(workflows) != 0 || item.failed) {
-			label.Outcome, label.Reason = "covered/pass", ""
-			if item.failed {
-				label.Outcome, label.Reason = "covered/fail", "contract_violation"
-			}
-		} else if !haveWorkflows || haveHistory {
+		if item.failed {
+			label.Outcome, label.Reason = "covered/fail", "contract_violation"
+		} else if !haveWorkflows {
 			label.Reason = "required_proof_missing:" + RelationPath(executions)
-		} else {
+		} else if !haveHistory {
 			label.Reason = "required_proof_missing:" + RelationPath(history)
-		}
-		if haveHistory && haveWorkflows && len(workflows) == 0 && !item.failed {
-			r.Completeness = "FAIL"
-			r.Findings = append(r.Findings, Finding{Predicate: label.Predicates[0], Code: label.Reason, Source: RelationPath(executions)})
 		}
 	}
 	if r.Safety != "FAIL" && r.Completeness != "FAIL" {

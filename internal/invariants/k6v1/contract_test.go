@@ -1,8 +1,11 @@
 package k6v1
 
 import (
+	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -44,6 +47,60 @@ func TestK6RegistryPin(t *testing.T) {
 	data, err := os.ReadFile("../../../experiments/portfolio/k8s-recovery/k6-registry-v1.json")
 	if err != nil || Hash(data) != RegistrySHA256 {
 		t.Fatalf("registry byte pin drift: %v", err)
+	}
+}
+
+func TestK6SourceRegistryFormulas(t *testing.T) {
+	data, err := os.ReadFile("../../../experiments/portfolio/k8s-recovery/k6-registry-v1.json")
+	if err != nil || Hash(data) != RegistrySHA256 {
+		t.Fatalf("registry byte pin drift: %v", err)
+	}
+	var registry struct {
+		Episodes []struct {
+			Ordinal, Seed, Repeat        int
+			Cell, Episode, Workload, Arm string
+			Window                       struct{ T int } `json:"window_seconds"`
+		}
+		Coverage []struct {
+			Arm        string
+			Covered    []string `json:"invariants_covered"`
+			NotCovered []string `json:"invariants_not_covered"`
+		}
+	}
+	if err := json.Unmarshal(data, &registry); err != nil || len(registry.Episodes) != 115 {
+		t.Fatalf("load registry episodes: %v", err)
+	}
+	d := Hash(nil)
+	for ordinal, e := range registry.Episodes {
+		m := Manifest{Schema: EvidenceVersion, Campaign: "campaign", Job: "job", RunID: "run",
+			Ordinal: e.Ordinal, Seed: e.Seed, Cell: e.Cell, Episode: e.Episode, Workload: e.Workload,
+			Namespace: "ns", ResetID: "reset", BarrierID: "barrier", Database: "db", EngineInstance: "engine",
+			RegistrySHA256: RegistrySHA256, SourceTreeSHA256: d, ImageSetSHA256: d, FreezeSHA256: d,
+			TopologySHA256: d, PlanSHA256: d, Instrumentation: []string{}}
+		if e.Workload == "COOPERATING_EFFECT" {
+			m.Sink = &DatabaseIdentity{Database: "sinkdb", Instance: "sink"}
+		}
+		m.RequiredSources = RequiredSources(false, m.Sink != nil)
+		if ordinal != e.Ordinal || e.Repeat != ordinal%5 || !m.Valid() || e.Window.T != reconciliationSeconds {
+			t.Fatalf("ordinal %d disagrees with checker formulas: %+v", ordinal, e)
+		}
+		i := slices.IndexFunc(registry.Coverage, func(row struct {
+			Arm        string
+			Covered    []string `json:"invariants_covered"`
+			NotCovered []string `json:"invariants_not_covered"`
+		}) bool {
+			return row.Arm == e.Arm
+		})
+		if i < 0 {
+			t.Fatalf("ordinal %d has unknown arm %s", ordinal, e.Arm)
+		}
+		cover := registry.Coverage[i]
+		for n := 1; n <= 13; n++ {
+			id := fmt.Sprintf("I%d", n)
+			if got := registered(n, m); got != slices.Contains(cover.Covered, id) || got == slices.Contains(cover.NotCovered, id) {
+				t.Fatalf("ordinal %d %s registry ceiling disagrees", ordinal, id)
+			}
+		}
 	}
 }
 

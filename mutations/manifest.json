@@ -16427,6 +16427,258 @@
       ],
       "expected": "F3_MUT_CONTROL_REQUIRED",
       "requires_database": false
+    },
+    {
+      "id": "k6g2a-sink-census",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/census.go",
+      "old": "default:\n\t\t\treturn Unclassified, \"outside_v1_census\"",
+      "new": "default:\n\t\t\treturn Excluded, \"outside_v1_census\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CensusSink$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "sink census omitted foreign relation",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2a-column-census",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/census.go",
+      "old": "if !slices.Equal(entry.Columns, relations[i].SourceColumns()) {",
+      "new": "if !slices.Equal(entry.Columns, relations[i].SourceColumns()) && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ColumnCensus$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "column census admitted drift",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2a-foreign-table-census",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6live/census.go",
+      "old": "c.relkind IN ('r', 'p', 'v', 'm', 'S', 'f')",
+      "new": "c.relkind IN ('r', 'p', 'v', 'm', 'S')",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6ColumnAndForeignTable$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "foreign table exit 3",
+      "requires_database": true
+    },
+    {
+      "id": "k6g2a-append-watermark",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/barrier.go",
+      "old": "before.Count == after.Count && before.MaxKey == after.MaxKey && publicEqual && sourceEqual",
+      "new": "before.Count == after.Count && before.MaxKey == after.MaxKey && sourceEqual",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CutWatermarkClasses$/^AppendOnly$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "watermark change escaped AppendOnly",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2a-quiescent-watermark",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/barrier.go",
+      "old": "case Quiescent:\n\t\treturn before.Count == after.Count && publicEqual && sourceEqual",
+      "new": "case Quiescent:\n\t\treturn before.Count == after.Count && sourceEqual",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CutWatermarkClasses$/^Quiescent$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "watermark change escaped Quiescent",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2a-idle-watermark",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/barrier.go",
+      "old": "if before.Relation != DeadlineWrites {\n\t\t\treturn before.Count == after.Count && publicEqual && sourceEqual",
+      "new": "if before.Relation != DeadlineWrites {\n\t\t\treturn before.Count == after.Count && sourceEqual",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CutWatermarkClasses$/^IdleChurn$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "watermark change escaped IdleChurn",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2a-audit-renewal-kind",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/barrier.go",
+      "old": "if row.Kind != \"renewal\" {",
+      "new": "if row.Kind != \"renewal\" && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CutRenewalAuditPrefix$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "unexpected renewal audit result",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2a-retry-generation-mixing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/barrier.go",
+      "old": "if snap.Generation != attempt.Generation || files[db+\"/snapshot.json\"].SHA256 != d.SnapshotSHA256",
+      "new": "if files[db+\"/snapshot.json\"].SHA256 != d.SnapshotSHA256",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CutRetryGenerationBinding$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "mixed generation accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2a-deadline",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/barrier.go",
+      "old": "late := attempt.Finished.UTC > deadline",
+      "new": "late := false",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CutHistoricalDeadline$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "late historical cut accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2a-pure-sink-absence",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "if manifest.Sink == nil && hasSinkSource(bundle, index) {",
+      "new": "if manifest.Sink == nil && hasSinkSource(bundle, index) && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6SourcePureAbsence$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "PURE sink entry accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2a-submission-forward",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/submission.go",
+      "old": "if haveWorkflows && accepted {",
+      "new": "if haveWorkflows && accepted && false {",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6SubmissionIdentity$/^N2RemoveAccepted$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected SUBMISSION_ACCEPT_MISSING",
+      "requires_database": true
+    },
+    {
+      "id": "k6g2a-submission-reverse",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/submission.go",
+      "old": "if !plannedKeys[wf[\"submission_key\"].(string)] || wf[\"namespace\"] != m.Namespace {",
+      "new": "if wf[\"namespace\"] != m.Namespace {",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6SubmissionIdentity$/^N2ExtraDurable$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "live exit 3, want 1",
+      "requires_database": true
+    },
+    {
+      "id": "k6g2a-submission-body-hash",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/submission.go",
+      "old": "if wf[\"submission_payload_hash\"] != \"sub-v1:\"+bodyHash {",
+      "new": "if wf[\"submission_payload_hash\"] != \"sub-v1:\"+bodyHash && false {",
+      "command": [
+        "go",
+        "test",
+        "./cmd/dur049-checker",
+        "-run",
+        "^TestK6SubmissionIdentity$/^N2BodyHash$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "live exit 3, want 1",
+      "requires_database": true
+    },
+    {
+      "id": "k6g2a-partial-reason",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "reason = \"predicate_partial:G2a\"",
+      "new": "reason = \"slice_not_implemented:G2a\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6SubmissionPartialReasons$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "clean partial predicate claimed coverage",
+      "requires_database": false
     }
   ]
 }

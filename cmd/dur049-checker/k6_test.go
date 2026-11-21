@@ -17,8 +17,9 @@ func k6Manifest(database string, instrumented bool) k6v1.Manifest {
 		Schema: k6v1.EvidenceVersion, Campaign: "test", Job: "fixture", RunID: "1",
 		Episode: "hook-0-0", Ordinal: 0, Seed: 530001, Cell: "hook-0", Workload: "PURE",
 		Namespace: "episode", ResetID: "reset-a", BarrierID: "barrier-a", Database: database,
+		EngineInstance: "engine-instance", PlanSHA256: d,
 		RegistrySHA256: k6v1.RegistrySHA256, SourceTreeSHA256: d, ImageSetSHA256: d, FreezeSHA256: d, TopologySHA256: d,
-		Instrumentation: []string{}, RequiredSources: k6v1.RequiredSources(instrumented),
+		Instrumentation: []string{}, RequiredSources: k6v1.RequiredSources(instrumented, false),
 	}
 	if instrumented {
 		m.Instrumentation = []string{k6v1.DeadlineWrites}

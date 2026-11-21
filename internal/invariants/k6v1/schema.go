@@ -33,9 +33,10 @@ type Column struct {
 }
 
 type Relation struct {
-	Name    string
-	Keys    []string
-	Columns []Column
+	Name            string
+	Keys            []string
+	Columns         []Column
+	ExcludedColumns []string
 }
 
 type Row map[string]any
@@ -119,6 +120,33 @@ func EngineRelations(instrumented bool) []Relation {
 }
 
 const auditColumns = "at:time kind:text partition_id:int owner_id:text epoch:int session_id:text pod_uid:text container_id:container_id transaction_id:text transition_id:uuid? claim_identity:claim?"
+
+const (
+	SinkResources    = "k6_sink.resource_states"
+	SinkJournal      = "k6_sink.journal"
+	SinkReceipts     = "k6_sink.receipts"
+	SinkCalls        = "k6_sink.calls"
+	SinkAllocations  = "k6_sink.allocations"
+	SinkBindings     = "k6_sink.request_bindings"
+	SinkLookupMisses = "k6_sink.lookup_misses"
+)
+
+func SinkRelations() []Relation {
+	return []Relation{
+		relation(SinkAllocations, "intent_id grant_hash attempt",
+			"intent_id:uuid grant_hash:digest attempt:int resource_id:text fence:int"),
+		relation(SinkCalls, "call_id",
+			"call_id:int operation:text workflow_id:text logical_key:text intent_id:uuid resource_id:text message_id:text attempt:int request_id:text body_hash:digest connection_hash:digest outcome:text application_id:uuid? response_hash:digest? observed_at:time"),
+		relation(SinkJournal, "resource_id revision",
+			"resource_id:text old_revision:int revision:int old_state_hash:digest state_hash:digest logical_key:text intent_id:uuid"),
+		relation(SinkLookupMisses, "intent_id grant_hash attempt", "intent_id:uuid grant_hash:digest attempt:int"),
+		relation(SinkReceipts, "workflow_id logical_key",
+			"workflow_id:text logical_key:text resource_id:text canonical_hash:digest scope_hash:digest intent_id:uuid expected_revision:int applied_revision:int application_id:uuid"),
+		relation(SinkBindings, "request_id", "request_id:text body_hash:digest"),
+		relation(SinkResources, "resource_id",
+			"resource_id:text revision:int latest_fence:int initial_state_hash:digest final_state_hash:digest logical_key:text? intent_id:uuid?"),
+	}
+}
 
 var errShape = errors.New("K6_PUBLIC_ROW_SCHEMA")
 
