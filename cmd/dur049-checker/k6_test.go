@@ -61,6 +61,7 @@ func TestK6ModeExclusivity(t *testing.T) {
 		{k6Live, "private.json", "-database-url", "other"},
 		{"-snapshot", path, k6Offline, path},
 		{"--k6-offline-v2", path},
+		{"-k6--offline-v1", path},
 		{k6Offline},
 		{k6Offline + "="},
 	} {

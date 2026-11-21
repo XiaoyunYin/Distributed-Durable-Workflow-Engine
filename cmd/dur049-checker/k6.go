@@ -31,7 +31,9 @@ func k6Mode(args []string, stdout, stderr io.Writer) int {
 		return k6v1.Usage
 	}
 	selector, path, equal := strings.Cut(args[0], "=")
-	selector = strings.Replace(selector, "--", "-", 1)
+	if strings.HasPrefix(selector, "--") {
+		selector = selector[1:]
+	}
 	if selector != k6Live && selector != k6Offline {
 		return usage()
 	}
