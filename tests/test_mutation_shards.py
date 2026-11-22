@@ -28,6 +28,9 @@ def test_all_manifest_cases_are_assigned_even_after_growth(platform: str) -> Non
             for case_id, shard in assignment.items()
             if case_id.startswith("k6")
         )
+        assert all(
+            assignment[case["id"]] == case["ci_shard"] for case in source if "ci_shard" in case
+        )
 
 
 @pytest.mark.parametrize("platform", shards.SHARDS)
@@ -83,6 +86,7 @@ def test_unmeasured_k6_case_preserves_measured_primary_shard_membership(platform
         ("survived", "lacks its expected detection"),
         ("stale-commit", "invalid report header"),
         ("k6-misplaced", "misplaced K6 case"),
+        ("pinned-misplaced", "misplaced pinned case"),
         ("incomplete-powershell", "powershell: missing 1 cases"),
         ("missing-linux-b", "linux-without-k6-b-123-2"),
         ("missing-powershell-b", "powershell-without-k6-b-123-2"),
@@ -165,4 +169,7 @@ def write_reports(root: Path, fault: str) -> dict[str, Any]:
                 ),
                 encoding="utf-8",
             )
-    return {"cases": [{"id": case_id, "expected": marker} for case_id in [*k6, *ordinary]]}
+    manifest = {"cases": [{"id": case_id, "expected": marker} for case_id in [*k6, *ordinary]]}
+    if fault == "pinned-misplaced":
+        manifest["cases"][0]["ci_shard"] = "with-k6-b"
+    return manifest

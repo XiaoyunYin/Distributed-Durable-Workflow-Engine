@@ -298,7 +298,7 @@ class Deployment(Smoke):
         )
         return rows
 
-    def psql(self, server: str, role: str, query: str) -> str:
+    def psql(self, server: str, role: str, query: str, *, timeout: float = 8) -> str:
         sink = server == "sink"
         return (
             self.command(
@@ -321,7 +321,7 @@ class Deployment(Smoke):
                 "-d",
                 SINK_DB if sink else "postgres",
                 data=query.encode(),
-                timeout=8,
+                timeout=timeout,
             )
             .decode()
             .strip()

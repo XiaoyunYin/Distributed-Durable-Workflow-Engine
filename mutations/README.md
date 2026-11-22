@@ -69,6 +69,8 @@ The `with-k6` split columns use the same method on runs
 [45020845008](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45020845008)
 and [45025143230](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45025143230).
 Measured groups retain their placement as unmeasured cases are added.
+The Phase C connection-trace cases use `ci_shard` to run alongside the Phase C
+connection-budget renderer in `with-k6-b` on both platforms.
 
 `Mutation gate coverage` requests all eight result artifacts for the current
 run and attempt. It requires both matrices to pass and verifies each report

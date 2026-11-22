@@ -15002,6 +15002,261 @@
       "requires_database": false
     },
     {
+      "id": "k6c-r366-reject-resolved-startup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "del pending[key]",
+      "new": "raise SmokeFailure(unresolved)",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_starting_trace_resolves_within_bound"
+      ],
+      "expected": "registered startup failed to resolve",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-accept-unresolved-startup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "else:\n                        require(elapsed_us < STARTUP_SECONDS * 1_000_000, unresolved)",
+      "new": "elif elapsed_us >= STARTUP_SECONDS * 1_000_000:\n                        del pending[key]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_starting_trace_fails_if_unresolved_at_bound"
+      ],
+      "expected": "accepted startup unresolved at the bound",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-accept-vanished-startup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "require(key in current, \"DB_STARTUP_VANISHED\" + suffix)",
+      "new": "if key not in current:\n                        del pending[key]\n                        continue",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_starting_trace_fails_if_backend_vanishes"
+      ],
+      "expected": "accepted disappearance of a starting backend",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-allow-unknown-pair",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "require((user, application) in limits, \"DB_UNACCOUNTED_CLIENT_\" + server.upper())",
+      "new": "if (user, application) not in limits:\n            continue",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_trace_fails_unknown_pair_immediately"
+      ],
+      "expected": "accepted an unregistered pair",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-exclude-startup-from-total",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "application_count += count\n        if is_starting(user, application):\n            continue",
+      "new": "if is_starting(user, application):\n            continue\n        application_count += count",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_starting_trace_counts_toward_total_budget"
+      ],
+      "expected": "excluded starting backends from the total budget",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-allow-partial-identity",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "return user is None and application == \"\"",
+      "new": "return user is None or application == \"\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_trace_fails_unknown_pair_immediately"
+      ],
+      "expected": "accepted an unregistered pair",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-match-pid-only",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "current = {(b[\"pid\"], b[\"backend_start\"]): b for b in backends}",
+      "new": "current = {(b[\"pid\"], \"ignored\"): b for b in backends}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_starting_trace_fails_if_backend_vanishes"
+      ],
+      "expected": "accepted disappearance of a starting backend",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-match-backend-start-only",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "current = {(b[\"pid\"], b[\"backend_start\"]): b for b in backends}",
+      "new": "current = {(0, b[\"backend_start\"]): b for b in backends}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_starting_trace_fails_if_backend_vanishes"
+      ],
+      "expected": "accepted disappearance of a starting backend",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-allow-missing-backend-start",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "require(key[1] is not None, \"DB_STARTUP_IDENTITY\" + suffix)",
+      "new": "pass  # mutation: follow a backend with no start identity",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_starting_trace_requires_backend_start"
+      ],
+      "expected": "accepted a starting backend without a start time",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-allow-late-resolution",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "require(elapsed_us <= STARTUP_SECONDS * 1_000_000, unresolved)",
+      "new": "pass  # mutation: count late resolution",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_starting_trace_fails_late_resolution"
+      ],
+      "expected": "accepted startup resolution after the bound",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-allow-over-budget-resolution",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "require(0 < count <= limits[user, application], \"DB_CLIENT_BUDGET_\" + server.upper())",
+      "new": "pass  # mutation: bypass registered pair cap",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_starting_trace_rejects_resolution_over_pair_budget"
+      ],
+      "expected": "accepted a resolved pair over budget",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-allow-long-sampling-gap",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "STARTUP_GAP_US = 200_000",
+      "new": "STARTUP_GAP_US = 250_000",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_starting_trace_rejects_gap_over_200_ms"
+      ],
+      "expected": "accepted a gap over 200 ms",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-drop-rejected-sample",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "row[server] = sample",
+      "new": "row[server] = {}",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_trace_fails_unknown_pair_immediately"
+      ],
+      "expected": "discarded the rejected sample",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-retain-raw-address",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "if key != \"client_addr\"",
+      "new": "if True",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_trace_fails_unknown_pair_immediately"
+      ],
+      "expected": "rejection record lost backend details or retained the client address",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-drop-rejection-record",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "\"rejections\": self.rejections,",
+      "new": "\"rejections\": [],",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_trace_fails_unknown_pair_immediately"
+      ],
+      "expected": "rejection record lost backend details or retained the client address",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
       "id": "k6c2-state-grant-scope-separator",
       "kind": "behavioral",
       "file": "internal/state/m4.go",
