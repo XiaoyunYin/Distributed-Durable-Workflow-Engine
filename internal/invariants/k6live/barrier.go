@@ -25,14 +25,14 @@ type database struct {
 }
 
 func Acquire(ctx context.Context, config Config) error {
-	return acquireObserved(ctx, config, nil, smokeGate())
+	return acquireObserved(ctx, config, nil, nil, smokeGate())
 }
 
 func acquire(parent context.Context, config Config, afterCut func(string, int)) error {
-	return acquireObserved(parent, config, afterCut, nil)
+	return acquireObserved(parent, config, afterCut, nil, nil)
 }
 
-func acquireObserved(parent context.Context, config Config, afterCut func(string, int), gate observationGate) error {
+func acquireObserved(parent context.Context, config Config, afterCut func(string, int), afterPair func(context.Context), gate observationGate) error {
 	if !config.Valid() {
 		return errors.New("K6_LIVE_CONFIG")
 	}
@@ -130,6 +130,9 @@ func acquireObserved(parent context.Context, config Config, afterCut func(string
 					}
 					return nil
 				})
+				if acquisitionErr == nil && afterPair != nil {
+					afterPair(ctx)
+				}
 			}
 		}
 		attempt.Finished = observe()
@@ -158,7 +161,7 @@ func acquireObserved(parent context.Context, config Config, afterCut func(string
 		}
 		barrier.Attempts = append(barrier.Attempts, attempt)
 		retry := acquisitionErr == nil && ctx.Err() == nil && len(attempt.Reasons) != 0 && !expired && externalContinuous
-		if canSelect(attempt, stage, files, config.ExternalDir == "" || quiet && externalContinuous) {
+		if canSelect(attempt, stage, files, retry, config.ExternalDir == "" || quiet && externalContinuous) {
 			for _, db := range databases {
 				if err := os.Rename(filepath.Join(stage, db.name), filepath.Join(dir, db.name)); err != nil {
 					return errors.New("K6_BUNDLE_WRITE")
@@ -202,8 +205,12 @@ func acquireObserved(parent context.Context, config Config, afterCut func(string
 	return err
 }
 
-func canSelect(attempt k6v1.CutAttempt, stage string, files []k6v1.File, continuous bool) bool {
-	return len(attempt.Reasons) == 0 && stage != "" && len(files) != 0 && continuous
+func canSelect(attempt k6v1.CutAttempt, stage string, files []k6v1.File, retry, continuous bool) bool {
+	if retry || !continuous || stage == "" || len(attempt.Databases) == 0 || len(files) == 0 {
+		return false
+	}
+	// Retain a completed late cut as censored evidence. Offline still reports CUT_DEADLINE.
+	return len(attempt.Reasons) == 0 || slices.Equal(attempt.Reasons, []string{"CUT_DEADLINE"})
 }
 
 func loadSource(path string, target any) ([]byte, error) {

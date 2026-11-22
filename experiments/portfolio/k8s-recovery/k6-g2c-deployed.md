@@ -37,6 +37,10 @@ from the bundle and its index. The replay exits 1 with completeness FAIL
 and exactly one `required_proof_missing:<path>` finding. Its exit code and
 verdict are retained in `missing.exit.json` and `checker-missing-source.json`.
 With all sources present, both checker modes exit 3 with a partial G2b verdict.
+In each PURE episode, including idle, the harness also replays the same
+bundle in the isolated network namespace with the default checker build.
+It requires exit 3 and byte-for-byte equality with the smoke checker output.
+`default-offline.stdout.json` and `default-offline.exit.json` retain the result.
 
 The reset controller scales workers, the outbox publisher, and any effect
 relay and allocator to zero. It closes the decision adapter and verifies the
@@ -71,6 +75,13 @@ second, and takes both snapshots in a fresh generation. `quiet-generations.json`
 summarizes both windows, pre/post broker and DB activity digests, local snapshot
 digests, the original deadline and the selected generation. Its inputs are
 `bundle/barrier.json` and `bundle/samples/external.json`.
+
+The live checker can select the final attempt as censored evidence when both
+cuts complete, staged files are present, quiet is continuous where required,
+and `CUT_DEADLINE` is the attempt's only reason. It indexes both snapshots
+for diagnosis. Offline verification still reports `CUT_DEADLINE` and fails
+the episode. A race, interruption, binding failure or unclassified column
+disqualifies the attempt from selection.
 
 The first deployed G2c2 run completed the G job in 10m31s. The before-pre
 marker at offset 3 advanced the end to 4 and restarted quiet. The mid-cut

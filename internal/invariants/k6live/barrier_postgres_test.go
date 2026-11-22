@@ -6,6 +6,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -216,6 +217,43 @@ func TestK6CutPairedRetry(t *testing.T) {
 		}
 		requireCutCode(t, k6v1.Verify(root), "CUT_DEADLINE")
 	})
+}
+
+func TestK6CutDeadlineSalvageLive(t *testing.T) {
+	_, _, config := newPair(t)
+	cfg := pairSources(t, config, time.Now().Add(5*time.Second))
+	// Let the deadline elapse after the final DB sample and before recording Finished.
+	if err := acquireObserved(context.Background(), cfg, nil, func(ctx context.Context) {
+		<-ctx.Done()
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	root := os.DirFS(cfg.EpisodeDir)
+	barrier := readBarrier(t, root)
+	if barrier.SelectedGeneration != 1 || len(barrier.Attempts) != 1 ||
+		!slices.Equal(barrier.Attempts[0].Reasons, []string{"CUT_DEADLINE"}) {
+		t.Fatalf("expected the completed deadline-only cut to be selected: %+v", barrier)
+	}
+	raw, err := fs.ReadFile(root, k6v1.IndexPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var index k6v1.Index
+	if err := k6v1.DecodeStrict(raw, &index); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{k6v1.SnapshotPath, k6v1.SinkSnapshotPath} {
+		if !slices.ContainsFunc(index.Files, func(file k6v1.File) bool { return file.Path == path }) {
+			t.Fatalf("salvage index missing %s", path)
+		}
+	}
+	result := k6v1.Verify(root)
+	requireCutCode(t, result, "CUT_DEADLINE")
+	if result.ExitCode() != k6v1.Fail || slices.ContainsFunc(result.Findings, func(f k6v1.Finding) bool {
+		return f.Code == "CUT_NO_GENERATION"
+	}) {
+		t.Fatalf("unexpected offline salvage result: %+v", result.Findings)
+	}
 }
 
 func onlyMissingExternal(r k6v1.Result) bool {

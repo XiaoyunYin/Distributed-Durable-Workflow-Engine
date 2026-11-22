@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from copy import deepcopy
 from pathlib import Path
@@ -128,6 +129,19 @@ def test_registered_smoke_selects_lowest_cost_per_arm() -> None:
     plan, requests, allocator = make_plan(binding, effect["seed"], True)
     assert [row["name"] for row in plan["windows"]] == ["warmup", "measured"]
     assert set(requests) == {row["submission_key"] for row in allocator["operations"]}
+
+
+def test_checker_smoke_build_tag_is_confined_to_g_smoke() -> None:
+    tag = "k6g2c_smoke"
+    matches = subprocess.check_output(
+        ["git", "grep", "-n", "-E", "-e", rf"-tags[=[:space:]'\",]+[^#]*{tag}", "--"],
+        cwd=Path(__file__).resolve().parents[1],
+        text=True,
+    ).splitlines()
+    assert len(matches) == 1, matches
+    path, _, line = matches[0].split(":", 2)
+    assert path == "scripts/dur053_k6_g_smoke.py"
+    assert line.strip() == f'("checker-smoke", "dur049-checker", ["-tags={tag}"]),'
 
 
 def test_idle_sources_must_be_present_and_sealed(tmp_path: Path) -> None:

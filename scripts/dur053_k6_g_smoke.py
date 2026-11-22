@@ -970,7 +970,7 @@ class Episode(Matrix):
         }
         path = self.scratch / "checker.json"
         private_file(path, canonical(config))
-        checker = str(self.shared / "checker")
+        checker = str(self.shared / "checker-smoke")
 
         def invoke(args: tuple[str, ...], name: str, timeout: int) -> tuple[int, bytes]:
             run = subprocess.run(
@@ -1000,9 +1000,9 @@ class Episode(Matrix):
             code, live = invoke(("sudo", *launch), "live", 140)
         require(code == 3, f"G_LIVE_EXIT_{code}")
 
-        def offline(directory: Path, name: str) -> tuple[int, bytes]:
+        def offline(directory: Path, name: str, executable: str = checker) -> tuple[int, bytes]:
             return invoke(
-                ("sudo", "unshare", "--net", "--", checker, "-k6-offline-v1", str(directory)),
+                ("sudo", "unshare", "--net", "--", executable, "-k6-offline-v1", str(directory)),
                 name,
                 20,
             )
@@ -1014,6 +1014,10 @@ class Episode(Matrix):
             offline,
         )
         bundle = output / "bundle"
+        if not self.effect:
+            code, default = offline(bundle, "default-offline", str(self.shared / "checker-default"))
+            require(code == 3, f"G_DEFAULT_OFFLINE_EXIT_{code}")
+            require(default == live, "G_DEFAULT_BUILD_PARITY")
         quiet = quiet_summary(bundle)
         self.evidence.write("quiet-generations.json", quiet)
         if self.effect:
@@ -1211,7 +1215,8 @@ def run(output: Path) -> int:
             addresses = harness.cluster(config=kind_config)
             for name, package, flags in (
                 ("collector", "dur053-k6-collect", []),
-                ("checker", "dur049-checker", ["-tags=k6g2c_smoke"]),
+                ("checker-smoke", "dur049-checker", ["-tags=k6g2c_smoke"]),
+                ("checker-default", "dur049-checker", []),
                 ("injector", "dur053-k6-g-inject", []),
             ):
                 harness.command(
@@ -1226,7 +1231,7 @@ def run(output: Path) -> int:
                         str(shared / name),
                         "./cmd/" + package,
                     ],
-                    env=dict(harness.env, CGO_ENABLED="0"),
+                    env=dict(harness.env, CGO_ENABLED="0", GOFLAGS=""),
                     timeout=300,
                 )
         pure, effect = select_cells(read_registry())

@@ -16978,8 +16978,8 @@
       "id": "k6g2c2-raced-cut-selected",
       "kind": "behavioral",
       "file": "internal/invariants/k6live/barrier.go",
-      "old": "return len(attempt.Reasons) == 0 && stage != \"\"",
-      "new": "return stage != \"\"",
+      "old": "return len(attempt.Reasons) == 0 || slices.Equal(attempt.Reasons, []string{\"CUT_DEADLINE\"})",
+      "new": "return true",
       "command": [
         "go",
         "test",
@@ -16991,6 +16991,25 @@
         "-count=1"
       ],
       "expected": "raced cut selected",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2c2-deadline-salvage-dropped",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6live/barrier.go",
+      "old": " || slices.Equal(attempt.Reasons, []string{\"CUT_DEADLINE\"})",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6live",
+        "-run",
+        "^TestK6CutDeadlineSalvageSelection$",
+        "-count=1"
+      ],
+      "expected": "completed deadline-only cut discarded",
       "requires_database": false
     },
     {
