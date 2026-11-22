@@ -13,36 +13,67 @@ import (
 )
 
 const (
-	EvidenceVersion = "dur053.k6-evidence.v1"
-	SnapshotVersion = "dur053.k6-engine-snapshot.v1"
-	IndexVersion    = "dur053.k6-index.v1"
-	RegistrySHA256  = "26477acd794a6be9ea3cd1a71741c2b62a9fa2f2a4ab0b53decb60ffb334c7e2"
-	ManifestPath    = "manifest.json"
-	SnapshotPath    = "engine/snapshot.json"
-	IndexPath       = "index.json"
+	EvidenceVersion     = "dur053.k6-evidence.v1"
+	SnapshotVersion     = "dur053.k6-engine-snapshot.v1"
+	SinkSnapshotVersion = "dur053.k6-sink-snapshot.v1"
+	IndexVersion        = "dur053.k6-index.v1"
+	RegistrySHA256      = "26477acd794a6be9ea3cd1a71741c2b62a9fa2f2a4ab0b53decb60ffb334c7e2"
+	ManifestPath        = "manifest.json"
+	SnapshotPath        = "engine/snapshot.json"
+	SinkSnapshotPath    = "sink/snapshot.json"
+	IndexPath           = "index.json"
 )
 
 type Manifest struct {
-	Schema           string   `json:"schema"`
-	Campaign         string   `json:"campaign"`
-	Job              string   `json:"job"`
-	RunID            string   `json:"run_id"`
-	Episode          string   `json:"episode"`
-	Ordinal          int      `json:"ordinal"`
-	Seed             int      `json:"seed"`
-	Cell             string   `json:"cell"`
-	Workload         string   `json:"workload"`
-	Namespace        string   `json:"namespace"`
-	ResetID          string   `json:"reset_id"`
-	BarrierID        string   `json:"barrier_id"`
-	Database         string   `json:"database"`
-	RegistrySHA256   string   `json:"registry_sha256"`
-	SourceTreeSHA256 string   `json:"source_tree_sha256"`
-	ImageSetSHA256   string   `json:"image_set_sha256"`
-	FreezeSHA256     string   `json:"freeze_sha256"`
-	TopologySHA256   string   `json:"topology_sha256"`
-	Instrumentation  []string `json:"instrumentation"`
-	RequiredSources  []string `json:"required_sources"`
+	Schema           string            `json:"schema"`
+	Campaign         string            `json:"campaign"`
+	Job              string            `json:"job"`
+	RunID            string            `json:"run_id"`
+	Episode          string            `json:"episode"`
+	Ordinal          int               `json:"ordinal"`
+	Seed             int               `json:"seed"`
+	Cell             string            `json:"cell"`
+	Workload         string            `json:"workload"`
+	Namespace        string            `json:"namespace"`
+	ResetID          string            `json:"reset_id"`
+	BarrierID        string            `json:"barrier_id"`
+	Database         string            `json:"database"`
+	EngineInstance   string            `json:"engine_instance"`
+	Sink             *DatabaseIdentity `json:"sink"`
+	PlanSHA256       string            `json:"plan_sha256"`
+	RegistrySHA256   string            `json:"registry_sha256"`
+	SourceTreeSHA256 string            `json:"source_tree_sha256"`
+	ImageSetSHA256   string            `json:"image_set_sha256"`
+	FreezeSHA256     string            `json:"freeze_sha256"`
+	TopologySHA256   string            `json:"topology_sha256"`
+	Instrumentation  []string          `json:"instrumentation"`
+	RequiredSources  []string          `json:"required_sources"`
+}
+
+type DatabaseIdentity struct {
+	Database string `json:"database"`
+	Instance string `json:"instance"`
+}
+
+func (m Manifest) Identity(db string) DatabaseIdentity {
+	if db == "sink" {
+		return *m.Sink
+	}
+	return DatabaseIdentity{Database: m.Database, Instance: m.EngineInstance}
+}
+
+func (m Manifest) Databases() []string {
+	if m.Sink != nil {
+		return []string{"engine", "sink"}
+	}
+	return []string{"engine"}
+}
+
+func (m Manifest) Relations(db string) []Relation {
+	if db == "sink" {
+		return SinkRelations()
+	}
+	return EngineRelations(m.Instrumented())
 }
 
 func (m Manifest) Instrumented() bool {
@@ -54,12 +85,12 @@ func (m Manifest) Valid() bool {
 		m.Ordinal < 0 || m.Ordinal >= 115 || m.Seed != 530001+m.Ordinal {
 		return false
 	}
-	for _, id := range []string{m.Campaign, m.Job, m.RunID, m.Namespace, m.ResetID, m.BarrierID, m.Database} {
+	for _, id := range []string{m.Campaign, m.Job, m.RunID, m.Namespace, m.ResetID, m.BarrierID, m.Database, m.EngineInstance} {
 		if id == "" || !publicIdentity(id) {
 			return false
 		}
 	}
-	for _, hash := range []string{m.SourceTreeSHA256, m.ImageSetSHA256, m.FreezeSHA256, m.TopologySHA256} {
+	for _, hash := range []string{m.SourceTreeSHA256, m.ImageSetSHA256, m.FreezeSHA256, m.TopologySHA256, m.PlanSHA256} {
 		if !digest.MatchString(hash) {
 			return false
 		}
@@ -71,9 +102,16 @@ func (m Manifest) Valid() bool {
 	if m.Ordinal >= 90 && (m.Ordinal < 110 || m.Ordinal >= 113) {
 		workload = "COOPERATING_EFFECT"
 	}
+	if (workload == "PURE") != (m.Sink == nil) {
+		return false
+	}
+	if m.Sink != nil && (m.Sink.Database == "" || !publicIdentity(m.Sink.Database) ||
+		m.Sink.Instance == "" || !publicIdentity(m.Sink.Instance) || m.Sink.Instance == m.EngineInstance) {
+		return false
+	}
 	return m.Cell == cell && m.Episode == cell+"-"+strconv.Itoa(m.Ordinal%5) && m.Workload == workload &&
 		m.Instrumentation != nil && (len(m.Instrumentation) == 0 || slices.Equal(m.Instrumentation, []string{DeadlineWrites})) &&
-		slices.Equal(m.RequiredSources, RequiredSources(m.Instrumented()))
+		slices.Equal(m.RequiredSources, RequiredSources(m.Instrumented(), m.Sink != nil))
 }
 
 type Observer struct {
@@ -101,6 +139,8 @@ type Snapshot struct {
 	BarrierID      string        `json:"barrier_id"`
 	ResetID        string        `json:"reset_id"`
 	Database       string        `json:"database"`
+	Instance       string        `json:"instance"`
+	Generation     int           `json:"generation"`
 	DatabaseOID    uint32        `json:"database_oid"`
 	Visibility     string        `json:"visibility"`
 	TransactionUTC string        `json:"transaction_utc"`
@@ -124,24 +164,40 @@ type Index struct {
 	Files  []File `json:"files"`
 }
 
-func RelationPath(name string) string { return "engine/" + name + ".jsonl" }
+func RelationPath(name string) string {
+	if table, ok := strings.CutPrefix(name, "k6_sink."); ok {
+		return "sink/" + table + ".jsonl"
+	}
+	return "engine/" + name + ".jsonl"
+}
 
-func RequiredSources(instrumented bool) []string {
-	paths := []string{ManifestPath, SnapshotPath}
+func RequiredSources(instrumented, sink bool) []string {
+	paths := []string{ManifestPath, SnapshotPath, PlanPath, ArrivalsPath, BarrierPath}
 	for _, spec := range EngineRelations(instrumented) {
 		paths = append(paths, RelationPath(spec.Name))
+	}
+	if sink {
+		paths = append(paths, SinkSnapshotPath)
+		for _, spec := range SinkRelations() {
+			paths = append(paths, RelationPath(spec.Name))
+		}
 	}
 	slices.Sort(paths)
 	return paths
 }
 
-func verifySnapshot(m Manifest, s Snapshot, manifestHash string) bool {
-	return s.Schema == SnapshotVersion && s.ManifestSHA256 == manifestHash &&
-		s.BarrierID == m.BarrierID && s.ResetID == m.ResetID && s.Database == m.Database &&
-		s.DatabaseOID > 0 && validVisibility(s.Visibility) && validTime(s.TransactionUTC) &&
-		validBracket(s.Open) && validBracket(s.Close) && validTime(s.CommitAfter.UTC) &&
-		s.Open.After.MonotonicNS <= s.Close.Before.MonotonicNS && s.Close.After.MonotonicNS <= s.CommitAfter.MonotonicNS &&
-		s.NamespaceCount >= 0
+func verifySnapshot(m Manifest, db string, s Snapshot, manifestHash string) bool {
+	version := SnapshotVersion
+	if db == "sink" {
+		version = SinkSnapshotVersion
+	}
+	identity := m.Identity(db)
+	return s.Schema == version && s.ManifestSHA256 == manifestHash &&
+		s.BarrierID == m.BarrierID && s.ResetID == m.ResetID && s.Database == identity.Database && s.Instance == identity.Instance &&
+		s.Generation > 0 && s.DatabaseOID > 0 && validVisibility(s.Visibility) && validTime(s.TransactionUTC) &&
+		validBracket(s.Open) && validBracket(s.Close) &&
+		orderedObservers(s.Open.After, s.Close.Before) && orderedObservers(s.Close.After, s.CommitAfter) &&
+		s.NamespaceCount >= 0 && (db == "engine" || s.NamespaceCount == 0)
 }
 
 func validVisibility(s string) bool {
@@ -187,7 +243,7 @@ func Verify(bundle fs.FS) Result {
 	}
 	files := map[string]File{}
 	previous := ""
-	allowed := RequiredSources(true)
+	allowed := RequiredSources(true, true)
 	for _, f := range index.Files {
 		if f.Path <= previous || !slices.Contains(allowed, f.Path) || f.Length < 0 || !digest.MatchString(f.SHA256) {
 			return Failed(integrity("INDEX_ENTRY_SCHEMA", IndexPath))
@@ -203,53 +259,108 @@ func Verify(bundle fs.FS) Result {
 	if decodeCanonical(manifestBytes, &manifest) != nil || !manifest.Valid() {
 		return Failed(integrity("MANIFEST_SCHEMA", ManifestPath))
 	}
+	if manifest.Sink == nil && hasSinkSource(bundle, index) {
+		return Failed(integrity("PURE_SINK_PRESENT", "sink"))
+	}
 	for _, f := range index.Files {
 		if _, found := slices.BinarySearch(manifest.RequiredSources, f.Path); !found {
 			return Failed(integrity("INDEX_UNDECLARED_SOURCE", IndexPath))
 		}
 	}
-	snapshotBytes, issue := readIndexed(bundle, files, SnapshotPath)
-	if issue != nil {
-		return Failed(issue)
+	var issues []Finding
+	var plan Plan
+	var arrivals Arrivals
+	planOK := readSource(bundle, files, PlanPath, &plan, &issues, func(raw []byte) bool {
+		return Hash(raw) == manifest.PlanSHA256 && plan.Valid(manifest)
+	})
+	arrivalsOK := readSource(bundle, files, ArrivalsPath, &arrivals, &issues, func(_ []byte) bool {
+		return arrivals.Valid(manifest)
+	})
+	if !arrivalsOK {
+		arrivals = Arrivals{}
 	}
+	var barrier Barrier
+	barrierOK := readSource(bundle, files, BarrierPath, &barrier, &issues, func(_ []byte) bool {
+		return barrier.ValidBinding(manifest, Hash(manifestBytes))
+	})
+	rows := map[string][]Row{}
+	snaps := map[string]Snapshot{}
+	for _, db := range manifest.Databases() {
+		snaps[db] = verifyDatabase(bundle, files, manifest, db, Hash(manifestBytes), rows, &issues)
+	}
+	if barrierOK && planOK && arrivalsOK {
+		issues = append(issues, verifyBarrier(manifest, plan, arrivals, barrier, snaps, rows, files)...)
+	}
+	return evaluate(manifest, snaps["engine"], rows, plan, arrivals, planOK, arrivalsOK, Hash(indexBytes), issues)
+}
+
+func hasSinkSource(bundle fs.FS, index Index) bool {
+	_, err := fs.Stat(bundle, "sink")
+	return !errors.Is(err, fs.ErrNotExist) || slices.ContainsFunc(index.Files, func(file File) bool {
+		return strings.HasPrefix(file.Path, "sink/")
+	})
+}
+
+func readSource(bundle fs.FS, files map[string]File, path string, dst any, issues *[]Finding, check func([]byte) bool) bool {
+	raw, issue := readIndexed(bundle, files, path)
+	if issue != nil {
+		*issues = append(*issues, *issue)
+		return false
+	}
+	if decodeCanonical(raw, dst) != nil || !check(raw) {
+		*issues = append(*issues, *integrity("SOURCE_SCHEMA", path))
+		return false
+	}
+	return true
+}
+
+func verifyDatabase(bundle fs.FS, files map[string]File, manifest Manifest, db, manifestHash string, rows map[string][]Row, issues *[]Finding) Snapshot {
+	snapshotPath := db + "/snapshot.json"
+	snapshotBytes, issue := readIndexed(bundle, files, snapshotPath)
 	var snap Snapshot
-	if decodeCanonical(snapshotBytes, &snap) != nil || !verifySnapshot(manifest, snap, Hash(manifestBytes)) {
-		return Failed(integrity("SNAPSHOT_SCHEMA", SnapshotPath))
+	if issue != nil {
+		*issues = append(*issues, *issue)
+		return snap
+	}
+	if decodeCanonical(snapshotBytes, &snap) != nil || !verifySnapshot(manifest, db, snap, manifestHash) {
+		*issues = append(*issues, *integrity("CUT_BINDING:"+db, snapshotPath))
+		return Snapshot{}
 	}
 	if snap.Commit != "committed" {
-		return Failed(integrity("SNAPSHOT_COMMIT", SnapshotPath))
+		*issues = append(*issues, *integrity("SNAPSHOT_COMMIT", snapshotPath))
 	}
-	specs := EngineRelations(manifest.Instrumented())
+	specs := manifest.Relations(db)
 	if len(snap.Relations) != len(specs) {
-		return Failed(integrity("RELATION_INVENTORY", SnapshotPath))
+		*issues = append(*issues, *integrity("RELATION_INVENTORY", snapshotPath))
+		return snap
 	}
-	rows := make(map[string][]Row, len(specs))
-	var issues []Finding
 	for i, spec := range specs {
 		path := RelationPath(spec.Name)
 		file, found := files[path]
 		if !found {
-			issues = append(issues, *missing(path))
+			*issues = append(*issues, *missing(path))
 			continue
 		}
 		meta := snap.Relations[i]
 		if meta.Relation != spec.Name || !slices.Equal(meta.Keys, spec.Keys) || meta.Count < 0 {
-			return Failed(integrity("RELATION_INVENTORY", path))
+			*issues = append(*issues, *integrity("RELATION_INVENTORY", path))
+			continue
 		}
 		if meta.SHA256 != file.SHA256 || meta.Length != file.Length {
-			return Failed(integrity("RELATION_INDEX_BINDING", path))
+			*issues = append(*issues, *integrity("RELATION_INDEX_BINDING", path))
+			continue
 		}
 		result, issue := verifyRows(bundle, spec, file, meta.Count)
 		if issue != nil {
-			issues = append(issues, *issue)
+			*issues = append(*issues, *issue)
 			continue
 		}
 		rows[spec.Name] = result
 	}
-	if issue := verifyCensus(snap.Census, specs, snap.Relations, manifest.Instrumented()); issue != nil {
-		issues = append(issues, *issue)
+	if issue := verifyCensus(snap.Census, specs, snap.Relations, manifest.Instrumented(), db); issue != nil {
+		*issues = append(*issues, *issue)
 	}
-	return evaluate(manifest, snap, rows, Hash(indexBytes), issues)
+	return snap
 }
 
 func readIndexed(bundle fs.FS, files map[string]File, path string) ([]byte, *Finding) {
@@ -290,7 +401,9 @@ func verifyRows(bundle fs.FS, spec Relation, entry File, count int64) ([]Row, *F
 		length += int64(len(line))
 		_, _ = hash.Write(line)
 		if readErr != nil {
-			if len(line) != 0 || !errors.Is(readErr, io.EOF) {
+			if errors.Is(readErr, bufio.ErrBufferFull) {
+				issue = integrity("RELATION_ROW_TOO_LARGE", entry.Path)
+			} else if len(line) != 0 || !errors.Is(readErr, io.EOF) {
 				issue = integrity("RELATION_FRAMING", entry.Path)
 			}
 			break

@@ -1,4 +1,4 @@
-// Package k6live acquires the engine cut and writes only public v1 evidence.
+// Package k6live acquires the local cuts and writes only public v1 evidence.
 package k6live
 
 import (
@@ -19,133 +19,25 @@ import (
 
 	"durable-agent-execution-engine/internal/invariants/k6v1"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 const ConfigVersion = "dur053.k6-live-config.v1"
 
 type Config struct {
-	Schema      string        `json:"schema"`
-	DatabaseURL string        `json:"database_url"`
-	EpisodeDir  string        `json:"episode_dir"`
-	Manifest    k6v1.Manifest `json:"manifest"`
+	Schema          string        `json:"schema"`
+	DatabaseURL     string        `json:"database_url"`
+	SinkDatabaseURL string        `json:"sink_database_url"`
+	EpisodeDir      string        `json:"episode_dir"`
+	Manifest        k6v1.Manifest `json:"manifest"`
+	PlanFile        string        `json:"plan_file"`
+	ArrivalsFile    string        `json:"arrivals_file"`
 }
 
 func (c Config) Valid() bool {
-	return c.Schema == ConfigVersion && c.DatabaseURL != "" && c.EpisodeDir != "" && c.Manifest.Valid()
-}
-
-func Acquire(ctx context.Context, config Config) error {
-	if !config.Valid() {
-		return errors.New("K6_LIVE_CONFIG")
-	}
-	ctx, cancel := context.WithTimeout(ctx, 2*time.Minute)
-	defer cancel()
-	settings, err := pgx.ParseConfig(config.DatabaseURL)
-	if err != nil {
-		return errors.New("K6_DATABASE_CONFIG")
-	}
-	settings.ConnectTimeout = 10 * time.Second
-	settings.RuntimeParams = map[string]string{
-		"application_name":                    "durable-checker-k6-v1",
-		"statement_timeout":                   "30s",
-		"idle_in_transaction_session_timeout": "30s",
-		"lock_timeout":                        "2s",
-		"search_path":                         "pg_catalog",
-		"client_encoding":                     "UTF8",
-		"row_security":                        "off",
-	}
-	conn, err := pgx.ConnectConfig(ctx, settings)
-	if err != nil {
-		return errors.New("K6_DATABASE_CONNECT")
-	}
-	defer func() {
-		closeCtx, stop := context.WithTimeout(context.Background(), 2*time.Second)
-		defer stop()
-		_ = conn.Close(closeCtx)
-	}()
-	tx, err := conn.BeginTx(ctx, pgx.TxOptions{IsoLevel: pgx.RepeatableRead, AccessMode: pgx.ReadOnly})
-	if err != nil {
-		return errors.New("K6_DATABASE_BEGIN")
-	}
-	defer func() { _ = tx.Rollback(ctx) }()
-
-	start := time.Now()
-	observe := func() k6v1.Observer {
-		now := time.Now()
-		return k6v1.Observer{UTC: k6v1.UTC(now), MonotonicNS: now.Sub(start).Nanoseconds()}
-	}
-	m := config.Manifest
-	snap := k6v1.Snapshot{Schema: k6v1.SnapshotVersion, BarrierID: m.BarrierID, ResetID: m.ResetID}
-	var transaction, sampled time.Time
-	snap.Open.Before = observe()
-	err = tx.QueryRow(ctx, `SELECT pg_current_snapshot()::text, current_database()::text,
-		oid, transaction_timestamp(), clock_timestamp() FROM pg_database WHERE datname = current_database()`).
-		Scan(&snap.Visibility, &snap.Database, &snap.DatabaseOID, &transaction, &sampled)
-	snap.Open.After = observe()
-	if err != nil || snap.Database != m.Database {
-		return errors.New("K6_DATABASE_IDENTITY")
-	}
-	snap.Open.DatabaseUTC, snap.TransactionUTC = k6v1.UTC(sampled), k6v1.UTC(transaction)
-	specs := k6v1.EngineRelations(m.Instrumented())
-	snap.Census, err = census(ctx, tx, specs, m.Instrumented())
-	if err != nil {
-		return err
-	}
-	catalog := make(map[string]*k6v1.CensusEntry, len(snap.Census))
-	for i := range snap.Census {
-		entry := &snap.Census[i]
-		catalog[entry.Name] = entry
-	}
-	for _, spec := range specs {
-		if entry := catalog[spec.Name]; entry == nil || entry.Classification != k6v1.Exported {
-			return fmt.Errorf("K6_ENGINE_RELATION_MISSING %s", spec.Name)
-		}
-	}
-	if err := tx.QueryRow(ctx, "SELECT count(*) FROM engine.workflow_executions WHERE namespace=$1", m.Namespace).
-		Scan(&snap.NamespaceCount); err != nil {
-		return errors.New("K6_ENGINE_NAMESPACE_COUNT")
-	}
-
-	if os.Mkdir(config.EpisodeDir, 0o755) != nil || os.Mkdir(filepath.Join(config.EpisodeDir, "engine"), 0o755) != nil {
-		return errors.New("K6_CREATE_BUNDLE")
-	}
-	entry, err := writeJSON(config.EpisodeDir, k6v1.ManifestPath, m)
-	if err != nil {
-		return err
-	}
-	index := k6v1.Index{Schema: k6v1.IndexVersion, Files: []k6v1.File{entry}}
-	snap.ManifestSHA256 = entry.SHA256
-	for _, spec := range specs {
-		entry, inventory, err := exportRelation(ctx, tx, config.EpisodeDir, spec)
-		if err != nil {
-			return err
-		}
-		index.Files = append(index.Files, entry)
-		snap.Relations = append(snap.Relations, inventory)
-		exported := catalog[spec.Name]
-		exported.Count, exported.SHA256 = &inventory.Count, &inventory.SHA256
-	}
-
-	snap.Close.Before = observe()
-	err = tx.QueryRow(ctx, "SELECT clock_timestamp()").Scan(&sampled)
-	snap.Close.After = observe()
-	if err != nil {
-		return errors.New("K6_DATABASE_CLOSE_CLOCK")
-	}
-	snap.Close.DatabaseUTC = k6v1.UTC(sampled)
-	snap.Commit = "committed"
-	if err := tx.Commit(ctx); err != nil {
-		snap.Commit = "failed_or_unconfirmed"
-	}
-	snap.CommitAfter = observe()
-	entry, err = writeJSON(config.EpisodeDir, k6v1.SnapshotPath, snap)
-	if err != nil {
-		return err
-	}
-	index.Files = append(index.Files, entry)
-	slices.SortFunc(index.Files, func(a, b k6v1.File) int { return strings.Compare(a.Path, b.Path) })
-	_, err = writeJSON(config.EpisodeDir, k6v1.IndexPath, index)
-	return err
+	return c.Schema == ConfigVersion && c.DatabaseURL != "" && c.EpisodeDir != "" &&
+		c.PlanFile != "" && c.ArrivalsFile != "" && c.Manifest.Valid() &&
+		(c.SinkDatabaseURL != "") == (c.Manifest.Sink != nil)
 }
 
 func identifier(name string) string { return pgx.Identifier(strings.Split(name, ".")).Sanitize() }
@@ -170,62 +62,110 @@ func sqlProjection(col k6v1.Column) string {
 	}
 }
 
-func exportRelation(ctx context.Context, tx pgx.Tx, directory string, spec k6v1.Relation) (k6v1.File, k6v1.Inventory, error) {
-	var entry k6v1.File
-	inventory := k6v1.Inventory{Relation: spec.Name, Keys: spec.Keys}
-	table := identifier(spec.Name)
-	if err := tx.QueryRow(ctx, "SELECT count(*) FROM "+table).Scan(&inventory.Count); err != nil {
-		return entry, inventory, fmt.Errorf("K6_ENGINE_RELATION_COUNT %s", spec.Name)
-	}
-	projection := make([]string, 0, len(spec.Columns))
+func readRelation(ctx context.Context, tx pgx.Tx, spec k6v1.Relation, write io.Writer) (k6v1.Watermark, error) {
+	projection := make([]string, 0, len(spec.Columns)+1)
+	stable := make([]string, 0, len(spec.Columns))
+	seen := map[string]bool{}
 	order := make([]string, len(spec.Keys))
 	for _, col := range spec.Columns {
-		projection = append(projection, sqlProjection(col))
+		projected := sqlProjection(col)
+		projection = append(projection, projected)
+		if !seen[col.Source] && !k6v1.IdleColumn(spec.Name, col.Source) {
+			source := identifier(col.Source)
+			if col.Kind == k6v1.Token {
+				source = projected
+			}
+			stable = append(stable, source)
+			seen[col.Source] = true
+		}
 		if i := slices.Index(spec.Keys, col.Name); i >= 0 {
 			key := identifier(col.Source)
-			if col.Kind == k6v1.Text {
+			if col.Kind == k6v1.Text || col.Kind == k6v1.Digest {
 				key += ` COLLATE "C"`
 			}
 			order[i] = key
 		}
 	}
-	rows, err := tx.Query(ctx, "SELECT "+strings.Join(projection, ", ")+" FROM "+table+" ORDER BY "+strings.Join(order, ", "))
+	// The additional SQL fingerprint detects changes hidden by public
+	// redaction. Only the rolling digest leaves the live adapter. F3
+	// records are entirely public and use their verifiable prefix instead.
+	sourceHash := "''::text"
+	if spec.Name != k6v1.DeadlineWrites {
+		sourceHash = "encode(sha256(record_send(ROW(" + strings.Join(stable, ", ") + "))), 'hex')"
+	}
+	projection = append(projection, sourceHash)
+	rows, err := tx.Query(ctx, "SELECT "+strings.Join(projection, ", ")+" FROM "+identifier(spec.Name)+" ORDER BY "+strings.Join(order, ", "))
 	if err != nil {
-		return entry, inventory, fmt.Errorf("K6_ENGINE_RELATION_READ %s", spec.Name)
+		return k6v1.Watermark{}, relationReadError(err, spec)
 	}
 	defer rows.Close()
+	builder := k6v1.NewWatermark(spec)
+	for rows.Next() {
+		row, sourceDigest, err := scanRow(rows, spec)
+		if err != nil {
+			return k6v1.Watermark{}, fmt.Errorf("K6_%s_PUBLIC_ROW_SCHEMA %s", databaseLabel(spec), spec.Name)
+		}
+		builder.Add(row, sourceDigest)
+		if write != nil {
+			raw, err := k6v1.Canonical(row)
+			if err != nil {
+				return k6v1.Watermark{}, fmt.Errorf("K6_%s_PUBLIC_ROW_SCHEMA %s", databaseLabel(spec), spec.Name)
+			}
+			if _, err := write.Write(raw); err != nil {
+				return k6v1.Watermark{}, errors.New("K6_BUNDLE_WRITE")
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		return k6v1.Watermark{}, relationReadError(err, spec)
+	}
+	return builder.Finish(), nil
+}
 
+func relationReadError(err error, spec k6v1.Relation) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == "42703" {
+		return fmt.Errorf("COLUMN_UNCLASSIFIED:%s", spec.Name)
+	}
+	return fmt.Errorf("K6_%s_RELATION_READ %s", databaseLabel(spec), spec.Name)
+}
+
+func databaseLabel(spec k6v1.Relation) string {
+	if strings.HasPrefix(spec.Name, "k6_sink.") {
+		return "SINK"
+	}
+	return "ENGINE"
+}
+
+func exportRelation(ctx context.Context, tx pgx.Tx, directory string, spec k6v1.Relation) (k6v1.File, k6v1.Inventory, k6v1.Watermark, error) {
+	var entry k6v1.File
+	var mark k6v1.Watermark
+	inventory := k6v1.Inventory{Relation: spec.Name, Keys: spec.Keys}
+	if err := tx.QueryRow(ctx, "SELECT count(*) FROM "+identifier(spec.Name)).Scan(&inventory.Count); err != nil {
+		return entry, inventory, mark, fmt.Errorf("K6_%s_RELATION_COUNT %s", databaseLabel(spec), spec.Name)
+	}
 	rowPath := k6v1.RelationPath(spec.Name)
 	file, err := os.OpenFile(filepath.Join(directory, filepath.FromSlash(rowPath)), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
-		return entry, inventory, errors.New("K6_BUNDLE_WRITE")
+		return entry, inventory, mark, errors.New("K6_BUNDLE_WRITE")
 	}
 	defer file.Close()
 	hash := sha256.New()
 	buffer := bufio.NewWriter(io.MultiWriter(file, hash))
-	for rows.Next() {
-		row, err := scanRow(rows, spec)
-		if err != nil {
-			return entry, inventory, fmt.Errorf("K6_ENGINE_PUBLIC_ROW_SCHEMA %s", spec.Name)
-		}
-		raw, err := k6v1.Canonical(row)
-		if err != nil {
-			return entry, inventory, fmt.Errorf("K6_ENGINE_PUBLIC_ROW_SCHEMA %s", spec.Name)
-		}
-		n, err := buffer.Write(raw)
-		if err != nil {
-			return entry, inventory, errors.New("K6_BUNDLE_WRITE")
-		}
-		inventory.Length += int64(n)
+	mark, err = readRelation(ctx, tx, spec, buffer)
+	if err != nil {
+		return entry, inventory, mark, err
 	}
-	if rows.Err() != nil {
-		return entry, inventory, fmt.Errorf("K6_ENGINE_RELATION_READ %s", spec.Name)
+	if buffer.Flush() != nil || file.Sync() != nil {
+		return entry, inventory, mark, errors.New("K6_BUNDLE_WRITE")
 	}
-	if buffer.Flush() != nil || file.Sync() != nil || file.Close() != nil {
-		return entry, inventory, errors.New("K6_BUNDLE_WRITE")
+	info, err := file.Stat()
+	if err != nil || file.Close() != nil {
+		return entry, inventory, mark, errors.New("K6_BUNDLE_WRITE")
 	}
+	inventory.Length = info.Size()
 	inventory.SHA256 = hex.EncodeToString(hash.Sum(nil))
-	return k6v1.File{Path: rowPath, Length: inventory.Length, SHA256: inventory.SHA256}, inventory, nil
+	return k6v1.File{Path: rowPath, Length: inventory.Length, SHA256: inventory.SHA256}, inventory, mark, nil
 }
 
 func writeJSON(dir, path string, v any) (k6v1.File, error) {
@@ -245,8 +185,10 @@ func writeJSON(dir, path string, v any) (k6v1.File, error) {
 	return k6v1.File{Path: path, Length: int64(len(raw)), SHA256: k6v1.Hash(raw)}, nil
 }
 
-func scanRow(rows pgx.Rows, spec k6v1.Relation) (k6v1.Row, error) {
-	dest := make([]any, len(spec.Columns))
+func scanRow(rows pgx.Rows, spec k6v1.Relation) (k6v1.Row, string, error) {
+	dest := make([]any, len(spec.Columns)+1)
+	var sourceDigest string
+	dest[len(spec.Columns)] = &sourceDigest
 	for i, col := range spec.Columns {
 		switch col.Kind {
 		case k6v1.Text, k6v1.UUID, k6v1.Digest, k6v1.Token, k6v1.WireHash, "traceparent", "container_id":
@@ -262,13 +204,13 @@ func scanRow(rows pgx.Rows, spec k6v1.Relation) (k6v1.Row, error) {
 		}
 	}
 	if err := rows.Scan(dest...); err != nil {
-		return nil, err
+		return nil, "", err
 	}
 	values := make([]any, len(dest))
 	for i, col := range spec.Columns {
 		value, err := publicValue(col.Kind, dest[i])
 		if err != nil {
-			return nil, err
+			return nil, "", err
 		}
 		values[i] = value
 	}
@@ -276,7 +218,7 @@ func scanRow(rows pgx.Rows, spec k6v1.Relation) (k6v1.Row, error) {
 	for i, col := range spec.Columns {
 		row[col.Name] = values[i]
 	}
-	return row, k6v1.ValidateRow(spec, row)
+	return row, sourceDigest, k6v1.ValidateRow(spec, row)
 }
 
 func publicValue(kind k6v1.Kind, dest any) (any, error) {

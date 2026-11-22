@@ -3,7 +3,9 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/url"
 	"os"
@@ -43,6 +45,11 @@ func k6TestDatabase(t *testing.T) (*pgx.Conn, string) {
 			Host: "127.0.0.1:" + port, Path: "/" + values["POSTGRES_DB"], RawQuery: "sslmode=disable",
 		}).String()
 	}
+	return isolatedK6Database(t, raw, migrations.SQL)
+}
+
+func isolatedK6Database(t *testing.T, raw string, migrations fs.FS) (*pgx.Conn, string) {
+	t.Helper()
 	config, err := pgx.ParseConfig(raw)
 	if err != nil {
 		t.Fatal("cannot parse integration database config")
@@ -77,12 +84,15 @@ func k6TestDatabase(t *testing.T) (*pgx.Conn, string) {
 		t.Fatal("cannot connect to isolated K6 test database")
 	}
 	t.Cleanup(func() { conn.Close(context.Background()) })
-	entries, err := fs.ReadDir(migrations.SQL, ".")
+	entries, err := fs.ReadDir(migrations, ".")
 	if err != nil {
 		t.Fatal(err)
 	}
 	for _, entry := range entries {
-		migration, err := migrations.SQL.ReadFile(entry.Name())
+		if !strings.HasSuffix(entry.Name(), ".up.sql") {
+			continue
+		}
+		migration, err := fs.ReadFile(migrations, entry.Name())
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -115,35 +125,31 @@ func seedK6Postgres(t *testing.T, conn *pgx.Conn) {
 		INSERT INTO engine.workflow_definitions(definition_id,version,definition_hash,graph,activity_versions,effect_classes)
 		VALUES ('definition',1,'hash','{"nodes":["pure.echo"]}','{"pure.echo":"v1"}','{"pure.echo":"PURE_ACTIVITY"}');
 		INSERT INTO engine.workflow_executions(workflow_id,namespace,submission_key,submission_payload_hash,definition_id,definition_version,partition_id,state,revision)
-		VALUES ('workflow','episode','submission','hash','definition',1,0,'SUCCEEDED',1001);
+		VALUES ('dur053-fixture-warmup-530001-000000','episode','dur053-fixture-warmup-530001-000000','hash','definition',1,0,'SUCCEEDED',1001);
 		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason)
-		SELECT md5(i::text)::uuid,'workflow',i,'scheduler','actor',CASE WHEN i>1 THEN 'RUNNABLE' END,
+		SELECT md5(i::text)::uuid,'dur053-fixture-warmup-530001-000000',i,'scheduler','actor',CASE WHEN i>1 THEN 'RUNNABLE' END,
 		       CASE WHEN i=1001 THEN 'SUCCEEDED' ELSE 'RUNNABLE' END, CASE WHEN i=1 THEN 'WORKFLOW_CREATED' ELSE 'WORKFLOW_ADVANCED' END
 		FROM generate_series(1,1001) i;
 		INSERT INTO engine.node_instances(workflow_id,node_id,iteration,state,input,accepted_result)
-		VALUES ('workflow','pure.echo',0,'SUCCEEDED','{"cell":"hook-0"}','{"position":3,"value":"k6"}');
-		INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class,claim_token,worker_id,worker_request_id,k6_proof)
-		VALUES ('workflow','pure.echo',0,1,'SUCCEEDED','PURE_ACTIVITY','`+claimSecret+`','worker','request',
-			jsonb_build_object('operation','apply','signature',repeat('A',86),'receipt',
-				jsonb_build_object('workflow_id','workflow','logical_key','key','resource_id','resource',
-					'canonical_hash',repeat('c',64),'scope_hash',repeat('d',64),
-					'intent_id','00000000-0000-0000-0000-000000000001','expected_revision',0,
-					'applied_revision',1,'application_id','00000000-0000-0000-0000-000000000002')));
+		VALUES ('dur053-fixture-warmup-530001-000000','pure.echo',0,'SUCCEEDED','{"cell":"hook-0"}','{"position":3,"value":"k6"}');
+		INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class,claim_token,worker_id,worker_request_id)
+		VALUES ('dur053-fixture-warmup-530001-000000','pure.echo',0,1,'SUCCEEDED','PURE_ACTIVITY','`+claimSecret+`','worker','request');
 		INSERT INTO engine.approval_action_intents(intent_id,workflow_id,node_id,iteration,proposal_hash,target,canonical_arguments,valid_until,grant_token,decision_reason)
-		VALUES ('00000000-0000-0000-0000-000000000001','workflow','pure.echo',0,'hash','resource','{"position":3,"value":"k6"}',
+		VALUES ('00000000-0000-0000-0000-000000000001','dur053-fixture-warmup-530001-000000','pure.echo',0,'hash','pure.echo','{"position":3,"value":"k6"}',
 			clock_timestamp(),'`+grantSecret+`','`+nestedSecret+`');
 		INSERT INTO engine.attempt_result_evidence(evidence_id,workflow_id,node_id,iteration,attempt_number,claim_token,reconciliation_reference,payload,disposition)
-		VALUES ('00000000-0000-0000-0000-000000000003','workflow','pure.echo',0,1,'`+claimSecret+`','ref',
+		VALUES ('00000000-0000-0000-0000-000000000003','dur053-fixture-warmup-530001-000000','pure.echo',0,1,'`+claimSecret+`','ref',
 			jsonb_build_object('error','`+nestedSecret+`','type','RuntimeError'),'RECORDED_AS_EVIDENCE');
 		INSERT INTO engine.k4_audit(kind,at,partition_id,owner_id,epoch,session_id,pod_uid,container_id,transaction_id,claim_identity,finalized_at)
 		VALUES ('claim',clock_timestamp(),0,'',0,'session','uid','container','1',
-			jsonb_build_object('workflow_id','workflow','node_id','pure.echo','iteration',0,'attempt_number',1,
+			jsonb_build_object('workflow_id','dur053-fixture-warmup-530001-000000','node_id','pure.echo','iteration',0,'attempt_number',1,
 			'token_hash',encode(sha256(convert_to('`+claimSecret+`','UTF8')),'hex'),'worker_id','worker','worker_request_id','request'),clock_timestamp());
 		INSERT INTO engine.reconciliation_items(item_id,kind,reference,detail)
 		VALUES ('00000000-0000-0000-0000-000000000004','POISON_RECORD','topic/0/0',jsonb_build_object('reason','`+nestedSecret+`'));
 		INSERT INTO source_corpus.documents(document_id,version,source_type,service,title,source_text,corpus_version)
 		VALUES ('doc','1','runbook','fixture','fixture','`+nestedSecret+`','1');
 	`)
+	bindK6Database(t, conn, "engine-instance", "reset-a")
 }
 
 func liveK6(t *testing.T, conn *pgx.Conn, dsn string, instrumented bool) (string, []byte, string, int) {
@@ -152,14 +158,75 @@ func liveK6(t *testing.T, conn *pgx.Conn, dsn string, instrumented bool) (string
 	config := k6live.Config{
 		Schema: k6live.ConfigVersion, DatabaseURL: dsn, EpisodeDir: dir, Manifest: k6Manifest(conn.Config().Database, instrumented),
 	}
-	config.Manifest.Cell, config.Manifest.Episode, config.Manifest.Workload = "medium-12", "medium-12-0", "COOPERATING_EFFECT"
-	config.Manifest.Ordinal, config.Manifest.Seed = 90, 530091
+	config = prepareK6Sources(t, conn, config, time.Now().Add(-time.Minute), "pure.echo")
+	return invokeLiveK6(t, config)
+}
+
+func bindK6Database(t *testing.T, conn *pgx.Conn, instance, reset string) {
+	t.Helper()
+	execK6SQL(t, conn, "COMMENT ON DATABASE "+pgx.Identifier{conn.Config().Database}.Sanitize()+" IS 'dur053.k6.v1|"+instance+"|"+reset+"'")
+}
+
+func k6Sources(m k6v1.Manifest, last time.Time, target string) (k6v1.Plan, k6v1.Arrivals) {
+	plan := k6v1.Plan{Schema: k6v1.PlanVersion, Episode: m.Episode, Namespace: m.Namespace, ResetID: m.ResetID,
+		SealedUTC: k6v1.UTC(last.Add(-2 * time.Minute)), FaultMode: "control"}
+	arrivals := k6v1.Arrivals{Schema: k6v1.ArrivalsVersion, Episode: m.Episode, ResetID: m.ResetID, SealedUTC: k6v1.UTC(last.Add(2 * time.Second))}
+	for i, window := range []string{"warmup", "measured"} {
+		at := last.Add(time.Duration(i-1) * time.Minute)
+		body := k6v1.SubmissionBody{DefinitionID: "definition", DefinitionVersion: 1, InitialNodeID: "pure.echo",
+			Payload: json.RawMessage(`{"position":3,"value":"k6"}`), InitialInput: json.RawMessage(`{"cell":"hook-0"}`)}
+		id := "fixture-" + window
+		key := fmt.Sprintf("dur053-%s-%d-000000", id, m.Seed)
+		submission := k6v1.Submission{Key: key, Body: body, BodySHA256: body.Digest(), Request: testWire(key),
+			Target: target, Expected: body.Payload, ScheduledUTC: k6v1.UTC(at)}
+		plan.Windows = append(plan.Windows, k6v1.PlanWindow{Name: window, LoadRunID: id, Submissions: []k6v1.Submission{submission}})
+		why := "overload"
+		row := k6v1.Arrival{Window: window, Key: key, Disposition: "unsent", UnsentReason: &why, Attempts: []k6v1.Send{}}
+		if i == 0 {
+			httpStatus := 201
+			hash := "sub-v1:" + body.Digest()
+			response := testWire(key + "-accepted")
+			row.Disposition, row.UnsentReason = "sent", nil
+			row.Attempts = append(row.Attempts, k6v1.Send{Attempt: 1, SentUTC: submission.ScheduledUTC, ObservedUTC: k6v1.UTC(at.Add(time.Second)),
+				BodySHA256: body.Digest(), Request: submission.Request, Response: &response, Outcome: "accepted", HTTPStatus: &httpStatus, WorkflowID: &key, PayloadHash: &hash})
+		}
+		arrivals.Rows = append(arrivals.Rows, row)
+	}
+	return plan, arrivals
+}
+
+func testWire(raw string) k6v1.WireDigest {
+	return k6v1.WireDigest{Length: int64(len(raw)), SHA256: k6v1.Hash([]byte(raw))}
+}
+
+func writeK6Sources(t *testing.T, config k6live.Config, plan k6v1.Plan, arrivals k6v1.Arrivals) k6live.Config {
+	t.Helper()
+	root := t.TempDir()
+	config.PlanFile, config.ArrivalsFile = filepath.Join(root, "plan.json"), filepath.Join(root, "arrivals.json")
+	raw := canonical(t, plan)
+	config.Manifest.PlanSHA256 = k6v1.Hash(raw)
+	arrivals.PlanSHA256 = config.Manifest.PlanSHA256
+	putFile(t, config.PlanFile, raw)
+	putFile(t, config.ArrivalsFile, canonical(t, arrivals))
+	return config
+}
+
+func prepareK6Sources(t *testing.T, conn *pgx.Conn, config k6live.Config, last time.Time, target string) k6live.Config {
+	t.Helper()
+	plan, arrivals := k6Sources(config.Manifest, last, target)
+	warmup := plan.Windows[0].Submissions[0]
+	execK6SQL(t, conn, "UPDATE engine.workflow_executions SET submission_payload_hash=$1 WHERE workflow_id=$2", "sub-v1:"+warmup.BodySHA256, warmup.Key)
+	return writeK6Sources(t, config, plan, arrivals)
+}
+
+func invokeLiveK6(t *testing.T, config k6live.Config) (string, []byte, string, int) {
+	t.Helper()
 	path := filepath.Join(t.TempDir(), "private.json")
 	putFile(t, path, canonical(t, config))
 	var out, diag bytes.Buffer
 	code := k6Mode([]string{k6Live, path}, &out, &diag)
 	noK6Secrets(t, append(bytes.Clone(out.Bytes()), diag.Bytes()...))
-	return dir, out.Bytes(), diag.String(), code
+	return config.EpisodeDir, out.Bytes(), diag.String(), code
 }
 
 func noK6Secrets(t *testing.T, data []byte) {
@@ -216,7 +283,7 @@ func TestK6EngineExport(t *testing.T) {
 	bundle := inspectK6Output(t, dir, out, k6v1.Incomplete)
 	result := k6v1.Verify(bundle)
 	if result.RelationIntegrity != "covered/pass" || len(result.Labels) != 13 ||
-		!slices.Equal(result.InvariantsCovered, []string{"I2", "I11"}) || len(result.Findings) != 0 ||
+		len(result.InvariantsCovered) != 0 || len(result.Findings) != 0 ||
 		result.Namespace == nil || result.Namespace.NamespaceExecutions != 1 || result.Namespace.SQLNamespaceExecutions != 1 {
 		t.Fatalf("clean fixture: %+v", result)
 	}
@@ -224,7 +291,11 @@ func TestK6EngineExport(t *testing.T) {
 		if label.ID != "I"+strconv.Itoa(i+1) {
 			t.Fatalf("unexpected label order: %+v", label)
 		}
-		if i != 1 && i != 10 && (label.Outcome != "NOT COVERED" || label.Reason != "slice_not_implemented:G1") {
+		reason := "slice_not_implemented:G2a"
+		if i == 0 || i == 1 || i == 10 {
+			reason = "predicate_partial:G2a"
+		}
+		if label.Outcome != "NOT COVERED" || label.Reason != reason {
 			t.Fatalf("unimplemented label: %+v", label)
 		}
 	}
@@ -328,7 +399,7 @@ func TestK6EngineExport(t *testing.T) {
 		requireK6Finding(t, verdict, "HISTORY_FINAL_REVISION")
 		requireK6Finding(t, verdict, "TERMINAL_FINAL_UNIQUE")
 		execK6SQL(t, conn, `INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason)
-			VALUES (md5('1001')::uuid,'workflow',1001,'scheduler','actor','RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED')`)
+			VALUES (md5('1001')::uuid,'dur053-fixture-warmup-530001-000000',1001,'scheduler','actor','RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED')`)
 	})
 	t.Run("LiveIllegalEdge", func(t *testing.T) {
 		execK6SQL(t, conn, "UPDATE engine.transition_history SET new_state='REJECTED' WHERE revision=2")
@@ -345,20 +416,12 @@ func TestK6EngineExport(t *testing.T) {
 	})
 	t.Run("NestedSecrets", func(t *testing.T) {
 		for _, setter := range []string{
-			`k6_proof || jsonb_build_object('credential',$1::text)`,
-			`jsonb_set(k6_proof,'{receipt,credential}',to_jsonb($1::text))`,
-			`jsonb_set(k6_proof,'{receipt,applied_revision}',jsonb_build_array(jsonb_build_object('bearer',$1::text)))`,
-			`jsonb_set(k6_proof,'{receipt,applied_revision}',to_jsonb(jsonb_build_object('bearer',$1::text)::text))`,
+			`jsonb_build_object('credential',$1::text)`,
+			`jsonb_build_object('operation','apply','receipt',jsonb_build_object('credential',$1::text))`,
+			`jsonb_build_object('operation','apply','receipt',jsonb_build_object('applied_revision',jsonb_build_array(jsonb_build_object('bearer',$1::text))))`,
+			`jsonb_build_object('operation','apply','receipt',jsonb_build_object('applied_revision',jsonb_build_object('bearer',$1::text)::text))`,
 		} {
-			execK6SQL(t, conn, "CREATE TEMP TABLE restore_proof AS SELECT k6_proof FROM engine.activity_attempts")
 			execK6SQL(t, conn, "UPDATE engine.activity_attempts SET k6_proof="+setter, nestedSecret)
-			// Temporary tables are census-visible from other sessions. Drop
-			// this one before taking the checker snapshot.
-			var original string
-			if err := conn.QueryRow(context.Background(), "SELECT k6_proof::text FROM restore_proof").Scan(&original); err != nil {
-				t.Fatal(err)
-			}
-			execK6SQL(t, conn, "DROP TABLE restore_proof")
 			dir, _, diag, code := liveK6(t, conn, dsn, false)
 			if code != k6v1.Fail || !strings.Contains(diag, "K6_ENGINE_PUBLIC_ROW_SCHEMA engine.activity_attempts") {
 				t.Fatalf("nested input did not fail at the public row boundary: %d %s", code, diag)
@@ -374,7 +437,7 @@ func TestK6EngineExport(t *testing.T) {
 			if _, err := os.Stat(filepath.Join(dir, k6v1.IndexPath)); !errors.Is(err, os.ErrNotExist) {
 				t.Fatal("invalid projection left a sealed bundle")
 			}
-			execK6SQL(t, conn, "UPDATE engine.activity_attempts SET k6_proof=$1::jsonb", original)
+			execK6SQL(t, conn, "UPDATE engine.activity_attempts SET k6_proof=NULL")
 		}
 	})
 	t.Run("WholeNamespace", func(t *testing.T) {
@@ -411,10 +474,15 @@ func cloneBundle(bundle fstest.MapFS) fstest.MapFS {
 
 func resealK6Relation(t *testing.T, bundle fstest.MapFS, relation string, raw []byte, count int64) {
 	t.Helper()
+	resealK6DatabaseRelation(t, bundle, k6v1.SnapshotPath, relation, raw, count)
+}
+
+func resealK6DatabaseRelation(t *testing.T, bundle fstest.MapFS, snapshotPath, relation string, raw []byte, count int64) {
+	t.Helper()
 	path := k6v1.RelationPath(relation)
 	bundle[path] = &fstest.MapFile{Data: raw}
 	var snap k6v1.Snapshot
-	if err := k6v1.DecodeStrict(bundle[k6v1.SnapshotPath].Data, &snap); err != nil {
+	if err := k6v1.DecodeStrict(bundle[snapshotPath].Data, &snap); err != nil {
 		t.Fatal(err)
 	}
 	for i := range snap.Relations {
@@ -430,7 +498,12 @@ func resealK6Relation(t *testing.T, bundle fstest.MapFS, relation string, raw []
 			row.Count, row.SHA256 = &count, &digest
 		}
 	}
-	bundle[k6v1.SnapshotPath] = &fstest.MapFile{Data: canonical(t, snap)}
+	bundle[snapshotPath] = &fstest.MapFile{Data: canonical(t, snap)}
+	resealK6Index(t, bundle)
+}
+
+func resealK6Index(t *testing.T, bundle fstest.MapFS) {
+	t.Helper()
 	var index k6v1.Index
 	if err := k6v1.DecodeStrict(bundle[k6v1.IndexPath].Data, &index); err != nil {
 		t.Fatal(err)

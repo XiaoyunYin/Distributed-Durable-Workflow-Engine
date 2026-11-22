@@ -318,6 +318,44 @@ jobs:
           GOMAXPROCS: '2'
         run: go test -p 1 -count=1 -v ./cmd/dur049-checker -run 'K6EngineExport|K6Census|LegacyParityPostgres'
 
+      - name: Verify K6 G2a cuts against two PostgreSQL instances
+        shell: pwsh
+        env:
+          DURABLE_REQUIRE_DATABASE: '1'
+          DURABLE_REQUIRE_K6_PAIR: '1'
+          GOMAXPROCS: '2'
+        run: |
+          $settings = @{}
+          foreach ($line in Get-Content -LiteralPath '.env') {
+            if ($line -match '^([^#=]+)=(.*)$') { $settings[$matches[1]] = $matches[2].Trim('"') }
+          }
+          $user = [uri]::EscapeDataString($settings['POSTGRES_USER'])
+          $pass = [uri]::EscapeDataString($settings['POSTGRES_PASSWORD'])
+          $db = [uri]::EscapeDataString($settings['POSTGRES_DB'])
+          $port = $settings['POSTGRES_PORT']
+          if (-not $port) { $port = '5432' }
+          $env:DURABLE_DATABASE_URL = "postgresql://${user}:${pass}@127.0.0.1:${port}/${db}?sslmode=disable"
+          $sink = "k6g2a-sink-$env:GITHUB_RUN_ID-$env:GITHUB_RUN_ATTEMPT"
+          $sinkPassword = [guid]::NewGuid().ToString('N')
+          try {
+            docker run -d --name $sink -e "POSTGRES_PASSWORD=$sinkPassword" -p 127.0.0.1::5432 postgres:18.6-bookworm
+            if ($LASTEXITCODE -ne 0) { throw 'Could not start the isolated sink PostgreSQL.' }
+            $ready = $false
+            for ($i = 0; $i -lt 60; $i++) {
+              docker exec $sink pg_isready -q -h 127.0.0.1
+              if ($LASTEXITCODE -eq 0) { $ready = $true; break }
+              Start-Sleep -Seconds 1
+            }
+            if (-not $ready) { throw 'The sink PostgreSQL did not become ready.' }
+            $address = docker port $sink 5432/tcp
+            if ($LASTEXITCODE -ne 0) { throw 'Could not discover the sink port.' }
+            $env:DURABLE_K6_SINK_TEST_URL = "postgresql://postgres:${sinkPassword}@${address}/postgres?sslmode=disable"
+            go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/... -run 'K6Cut|K6Source|K6Sink|K6Submission|K6Census|K6Column'
+            if ($LASTEXITCODE -ne 0) { throw 'K6 G2a PostgreSQL fixtures failed.' }
+          } finally {
+            docker rm -f $sink
+          }
+
       - name: Run service-backed checks and race tests
         shell: pwsh
         run: ./scripts/ci.ps1 -WithServices -WithRace

@@ -13,14 +13,15 @@ const (
 )
 
 type CensusEntry struct {
-	Name           string  `json:"name"`
-	Kind           string  `json:"kind"`
-	Partition      bool    `json:"partition"`
-	Extension      *string `json:"extension"`
-	Classification string  `json:"classification"`
-	Reason         string  `json:"reason"`
-	Count          *int64  `json:"count"`
-	SHA256         *string `json:"sha256"`
+	Name           string   `json:"name"`
+	Kind           string   `json:"kind"`
+	Partition      bool     `json:"partition"`
+	Extension      *string  `json:"extension"`
+	Classification string   `json:"classification"`
+	Reason         string   `json:"reason"`
+	Count          *int64   `json:"count"`
+	SHA256         *string  `json:"sha256"`
+	Columns        []string `json:"columns"`
 }
 
 const FixtureCorpus = "fixture_corpus"
@@ -37,6 +38,23 @@ func CatalogName(name string) string {
 }
 
 func Classify(entry CensusEntry, relations []Relation, instrumented bool) (string, string) {
+	if !entry.Partition && entry.Extension == nil && slices.ContainsFunc(relations, func(spec Relation) bool { return spec.Name == SinkResources }) {
+		switch {
+		case entry.Kind == "v" && entry.Name == SinkResources:
+			return Exported, ""
+		case entry.Kind == "r" && entry.Name == "k6_sink.resources":
+			return Excluded, "safe_resource_projection"
+		case entry.Kind == "S" && entry.Name == "k6_sink.calls_call_id_seq":
+			return Excluded, "allocator_for_exported_calls"
+		case entry.Kind == "r" && slices.ContainsFunc(relations, func(spec Relation) bool { return spec.Name == entry.Name && spec.Name != SinkResources }):
+			return Exported, ""
+		default:
+			return Unclassified, "outside_v1_census"
+		}
+	}
+	if slices.ContainsFunc(relations, func(spec Relation) bool { return spec.Name == SinkResources }) {
+		return Unclassified, "outside_v1_census"
+	}
 	if entry.Kind == "r" && !entry.Partition && entry.Extension == nil {
 		for _, spec := range relations {
 			if spec.Name == entry.Name {
@@ -77,14 +95,27 @@ func Classify(entry CensusEntry, relations []Relation, instrumented bool) (strin
 	return Unclassified, "outside_v1_census"
 }
 
-func verifyCensus(entries []CensusEntry, relations []Relation, inventories []Inventory, instrumented bool) *Finding {
+func (spec Relation) SourceColumns() []string {
+	columns := slices.Clone(spec.ExcludedColumns)
+	for _, col := range spec.Columns {
+		columns = append(columns, col.Source)
+	}
+	slices.Sort(columns)
+	return slices.Compact(columns)
+}
+
+func ResourceSourceColumns() []string {
+	return []string{"intent_id", "latest_fence", "logical_key", "resource_id", "revision", "state"}
+}
+
+func verifyCensus(entries []CensusEntry, relations []Relation, inventories []Inventory, instrumented bool, db string) *Finding {
 	exported := 0
 	prior := ""
+	source := db + "/snapshot.json"
 	for _, entry := range entries {
-		source := "engine/snapshot.json"
 		if !qualified.MatchString(entry.Name) || entry.Name <= prior ||
 			strings.HasPrefix(entry.Name, "pg_catalog.") || strings.HasPrefix(entry.Name, "information_schema.") ||
-			!slices.Contains([]string{"r", "p", "v", "m", "S"}, entry.Kind) {
+			!slices.Contains([]string{"r", "p", "v", "m", "S", "f"}, entry.Kind) {
 			return integrity("CENSUS_SCHEMA", source)
 		}
 		prior = entry.Name
@@ -106,17 +137,31 @@ func verifyCensus(entries []CensusEntry, relations []Relation, inventories []Inv
 				*entry.Count != inventories[i].Count || *entry.SHA256 != inventories[i].SHA256 {
 				return integrity("CENSUS_BINDING", entry.Name)
 			}
+			if !slices.Equal(entry.Columns, relations[i].SourceColumns()) {
+				return integrity("COLUMN_UNCLASSIFIED", entry.Name)
+			}
+		case reason == "safe_resource_projection":
+			if !slices.Equal(entry.Columns, ResourceSourceColumns()) {
+				return integrity("COLUMN_UNCLASSIFIED", entry.Name)
+			}
+			if entry.Count == nil || entry.SHA256 != nil {
+				return integrity("CENSUS_BINDING", entry.Name)
+			}
+			i := slices.IndexFunc(inventories, func(item Inventory) bool { return item.Relation == SinkResources })
+			if i < 0 || *entry.Count != inventories[i].Count {
+				return integrity("CENSUS_BINDING", entry.Name)
+			}
 		case reason == FixtureCorpus:
 			if entry.Count == nil || *entry.Count < 0 || entry.SHA256 == nil || !digest.MatchString(*entry.SHA256) ||
 				(*entry.Count == 0 && *entry.SHA256 != Hash(nil)) {
 				return integrity("CENSUS_EXCLUSION_PROOF", entry.Name)
 			}
-		case entry.Count != nil || entry.SHA256 != nil:
+		case entry.Count != nil || entry.SHA256 != nil || entry.Columns != nil:
 			return integrity("CENSUS_SCHEMA", source)
 		}
 	}
 	if exported != len(relations) {
-		return integrity("CENSUS_EXPORT_MISSING", "engine/snapshot.json")
+		return integrity("CENSUS_EXPORT_MISSING", source)
 	}
 	return nil
 }

@@ -17,8 +17,9 @@ func k6Manifest(database string, instrumented bool) k6v1.Manifest {
 		Schema: k6v1.EvidenceVersion, Campaign: "test", Job: "fixture", RunID: "1",
 		Episode: "hook-0-0", Ordinal: 0, Seed: 530001, Cell: "hook-0", Workload: "PURE",
 		Namespace: "episode", ResetID: "reset-a", BarrierID: "barrier-a", Database: database,
+		EngineInstance: "engine-instance", PlanSHA256: d,
 		RegistrySHA256: k6v1.RegistrySHA256, SourceTreeSHA256: d, ImageSetSHA256: d, FreezeSHA256: d, TopologySHA256: d,
-		Instrumentation: []string{}, RequiredSources: k6v1.RequiredSources(instrumented),
+		Instrumentation: []string{}, RequiredSources: k6v1.RequiredSources(instrumented, false),
 	}
 	if instrumented {
 		m.Instrumentation = []string{k6v1.DeadlineWrites}
@@ -77,7 +78,13 @@ func TestK6ModeExclusivity(t *testing.T) {
 }
 
 func TestK6ModeStrictDecoding(t *testing.T) {
-	config := k6live.Config{Schema: k6live.ConfigVersion, DatabaseURL: "redacted", EpisodeDir: "unused", Manifest: k6Manifest("db", false)}
+	config := k6live.Config{
+		Schema: k6live.ConfigVersion, DatabaseURL: "redacted", EpisodeDir: "unused",
+		Manifest: k6Manifest("db", false), PlanFile: "plan.json", ArrivalsFile: "arrivals.json",
+	}
+	if !config.Valid() {
+		t.Fatal("strict-decoding fixture must be valid before modifying the JSON")
+	}
 	raw := string(canonical(t, config))
 	for name, input := range map[string]string{
 		"duplicate":        strings.Replace(raw, `"schema":"dur053.k6-live-config.v1"`, `"schema":"dur053.k6-live-config.v1","schema":"dur053.k6-live-config.v1"`, 1),

@@ -108,6 +108,7 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
         "Bootstrap the isolated service stack",
         "Run tagged K6 Go tests against PostgreSQL",
         "Verify K6 G1 engine evidence on PostgreSQL",
+        "Verify K6 G2a cuts against two PostgreSQL instances",
         "Run service-backed checks and race tests",
         "Start isolated DUR-055 PostgreSQL and pgvector",
         "Validate DUR-055 PostgreSQL FTS and pgvector retrieval",
@@ -133,6 +134,11 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
         "go test -p 1 -count=1 -v ./cmd/dur049-checker "
         "-run 'K6EngineExport|K6Census|LegacyParityPostgres'" in k6_g1
     )
+    k6_g2a = services["Verify K6 G2a cuts against two PostgreSQL instances"]
+    assert "DURABLE_REQUIRE_K6_PAIR: '1'" in k6_g2a
+    assert "postgres:18.6-bookworm" in k6_g2a
+    assert "go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/..." in k6_g2a
+    assert "finally" in k6_g2a and "docker rm -f $sink" in k6_g2a
     assert (
         "./scripts/ci.ps1 -WithServices -WithRace"
         in services["Run service-backed checks and race tests"]

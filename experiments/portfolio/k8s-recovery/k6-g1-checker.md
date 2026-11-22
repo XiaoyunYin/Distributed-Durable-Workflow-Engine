@@ -1,5 +1,7 @@
 # K6 G1 engine evidence and checker
 
+This records the G1 slice. See [G2a paired cuts and submission evidence](k6-g2a-checker.md) for the current configuration and required sources.
+
 Run one mode per invocation. The live configuration is private and contains exactly
 `schema` (`dur053.k6-live-config.v1`), `database_url` (a PostgreSQL connection URL),
 `episode_dir` (a new directory under an existing parent), and `manifest` (the public
