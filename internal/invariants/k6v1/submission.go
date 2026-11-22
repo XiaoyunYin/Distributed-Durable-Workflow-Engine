@@ -131,9 +131,12 @@ func (p Plan) Valid(m Manifest) bool {
 		return false
 	}
 	previous := p.SealedUTC
+	idle := m.Sink == nil && p.FaultMode == "control" &&
+		len(p.Windows[0].Submissions) == 0 && len(p.Windows[1].Submissions) == 0
 	for i, window := range p.Windows {
 		if window.Name != []string{"warmup", "measured"}[i] || !nonempty(window.LoadRunID) ||
-			len(window.Submissions) == 0 || (i == 1 && window.LoadRunID == p.Windows[0].LoadRunID) {
+			window.Submissions == nil || (!idle && len(window.Submissions) == 0) ||
+			(i == 1 && window.LoadRunID == p.Windows[0].LoadRunID) {
 			return false
 		}
 		for seq, row := range window.Submissions {
@@ -207,8 +210,12 @@ func (s Send) validResponse() bool {
 }
 
 func (p Plan) LastScheduledUTC() string {
-	window := p.Windows[len(p.Windows)-1]
-	return window.Submissions[len(window.Submissions)-1].ScheduledUTC
+	for _, window := range slices.Backward(p.Windows) {
+		if len(window.Submissions) != 0 {
+			return window.Submissions[len(window.Submissions)-1].ScheduledUTC
+		}
+	}
+	return p.SealedUTC
 }
 
 // Deadline is historical evidence. Missing removal still has a bounded

@@ -23,10 +23,12 @@ REQUIRED_CI_JOBS = {
     "Go, Python, Terraform, and offline evidence",
     "PostgreSQL, Kafka, and deployed smoke",
     "PostgreSQL race and K6 fixtures",
-    "PowerShell mutation gate (with-k6)",
+    "PowerShell mutation gate (with-k6-a)",
+    "PowerShell mutation gate (with-k6-b)",
     "PowerShell mutation gate (without-k6-a)",
     "PowerShell mutation gate (without-k6-b)",
-    "Linux mutation gate (with-k6)",
+    "Linux mutation gate (with-k6-a)",
+    "Linux mutation gate (with-k6-b)",
     "Linux mutation gate (without-k6-a)",
     "Linux mutation gate (without-k6-b)",
     "Mutation gate coverage",
@@ -260,7 +262,7 @@ def package_policy(objects: list[dict[str, Any]], budget: dict[str, Any]) -> int
         },
         "network-policy-set",
     )
-    for name, policy in policies.items():
+    for policy in policies.values():
         for rule in policy.get("egress", []):
             require(bool(rule.get("to")) and bool(rule.get("ports")), "bounded-egress")
             for peer in rule["to"]:

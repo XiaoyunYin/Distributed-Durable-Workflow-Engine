@@ -65,21 +65,22 @@ func (e *externalObserver) append(s k6v1.QuietSample) {
 	e.samples.Rows = append(e.samples.Rows, s)
 }
 
-func (e *externalObserver) waitQuiet(ctx context.Context, generation int, floor string, databases []database) (k6v1.QuietSample, bool) {
+func (e *externalObserver) waitQuiet(ctx context.Context, generation int, floor string, databases []database, gate observationGate) (k6v1.QuietSample, bool, error) {
 	var previous, initial k6v1.QuietSample
+	notified := false
 	for ctx.Err() == nil {
 		// Read the database first so the collector frame covers the end of
 		// that observation. Every database read uses its existing connection.
 		data, ok := e.read()
 		e.last = data
 		if !ok {
-			return k6v1.QuietSample{}, false
+			return k6v1.QuietSample{}, false, nil
 		}
 		s := k6v1.QuietSample{Generation: generation, Phase: "quiet", Terminal: true}
 		for _, db := range databases {
 			mark, err := sample(ctx, db, e.m, e.observe)
 			if err != nil {
-				return k6v1.QuietSample{}, false
+				return k6v1.QuietSample{}, false, nil
 			}
 			s.Terminal = s.Terminal && mark.Terminal
 			s.Databases = append(s.Databases, k6v1.QuietDB(db.name, mark.Relations))
@@ -87,13 +88,13 @@ func (e *externalObserver) waitQuiet(ctx context.Context, generation int, floor 
 		data, ok = e.read()
 		e.last = data
 		if !ok {
-			return k6v1.QuietSample{}, false
+			return k6v1.QuietSample{}, false, nil
 		}
 		s.At, s.Marks, s.Terminal = e.observe(), data.Marks(), s.Terminal && data.Terminal()
 		activity, regression := k6v1.ExternalStep(previous.Marks, s.Marks)
 		if regression != "" || previous.At.UTC != "" && k6v1.SampleGap(previous.At, s.At) {
 			e.append(s)
-			return s, false
+			return s, false, nil
 		}
 		if !s.Terminal || s.At.UTC < floor {
 			initial = k6v1.QuietSample{}
@@ -102,15 +103,23 @@ func (e *externalObserver) waitQuiet(ctx context.Context, generation int, floor 
 		} else if k6v1.QuietElapsed(initial.At, s.At) {
 			s.Phase = "pre"
 			e.append(s)
-			return s, true
+			return e.samples.Rows[len(e.samples.Rows)-1], true, nil
 		}
 		e.append(s)
 		previous = s
+		if gate != nil && !notified && initial.At.UTC != "" && s.At.MonotonicNS-initial.At.MonotonicNS >= int64(quietPoll) {
+			notified = true
+			if err := gate(ctx, "before-pre", e.samples.Rows[len(e.samples.Rows)-1]); err != nil {
+				return s, false, err
+			}
+			// Sample immediately after release so the observed write resets quiet.
+			continue
+		}
 		if !waitPoll(ctx, quietPoll) {
 			break
 		}
 	}
-	return k6v1.QuietSample{}, false
+	return k6v1.QuietSample{}, false, nil
 }
 
 func waitPoll(ctx context.Context, interval time.Duration) bool {

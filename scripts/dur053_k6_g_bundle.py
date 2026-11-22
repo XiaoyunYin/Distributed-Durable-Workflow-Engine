@@ -6,6 +6,7 @@ import hashlib
 import json
 import shutil
 from collections.abc import Callable
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,16 @@ from dur053_k6_g_registration import utc
 Json = dict[str, Any]
 LABELS = {"predicate_partial:G2b", "slice_not_implemented:G2b"}
 FENCE_ROLES = {"worker", "relay", "decision", "allocator"}
+BROKER_PATH = "broker/positions.jsonl"
+IDLE_RELATIONS = (
+    "activity_attempts",
+    "attempt_result_evidence",
+    "event_inbox",
+    "outbox",
+    "outbox_publications",
+    "transition_history",
+    "workflow_executions",
+)
 
 
 def canonical(value: Any) -> bytes:
@@ -45,13 +56,18 @@ def select_cells(registry: Json) -> list[Json]:
     ]
 
 
-def make_plan(binding: Json, seed: int, effect: bool) -> tuple[Json, dict[str, bytes], Json]:
+def make_plan(
+    binding: Json, seed: int, effect: bool, *, idle: bool = False
+) -> tuple[Json, dict[str, bytes], Json]:
     sealed = utc()
-    windows = []
+    windows: list[Json] = []
     requests = {}
     allocator_plan: Json = {"namespace": binding["namespace"], "operations": []}
     for window in ("warmup", "measured"):
         run_id = f"g-{window}"
+        if idle:
+            windows.append({"name": window, "load_run_id": run_id, "submissions": []})
+            continue
         key = f"dur053-{run_id}-{seed}-000000"
         node = "dur053.cooperating" if effect else "pure.echo"
         body = {
@@ -116,6 +132,178 @@ def write_fence(path: Path, binding: Json, admission_stopped: dict[str, str]) ->
     temporary = path.with_suffix(".pending")
     temporary.write_bytes(canonical(binding))
     temporary.replace(path)
+
+
+def read_json(path: Path) -> Json:
+    return json.loads(path.read_bytes())  # type: ignore[no-any-return]
+
+
+def read_lines(path: Path) -> list[Json]:
+    return [json.loads(line) for line in path.read_bytes().splitlines()]
+
+
+def idle_sources(bundle: Path, sessions: list[str]) -> Json:
+    plan, arrivals = (read_json(bundle / name) for name in ("plan.json", "arrivals.json"))
+    require([w["submissions"] for w in plan["windows"]] == [[], []], "G_IDLE_PLAN")
+    require(arrivals["rows"] == [], "G_IDLE_ARRIVALS")
+    inventory = {
+        row["relation"]: row for row in read_json(bundle / "engine/snapshot.json")["relations"]
+    }
+    indexed = {row["path"]: row for row in read_json(bundle / "index.json")["files"]}
+    relations = {}
+    for name in IDLE_RELATIONS:
+        relation, path = f"engine.{name}", f"engine/engine.{name}.jsonl"
+        require(
+            path in indexed and relation in inventory and (bundle / path).is_file(),
+            "G_IDLE_SOURCE_ABSENT",
+        )
+        descriptor = inventory[relation]
+        require(
+            (bundle / path).read_bytes() == b""
+            and descriptor["count"] == 0
+            and descriptor["length"] == 0
+            and descriptor["sha256"] == sha(b"")
+            and all(descriptor[key] == indexed[path][key] for key in ("length", "sha256")),
+            "G_IDLE_SOURCE_NOT_EMPTY",
+        )
+        relations[path] = descriptor
+    _, *positions, seal = read_lines(bundle / BROKER_PATH)
+    require(
+        bool(positions)
+        and seal["mode"] == "terminal"
+        and all(
+            p["low"] == p["end"] == 0 and p["committed"] in (0, None)
+            for row in positions
+            for p in row["data"]["partitions"]
+        ),
+        "G_IDLE_BROKER_TRAFFIC_OR_UNSEALED",
+    )
+    ledgers = {}
+    for session in sessions:
+        path = f"witness/{session}.jsonl"
+        require(path in indexed and (bundle / path).is_file(), "G_IDLE_LEDGER_ABSENT")
+        _, *rows, ledger_seal = read_lines(bundle / path)
+        require(
+            bool(rows)
+            and ledger_seal["mode"] in ("terminal", "receiver_final")
+            and all(
+                row["data"]["kind"] in ("session", "idle_probe", "lease_renewal") for row in rows
+            ),
+            "G_IDLE_LEDGER_TRAFFIC_OR_UNSEALED",
+        )
+        ledgers[path] = {"traffic_rows": 0, "seal": ledger_seal}
+    return {
+        "offers": 0,
+        "arrivals": 0,
+        "empty_relations": relations,
+        "worker_ledgers": ledgers,
+        "broker_seal": seal,
+    }
+
+
+def utc_ns(value: str) -> int:
+    seconds, dot, fraction = value.removesuffix("Z").partition(".")
+    return int(datetime.fromisoformat(seconds + "+00:00").timestamp()) * 10**9 + (
+        int(fraction.ljust(9, "0")) if dot else 0
+    )
+
+
+def broker_mark(sample: Json) -> Json:
+    return next(mark for mark in sample["marks"] if mark["path"] == BROKER_PATH)
+
+
+def quiet_summary(bundle: Path) -> Json:
+    barrier = read_json(bundle / "barrier.json")
+    samples = read_json(bundle / "samples/external.json")["rows"]
+    generations = []
+    for attempt in barrier["attempts"]:
+        generation = attempt["generation"]
+        group = [row for row in samples if row["generation"] == generation]
+        pre, post = (
+            next(row for row in group if row["phase"] == phase) for phase in ("pre", "post")
+        )
+        window = [row for row in group if row["sequence"] <= pre["sequence"]]
+        quiet_start = window[0]
+        for previous, row in zip(window, window[1:], strict=False):
+            if (
+                not previous["terminal"]
+                or [m["activity"] for m in previous["marks"]]
+                != [m["activity"] for m in row["marks"]]
+                or previous["databases"] != row["databases"]
+            ):
+                quiet_start = row
+        elapsed = min(
+            utc_ns(pre["at"]["utc"]) - utc_ns(quiet_start["at"]["utc"]),
+            pre["at"]["monotonic_ns"] - quiet_start["at"]["monotonic_ns"],
+        )
+        largest_gap = max(
+            max(
+                utc_ns(b["at"]["utc"]) - utc_ns(a["at"]["utc"]),
+                b["at"]["monotonic_ns"] - a["at"]["monotonic_ns"],
+            )
+            for a, b in zip(group, group[1:], strict=False)
+        )
+        require(elapsed >= 30 * 10**9 and largest_gap <= 5 * 10**9, "G_QUIET_TIMING")
+        generations.append(
+            {
+                "generation": generation,
+                "reasons": attempt["reasons"],
+                "finished": attempt["finished"],
+                "quiet_start": quiet_start["at"],
+                "quiet_ns": elapsed,
+                "largest_sample_gap_ns": largest_gap,
+                "pre": {"broker": broker_mark(pre), "databases": pre["databases"], "at": pre["at"]},
+                "post": {
+                    "broker": broker_mark(post),
+                    "databases": post["databases"],
+                    "at": post["at"],
+                },
+                "snapshots": {db["db"]: db["snapshot_sha256"] for db in attempt["databases"]},
+            }
+        )
+    return {
+        "deadline_utc": barrier["deadline_utc"],
+        "selected_generation": barrier["selected_generation"],
+        "generations": generations,
+    }
+
+
+def verify_retake(quiet: Json, receipts: list[Json], fenced_utc: str) -> None:
+    require(
+        quiet["selected_generation"] == 2 and len(quiet["generations"]) == 2, "G_RETAKE_SELECTION"
+    )
+    raced, retake = quiet["generations"]
+    before_pre, mid_cut = receipts
+    require(
+        raced["reasons"] == ["CUT_RACED:external"] and retake["reasons"] == [], "G_RETAKE_REASON"
+    )
+    require(
+        utc_ns(fenced_utc) <= utc_ns(before_pre["started_utc"])
+        and utc_ns(before_pre["observer"]["at"]["utc"])
+        <= utc_ns(before_pre["started_utc"])
+        <= utc_ns(before_pre["acked_utc"])
+        <= utc_ns(raced["quiet_start"]["utc"])
+        and utc_ns(raced["pre"]["at"]["utc"])
+        <= utc_ns(mid_cut["started_utc"])
+        <= utc_ns(mid_cut["acked_utc"])
+        <= utc_ns(raced["post"]["at"]["utc"])
+        and utc_ns(raced["post"]["at"]["utc"]) <= utc_ns(retake["quiet_start"]["utc"])
+        and utc_ns(retake["finished"]["utc"]) <= utc_ns(quiet["deadline_utc"]),
+        "G_RETAKE_WRITE_TIMING",
+    )
+    require(
+        broker_mark(before_pre["observer"])["sequence"] + 1
+        == before_pre["frame_sequence"]
+        == raced["pre"]["broker"]["sequence"]
+        and before_pre["end"] == mid_cut["offset"]
+        and raced["pre"]["broker"]["sequence"] + 1
+        == mid_cut["frame_sequence"]
+        == raced["post"]["broker"]["sequence"]
+        and raced["post"]["broker"]["digest"]
+        == retake["pre"]["broker"]["digest"]
+        == retake["post"]["broker"]["digest"],
+        "G_RETAKE_BROKER_BINDING",
+    )
 
 
 def replay(
