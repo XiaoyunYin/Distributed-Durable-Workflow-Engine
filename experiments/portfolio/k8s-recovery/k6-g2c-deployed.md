@@ -27,6 +27,7 @@ marked producer-side. Broker metadata, group descriptions and positions are
 collected separately. R354 corroboration belongs to G3.
 
 The artifact root has `source.json` with source and checkout SHA and tree.
+Each `smoke.json` reports elapsed monotonic time for successful stages.
 Each `episodes/<id>/` holds the job intake, reset and fence records, raw
 producer and receiver journals, and `bundle/` with the checker's inventory,
 DB cuts and external quiet samples. Canonical checker stdout is captured

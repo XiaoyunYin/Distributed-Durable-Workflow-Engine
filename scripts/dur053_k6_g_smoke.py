@@ -9,9 +9,12 @@ import re
 import shutil
 import subprocess
 import tempfile
-from contextlib import contextmanager, nullcontext, suppress
+import time
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
 from datetime import datetime
 from pathlib import Path
+from typing import cast
 from uuid import uuid4
 
 from dur053_k3 import CLUSTER, K8S, LABEL, LOCK, ROOT, Driver
@@ -28,10 +31,19 @@ from dur053_k6_c_deploy import (
 from dur053_k6_c_render import PORT, RELAY, SINK
 from dur053_k6_c_smoke import make_output
 from dur053_k6_d_render import CONTROL, OBSERVER, ROLES, base, mount, render, set_env
-from dur053_k6_d_smoke import NS as D_NAMESPACE
+from dur053_k6_d_render import NS as D_NAMESPACE
 from dur053_k6_d_smoke import SQL, Matrix, definition_sql
 from dur053_k6_e1_join import EVENTS, GROUP, TASKS
-from dur053_k6_g_bundle import canonical, make_plan, replay, select_cells, sha, wire, write_fence
+from dur053_k6_g_bundle import (
+    Json,
+    canonical,
+    make_plan,
+    replay,
+    select_cells,
+    sha,
+    wire,
+    write_fence,
+)
 from dur053_k6_g_registration import AUDIENCE, INTAKE, bind_registration, observe_runtime, utc
 from dur053_k6_identity import REVIEWER, WORKER, obj
 from dur053_k6_registry import REGISTRY, read_registry
@@ -42,6 +54,7 @@ PUBLISHER = "outbox-publisher"
 SUBMIT_WIRE = """
 import http.client, sys
 from pathlib import Path
+from typing import cast
 
 token = Path('/identity/token').read_text().strip()
 connection = http.client.HTTPConnection('api', 8080, timeout=5)
@@ -59,6 +72,13 @@ finally:
 class PhaseGEvidence(Evidence):
     schema = "dur053.k6-phase-g-smoke.v1"
 
+    @contextmanager
+    def step(self, name: str) -> Iterator[Json]:
+        started = time.monotonic_ns()
+        with super().step(name) as row:
+            yield row
+            row["elapsed_ns"] = time.monotonic_ns() - started
+
 
 def atomic(path: Path, data: bytes) -> None:
     temp = path.with_suffix(".pending")
@@ -66,14 +86,14 @@ def atomic(path: Path, data: bytes) -> None:
     temp.replace(path)
 
 
-def obs_lines(logs: bytes, event: str) -> list[dict]:
+def obs_lines(logs: bytes, event: str) -> list[Json]:
     prefix = f"DUR053_K6_OBSERVATION {event} ".encode()
     return [
         json.loads(line[len(prefix) :]) for line in logs.splitlines() if line.startswith(prefix)
     ]
 
 
-def components(objects: list[dict], database: str) -> list[dict]:
+def components(objects: list[Json], database: str) -> list[Json]:
     out = [{"kind": "database", "name": database.replace("_", "-"), "role": "engine"}]
     for item in objects:
         kind, meta = item["kind"].lower(), item["metadata"]
@@ -87,14 +107,16 @@ def components(objects: list[dict], database: str) -> list[dict]:
 class Episode(Matrix):
     inputs_schema = "dur053.k6-phase-g-inputs.v1"
 
-    def __init__(self, evidence, scratch, harness, shared, cell):
+    def __init__(
+        self, evidence: PhaseGEvidence, scratch: Path, harness: Driver, shared: Path, cell: Json
+    ) -> None:
         self.effect = cell["workload"] == "COOPERATING_EFFECT"
         self.arm = "effect" if self.effect else "pure"
         self.namespace = "dur053-g-" + self.arm
         self.database = f"dur053_g_{self.arm}"
         self.sink_container = CLUSTER + "-g-sink-db"
         self.sink_volume = self.sink_container + "-data"
-        super().__init__(evidence, scratch, harness)
+        super().__init__(evidence, scratch, harness)  # type: ignore[no-untyped-call]
         self.shared = shared
         self.cell = cell
         self.binding = dict(
@@ -126,23 +148,19 @@ class Episode(Matrix):
         self.members = scratch / "members.json"
         self.decisions = scratch / "decisions.jsonl"
         self.allocator = self.allocator_dir / "allocator.jsonl"
-        self.intake: list[dict] = []
-        self.coordinator: list[dict] = []
+        self.intake: list[Json] = []
+        self.coordinator: list[Json] = []
         self.boot_nonces: dict[str, str] = {}
 
-    def plan(self, namespace: str) -> dict:
-        require(namespace == self.namespace, "G_NAMESPACE")
-        return self.allocator_plan
-
-    def pods_for(self, role: str) -> list[dict]:
-        return json.loads(
+    def pods_for(self, role: str) -> list[Json]:
+        report: Json = json.loads(
             self.k("G_PODS", "-n", self.namespace, "get", "pods", "-l", f"app={role}", "-o", "json")
-        )["items"]
-
-    def pod_document(self, name: str) -> dict:
-        return json.loads(
-            self.k("G_POD_RUNTIME", "-n", self.namespace, "get", "pod", name, "-o", "json")
         )
+        return cast(list[Json], report["items"])
+
+    def pod_document(self, name: str) -> Json:
+        body = self.k("G_POD_RUNTIME", "-n", self.namespace, "get", "pod", name, "-o", "json")
+        return cast(Json, json.loads(body))
 
     def exec_worker(self, name: str, *command: str) -> bytes:
         return self.k(
@@ -173,11 +191,11 @@ class Episode(Matrix):
                     self.evidence.write_bytes(f"{name}-previous-{previous}.log", logs)
             raise
 
-    def register(self, observation: dict, account_uid: str) -> dict:
+    def register(self, observation: Json, account_uid: str) -> Json:
         name = observation["pod_name"]
         identity = observation["identity"]
 
-        def boot_nonce():
+        def boot_nonce() -> str | None:
             raw = self.exec_worker(
                 name, "sh", "-c", "test ! -f /tmp/g-boot || cat /tmp/g-boot"
             ).decode()
@@ -222,7 +240,7 @@ class Episode(Matrix):
             ),
         )
 
-        def startup():
+        def startup() -> Json | None:
             sessions = obs_lines(self.logs_for(name), "k6_g_session")
             return sessions[0] if len(sessions) == 1 else None
 
@@ -250,7 +268,7 @@ class Episode(Matrix):
         self.evidence.write("registration-intake.json", self.intake)
         return session
 
-    def running(self, count: int, *, name: str = "", restart: int = 0):
+    def running(self, count: int, *, name: str = "", restart: int = 0) -> list[Json] | None:
         pods = [p for p in self.pods_for("worker") if not name or p["metadata"]["name"] == name]
         try:
             runtimes = [observe_runtime(pod) for pod in pods]
@@ -262,7 +280,7 @@ class Episode(Matrix):
             return sorted(runtimes, key=lambda row: row["pod_name"])
         return None
 
-    def worker_bootstrap(self, worker: dict) -> None:
+    def worker_bootstrap(self, worker: Json) -> None:
         body = worker["spec"]
         body["replicas"] = 2
         pod = body["template"]["spec"]
@@ -300,7 +318,7 @@ class Episode(Matrix):
             )
         }
 
-    def engine_manifests(self, addresses: dict, key: str, plan_hash: str) -> list[dict]:
+    def engine_manifests(self, addresses: dict[str, str], key: str, plan_hash: str) -> list[Json]:
         objects = render(self.harness.images, addresses, key, plan_hash, namespace=self.namespace)
         stock = base()
         for item in objects:
@@ -372,7 +390,7 @@ class Episode(Matrix):
                 self.worker_bootstrap(item)
         return objects
 
-    def setup(self, addresses: dict) -> tuple[list[dict], dict]:
+    def setup(self, addresses: dict[str, str]) -> tuple[list[Json], Json]:
         self.address = addresses["192.0.2.1"]
         self.harness.databases.add(self.database)
         if self.effect:
@@ -497,7 +515,7 @@ class Episode(Matrix):
             self.capture_pure_inventory(component_list)
         return objects, episode
 
-    def capture_pure_inventory(self, rendered: list[dict]) -> None:
+    def capture_pure_inventory(self, rendered: list[Json]) -> None:
         actual = sorted(
             self.command(
                 "G_PLATFORM_CONTAINERS",
@@ -560,7 +578,7 @@ class Episode(Matrix):
         return topics
 
     @contextmanager
-    def collector(self):
+    def collector(self) -> Iterator[None]:
         ready = self.scratch / "watch-ready"
         context = (
             self.command(
@@ -652,7 +670,7 @@ class Episode(Matrix):
                     process.wait(timeout=5)
                 self.evidence.write_bytes("collector.log", logs.read_bytes())
 
-    def coordinator_state(self, worker_names: list[str]) -> dict | None:
+    def coordinator_state(self, worker_names: list[str]) -> Json | None:
         rows = [
             row
             for name in worker_names
@@ -676,7 +694,7 @@ class Episode(Matrix):
         atomic(self.members, canonical(state))
         return state
 
-    def frame(self, predicate):
+    def frame(self, predicate: Callable[[Path], bool]) -> Path | None:
         require(self.collector_process.poll() is None, "G_COLLECTOR_EXITED")
         current = self.frames / "current"
         if not current.is_file():
@@ -687,7 +705,7 @@ class Episode(Matrix):
     def root_read(self, path: Path) -> bytes:
         return self.command("G_READ_ROOT_ARTIFACT", "sudo", "cat", str(path))
 
-    def launch_workers(self, worker: dict) -> tuple[list[str], int]:
+    def launch_workers(self, worker: Json) -> tuple[list[str], int]:
         self.create("G_WORKER_DEPLOYMENT", worker)
         initial = self.wait_for(lambda: self.running(2), "G_WORKER_RUNTIME_NOT_READY")
         sa_uid = self.uid(self.namespace, "serviceaccount", WORKER)
@@ -727,9 +745,11 @@ class Episode(Matrix):
         self.wait_for(lambda: self.frame(lambda _: True), "G_COLLECTOR_FRAME_MISSING", seconds=20)
         return names, state["generation"]
 
-    def effect_admissions(self, episode: dict):
+    def effect_admissions(self, episode: Json) -> tuple[Path, str, AbstractContextManager[None]]:
         reviewer = self.reviewer(self.namespace, REVIEWER)
-        token, cutoff, uncertainty = self.warmup(episode, self.admin_dsn)
+        token, cutoff, uncertainty = self.warmup(
+            episode, self.admin_dsn, sealed_plan=self.allocator_plan
+        )
         credentials = self.go(
             "provision",
             DSN=self.admin_dsn,
@@ -831,9 +851,9 @@ class Episode(Matrix):
             if self.effect:
                 operation = operations[key]
 
-                def pending(key=key):
+                def pending(key: str = key) -> Json | None:
                     row = self.outcomes().get(key, {})
-                    approvals = row.get("approvals", [])
+                    approvals = cast(list[Json], row.get("approvals", []))
                     return (
                         approvals[0]
                         if len(approvals) == 1 and approvals[0]["decision"] == "PENDING"
@@ -875,7 +895,7 @@ class Episode(Matrix):
             )
         )
 
-        def terminal():
+        def terminal() -> Json | None:
             outcomes = self.outcomes()
             return (
                 outcomes
@@ -889,7 +909,7 @@ class Episode(Matrix):
             {"status": "PASS", "outcomes": self.wait_for(terminal, "G_PRODUCER_TERMINAL")},
         )
 
-    def outcomes(self) -> dict:
+    def outcomes(self) -> Json:
         return {
             row["workflow_id"]: row
             for row in json.loads(self.db(SQL.replace(D_NAMESPACE, self.namespace)))
@@ -960,7 +980,7 @@ class Episode(Matrix):
             offline,
         )
 
-    def execute(self, addresses: dict) -> None:
+    def execute(self, addresses: dict[str, str]) -> None:
         with self.evidence.step("reset-and-deployment"):
             objects, episode = self.setup(addresses)
             self.worker = next(
@@ -1020,9 +1040,11 @@ class Episode(Matrix):
                     {"fence": self.binding, "admission_stopped_utc": stops, "fenced_utc": utc()},
                 )
 
-                def fenced(folder):
+                def fenced(folder: Path) -> bool:
                     rows = self.root_read(folder / "broker/positions.jsonl").splitlines()
-                    return json.loads(rows[-1])["mode"] == "terminal"
+                    seal: Json = json.loads(rows[-1])
+                    mode = seal["mode"]
+                    return isinstance(mode, str) and mode == "terminal"
 
                 selected = self.wait_for(
                     lambda: self.frame(fenced), "G_TERMINAL_FRAME_MISSING", seconds=30
