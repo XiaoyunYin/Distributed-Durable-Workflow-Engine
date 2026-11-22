@@ -40,6 +40,19 @@ def test_powershell_without_k6_preserves_baseline_groups() -> None:
         assert owners.setdefault(key, shard) == shard
 
 
+@pytest.mark.parametrize("platform", shards.SHARDS)
+def test_unmeasured_k6_case_preserves_measured_primary_shard_membership(platform: str) -> None:
+    cases = shards.read_manifest(shards.MANIFEST)["cases"]
+    measured = [case for case in cases if case["id"] in shards.read_costs(platform)]
+    before = shards.assign_shards(measured, platform)
+    after = shards.assign_shards(
+        [*cases, {"id": "k6-unmeasured-test", "command": ["test"]}], platform
+    )
+    assert {cid for cid, shard in before.items() if shard == "with-k6"} == {
+        cid for cid in before if after[cid] == "with-k6"
+    }
+
+
 @pytest.mark.parametrize(
     ("fault", "message"),
     [

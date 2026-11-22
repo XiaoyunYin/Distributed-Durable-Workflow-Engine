@@ -38,15 +38,16 @@ def case_weights(ids: list[str], costs: dict[str, int]) -> dict[str, int]:
 
 
 def assign_shards(cases: list[dict[str, Any]], platform: str) -> dict[str, str]:
-    """Pin K6, then place the largest remaining case on the lighter shard."""
+    """Pin K6 and balance by descending cost, preserving measured placements on growth."""
     ids: list[str] = [case["id"] for case in cases]
-    weights = case_weights(ids, read_costs(platform))
+    costs = read_costs(platform)
+    weights = case_weights(ids, costs)
     with_k6, without_k6 = LINUX_SHARDS
-    assigned = {case_id: with_k6 for case_id in ids if case_id.startswith("k6")}
-    loads = {with_k6: sum(weights[case_id] for case_id in assigned), without_k6: 0}
-    remaining = sorted(weights.keys() - assigned.keys(), key=lambda i: (-weights[i], i))
-    for case_id in remaining:
-        shard = min(loads, key=loads.__getitem__)
+    assigned = {}
+    loads = {with_k6: 0, without_k6: 0}
+    ordered = sorted(ids, key=lambda i: (i not in costs, not i.startswith("k6"), -weights[i], i))
+    for case_id in ordered:
+        shard = with_k6 if case_id.startswith("k6") else min(loads, key=loads.__getitem__)
         assigned[case_id] = shard
         loads[shard] += weights[case_id]
     if platform == "powershell":
