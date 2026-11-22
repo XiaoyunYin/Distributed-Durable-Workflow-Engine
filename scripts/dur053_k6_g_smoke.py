@@ -954,22 +954,22 @@ class Episode(Matrix):
         private_file(path, canonical(config))
         checker = str(self.shared / "checker")
 
-        def invoke(args: tuple[str, ...], name: str, timeout: int) -> bytes:
+        def invoke(args: tuple[str, ...], name: str, timeout: int) -> tuple[int, bytes]:
             run = subprocess.run(
                 args, env=self.env, timeout=timeout, check=False, capture_output=True
             )
             self.evidence.write_bytes(name + ".stdout.json", run.stdout)
             self.evidence.write_bytes(name + ".stderr.txt", run.stderr)
-            require(run.returncode == 3, f"G_{name.upper()}_EXIT_{run.returncode}")
-            return run.stdout
+            self.evidence.write(name + ".exit.json", {"exit_code": run.returncode})
+            return run.returncode, run.stdout
 
-        live = invoke(("sudo", checker, "-k6-live-v1", str(path)), "live", 140)
-        calls = iter(("offline", "missing"))
+        code, live = invoke(("sudo", checker, "-k6-live-v1", str(path)), "live", 140)
+        require(code == 3, f"G_LIVE_EXIT_{code}")
 
-        def offline(directory: Path) -> bytes:
+        def offline(directory: Path, name: str) -> tuple[int, bytes]:
             return invoke(
                 ("sudo", "unshare", "--net", "--", checker, "-k6-offline-v1", str(directory)),
-                next(calls),
+                name,
                 20,
             )
 

@@ -121,35 +121,56 @@ def test_registered_smoke_selects_lowest_cost_per_arm() -> None:
     assert set(requests) == {row["submission_key"] for row in allocator["operations"]}
 
 
-def test_negative_replay_retains_pass_summary(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("exit_code", "completeness", "extra_finding", "producer_status", "error"),
+    [
+        (1, "FAIL", False, "PASS", None),
+        (3, "FAIL", False, "PASS", "G_MISSING_EXIT_3"),
+        (1, "incomplete", False, "PASS", "G_MISSING_SOURCE_COMPLETENESS"),
+        (1, "FAIL", True, "PASS", "G_EXACT_MISSING_SOURCE_REASON"),
+        (1, "FAIL", False, "FAIL", "G_PRODUCER_PASS_RETAINED"),
+    ],
+)
+def test_negative_replay_retains_pass_summary(
+    tmp_path: Path,
+    exit_code: int,
+    completeness: str,
+    extra_finding: bool,
+    producer_status: str,
+    error: str | None,
+) -> None:
     bundle = tmp_path / "bundle"
     source = "witness/topology.json"
     path = bundle / source
     path.parent.mkdir(parents=True)
     path.write_bytes(b"source")
     (bundle / "index.json").write_text(json.dumps({"files": [{"path": source}]}))
-    (tmp_path / "producer-result.json").write_text('{"status":"PASS"}')
+    producer = json.dumps({"status": producer_status}).encode()
+    (tmp_path / "producer-result.json").write_bytes(producer)
     baseline = json.dumps(
         {"findings": [], "labels": [{"reason": "predicate_partial:G2b"}] * 13}
     ).encode()
 
-    def offline(root: Path) -> bytes:
-        if root == bundle:
-            return baseline
+    def offline(root: Path, name: str) -> tuple[int, bytes]:
+        if name == "offline":
+            assert root == bundle
+            return 3, baseline
+        assert name == "missing"
         assert not (root / source).exists()
         assert json.loads((root / "index.json").read_bytes())["files"] == []
-        assert json.loads((root / "producer-result.json").read_bytes())["status"] == "PASS"
-        return json.dumps(
-            {
-                "findings": [
-                    {
-                        "code": "required_proof_missing:" + source,
-                        "source": source,
-                        "predicate": "RelationIntegrity",
-                        "witness": None,
-                    }
-                ]
-            }
+        assert (root / "producer-result.json").read_bytes() == producer
+        finding = {
+            "code": "required_proof_missing:" + source,
+            "source": source,
+            "predicate": "RelationIntegrity",
+            "witness": None,
+        }
+        return exit_code, json.dumps(
+            {"findings": [finding] * (2 if extra_finding else 1), "completeness": completeness}
         ).encode()
 
-    replay(tmp_path, baseline, source, offline)
+    if error is None:
+        replay(tmp_path, baseline, source, offline)
+    else:
+        with pytest.raises(SmokeFailure, match=error):
+            replay(tmp_path, baseline, source, offline)

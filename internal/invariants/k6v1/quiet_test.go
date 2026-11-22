@@ -195,6 +195,26 @@ func TestK6QuietPositiveBundles(t *testing.T) {
 	}
 }
 
+func TestK6MissingRequiredProofFails(t *testing.T) {
+	for _, path := range []string{TopologyPath, RelationPath(history)} {
+		t.Run(path, func(t *testing.T) {
+			m, e := quietFixture(t, false)
+			bundle, _, _ := attachQuietData(t, m, e, 30, 32)
+			delete(bundle, path)
+			indexFixture(t, bundle)
+
+			r := Verify(bundle)
+			if r.ExitCode() != Fail || r.Status != "failed" || r.Completeness != "FAIL" {
+				t.Fatalf("missing required proof must fail: exit=%d status=%s completeness=%s", r.ExitCode(), r.Status, r.Completeness)
+			}
+			want := []Finding{{Predicate: "RelationIntegrity", Code: "required_proof_missing:" + path, Source: path}}
+			if !slices.Equal(r.Findings, want) {
+				t.Fatalf("findings = %+v, want %+v", r.Findings, want)
+			}
+		})
+	}
+}
+
 func withActivity(e *External, sec int64, kind string) {
 	l := e.Sessions[firstSession]
 	l.Rows = append(l.Rows, Record[WorkerRow]{Position{2, fixtureAt(sec).UTC}, WorkerRow{Kind: kind}})

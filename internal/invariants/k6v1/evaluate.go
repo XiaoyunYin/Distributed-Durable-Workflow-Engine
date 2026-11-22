@@ -67,11 +67,6 @@ type Result struct {
 
 func (r Result) ExitCode() int {
 	if r.Status == "failed" {
-		if r.Safety != "FAIL" && len(r.Findings) != 0 && !slices.ContainsFunc(r.Findings, func(f Finding) bool {
-			return !ExternalPath(f.Source) || f.Code != "required_proof_missing:"+f.Source
-		}) {
-			return Incomplete
-		}
 		return Fail
 	}
 	return Incomplete

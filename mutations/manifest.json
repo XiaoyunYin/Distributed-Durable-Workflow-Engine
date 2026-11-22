@@ -16954,6 +16954,25 @@
       ],
       "expected": "operation-bound sink request rejected",
       "requires_database": false
+    },
+    {
+      "id": "k6g2c-missing-proof-exit",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "\tif r.Status == \"failed\" {\n\t\treturn Fail\n",
+      "new": "\tif r.Status == \"failed\" {\n\t\tif r.Safety != \"FAIL\" && len(r.Findings) != 0 && !slices.ContainsFunc(r.Findings, func(f Finding) bool {\n\t\t\treturn !ExternalPath(f.Source) || f.Code != \"required_proof_missing:\"+f.Source\n\t\t}) {\n\t\t\treturn Incomplete\n\t\t}\n\t\treturn Fail\n",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6MissingRequiredProofFails$",
+        "-count=1"
+      ],
+      "expected": "missing required proof must fail: exit=3 status=failed completeness=FAIL",
+      "requires_database": false
     }
   ]
 }

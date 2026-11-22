@@ -118,11 +118,14 @@ def write_fence(path: Path, binding: Json, admission_stopped: dict[str, str]) ->
     temporary.replace(path)
 
 
-def replay(directory: Path, live: bytes, source: str, offline: Callable[[Path], bytes]) -> None:
+def replay(
+    directory: Path, live: bytes, source: str, offline: Callable[[Path, str], tuple[int, bytes]]
+) -> None:
     good = directory / "bundle"
     (directory / "checker-live.json").write_bytes(live)
-    result = offline(good)
+    code, result = offline(good, "offline")
     (directory / "checker-offline.json").write_bytes(result)
+    require(code == 3, f"G_OFFLINE_EXIT_{code}")
     require(live == result, "G_CANONICAL_PARITY")
     positive = json.loads(result)
     require(positive["findings"] == [], "G_LIVE_CHECKER_FINDINGS")
@@ -134,17 +137,20 @@ def replay(directory: Path, live: bytes, source: str, offline: Callable[[Path], 
 
     negative = directory / "missing-source"
     shutil.copytree(good, negative)
-    shutil.copyfile(directory / "producer-result.json", negative / "producer-result.json")
+    producer_result = negative / "producer-result.json"
+    shutil.copyfile(directory / "producer-result.json", producer_result)
     (negative / source).unlink()
     # Drop the corresponding index entry so the test reaches semantic completeness.
     index_path = negative / "index.json"
     index = json.loads(index_path.read_bytes())
     index["files"] = [entry for entry in index["files"] if entry["path"] != source]
     index_path.write_bytes(canonical(index))
-    output = offline(negative)
+    code, output = offline(negative, "missing")
     (directory / "checker-missing-source.json").write_bytes(output)
+    require(code == 1, f"G_MISSING_EXIT_{code}")
+    verdict = json.loads(output)
     require(
-        json.loads(output)["findings"]
+        verdict["findings"]
         == [
             {
                 "predicate": "RelationIntegrity",
@@ -154,4 +160,8 @@ def replay(directory: Path, live: bytes, source: str, offline: Callable[[Path], 
             }
         ],
         "G_EXACT_MISSING_SOURCE_REASON",
+    )
+    require(verdict["completeness"] == "FAIL", "G_MISSING_SOURCE_COMPLETENESS")
+    require(
+        json.loads(producer_result.read_bytes())["status"] == "PASS", "G_PRODUCER_PASS_RETAINED"
     )

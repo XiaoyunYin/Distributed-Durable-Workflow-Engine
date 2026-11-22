@@ -32,8 +32,11 @@ Each `episodes/<id>/` holds the job intake, reset and fence records, raw
 producer and receiver journals, and `bundle/` with the checker's inventory,
 DB cuts and external quiet samples. Canonical checker stdout is captured
 for live and network-isolated offline runs. `missing-source/` is an edited
-copy with its original producer PASS and one deleted indexed external file.
-The checker remains partial at G2b in both modes.
+copy with its original producer PASS and one required external file removed
+from the bundle and its index. The replay exits 1 with completeness FAIL
+and exactly one `required_proof_missing:<path>` finding. Its exit code and
+verdict are retained in `missing.exit.json` and `checker-missing-source.json`.
+With all sources present, both checker modes exit 3 with a partial G2b verdict.
 
 The reset controller scales workers, the outbox publisher, and any effect
 relay and allocator to zero. It closes the decision adapter and verifies the
