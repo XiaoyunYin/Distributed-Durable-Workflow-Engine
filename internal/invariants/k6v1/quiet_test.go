@@ -138,6 +138,10 @@ func attachQuietData(t *testing.T, m Manifest, e External, pre, final int64) (fs
 			}
 			mark := p.marks[idx]
 			mark.ThroughUTC = min(at.UTC, p.seal.ThroughUTC)
+			mark.SealMode = p.seal.Mode
+			if isSessionPath(path) && int64(idx) < p.seal.Last {
+				mark.SealMode = "checkpoint"
+			}
 			marks = append(marks, mark)
 		}
 		samples.Rows = append(samples.Rows, QuietSample{int64(len(samples.Rows) + 1), 1, phase, at, true, marks, dbMarks})
@@ -258,6 +262,20 @@ func TestK6QuietRegression(t *testing.T) {
 	writeFixture(t, bundle, SamplesPath, samples)
 	indexFixture(t, bundle)
 	wantExternal(t, Verify(bundle), "EXTERNAL_REGRESSION", SessionPath(firstSession))
+}
+
+func TestK6QuietMutableFence(t *testing.T) {
+	m, e := quietFixture(t, false)
+	bundle, _, samples := attachQuietData(t, m, e, 30, 32)
+	for i := range samples.Rows[0].Marks {
+		if samples.Rows[0].Marks[i].Path == BrokerPath {
+			samples.Rows[0].Marks[i].SealMode = "checkpoint"
+		}
+	}
+	_ = samples.SealAt(fixtureAt(32).UTC)
+	writeFixture(t, bundle, SamplesPath, samples)
+	indexFixture(t, bundle)
+	wantExternal(t, Verify(bundle), "EXTERNAL_MUTABLE_WRITER_UNFENCED", SamplesPath)
 }
 
 func TestK6IngressResealedWithProducerPass(t *testing.T) {

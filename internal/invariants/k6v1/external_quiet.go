@@ -27,6 +27,7 @@ type ExternalMark struct {
 	WatchProgress Cursor `json:"watch_progress"`
 	Digest        string `json:"digest"`
 	ThroughUTC    string `json:"through_utc"`
+	SealMode      string `json:"seal_mode"`
 }
 
 type prefix struct {
@@ -98,13 +99,24 @@ func (e External) Marks() []ExternalMark {
 		marks := ps[path].marks
 		mark := marks[len(marks)-1]
 		mark.ThroughUTC = ps[path].seal.ThroughUTC
+		mark.SealMode = ps[path].seal.Mode
 		out = append(out, mark)
 	}
 	return out
 }
 
 func (e External) Terminal() bool {
-	return e.terminalAt(e.Marks())
+	marks := e.Marks()
+	return mutableFenced(marks) && e.terminalAt(marks)
+}
+
+func mutableFenced(marks []ExternalMark) bool {
+	for _, mark := range marks {
+		if (mark.Path == BrokerPath || mark.Path == TopologyPath) && mark.SealMode != "terminal" {
+			return false
+		}
+	}
+	return true
 }
 
 func (e External) SealedThrough(at string) bool {
@@ -224,6 +236,8 @@ func ExternalStep(old, next []ExternalMark) (activity bool, regression string) {
 	for _, a := range old {
 		b, ok := byPath[a.Path]
 		if !ok || a.Identity != b.Identity || b.Sequence < a.Sequence || b.ThroughUTC < a.ThroughUTC ||
+			(a.SealMode != "checkpoint" && b.SealMode != a.SealMode) ||
+			(isSessionPath(a.Path) && a.SealMode != "checkpoint" && b.Sequence != a.Sequence) ||
 			b.Activity.Count < a.Activity.Count || b.IdleProbes.Count < a.IdleProbes.Count ||
 			b.LeaseRenewals.Count < a.LeaseRenewals.Count || b.WatchProgress.Count < a.WatchProgress.Count ||
 			b.Sequence == a.Sequence && b.Digest != a.Digest {
@@ -291,10 +305,13 @@ func verifyExternalQuiet(m Manifest, plan Plan, arrivals Arrivals, cut Barrier, 
 		for _, mark := range sample.Marks {
 			p, ok := prefixes[mark.Path]
 			through := mark.ThroughUTC
-			mark.ThroughUTC = ""
+			mode := mark.SealMode
+			mark.ThroughUTC, mark.SealMode = "", ""
 			if !ok || mark.Path <= last || mark.Sequence < 0 || mark.Sequence >= int64(len(p.marks)) ||
 				p.marks[mark.Sequence] != mark || !validTime(through) || p.utc[mark.Sequence] > through ||
-				through > sample.At.UTC || through > p.seal.ThroughUTC {
+				through > sample.At.UTC || through > p.seal.ThroughUTC ||
+				mode != "checkpoint" && mode != p.seal.Mode ||
+				mark.Sequence+1 < int64(len(p.utc)) && p.utc[mark.Sequence+1] < through {
 				add("EXTERNAL_PREFIX_BINDING", mark.Path)
 			} else if (!isSessionPath(mark.Path) || p.seal.Mode == "checkpoint" || mark.Sequence < p.seal.Last) &&
 				SampleGap(Observer{UTC: through}, Observer{UTC: sample.At.UTC}) {
@@ -330,6 +347,9 @@ func verifyExternalQuiet(m Manifest, plan Plan, arrivals Arrivals, cut Barrier, 
 		}
 		if sample.Terminal && !e.terminalAt(sample.Marks) {
 			add("EXTERNAL_OPEN_EXCHANGE", SamplesPath)
+		}
+		if sample.Terminal && !mutableFenced(sample.Marks) {
+			add("EXTERNAL_MUTABLE_WRITER_UNFENCED", SamplesPath)
 		}
 		changed := activity || !slices.Equal(previous.Databases, sample.Databases)
 		if generation != sample.Generation {

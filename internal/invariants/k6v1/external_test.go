@@ -129,7 +129,7 @@ func fixtureExternal(t *testing.T, effect bool) (Manifest, External, map[string]
 			events = append(events, ledgerRows...)
 		}
 		l := fixtureStream(m, "worker", "receiver", events...)
-		if i == 1 {
+		if i == 1 || i == 3 {
 			l.Seal.Mode = "receiver_final"
 			watch(WatchRow{Kind: "death", Session: &s, Death: &Death{"watcher", UTC(fixed), "receiver", l.Seal.Last, l.Seal.SHA256}})
 		}
@@ -281,9 +281,29 @@ func TestK6OrphanClosure(t *testing.T) {
 		wantExternal(t, r, "WORKER_SEND_WITHOUT_INGRESS", SessionPath(firstSession))
 	})
 	t.Run("SuppressedLookup", func(t *testing.T) {
-		m, e, rows := fixtureExternal(t, true)
-		rows[SinkCalls] = rows[SinkCalls][:2]
-		wantExternal(t, externalVerdict(t, m, e, rows, nil), "INGRESS_CALL_COPY", IngressPath)
+		for _, outcome := range []string{"FOUND", "MISSING"} {
+			t.Run(outcome, func(t *testing.T) {
+				m, e, rows := fixtureExternal(t, true)
+				if outcome == "MISSING" {
+					row := &e.Ingress.Rows[2].Data
+					const body = "K6_SINK_MISSING\n"
+					reply := WireDigest{Length: int64(len(body)), SHA256: fixtureHash(body)}
+					row.ApplicationID, row.Response = "", &reply
+					call := rows[SinkCalls][2]
+					call["outcome"], call["application_id"], call["response_hash"] = "MISSING", nil, nil
+					session := e.Sessions[firstSession]
+					session.Rows[len(session.Rows)-2].Data.Response = &reply
+					resealFixture(&session)
+					e.Sessions[firstSession] = session
+					resealFixture(e.Ingress)
+					if r := externalVerdict(t, m, e, rows, nil); len(r.Findings) > 0 {
+						t.Fatalf("complete MISSING exchange rejected: %+v", r.Findings)
+					}
+				}
+				rows[SinkCalls] = rows[SinkCalls][:2]
+				wantExternal(t, externalVerdict(t, m, e, rows, nil), "INGRESS_CALL_COPY", IngressPath)
+			})
+		}
 	})
 	t.Run("DifferentRecoveryKey", func(t *testing.T) {
 		m, e, rows := fixtureExternal(t, true)

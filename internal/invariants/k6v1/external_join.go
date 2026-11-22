@@ -400,6 +400,11 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 		byConn[c["connection_hash"]] = append(byConn[c["connection_hash"]], c)
 	}
 	receiptMatches := map[any]bool{}
+	type resolvedAttempt struct {
+		workflow, key string
+		attempt       int64
+	}
+	resolved := map[resolvedAttempt]bool{}
 	allocations, misses := map[grantAttempt]bool{}, map[grantAttempt]bool{}
 	fences := map[grantAttempt]int64{}
 	allocRows, haveAlloc := rows[SinkAllocations]
@@ -458,14 +463,21 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 		case !deliveryOutcome(i, sent):
 			flag("INGRESS_WORKER_OUTCOME")
 		}
-		if want := hashField(intent, "k6_logical_key"); want != "" && want != t.KeyHash {
+		if want := hashField(intent, "k6_logical_key"); intent != nil && i.Outcome != "denied" && want != t.KeyHash {
 			flag("DELIVERY_LOGICAL_KEY")
 		}
 		if haveDecisions && i.Outcome != "denied" && approved[t.GrantHash].Intent != t.Intent {
 			flag("DELIVERY_WITHOUT_GRANT")
 		}
 		matches := byConn[i.ConnectionHash]
-		if !haveCalls || i.Outcome == "denied" && len(matches) == 0 {
+		if !haveCalls {
+			continue
+		}
+		if i.Outcome == "denied" && len(matches) == 0 {
+			const body = "K6_AUTH_DENIED\n"
+			if *i.Response != (WireDigest{Length: int64(len(body)), SHA256: Hash([]byte(body))}) {
+				flag("INGRESS_DENIAL_RESPONSE")
+			}
 			continue
 		}
 		if len(matches) != 1 || used[i.ConnectionHash] || !callMatches(matches[0], i, workflow) {
@@ -480,6 +492,9 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 		switch c["outcome"] {
 		case "APPLIED":
 			receiptMatches[c["application_id"]] = true
+			fallthrough
+		case "DUPLICATE", "FOUND":
+			resolved[resolvedAttempt{workflow, t.KeyHash, t.Attempt}] = true
 		case "ALLOCATED":
 			matchedAlloc[t.grantAttempt()] = true
 			if haveAlloc && !allocations[t.grantAttempt()] {
@@ -509,6 +524,16 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 	for _, row := range calls {
 		if !used[row["connection_hash"]] {
 			databaseOrphan(r, 7, "DeliveryClosure", "SINK_CALL_WITHOUT_INGRESS", SinkCalls, row)
+		}
+	}
+	if haveCalls {
+		for _, row := range rows["engine.activity_attempts"] {
+			if row["effect_class"] == "COOPERATING_EFFECT" && row["state"] == "SUCCEEDED" {
+				key := resolvedAttempt{row["workflow_id"].(string), hashField(row, "logical_effect_key"), number(row["attempt_number"])}
+				if !resolved[key] {
+					databaseOrphan(r, 7, "DeliveryClosure", "EFFECT_SUCCESS_WITHOUT_DELIVERY", "engine.activity_attempts", row)
+				}
+			}
 		}
 	}
 	for _, row := range rows[SinkReceipts] {
