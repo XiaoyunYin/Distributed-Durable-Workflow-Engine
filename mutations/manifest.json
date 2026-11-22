@@ -16,7 +16,7 @@
         "-count=1",
         "-v"
       ],
-      "expected": "unclassified relation accepted",
+      "expected": "expected RELATION_UNCLASSIFIED",
       "requires_database": true
     },
     {
@@ -16479,7 +16479,7 @@
         "-count=1",
         "-v"
       ],
-      "expected": "foreign table exit 3",
+      "expected": "expected RELATION_UNCLASSIFIED",
       "requires_database": true
     },
     {
