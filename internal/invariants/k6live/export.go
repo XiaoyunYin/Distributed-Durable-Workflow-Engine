@@ -104,7 +104,7 @@ func readRelation(ctx context.Context, tx pgx.Tx, spec k6v1.Relation, write io.W
 	for rows.Next() {
 		row, sourceDigest, err := scanRow(rows, spec)
 		if err != nil {
-			return k6v1.Watermark{}, fmt.Errorf("K6_%s_PUBLIC_ROW_SCHEMA %s", databaseLabel(spec), spec.Name)
+			return k6v1.Watermark{}, fmt.Errorf("K6_%s_PUBLIC_ROW_SCHEMA %s: %w", databaseLabel(spec), spec.Name, err)
 		}
 		builder.Add(row, sourceDigest)
 		if write != nil {
@@ -209,13 +209,13 @@ func scanRow(rows pgx.Rows, spec k6v1.Relation) (k6v1.Row, string, error) {
 		}
 	}
 	if err := rows.Scan(dest...); err != nil {
-		return nil, "", err
+		return nil, "", errors.New("scan projected columns")
 	}
 	values := make([]any, len(dest))
 	for i, col := range spec.Columns {
 		value, err := publicValue(col.Kind, dest[i])
 		if err != nil {
-			return nil, "", err
+			return nil, "", fmt.Errorf("decode projected column %s", col.Name)
 		}
 		values[i] = value
 	}

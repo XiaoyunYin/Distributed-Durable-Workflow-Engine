@@ -3,6 +3,7 @@ package k6v1
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -157,7 +158,7 @@ func ValidateRow(spec Relation, row Row) error {
 	for _, col := range spec.Columns {
 		value, exists := row[col.Name]
 		if !exists || (value == nil && !col.Nullable) || (value != nil && !validValue(col.Kind, value)) {
-			return errShape
+			return fmt.Errorf("%w: %s", errShape, col.Name)
 		}
 	}
 	for _, key := range spec.Keys {

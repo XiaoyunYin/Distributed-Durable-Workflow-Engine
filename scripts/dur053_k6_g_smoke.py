@@ -1023,7 +1023,19 @@ class Episode(Matrix):
                     rows = self.root_read(folder / "broker/positions.jsonl").splitlines()
                     return json.loads(rows[-1])["mode"] == "terminal"
 
-                self.wait_for(lambda: self.frame(fenced), "G_TERMINAL_FRAME_MISSING", seconds=30)
+                selected = self.wait_for(
+                    lambda: self.frame(fenced), "G_TERMINAL_FRAME_MISSING", seconds=30
+                )
+                captured = self.evidence.root / "pre-checker-frame"
+                self.command("G_RETAIN_FRAME", "sudo", "cp", "-R", str(selected), str(captured))
+                self.command(
+                    "G_RETAIN_FRAME_OWNER",
+                    "sudo",
+                    "chown",
+                    "-R",
+                    f"{os.getuid()}:{os.getgid()}",
+                    str(captured),
+                )
             with self.evidence.step("bundle-parity-and-incomplete-export"):
                 self.checker()
 
