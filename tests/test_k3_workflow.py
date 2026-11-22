@@ -184,7 +184,7 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
     jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
     for platform, shell, output, matrix in (
         ("powershell", "PowerShell", "powershell", "with-k6, without-k6-a, without-k6-b"),
-        ("linux", "Linux", "bash", "with-k6, without-k6"),
+        ("linux", "Linux", "bash", "with-k6, without-k6-a, without-k6-b"),
     ):
         job = jobs[f"mutation-{platform}"]
         assert f"    name: {shell} mutation gate (${{{{ matrix.shard }}}})\n" in job

@@ -12,9 +12,8 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "mutations/manifest.json"
 COSTS = ROOT / "mutations/ci-case-costs.csv"
 REPORT_NAMES = {"linux": "results-bash.json", "powershell": "results-powershell.json"}
-LINUX_SHARDS = ("with-k6", "without-k6")
-POWERSHELL_SHARDS = ("with-k6", "without-k6-a", "without-k6-b")
-SHARDS = {"linux": LINUX_SHARDS, "powershell": POWERSHELL_SHARDS}
+SHARD_NAMES = ("with-k6", "without-k6-a", "without-k6-b")
+SHARDS = dict.fromkeys(REPORT_NAMES, SHARD_NAMES)
 
 
 def read_manifest(path: Path) -> dict[str, Any]:
@@ -42,7 +41,7 @@ def assign_shards(cases: list[dict[str, Any]], platform: str) -> dict[str, str]:
     ids: list[str] = [case["id"] for case in cases]
     costs = read_costs(platform)
     weights = case_weights(ids, costs)
-    with_k6, without_k6 = LINUX_SHARDS
+    with_k6, without_k6 = "with-k6", "without-k6"
     assigned = {}
     loads = {with_k6: 0, without_k6: 0}
     ordered = sorted(ids, key=lambda i: (i not in costs, not i.startswith("k6"), -weights[i], i))
@@ -50,26 +49,42 @@ def assign_shards(cases: list[dict[str, Any]], platform: str) -> dict[str, str]:
         shard = with_k6 if case_id.startswith("k6") else min(loads, key=loads.__getitem__)
         assigned[case_id] = shard
         loads[shard] += weights[case_id]
-    if platform == "powershell":
-        split_powershell([case for case in cases if assigned[case["id"]] == without_k6], assigned)
+    split_ordinary(
+        [case for case in cases if assigned[case["id"]] == without_k6],
+        assigned,
+        read_costs(f"{platform}_split"),
+    )
     return assigned
 
 
-def split_powershell(cases: list[dict[str, Any]], assigned: dict[str, str]) -> None:
-    # Match the mutation runner's baseline key within this platform.
+def split_ordinary(
+    cases: list[dict[str, Any]], assigned: dict[str, str], costs: dict[str, int]
+) -> None:
+    # The runner caches by command and environment on the same platform.
     groups: dict[tuple[tuple[str, ...], tuple[tuple[str, str], ...]], list[str]] = defaultdict(list)
     for case in cases:
         command = tuple(map(str, case["command"]))
         env = tuple(sorted((str(key), str(value)) for key, value in case.get("env", {}).items()))
         groups[command, env].append(case["id"])
 
-    weights = case_weights([case["id"] for case in cases], read_costs("powershell_split"))
-    weighted = [(sum(weights[case_id] for case_id in group), group) for group in groups.values()]
-    loads = dict.fromkeys(POWERSHELL_SHARDS[1:], 0)
-    for weight, group in sorted(weighted, key=lambda item: (-item[0], min(item[1]))):
+    weights = case_weights([case["id"] for case in cases], costs)
+    ordered = []
+    for group in groups.values():
+        measured = [case_id for case_id in group if case_id in costs]
+        placement_ids = measured or group
+        ordered.append(
+            (
+                not measured,
+                -sum(weights[case_id] for case_id in placement_ids),
+                min(placement_ids),
+                group,
+            )
+        )
+    loads = dict.fromkeys(SHARD_NAMES[1:], 0)
+    for _, negative_weight, _, group in sorted(ordered):
         shard = min(loads, key=loads.__getitem__)
         assigned.update(dict.fromkeys(group, shard))
-        loads[shard] += weight
+        loads[shard] -= negative_weight
 
 
 def verify_reports(manifest: dict[str, Any], reports: Path, suffix: str, commit: str) -> None:
