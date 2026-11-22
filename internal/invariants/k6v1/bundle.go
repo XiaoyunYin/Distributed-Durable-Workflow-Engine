@@ -173,6 +173,11 @@ func RelationPath(name string) string {
 
 func RequiredSources(instrumented, sink bool) []string {
 	paths := []string{ManifestPath, SnapshotPath, PlanPath, ArrivalsPath, BarrierPath}
+	m := Manifest{}
+	if sink {
+		m.Sink = &DatabaseIdentity{}
+	}
+	paths = append(paths, requiredExternal(m)...)
 	for _, spec := range EngineRelations(instrumented) {
 		paths = append(paths, RelationPath(spec.Name))
 	}
@@ -243,9 +248,9 @@ func Verify(bundle fs.FS) Result {
 	}
 	files := map[string]File{}
 	previous := ""
-	allowed := RequiredSources(true, true)
+	allowed := append(RequiredSources(true, true), TopologyPath)
 	for _, f := range index.Files {
-		if f.Path <= previous || !slices.Contains(allowed, f.Path) || f.Length < 0 || !digest.MatchString(f.SHA256) {
+		if f.Path <= previous || !(slices.Contains(allowed, f.Path) || isSessionPath(f.Path)) || f.Length < 0 || !digest.MatchString(f.SHA256) {
 			return Failed(integrity("INDEX_ENTRY_SCHEMA", IndexPath))
 		}
 		previous = f.Path
@@ -263,7 +268,7 @@ func Verify(bundle fs.FS) Result {
 		return Failed(integrity("PURE_SINK_PRESENT", "sink"))
 	}
 	for _, f := range index.Files {
-		if _, found := slices.BinarySearch(manifest.RequiredSources, f.Path); !found {
+		if _, found := slices.BinarySearch(manifest.RequiredSources, f.Path); !found && !isSessionPath(f.Path) {
 			return Failed(integrity("INDEX_UNDECLARED_SOURCE", IndexPath))
 		}
 	}
@@ -291,14 +296,26 @@ func Verify(bundle fs.FS) Result {
 	if barrierOK && planOK && arrivalsOK {
 		issues = append(issues, verifyBarrier(manifest, plan, arrivals, barrier, snaps, rows, files)...)
 	}
-	return evaluate(manifest, snaps["engine"], rows, plan, arrivals, planOK, arrivalsOK, Hash(indexBytes), issues)
+	external, externalIssues := readExternal(func(path string) ([]byte, *Finding) {
+		return readIndexed(bundle, files, path)
+	}, manifest, index.Files)
+	issues = append(issues, externalIssues...)
+	var samples ExternalSamples
+	if readSource(bundle, files, SamplesPath, &samples, &issues, func([]byte) bool { return true }) &&
+		barrierOK && planOK && arrivalsOK {
+		issues = append(issues, verifyExternalQuiet(manifest, plan, arrivals, barrier, external, samples, rows)...)
+	}
+	return evaluate(manifest, snaps["engine"], rows, plan, arrivals, planOK, arrivalsOK, Hash(indexBytes), issues, external)
 }
 
 func hasSinkSource(bundle fs.FS, index Index) bool {
 	_, err := fs.Stat(bundle, "sink")
-	return !errors.Is(err, fs.ErrNotExist) || slices.ContainsFunc(index.Files, func(file File) bool {
-		return strings.HasPrefix(file.Path, "sink/")
-	})
+	_, ingress := fs.Stat(bundle, IngressPath)
+	_, decisions := fs.Stat(bundle, "auth")
+	return !errors.Is(err, fs.ErrNotExist) || !errors.Is(ingress, fs.ErrNotExist) || !errors.Is(decisions, fs.ErrNotExist) ||
+		slices.ContainsFunc(index.Files, func(file File) bool {
+			return strings.HasPrefix(file.Path, "sink/") || file.Path == IngressPath || file.Path == DecisionsPath
+		})
 }
 
 func readSource(bundle fs.FS, files map[string]File, path string, dst any, issues *[]Finding, check func([]byte) bool) bool {

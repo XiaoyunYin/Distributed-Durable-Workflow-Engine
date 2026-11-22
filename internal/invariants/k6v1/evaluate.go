@@ -88,15 +88,15 @@ func newResult(m Manifest, indexHash string) Result {
 	}
 	for i, predicates := range [][]string{
 		{"SubmissionIdentity"}, {"AtomicHistory"}, {"OwnerAtCommit", "DeployedStaleChallenge"},
-		{"CurrentClaimWinner"}, {"LostResultReplay"}, {"DispatchDisposition"},
+		{"CurrentClaimWinner", "SessionClosure"}, {"LostResultReplay"}, {"DispatchDisposition"},
 		{"LowerOffsetsDisposed"}, {"OneMutationPerKey", "RevisionChain", "DeliveryClosure"},
 		{"UnknownEffectVisible"}, {"AuthorizedAtWrite", "DispatchAcknowledged"}, {"UniqueTerminal"},
 		{"SignedProcessSkew", "DatabaseDeadline"}, {"ShutdownDisposition"},
 	} {
 		n := i + 1
-		reason := "slice_not_implemented:G2a"
-		if n == 1 || n == 2 || n == 11 || (n == 8 && m.Sink != nil) {
-			reason = "predicate_partial:G2a"
+		reason := "slice_not_implemented:G2b"
+		if n == 1 || n == 2 || n == 4 || n == 11 || ((n == 8 || n == 10) && m.Sink != nil) {
+			reason = "predicate_partial:G2b"
 		}
 		r.Labels = append(r.Labels, Label{
 			ID: "I" + strconv.Itoa(n), Registered: m.Cell != "" && registered(n, m), Outcome: "NOT COVERED",
@@ -158,7 +158,7 @@ const (
 	history    = "engine.transition_history"
 )
 
-func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals Arrivals, planOK, arrivalsOK bool, indexHash string, issues []Finding) Result {
+func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals Arrivals, planOK, arrivalsOK bool, indexHash string, issues []Finding, external ...External) Result {
 	r := newResult(m, indexHash)
 	for i := range issues {
 		r.failIntegrity(&issues[i])
@@ -312,6 +312,9 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 		} else if !haveHistory {
 			label.Reason = "required_proof_missing:" + RelationPath(history)
 		}
+	}
+	for _, sources := range external {
+		checkExternal(&r, m, sources, rows)
 	}
 	if r.Safety != "FAIL" && r.Completeness != "FAIL" {
 		r.Safety = "incomplete"

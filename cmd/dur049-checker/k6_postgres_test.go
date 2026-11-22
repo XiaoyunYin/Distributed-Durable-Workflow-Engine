@@ -273,17 +273,25 @@ func requireK6Finding(t *testing.T, result k6v1.Result, code string) {
 	t.Fatalf("expected %s, got %+v", code, result.Findings)
 }
 
+func databaseFindings(result k6v1.Result) []k6v1.Finding {
+	return slices.DeleteFunc(slices.Clone(result.Findings), func(f k6v1.Finding) bool {
+		return strings.HasPrefix(f.Code, "required_proof_missing:") &&
+			(k6v1.ExternalPath(f.Source) || f.Source == k6v1.SamplesPath)
+	})
+}
+
 func TestK6EngineExport(t *testing.T) {
 	conn, dsn := k6TestDatabase(t)
 	seedK6Postgres(t, conn)
 	dir, out, diag, code := liveK6(t, conn, dsn, false)
-	if code != k6v1.Incomplete || diag != "" {
+	if code != k6v1.Fail || diag != "" {
 		t.Fatalf("clean fixture exit %d: %s %s", code, diag, out)
 	}
-	bundle := inspectK6Output(t, dir, out, k6v1.Incomplete)
+	bundle := inspectK6Output(t, dir, out, code)
 	result := k6v1.Verify(bundle)
-	if result.RelationIntegrity != "covered/pass" || len(result.Labels) != 13 ||
-		len(result.InvariantsCovered) != 0 || len(result.Findings) != 0 ||
+	requireK6Finding(t, result, "required_proof_missing:"+k6v1.RosterPath)
+	if len(result.Labels) != 13 ||
+		len(result.InvariantsCovered) != 0 || len(databaseFindings(result)) != 0 ||
 		result.Namespace == nil || result.Namespace.NamespaceExecutions != 1 || result.Namespace.SQLNamespaceExecutions != 1 {
 		t.Fatalf("clean fixture: %+v", result)
 	}
@@ -291,9 +299,9 @@ func TestK6EngineExport(t *testing.T) {
 		if label.ID != "I"+strconv.Itoa(i+1) {
 			t.Fatalf("unexpected label order: %+v", label)
 		}
-		reason := "slice_not_implemented:G2a"
-		if i == 0 || i == 1 || i == 10 {
-			reason = "predicate_partial:G2a"
+		reason := "slice_not_implemented:G2b"
+		if i == 0 || i == 1 || i == 3 || i == 10 {
+			reason = "predicate_partial:G2b"
 		}
 		if label.Outcome != "NOT COVERED" || label.Reason != reason {
 			t.Fatalf("unimplemented label: %+v", label)
@@ -410,7 +418,7 @@ func TestK6EngineExport(t *testing.T) {
 		}
 		verdict := k6v1.Verify(inspectK6Output(t, dir, out, code))
 		requireK6Finding(t, verdict, "HISTORY_EDGE")
-		if verdict.RelationIntegrity != "covered/pass" || verdict.Labels[1].Outcome != "covered/fail" {
+		if verdict.Labels[1].Outcome != "covered/fail" {
 			t.Fatal("illegal edge did not reach the independent history predicate")
 		}
 	})
@@ -520,7 +528,7 @@ func TestK6Census(t *testing.T) {
 	conn, dsn := k6TestDatabase(t)
 	seedK6Postgres(t, conn)
 	dir, out, diag, code := liveK6(t, conn, dsn, false)
-	if code != k6v1.Incomplete || diag != "" {
+	if code != k6v1.Fail || diag != "" {
 		t.Fatalf("K6 census positive rejected: %d %s", code, diag)
 	}
 	bundle := inspectK6Output(t, dir, out, code)
@@ -565,7 +573,7 @@ func TestK6Census(t *testing.T) {
 		t.Fatal("undeclared instrumentation was exported")
 	}
 	dir, out, diag, code = liveK6(t, conn, dsn, true)
-	if code != k6v1.Incomplete || diag != "" {
+	if code != k6v1.Fail || diag != "" {
 		t.Fatalf("declared instrumentation rejected: %d %s", code, diag)
 	}
 	bundle = inspectK6Output(t, dir, out, code)

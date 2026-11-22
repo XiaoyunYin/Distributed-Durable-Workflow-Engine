@@ -11,7 +11,9 @@ import (
 	"syscall"
 	"time"
 
+	"durable-agent-execution-engine/internal/invariants/k6v1"
 	"durable-agent-execution-engine/internal/k6auth"
+	"durable-agent-execution-engine/internal/k6observation"
 )
 
 type config struct {
@@ -20,6 +22,10 @@ type config struct {
 	CA          []byte
 	Reviewer    string
 	DecisionDSN string
+	Evidence    *struct {
+		Path    string
+		Binding k6v1.SourceBinding
+	}
 }
 
 func run(ctx context.Context, path, socketDir string) error {
@@ -47,8 +53,34 @@ func run(ctx context.Context, path, socketDir string) error {
 	if err != nil {
 		return errors.New("ADAPTER_EPISODE")
 	}
+	var journal *k6observation.Journal[k6v1.DecisionRow]
+	if cfg.Evidence != nil {
+		if cfg.Evidence.Binding.Namespace != cfg.Episode.Namespace {
+			return errors.New("ADAPTER_EVIDENCE_IDENTITY")
+		}
+		journal, err = k6observation.Open[k6v1.DecisionRow](cfg.Evidence.Path, cfg.Evidence.Binding, "decisions", "decision-adapter")
+		if err != nil {
+			return err
+		}
+		adapter.Observe = func(id k6auth.DecisionIdentity) error {
+			row := k6v1.DecisionRow{Intent: id.IntentID, ProposalHash: id.ProposalHash, Outcome: id.Decision,
+				Subject:           "system:serviceaccount:" + cfg.Episode.Namespace + ":k6-approver",
+				ServiceAccountUID: cfg.Episode.ServiceAccountUID, BoundUID: cfg.Episode.SecretUID,
+				Audience: k6auth.Audience, IssuerHash: k6v1.Hash([]byte(k6auth.Issuer))}
+			if id.DecidedAt != nil {
+				row.DecidedUTC = k6v1.UTC(*id.DecidedAt)
+			}
+			if !row.Valid() {
+				return errors.New("ADAPTER_EVIDENCE_SCHEMA")
+			}
+			return journal.Append(row)
+		}
+	}
 	if err := adapter.Serve(ctx, socketDir); err != nil {
 		return errors.New("ADAPTER_SOCKET")
+	}
+	if journal != nil {
+		return journal.Checkpoint(true)
 	}
 	return nil
 }

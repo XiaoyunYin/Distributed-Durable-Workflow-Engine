@@ -17,6 +17,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import TYPE_CHECKING
 
 from workers import __version__
+from workers.k6_evidence import initialize
 from workers.lifecycle import WorkerLifecycle, worker_identity
 from workers.witness import campaign_witness, configured_witness
 
@@ -95,6 +96,7 @@ def run(
     lifecycle = WorkerLifecycle(float(os.getenv("WORKER_DRAIN_SECONDS", "30")), mode == "legacy")
     HealthHandler.lifecycle = lifecycle
     configured_witness()
+    k6_evidence = initialize()
     process_done = threading.Event()
     watchdog = start_abort_watchdog(lifecycle, process_done)
     stopping = lifecycle.drain
@@ -190,8 +192,12 @@ def run(
     # signal handler ran on another thread. The coordinator also covers startup.
     health_thread = threading.Thread(target=server.serve_forever, daemon=True)
     health_thread.start()
+    checkpoint_at = time.monotonic()
     while not lifecycle.drain.wait(0.1):
         coordinate_once()
+        if k6_evidence is not None and time.monotonic() >= checkpoint_at:
+            k6_evidence.checkpoint()
+            checkpoint_at += 1
     if lifecycle.legacy:
         server.shutdown()
         for thread in threads:
@@ -201,6 +207,8 @@ def run(
         server.shutdown()
     health_thread.join(timeout=1)
     server.server_close()
+    if k6_evidence is not None:
+        k6_evidence.checkpoint(terminal=True)
     process_done.set()
     signal_thread.join(timeout=1)
     if watchdog is not None:

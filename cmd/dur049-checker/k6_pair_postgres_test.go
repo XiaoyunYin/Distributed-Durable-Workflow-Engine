@@ -102,10 +102,21 @@ func acquireK6Fixture(t *testing.T, config k6live.Config, plan k6v1.Plan, arriva
 	config.EpisodeDir = filepath.Join(t.TempDir(), "public")
 	config = writeK6Sources(t, config, plan, arrivals)
 	path, stdout, stderr, code := invokeLiveK6(t, config)
-	if code != want || stderr != "" {
+	expect := want
+	if config.ExternalDir == "" {
+		expect = k6v1.Fail
+	}
+	if code != expect || stderr != "" {
 		t.Fatalf("live exit %d, want %d\n%s\n%s", code, want, stdout, stderr)
 	}
-	return inspectK6Output(t, path, stdout, code)
+	bundle := inspectK6Output(t, path, stdout, code)
+	if want == k6v1.Incomplete && config.ExternalDir == "" {
+		result := k6v1.Verify(bundle)
+		if found := databaseFindings(result); len(found) > 0 {
+			t.Fatalf("database fixture has unexpected findings: %+v", found)
+		}
+	}
+	return bundle
 }
 
 func resealK6File(t *testing.T, bundle fstest.MapFS, path string, value any) {
@@ -118,7 +129,7 @@ func TestK6SinkAndSources(t *testing.T) {
 	_, sink, config, plan, arrivals := pairedK6Fixture(t)
 	bundle := acquireK6Fixture(t, config, plan, arrivals, k6v1.Incomplete)
 	result := k6v1.Verify(bundle)
-	if len(result.Findings) != 0 || len(result.InvariantsCovered) != 0 {
+	if len(databaseFindings(result)) != 0 || len(result.InvariantsCovered) != 0 {
 		t.Fatalf("clean paired cut: %+v", result.Findings)
 	}
 	for _, spec := range k6v1.SinkRelations() {
@@ -167,7 +178,7 @@ func TestK6SinkAndSources(t *testing.T) {
 		broken["checker.json"] = &fstest.MapFile{Data: []byte(`{"status":"PASS"}`)}
 		result := k6v1.Verify(broken)
 		requireK6Finding(t, result, "SINK_REVISION_ENDPOINT")
-		if result.RelationIntegrity != "covered/pass" || result.Labels[7].Outcome != "covered/fail" || result.Safety != "FAIL" {
+		if result.Labels[7].Outcome != "covered/fail" || result.Safety != "FAIL" {
 			t.Fatal("sink corruption missed I8")
 		}
 	})
@@ -219,7 +230,7 @@ func TestK6SourcePure(t *testing.T) {
 	engine, dsn := k6TestDatabase(t)
 	seedK6Postgres(t, engine)
 	dir, out, diag, code := liveK6(t, engine, dsn, false)
-	if code != k6v1.Incomplete || diag != "" {
+	if code != k6v1.Fail || diag != "" {
 		t.Fatalf("PURE exit %d: %s %s", code, out, diag)
 	}
 	bundle := inspectK6Output(t, dir, out, code)

@@ -16641,7 +16641,7 @@
         "-count=1",
         "-v"
       ],
-      "expected": "live exit 3, want 1",
+      "expected": "expected SUBMISSION_DURABLE_UNPLANNED",
       "requires_database": true
     },
     {
@@ -16659,15 +16659,15 @@
         "-count=1",
         "-v"
       ],
-      "expected": "live exit 3, want 1",
+      "expected": "expected SUBMISSION_DURABLE_BODY_HASH",
       "requires_database": true
     },
     {
       "id": "k6g2a-partial-reason",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "reason = \"predicate_partial:G2a\"",
-      "new": "reason = \"slice_not_implemented:G2a\"",
+      "old": "reason = \"predicate_partial:G2b\"",
+      "new": "reason = \"slice_not_implemented:G2b\"",
       "command": [
         "go",
         "test",
@@ -16678,6 +16678,186 @@
         "-v"
       ],
       "expected": "clean partial predicate claimed coverage",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-roster-completeness",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if !registered[*row.Data.Runtime] {",
+      "new": "if !registered[*row.Data.Runtime] && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6RosterCompleteness$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected ROSTER_RUNTIME_WITHOUT_SESSION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-death-corroboration",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "d.FinalSHA256 == s.Seal.SHA256 &&",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6SessionDeath$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected SESSION_DEATH_UNCORROBORATED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-session-sequence",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external.go",
+      "old": "if row.Position.Sequence != int64(i+1) {",
+      "new": "if row.Position.Sequence != int64(i+1) && schema != \"worker\" {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6SessionSequence$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected EXTERNAL_SEQUENCE_GAP",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-ingress-gap",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if i.Copy == 1 && i.Ordinal > 1 && !inventory[copyKey{i.Ordinal - 1, 1}] {",
+      "new": "if i.Copy == 1 && i.Ordinal > 1 && !inventory[copyKey{i.Ordinal - 1, 1}] && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6IngressGap$/^Ordinal$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected INGRESS_ORDINAL_GAP",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-delivery-copy",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "|| used[i.ConnectionHash] ||",
+      "new": "||",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6IngressCopies$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected INGRESS_CALL_COPY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-reverse-orphan",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if !used[row[\"connection_hash\"]] {",
+      "new": "if !used[row[\"connection_hash\"]] && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OrphanClosure$/^ReverseCall$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected SINK_CALL_WITHOUT_INGRESS",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-quiet-restart",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_quiet.go",
+      "old": "else if quietStart.UTC == \"\" || changed {",
+      "new": "else if quietStart.UTC == \"\" {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6QuietRestart$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "quiet restart at 30",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-external-regression",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_quiet.go",
+      "old": "return false, a.Path",
+      "new": "return false, \"\"",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6QuietRegression$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected EXTERNAL_REGRESSION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-pure-topology",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_inventory.go",
+      "old": "if pureEffectComponent(component) {",
+      "new": "if pureEffectComponent(component) && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6TopologyPure$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "expected PURE_EFFECT_COMPONENT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-token-hashing",
+      "kind": "behavioral",
+      "file": "internal/k6ingress/relay.go",
+      "old": "labels.Intent, Hash([]byte(labels.Grant)), labels.Attempt",
+      "new": "labels.Intent, labels.Grant, labels.Attempt",
+      "command": [
+        "go",
+        "test",
+        "./internal/k6ingress",
+        "-run",
+        "^TestK6IngressTokenProjection$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "ingress credential projection failed",
       "requires_database": false
     }
   ]

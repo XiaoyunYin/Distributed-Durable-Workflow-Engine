@@ -176,7 +176,7 @@ func TestK6CutPairedRetry(t *testing.T) {
 				len(barrier.Attempts[0].Reasons) != 1 || barrier.Attempts[0].Reasons[0] != tc.code {
 				t.Fatalf("wrong paired retry: generations=%d/%d first reasons=%v", len(barrier.Attempts), barrier.SelectedGeneration, barrier.Attempts[0].Reasons)
 			}
-			if result := k6v1.Verify(root); len(result.Findings) != 0 {
+			if result := k6v1.Verify(root); !onlyMissingExternal(result) {
 				t.Fatalf("retaken pair failed offline: %+v", result.Findings)
 			}
 		})
@@ -195,7 +195,7 @@ func TestK6CutPairedRetry(t *testing.T) {
 		if b := readBarrier(t, root); len(b.Attempts) != 1 || len(b.Attempts[0].Reasons) != 0 {
 			t.Fatal("idle lease renewal caused a retake")
 		}
-		if r := k6v1.Verify(root); len(r.Findings) != 0 {
+		if r := k6v1.Verify(root); !onlyMissingExternal(r) {
 			t.Fatalf("allowed idle churn: %+v", r.Findings)
 		}
 	})
@@ -216,6 +216,18 @@ func TestK6CutPairedRetry(t *testing.T) {
 		}
 		requireCutCode(t, k6v1.Verify(root), "CUT_DEADLINE")
 	})
+}
+
+func onlyMissingExternal(r k6v1.Result) bool {
+	if len(r.Findings) == 0 {
+		return false
+	}
+	for _, f := range r.Findings {
+		if !strings.HasPrefix(f.Code, "required_proof_missing:") || !(k6v1.ExternalPath(f.Source) || f.Source == k6v1.SamplesPath) {
+			return false
+		}
+	}
+	return true
 }
 
 func readBarrier(t *testing.T, root fs.FS) k6v1.Barrier {

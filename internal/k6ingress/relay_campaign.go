@@ -73,6 +73,7 @@ func (r *Relay) deliverCampaign(sink *tls.Conn, request exchange, record Record)
 		return nil, nil, record
 	}
 	record.Event, record.Status, record.BodyHash, record.Length = "sink_response", status, Hash(body), len(body)
+	record.ApplicationID = responseApplication(body)
 	record.WireHash, record.WireLength = Hash(wire), len(wire)
 	if r.Witness.Record(record) != nil {
 		return nil, nil, record

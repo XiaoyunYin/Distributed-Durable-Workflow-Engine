@@ -186,7 +186,7 @@ func TestK6SubmissionPartialReasons(t *testing.T) {
 	rows := map[string][]Row{executions: {}, history: {}, "engine.workflow_definitions": {}}
 	r := evaluate(m, Snapshot{}, rows, Plan{}, Arrivals{}, true, true, "", nil)
 	for _, i := range []int{0, 1, 10} {
-		if label := r.Labels[i]; label.Reason != "predicate_partial:G2a" || label.Outcome != "NOT COVERED" {
+		if label := r.Labels[i]; label.Reason != "predicate_partial:G2b" || label.Outcome != "NOT COVERED" {
 			t.Fatalf("clean partial predicate claimed coverage: %+v", label)
 		}
 	}

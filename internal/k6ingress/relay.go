@@ -163,6 +163,7 @@ func (r *Relay) Handle(worker *tls.Conn) {
 		return
 	}
 	record.Event, record.Status, record.BodyHash, record.Length = "sink_response", status, Hash(body), len(body)
+	record.ApplicationID = responseApplication(body)
 	record.WireHash, record.WireLength = Hash(wire), len(wire)
 	if r.Witness.Record(record) != nil {
 		return
@@ -223,10 +224,12 @@ func inventory(request exchange, ordinal uint64) Record {
 		RequestID string `json:"request_id"`
 		Intent    string `json:"intent_id"`
 		Resource  string `json:"resource_id"`
+		Grant     string `json:"grant_token"`
+		Attempt   int64  `json:"attempt"`
 	}
 	// Untrusted observation metadata is hashed and never controls forwarding.
 	_ = json.Unmarshal(request.body, &labels)
-	return Record{
+	record := Record{
 		Event: "inbound", Ordinal: ordinal, Method: request.request.Method,
 		Operation:      strings.TrimPrefix(request.request.RequestURI, "/v1/"),
 		InvocationHash: Hash([]byte(request.request.Header.Get("X-Dur053-Invocation"))),
@@ -235,4 +238,18 @@ func inventory(request exchange, ordinal uint64) Record {
 		Length: len(request.body), BodyHash: Hash(request.body),
 		WireLength: len(request.wire), WireHash: Hash(request.wire),
 	}
+	if publicUUID.MatchString(labels.Intent) && labels.Grant != "" && labels.Attempt > 0 {
+		record.IntentID, record.GrantHash, record.Attempt = labels.Intent, Hash([]byte(labels.Grant)), labels.Attempt
+	}
+	return record
+}
+
+func responseApplication(body []byte) string {
+	var value struct {
+		ID string `json:"application_id"`
+	}
+	if json.Unmarshal(body, &value) == nil && publicUUID.MatchString(value.ID) {
+		return value.ID
+	}
+	return ""
 }
