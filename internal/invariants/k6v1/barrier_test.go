@@ -166,8 +166,9 @@ func TestK6SourcePureAbsence(t *testing.T) {
 			t.Fatal(err)
 		}
 		bundle[IndexPath] = &fstest.MapFile{Data: seal}
-		issues := Verify(bundle).Findings
-		if len(issues) == 0 || issues[0].Code != "PURE_SINK_PRESENT" {
+		verdict := Verify(bundle)
+		issues := verdict.Findings
+		if len(issues) == 0 || issues[0].Code != "PURE_SINK_PRESENT" || verdict.Safety != "FAIL" {
 			t.Fatalf("PURE sink entry accepted: %+v", issues)
 		}
 	}

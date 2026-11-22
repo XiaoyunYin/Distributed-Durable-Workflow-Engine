@@ -265,7 +265,11 @@ func Verify(bundle fs.FS) Result {
 		return Failed(integrity("MANIFEST_SCHEMA", ManifestPath))
 	}
 	if manifest.Sink == nil && hasSinkSource(bundle, index) {
-		return Failed(integrity("PURE_SINK_PRESENT", "sink"))
+		result := newResult(manifest, Hash(indexBytes))
+		result.failIntegrity(integrity("PURE_SINK_PRESENT", "sink"))
+		result.Safety = "FAIL"
+		result.finish()
+		return result
 	}
 	for _, f := range index.Files {
 		if _, found := slices.BinarySearch(manifest.RequiredSources, f.Path); !found && !isSessionPath(f.Path) {
