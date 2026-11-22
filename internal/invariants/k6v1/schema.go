@@ -3,6 +3,7 @@ package k6v1
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"strings"
@@ -13,16 +14,17 @@ const DeadlineWrites = "k6_f3.deadline_writes"
 type Kind string
 
 const (
-	Text       Kind = "text"
-	Integer    Kind = "int"
-	Boolean    Kind = "bool"
-	Timestamp  Kind = "time"
-	UUID       Kind = "uuid"
-	Digest     Kind = "digest"
-	Token      Kind = "token"
-	Presence   Kind = "present"
-	WireHash   Kind = "wire_hash"
-	WireLength Kind = "wire_length"
+	Text         Kind = "text"
+	Integer      Kind = "int"
+	Boolean      Kind = "bool"
+	Timestamp    Kind = "time"
+	UUID         Kind = "uuid"
+	Digest       Kind = "digest"
+	Token        Kind = "token"
+	Presence     Kind = "present"
+	WireHash     Kind = "wire_hash"
+	WireLength   Kind = "wire_length"
+	AttemptScope Kind = "attempt_scope"
 )
 
 type Column struct {
@@ -70,7 +72,7 @@ func EngineRelations(instrumented bool) []Relation {
 			"workflow_id:text node_id:text iteration:int max_retries:int retries_used:int total_deadline_at:time? checkpoint_schema_version:int updated_at:time"),
 		relation("engine.dur050_admission_slots", "workflow_id", "workflow_id:text namespace:text admitted_at:time"),
 		relation("engine.activity_attempts", "workflow_id node_id iteration attempt_number",
-			"workflow_id:text node_id:text iteration:int attempt_number:int state:text effect_class:text claim_token:token?:claim_token_hash worker_id:text? worker_request_id:text? heartbeat_deadline:time? logical_effect_key:text? grant_scope_hash:digest? outcome_disposition:text result:workload? is_current:bool created_at:time updated_at:time k6_fence:int? k6_proof:proof?"),
+			"workflow_id:text node_id:text iteration:int attempt_number:int state:text effect_class:text claim_token:token?:claim_token_hash worker_id:text? worker_request_id:text? heartbeat_deadline:time? logical_effect_key:text? grant_scope_hash:attempt_scope? outcome_disposition:text result:workload? is_current:bool created_at:time updated_at:time k6_fence:int? k6_proof:proof?"),
 		relation("engine.attempt_result_evidence", "evidence_id",
 			"evidence_id:uuid workflow_id:text node_id:text iteration:int attempt_number:int claim_token:token?:claim_token_hash reconciliation_reference:text payload:workload disposition:text recorded_at:time"),
 		relation("engine.transition_history", "workflow_id revision transition_id",
@@ -157,7 +159,7 @@ func ValidateRow(spec Relation, row Row) error {
 	for _, col := range spec.Columns {
 		value, exists := row[col.Name]
 		if !exists || (value == nil && !col.Nullable) || (value != nil && !validValue(col.Kind, value)) {
-			return errShape
+			return fmt.Errorf("%w: %s", errShape, col.Name)
 		}
 	}
 	for _, key := range spec.Keys {
@@ -180,7 +182,7 @@ func validValue(kind Kind, value any) bool {
 		return isString && (publicIdentity(s) || (url && slices.Contains([]string{"containerd", "docker", "cri-o"}, scheme) && digest.MatchString(identifier)))
 	case UUID:
 		return isString && uuid.MatchString(s)
-	case Digest, Token, WireHash:
+	case Digest, Token, WireHash, AttemptScope:
 		return isString && digest.MatchString(s)
 	case Timestamp:
 		return isString && validTime(s)

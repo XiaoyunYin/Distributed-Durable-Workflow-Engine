@@ -28,16 +28,28 @@ def test_all_manifest_cases_are_assigned_even_after_growth(platform: str) -> Non
         )
 
 
-def test_powershell_without_k6_preserves_baseline_groups() -> None:
+@pytest.mark.parametrize("platform", shards.SHARDS)
+def test_without_k6_preserves_baseline_groups_and_measured_placement(platform: str) -> None:
     cases = shards.read_manifest(shards.MANIFEST)["cases"]
-    assignment = shards.assign_shards(cases, "powershell")
-    owners = {}
+    assignment = shards.assign_shards(cases, platform)
+    owners: dict[tuple[tuple[str, ...], tuple[tuple[str, str], ...]], str] = {}
+    ordinary_cases = []
     for case in cases:
         shard = assignment[case["id"]]
         if shard == "with-k6":
             continue
         key = tuple(case["command"]), tuple(sorted(case.get("env", {}).items()))
         assert owners.setdefault(key, shard) == shard
+        ordinary_cases.append(case)
+    existing = ordinary_cases[0]
+    growth = [
+        {**existing, "id": "aaa-new-case-in-measured-group"},
+        {"id": "aaa-new-group", "command": ["new selector"], "env": {"FLAG": "1"}},
+        {"id": "k6-new-case", "command": ["new k6 selector"]},
+    ]
+    grown = shards.assign_shards([*growth, *cases], platform)
+    assert {case_id: grown[case_id] for case_id in assignment} == assignment
+    assert grown[growth[0]["id"]] == assignment[existing["id"]]
 
 
 @pytest.mark.parametrize("platform", shards.SHARDS)
@@ -65,7 +77,8 @@ def test_unmeasured_k6_case_preserves_measured_primary_shard_membership(platform
         ("stale-commit", "invalid report header"),
         ("k6-misplaced", "misplaced K6 case"),
         ("incomplete-powershell", "powershell: missing 1 cases"),
-        ("missing-third-report", "powershell-without-k6-b-123-2"),
+        ("missing-linux-b", "linux-without-k6-b-123-2"),
+        ("missing-powershell-b", "powershell-without-k6-b-123-2"),
     ],
 )
 def test_aggregate_rejects_incomplete_or_invalid_reports(
@@ -85,12 +98,9 @@ def write_reports(root: Path, fault: str) -> dict[str, Any]:
     marker = "named failure"
     k6 = ["k6-one", "other-one"]
     ordinary = ["other-two", "other-three", "other-four"]
-    groups = {
-        "linux": {"with-k6": k6, "without-k6": ordinary},
-        "powershell": {"with-k6": k6, "without-k6-a": ordinary[:2], "without-k6-b": ordinary[2:]},
-    }
+    groups = {"with-k6": k6, "without-k6-a": ordinary[:2], "without-k6-b": ordinary[2:]}
     for platform, filename in shards.REPORT_NAMES.items():
-        for shard, ids in groups[platform].items():
+        for shard, ids in groups.items():
             commit = "merge-sha"
             rows = [
                 {
@@ -102,7 +112,7 @@ def write_reports(root: Path, fault: str) -> dict[str, Any]:
                 }
                 for case_id in ids
             ]
-            if shard == "without-k6" and platform == "linux":
+            if shard == "without-k6-a" and platform == "linux":
                 match fault:
                     case "missing-report":
                         continue
@@ -128,7 +138,7 @@ def write_reports(root: Path, fault: str) -> dict[str, Any]:
                 and platform == "powershell"
             ):
                 rows.pop()
-            if fault == "missing-third-report" and shard == "without-k6-b":
+            if fault == f"missing-{platform}-b" and shard == "without-k6-b":
                 continue
             path = root / f"dur046-mutation-results-{platform}-{shard}-123-2" / filename
             path.parent.mkdir()

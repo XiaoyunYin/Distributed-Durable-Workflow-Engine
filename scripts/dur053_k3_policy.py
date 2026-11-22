@@ -19,6 +19,7 @@ ROLES = {"api", "operator", "worker-control", "scheduler", "relay", "demand", "w
 AUTH = {"api", "operator", "worker-control"}
 # Every unconditional main-push gate must pass before pilot admission.
 REQUIRED_CI_JOBS = {
+    "DUR-053 Phase G kind smoke",
     "Go, Python, Terraform, and offline evidence",
     "PostgreSQL, Kafka, and deployed smoke",
     "PostgreSQL race and K6 fixtures",
@@ -26,7 +27,8 @@ REQUIRED_CI_JOBS = {
     "PowerShell mutation gate (without-k6-a)",
     "PowerShell mutation gate (without-k6-b)",
     "Linux mutation gate (with-k6)",
-    "Linux mutation gate (without-k6)",
+    "Linux mutation gate (without-k6-a)",
+    "Linux mutation gate (without-k6-b)",
     "Mutation gate coverage",
     "DUR-053 Compose prerequisites",
     "DUR-053 pilot smoke",

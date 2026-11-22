@@ -4,7 +4,8 @@ param(
     [switch]$WithRace,
     [switch]$WithM5,
     [switch]$WithM6,
-    [switch]$RaceOnly
+    [switch]$RaceOnly,
+    [switch]$KafkaPythonOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -18,6 +19,9 @@ if ($WithM5 -and -not $WithServices) {
 }
 if ($RaceOnly -and (-not $WithServices -or $WithM5 -or $WithM6)) {
     throw "-RaceOnly requires -WithServices and cannot run campaigns."
+}
+if ($KafkaPythonOnly -and (-not $WithServices -or $RaceOnly)) {
+    throw "-KafkaPythonOnly requires the non-race service checks."
 }
 if ($WithServices) {
     $env:DURABLE_REQUIRE_DATABASE = "1"
@@ -44,7 +48,7 @@ try {
 
     if (-not $RaceOnly) {
         if ($WithServices) {
-            & $PSScriptRoot/check.ps1 -SerialPackages
+            & $PSScriptRoot/check.ps1 -SerialPackages -KafkaPythonOnly:$KafkaPythonOnly
         } else {
             & $PSScriptRoot/check.ps1
         }

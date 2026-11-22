@@ -58,7 +58,7 @@ class WorkerLedger:
         self.closed = False
         self.session = {
             "id": self.session_id,
-            "claimant": identifier(worker_identity()),
+            "claimant": identifier(os.environ.get("DUR053_K6_G_CLAIMANT") or worker_identity()),
             "pod_uid": identifier(os.environ["POD_UID"]),
             "container_id": identifier(os.environ["CONTAINER_ID"]),
             "restart": int(os.environ["CONTAINER_RESTART_COUNT"]),
@@ -80,6 +80,10 @@ class WorkerLedger:
             }
         )
         self.append("session", session=self.session)
+        if os.getenv("DUR053_K6_G_CLAIMANT"):
+            from workers.k6_effect import emit_observation
+
+            emit_observation("k6_g_session " + encoded(self.session).decode().rstrip("\n"))
 
     def clock(self) -> str:
         return utc(self.wall + time.monotonic_ns() - self.monotonic)

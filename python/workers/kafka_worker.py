@@ -21,10 +21,11 @@ from typing import Any
 from kafka import ConsumerRebalanceListener, KafkaConsumer
 from kafka.structs import OffsetAndMetadata, TopicPartition
 
+from workers import k6_evidence
 from workers.control import Claim, ControlClient, ControlError
 from workers.k4_control import CURRENT, new_request
 from workers.k4_witness import campaign_enabled
-from workers.k6_effect import EffectAdapter, endpoint
+from workers.k6_effect import EffectAdapter, emit_observation, endpoint
 from workers.lifecycle import BoundedExecutor, WorkerLifecycle
 from workers.registry import K6_ACTIVITY, K6_VERSION, default_registry
 from workers.runner import ActivityRunner, ActivityTask, DeploymentHook
@@ -459,21 +460,22 @@ class CallbackTrace(ConsumerRebalanceListener):  # type: ignore[misc]
     def emit(
         self, event: str, partitions: Any, generation: int | None = None, member: str | None = None
     ) -> None:
+        group = getattr(getattr(self.consumer, "_coordinator", None), "_generation", None)
+        fields = {
+            "consumer": self.consumer_id,
+            "consumer_session": self.consumer_session,
+            "member_id": str(getattr(group, "member_id", "")) if member is None else member,
+            "generation": group_generation(self.consumer) if generation is None else generation,
+            "partitions": [
+                {"topic": p.topic, "partition": p.partition} for p in sorted(partitions)
+            ],
+        }
         if witness := campaign_witness():
-            group = getattr(getattr(self.consumer, "_coordinator", None), "_generation", None)
-            witness.trace(
-                event,
-                {
-                    "consumer": self.consumer_id,
-                    "consumer_session": self.consumer_session,
-                    "member_id": str(getattr(group, "member_id", "")) if member is None else member,
-                    "generation": group_generation(self.consumer)
-                    if generation is None
-                    else generation,
-                    "partitions": [
-                        {"topic": p.topic, "partition": p.partition} for p in sorted(partitions)
-                    ],
-                },
+            witness.trace(event, fields)
+        if ledger := k6_evidence.ledger():
+            emit_observation(
+                "k6_g_coordinator "
+                + json.dumps({**fields, "event": event, "session": ledger.session_id})
             )
 
     def on_partitions_revoked(self, partitions: Any) -> None:
@@ -522,7 +524,7 @@ def consume_slot(
                 heartbeat_interval_ms=3000,
                 api_version_auto_timeout_ms=3000,
             )
-            if campaign_enabled():
+            if campaign_enabled() or k6_evidence.ledger() is not None:
                 assignment.trace = CallbackTrace(worker_id)
                 assignment.trace.attach(consumer)
             consumer.subscribe([TASK_TOPIC], listener=assignment)

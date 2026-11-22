@@ -9,6 +9,7 @@ import shutil
 import tarfile
 import time
 from collections import Counter
+from collections.abc import Callable
 from contextlib import suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
@@ -365,7 +366,7 @@ class Matrix(Deployment):
             timeout=8,
         )
 
-    def wait_for(self, condition, code: str, *, seconds: int = 70) -> dict:
+    def wait_for[T](self, condition: Callable[[], T | None], code: str, *, seconds: int = 70) -> T:
         started = time.monotonic_ns()
         while time.monotonic_ns() - started < seconds * 10**9:
             result = condition()

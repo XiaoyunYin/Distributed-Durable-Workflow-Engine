@@ -480,7 +480,7 @@ class Driver:
         path = self.output / (name + ".yaml")
         self.k("apply", "--server-side", "-f", str(path), timeout=300)
 
-    def cluster(self) -> dict[str, str]:
+    def cluster(self, *, config: Path = K8S / "kind-cluster.yaml") -> dict[str, str]:
         if self.live_start is None:
             self.live_start = time.monotonic()
         self.cluster_attempted = True
@@ -507,7 +507,7 @@ class Driver:
                 "--name",
                 CLUSTER,
                 "--config",
-                str(K8S / "kind-cluster.yaml"),
+                str(config),
                 "--image",
                 LOCK["node"],
                 "--wait",

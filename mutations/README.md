@@ -43,7 +43,8 @@ rerun in the current local environment.
 
 ## Current CI layout and timing
 
-The Bash and PowerShell gates each run two shards, `with-k6` and `without-k6`.
+The Bash and PowerShell gates each run three shards, `with-k6`, `without-k6-a`
+and `without-k6-b`.
 Each shard bootstraps its own Compose stack and mutation database, isolates
 the runtime/worker relays, then drops the database, restores the relays,
 uploads results and diagnostics, and tears down its stack. Each mutation
@@ -59,11 +60,18 @@ rounded up to milliseconds. A case without measurements uses the upper
 median of known costs (one second if none are available). The selector reads
 the manifest on every run, and preserves its order within each shard.
 
-`Mutation gate coverage` requests all four result artifacts for the current
+The selector then splits the ordinary pool into `-a` and `-b`, keeping each
+command and environment group together for baseline reuse. The split columns
+record the higher case wall time from runs
+[44995155454](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/44995155454)
+and [44998501161](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/44998501161).
+Measured groups retain their placement as unmeasured cases are added.
+
+`Mutation gate coverage` requests all six result artifacts for the current
 run and attempt. It requires both matrices to pass and verifies each report
 against the tested checkout. For each shell, every manifest ID must appear
-exactly once across both reports with a passing baseline and the expected
-detection. Rerun all jobs to generate a complete set for a new attempt.
+exactly once across its three reports with a passing baseline and the expected
+detection.
 
 Result artifacts are `dur046-mutation-results-<platform>-<shard>-<run_id>-<attempt>`
 and contain `results-powershell.json` or `results-bash.json`. Diagnostics

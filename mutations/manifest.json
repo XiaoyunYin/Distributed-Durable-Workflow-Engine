@@ -16887,6 +16887,92 @@
       ],
       "expected": "ingress credential projection failed",
       "requires_database": false
+    },
+    {
+      "id": "k6g2c-identity-one-observation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_registration.py",
+      "old": "        and runtime == {field: session.get(field) for field in runtime},",
+      "new": "        ,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_g_deployed.py::test_one_apiserver_observation_binds_start_and_container"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2c-registration-pod-binding",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_registration.py",
+      "old": "        and extra.get(\"authentication.kubernetes.io/pod-uid\") == [runtime[\"pod_uid\"]]\n",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_g_deployed.py::test_registration_intake_rejects_another_pod"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2c-fence-before-drain",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_bundle.py",
+      "old": "    require(set(admission_stopped) == FENCE_ROLES, \"G_FENCE_BEFORE_DRAIN\")\n",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_g_deployed.py::test_fence_requires_all_admission_stops"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2c-sink-request-binding-domain",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "hashesForRequest[Hash([]byte(t.Operation+\"\\x00\"+t.Request.SHA256))] = true",
+      "new": "hashesForRequest[t.Request.SHA256] = true",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6IngressRequestBindingDomain$",
+        "-count=1"
+      ],
+      "expected": "operation-bound sink request rejected",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2c-missing-proof-exit",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "\tif r.Status == \"failed\" {\n\t\treturn Fail\n",
+      "new": "\tif r.Status == \"failed\" {\n\t\tif r.Safety != \"FAIL\" && len(r.Findings) != 0 && !slices.ContainsFunc(r.Findings, func(f Finding) bool {\n\t\t\treturn !ExternalPath(f.Source) || f.Code != \"required_proof_missing:\"+f.Source\n\t\t}) {\n\t\t\treturn Incomplete\n\t\t}\n\t\treturn Fail\n",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6MissingRequiredProofFails$",
+        "-count=1"
+      ],
+      "expected": "missing required proof must fail: exit=3 status=failed completeness=FAIL",
+      "requires_database": false
     }
   ]
 }

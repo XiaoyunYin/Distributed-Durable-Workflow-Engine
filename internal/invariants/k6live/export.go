@@ -56,6 +56,11 @@ func sqlProjection(col k6v1.Column) string {
 		return source + "::bigint"
 	case k6v1.Token:
 		return "encode(sha256(convert_to(" + source + "::text, 'UTF8')), 'hex')"
+	case k6v1.AttemptScope:
+		// The ordinary scheduler stores the node name as PURE scope.
+		// A cooperating scope is already a digest and must compare as written.
+		return `CASE WHEN "effect_class" = 'PURE_ACTIVITY' AND ` + source + ` = "node_id" THEN ` +
+			"encode(sha256(convert_to(" + source + ", 'UTF8')), 'hex') ELSE " + source + " END"
 	case k6v1.UUID:
 		return source + "::text"
 	default:
@@ -104,7 +109,7 @@ func readRelation(ctx context.Context, tx pgx.Tx, spec k6v1.Relation, write io.W
 	for rows.Next() {
 		row, sourceDigest, err := scanRow(rows, spec)
 		if err != nil {
-			return k6v1.Watermark{}, fmt.Errorf("K6_%s_PUBLIC_ROW_SCHEMA %s", databaseLabel(spec), spec.Name)
+			return k6v1.Watermark{}, fmt.Errorf("K6_%s_PUBLIC_ROW_SCHEMA %s: %w", databaseLabel(spec), spec.Name, err)
 		}
 		builder.Add(row, sourceDigest)
 		if write != nil {
@@ -196,7 +201,7 @@ func scanRow(rows pgx.Rows, spec k6v1.Relation) (k6v1.Row, string, error) {
 	dest[len(spec.Columns)] = &sourceDigest
 	for i, col := range spec.Columns {
 		switch col.Kind {
-		case k6v1.Text, k6v1.UUID, k6v1.Digest, k6v1.Token, k6v1.WireHash, "traceparent", "container_id":
+		case k6v1.Text, k6v1.UUID, k6v1.Digest, k6v1.Token, k6v1.WireHash, k6v1.AttemptScope, "traceparent", "container_id":
 			dest[i] = new(*string)
 		case k6v1.Integer, k6v1.WireLength:
 			dest[i] = new(*int64)
@@ -209,13 +214,13 @@ func scanRow(rows pgx.Rows, spec k6v1.Relation) (k6v1.Row, string, error) {
 		}
 	}
 	if err := rows.Scan(dest...); err != nil {
-		return nil, "", err
+		return nil, "", errors.New("scan projected columns")
 	}
 	values := make([]any, len(dest))
 	for i, col := range spec.Columns {
 		value, err := publicValue(col.Kind, dest[i])
 		if err != nil {
-			return nil, "", err
+			return nil, "", fmt.Errorf("decode projected column %s", col.Name)
 		}
 		values[i] = value
 	}

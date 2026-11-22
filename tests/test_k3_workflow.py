@@ -165,7 +165,7 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     assert (
         services["Run service-backed checks"]
         .rstrip()
-        .endswith("run: ./scripts/ci.ps1 -WithServices")
+        .endswith("run: ./scripts/ci.ps1 -WithServices -KafkaPythonOnly")
     )
     assert (
         race["Run service-backed race and sink contract checks"]
@@ -173,6 +173,12 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
         .endswith("run: ./scripts/ci.ps1 -WithServices -RaceOnly")
     )
     entrypoint = (ROOT / "scripts/ci.ps1").read_text(encoding="utf-8")
+    shared = (ROOT / "scripts/check.ps1").read_text(encoding="utf-8")
+    checks = dict(_job_steps(workflow, "checks"))
+    assert checks["Run repository checks"].rstrip().endswith("run: ./scripts/check.ps1")
+    assert "-SerialPackages -KafkaPythonOnly:$KafkaPythonOnly" in entrypoint
+    assert "::test_real_kafka_assignment_during_long_activity" in shared
+    assert "} else {\n        & uv run pytest\n    }" in shared
     assert "go test -race -p 1 ./..." in entrypoint
     assert "if ($WithRace -or $RaceOnly) { $sinkTestArgs += '-race' }" in entrypoint
     assert "go @sinkTestArgs ./internal/effects/k6sink -run 'K6Sink'" in entrypoint
@@ -184,7 +190,7 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
     jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
     for platform, shell, output, matrix in (
         ("powershell", "PowerShell", "powershell", "with-k6, without-k6-a, without-k6-b"),
-        ("linux", "Linux", "bash", "with-k6, without-k6"),
+        ("linux", "Linux", "bash", "with-k6, without-k6-a, without-k6-b"),
     ):
         job = jobs[f"mutation-{platform}"]
         assert f"    name: {shell} mutation gate (${{{{ matrix.shard }}}})\n" in job
@@ -298,6 +304,24 @@ def test_pilot_ci_proof_names_cover_every_main_push_job() -> None:
         else:
             names.add(name.group(1))
     assert names == REQUIRED_CI_JOBS
+
+
+def test_phase_g_kind_smoke_runs_in_parallel_and_keeps_exact_head() -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    job = workflow.split("\n  k6-phase-g-smoke:\n", 1)[1].split(
+        "\n  dur053-k4-lifecycle-smoke:", 1
+    )[0]
+    assert "    timeout-minutes: 60\n" in job
+    assert "    runs-on: ubuntu-24.04\n" in job
+    assert "    if: github.event_name == 'pull_request' || github.event_name == 'push'\n" in job
+    assert "    needs:" not in job and "continue-on-error" not in job
+    assert "DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}" in job
+    steps = dict(_job_steps(workflow, "k6-phase-g-smoke"))
+    run = steps["Exercise deployed Phase G collection and replay"]
+    assert "-Context kind -Scenario faults-smoke -K6Phase G" in run
+    assert '$env:RUNNER_TEMP "dur053-k6-phase-g-kind"' in run
+    upload = steps["Retain Phase G kind evidence including failures"]
+    assert "if: always()" in upload and "${{ runner.temp }}/dur053-k6-phase-g-kind/" in upload
 
 
 def test_k4_engineering_workflow_is_uncharged_and_retains_failures() -> None:

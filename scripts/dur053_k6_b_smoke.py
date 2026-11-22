@@ -14,9 +14,11 @@ import shutil
 import subprocess
 import tempfile
 import time
+from collections.abc import Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 from urllib.parse import urlencode
 
 from dur053_k3 import CLUSTER, LOCK, ROOT, Driver
@@ -491,8 +493,15 @@ class Smoke:
 
     @contextmanager
     def adapter_socket(
-        self, directory: Path, socket_dir: Path, episode: dict, reviewer: str, dsn: str
-    ):
+        self,
+        directory: Path,
+        socket_dir: Path,
+        episode: dict,
+        reviewer: str,
+        dsn: str,
+        *,
+        evidence_config: dict[str, Any] | None = None,
+    ) -> Iterator[None]:
         config = directory / (socket_dir.name + ".json")
         private_file(
             config,
@@ -503,6 +512,7 @@ class Smoke:
                     "CA": self.ca_data,
                     "Reviewer": reviewer,
                     "DecisionDSN": dsn,
+                    **({"Evidence": evidence_config} if evidence_config is not None else {}),
                 }
             ),
         )
@@ -639,7 +649,9 @@ class Smoke:
             "Arguments": {"nested": {"value": 1}, "array": [False, None, -3]},
         }
 
-    def warmup(self, episode: dict, admin_dsn: str) -> tuple[str, str, int]:
+    def warmup(
+        self, episode: dict, admin_dsn: str, *, sealed_plan: dict[str, Any] | None = None
+    ) -> tuple[str, str, int]:
         request = self.go("token-request", Episode=episode)
         clock = self.go("clock", DSN=admin_dsn)
         before, db, after = (
@@ -667,7 +679,7 @@ class Smoke:
         inputs = {
             "schema": "dur053.k6-phase-b-episode.v1",
             "episode": episode,
-            "sealed_fixture_plan": self.plan(namespace),
+            "sealed_fixture_plan": self.plan(namespace) if sealed_plan is None else sealed_plan,
             "measurement_claim": False,
             "charged_seconds": 0,
             "clock_bracket": clock,
