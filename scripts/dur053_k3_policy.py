@@ -262,7 +262,7 @@ def package_policy(objects: list[dict[str, Any]], budget: dict[str, Any]) -> int
         },
         "network-policy-set",
     )
-    for name, policy in policies.items():
+    for policy in policies.values():
         for rule in policy.get("egress", []):
             require(bool(rule.get("to")) and bool(rule.get("ports")), "bounded-egress")
             for peer in rule["to"]:

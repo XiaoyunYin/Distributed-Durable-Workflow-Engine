@@ -139,6 +139,7 @@ def test_idle_sources_must_be_present_and_sealed(tmp_path: Path) -> None:
     (tmp_path / "arrivals.json").write_bytes(canonical({"rows": []}))
     (tmp_path / "engine").mkdir()
     (tmp_path / "broker").mkdir()
+    (tmp_path / "witness").mkdir()
     descriptors = []
     index = []
     for name in IDLE_RELATIONS:
@@ -149,20 +150,27 @@ def test_idle_sources_must_be_present_and_sealed(tmp_path: Path) -> None:
         descriptors.append({**empty, "relation": relation, "count": 0})
         index.append({**empty, "path": path})
     (tmp_path / "engine/snapshot.json").write_bytes(canonical({"relations": descriptors}))
+    worker = "witness/a.jsonl"
+    worker_raw = (
+        canonical({}) + canonical({"data": {"kind": "session"}}) + canonical({"mode": "terminal"})
+    )
+    (tmp_path / worker).write_bytes(worker_raw)
+    index.append({"path": worker, "length": len(worker_raw), "sha256": sha(worker_raw)})
     (tmp_path / "index.json").write_bytes(canonical({"files": index}))
     broker = tmp_path / "broker/positions.jsonl"
     prefix = canonical({}) + canonical(
         {"data": {"partitions": [{"low": 0, "end": 0, "committed": None}]}}
     )
     broker.write_bytes(prefix + canonical({"mode": "terminal"}))
-    report = idle_sources(tmp_path)
+    report = idle_sources(tmp_path, ["a"])
     assert len(report["empty_relations"]) == len(IDLE_RELATIONS)
+    assert report["worker_ledgers"][worker]["traffic_rows"] == 0
     broker.write_bytes(prefix + canonical({"mode": "checkpoint"}))
     with pytest.raises(SmokeFailure, match="G_IDLE_BROKER_TRAFFIC_OR_UNSEALED"):
-        idle_sources(tmp_path)
+        idle_sources(tmp_path, ["a"])
     (tmp_path / "index.json").write_bytes(canonical({"files": index[1:]}))
     with pytest.raises(SmokeFailure, match="G_IDLE_SOURCE_ABSENT"):
-        idle_sources(tmp_path)
+        idle_sources(tmp_path, ["a"])
 
 
 @pytest.mark.parametrize(

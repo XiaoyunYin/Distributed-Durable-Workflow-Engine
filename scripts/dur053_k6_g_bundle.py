@@ -142,7 +142,7 @@ def read_lines(path: Path) -> list[Json]:
     return [json.loads(line) for line in path.read_bytes().splitlines()]
 
 
-def idle_sources(bundle: Path) -> Json:
+def idle_sources(bundle: Path, sessions: list[str]) -> Json:
     plan, arrivals = (read_json(bundle / name) for name in ("plan.json", "arrivals.json"))
     require([w["submissions"] for w in plan["windows"]] == [[], []], "G_IDLE_PLAN")
     require(arrivals["rows"] == [], "G_IDLE_ARRIVALS")
@@ -178,7 +178,27 @@ def idle_sources(bundle: Path) -> Json:
         ),
         "G_IDLE_BROKER_TRAFFIC_OR_UNSEALED",
     )
-    return {"offers": 0, "arrivals": 0, "empty_relations": relations, "broker_seal": seal}
+    ledgers = {}
+    for session in sessions:
+        path = f"witness/{session}.jsonl"
+        require(path in indexed and (bundle / path).is_file(), "G_IDLE_LEDGER_ABSENT")
+        _, *rows, ledger_seal = read_lines(bundle / path)
+        require(
+            bool(rows)
+            and ledger_seal["mode"] in ("terminal", "receiver_final")
+            and all(
+                row["data"]["kind"] in ("session", "idle_probe", "lease_renewal") for row in rows
+            ),
+            "G_IDLE_LEDGER_TRAFFIC_OR_UNSEALED",
+        )
+        ledgers[path] = {"traffic_rows": 0, "seal": ledger_seal}
+    return {
+        "offers": 0,
+        "arrivals": 0,
+        "empty_relations": relations,
+        "worker_ledgers": ledgers,
+        "broker_seal": seal,
+    }
 
 
 def utc_ns(value: str) -> int:

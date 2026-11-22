@@ -1018,15 +1018,12 @@ class Episode(Matrix):
         self.evidence.write("quiet-generations.json", quiet)
         if self.effect:
             verify_retake(quiet, receipts, self.fenced_utc)
+        sessions = [entry["registration"]["session"]["id"] for entry in self.intake]
         if self.idle:
-            self.evidence.write("idle-sources.json", idle_sources(bundle))
+            self.evidence.write("idle-sources.json", idle_sources(bundle, sessions))
         timings = [
-            json.loads(
-                self.root_read(
-                    self.witness_dir / f"{entry['registration']['session']['id']}.timings.json"
-                )
-            )
-            for entry in self.intake
+            json.loads(self.root_read(self.witness_dir / f"{session}.timings.json"))
+            for session in sessions
         ]
         self.evidence.write("worker-ledger-timings.json", timings)
         self.evidence.write(
