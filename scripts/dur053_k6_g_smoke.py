@@ -104,6 +104,7 @@ class Episode(Matrix):
             barrier_id=str(uuid4()),
         )
         self.witness_dir = scratch / "witness"
+        self.witness = scratch / "ingress-receiver"
         self.bootstrap_dir = scratch / "bootstrap"
         self.allocator_dir = scratch / "allocator"
         self.frames = scratch / "frames"
