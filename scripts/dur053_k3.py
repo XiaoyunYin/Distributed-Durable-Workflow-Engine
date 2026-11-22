@@ -463,43 +463,17 @@ class Driver:
         path = self.output / (name + ".yaml")
         path.write_text(yaml.safe_dump_all(objects), encoding="utf-8", newline="\n")
 
-    def preload_addons(self) -> None:
-        for index, image in enumerate(sorted(self.addon_images)):
-            source = next(key for key, value in LOCK["images"].items() if value == image)
-            self.command(["docker", "pull", "--platform=linux/amd64", image], timeout=300)
-            self.command(["docker", "tag", image, source])
-            archive = self.scratch / f"addon-{index}.tar"
-            self.command(["docker", "save", "--output", str(archive), source], timeout=180)
-
     def load_addons(self) -> None:
-        for index, image in enumerate(sorted(self.addon_images)):
-            source = next(key for key, value in LOCK["images"].items() if value == image)
-            canonical = source.rsplit(":", 1)[0] + "@" + image.split("@", 1)[1]
-            archive = self.scratch / f"addon-{index}.tar"
-            self.command(
-                ["kind", "load", "image-archive", "--name", CLUSTER, str(archive)], timeout=180
+        cri = ["docker", "exec", CLUSTER + "-control-plane", "crictl"]
+        for image in sorted(self.addon_images):
+            # PullImage registers the digest in the CRI image store before it
+            # returns. A ctr tag only queues an asynchronous containerd event.
+            pulled = self.command([*cri, "pull", image], timeout=300, allowed=True)
+            require(
+                pulled.returncode == 0,
+                f"addon-image-pull {image}: {(pulled.stderr or pulled.stdout).strip()}",
             )
-            # Docker archives retain tags, not registry index aliases. Bind the
-            # verified host pull to the exact digest reference used by the pods.
-            self.command(
-                [
-                    "docker",
-                    "exec",
-                    CLUSTER + "-control-plane",
-                    "ctr",
-                    "--namespace",
-                    "k8s.io",
-                    "images",
-                    "tag",
-                    "--force",
-                    source,
-                    canonical,
-                ]
-            )
-            self.command(
-                ["docker", "exec", CLUSTER + "-control-plane", "crictl", "inspecti", image]
-            )
-            archive.unlink()
+            self.command([*cri, "inspecti", image])
         save(self.output / "addon-images.json", sorted(self.addon_images))
 
     def addon(self, name: str) -> None:
@@ -1790,7 +1764,6 @@ def run(
             _, baseline = d.render("kind-baseline")
             matched_arms(treatment, baseline)
             if scenario in {"smoke", "chaos-smoke"}:
-                d.preload_addons()
                 for arm in ("kind", "kind-baseline"):
                     shutil.rmtree(scratch / ("package-" + arm))
                     (output / (arm + ".yaml")).rename(output / (arm + "-unbound-endpoints.yaml"))

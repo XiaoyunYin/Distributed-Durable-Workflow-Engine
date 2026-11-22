@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+from collections import defaultdict
 from pathlib import Path
 from statistics import median_high
 from typing import Any
@@ -11,7 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "mutations/manifest.json"
 COSTS = ROOT / "mutations/ci-case-costs.csv"
 REPORT_NAMES = {"linux": "results-bash.json", "powershell": "results-powershell.json"}
-SHARDS = ("with-k6", "without-k6")
+LINUX_SHARDS = ("with-k6", "without-k6")
+POWERSHELL_SHARDS = ("with-k6", "without-k6-a", "without-k6-b")
+SHARDS = {"linux": LINUX_SHARDS, "powershell": POWERSHELL_SHARDS}
 
 
 def read_manifest(path: Path) -> dict[str, Any]:
@@ -23,30 +26,56 @@ def read_manifest(path: Path) -> dict[str, Any]:
 
 
 def read_costs(platform: str) -> dict[str, int]:
+    column = f"{platform}_ms"
     with COSTS.open(encoding="utf-8", newline="") as source:
-        return {row["id"]: int(row[f"{platform}_ms"]) for row in csv.DictReader(source)}
+        return {row["id"]: int(row[column]) for row in csv.DictReader(source) if row[column]}
 
 
-def assign_shards(ids: list[str], costs: dict[str, int]) -> dict[str, str]:
-    """Pin K6, then place the largest remaining case on the lighter shard."""
+def case_weights(ids: list[str], costs: dict[str, int]) -> dict[str, int]:
     known_costs = [costs[case_id] for case_id in ids if case_id in costs]
     default = median_high(known_costs) if known_costs else 1000
-    weights = {case_id: costs.get(case_id, default) for case_id in ids}
-    assigned = {case_id: SHARDS[0] for case_id in ids if case_id.startswith("k6")}
-    loads = {SHARDS[0]: sum(weights[case_id] for case_id in assigned), SHARDS[1]: 0}
+    return {case_id: costs.get(case_id, default) for case_id in ids}
+
+
+def assign_shards(cases: list[dict[str, Any]], platform: str) -> dict[str, str]:
+    """Pin K6, then place the largest remaining case on the lighter shard."""
+    ids: list[str] = [case["id"] for case in cases]
+    weights = case_weights(ids, read_costs(platform))
+    with_k6, without_k6 = LINUX_SHARDS
+    assigned = {case_id: with_k6 for case_id in ids if case_id.startswith("k6")}
+    loads = {with_k6: sum(weights[case_id] for case_id in assigned), without_k6: 0}
     remaining = sorted(weights.keys() - assigned.keys(), key=lambda i: (-weights[i], i))
     for case_id in remaining:
-        shard = min(SHARDS, key=loads.__getitem__)
+        shard = min(loads, key=loads.__getitem__)
         assigned[case_id] = shard
         loads[shard] += weights[case_id]
+    if platform == "powershell":
+        split_powershell([case for case in cases if assigned[case["id"]] == without_k6], assigned)
     return assigned
+
+
+def split_powershell(cases: list[dict[str, Any]], assigned: dict[str, str]) -> None:
+    # Match the mutation runner's baseline key within this platform.
+    groups: dict[tuple[tuple[str, ...], tuple[tuple[str, str], ...]], list[str]] = defaultdict(list)
+    for case in cases:
+        command = tuple(map(str, case["command"]))
+        env = tuple(sorted((str(key), str(value)) for key, value in case.get("env", {}).items()))
+        groups[command, env].append(case["id"])
+
+    weights = case_weights([case["id"] for case in cases], read_costs("powershell_split"))
+    weighted = [(sum(weights[case_id] for case_id in group), group) for group in groups.values()]
+    loads = dict.fromkeys(POWERSHELL_SHARDS[1:], 0)
+    for weight, group in sorted(weighted, key=lambda item: (-item[0], min(item[1]))):
+        shard = min(loads, key=loads.__getitem__)
+        assigned.update(dict.fromkeys(group, shard))
+        loads[shard] += weight
 
 
 def verify_reports(manifest: dict[str, Any], reports: Path, suffix: str, commit: str) -> None:
     expected = {case["id"]: case for case in manifest["cases"]}
     for platform, filename in REPORT_NAMES.items():
         seen: set[str] = set()
-        for shard in SHARDS:
+        for shard in SHARDS[platform]:
             artifact = f"dur046-mutation-results-{platform}-{shard}-{suffix}"
             path = reports / artifact / filename
             report = json.loads(path.read_text(encoding="utf-8"))
@@ -61,7 +90,7 @@ def verify_reports(manifest: dict[str, Any], reports: Path, suffix: str, commit:
                 case_id = result["id"]
                 if case_id in seen or case_id not in expected:
                     raise ValueError(f"{artifact}: duplicate or unknown case {case_id}")
-                if case_id.startswith("k6") and shard != SHARDS[0]:
+                if case_id.startswith("k6") and shard != "with-k6":
                     raise ValueError(f"{artifact}: misplaced K6 case {case_id}")
                 case = expected[case_id]
                 code = result.get("exit_code")
@@ -91,7 +120,7 @@ def main() -> None:
     commands = parser.add_subparsers(dest="command", required=True)
     select = commands.add_parser("select")
     select.add_argument("platform", choices=REPORT_NAMES)
-    select.add_argument("shard", choices=SHARDS)
+    select.add_argument("shard")
     select.add_argument("output", type=Path)
     verify = commands.add_parser("verify")
     verify.add_argument("reports", type=Path)
@@ -104,8 +133,9 @@ def main() -> None:
         if args.command == "verify":
             verify_reports(manifest, args.reports, args.artifact_suffix, args.commit)
         else:
-            ids = [case["id"] for case in manifest["cases"]]
-            assigned = assign_shards(ids, read_costs(args.platform))
+            if args.shard not in SHARDS[args.platform]:
+                raise ValueError(f"unknown shard {args.platform}/{args.shard}")
+            assigned = assign_shards(manifest["cases"], args.platform)
             manifest["cases"] = [
                 case for case in manifest["cases"] if assigned[case["id"]] == args.shard
             ]

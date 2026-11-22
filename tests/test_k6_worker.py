@@ -10,6 +10,7 @@ import sys
 import threading
 import traceback
 import urllib.error
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
@@ -243,6 +244,51 @@ def test_observations_parse_with_worker_entrypoint_logging(delivery):
     assert len(observations["worker"]) == 1
     assert {phase for _, phase, _ in observations["worker_timings"]} >= {"claim", "delay", "apply"}
     assert observations["matched_lines"]["worker"] == 4
+
+
+def test_concurrent_observations_emit_complete_lines(monkeypatch):
+    class Stdout(StringIO):
+        def write(self, value: str) -> int:
+            # Reject split writes even if scheduling happens to serialize print().
+            assert value.endswith("\n") and value.count("\n") == 1, "partial observation write"
+            return super().write(value)
+
+        def flush(self) -> None:
+            self.flushes += 1
+
+        flushes = 0
+
+    output = Stdout()
+    monkeypatch.setattr(sys, "stdout", output)
+    thread_count, per_thread = 32, 20
+    start = threading.Barrier(thread_count)
+
+    def emit(thread: int) -> None:
+        start.wait(timeout=10)
+        for number in range(thread * per_thread, (thread + 1) * per_thread):
+            key = f"{number:064x}"
+            k6_effect.emit_observation(f"k6_exchange {key} {key} {key} {key} {number} 200")
+            k6_effect.emit_observation(f"k6_timing {key} apply {number}")
+
+    with ThreadPoolExecutor(max_workers=thread_count) as pool:
+        list(pool.map(emit, range(thread_count)))
+
+    count = thread_count * per_thread
+    log = output.getvalue()
+    parsed = phase_d.collect(log, "", "", "")
+    assert len(log.splitlines()) == output.flushes == parsed["matched_lines"]["worker"] == 2 * count
+    assert sorted(
+        (
+            row["request_id_hash"],
+            row["invocation_hash"],
+            row["request_hash"],
+            row["response_hash"],
+            row["response_length"],
+            row["status"],
+        )
+        for row in parsed["worker"]
+    ) == [(f"{i:064x}", f"{i:064x}", f"{i:064x}", f"{i:064x}", i, 200) for i in range(count)]
+    assert sorted(parsed["worker_timings"]) == [(f"{i:064x}", "apply", i) for i in range(count)]
 
 
 def test_engine_rejected_apply_proof_is_recovered_only_by_lookup(delivery, monkeypatch):

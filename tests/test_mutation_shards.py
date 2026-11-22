@@ -13,17 +13,31 @@ import mutation_shards as shards  # noqa: E402
 
 @pytest.mark.parametrize("platform", shards.REPORT_NAMES)
 def test_all_manifest_cases_are_assigned_even_after_growth(platform: str) -> None:
-    manifest = shards.read_manifest(shards.MANIFEST)
-    ids = [case["id"] for case in manifest["cases"]]
-    costs = shards.read_costs(platform)
-    for case_ids in (ids, [*ids, "new-unmeasured-case", "k6-new-unmeasured-case"]):
-        assignment = shards.assign_shards(case_ids, costs)
-        assert set(assignment) == set(case_ids)
-        assert set(assignment.values()) == set(shards.SHARDS)
-        assert assignment == shards.assign_shards(list(reversed(case_ids)), costs)
+    cases = shards.read_manifest(shards.MANIFEST)["cases"]
+    growth = [
+        {"id": "new-unmeasured-case", "command": ["ordinary-test"]},
+        {"id": "k6-new-unmeasured-case", "command": ["k6-test"]},
+    ]
+    for source in (cases, [*cases, *growth]):
+        assignment = shards.assign_shards(source, platform)
+        assert set(assignment) == {case["id"] for case in source}
+        assert set(assignment.values()) == set(shards.SHARDS[platform])
+        assert assignment == shards.assign_shards(list(reversed(source)), platform)
         assert all(
-            assignment[case_id] == "with-k6" for case_id in case_ids if case_id.startswith("k6")
+            shard == "with-k6" for case_id, shard in assignment.items() if case_id.startswith("k6")
         )
+
+
+def test_powershell_without_k6_preserves_baseline_groups() -> None:
+    cases = shards.read_manifest(shards.MANIFEST)["cases"]
+    assignment = shards.assign_shards(cases, "powershell")
+    owners = {}
+    for case in cases:
+        shard = assignment[case["id"]]
+        if shard == "with-k6":
+            continue
+        key = tuple(case["command"]), tuple(sorted(case.get("env", {}).items()))
+        assert owners.setdefault(key, shard) == shard
 
 
 @pytest.mark.parametrize(
@@ -38,6 +52,7 @@ def test_all_manifest_cases_are_assigned_even_after_growth(platform: str) -> Non
         ("stale-commit", "invalid report header"),
         ("k6-misplaced", "misplaced K6 case"),
         ("incomplete-powershell", "powershell: missing 1 cases"),
+        ("missing-third-report", "powershell-without-k6-b-123-2"),
     ],
 )
 def test_aggregate_rejects_incomplete_or_invalid_reports(
@@ -55,9 +70,14 @@ def test_aggregate_accepts_both_complete_platforms(tmp_path: Path) -> None:
 
 def write_reports(root: Path, fault: str) -> dict[str, Any]:
     marker = "named failure"
-    groups = {"with-k6": ["k6-one", "other-one"], "without-k6": ["other-two", "other-three"]}
+    k6 = ["k6-one", "other-one"]
+    ordinary = ["other-two", "other-three", "other-four"]
+    groups = {
+        "linux": {"with-k6": k6, "without-k6": ordinary},
+        "powershell": {"with-k6": k6, "without-k6-a": ordinary[:2], "without-k6-b": ordinary[2:]},
+    }
     for platform, filename in shards.REPORT_NAMES.items():
-        for shard, ids in groups.items():
+        for shard, ids in groups[platform].items():
             commit = "merge-sha"
             rows = [
                 {
@@ -91,10 +111,12 @@ def write_reports(root: Path, fault: str) -> dict[str, Any]:
                 rows[0]["id"] = "other-two"
             if (
                 fault == "incomplete-powershell"
-                and shard == "without-k6"
+                and shard == "without-k6-a"
                 and platform == "powershell"
             ):
                 rows.pop()
+            if fault == "missing-third-report" and shard == "without-k6-b":
+                continue
             path = root / f"dur046-mutation-results-{platform}-{shard}-123-2" / filename
             path.parent.mkdir()
             path.write_text(
@@ -108,6 +130,4 @@ def write_reports(root: Path, fault: str) -> dict[str, Any]:
                 ),
                 encoding="utf-8",
             )
-    return {
-        "cases": [{"id": case_id, "expected": marker} for ids in groups.values() for case_id in ids]
-    }
+    return {"cases": [{"id": case_id, "expected": marker} for case_id in [*k6, *ordinary]]}

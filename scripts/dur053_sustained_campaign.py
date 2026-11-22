@@ -160,7 +160,6 @@ def run(output: Path, scratch_root: Path, name: str) -> int:
         for addon, lock in LOCK["addons"].items():
             if lock["installed_in_k3a"]:
                 d.prepare_addon(addon)
-        d.preload_addons()
         addresses = d.cluster()
         if arm == "cpu":
             admit(q, len(indices), cpu=True, setup=False, elapsed=time.monotonic() - d.live_start)

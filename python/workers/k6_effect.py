@@ -9,6 +9,8 @@ import logging
 import os
 import re
 import ssl
+import sys
+import threading
 import time
 import uuid
 from collections.abc import Callable
@@ -25,6 +27,7 @@ if TYPE_CHECKING:
 
 LOG = logging.getLogger(__name__)
 OBSERVATION_PREFIX = "DUR053_K6_OBSERVATION "
+_observation_lock = threading.Lock()
 PRE_CALL_SECONDS = 5
 SIGNATURE_HEADER = "X-Dur053-K6-Receipt-Signature"
 VERSION_HEADER = "X-Dur053-K6-Receipt-Version"
@@ -132,7 +135,10 @@ def observation(key_hash: str, stage: str, started: int) -> None:
 
 
 def emit_observation(message: str) -> None:
-    print(f"{OBSERVATION_PREFIX}{message}", flush=True)
+    line = f"{OBSERVATION_PREFIX}{message}"
+    with _observation_lock:
+        sys.stdout.write(line + "\n")
+        sys.stdout.flush()
 
 
 class EffectAdapter:

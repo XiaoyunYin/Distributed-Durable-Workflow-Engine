@@ -1152,7 +1152,6 @@ def run(output: Path, harness: Driver | None = None, address: str | None = None)
                 for name, addon in LOCK["addons"].items():
                     if addon["installed_in_k3a"]:
                         harness.prepare_addon(name)
-                harness.preload_addons()
                 address = harness.cluster()["192.0.2.1"]
         require(harness is not None and address is not None, "KIND_HANDOFF_INCOMPLETE")
         with evidence.step("build-phase-b-binaries"):

@@ -94,23 +94,57 @@ class K3RepairTests(unittest.TestCase):
                 calls.append(args)
                 return subprocess.CompletedProcess(args, 0, '{"items": []}', "")
 
-            with patch.object(d, "command", side_effect=command):
-                d.preload_addons()
-                (Path(tmp) / "addon-0.tar").write_bytes(b"fixture")
-                d.load_addons()
-                with (
-                    patch.object(d, "dependencies", return_value={}),
-                    patch.object(d, "load_addons"),
-                ):
-                    d.cluster()
-            self.assertIn(["docker", "pull", "--platform=linux/amd64", image], calls)
-            self.assertTrue(any("image-archive" in args for args in calls))
-            alias = next(args[-1] for args in calls if "--force" in args)
-            self.assertEqual(alias, source.rsplit(":", 1)[0] + "@" + image.split("@", 1)[1])
+            with (
+                patch.object(d, "command", side_effect=command),
+                patch.object(d, "dependencies", return_value={}),
+            ):
+                d.cluster()
+            cri = ["docker", "exec", driver.CLUSTER + "-control-plane", "crictl"]
+            pull = calls.index([*cri, "pull", image])
+            self.assertEqual(calls.count([*cri, "pull", image]), 1)
+            self.assertEqual(calls[pull + 1], [*cri, "inspecti", image])
+            self.assertLess(
+                calls.index(
+                    [
+                        "kind",
+                        "create",
+                        "cluster",
+                        "--name",
+                        driver.CLUSTER,
+                        "--config",
+                        str(driver.K8S / "kind-cluster.yaml"),
+                        "--image",
+                        driver.LOCK["node"],
+                        "--wait",
+                        "0s",
+                    ]
+                ),
+                pull,
+            )
+            apply = next(i for i, args in enumerate(calls) if "apply" in args)
             ds = next(i for i, args in enumerate(calls) if "daemonset/calico-node" in args)
             ready = next(i for i, args in enumerate(calls) if "--for=condition=Ready" in args)
+            self.assertLess(pull + 1, apply)
             self.assertLess(ds, ready)
             self.assertIn("--timeout=600s", calls[ds])
+
+    def test_addon_pull_preserves_registry_error_without_retry(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            d = driver.Driver(Path(tmp), Path(tmp))
+            image = next(iter(driver.LOCK["images"].values()))
+            d.addon_images = {image}
+            error = "failed to resolve reference: 429 Too Many Requests"
+            with (
+                patch.object(
+                    driver.subprocess,
+                    "run",
+                    return_value=subprocess.CompletedProcess([], 1, "", error),
+                ) as run,
+                self.assertRaisesRegex(ValueError, error),
+            ):
+                d.load_addons()
+            run.assert_called_once()
+            self.assertEqual((d.output / "command-001.txt").read_text(encoding="utf-8"), error)
 
     def test_broken_addon_keeps_diagnostics_and_original_error(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -159,7 +193,6 @@ class K3RepairTests(unittest.TestCase):
                 patch.object(driver.Driver, "install"),
                 patch.object(driver.Driver, "build"),
                 patch.object(driver.Driver, "prepare_addon"),
-                patch.object(driver.Driver, "preload_addons"),
                 patch.object(driver.Driver, "render", return_value=(root / "unused", [])),
                 patch.object(driver, "matched_arms"),
                 patch.object(driver.Driver, "cluster", broken),

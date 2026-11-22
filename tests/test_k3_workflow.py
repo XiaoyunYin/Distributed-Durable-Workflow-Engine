@@ -118,7 +118,6 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     ]
     assert list(services) == [
         *setup,
-        "Run tagged K6 Go tests against PostgreSQL",
         "Run service-backed checks",
         "Start isolated DUR-055 PostgreSQL and pgvector",
         "Validate DUR-055 PostgreSQL FTS and pgvector retrieval",
@@ -127,6 +126,7 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     ]
     assert list(race) == [
         *setup,
+        "Run tagged K6 Go tests against PostgreSQL",
         k6_g1_step,
         k6_g2_step,
         "Run service-backed race and sink contract checks",
@@ -139,7 +139,7 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
         assert "down --volumes --remove-orphans" in steps[cleanup[-1]]
     assert "name: service-diagnostics-" in services[cleanup[1]]
     assert "name: service-race-diagnostics-" in race[cleanup[1]]
-    tagged = services["Run tagged K6 Go tests against PostgreSQL"]
+    tagged = race["Run tagged K6 Go tests against PostgreSQL"]
     assert "shell: pwsh" in tagged
     assert "DURABLE_REQUIRE_DATABASE: '1'" in tagged
     assert (
@@ -182,13 +182,13 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
 def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
-    for platform, shell, output in (
-        ("powershell", "PowerShell", "powershell"),
-        ("linux", "Linux", "bash"),
+    for platform, shell, output, matrix in (
+        ("powershell", "PowerShell", "powershell", "with-k6, without-k6-a, without-k6-b"),
+        ("linux", "Linux", "bash", "with-k6, without-k6"),
     ):
         job = jobs[f"mutation-{platform}"]
         assert f"    name: {shell} mutation gate (${{{{ matrix.shard }}}})\n" in job
-        assert "        shard: [with-k6, without-k6]\n" in job
+        assert f"        shard: [{matrix}]\n" in job
         assert "      fail-fast: false\n" in job
         assert "    runs-on: ubuntu-24.04\n" in job
         assert "    timeout-minutes: 100\n" in job
