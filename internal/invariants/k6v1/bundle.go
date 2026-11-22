@@ -306,7 +306,9 @@ func Verify(bundle fs.FS) Result {
 	issues = append(issues, externalIssues...)
 	var samples ExternalSamples
 	if readSource(bundle, files, SamplesPath, &samples, &issues, func([]byte) bool { return true }) &&
-		barrierOK && planOK && arrivalsOK {
+		barrierOK && planOK && arrivalsOK && !slices.ContainsFunc(externalIssues, func(f Finding) bool {
+		return f.Code == "required_proof_missing:"+f.Source
+	}) {
 		issues = append(issues, verifyExternalQuiet(manifest, plan, arrivals, barrier, external, samples, rows)...)
 	}
 	return evaluate(manifest, snaps["engine"], rows, plan, arrivals, planOK, arrivalsOK, Hash(indexBytes), issues, external)

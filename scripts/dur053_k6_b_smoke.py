@@ -491,7 +491,14 @@ class Smoke:
 
     @contextmanager
     def adapter_socket(
-        self, directory: Path, socket_dir: Path, episode: dict, reviewer: str, dsn: str
+        self,
+        directory: Path,
+        socket_dir: Path,
+        episode: dict,
+        reviewer: str,
+        dsn: str,
+        *,
+        evidence_config: dict | None = None,
     ):
         config = directory / (socket_dir.name + ".json")
         private_file(
@@ -503,6 +510,7 @@ class Smoke:
                     "CA": self.ca_data,
                     "Reviewer": reviewer,
                     "DecisionDSN": dsn,
+                    **({"Evidence": evidence_config} if evidence_config is not None else {}),
                 }
             ),
         )

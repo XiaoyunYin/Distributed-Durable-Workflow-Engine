@@ -37,6 +37,7 @@ type config struct {
 	Allocator       string            `json:"allocator"`
 	Decisions       string            `json:"decisions"`
 	Fence           string            `json:"fence"`
+	WatchReady      string            `json:"watch_ready,omitempty"`
 }
 
 type processRegistration struct {
@@ -91,7 +92,12 @@ func run(ctx context.Context, c config) error {
 	defer cancel()
 	watchDone := make(chan error, 1)
 	go func() {
-		watchDone <- observer.cluster.Watch(ctx, m, c.WorkerSelector, c.WorkerContainer, observer.watch)
+		watchDone <- observer.cluster.Watch(ctx, m, c.WorkerSelector, c.WorkerContainer, observer.watch, func(cursor string) error {
+			if c.WatchReady == "" {
+				return nil
+			}
+			return os.WriteFile(c.WatchReady, []byte(cursor+"\n"), 0o600)
+		})
 	}()
 	transport := &kafka.Transport{DialTimeout: 2 * time.Second, IdleTimeout: 5 * time.Second}
 	defer transport.CloseIdleConnections()
@@ -101,6 +107,7 @@ func run(ctx context.Context, c config) error {
 	var generation int64
 	published := false
 	var failedAt time.Time
+	var lastError string
 	for {
 		select {
 		case <-ctx.Done():
@@ -114,12 +121,22 @@ func run(ctx context.Context, c config) error {
 		if err == nil {
 			published = true
 			failedAt = time.Time{}
+			lastError = ""
 		} else if failedAt.IsZero() {
 			failedAt = time.Now()
-		} else if published && time.Since(failedAt) > k6v1.MaxSampleGap {
+		} else if published && observer.drained() && time.Since(failedAt) > k6v1.MaxSampleGap {
 			return err
 		}
+		if err != nil && lastError != err.Error() {
+			lastError = err.Error()
+			fmt.Fprintln(os.Stderr, lastError)
+		}
 	}
+}
+
+func (o *collector) drained() bool {
+	var fence k6v1.SourceBinding
+	return load(o.config.Fence, &fence) == nil && fence == k6v1.Binding(o.config.Manifest)
 }
 
 func (o *collector) collect(ctx context.Context, client *kafka.Client, generation int64) error {
@@ -135,8 +152,7 @@ func (o *collector) collect(ctx context.Context, client *kafka.Client, generatio
 	}
 	// The reset controller writes this fence after stopping external writer
 	// admissions and waiting for their shutdown acknowledgements.
-	var fence k6v1.SourceBinding
-	drained := load(c.Fence, &fence) == nil && fence == k6v1.Binding(m)
+	drained := o.drained()
 	roster, err := o.watch.Snapshot(time.Now(), drained)
 	if err != nil {
 		return err
@@ -238,6 +254,14 @@ func (o *collector) effect(m k6v1.Manifest, drained bool) error {
 }
 
 func main() {
+	if len(os.Args) == 3 && os.Args[1] == "--required-sources" && (os.Args[2] == "pure" || os.Args[2] == "effect") {
+		raw, err := k6v1.Canonical(k6v1.RequiredSources(false, os.Args[2] == "effect"))
+		if err != nil {
+			os.Exit(1)
+		}
+		_, _ = os.Stdout.Write(raw)
+		return
+	}
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "usage: dur053-k6-collect PRIVATE_CONFIG")
 		os.Exit(2)

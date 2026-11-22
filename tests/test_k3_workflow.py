@@ -300,6 +300,24 @@ def test_pilot_ci_proof_names_cover_every_main_push_job() -> None:
     assert names == REQUIRED_CI_JOBS
 
 
+def test_phase_g_kind_smoke_runs_in_parallel_and_keeps_exact_head() -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    job = workflow.split("\n  k6-phase-g-smoke:\n", 1)[1].split(
+        "\n  dur053-k4-lifecycle-smoke:", 1
+    )[0]
+    assert "    timeout-minutes: 60\n" in job
+    assert "    runs-on: ubuntu-24.04\n" in job
+    assert "    if: github.event_name == 'pull_request' || github.event_name == 'push'\n" in job
+    assert "    needs:" not in job and "continue-on-error" not in job
+    assert "DUR053_HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}" in job
+    steps = dict(_job_steps(workflow, "k6-phase-g-smoke"))
+    run = steps["Exercise deployed Phase G collection and replay"]
+    assert "-Context kind -Scenario faults-smoke -K6Phase G" in run
+    assert '$env:RUNNER_TEMP "dur053-k6-phase-g-kind"' in run
+    upload = steps["Retain Phase G kind evidence including failures"]
+    assert "if: always()" in upload and "${{ runner.temp }}/dur053-k6-phase-g-kind/" in upload
+
+
 def test_k4_engineering_workflow_is_uncharged_and_retains_failures() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     steps = dict(_job_steps(workflow, "dur053-k4-lifecycle-smoke"))

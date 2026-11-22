@@ -16887,6 +16887,54 @@
       ],
       "expected": "ingress credential projection failed",
       "requires_database": false
+    },
+    {
+      "id": "k6g2c-identity-one-observation",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_registration.py",
+      "old": "        and runtime == {field: session.get(field) for field in runtime},",
+      "new": "        ,",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_g_deployed.py::test_one_apiserver_observation_binds_start_and_container"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2c-registration-pod-binding",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_registration.py",
+      "old": "        and extra.get(\"authentication.kubernetes.io/pod-uid\") == [runtime[\"pod_uid\"]]\n",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_g_deployed.py::test_registration_intake_rejects_another_pod"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2c-fence-before-drain",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_bundle.py",
+      "old": "    require(set(admission_stopped) == FENCE_ROLES, \"G_FENCE_BEFORE_DRAIN\")\n",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_g_deployed.py::test_fence_requires_all_admission_stops"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
     }
   ]
 }

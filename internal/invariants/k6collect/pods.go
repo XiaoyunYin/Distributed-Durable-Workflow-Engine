@@ -31,7 +31,7 @@ func (k Kubernetes) raw(ctx context.Context, path string) *exec.Cmd {
 // cursor. Registration must come from a separately authenticated process
 // source. The watcher never discovers sessions by enumerating receiver files.
 // A closed watch is resumed from its last cursor; an expired cursor fails.
-func (k Kubernetes) Watch(ctx context.Context, m k6v1.Manifest, selector, container string, watcher *PodWatch) error {
+func (k Kubernetes) Watch(ctx context.Context, m k6v1.Manifest, selector, container string, watcher *PodWatch, ready func(string) error) error {
 	if !objectName.MatchString(m.Namespace) || !objectName.MatchString(container) || selector == "" {
 		return errors.New("K6_POD_WATCH_CONFIG")
 	}
@@ -64,6 +64,12 @@ func (k Kubernetes) Watch(ctx context.Context, m k6v1.Manifest, selector, contai
 			return errors.New("K6_POD_WATCH_GAP")
 		}
 		watcher.progressAt(time.Now())
+		if ready != nil {
+			if err := ready(watcher.Cursor()); err != nil {
+				return errors.New("K6_POD_WATCH_READY")
+			}
+			ready = nil
+		}
 	}
 	return nil
 }
