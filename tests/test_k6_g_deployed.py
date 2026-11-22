@@ -9,7 +9,16 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from dur053_k6_b_evidence import SmokeFailure  # noqa: E402
-from dur053_k6_g_bundle import make_plan, replay, select_cells, write_fence  # noqa: E402
+from dur053_k6_g_bundle import (  # noqa: E402
+    IDLE_RELATIONS,
+    canonical,
+    idle_sources,
+    make_plan,
+    replay,
+    select_cells,
+    sha,
+    write_fence,
+)
 from dur053_k6_g_registration import AUDIENCE, bind_registration, observe_runtime  # noqa: E402
 from dur053_k6_registry import read_registry  # noqa: E402
 
@@ -119,6 +128,41 @@ def test_registered_smoke_selects_lowest_cost_per_arm() -> None:
     plan, requests, allocator = make_plan(binding, effect["seed"], True)
     assert [row["name"] for row in plan["windows"]] == ["warmup", "measured"]
     assert set(requests) == {row["submission_key"] for row in allocator["operations"]}
+
+
+def test_idle_sources_must_be_present_and_sealed(tmp_path: Path) -> None:
+    plan, requests, _ = make_plan(
+        {"namespace": "g", "episode": "hook-0-0", "reset_id": "reset"}, 530001, False, idle=True
+    )
+    assert not requests
+    (tmp_path / "plan.json").write_bytes(canonical(plan))
+    (tmp_path / "arrivals.json").write_bytes(canonical({"rows": []}))
+    (tmp_path / "engine").mkdir()
+    (tmp_path / "broker").mkdir()
+    descriptors = []
+    index = []
+    for name in IDLE_RELATIONS:
+        relation = f"engine.{name}"
+        path = f"engine/{relation}.jsonl"
+        empty = {"length": 0, "sha256": sha(b"")}
+        (tmp_path / path).write_bytes(b"")
+        descriptors.append({**empty, "relation": relation, "count": 0})
+        index.append({**empty, "path": path})
+    (tmp_path / "engine/snapshot.json").write_bytes(canonical({"relations": descriptors}))
+    (tmp_path / "index.json").write_bytes(canonical({"files": index}))
+    broker = tmp_path / "broker/positions.jsonl"
+    prefix = canonical({}) + canonical(
+        {"data": {"partitions": [{"low": 0, "end": 0, "committed": None}]}}
+    )
+    broker.write_bytes(prefix + canonical({"mode": "terminal"}))
+    report = idle_sources(tmp_path)
+    assert len(report["empty_relations"]) == len(IDLE_RELATIONS)
+    broker.write_bytes(prefix + canonical({"mode": "checkpoint"}))
+    with pytest.raises(SmokeFailure, match="G_IDLE_BROKER_TRAFFIC_OR_UNSEALED"):
+        idle_sources(tmp_path)
+    (tmp_path / "index.json").write_bytes(canonical({"files": index[1:]}))
+    with pytest.raises(SmokeFailure, match="G_IDLE_SOURCE_ABSENT"):
+        idle_sources(tmp_path)
 
 
 @pytest.mark.parametrize(

@@ -12,7 +12,9 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "mutations/manifest.json"
 COSTS = ROOT / "mutations/ci-case-costs.csv"
 REPORT_NAMES = {"linux": "results-bash.json", "powershell": "results-powershell.json"}
-SHARD_NAMES = ("with-k6", "without-k6-a", "without-k6-b")
+WITH_K6_SHARDS = ("with-k6-a", "with-k6-b")
+ORDINARY_SHARDS = ("without-k6-a", "without-k6-b")
+SHARD_NAMES = WITH_K6_SHARDS + ORDINARY_SHARDS
 SHARDS = dict.fromkeys(REPORT_NAMES, SHARD_NAMES)
 
 
@@ -49,16 +51,20 @@ def assign_shards(cases: list[dict[str, Any]], platform: str) -> dict[str, str]:
         shard = with_k6 if case_id.startswith("k6") else min(loads, key=loads.__getitem__)
         assigned[case_id] = shard
         loads[shard] += weights[case_id]
-    split_ordinary(
-        [case for case in cases if assigned[case["id"]] == without_k6],
-        assigned,
-        read_costs(f"{platform}_split"),
-    )
+    groups = {
+        label: [case for case in cases if assigned[case["id"]] == label]
+        for label in (with_k6, without_k6)
+    }
+    split_groups(groups[with_k6], assigned, read_costs(f"{platform}_with_k6"), WITH_K6_SHARDS)
+    split_groups(groups[without_k6], assigned, read_costs(f"{platform}_split"), ORDINARY_SHARDS)
     return assigned
 
 
-def split_ordinary(
-    cases: list[dict[str, Any]], assigned: dict[str, str], costs: dict[str, int]
+def split_groups(
+    cases: list[dict[str, Any]],
+    assigned: dict[str, str],
+    costs: dict[str, int],
+    names: tuple[str, str],
 ) -> None:
     # The runner caches by command and environment on the same platform.
     groups: dict[tuple[tuple[str, ...], tuple[tuple[str, str], ...]], list[str]] = defaultdict(list)
@@ -80,7 +86,7 @@ def split_ordinary(
                 group,
             )
         )
-    loads = dict.fromkeys(SHARD_NAMES[1:], 0)
+    loads = dict.fromkeys(names, 0)
     for _, negative_weight, _, group in sorted(ordered):
         shard = min(loads, key=loads.__getitem__)
         assigned.update(dict.fromkeys(group, shard))
@@ -106,7 +112,7 @@ def verify_reports(manifest: dict[str, Any], reports: Path, suffix: str, commit:
                 case_id = result["id"]
                 if case_id in seen or case_id not in expected:
                     raise ValueError(f"{artifact}: duplicate or unknown case {case_id}")
-                if case_id.startswith("k6") and shard != "with-k6":
+                if case_id.startswith("k6") and shard not in WITH_K6_SHARDS:
                     raise ValueError(f"{artifact}: misplaced K6 case {case_id}")
                 case = expected[case_id]
                 code = result.get("exit_code")

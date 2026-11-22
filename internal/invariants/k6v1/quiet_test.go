@@ -267,6 +267,29 @@ func TestK6QuietBetweenCuts(t *testing.T) {
 	wantExternal(t, Verify(bundle), "EXTERNAL_CUT_ACTIVITY", SamplesPath)
 }
 
+func TestK6RetakeRequiresRacedGenerationSamples(t *testing.T) {
+	m, e := quietFixture(t, true)
+	_, barrier, samples := attachQuietData(t, m, e, 30, 32)
+	throughFixture(&e, fixtureAt(32).UTC)
+	raced := barrier.Attempts[0]
+	raced.Reasons = []string{"CUT_RACED:external"}
+	retake := barrier.Attempts[0]
+	retake.Generation = 2
+	barrier.Attempts = []CutAttempt{raced, retake}
+	barrier.SelectedGeneration = 2
+	for i := range samples.Rows {
+		samples.Rows[i].Generation = 2
+	}
+	if err := samples.SealAt(fixtureAt(32).UTC); err != nil {
+		t.Fatal(err)
+	}
+	p, a := fixturePlan(m)
+	issues := verifyExternalQuiet(m, p, a, barrier, e, samples, nil)
+	if !slices.ContainsFunc(issues, func(f Finding) bool { return f.Code == "EXTERNAL_GENERATION_GAP" }) {
+		t.Fatalf("retake without raced generation evidence accepted: %+v", issues)
+	}
+}
+
 func TestK6QuietRegression(t *testing.T) {
 	m, e := quietFixture(t, false)
 	withActivity(&e, 12, "idle_probe")

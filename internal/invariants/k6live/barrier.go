@@ -16,6 +16,7 @@ import (
 )
 
 type observer func() k6v1.Observer
+type observationGate func(context.Context, string, k6v1.QuietSample) error
 
 type database struct {
 	name  string
@@ -24,10 +25,14 @@ type database struct {
 }
 
 func Acquire(ctx context.Context, config Config) error {
-	return acquire(ctx, config, nil)
+	return acquireObserved(ctx, config, nil, smokeGate())
 }
 
 func acquire(parent context.Context, config Config, afterCut func(string, int)) error {
+	return acquireObserved(parent, config, afterCut, nil)
+}
+
+func acquireObserved(parent context.Context, config Config, afterCut func(string, int), gate observationGate) error {
 	if !config.Valid() {
 		return errors.New("K6_LIVE_CONFIG")
 	}
@@ -101,6 +106,9 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 	backoff := 25 * time.Millisecond
 	var acquisitionErr error
 	for generation := 1; ; generation++ {
+		if generation > 1 {
+			gate = nil
+		}
 		attempt := k6v1.CutAttempt{Generation: generation, Started: observe(), Reasons: []string{}, Databases: []k6v1.DatabaseCut{}}
 		if ctx.Err() == nil && len(databases) == 0 {
 			acquisitionErr = openDatabases()
@@ -108,7 +116,7 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 		var externalPre, externalPost k6v1.QuietSample
 		quiet, externalRaced, externalContinuous := false, false, true
 		if acquisitionErr == nil && config.ExternalDir != "" {
-			externalPre, quiet = external.waitQuiet(ctx, generation, quietFloor, databases)
+			externalPre, quiet, acquisitionErr = external.waitQuiet(ctx, generation, quietFloor, databases, gate)
 			attempt.Started = observe()
 		}
 		var files []k6v1.File
@@ -116,7 +124,12 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 		if ctx.Err() == nil && acquisitionErr == nil {
 			stage, acquisitionErr = os.MkdirTemp(dir, ".pair-")
 			if acquisitionErr == nil {
-				attempt.Databases, files, acquisitionErr = capturePair(ctx, m, databases, stage, barrier.ManifestSHA256, generation, observe, afterCut)
+				attempt.Databases, files, acquisitionErr = capturePair(ctx, m, databases, stage, barrier.ManifestSHA256, generation, observe, afterCut, func() error {
+					if gate != nil && quiet {
+						return gate(ctx, "mid-cut", externalPre)
+					}
+					return nil
+				})
 			}
 		}
 		attempt.Finished = observe()
@@ -145,7 +158,7 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 		}
 		barrier.Attempts = append(barrier.Attempts, attempt)
 		retry := acquisitionErr == nil && ctx.Err() == nil && len(attempt.Reasons) != 0 && !expired && externalContinuous
-		if !retry && stage != "" && len(files) != 0 {
+		if canSelect(attempt, stage, files, config.ExternalDir == "" || quiet && externalContinuous) {
 			for _, db := range databases {
 				if err := os.Rename(filepath.Join(stage, db.name), filepath.Join(dir, db.name)); err != nil {
 					return errors.New("K6_BUNDLE_WRITE")
@@ -189,6 +202,10 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 	return err
 }
 
+func canSelect(attempt k6v1.CutAttempt, stage string, files []k6v1.File, continuous bool) bool {
+	return len(attempt.Reasons) == 0 && stage != "" && len(files) != 0 && continuous
+}
+
 func loadSource(path string, target any) ([]byte, error) {
 	raw, err := os.ReadFile(path)
 	if err != nil || k6v1.DecodeStrict(raw, target) != nil {
@@ -223,7 +240,7 @@ func connect(ctx context.Context, db, dsn string) (*pgx.Conn, error) {
 	return conn, nil
 }
 
-func capturePair(ctx context.Context, m k6v1.Manifest, databases []database, stage, manifestHash string, generation int, observe observer, afterCut func(string, int)) ([]k6v1.DatabaseCut, []k6v1.File, error) {
+func capturePair(ctx context.Context, m k6v1.Manifest, databases []database, stage, manifestHash string, generation int, observe observer, afterCut func(string, int), beforePost func() error) ([]k6v1.DatabaseCut, []k6v1.File, error) {
 	cuts := make([]k6v1.DatabaseCut, len(databases))
 	var files []k6v1.File
 	for i, db := range databases {
@@ -243,6 +260,9 @@ func capturePair(ctx context.Context, m k6v1.Manifest, databases []database, sta
 		if afterCut != nil {
 			afterCut(db.name, generation)
 		}
+	}
+	if err := beforePost(); err != nil {
+		return []k6v1.DatabaseCut{}, nil, err
 	}
 	for i, db := range databases {
 		post, err := sample(ctx, db, m, observe)

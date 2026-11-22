@@ -16973,6 +16973,60 @@
       ],
       "expected": "missing required proof must fail: exit=3 status=failed completeness=FAIL",
       "requires_database": false
+    },
+    {
+      "id": "k6g2c2-raced-cut-selected",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6live/barrier.go",
+      "old": "return len(attempt.Reasons) == 0 && stage != \"\"",
+      "new": "return stage != \"\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6live",
+        "-run",
+        "^TestK6RacedCutCannotBeSelected$",
+        "-count=1"
+      ],
+      "expected": "raced cut selected",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2c2-retake-skips-generation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_quiet.go",
+      "old": "\t\t\tif sample.Generation != generation+1 {\n\t\t\t\tadd(\"EXTERNAL_GENERATION_GAP\", SamplesPath)\n\t\t\t}\n",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6RetakeRequiresRacedGenerationSamples$",
+        "-count=1"
+      ],
+      "expected": "retake without raced generation evidence accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2c2-idle-source-unsealed",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_bundle.py",
+      "old": "        and seal[\"mode\"] == \"terminal\"\n",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_g_deployed.py::test_idle_sources_must_be_present_and_sealed"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
     }
   ]
 }

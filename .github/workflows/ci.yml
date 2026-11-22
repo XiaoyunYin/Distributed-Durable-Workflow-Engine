@@ -479,7 +479,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [with-k6, without-k6-a, without-k6-b]
+        shard: [with-k6-a, with-k6-b, without-k6-a, without-k6-b]
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -611,7 +611,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [with-k6, without-k6-a, without-k6-b]
+        shard: [with-k6-a, with-k6-b, without-k6-a, without-k6-b]
     steps:
       - name: Check out source
         uses: actions/checkout@v4

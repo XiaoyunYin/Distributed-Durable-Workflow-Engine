@@ -353,6 +353,9 @@ func verifyExternalQuiet(m Manifest, plan Plan, arrivals Arrivals, cut Barrier, 
 		}
 		changed := activity || !slices.Equal(previous.Databases, sample.Databases)
 		if generation != sample.Generation {
+			if sample.Generation != generation+1 {
+				add("EXTERNAL_GENERATION_GAP", SamplesPath)
+			}
 			if phase != "" && phase != "post" {
 				add("EXTERNAL_PHASE_ORDER", SamplesPath)
 			}

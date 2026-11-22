@@ -12,6 +12,7 @@ import uuid
 from contextvars import ContextVar
 from datetime import UTC, datetime
 from pathlib import Path
+from queue import Empty, SimpleQueue
 from typing import Any
 
 from workers.k4_witness import persistence_failure, sync_directory
@@ -56,6 +57,8 @@ class WorkerLedger:
         self.lock = threading.Lock()
         self.rows: list[bytes] = []
         self.closed = False
+        self.timings: SimpleQueue[dict[str, Any]] = SimpleQueue()
+        self.reported_timings: list[dict[str, Any]] = []
         self.session = {
             "id": self.session_id,
             "claimant": identifier(os.environ.get("DUR053_K6_G_CLAIMANT") or worker_identity()),
@@ -117,7 +120,9 @@ class WorkerLedger:
                     }
                 )
             )
+            started = time.monotonic_ns()
             self._persist("checkpoint")
+            self.record_timing("append", started, kind=kind, sequence=len(self.rows))
 
     def _persist(self, mode: str) -> None:
         raw = b"".join(self.rows)
@@ -150,8 +155,35 @@ class WorkerLedger:
     def checkpoint(self, terminal: bool = False) -> None:
         with self.lock:
             if not self.closed:
+                started = time.monotonic_ns()
                 self._persist("terminal" if terminal else "checkpoint")
+                self.record_timing("terminal" if terminal else "checkpoint", started)
                 self.closed = terminal
+        self.flush_timings()
+
+    def record_timing(self, operation: str, started: int, **fields: Any) -> None:
+        self.timings.put(
+            {"operation": operation, "elapsed_ns": time.monotonic_ns() - started, **fields}
+        )
+
+    def flush_timings(self) -> None:
+        # Called by the main-thread checkpoint, outside the ledger lock. Activity
+        # threads only timestamp and enqueue. This diagnostic is not a ledger input.
+        try:
+            while True:
+                self.reported_timings.append(self.timings.get_nowait())
+        except Empty:
+            pass
+        path = self.path.with_suffix(".timings.json")
+        temporary = path.with_suffix(".pending")
+        try:
+            temporary.write_bytes(
+                encoded({"session": self.session_id, "rows": self.reported_timings})
+            )
+            temporary.replace(path)
+        except OSError:
+            # The hosted harness checks timing completeness independently.
+            pass
 
     def begin(
         self,

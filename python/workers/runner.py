@@ -197,6 +197,7 @@ class ActivityRunner:
                 else None
             )
             completed = False
+            effect_started = time.monotonic_ns() if g_invocation is not None else 0
             try:
                 result = self.k6.run(task, claim, self.control, ensure_current, claim_started)
                 completed = True
@@ -206,6 +207,7 @@ class ActivityRunner:
                     k6_evidence.active.reset(context)
                 if evidence is not None and g_invocation is not None:
                     invocation_id, attempt = g_invocation
+                    evidence.record_timing("activity", effect_started, invocation=invocation_id)
                     evidence.append(
                         "finish" if completed else "abort", invocation_id, attempt=attempt
                     )
@@ -252,7 +254,14 @@ class ActivityRunner:
                         ),
                     },
                 )
-            payload = activity(task.input)
+            if evidence is None or pure_entry is None:
+                payload = activity(task.input)
+            else:
+                payload_started = time.monotonic_ns()
+                try:
+                    payload = activity(task.input)
+                finally:
+                    evidence.record_timing("activity", payload_started, invocation=pure_entry[0])
         except Exception as error:
             payload = {"error": str(error), "type": type(error).__name__}
             attempt_state = "FAILED_RETRYABLE"

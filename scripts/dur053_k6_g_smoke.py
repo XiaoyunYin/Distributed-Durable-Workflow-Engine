@@ -11,6 +11,7 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Callable, Iterator
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
 from datetime import datetime
 from pathlib import Path
@@ -35,16 +36,22 @@ from dur053_k6_d_render import NS as D_NAMESPACE
 from dur053_k6_d_smoke import SQL, Matrix, definition_sql
 from dur053_k6_e1_join import EVENTS, GROUP, TASKS
 from dur053_k6_g_bundle import (
+    BROKER_PATH,
     Json,
     canonical,
+    idle_sources,
     make_plan,
+    quiet_summary,
+    read_json,
     replay,
     select_cells,
     sha,
+    verify_retake,
     wire,
     write_fence,
 )
 from dur053_k6_g_registration import AUDIENCE, INTAKE, bind_registration, observe_runtime, utc
+from dur053_k6_g_timings import ledger_cost
 from dur053_k6_identity import REVIEWER, WORKER, obj
 from dur053_k6_registry import REGISTRY, read_registry
 
@@ -108,12 +115,21 @@ class Episode(Matrix):
     inputs_schema = "dur053.k6-phase-g-inputs.v1"
 
     def __init__(
-        self, evidence: PhaseGEvidence, scratch: Path, harness: Driver, shared: Path, cell: Json
+        self,
+        evidence: PhaseGEvidence,
+        scratch: Path,
+        harness: Driver,
+        shared: Path,
+        cell: Json,
+        *,
+        idle: bool,
     ) -> None:
         self.effect = cell["workload"] == "COOPERATING_EFFECT"
+        self.idle = idle
         self.arm = "effect" if self.effect else "pure"
-        self.namespace = "dur053-g-" + self.arm
-        self.database = f"dur053_g_{self.arm}"
+        instance = "idle" if idle else self.arm
+        self.namespace = "dur053-g-" + instance
+        self.database = f"dur053_g_{instance}"
         self.sink_container = CLUSTER + "-g-sink-db"
         self.sink_volume = self.sink_container + "-data"
         super().__init__(evidence, scratch, harness)  # type: ignore[no-untyped-call]
@@ -406,7 +422,7 @@ class Episode(Matrix):
                 "G_ENGINE_INSTANCE", "SELECT system_identifier FROM pg_control_system();"
             )
         plan, self.requests, self.allocator_plan = make_plan(
-            self.binding, self.cell["seed"], self.effect
+            self.binding, self.cell["seed"], self.effect, idle=self.idle
         )
         self.public_plan = plan
         plan_raw = canonical(plan)
@@ -714,6 +730,8 @@ class Episode(Matrix):
             # Leave the killed container's checkpoint for the receiver.
             target = initial[0]["pod_name"]
             self.ready("worker")
+            timing = self.witness_dir / f"{sessions[0]['id']}.timings.json"
+            self.wait_for(lambda: timing if timing.is_file() else None, "G_RESTART_TIMING_MISSING")
             self.command(
                 "G_RESTART_CONTAINER",
                 "docker",
@@ -797,7 +815,7 @@ class Episode(Matrix):
     def offers(self, jail: Path, token: str) -> None:
         arrivals = []
         operations = {row["submission_key"]: row for row in self.allocator_plan["operations"]}
-        for window in self.public_plan["windows"]:
+        for window in self.public_plan["windows"] if not self.idle else ():
             [entry] = window["submissions"]
             key = entry["submission_key"]
             sent = utc()
@@ -963,7 +981,23 @@ class Episode(Matrix):
             self.evidence.write(name + ".exit.json", {"exit_code": run.returncode})
             return run.returncode, run.stdout
 
-        code, live = invoke(("sudo", checker, "-k6-live-v1", str(path)), "live", 140)
+        launch = (checker, "-k6-live-v1", str(path))
+        receipts = []
+        if self.effect:
+            gates = self.scratch / "observation-gates"
+            gates.mkdir()
+            with ThreadPoolExecutor(max_workers=1) as executor:
+                result = executor.submit(
+                    invoke,
+                    ("sudo", "env", f"DUR053_K6_G_OBSERVATION_GATE={gates}", *launch),
+                    "live",
+                    140,
+                )
+                for phase in ("before-pre", "mid-cut"):
+                    receipts.append(self.inject(gates, phase, result.done))
+                code, live = result.result()
+        else:
+            code, live = invoke(("sudo", *launch), "live", 140)
         require(code == 3, f"G_LIVE_EXIT_{code}")
 
         def offline(directory: Path, name: str) -> tuple[int, bytes]:
@@ -979,6 +1013,73 @@ class Episode(Matrix):
             "witness/effect-ingress.jsonl" if self.effect else "witness/topology.json",
             offline,
         )
+        bundle = output / "bundle"
+        quiet = quiet_summary(bundle)
+        self.evidence.write("quiet-generations.json", quiet)
+        if self.effect:
+            verify_retake(quiet, receipts, self.fenced_utc)
+        if self.idle:
+            self.evidence.write("idle-sources.json", idle_sources(bundle))
+        timings = [
+            json.loads(
+                self.root_read(
+                    self.witness_dir / f"{entry['registration']['session']['id']}.timings.json"
+                )
+            )
+            for entry in self.intake
+        ]
+        self.evidence.write("worker-ledger-timings.json", timings)
+        self.evidence.write(
+            "worker-ledger-cost.json", ledger_cost(bundle, timings, effect=self.effect)
+        )
+
+    def inject(self, gates: Path, phase: str, checker_done: Callable[[], bool]) -> Json:
+        request = gates / f"{phase}.json"
+
+        def signal() -> Path | None:
+            require(not checker_done(), "G_CHECKER_EXITED_BEFORE_" + phase.upper())
+            return request if request.is_file() else None
+
+        self.wait_for(signal, "G_GATE_MISSING_" + phase.upper(), seconds=75)
+        observer = read_json(request)
+        marker = f"g2c2-{phase}-{self.binding['barrier_id']}"
+        receipt: Json = json.loads(
+            self.command(
+                "G_EXTERNAL_BROKER_WRITE",
+                "docker",
+                "exec",
+                NODE,
+                str(self.shared / "injector"),
+                "kafka:19092",
+                EVENTS,
+                marker,
+                timeout=4,
+            )
+        )
+        receipt.update(marker=marker, observer=observer)
+        self.evidence.write(f"inject-{phase}.json", receipt)
+
+        def saw_write(folder: Path) -> bool:
+            _, *observations, seal = [
+                json.loads(line) for line in self.root_read(folder / BROKER_PATH).splitlines()
+            ]
+            row = observations[-1]
+            if seal["mode"] != "terminal" or not any(
+                p["topic"] == receipt["topic"]
+                and p["partition"] == receipt["partition"]
+                and p["end"] == receipt["end"]
+                for p in row["data"]["partitions"]
+            ):
+                return False
+            receipt.update(
+                frame=folder.name, frame_sequence=row["position"]["sequence"], broker=row
+            )
+            return True
+
+        self.wait_for(lambda: self.frame(saw_write), "G_INJECT_WRITE_NOT_OBSERVED", seconds=3)
+        (gates / f"{phase}.ack").touch()
+        self.evidence.write(f"inject-{phase}.json", receipt)
+        return receipt
 
     def execute(self, addresses: dict[str, str]) -> None:
         with self.evidence.step("reset-and-deployment"):
@@ -1035,9 +1136,14 @@ class Episode(Matrix):
                     )
                     self.evidence.write_bytes("decision-journal.jsonl", self.decisions.read_bytes())
                 write_fence(self.fence, self.binding, stops)
+                self.fenced_utc = utc()
                 self.evidence.write(
                     "writer-fence.json",
-                    {"fence": self.binding, "admission_stopped_utc": stops, "fenced_utc": utc()},
+                    {
+                        "fence": self.binding,
+                        "admission_stopped_utc": stops,
+                        "fenced_utc": self.fenced_utc,
+                    },
                 )
 
                 def fenced(folder: Path) -> bool:
@@ -1106,9 +1212,10 @@ def run(output: Path) -> int:
             kind_config = kind / "phase-g-cluster.json"
             kind_config.write_bytes(canonical(config))
             addresses = harness.cluster(config=kind_config)
-            for name, package in (
-                ("collector", "dur053-k6-collect"),
-                ("checker", "dur049-checker"),
+            for name, package, flags in (
+                ("collector", "dur053-k6-collect", []),
+                ("checker", "dur049-checker", ["-tags=k6g2c_smoke"]),
+                ("injector", "dur053-k6-g-inject", []),
             ):
                 harness.command(
                     [
@@ -1117,6 +1224,7 @@ def run(output: Path) -> int:
                         "-p",
                         "1",
                         "-trimpath",
+                        *flags,
                         "-o",
                         str(shared / name),
                         "./cmd/" + package,
@@ -1124,15 +1232,16 @@ def run(output: Path) -> int:
                     env=dict(harness.env, CGO_ENABLED="0"),
                     timeout=300,
                 )
-        for cell in select_cells(read_registry()):
-            name = cell["episode"]
+        pure, effect = select_cells(read_registry())
+        for cell, idle in ((pure, False), (pure, True), (effect, False)):
+            name = cell["episode"] + ("-idle" if idle else "")
             with evidence.step("episode-" + name):
                 episode_path = output / "episodes" / name
                 episode_path.mkdir(parents=True)
                 arm_evidence = PhaseGEvidence(episode_path)
                 private = scratch / name
                 private.mkdir()
-                arm = Episode(arm_evidence, private, harness, shared, cell)
+                arm = Episode(arm_evidence, private, harness, shared, cell, idle=idle)
                 try:
                     if arm.effect:
                         Smoke.build(arm)

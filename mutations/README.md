@@ -43,14 +43,14 @@ rerun in the current local environment.
 
 ## Current CI layout and timing
 
-The Bash and PowerShell gates each run three shards, `with-k6`, `without-k6-a`
-and `without-k6-b`.
+The Bash and PowerShell gates each run four shards, `with-k6-a`, `with-k6-b`,
+`without-k6-a` and `without-k6-b`.
 Each shard bootstraps its own Compose stack and mutation database, isolates
 the runtime/worker relays, then drops the database, restores the relays,
 uploads results and diagnostics, and tears down its stack. Each mutation
 step retains its 75-minute limit within a 100-minute job.
 
-The selector pins all IDs starting with `k6` to `with-k6`. It sorts the
+The selector pins all IDs starting with `k6` to the `with-k6` pool. It sorts the
 remaining cases by descending recorded cost and ascending case ID, placing
 each on the shard with the lower estimated load. Ties go to `with-k6`.
 The per-shell [weights](ci-case-costs.csv) use the larger of the case wall
@@ -60,17 +60,20 @@ rounded up to milliseconds. A case without measurements uses the upper
 median of known costs (one second if none are available). The selector reads
 the manifest on every run, and preserves its order within each shard.
 
-The selector then splits the ordinary pool into `-a` and `-b`, keeping each
-command and environment group together for baseline reuse. The split columns
+The selector then splits each pool into `-a` and `-b`, keeping each
+command and environment group within a pool together for baseline reuse. The ordinary split columns
 record the higher case wall time from runs
 [44995155454](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/44995155454)
 and [44998501161](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/44998501161).
+The `with-k6` split columns use the same method on runs
+[45020845008](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45020845008)
+and [45025143230](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45025143230).
 Measured groups retain their placement as unmeasured cases are added.
 
-`Mutation gate coverage` requests all six result artifacts for the current
+`Mutation gate coverage` requests all eight result artifacts for the current
 run and attempt. It requires both matrices to pass and verifies each report
 against the tested checkout. For each shell, every manifest ID must appear
-exactly once across its three reports with a passing baseline and the expected
+exactly once across its four reports with a passing baseline and the expected
 detection.
 
 Result artifacts are `dur046-mutation-results-<platform>-<shard>-<run_id>-<attempt>`
