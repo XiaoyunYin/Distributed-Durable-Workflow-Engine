@@ -535,7 +535,8 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 			hashesForRequest = map[any]bool{}
 			requests[t.RequestIDHash] = hashesForRequest
 		}
-		hashesForRequest[t.Request.SHA256] = true
+		// The persisted binding commits the operation as well as the request bytes.
+		hashesForRequest[Hash([]byte(t.Operation+"\x00"+t.Request.SHA256))] = true
 	}
 	for _, id := range sortedKeys(traffic) {
 		if !first[id] {

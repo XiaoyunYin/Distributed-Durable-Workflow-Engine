@@ -16935,6 +16935,25 @@
       ],
       "expected": "DID NOT RAISE",
       "requires_database": false
+    },
+    {
+      "id": "k6g2c-sink-request-binding-domain",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "hashesForRequest[Hash([]byte(t.Operation+\"\\x00\"+t.Request.SHA256))] = true",
+      "new": "hashesForRequest[t.Request.SHA256] = true",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6IngressRequestBindingDomain$",
+        "-count=1"
+      ],
+      "expected": "operation-bound sink request rejected",
+      "requires_database": false
     }
   ]
 }

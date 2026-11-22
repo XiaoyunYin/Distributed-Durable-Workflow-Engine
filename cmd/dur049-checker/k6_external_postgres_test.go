@@ -220,7 +220,7 @@ func seedParityEffect(t *testing.T, engine, sink *pgx.Conn, workflow string, sou
 			app = &v.ApplicationID
 			response = &v.Response.SHA256
 		}
-		execK6SQL(t, sink, `INSERT INTO k6_sink.request_bindings VALUES ($1,$2)`, request, v.Traffic.Request.SHA256)
+		execK6SQL(t, sink, `INSERT INTO k6_sink.request_bindings VALUES ($1,$2)`, request, k6v1.Hash([]byte(op+"\x00"+v.Traffic.Request.SHA256)))
 		execK6SQL(t, sink, `INSERT INTO k6_sink.calls(operation,workflow_id,logical_key,intent_id,resource_id,message_id,attempt,request_id,body_hash,connection_hash,outcome,application_id,response_hash)
 			VALUES ($1,$2,'key',$3,'resource',$4,1,$5,$6,$7,$8,$9,$10)`, op, workflow, parityIntent, message, request, v.Traffic.Request.SHA256, v.ConnectionHash,
 			[]string{"ALLOCATED", "APPLIED", "FOUND"}[i], app, response)

@@ -94,7 +94,7 @@ func fixtureExternal(t *testing.T, effect bool) (Manifest, External, map[string]
 				call["application_id"] = app
 			}
 			rows[SinkCalls] = append(rows[SinkCalls], call)
-			rows[SinkBindings] = append(rows[SinkBindings], Row{"request_id": id, "body_hash": traffic.Request.SHA256})
+			rows[SinkBindings] = append(rows[SinkBindings], Row{"request_id": id, "body_hash": fixtureHash(op + "\x00" + traffic.Request.SHA256)})
 			ingress = append(ingress, IngressRow{Traffic: traffic, Ordinal: int64(idx + 1), Copy: 1, PeerHash: fixtureHash("peer"),
 				ConnectionHash: call["connection_hash"].(string), Outcome: "delivered", Response: &reply, ApplicationID: app, Acknowledged: true})
 		}
@@ -259,6 +259,18 @@ func TestK6IngressUnacknowledged(t *testing.T) {
 	wantExternal(t, r, "INGRESS_UNACKNOWLEDGED", IngressPath)
 	if r.Safety != "FAIL" || r.Labels[7].Outcome != "covered/fail" {
 		t.Fatalf("unacknowledged ingress escaped safety: %+v", r)
+	}
+}
+
+func TestK6IngressRequestBindingDomain(t *testing.T) {
+	m, e, rows := fixtureExternal(t, true)
+	if r := externalVerdict(t, m, e, rows, nil); len(r.Findings) != 0 {
+		t.Fatalf("operation-bound sink request rejected: %+v", r.Findings)
+	}
+	apply := e.Ingress.Rows[1].Data.Traffic
+	for _, wrong := range []string{apply.Request.SHA256, fixtureHash("lookup\x00" + apply.Request.SHA256)} {
+		rows[SinkBindings][1]["body_hash"] = wrong
+		wantExternal(t, externalVerdict(t, m, e, rows, nil), "SINK_BINDING_WITHOUT_INGRESS", RelationPath(SinkBindings))
 	}
 }
 
