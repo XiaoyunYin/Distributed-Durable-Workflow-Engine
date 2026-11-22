@@ -14,6 +14,9 @@ import mutation_shards as shards  # noqa: E402
 @pytest.mark.parametrize("platform", shards.REPORT_NAMES)
 def test_all_manifest_cases_are_assigned_even_after_growth(platform: str) -> None:
     cases = shards.read_manifest(shards.MANIFEST)["cases"]
+    unpinned = shards.assign_shards([case for case in cases if "ci_shard" not in case], platform)
+    assignment = shards.assign_shards(cases, platform)
+    assert all(assignment[case_id] == owner for case_id, owner in unpinned.items())
     growth = [
         {"id": "new-unmeasured-case", "command": ["ordinary-test"]},
         {"id": "k6-new-unmeasured-case", "command": ["k6-test"]},

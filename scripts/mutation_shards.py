@@ -94,7 +94,8 @@ def split_groups(
             raise ValueError(f"invalid shard pin for mutation command group {group}")
         shard = next(iter(pins)) if pins else min(loads, key=loads.__getitem__)
         assigned.update(dict.fromkeys(group, shard))
-        loads[shard] -= negative_weight
+        if not pins:
+            loads[shard] -= negative_weight
 
 
 def verify_reports(manifest: dict[str, Any], reports: Path, suffix: str, commit: str) -> None:
