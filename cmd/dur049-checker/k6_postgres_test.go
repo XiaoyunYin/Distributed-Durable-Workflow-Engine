@@ -133,8 +133,8 @@ func seedK6Postgres(t *testing.T, conn *pgx.Conn) {
 		FROM generate_series(1,1001) i;
 		INSERT INTO engine.node_instances(workflow_id,node_id,iteration,state,input,accepted_result)
 		VALUES ('dur053-fixture-warmup-530001-000000','pure.echo',0,'SUCCEEDED','{"cell":"hook-0"}','{"position":3,"value":"k6"}');
-		INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class,claim_token,worker_id,worker_request_id)
-		VALUES ('dur053-fixture-warmup-530001-000000','pure.echo',0,1,'SUCCEEDED','PURE_ACTIVITY','`+claimSecret+`','worker','request');
+		INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class,claim_token,worker_id,worker_request_id,grant_scope_hash)
+		VALUES ('dur053-fixture-warmup-530001-000000','pure.echo',0,1,'SUCCEEDED','PURE_ACTIVITY','`+claimSecret+`','worker','request','pure.echo');
 		INSERT INTO engine.approval_action_intents(intent_id,workflow_id,node_id,iteration,proposal_hash,target,canonical_arguments,valid_until,grant_token,decision_reason)
 		VALUES ('00000000-0000-0000-0000-000000000001','dur053-fixture-warmup-530001-000000','pure.echo',0,'hash','pure.echo','{"position":3,"value":"k6"}',
 			clock_timestamp(),'`+grantSecret+`','`+nestedSecret+`');
@@ -314,6 +314,10 @@ func TestK6EngineExport(t *testing.T) {
 	}
 	if len(bundle[k6v1.RelationPath("effects.effect_records")].Data) != 0 {
 		t.Fatal("empty effect relation was not exported as empty bytes")
+	}
+	attemptBytes := bundle[k6v1.RelationPath("engine.activity_attempts")].Data
+	if !bytes.Contains(attemptBytes, []byte(`"grant_scope_hash":"`+k6v1.Hash([]byte("pure.echo"))+`"`)) {
+		t.Fatal("PURE scope did not retain its digest representation")
 	}
 	t.Run("TokenHashing", func(t *testing.T) {
 		for _, tc := range []struct{ relation, key, token string }{

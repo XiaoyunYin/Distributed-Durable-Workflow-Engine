@@ -56,6 +56,11 @@ func sqlProjection(col k6v1.Column) string {
 		return source + "::bigint"
 	case k6v1.Token:
 		return "encode(sha256(convert_to(" + source + "::text, 'UTF8')), 'hex')"
+	case k6v1.AttemptScope:
+		// The ordinary scheduler stores the node name as PURE scope.
+		// A cooperating scope is already a digest and must compare as written.
+		return `CASE WHEN "effect_class" = 'PURE_ACTIVITY' AND ` + source + ` = "node_id" THEN ` +
+			"encode(sha256(convert_to(" + source + ", 'UTF8')), 'hex') ELSE " + source + " END"
 	case k6v1.UUID:
 		return source + "::text"
 	default:
@@ -196,7 +201,7 @@ func scanRow(rows pgx.Rows, spec k6v1.Relation) (k6v1.Row, string, error) {
 	dest[len(spec.Columns)] = &sourceDigest
 	for i, col := range spec.Columns {
 		switch col.Kind {
-		case k6v1.Text, k6v1.UUID, k6v1.Digest, k6v1.Token, k6v1.WireHash, "traceparent", "container_id":
+		case k6v1.Text, k6v1.UUID, k6v1.Digest, k6v1.Token, k6v1.WireHash, k6v1.AttemptScope, "traceparent", "container_id":
 			dest[i] = new(*string)
 		case k6v1.Integer, k6v1.WireLength:
 			dest[i] = new(*int64)
