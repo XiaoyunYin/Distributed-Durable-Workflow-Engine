@@ -94,30 +94,51 @@ def test_phase_f_has_its_own_pr_only_kind_job_and_artifacts() -> None:
         )
 
 
-def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> None:
+def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
     services = dict(_job_steps(workflow, "services"))
+    race = dict(_job_steps(workflow, "services-race"))
+    k6_g1_step = "Verify K6 G1 engine evidence on PostgreSQL"
     k6_g2_step = "Verify K6 G2 cuts and external evidence against two PostgreSQL instances"
-    assert "    timeout-minutes: 25\n" in jobs["services"]
-    assert not any("mutation" in name.lower() for name in services)
-    assert list(services) == [
+    for job in ("services", "services-race"):
+        assert "    timeout-minutes: 25\n" in jobs[job]
+        assert not re.search(r"^    (needs|if):", jobs[job], re.MULTILINE)
+    setup = [
         "Check out source",
         "Set up Go",
         "Set up Python",
         "Set up uv",
         "Bootstrap the isolated service stack",
-        "Run tagged K6 Go tests against PostgreSQL",
-        "Verify K6 G1 engine evidence on PostgreSQL",
-        k6_g2_step,
-        "Run service-backed checks and race tests",
-        "Start isolated DUR-055 PostgreSQL and pgvector",
-        "Validate DUR-055 PostgreSQL FTS and pgvector retrieval",
-        "Stop isolated DUR-055 PostgreSQL and pgvector",
+    ]
+    cleanup = [
         "Collect service diagnostics",
         "Upload service diagnostics",
         "Tear down the isolated service stack",
     ]
+    assert list(services) == [
+        *setup,
+        "Run tagged K6 Go tests against PostgreSQL",
+        "Run service-backed checks",
+        "Start isolated DUR-055 PostgreSQL and pgvector",
+        "Validate DUR-055 PostgreSQL FTS and pgvector retrieval",
+        "Stop isolated DUR-055 PostgreSQL and pgvector",
+        *cleanup,
+    ]
+    assert list(race) == [
+        *setup,
+        k6_g1_step,
+        k6_g2_step,
+        "Run service-backed race and sink contract checks",
+        *cleanup,
+    ]
+    for steps in (services, race):
+        assert "./scripts/bootstrap.ps1 -StartServices" in steps[setup[-1]]
+        for step in cleanup:
+            assert "if: always()" in steps[step]
+        assert "down --volumes --remove-orphans" in steps[cleanup[-1]]
+    assert "name: service-diagnostics-" in services[cleanup[1]]
+    assert "name: service-race-diagnostics-" in race[cleanup[1]]
     tagged = services["Run tagged K6 Go tests against PostgreSQL"]
     assert "shell: pwsh" in tagged
     assert "DURABLE_REQUIRE_DATABASE: '1'" in tagged
@@ -129,28 +150,46 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
     assert "'TestK6LeaseTakeoverPinsIdleBackendAndFencesOriginalAttempt'" in tagged
     assert "'TestK6RenewalIdleTimeoutTerminatesRealTransaction'" in tagged
     assert "'TestK6SchedulerRenewalDefersFencedReleaseAfterTakeover'" in tagged
-    k6_g1 = services["Verify K6 G1 engine evidence on PostgreSQL"]
+    k6_g1 = race[k6_g1_step]
     assert "DURABLE_REQUIRE_DATABASE: '1'" in k6_g1
     assert (
         "go test -p 1 -count=1 -v ./cmd/dur049-checker "
         "-run 'K6EngineExport|K6Census|LegacyParityPostgres'" in k6_g1
     )
-    k6_g2 = services[k6_g2_step]
+    k6_g2 = race[k6_g2_step]
     assert "DURABLE_REQUIRE_K6_PAIR: '1'" in k6_g2
     assert "postgres:18.6-bookworm" in k6_g2
     assert "go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/..." in k6_g2
     assert "K6Roster|K6Session|K6Ingress|K6Decision|K6Broker|K6Quiet|K6Topology|K6Orphan" in k6_g2
     assert "finally" in k6_g2 and "docker rm -f $sink" in k6_g2
     assert (
-        "./scripts/ci.ps1 -WithServices -WithRace"
-        in services["Run service-backed checks and race tests"]
+        services["Run service-backed checks"]
+        .rstrip()
+        .endswith("run: ./scripts/ci.ps1 -WithServices")
     )
+    assert (
+        race["Run service-backed race and sink contract checks"]
+        .rstrip()
+        .endswith("run: ./scripts/ci.ps1 -WithServices -RaceOnly")
+    )
+    entrypoint = (ROOT / "scripts/ci.ps1").read_text(encoding="utf-8")
+    assert "go test -race -p 1 ./..." in entrypoint
+    assert "if ($WithRace -or $RaceOnly) { $sinkTestArgs += '-race' }" in entrypoint
+    assert "go @sinkTestArgs ./internal/effects/k6sink -run 'K6Sink'" in entrypoint
+    assert entrypoint.index("if ($RaceOnly) { return }") < entrypoint.index("/smoke.ps1")
+
+
+def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> None:
+    workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+    jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
     for platform, shell, output in (
         ("powershell", "PowerShell", "powershell"),
         ("linux", "Linux", "bash"),
     ):
         job = jobs[f"mutation-{platform}"]
-        assert f"    name: {shell} mutation gate\n" in job
+        assert f"    name: {shell} mutation gate (${{{{ matrix.shard }}}})\n" in job
+        assert "        shard: [with-k6, without-k6]\n" in job
+        assert "      fail-fast: false\n" in job
         assert "    runs-on: ubuntu-24.04\n" in job
         assert "    timeout-minutes: 100\n" in job
         assert not re.search(r"^    (needs|if):", job, re.MULTILINE)
@@ -162,6 +201,7 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
         assert (
             names.index("Bootstrap the isolated service stack")
             < names.index("Isolate deployed relays for mutation gates")
+            < names.index("Select mutation cases")
             < names.index(gate_name)
             < names.index("Drop isolated mutation databases")
             < names.index("Restore deployed relays after mutation gates")
@@ -176,6 +216,9 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
             "stop runtime-a runtime-b worker-a worker-b"
             in by_name["Isolate deployed relays for mutation gates"]
         )
+        selector = by_name["Select mutation cases"]
+        assert f"mutation_shards.py select {platform} ${{{{ matrix.shard }}}}" in selector
+        assert '$RUNNER_TEMP/mutation-shard.json"' in selector
         gate = by_name[gate_name]
         assert "timeout-minutes: 75" in gate
         assert f"dur046_mutation_{platform}" in gate
@@ -184,9 +227,13 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
         if platform == "powershell":
             assert "shell: pwsh" in gate
             assert "./scripts/mutation-gate.ps1 -Output mutations/results-powershell.json" in gate
+            assert '-Manifest (Join-Path $env:RUNNER_TEMP "mutation-shard.json")' in gate
         else:
             assert "shell: bash" in gate
-            assert "bash scripts/mutation-gate.sh" in gate
+            assert (
+                "bash scripts/mutation-gate.sh mutations/results-bash.json "
+                '"$RUNNER_TEMP/mutation-shard.json"' in gate
+            )
         drop = by_name["Drop isolated mutation databases"]
         assert f"@('dur046_mutation_{platform}')" in drop
         assert "DROP DATABASE IF EXISTS $database WITH (FORCE)" in drop
@@ -204,11 +251,28 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
         ):
             assert "if: always()" in by_name[name]
         upload = by_name["Upload mutation results"]
-        assert f"name: dur046-mutation-results-{platform}-${{{{ github.run_id }}}}" in upload
+        suffix = "${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}"
+        assert f"name: dur046-mutation-results-{platform}-{suffix}" in upload
         assert f"path: mutations/results-{output}.json" in upload
         assert "if-no-files-found: error" in upload
-        assert f"name: mutation-{platform}-diagnostics-" in by_name["Upload service diagnostics"]
+        assert (
+            f"name: mutation-{platform}-diagnostics-{suffix}"
+            in by_name["Upload service diagnostics"]
+        )
         assert "down --volumes --remove-orphans" in by_name["Tear down the isolated service stack"]
+    coverage = jobs["mutation-coverage"]
+    assert "    needs: [mutation-linux, mutation-powershell]\n" in coverage
+    assert "    if: always()\n" in coverage
+    steps = dict(_job_steps(workflow, "mutation-coverage"))
+    download = steps["Download mutation shard reports"]
+    assert "uses: actions/download-artifact@v4" in download
+    assert "dur046-mutation-results-*-${{ github.run_id }}-${{ github.run_attempt }}" in download
+    verify = steps["Verify both complete mutation gates"]
+    assert (
+        'test "$LINUX_RESULT" = success' in verify
+        and 'test "$POWERSHELL_RESULT" = success' in verify
+    )
+    assert "mutation_shards.py verify" in verify and "$(git rev-parse HEAD)" in verify
     artifacts = re.findall(r"^          name: (.+)$", workflow, re.MULTILINE)
     assert len(artifacts) == len(set(artifacts)), "artifact names collide across parallel jobs"
 
@@ -224,7 +288,15 @@ def test_pilot_ci_proof_names_cover_every_main_push_job() -> None:
             continue
         name = re.search(r"^    name: (.+)$", job, re.MULTILINE)
         assert name is not None
-        names.add(name.group(1))
+        if "${{ matrix.shard }}" in name.group(1):
+            matrix = re.search(r"^        shard: \[([\w, -]+)\]$", job, re.MULTILINE)
+            assert matrix is not None
+            names.update(
+                name.group(1).replace("${{ matrix.shard }}", shard)
+                for shard in matrix.group(1).split(", ")
+            )
+        else:
+            names.add(name.group(1))
     assert names == REQUIRED_CI_JOBS
 
 

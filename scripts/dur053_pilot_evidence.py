@@ -39,6 +39,7 @@ TOOLING = [
     "tests",
     ".github/workflows",
     "mutations/manifest.json",
+    "mutations/ci-case-costs.csv",
     "go.mod",
     "go.sum",
     "pyproject.toml",
