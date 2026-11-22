@@ -138,7 +138,6 @@ def run(output: Path, scratch_root: Path, name: str, *, engineering: bool = Fals
         for addon, lock in LOCK["addons"].items():
             if lock["installed_in_k3a"]:
                 d.prepare_addon(addon)
-        d.preload_addons()
         addresses = d.cluster()
         units = 10000
         if engineering or (job_base(name) == "k3-pilot-1b" and "-c" not in name):

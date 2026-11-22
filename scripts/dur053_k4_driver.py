@@ -374,7 +374,6 @@ class K4Driver:
         for name, tool in LOCK["addons"].items():
             if tool["installed_in_k3a"]:
                 self.base.prepare_addon(name)
-        self.base.preload_addons()
         addresses = self.base.cluster()
         install_chaos_backend(self.base, self.output)
         self.validate_backend()

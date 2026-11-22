@@ -340,7 +340,6 @@ class Matrix(D2aMatrix):
         backend.scratch = backend.output = self.scratch / "chaos"
         (backend.scratch / "bin").mkdir(parents=True)
         backend.addon_images = render_chaos_backend(backend, backend.scratch, backend.output)
-        backend.preload_addons()
         backend.load_addons()
         self.chaos_started = True
         install_chaos_backend(backend, backend.output)

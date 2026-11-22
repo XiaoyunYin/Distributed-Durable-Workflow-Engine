@@ -1,7 +1,7 @@
 # DUR-046 mutation gate
 
 The manifest contains selected safety mutations, one per contract guard. It
-currently has 596 cases, including behavioral mutations and configuration tripwires.
+includes behavioral mutations and configuration tripwires.
 The gate exports the committed `HEAD` into a disposable directory, applies
 exactly one mutation, and requires the check declared by that case to fail. A
 compile error, skipped test, no-test result, or unrelated failure is not a
@@ -43,26 +43,38 @@ rerun in the current local environment.
 
 ## Current CI layout and timing
 
-`PowerShell mutation gate` (`mutation-powershell`) and `Linux mutation gate`
-(`mutation-linux`) run in parallel on separate Ubuntu runners, each with its
-own bootstrapped Compose stack and migration-complete mutation database.
-Each gate stops deployed runtime/worker relays before testing, then drops its
-database, restores the relays, uploads results and diagnostics, and tears down
-the stack. Each mutation step has a 75-minute limit within a 100-minute job.
-`PostgreSQL, Kafka, and deployed smoke` (`services`) retains the service/race
-and DUR-055 retrieval checks with a 25-minute job limit. Its retained steps
-totaled 596 and 773 seconds in runs 43303598471 and 43317291102, respectively;
-25 minutes gives at least 1.94x measured headroom.
+The Bash and PowerShell gates each run two shards, `with-k6` and `without-k6`.
+Each shard bootstraps its own Compose stack and mutation database, isolates
+the runtime/worker relays, then drops the database, restores the relays,
+uploads results and diagnostics, and tears down its stack. Each mutation
+step retains its 75-minute limit within a 100-minute job.
 
-Results artifacts are `dur046-mutation-results-powershell-<run_id>` and
-`dur046-mutation-results-linux-<run_id>`, containing `results-powershell.json`
-and `results-bash.json`, respectively. Diagnostic artifacts are
-`mutation-powershell-diagnostics-<run_id>` and
-`mutation-linux-diagnostics-<run_id>`; services keeps
-`service-diagnostics-<run_id>`.
+The selector pins all IDs starting with `k6` to `with-k6`. It sorts the
+remaining cases by descending recorded cost and ascending case ID, placing
+each on the shard with the lower estimated load. Ties go to `with-k6`.
+The per-shell [weights](ci-case-costs.csv) use the larger of the case wall
+times in runs [44973530768](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/44973530768)
+and [44981105834](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/44981105834),
+rounded up to milliseconds. A case without measurements uses the upper
+median of known costs (one second if none are available). The selector reads
+the manifest on every run, and preserves its order within each shard.
 
-Both shell entry points use `scripts/mutation-runner.py` and run the complete
-manifest with the same detection criteria. New reports retain the v1 schema
+`Mutation gate coverage` requests all four result artifacts for the current
+run and attempt. It requires both matrices to pass and verifies each report
+against the tested checkout. For each shell, every manifest ID must appear
+exactly once across both reports with a passing baseline and the expected
+detection. Rerun all jobs to generate a complete set for a new attempt.
+
+Result artifacts are `dur046-mutation-results-<platform>-<shard>-<run_id>-<attempt>`
+and contain `results-powershell.json` or `results-bash.json`. Diagnostics
+use `mutation-<platform>-diagnostics-<shard>-<run_id>-<attempt>`.
+The service non-race suite and deployed smoke stay in
+`PostgreSQL, Kafka, and deployed smoke`. `PostgreSQL race and K6 fixtures`
+runs the serial race suite, the sink contract race check, and the K6 G1/G2
+fixtures on a separate stack. Both jobs retain their 25-minute limit.
+
+The standalone shell entry points default to the complete manifest.
+New reports retain the v1 schema
 and all existing fields, adding monotonic wall-clock seconds:
 
 - Top-level `duration_seconds` covers the campaign through report assembly,

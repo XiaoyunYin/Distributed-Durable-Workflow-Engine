@@ -260,7 +260,92 @@ jobs:
   services:
     name: PostgreSQL, Kafka, and deployed smoke
     runs-on: ubuntu-24.04
-    # Retained steps: 596/773 s in runs 43303598471/43317291102; 25 min gives >=1.94x headroom.
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.27.4
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Bootstrap the isolated service stack
+        shell: pwsh
+        run: ./scripts/bootstrap.ps1 -StartServices
+
+      - name: Run service-backed checks
+        shell: pwsh
+        run: ./scripts/ci.ps1 -WithServices
+
+      - name: Start isolated DUR-055 PostgreSQL and pgvector
+        shell: pwsh
+        run: docker compose --env-file .env -f deploy/local/dur055-postgres.yaml up -d --wait
+
+      - name: Validate DUR-055 PostgreSQL FTS and pgvector retrieval
+        shell: pwsh
+        run: |
+          $values = @{}
+          foreach ($line in (Get-Content -LiteralPath '.env')) {
+            if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
+          }
+          $port = $values['DUR055_POSTGRES_PORT']
+          if ([string]::IsNullOrWhiteSpace($port)) { $port = '15432' }
+          $encodedUser = [uri]::EscapeDataString($values['POSTGRES_USER'])
+          $encodedPassword = [uri]::EscapeDataString($values['POSTGRES_PASSWORD'])
+          $encodedDatabase = [uri]::EscapeDataString($values['POSTGRES_DB'])
+          $env:DUR055_TEST_DATABASE_URL = 'postgresql://{0}:{1}@127.0.0.1:{2}/{3}?sslmode=disable' -f $encodedUser, $encodedPassword, $port, $encodedDatabase
+          uv run pytest -q tests/test_dur055_postgres_integration.py
+          if ($LASTEXITCODE -ne 0) { throw 'DUR-055 PostgreSQL integration checks failed.' }
+
+      - name: Stop isolated DUR-055 PostgreSQL and pgvector
+        if: always()
+        shell: pwsh
+        run: docker compose --env-file .env -f deploy/local/dur055-postgres.yaml down --volumes --remove-orphans
+
+      - name: Collect service diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          if (Test-Path -LiteralPath .env) {
+            docker compose --env-file .env -f deploy/local/compose.yaml ps > artifacts/compose-ps.txt
+            docker compose --env-file .env -f deploy/local/compose.yaml logs --no-color > artifacts/compose-logs.txt
+          }
+
+      - name: Upload service diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-diagnostics-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Tear down the isolated service stack
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath .env) {
+            docker compose --env-file .env -f deploy/local/compose.yaml down --volumes --remove-orphans
+          }
+
+  services-race:
+    name: PostgreSQL race and K6 fixtures
+    runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
       - name: Check out source
@@ -356,34 +441,9 @@ jobs:
             docker rm -f $sink
           }
 
-      - name: Run service-backed checks and race tests
+      - name: Run service-backed race and sink contract checks
         shell: pwsh
-        run: ./scripts/ci.ps1 -WithServices -WithRace
-
-      - name: Start isolated DUR-055 PostgreSQL and pgvector
-        shell: pwsh
-        run: docker compose --env-file .env -f deploy/local/dur055-postgres.yaml up -d --wait
-
-      - name: Validate DUR-055 PostgreSQL FTS and pgvector retrieval
-        shell: pwsh
-        run: |
-          $values = @{}
-          foreach ($line in (Get-Content -LiteralPath '.env')) {
-            if ($line -match '^([^#=]+)=(.*)$') { $values[$matches[1]] = $matches[2] }
-          }
-          $port = $values['DUR055_POSTGRES_PORT']
-          if ([string]::IsNullOrWhiteSpace($port)) { $port = '15432' }
-          $encodedUser = [uri]::EscapeDataString($values['POSTGRES_USER'])
-          $encodedPassword = [uri]::EscapeDataString($values['POSTGRES_PASSWORD'])
-          $encodedDatabase = [uri]::EscapeDataString($values['POSTGRES_DB'])
-          $env:DUR055_TEST_DATABASE_URL = 'postgresql://{0}:{1}@127.0.0.1:{2}/{3}?sslmode=disable' -f $encodedUser, $encodedPassword, $port, $encodedDatabase
-          uv run pytest -q tests/test_dur055_postgres_integration.py
-          if ($LASTEXITCODE -ne 0) { throw 'DUR-055 PostgreSQL integration checks failed.' }
-
-      - name: Stop isolated DUR-055 PostgreSQL and pgvector
-        if: always()
-        shell: pwsh
-        run: docker compose --env-file .env -f deploy/local/dur055-postgres.yaml down --volumes --remove-orphans
+        run: ./scripts/ci.ps1 -WithServices -RaceOnly
 
       - name: Collect service diagnostics
         if: always()
@@ -399,7 +459,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: service-diagnostics-${{ github.run_id }}
+          name: service-race-diagnostics-${{ github.run_id }}
           path: artifacts/
           if-no-files-found: ignore
           retention-days: 14
@@ -413,9 +473,13 @@ jobs:
           }
 
   mutation-powershell:
-    name: PowerShell mutation gate
+    name: PowerShell mutation gate (${{ matrix.shard }})
     runs-on: ubuntu-24.04
     timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [with-k6, without-k6-a, without-k6-b]
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -447,6 +511,12 @@ jobs:
         run: |
           $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
           docker compose @compose stop runtime-a runtime-b worker-a worker-b
+
+      - name: Select mutation cases
+        shell: bash
+        run: >-
+          python3 scripts/mutation_shards.py select powershell ${{ matrix.shard }}
+          "$RUNNER_TEMP/mutation-shard.json"
 
       - name: Run PowerShell mutation gate
         timeout-minutes: 75
@@ -475,7 +545,7 @@ jobs:
           $env:DURABLE_MUTATION_DATABASE_URL = $mutationURL
           $parsedMutationURL = [uri]$mutationURL
           Write-Host ("DUR-046 mutation database: {0}; query: {1}" -f $parsedMutationURL.AbsolutePath.TrimStart('/'), $parsedMutationURL.Query)
-          ./scripts/mutation-gate.ps1 -Output mutations/results-powershell.json
+          ./scripts/mutation-gate.ps1 -Output mutations/results-powershell.json -Manifest (Join-Path $env:RUNNER_TEMP "mutation-shard.json")
 
       - name: Drop isolated mutation databases
         if: always()
@@ -502,7 +572,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dur046-mutation-results-powershell-${{ github.run_id }}
+          name: dur046-mutation-results-powershell-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: mutations/results-powershell.json
           if-no-files-found: error
           retention-days: 14
@@ -521,7 +591,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mutation-powershell-diagnostics-${{ github.run_id }}
+          name: mutation-powershell-diagnostics-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/
           if-no-files-found: ignore
           retention-days: 14
@@ -535,9 +605,13 @@ jobs:
           }
 
   mutation-linux:
-    name: Linux mutation gate
+    name: Linux mutation gate (${{ matrix.shard }})
     runs-on: ubuntu-24.04
     timeout-minutes: 100
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [with-k6, without-k6]
     steps:
       - name: Check out source
         uses: actions/checkout@v4
@@ -570,6 +644,12 @@ jobs:
           $compose = @('--env-file', '.env', '-f', 'deploy/local/compose.yaml')
           docker compose @compose stop runtime-a runtime-b worker-a worker-b
 
+      - name: Select mutation cases
+        shell: bash
+        run: >-
+          python3 scripts/mutation_shards.py select linux ${{ matrix.shard }}
+          "$RUNNER_TEMP/mutation-shard.json"
+
       - name: Run Linux mutation gate
         timeout-minutes: 75
         shell: bash
@@ -589,7 +669,7 @@ jobs:
           encoded_user="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$user_name")"
           encoded_password="$(python3 -c 'import sys, urllib.parse; print(urllib.parse.quote(sys.argv[1], safe=""))' "$password")"
           export DURABLE_MUTATION_DATABASE_URL="postgresql://${encoded_user}:${encoded_password}@127.0.0.1:${port}/${database}?sslmode=disable"
-          bash scripts/mutation-gate.sh
+          bash scripts/mutation-gate.sh mutations/results-bash.json "$RUNNER_TEMP/mutation-shard.json"
 
       - name: Drop isolated mutation databases
         if: always()
@@ -616,7 +696,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: dur046-mutation-results-linux-${{ github.run_id }}
+          name: dur046-mutation-results-linux-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: mutations/results-bash.json
           if-no-files-found: error
           retention-days: 14
@@ -635,7 +715,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: mutation-linux-diagnostics-${{ github.run_id }}
+          name: mutation-linux-diagnostics-${{ matrix.shard }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: artifacts/
           if-no-files-found: ignore
           retention-days: 14
@@ -647,6 +727,34 @@ jobs:
           if (Test-Path -LiteralPath .env) {
             docker compose --env-file .env -f deploy/local/compose.yaml down --volumes --remove-orphans
           }
+
+  mutation-coverage:
+    name: Mutation gate coverage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    needs: [mutation-linux, mutation-powershell]
+    if: always()
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Download mutation shard reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: dur046-mutation-results-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/mutation-reports
+
+      - name: Verify both complete mutation gates
+        shell: bash
+        env:
+          LINUX_RESULT: ${{ needs.mutation-linux.result }}
+          POWERSHELL_RESULT: ${{ needs.mutation-powershell.result }}
+        run: |
+          set -euo pipefail
+          test "$LINUX_RESULT" = success
+          test "$POWERSHELL_RESULT" = success
+          python3 scripts/mutation_shards.py verify "$RUNNER_TEMP/mutation-reports" \
+            "$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" "$(git rev-parse HEAD)"
 
   k2-prerequisites:
     name: DUR-053 Compose prerequisites

@@ -54,9 +54,6 @@ class StubK3Driver:
         (self.output / (arm + ".yaml")).write_text("stub")
         return None, {}
 
-    def preload_addons(self) -> None:
-        pass
-
     def cluster(self) -> dict[str, str]:
         self.cluster_started = True
         return {"192.0.2.1": "192.0.2.2"}

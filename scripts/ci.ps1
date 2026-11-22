@@ -3,7 +3,8 @@ param(
     [switch]$WithServices,
     [switch]$WithRace,
     [switch]$WithM5,
-    [switch]$WithM6
+    [switch]$WithM6,
+    [switch]$RaceOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -14,6 +15,9 @@ $ciRelaysStopped = $false
 $composeArgs = @("--env-file", ".env", "-f", "deploy/local/compose.yaml")
 if ($WithM5 -and -not $WithServices) {
     throw "-WithM5 requires -WithServices so the campaign cannot silently skip database-backed cases."
+}
+if ($RaceOnly -and (-not $WithServices -or $WithM5 -or $WithM6)) {
+    throw "-RaceOnly requires -WithServices and cannot run campaigns."
 }
 if ($WithServices) {
     $env:DURABLE_REQUIRE_DATABASE = "1"
@@ -38,14 +42,16 @@ try {
         $ciRelaysStopped = $true
     }
 
-    if ($WithServices) {
-        & $PSScriptRoot/check.ps1 -SerialPackages
-    } else {
-        & $PSScriptRoot/check.ps1
+    if (-not $RaceOnly) {
+        if ($WithServices) {
+            & $PSScriptRoot/check.ps1 -SerialPackages
+        } else {
+            & $PSScriptRoot/check.ps1
+        }
+        if ($LASTEXITCODE -ne 0) { throw "Shared checks failed." }
     }
-    if ($LASTEXITCODE -ne 0) { throw "Shared checks failed." }
 
-    if ($WithRace) {
+    if ($WithRace -or $RaceOnly) {
         if ($WithServices) {
             # Database-backed tests in several packages share the local
             # PostgreSQL lease table. Serialize package test binaries in
@@ -74,7 +80,7 @@ try {
         $database = [uri]::EscapeDataString($values['POSTGRES_DB'])
         $previousSinkAdminURL = $env:DUR053_SINK_TEST_ADMIN_URL
         $sinkTestArgs = @('test', '-p', '1')
-        if ($WithRace) { $sinkTestArgs += '-race' }
+        if ($WithRace -or $RaceOnly) { $sinkTestArgs += '-race' }
         try {
             $env:DUR053_SINK_TEST_ADMIN_URL = "postgresql://${user}:${password}@127.0.0.1:${port}/${database}?sslmode=disable"
             & go @sinkTestArgs ./internal/effects/k6sink -run 'K6Sink' -count=1 -v
@@ -82,6 +88,8 @@ try {
         } finally {
             $env:DUR053_SINK_TEST_ADMIN_URL = $previousSinkAdminURL
         }
+
+        if ($RaceOnly) { return }
 
         Write-Host "Running DUR-005 through DUR-018 PostgreSQL/Kafka integration tests."
         & go test ./internal/state -run '^TestPostgresStateRepository$' -count=1 -v
