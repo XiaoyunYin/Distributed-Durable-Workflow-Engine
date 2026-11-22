@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -60,7 +61,7 @@ func isolatedK6Database(t *testing.T, raw string, migrations fs.FS) (*pgx.Conn, 
 	if err != nil {
 		t.Fatal("cannot open integration database")
 	}
-	name := "k6g1_" + strings.ReplaceAll(filepath.Base(t.TempDir()), "-", "_") + "_" + strings.ReplaceAll(time.Now().UTC().Format("150405.000000000"), ".", "_")
+	name := "k6g1_" + strings.ToLower(rand.Text())
 	nameSQL := pgx.Identifier{name}.Sanitize()
 	if _, err := admin.Exec(ctx, "CREATE DATABASE "+nameSQL+" TEMPLATE template0"); err != nil {
 		admin.Close(ctx)
