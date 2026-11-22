@@ -15023,7 +15023,7 @@
       "kind": "behavioral",
       "file": "scripts/dur053_k6_c_smoke.py",
       "old": "else:\n                        require(elapsed_us < STARTUP_SECONDS * 1_000_000, unresolved)",
-      "new": "elif elapsed_us >= STARTUP_SECONDS * 1_000_000:\n                        del pending[key]",
+      "new": "elif elapsed_us >= STARTUP_SECONDS * 1_000_000:\n                        return",
       "command": [
         "python",
         "-m",
