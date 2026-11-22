@@ -289,7 +289,7 @@ jobs:
 
       - name: Run service-backed checks
         shell: pwsh
-        run: ./scripts/ci.ps1 -WithServices
+        run: ./scripts/ci.ps1 -WithServices -KafkaPythonOnly
 
       - name: Start isolated DUR-055 PostgreSQL and pgvector
         shell: pwsh

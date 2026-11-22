@@ -165,7 +165,7 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     assert (
         services["Run service-backed checks"]
         .rstrip()
-        .endswith("run: ./scripts/ci.ps1 -WithServices")
+        .endswith("run: ./scripts/ci.ps1 -WithServices -KafkaPythonOnly")
     )
     assert (
         race["Run service-backed race and sink contract checks"]
@@ -173,6 +173,12 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
         .endswith("run: ./scripts/ci.ps1 -WithServices -RaceOnly")
     )
     entrypoint = (ROOT / "scripts/ci.ps1").read_text(encoding="utf-8")
+    shared = (ROOT / "scripts/check.ps1").read_text(encoding="utf-8")
+    checks = dict(_job_steps(workflow, "checks"))
+    assert checks["Run repository checks"].rstrip().endswith("run: ./scripts/check.ps1")
+    assert "-SerialPackages -KafkaPythonOnly:$KafkaPythonOnly" in entrypoint
+    assert "::test_real_kafka_assignment_during_long_activity" in shared
+    assert "} else {\n        & uv run pytest\n    }" in shared
     assert "go test -race -p 1 ./..." in entrypoint
     assert "if ($WithRace -or $RaceOnly) { $sinkTestArgs += '-race' }" in entrypoint
     assert "go @sinkTestArgs ./internal/effects/k6sink -run 'K6Sink'" in entrypoint

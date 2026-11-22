@@ -1,6 +1,7 @@
 [CmdletBinding()]
 param(
-    [switch]$SerialPackages
+    [switch]$SerialPackages,
+    [switch]$KafkaPythonOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -28,7 +29,15 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Ruff formatting check failed." }
     & uv run mypy
     if ($LASTEXITCODE -ne 0) { throw "Mypy failed." }
-    & uv run pytest
+    if ($KafkaPythonOnly) {
+        if ([string]::IsNullOrWhiteSpace($env:DURABLE_KAFKA_BROKERS)) {
+            throw "The Kafka Python check requires a real broker."
+        }
+        # The parallel repository checks run the full Python suite.
+        & uv run pytest tests/test_worker_kafka_lifecycle.py::test_real_kafka_assignment_during_long_activity
+    } else {
+        & uv run pytest
+    }
     if ($LASTEXITCODE -ne 0) { throw "Python tests failed." }
 } finally {
     Pop-Location
