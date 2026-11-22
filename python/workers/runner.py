@@ -12,6 +12,7 @@ from concurrent.futures import Future, ThreadPoolExecutor
 from dataclasses import dataclass
 from typing import Any, Protocol
 
+from workers import k6_evidence
 from workers.control import Claim, ControlClient, ControlError
 from workers.k6_effect import EffectAdapter
 from workers.registry import K6_ACTIVITY, K6_EFFECT_CLASS, K6_VERSION, ActivityRegistry
@@ -168,6 +169,7 @@ class ActivityRunner:
             target=heartbeat_loop, name="activity-heartbeat", daemon=True
         )
         heartbeat_thread.start()
+        evidence = k6_evidence.ledger()
         if cooperating:
             assert self.k6 is not None
 
@@ -177,9 +179,36 @@ class ActivityRunner:
                 if definitive_heartbeat_errors:
                     raise definitive_heartbeat_errors[0]
 
+            g_invocation = (
+                evidence.begin(
+                    task.workflow_id,
+                    task.node_id,
+                    task.iteration,
+                    claim.attempt_number,
+                    claim.claim_token,
+                    task.request_id,
+                )
+                if evidence is not None
+                else None
+            )
+            context = (
+                k6_evidence.active.set((evidence, g_invocation[0]))
+                if evidence is not None and g_invocation is not None
+                else None
+            )
+            completed = False
             try:
-                return self.k6.run(task, claim, self.control, ensure_current, claim_started)
+                result = self.k6.run(task, claim, self.control, ensure_current, claim_started)
+                completed = True
+                return result
             finally:
+                if context is not None:
+                    k6_evidence.active.reset(context)
+                if evidence is not None and g_invocation is not None:
+                    invocation_id, attempt = g_invocation
+                    evidence.append(
+                        "finish" if completed else "abort", invocation_id, attempt=attempt
+                    )
                 stop.set()
                 heartbeat_thread.join(timeout=max(1.0, self.heartbeat_interval))
         assert activity is not None
@@ -199,6 +228,18 @@ class ActivityRunner:
                 }
             )
         attempt_state = "ABORTED"
+        pure_entry = (
+            evidence.begin(
+                task.workflow_id,
+                task.node_id,
+                task.iteration,
+                claim.attempt_number,
+                claim.claim_token,
+                task.request_id,
+            )
+            if evidence is not None
+            else None
+        )
         try:
             if self.deployment_hook is not None:
                 self.deployment_hook(
@@ -218,6 +259,13 @@ class ActivityRunner:
         else:
             attempt_state = "SUCCEEDED"
         finally:
+            if evidence is not None and pure_entry is not None:
+                invocation_id, attempt = pure_entry
+                evidence.append(
+                    "finish" if attempt_state != "ABORTED" else "abort",
+                    invocation_id,
+                    attempt=attempt,
+                )
             if witness is not None and invocation is not None:
                 witness.end(invocation, attempt_state)
             stop.set()

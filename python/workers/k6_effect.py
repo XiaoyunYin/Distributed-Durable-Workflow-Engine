@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from urllib.parse import urlsplit
 
+from workers import k6_evidence
 from workers.control import Claim, ControlError
 from workers.registry import K6_ACTIVITY, K6_EFFECT_CLASS
 
@@ -173,6 +174,9 @@ class EffectAdapter:
         """Return proof or a confirmed lookup miss. All other replies are uncertain."""
         started = time.monotonic_ns()
         wire = b""
+        proof = k6_evidence.active.get()
+        traffic = None
+        observed_end = False
         try:
             context = ssl.create_default_context(cafile=self.ca_file)
             context.minimum_version = ssl.TLSVersion.TLSv1_3
@@ -184,6 +188,9 @@ class EffectAdapter:
             )
             try:
                 wire = json.dumps(request, separators=(",", ":"), allow_nan=False).encode()
+                if proof is not None:
+                    traffic = k6_evidence.transfer(operation, request, invocation, wire)
+                    proof[0].append("send", invocation, traffic=traffic)
                 self.transfer("pre-send", operation, scope, request, invocation, wire)
                 connection.request(
                     "POST",
@@ -199,6 +206,11 @@ class EffectAdapter:
                 self.transfer("sent", operation, scope, request, invocation, wire)
                 reply = connection.getresponse()
                 body = reply.read(8193)
+                if proof is not None and traffic is not None:
+                    proof[0].append(
+                        "receive", invocation, traffic=traffic, response=k6_evidence.wire(body)
+                    )
+                    observed_end = True
                 emit_observation(
                     f"k6_exchange {digest(str(request['request_id']))} {digest(invocation)} "
                     f"{hashlib.sha256(wire).hexdigest()} {hashlib.sha256(body).hexdigest()} "
@@ -238,11 +250,16 @@ class EffectAdapter:
             finally:
                 connection.close()
         except TimeoutError:
+            if proof is not None and traffic is not None and not observed_end:
+                proof[0].append("timeout", invocation, traffic=traffic)
+                observed_end = True
             self.transfer("timeout", operation, scope, request, invocation, wire)
             return None, False
         except (OSError, ValueError, http.client.HTTPException, RecursionError):
             return None, False
         finally:
+            if proof is not None and traffic is not None and not observed_end:
+                proof[0].append("close", invocation, traffic=traffic)
             observation(digest(scope["logical_key"]), operation, started)
 
     def run(
@@ -255,7 +272,12 @@ class EffectAdapter:
     ) -> dict[str, Any]:
         scope = envelope(task, claim)
         observation(digest(scope["logical_key"]), "claim", claim_started)
-        invocation = self.identifier(scope, "invocation")
+        observation_context = k6_evidence.active.get()
+        invocation = (
+            self.identifier(scope, "invocation")
+            if observation_context is None
+            else observation_context[1]
+        )
         request = {field: scope[field] for field in REQUEST_FIELDS}
         request["message_id"] = invocation
 

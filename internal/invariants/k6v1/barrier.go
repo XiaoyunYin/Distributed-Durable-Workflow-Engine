@@ -43,6 +43,7 @@ type DatabaseCut struct {
 }
 
 type WatermarkSample struct {
+	Terminal    bool        `json:"terminal"`
 	Database    string      `json:"database"`
 	Instance    string      `json:"instance"`
 	DatabaseOID uint32      `json:"database_oid"`
@@ -329,6 +330,9 @@ func verifyBarrier(m Manifest, plan Plan, arrivals Arrivals, b Barrier, snaps ma
 		}
 		if late {
 			reasons = append(reasons, "CUT_DEADLINE")
+		}
+		if slices.Contains(attempt.Reasons, "CUT_RACED:external") {
+			reasons = append(reasons, "CUT_RACED:external")
 		}
 		if !slices.Equal(reasons, attempt.Reasons) || (!selected && len(reasons) == 0) {
 			add("CUT_ATTEMPT_REASONS")

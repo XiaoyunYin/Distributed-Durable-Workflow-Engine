@@ -94,6 +94,8 @@ type Adapter struct {
 	reviewer Reviewer
 	writer   DecisionWriter
 	now      func() time.Time
+	// Observe persists a public decision/read identity before replying.
+	Observe func(DecisionIdentity) error
 }
 
 func NewAdapter(episode Episode, reviewer Reviewer, writer DecisionWriter) (*Adapter, error) {
@@ -196,6 +198,10 @@ func (a *Adapter) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	if err != nil {
 		http.Error(w, ErrDenied.Error(), http.StatusForbidden)
+		return
+	}
+	if a.Observe != nil && a.Observe(identity) != nil {
+		http.Error(w, "K6_AUTH_OBSERVATION", http.StatusServiceUnavailable)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

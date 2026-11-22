@@ -32,6 +32,7 @@ type Config struct {
 	Manifest        k6v1.Manifest `json:"manifest"`
 	PlanFile        string        `json:"plan_file"`
 	ArrivalsFile    string        `json:"arrivals_file"`
+	ExternalDir     string        `json:"external_dir"`
 }
 
 func (c Config) Valid() bool {
@@ -169,11 +170,15 @@ func exportRelation(ctx context.Context, tx pgx.Tx, directory string, spec k6v1.
 }
 
 func writeJSON(dir, path string, v any) (k6v1.File, error) {
-	var entry k6v1.File
 	raw, err := k6v1.Canonical(v)
 	if err != nil {
-		return entry, errors.New("K6_BUNDLE_ENCODE")
+		return k6v1.File{}, errors.New("K6_BUNDLE_ENCODE")
 	}
+	return writePublic(dir, path, raw)
+}
+
+func writePublic(dir, path string, raw []byte) (k6v1.File, error) {
+	var entry k6v1.File
 	file, err := os.OpenFile(filepath.Join(dir, filepath.FromSlash(path)), os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
 	if err != nil {
 		return entry, errors.New("K6_BUNDLE_WRITE")

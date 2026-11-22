@@ -98,6 +98,7 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
     services = dict(_job_steps(workflow, "services"))
+    k6_g2_step = "Verify K6 G2 cuts and external evidence against two PostgreSQL instances"
     assert "    timeout-minutes: 25\n" in jobs["services"]
     assert not any("mutation" in name.lower() for name in services)
     assert list(services) == [
@@ -108,7 +109,7 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
         "Bootstrap the isolated service stack",
         "Run tagged K6 Go tests against PostgreSQL",
         "Verify K6 G1 engine evidence on PostgreSQL",
-        "Verify K6 G2a cuts against two PostgreSQL instances",
+        k6_g2_step,
         "Run service-backed checks and race tests",
         "Start isolated DUR-055 PostgreSQL and pgvector",
         "Validate DUR-055 PostgreSQL FTS and pgvector retrieval",
@@ -134,11 +135,12 @@ def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> N
         "go test -p 1 -count=1 -v ./cmd/dur049-checker "
         "-run 'K6EngineExport|K6Census|LegacyParityPostgres'" in k6_g1
     )
-    k6_g2a = services["Verify K6 G2a cuts against two PostgreSQL instances"]
-    assert "DURABLE_REQUIRE_K6_PAIR: '1'" in k6_g2a
-    assert "postgres:18.6-bookworm" in k6_g2a
-    assert "go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/..." in k6_g2a
-    assert "finally" in k6_g2a and "docker rm -f $sink" in k6_g2a
+    k6_g2 = services[k6_g2_step]
+    assert "DURABLE_REQUIRE_K6_PAIR: '1'" in k6_g2
+    assert "postgres:18.6-bookworm" in k6_g2
+    assert "go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/..." in k6_g2
+    assert "K6Roster|K6Session|K6Ingress|K6Decision|K6Broker|K6Quiet|K6Topology|K6Orphan" in k6_g2
+    assert "finally" in k6_g2 and "docker rm -f $sink" in k6_g2
     assert (
         "./scripts/ci.ps1 -WithServices -WithRace"
         in services["Run service-backed checks and race tests"]

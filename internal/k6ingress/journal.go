@@ -26,6 +26,7 @@ const MaxRecord = 4096
 
 var hexHash = regexp.MustCompile("^[0-9a-f]{64}$")
 var sessionID = regexp.MustCompile("^[0-9a-f]{32}$")
+var publicUUID = regexp.MustCompile("^[0-9a-f]{8}(-[0-9a-f]{4}){3}-[0-9a-f]{12}$")
 var peerURI = regexp.MustCompile("^spiffe://[a-z0-9.-]+/[a-z0-9/-]+$")
 
 func Hash(raw []byte) string {
@@ -54,6 +55,10 @@ type Record struct {
 	WireHash       string    `json:"wire_hash,omitempty"`
 	ConnectionHash string    `json:"connection_hash,omitempty"`
 	WorkerBinding  string    `json:"worker_binding,omitempty"`
+	IntentID       string    `json:"intent_id,omitempty"`
+	GrantHash      string    `json:"grant_hash,omitempty"`
+	Attempt        int64     `json:"attempt,omitempty"`
+	ApplicationID  string    `json:"application_id,omitempty"`
 	RelayPeer      string    `json:"relay_peer"`
 	SinkPeer       string    `json:"sink_peer"`
 	Status         int       `json:"status,omitempty"`
@@ -95,6 +100,12 @@ func (r Record) valid(relay, sink string) bool {
 		if !hexHash.MatchString(field) {
 			return false
 		}
+	}
+	if (r.IntentID != "" || r.GrantHash != "" || r.Attempt != 0) &&
+		(!publicUUID.MatchString(r.IntentID) || Hash([]byte(r.IntentID)) != r.IntentHash ||
+			!hexHash.MatchString(r.GrantHash) || r.Attempt < 1) ||
+		r.ApplicationID != "" && !publicUUID.MatchString(r.ApplicationID) {
+		return false
 	}
 	switch r.Event {
 	case "inbound", "sink_send":
@@ -168,6 +179,26 @@ func readFrame(input *bufio.Reader) ([]byte, error) {
 		return line, err
 	}
 	return line[:len(line)-1], nil
+}
+
+// ReadJournal verifies canonical records and fsynced receiver sequence without
+// opening a producer connection or replaying untrusted payloads.
+func ReadJournal(input io.Reader, relay, sink string) ([]Record, error) {
+	reader := bufio.NewReaderSize(input, MaxRecord)
+	r := &Receiver{relay: relay, sink: sink, sessions: make(map[string]watermark)}
+	rows := []Record{}
+	for {
+		line, err := readFrame(reader)
+		if errors.Is(err, io.EOF) && len(line) == 0 {
+			return rows, nil
+		}
+		record, valid := r.parse(line)
+		if err != nil || !valid {
+			return nil, errors.New("K6_INGRESS_JOURNAL")
+		}
+		r.sessions[record.Session] = watermark{record.Sequence, record.Event == "seal"}
+		rows = append(rows, record)
+	}
 }
 
 func (r *Receiver) parse(line []byte) (Record, bool) {

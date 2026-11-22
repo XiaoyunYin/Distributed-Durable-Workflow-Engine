@@ -71,6 +71,11 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 		Schema: k6v1.BarrierVersion, ManifestSHA256: index.Files[0].SHA256,
 		BarrierID: m.BarrierID, ResetID: m.ResetID, DeadlineUTC: k6v1.UTC(deadline),
 	}
+	external := newExternal(config.ExternalDir, m, observe)
+	quietFloor := max(plan.LastScheduledUTC(), arrivals.SealedUTC)
+	if arrivals.RemovalUTC != nil {
+		quietFloor = max(quietFloor, *arrivals.RemovalUTC)
+	}
 	var databases []database
 	openDatabases := func() error {
 		for _, db := range m.Databases() {
@@ -100,6 +105,12 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 		if ctx.Err() == nil && len(databases) == 0 {
 			acquisitionErr = openDatabases()
 		}
+		var externalPre, externalPost k6v1.QuietSample
+		quiet, externalRaced, externalContinuous := false, false, true
+		if acquisitionErr == nil && config.ExternalDir != "" {
+			externalPre, quiet = external.waitQuiet(ctx, generation, quietFloor, databases)
+			attempt.Started = observe()
+		}
 		var files []k6v1.File
 		var stage string
 		if ctx.Err() == nil && acquisitionErr == nil {
@@ -109,6 +120,9 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 			}
 		}
 		attempt.Finished = observe()
+		if quiet && len(attempt.Databases) > 0 {
+			externalPost, externalRaced, externalContinuous = external.cutSample(attempt.Finished, externalPre, attempt.Databases)
+		}
 		for i, cut := range attempt.Databases {
 			attempt.Reasons = append(attempt.Reasons, cut.RaceReasons(databases[i].specs)...)
 		}
@@ -126,8 +140,11 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 		if expired {
 			attempt.Reasons = append(attempt.Reasons, "CUT_DEADLINE")
 		}
+		if externalRaced {
+			attempt.Reasons = append(attempt.Reasons, "CUT_RACED:external")
+		}
 		barrier.Attempts = append(barrier.Attempts, attempt)
-		retry := acquisitionErr == nil && ctx.Err() == nil && len(attempt.Reasons) != 0 && !expired
+		retry := acquisitionErr == nil && ctx.Err() == nil && len(attempt.Reasons) != 0 && !expired && externalContinuous
 		if !retry && stage != "" && len(files) != 0 {
 			for _, db := range databases {
 				if err := os.Rename(filepath.Join(stage, db.name), filepath.Join(dir, db.name)); err != nil {
@@ -136,6 +153,9 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 			}
 			barrier.SelectedGeneration = generation
 			index.Files = append(index.Files, files...)
+			if quiet && externalContinuous && externalPost.At.UTC != "" {
+				external.finish(ctx, externalPost, databases)
+			}
 		}
 		if stage != "" {
 			if err := os.RemoveAll(stage); err != nil {
@@ -161,6 +181,9 @@ func acquire(parent context.Context, config Config, afterCut func(string, int)) 
 		return acquisitionErr
 	}
 	index.Files = append(index.Files, entry)
+	if err := external.publish(dir, &index); err != nil {
+		return err
+	}
 	slices.SortFunc(index.Files, func(a, b k6v1.File) int { return strings.Compare(a.Path, b.Path) })
 	_, err = writeJSON(dir, k6v1.IndexPath, index)
 	return err
@@ -268,6 +291,13 @@ func sample(ctx context.Context, db database, m k6v1.Manifest, observe observer)
 	mark, _, err := openSnapshot(ctx, tx, db, m, observe)
 	if err != nil {
 		return mark, err
+	}
+	mark.Terminal = true
+	if db.name == "engine" {
+		if err := tx.QueryRow(ctx, `SELECT NOT EXISTS (SELECT 1 FROM engine.workflow_executions
+			WHERE state NOT IN ('SUCCEEDED','FAILED','REJECTED','CANCELED','ABANDONED'))`).Scan(&mark.Terminal); err != nil {
+			return mark, errors.New("K6_TERMINAL_SAMPLE")
+		}
 	}
 	for _, spec := range db.specs {
 		value, err := readRelation(ctx, tx, spec, nil)
