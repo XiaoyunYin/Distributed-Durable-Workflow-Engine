@@ -13971,7 +13971,7 @@
       "id": "k4r314-unbounded-main-wait",
       "kind": "behavioral",
       "file": "python/workers/__main__.py",
-      "old": "    while not lifecycle.drain.wait(0.1):\n        coordinate_once()\n",
+      "old": "    while not lifecycle.drain.wait(0.1):\n        coordinate_once()\n        if k6_evidence is not None and time.monotonic() >= checkpoint_at:\n            k6_evidence.checkpoint()\n            checkpoint_at += 1\n",
       "new": "    lifecycle.drain.wait()\n",
       "command": [
         "python",
