@@ -20,6 +20,8 @@ apiserver container status carries both `containerID` and `startedAt`. The
 host supplies those two values and the restart count through a nonce-specific,
 read-only mount, then checks the reported session against the observation
 and a second status read. The collector registers only observed runtimes.
+The Go roles use pod UID audit tags as in Phase F. The G worker inventory
+uses the apiserver container identity described above.
 Classic-group generation comes from worker coordinator callbacks and is
 marked producer-side. Broker metadata, group descriptions and positions are
 collected separately. R354 corroboration belongs to G3.

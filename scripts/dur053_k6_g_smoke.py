@@ -9,13 +9,13 @@ import re
 import shutil
 import subprocess
 import tempfile
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager, nullcontext, suppress
 from datetime import datetime
 from pathlib import Path
 from uuid import uuid4
 
 from dur053_k3 import CLUSTER, K8S, LABEL, LOCK, ROOT, Driver
-from dur053_k6_b_evidence import Evidence
+from dur053_k6_b_evidence import Evidence, SmokeFailure
 from dur053_k6_b_smoke import ENGINE_ROLE, Smoke, json_data, private_file, require, subject
 from dur053_k6_c_deploy import (
     ENGINE_CONTAINER,
@@ -150,6 +150,27 @@ class Episode(Matrix):
 
     def logs_for(self, name: str) -> bytes:
         return self.k("G_WORKER_LOGS", "-n", self.namespace, "logs", name, "-c", "worker")
+
+    def ready(self, name: str) -> None:
+        try:
+            super().ready(name)
+        except SmokeFailure:
+            label = "relay" if name == PUBLISHER else name
+            for previous in (False, True):
+                with suppress(SmokeFailure):
+                    logs = self.k(
+                        "G_ROLLOUT_DIAGNOSTICS",
+                        "-n",
+                        self.namespace,
+                        "logs",
+                        "-l",
+                        f"app={label}",
+                        "--all-containers=true",
+                        "--tail=20",
+                        *(["--previous"] if previous else []),
+                    )
+                    self.evidence.write_bytes(f"{name}-previous-{previous}.log", logs)
+            raise
 
     def register(self, observation: dict, account_uid: str) -> dict:
         name = observation["pod_name"]
@@ -319,6 +340,16 @@ class Episode(Matrix):
                     container["volumeMounts"] = orig["containers"][0]["volumeMounts"]
             if name in {"api", CONTROL, "scheduler", "relay"}:
                 set_env(container, DUR053_K4_CAMPAIGN="1")
+                # The Go audit tags its process with pod identity, as in Phase F.
+                # The G worker session uses the actual runtime ID and start time.
+                container["env"].extend(
+                    {
+                        "name": variable,
+                        "valueFrom": {"fieldRef": {"fieldPath": "metadata.uid"}},
+                    }
+                    for variable in ("POD_UID", "CONTAINER_ID")
+                    if not any(row["name"] == variable for row in container["env"])
+                )
             if name == CONTROL:
                 set_env(container, RUNTIME_TOKEN_SERVICE_ACCOUNT=WORKER)
             if name == "scheduler":
