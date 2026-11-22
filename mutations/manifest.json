@@ -16756,8 +16756,8 @@
       "id": "k6g2b-delivery-copy",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/external_join.go",
-      "old": "|| used[i.ConnectionHash] ||",
-      "new": "||",
+      "old": "if seenConnections[i.ConnectionHash] {",
+      "new": "if seenConnections[i.ConnectionHash] && false {",
       "command": [
         "go",
         "test",
@@ -16768,6 +16768,24 @@
         "-v"
       ],
       "expected": "expected INGRESS_CALL_COPY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g2b-close-requires-call",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if len(matches) == 0 && (i.Outcome == \"close\" || i.Outcome == \"timeout\") {",
+      "new": "if len(matches) == 0 && (i.Outcome == \"close\" || i.Outcome == \"timeout\") && false {",
+      "command": [
+        "go",
+        "test",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6IngressCloseWithoutSinkCall$/^Connected$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "call-free ingress terminal rejected",
       "requires_database": false
     },
     {

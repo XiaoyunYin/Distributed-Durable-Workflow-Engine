@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"maps"
 	"slices"
 	"testing"
 	"testing/fstest"
@@ -271,7 +272,113 @@ func TestK6IngressCopies(t *testing.T) {
 	wantExternal(t, externalVerdict(t, m, e, rows, nil), "INGRESS_CALL_COPY", IngressPath)
 }
 
+func fixtureApply(t *testing.T, outcome, workerOutcome string) (Manifest, External, map[string][]Row) {
+	t.Helper()
+	m, e, rows := fixtureExternal(t, true)
+	e.Ingress.Rows = e.Ingress.Rows[:2]
+	rows[SinkCalls] = rows[SinkCalls][:2]
+	rows[SinkBindings] = rows[SinkBindings][:2]
+	session := e.Sessions[firstSession]
+	session.Rows = slices.Delete(session.Rows, 4, 6) // Remove the lookup send and receive.
+	session.Rows[4].Position.Sequence = 5
+	if outcome != "delivered" {
+		apply := &e.Ingress.Rows[1].Data
+		apply.Outcome, apply.Response, apply.ApplicationID = outcome, nil, ""
+		worker := &session.Rows[3].Data
+		worker.Kind, worker.Response = workerOutcome, nil
+	}
+	resealFixture(e.Ingress)
+	resealFixture(&session)
+	e.Sessions[firstSession] = session
+	return m, e, rows
+}
+
+func omitFixtureApplyCall(rows map[string][]Row) {
+	rows[SinkCalls] = rows[SinkCalls][:1]
+	rows[SinkBindings] = rows[SinkBindings][:1]
+	rows[SinkReceipts] = nil
+}
+
+func TestK6IngressCloseWithoutSinkCall(t *testing.T) {
+	for _, tc := range []struct {
+		name, outcome, workerOutcome string
+		connected                    bool
+	}{
+		{"NoConnection", "close", "close", false},
+		{"Connected", "close", "timeout", true},
+		{"Timeout", "timeout", "timeout", true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, e, rows := fixtureApply(t, tc.outcome, tc.workerOutcome)
+			omitFixtureApplyCall(rows)
+			if !tc.connected {
+				e.Ingress.Rows[1].Data.ConnectionHash = ""
+				resealFixture(e.Ingress)
+			}
+			r := externalVerdict(t, m, e, rows, nil)
+			if len(r.Findings) != 0 {
+				t.Fatalf("call-free ingress terminal rejected: %+v", r.Findings)
+			}
+			if r.ExitCode() != Incomplete || r.Safety != "NOT COVERED" || len(r.InvariantsCovered) != 0 ||
+				r.Labels[7].Outcome != "NOT COVERED" || r.Labels[7].Reason != "predicate_partial:G2b" {
+				t.Fatalf("call-free ingress terminal changed coverage: %+v", r)
+			}
+		})
+	}
+}
+
+func TestK6IngressCloseCallCardinality(t *testing.T) {
+	t.Run("MultipleCalls", func(t *testing.T) {
+		m, e, rows := fixtureApply(t, "close", "close")
+		call := rows[SinkCalls][1]
+		call["outcome"], call["application_id"], call["response_hash"] = "STALE_FENCE", nil, nil
+		rows[SinkReceipts] = nil
+		if r := externalVerdict(t, m, e, rows, nil); len(r.Findings) != 0 {
+			t.Fatalf("one matching call rejected: %+v", r.Findings)
+		}
+		second := maps.Clone(call)
+		second["call_id"] = int64(3)
+		rows[SinkCalls] = append(rows[SinkCalls], second)
+		wantExternal(t, externalVerdict(t, m, e, rows, nil), "INGRESS_CALL_COPY", IngressPath)
+	})
+	t.Run("ReusedConnectionWithoutCall", func(t *testing.T) {
+		m, e, rows := fixtureApply(t, "close", "close")
+		omitFixtureApplyCall(rows)
+		duplicate := e.Ingress.Rows[1]
+		duplicate.Position.Sequence, duplicate.Data.Copy = 3, 2
+		e.Ingress.Rows = append(e.Ingress.Rows, duplicate)
+		resealFixture(e.Ingress)
+		wantExternal(t, externalVerdict(t, m, e, rows, nil), "INGRESS_CALL_COPY", IngressPath)
+	})
+	t.Run("CallWithoutConnectionWitness", func(t *testing.T) {
+		m, e, rows := fixtureApply(t, "close", "close")
+		e.Ingress.Rows[1].Data.ConnectionHash = ""
+		resealFixture(e.Ingress)
+		r := externalVerdict(t, m, e, rows, nil)
+		wantExternal(t, r, "INGRESS_CALL_COPY", IngressPath)
+		wantExternal(t, r, "SINK_CALL_WITHOUT_INGRESS", RelationPath(SinkCalls))
+		wantExternal(t, r, "SINK_RECEIPT_WITHOUT_APPLICATION", RelationPath(SinkReceipts))
+		wantExternal(t, r, "SINK_BINDING_WITHOUT_INGRESS", RelationPath(SinkBindings))
+	})
+	t.Run("DeliveredWithoutCall", func(t *testing.T) {
+		m, e, rows := fixtureApply(t, "delivered", "receive")
+		omitFixtureApplyCall(rows)
+		wantExternal(t, externalVerdict(t, m, e, rows, nil), "INGRESS_CALL_COPY", IngressPath)
+	})
+}
+
 func TestK6OrphanClosure(t *testing.T) {
+	t.Run("SuccessAfterCallFreeClose", func(t *testing.T) {
+		m, e, rows := fixtureApply(t, "close", "timeout")
+		omitFixtureApplyCall(rows)
+		attempt := rows["engine.activity_attempts"][0]
+		attempt["effect_class"], attempt["state"], attempt["logical_effect_key"] = "COOPERATING_EFFECT", "SUCCEEDED", "logical"
+		r := externalVerdict(t, m, e, rows, nil)
+		wantExternal(t, r, "EFFECT_SUCCESS_WITHOUT_DELIVERY", RelationPath("engine.activity_attempts"))
+		if len(r.Findings) != 1 {
+			t.Fatalf("expected only the unresolved success, got %+v", r.Findings)
+		}
+	})
 	t.Run("ReverseCall", func(t *testing.T) {
 		m, e, rows := fixtureExternal(t, true)
 		e.Ingress.Rows = e.Ingress.Rows[:2]

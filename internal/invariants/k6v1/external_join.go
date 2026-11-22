@@ -346,13 +346,16 @@ func checkDecisions(r *Result, m Manifest, stream *Stream[DecisionRow], rows map
 }
 
 func callMatches(c Row, i IngressRow, workflow string) bool {
-	t := i.Traffic
+	return callRequestMatches(c, i.Traffic, workflow) &&
+		(i.Response == nil || c["response_hash"] == nil || c["response_hash"] == i.Response.SHA256) &&
+		(c["application_id"] == nil && i.ApplicationID == "" || c["application_id"] == i.ApplicationID)
+}
+
+func callRequestMatches(c Row, t Traffic, workflow string) bool {
 	return c["operation"] == t.Operation && c["workflow_id"] == workflow && c["intent_id"] == t.Intent &&
 		hashField(c, "logical_key") == t.KeyHash && hashField(c, "resource_id") == t.ResourceHash &&
 		hashField(c, "request_id") == t.RequestIDHash && hashField(c, "message_id") == t.MessageHash &&
-		number(c["attempt"]) == t.Attempt && c["body_hash"] == t.Request.SHA256 &&
-		(i.Response == nil || c["response_hash"] == nil || c["response_hash"] == i.Response.SHA256) &&
-		(c["application_id"] == nil && i.ApplicationID == "" || c["application_id"] == i.ApplicationID)
+		number(c["attempt"]) == t.Attempt && c["body_hash"] == t.Request.SHA256
 }
 
 func hashField(row Row, field string) string {
@@ -396,8 +399,12 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 	haveDecisions bool, rows map[string][]Row) {
 	calls, haveCalls := rows[SinkCalls]
 	byConn, used := map[any][]Row{}, map[any]bool{}
+	byRequest := map[string][]Row{}
+	seenConnections := map[string]bool{}
 	for _, c := range calls {
 		byConn[c["connection_hash"]] = append(byConn[c["connection_hash"]], c)
+		request := hashField(c, "request_id")
+		byRequest[request] = append(byRequest[request], c)
 	}
 	receiptMatches := map[any]bool{}
 	type resolvedAttempt struct {
@@ -469,10 +476,17 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 		if haveDecisions && i.Outcome != "denied" && approved[t.GrantHash].Intent != t.Intent {
 			flag("DELIVERY_WITHOUT_GRANT")
 		}
-		matches := byConn[i.ConnectionHash]
+		if seenConnections[i.ConnectionHash] {
+			flag("INGRESS_CALL_COPY")
+			continue
+		}
+		if i.ConnectionHash != "" {
+			seenConnections[i.ConnectionHash] = true
+		}
 		if !haveCalls {
 			continue
 		}
+		matches := byConn[i.ConnectionHash]
 		if i.Outcome == "denied" && len(matches) == 0 {
 			const body = "K6_AUTH_DENIED\n"
 			if *i.Response != (WireDigest{Length: int64(len(body)), SHA256: Hash([]byte(body))}) {
@@ -480,7 +494,15 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 			}
 			continue
 		}
-		if len(matches) != 1 || used[i.ConnectionHash] || !callMatches(matches[0], i, workflow) {
+		if len(matches) == 0 && (i.Outcome == "close" || i.Outcome == "timeout") {
+			if i.ConnectionHash == "" && slices.ContainsFunc(byRequest[t.RequestIDHash], func(c Row) bool {
+				return callRequestMatches(c, t, workflow)
+			}) {
+				flag("INGRESS_CALL_COPY")
+			}
+			continue
+		}
+		if i.ConnectionHash == "" || len(matches) != 1 || !callMatches(matches[0], i, workflow) {
 			flag("INGRESS_CALL_COPY")
 			continue
 		}
