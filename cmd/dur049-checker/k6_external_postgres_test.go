@@ -143,19 +143,27 @@ func TestK6QuietLiveParity(t *testing.T) {
 				case "missing":
 					requirePredicateFinding(t, r, k6v1.MissingProof, "GroupMembership", "required_proof_missing:GroupMembership")
 				default:
-					if code != k6v1.Incomplete || len(r.Findings) != 0 {
-						t.Fatalf("corroborated group: exit %d %+v", code, r.Findings)
-					}
+					requireExternalParityProofGaps(t, r, code)
 				}
 				return
 			}
 			bundle := inspectK6Output(t, path, stdout, code)
-			if r := k6v1.Verify(bundle); code != k6v1.Incomplete || diag != "" || len(r.Findings) != 0 ||
-				!slices.Equal(r.InvariantsCovered, []string{"I1", "I11"}) {
+			r := k6v1.Verify(bundle)
+			requireExternalParityProofGaps(t, r, code)
+			if diag != "" || !slices.Equal(r.InvariantsCovered, []string{"I1", "I11"}) {
 				t.Fatalf("clean live external cut: exit %d %s %+v", code, diag, r.Findings)
 			}
 		})
 	}
+}
+
+func requireExternalParityProofGaps(t *testing.T, r k6v1.Result, code int) {
+	t.Helper()
+	if code != k6v1.Fail || len(r.Findings) != 2 || r.Safety == "FAIL" || r.Completeness != "FAIL" {
+		t.Fatalf("synthetic fixture proof gaps: exit %d %+v", code, r.Findings)
+	}
+	requirePredicateFinding(t, r, k6v1.MissingProof, "AtomicHistory", "required_proof_missing:engine/engine.k4_audit.jsonl")
+	requirePredicateFinding(t, r, k6v1.MissingProof, "CurrentClaimWinner", "required_proof_missing:CurrentClaimWinner")
 }
 
 func sealFixtureStream[T any](t *testing.T, s *k6v1.Stream[T], at time.Time) {

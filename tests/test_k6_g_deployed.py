@@ -217,9 +217,31 @@ def test_negative_replay_retains_pass_summary(
     (tmp_path / "producer-result.json").write_bytes(producer)
     ids = [f"I{i}" for i in range(1, 14)]
     covered = [] if idle else ["I1", "I11"]
+    proof = {
+        "I2": ("AtomicHistory", "required_proof_missing:node_attempt_write_transactions"),
+        "I4": ("CurrentClaimWinner", "required_proof_missing:result_commit_identity"),
+    }
+    history = "engine/engine.transition_history.jsonl"
+    baseline_findings = (
+        []
+        if idle
+        else [
+            {
+                "predicate": predicate,
+                "code": code,
+                "kind": "missing",
+                "source": history,
+                "witness": {"path": history, "row_key": ["workflow", 1, "id"], "sha256": "a" * 64},
+            }
+            for predicate, code in proof.values()
+        ]
+    )
     baseline = json.dumps(
         {
-            "findings": [],
+            "findings": baseline_findings,
+            "confirmation": {"status": "pending", "reason": "confirmation_pending:G3a4"},
+            "safety": "incomplete" if idle else "NOT COVERED",
+            "completeness": "incomplete" if idle else "FAIL",
             "labels": [
                 {
                     "id": identity,
@@ -228,7 +250,9 @@ def test_negative_replay_retains_pass_summary(
                     "reason": {
                         "I1": "no_positive_population" if idle else "predicate_satisfied",
                         "I11": "no_positive_population" if idle else "predicate_satisfied",
-                        **dict.fromkeys(("I2", "I4", "I6"), "predicate_pending:G3a2"),
+                        "I2": "no_positive_population" if idle else proof["I2"][1],
+                        "I4": "no_positive_population" if idle else proof["I4"][1],
+                        "I6": "predicate_pending:G3a2",
                     }.get(identity, "outside_registry_ceiling"),
                 }
                 for identity in ids
@@ -241,7 +265,7 @@ def test_negative_replay_retains_pass_summary(
     def offline(root: Path, name: str) -> tuple[int, bytes]:
         if name == "offline":
             assert root == bundle
-            return 3, baseline
+            return (3 if idle else 1), baseline
         assert name == "missing"
         assert not (root / source).exists()
         assert json.loads((root / "index.json").read_bytes())["files"] == []
@@ -254,7 +278,10 @@ def test_negative_replay_retains_pass_summary(
             "witness": None,
         }
         return exit_code, json.dumps(
-            {"findings": [finding] * (2 if extra_finding else 1), "completeness": completeness}
+            {
+                "findings": [finding] * (2 if extra_finding else 1) + baseline_findings,
+                "completeness": completeness,
+            }
         ).encode()
 
     if error is None:

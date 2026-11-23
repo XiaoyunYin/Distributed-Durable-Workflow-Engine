@@ -317,16 +317,47 @@ def replay(
     (directory / "checker-live.json").write_bytes(live)
     code, result = offline(good, "offline")
     (directory / "checker-offline.json").write_bytes(result)
-    require(code == 3, f"G_OFFLINE_EXIT_{code}")
+    require(code == (3 if idle else 1), f"G_OFFLINE_EXIT_{code}")
     require(live == result, "G_CANONICAL_PARITY")
     positive = json.loads(result)
-    require(positive["findings"] == [], "G_LIVE_CHECKER_FINDINGS")
+    require(
+        positive["confirmation"] == {"status": "pending", "reason": "confirmation_pending:G3a4"},
+        "G_CHECKER_CONFIRMATION",
+    )
+    missing_proof = {
+        "I2": ("AtomicHistory", "required_proof_missing:node_attempt_write_transactions"),
+        "I4": ("CurrentClaimWinner", "required_proof_missing:result_commit_identity"),
+    }
+    findings = positive["findings"]
+    require(
+        [(f["predicate"], f["code"]) for f in findings]
+        == ([] if idle else list(missing_proof.values())),
+        "G_LIVE_CHECKER_FINDINGS",
+    )
+    history = "engine/engine.transition_history.jsonl"
+    require(
+        positive["completeness"] == ("incomplete" if idle else "FAIL")
+        and positive["safety"] == ("incomplete" if idle else "NOT COVERED")
+        and all(
+            f["kind"] == "missing"
+            and f["source"] == history
+            and f["witness"]["path"] == history
+            and len(f["witness"]["row_key"]) == 3
+            and len(f["witness"]["sha256"]) == 64
+            for f in findings
+        ),
+        "G_LIVE_CHECKER_FINDINGS",
+    )
     ids = [f"I{i}" for i in range(1, 14)]
     completed = ("I1", "I11")
     covered = [] if idle else list(completed)
     labels = positive["labels"]
+    registered = {"I1", "I2", "I4", "I6", "I11"}
+    if source == "witness/effect-ingress.jsonl":
+        registered.update(("I8", "I10"))
     require(
         [label["id"] for label in labels] == ids
+        and {label["id"] for label in labels if label["registered"]} == registered
         and positive["invariants_covered"] == covered
         and positive["invariants_not_covered"] == [label for label in ids if label not in covered],
         "G_CHECKER_LABELS",
@@ -336,6 +367,10 @@ def replay(
             require(label["registered"], "G_CHECKER_LABELS")
             outcome = "NOT COVERED" if idle else "covered/pass"
             reason = "no_positive_population" if idle else "predicate_satisfied"
+        elif label["id"] in missing_proof:
+            require(label["registered"], "G_CHECKER_LABELS")
+            outcome = "NOT COVERED"
+            reason = "no_positive_population" if idle else missing_proof[label["id"]][1]
         else:
             outcome = "NOT COVERED"
             reason = "predicate_pending:G3a2" if label["registered"] else "outside_registry_ceiling"
@@ -365,7 +400,8 @@ def replay(
                 "source": source,
                 "witness": None,
             }
-        ],
+        ]
+        + findings,
         "G_EXACT_MISSING_SOURCE_REASON",
     )
     require(verdict["completeness"] == "FAIL", "G_MISSING_SOURCE_COMPLETENESS")

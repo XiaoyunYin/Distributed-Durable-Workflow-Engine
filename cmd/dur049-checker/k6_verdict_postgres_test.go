@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -53,6 +54,15 @@ func requirePredicateFinding(t *testing.T, result k6v1.Result, kind k6v1.Finding
 	t.Fatalf("wanted %s %s %s, got %+v", kind, predicate, reason, result.Findings)
 }
 
+func requireMinimalHistoryProof(t *testing.T, result k6v1.Result) {
+	t.Helper()
+	findings := databaseFindings(result)
+	if len(findings) != 1 {
+		t.Fatalf("minimal history findings: %+v", findings)
+	}
+	requirePredicateFinding(t, result, k6v1.MissingProof, "AtomicHistory", "required_proof_missing:engine/engine.k4_audit.jsonl")
+}
+
 func verifyVerdictParity(t *testing.T, path string, stdout []byte, code int) k6v1.Result {
 	t.Helper()
 	bundle := inspectK6Output(t, path, stdout, code)
@@ -79,7 +89,35 @@ func verifyVerdictParity(t *testing.T, path string, stdout []byte, code int) k6v
 			t.Fatalf("network-isolated replay differs: exit %d, want %d: %v %s", exit, code, err, &stderr)
 		}
 	}
-	return k6v1.Verify(bundle)
+	result := k6v1.Verify(bundle)
+	for _, finding := range result.Findings {
+		ref := finding.Witness
+		switch finding.Predicate {
+		case "AtomicHistory", "OwnerAtCommit", "CurrentClaimWinner":
+		case "RevisionChain":
+			if finding.Code != "SINK_RESET_RESOURCE_MISSING" {
+				continue
+			}
+		default:
+			continue
+		}
+		if ref == nil {
+			continue
+		}
+		member := bundle[ref.Path]
+		if member == nil {
+			t.Fatalf("witness path %s is absent from the public bundle", ref.Path)
+		}
+		if ref.Path == k6v1.ManifestPath && k6v1.Hash(member.Data) == ref.SHA256 {
+			continue
+		}
+		if !slices.ContainsFunc(bytes.SplitAfter(member.Data, []byte{'\n'}), func(line []byte) bool {
+			return len(line) > 0 && k6v1.Hash(line) == ref.SHA256
+		}) {
+			t.Fatalf("witness %s %v does not hash to a public row", ref.Path, ref.RowKey)
+		}
+	}
+	return result
 }
 
 func writeVerdictArtifact(t *testing.T, path string, raw []byte) {
@@ -107,8 +145,16 @@ func TestK6SinkVerdictParity(t *testing.T) {
 		return verifyVerdictParity(t, path, out, code)
 	}
 	t.Run("Clean", func(t *testing.T) {
-		if findings := databaseFindings(verify(t, cfg)); len(findings) != 0 {
-			t.Fatal(findings)
+		requireMinimalHistoryProof(t, verify(t, cfg))
+	})
+	t.Run("ResetResourceMissing", func(t *testing.T) {
+		mutant := cfg
+		mutant.Manifest.SinkResetResources = []k6v1.ResourceBaseline{{ResourceID: "missing-resource", StateHash: k6v1.Hash([]byte("{}"))}}
+		r := verify(t, mutant)
+		requireOrderingFinding(t, r, "RevisionChain", "SINK_RESET_RESOURCE_MISSING", k6v1.Violation,
+			k6v1.ManifestPath, []any{"sink_reset_resources", "missing-resource"})
+		if label := r.Labels[7]; label.Outcome != "covered/fail" || label.Reason != "contract_violation" {
+			t.Fatalf("RevisionChain label: %+v", label)
 		}
 	})
 	t.Run("WrongReceiptKey", func(t *testing.T) {

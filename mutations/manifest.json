@@ -17231,8 +17231,8 @@
       "id": "k6g2c-missing-proof-exit",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "\tif r.Status == \"failed\" {\n\t\treturn Fail\n",
-      "new": "\tif r.Status == \"failed\" {\n\t\tif r.Safety != \"FAIL\" && len(r.Findings) != 0 && !slices.ContainsFunc(r.Findings, func(f Finding) bool {\n\t\t\treturn !ExternalPath(f.Source) || f.Code != \"required_proof_missing:\"+f.Source\n\t\t}) {\n\t\t\treturn Incomplete\n\t\t}\n\t\treturn Fail\n",
+      "old": "\tcase \"failed\":\n\t\treturn Fail\n",
+      "new": "\tcase \"failed\":\n\t\tif r.Safety != \"FAIL\" && len(r.Findings) != 0 && !slices.ContainsFunc(r.Findings, func(f Finding) bool {\n\t\t\treturn !ExternalPath(f.Source) || f.Code != \"required_proof_missing:\"+f.Source\n\t\t}) {\n\t\t\treturn Incomplete\n\t\t}\n\t\treturn Fail\n",
       "command": [
         "go",
         "test",
@@ -17754,6 +17754,557 @@
         "-count=1"
       ],
       "expected": "cached assignments were treated as corroborated",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-reason-actor",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "if !validHistoryActor(h) {",
+      "new": "if false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^ReasonActor$",
+        "-count=1"
+      ],
+      "expected": "HISTORY_REASON_ACTOR",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-audit-transaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "if !committed(a) {\n\t\t\te.require(predicate, RelationPath(commitAudit), history, h)",
+      "new": "if a == nil {\n\t\t\te.require(predicate, RelationPath(commitAudit), history, h)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^AuditMissing$",
+        "-count=1"
+      ],
+      "expected": "required_proof_missing:engine/engine.k4_audit.jsonl",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-audit-orphan",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "e.transitions[id] == nil || id == nil || seen[id]",
+      "new": "id == nil || seen[id]",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^AuditOrphan$",
+        "-count=1"
+      ],
+      "expected": "HISTORY_AUDIT_UNMATCHED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-audit-transaction-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "if finishedTransactions[currentTransaction] {",
+      "new": "if finishedTransactions[currentTransaction] && a[\"transaction_id\"] == nil {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^AuditTransactionOrder$",
+        "-count=1"
+      ],
+      "expected": "HISTORY_AUDIT_TRANSACTION_ORDER",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-audit-partition",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "if wf != nil && a[\"partition_id\"] != wf[\"partition_id\"] {",
+      "new": "if wf != nil && a[\"partition_id\"] == nil {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^AuditPartition$",
+        "-count=1"
+      ],
+      "expected": "HISTORY_AUDIT_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-audit-revision-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "order <= last[id] || !auditMatchesHistory(a, h, wf)",
+      "new": "last[id] < 0 || !auditMatchesHistory(a, h, wf)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^AuditOrder$",
+        "-count=1"
+      ],
+      "expected": "HISTORY_AUDIT_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-history-attempt",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "e.attempts[attemptKey{id, node.node, iteration, number(h[\"attempt_number\"])}] == nil",
+      "new": "e.attempts[attemptKey{id, node.node, iteration, number(h[\"attempt_number\"])}] != nil",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^AttemptMissing$",
+        "-count=1"
+      ],
+      "expected": "HISTORY_ATTEMPT_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-history-node",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "have && e.nodes[node] == nil",
+      "new": "have && e.nodes[node] != nil",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^NodeMissing$",
+        "-count=1"
+      ],
+      "expected": "HISTORY_NODE_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-history-deltas",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "e.require(predicate, \"node_attempt_write_transactions\", history, h)",
+      "new": "// omit unavailable node and attempt delta proof",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^MissingUnexportedNodeWrites$",
+        "-count=1"
+      ],
+      "expected": "required_proof_missing:node_attempt_write_transactions",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-owner-at-commit",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "if !matches {\n\t\t\te.violate(predicate, \"OWNER_NOT_CURRENT_AT_COMMIT\"",
+      "new": "if prior.epoch < epoch {\n\t\t\te.violate(predicate, \"OWNER_NOT_CURRENT_AT_COMMIT\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^N5OldOwner$",
+        "-count=1"
+      ],
+      "expected": "OWNER_NOT_CURRENT_AT_COMMIT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-owner-release",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "matches := prior.epoch == epoch && prior.id == a[\"owner_id\"] && !prior.released",
+      "new": "matches := prior.epoch == epoch && prior.id == a[\"owner_id\"]",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^Release$",
+        "-count=1"
+      ],
+      "expected": "OWNER_NOT_CURRENT_AT_COMMIT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-owner-acquire",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "epoch <= 0 || a[\"owner_id\"] == \"\" || epoch < prior.epoch || epoch == prior.epoch && !matches",
+      "new": "a[\"owner_id\"] == \"\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^RegressiveAcquisition$",
+        "-count=1"
+      ],
+      "expected": "OWNER_ACQUISITION_ORDER",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-owner-deltas",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "e.require(predicate, \"owner_write_transactions\", history, h)",
+      "new": "// omit unavailable owner write proof",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^MissingUnexportedOwnerWrites$",
+        "-count=1"
+      ],
+      "expected": "required_proof_missing:owner_write_transactions",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-result-supersession",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "case state.number > attempt || state.number == attempt && state.retired:",
+      "new": "case state.number > attempt && e.attempts[dbKey][\"is_current\"] != true:",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^N6SupersededResult$",
+        "-count=1"
+      ],
+      "expected": "RESULT_SUPERSEDED_AT_COMMIT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-result-cancellation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "case cancellations[key.workflow]:",
+      "new": "case cancellations[key.workflow] && state.retired:",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^N6CanceledResult$",
+        "-count=1"
+      ],
+      "expected": "RESULT_AFTER_CANCELLATION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-result-actor",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "case claims[dbKey][\"worker_id\"] != h[\"actor_id\"]:",
+      "new": "case claims[dbKey][\"worker_id\"] == \"\":",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^ResultActor$",
+        "-count=1"
+      ],
+      "expected": "RESULT_CLAIM_ACTOR",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-result-attempt",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "e.violate(predicate, \"RESULT_ATTEMPT_IDENTITY\", history, h)",
+      "new": "// ignore absent committed result coordinates",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^MissingResultAttempt$",
+        "-count=1"
+      ],
+      "expected": "RESULT_ATTEMPT_IDENTITY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-result-outcome",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "e.violate(predicate, \"RESULT_WITHOUT_OUTCOME\", history, h)",
+      "new": "// ignore unsupported persisted outcome",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^ResultOutcome$",
+        "-count=1"
+      ],
+      "expected": "RESULT_WITHOUT_OUTCOME",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-result-proof",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "e.require(predicate, \"result_commit_identity\", history, h)",
+      "new": "// omit unavailable result identity proof",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^MissingUnexportedResultIdentity$",
+        "-count=1"
+      ],
+      "expected": "required_proof_missing:result_commit_identity",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-claim-partition",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "if wf != nil && wf[\"partition_id\"] != a[\"partition_id\"] {",
+      "new": "if wf != nil && wf[\"partition_id\"] == nil {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^ClaimPartition$",
+        "-count=1"
+      ],
+      "expected": "CLAIM_PARTITION_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-claim-attempt",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "db[\"claim_token_hash\"] != claim[\"token_hash\"] ||\n\t\tdb[\"worker_id\"]",
+      "new": "db[\"worker_id\"]",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^ClaimBinding$",
+        "-count=1"
+      ],
+      "expected": "CLAIM_ATTEMPT_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-claim-after-replacement",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "cancellations[key.workflow] || state.number > dbKey.attempt || claims[dbKey] != nil",
+      "new": "cancellations[key.workflow] || claims[dbKey] != nil",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^ClaimAfterReplacement$",
+        "-count=1"
+      ],
+      "expected": "CLAIM_NOT_CURRENT_AT_COMMIT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-claim-missing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "e.require(predicate, RelationPath(commitAudit), commitAudit, a)\n\t\treturn\n\t}\n\tkey, dbKey",
+      "new": "e.require(predicate, \"wrong_source\", commitAudit, a)\n\t\treturn\n\t}\n\tkey, dbKey",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^MissingClaim$",
+        "-count=1"
+      ],
+      "expected": "required_proof_missing:engine/engine.k4_audit.jsonl",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-winner-duplicate",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "case winners > 1 || state.successes+state.finalFailures > 1:",
+      "new": "case winners > 2 || state.successes+state.finalFailures > 2:",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^MultipleWinners$",
+        "-count=1"
+      ],
+      "expected": "ITERATION_MULTIPLE_WINNERS",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-winner-missing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "case winners == 0:",
+      "new": "case winners < 0:",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^MissingWinner$",
+        "-count=1"
+      ],
+      "expected": "required_proof_missing:CurrentClaimWinner",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-winner-value",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "case row[\"state\"] == \"SUCCEEDED\" && !reflect.DeepEqual(row[\"accepted_result\"], state.winner[\"result\"]):",
+      "new": "case row[\"state\"] == \"SUCCEEDED\" && reflect.DeepEqual(row[\"accepted_result\"], state.winner[\"result\"]):",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateEngineOrder$/^ResultValue$",
+        "-count=1"
+      ],
+      "expected": "ITERATION_WINNER_RESULT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-winner-retry-exhaustion",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "if state.resolvedRetry {",
+      "new": "if !state.resolvedRetry {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateFailureStrata$/^FAILED_RETRYABLE$",
+        "-count=1"
+      ],
+      "expected": "failure strata",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-sink-reset-resource",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "if haveResources && !seen[baseline.ResourceID] {",
+      "new": "if haveResources && seen[baseline.ResourceID] {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateSinkResetResourceMissing$",
+        "-count=1"
+      ],
+      "expected": "reset inventory verdict",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2-confirmation-gate",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "r.Confirmation.Status == \"confirmed\" && r.RelationIntegrity",
+      "new": "r.RelationIntegrity",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationAllCoveredPure$/^pending$",
+        "-count=1"
+      ],
+      "expected": "confirmation verdict",
       "requires_database": false
     }
   ]

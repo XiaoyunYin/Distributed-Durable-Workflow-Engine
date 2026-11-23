@@ -64,6 +64,7 @@ type Result struct {
 	Safety               string           `json:"safety"`
 	Completeness         string           `json:"completeness"`
 	RelationIntegrity    string           `json:"relation_integrity"`
+	Confirmation         Confirmation     `json:"confirmation"`
 	IndexSHA256          string           `json:"index_sha256"`
 	MeasurementClaim     bool             `json:"measurement_claim"`
 	ChargedSeconds       int              `json:"charged_seconds"`
@@ -74,9 +75,17 @@ type Result struct {
 	Findings             []Finding        `json:"findings"`
 }
 
+type Confirmation struct {
+	Status string `json:"status"`
+	Reason string `json:"reason"`
+}
+
 func (r Result) ExitCode() int {
-	if r.Status == "failed" {
+	switch r.Status {
+	case "failed":
 		return Fail
+	case "passed":
+		return Pass
 	}
 	return Incomplete
 }
@@ -93,6 +102,7 @@ func newResult(m Manifest, indexHash string) Result {
 	r := Result{
 		Schema: "dur053.k6-checker.v1", Status: "incomplete", Safety: "NOT COVERED",
 		Completeness: "incomplete", RelationIntegrity: "covered/pass", IndexSHA256: indexHash,
+		Confirmation:      Confirmation{Status: "pending", Reason: "confirmation_pending:G3a4"},
 		InvariantsCovered: []string{}, InvariantsNotCovered: []string{}, Findings: []Finding{},
 	}
 	for i, predicates := range [][]string{
@@ -172,6 +182,9 @@ func (r *Result) finish() {
 	}
 	if len(r.Findings) > 0 || r.Safety == "FAIL" || r.Completeness == "FAIL" {
 		r.Status = "failed"
+	} else if r.Confirmation.Status == "confirmed" && r.RelationIntegrity == "covered/pass" &&
+		!slices.ContainsFunc(r.Labels, func(l Label) bool { return l.Registered && l.Outcome != "covered/pass" }) {
+		r.Status, r.Safety, r.Completeness = "passed", "PASS", "PASS"
 	}
 }
 
@@ -298,7 +311,6 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 		id := row["workflow_id"].(string)
 		groups[id] = append(groups[id], row)
 	}
-	historyFailed := false
 	terminal := &r.Labels[10]
 	terminal.PopulationUnit = "durable_accept"
 	timedOut := slices.ContainsFunc(issues, func(f Finding) bool { return f.Code == "CUT_DEADLINE" })
@@ -307,13 +319,10 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 		contiguous := true
 		for i, row := range group {
 			if number(row["revision"]) != int64(i+1) {
-				historyFailed = true
 				contiguous = false
 				violate("AtomicHistory", "HISTORY_REVISION_GAP", history, row)
 			}
-			if row["old_state"] != previous || !legalEdge(row["old_state"], row["new_state"], i == 0) ||
-				row["actor_kind"] == "" || row["actor_id"] == "" || row["reason"] == "" {
-				historyFailed = true
+			if row["old_state"] != previous || !legalEdge(row["old_state"], row["new_state"], i == 0) {
 				violate("AtomicHistory", "HISTORY_EDGE", history, row)
 			}
 			previous = row["new_state"]
@@ -338,7 +347,6 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 		aligned := len(group) > 0 && number(group[len(group)-1]["revision"]) == final &&
 			group[len(group)-1]["new_state"] == wf["state"]
 		if !aligned {
-			historyFailed = true
 			violate("AtomicHistory", "HISTORY_FINAL_REVISION", executions, wf)
 		}
 		terminals := 0
@@ -368,9 +376,6 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 	for _, row := range workflows {
 		label.Witnesses = append(label.Witnesses, witness(executions, row))
 	}
-	if historyFailed {
-		label.Outcome, label.Reason = "covered/fail", "contract_violation"
-	}
 	for _, entry := range []*Label{label, terminal} {
 		if entry.Outcome == "covered/fail" {
 			continue
@@ -382,6 +387,10 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 		}
 	}
 	if haveWorkflows && haveHistory {
+		label.Reason = "no_positive_population"
+		if len(workflows) > 0 {
+			label.Outcome, label.Reason = "covered/pass", "predicate_satisfied"
+		}
 		switch {
 		case r.Labels[0].Outcome == "covered/pass" && terminal.PopulationCount > 0:
 			terminal.Outcome, terminal.Reason = "covered/pass", "predicate_satisfied"
@@ -393,6 +402,10 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 			terminal.Reason = r.Labels[0].Reason
 		}
 	}
+	ordering := newEngineOrder(&r, rows, byID, witness, violate)
+	ordering.checkAtomicHistory()
+	ordering.checkOwnerAtCommit()
+	ordering.checkCurrentClaimWinner()
 	for _, sources := range external {
 		checkExternal(&r, m, sources, rows)
 	}
