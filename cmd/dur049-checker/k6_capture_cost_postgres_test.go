@@ -40,21 +40,51 @@ func measureCapture(t *testing.T, conn *pgx.Conn) {
 	}
 	const n = 20
 	var timings []row
-	for _, test := range []struct{ class, statement string }{
-		{"history", "UPDATE engine.transition_history SET reason=reason WHERE revision=1"},
-		{"node", "UPDATE engine.node_instances SET state=state"},
-		{"attempt", "UPDATE engine.activity_attempts SET updated_at=updated_at"},
-		{"lease", "UPDATE engine.partition_leases SET lease_expires_at=lease_expires_at WHERE partition_id=0"},
-		{"timer", "UPDATE engine.timers SET due_at=due_at"},
-		{"approval_grant", "UPDATE engine.approval_action_intents SET grant_expires_at=grant_expires_at"},
-		{"outbox", "UPDATE engine.outbox SET publish_state=publish_state WHERE aggregate_revision=1"},
-		{"publication_mark", "UPDATE engine.outbox_publications SET broker_acknowledged=broker_acknowledged"},
-		{"inbox", "UPDATE engine.event_inbox SET disposition=disposition"},
-		{"consumer_offset", "UPDATE engine.consumer_offsets SET next_offset=next_offset"},
-		{"wakeup", "UPDATE engine.scheduler_wakeups SET state=state"},
-		{"quarantine", "UPDATE engine.transport_quarantine SET reason=reason"},
-		{"reconciliation", "UPDATE engine.reconciliation_items SET status=status"},
+	for _, test := range []struct {
+		class, statement, queueInsert string
+		owner                         bool
+	}{
+		{"history", `INSERT INTO engine.transition_history
+			(transition_id,workflow_id,revision,actor_kind,actor_id,scheduler_epoch,old_state,new_state,reason)
+			SELECT gen_random_uuid(), w.workflow_id, 1+(SELECT max(revision) FROM engine.transition_history),
+				'scheduler','actor',1,'SUCCEEDED','SUCCEEDED','WORKFLOW_ADVANCED'
+			FROM engine.workflow_executions w`, "", true},
+		{"node", "UPDATE engine.node_instances SET state=state", "", true},
+		{"attempt", "UPDATE engine.activity_attempts SET updated_at=updated_at", "", true},
+		{"lease", "UPDATE engine.partition_leases SET lease_expires_at=lease_expires_at WHERE partition_id=0", "", true},
+		{"timer", "UPDATE engine.timers SET due_at=due_at", "", true},
+		{"approval_grant", "UPDATE engine.approval_action_intents SET grant_expires_at=grant_expires_at", "", true},
+		{"outbox", "UPDATE engine.outbox SET publish_state=publish_state WHERE aggregate_revision=1", "", true},
+		{"publication_mark", "UPDATE engine.outbox_publications SET broker_acknowledged=broker_acknowledged", "", false},
+		{"inbox", "UPDATE engine.event_inbox SET disposition=disposition", "", false},
+		{"consumer_offset", "UPDATE engine.consumer_offsets SET next_offset=next_offset", "", false},
+		{"wakeup", "UPDATE engine.scheduler_wakeups SET state=state", "", true},
+		{"quarantine", "UPDATE engine.transport_quarantine SET reason=reason", "", false},
+		{"reconciliation", "UPDATE engine.reconciliation_items SET status=status", "", true},
+		{"publication_start", "SELECT 1", `
+			SELECT 'publication_start','start',jsonb_build_array(event_id,relay_attempts),
+				jsonb_build_object('topic',topic,'relay_owner','` + captureOwnerID + `')
+			FROM engine.outbox WHERE aggregate_revision=1`, false},
+		{"physical_delivery", "SELECT 1", `
+			SELECT 'physical_delivery','ACCEPTED',jsonb_build_array(consumer_id,topic,kafka_partition,kafka_offset),
+				jsonb_build_object('event_id',event_id) FROM engine.event_inbox`, false},
+		{"result_request", "SELECT 1", `
+			SELECT 'result_request','ACCEPTED',jsonb_build_array(workflow_id,node_id,iteration,attempt_number),
+				jsonb_build_object('worker_request_id',worker_request_id,'token_hash',repeat('a',64),
+					'receipt_id',NULL,'attempt_state',state) FROM engine.activity_attempts`, false},
 	} {
+		const owner = `SET durable.k4_owner = '` + captureOwnerID + `';
+			SET durable.k6_owner_partition = '0'; SET durable.k6_owner_epoch = '1'`
+		const noOwner = `RESET durable.k4_owner; RESET durable.k6_owner_partition; RESET durable.k6_owner_epoch`
+		if test.owner {
+			execK6SQL(t, conn, owner)
+		} else {
+			execK6SQL(t, conn, noOwner)
+		}
+		instrumented := test.statement
+		if test.queueInsert != "" {
+			instrumented = "INSERT INTO engine.k6_capture_queue(subject,operation,row_key,after_image) " + test.queueInsert
+		}
 		var off, on, delta []float64
 		for i := 0; i < n; i++ {
 			var measured [2]float64
@@ -62,7 +92,7 @@ func measureCapture(t *testing.T, conn *pgx.Conn) {
 				mode := (step + i) % 2
 				execK6SQL(t, conn, "SET durable.k6_capture = "+[]string{"off", "on"}[mode])
 				start := time.Now()
-				tag, err := conn.Exec(t.Context(), test.statement)
+				tag, err := conn.Exec(t.Context(), []string{test.statement, instrumented}[mode])
 				measured[mode] = float64(time.Since(start).Nanoseconds()) / 1000
 				if err != nil || tag.RowsAffected() != 1 {
 					t.Fatalf("measure %s: %s %v", test.class, tag, err)

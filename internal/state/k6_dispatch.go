@@ -269,11 +269,7 @@ func (s *Store) StageK6Result(ctx context.Context, input ResultInput, worker str
 	if err != nil {
 		return err
 	}
-	var receiptID string
-	if proof != nil {
-		receiptID = proof.Receipt.ApplicationID
-	}
-	if err := captureResult(ctx, tx, input, "PENDING_VERIFICATION", receiptID); err != nil {
+	if err := captureResult(ctx, tx, input, "PENDING_VERIFICATION", proof); err != nil {
 		return err
 	}
 	return tx.Commit(ctx)
@@ -291,10 +287,9 @@ func validK6Proof(input ResultInput, a k6Attempt, grant k6Grant, proof k6receipt
 }
 
 type k6Completion struct {
-	lease     LeaseRef
-	key       ed25519.PublicKey
-	lockBy    time.Time
-	receiptID string
+	lease  LeaseRef
+	key    ed25519.PublicKey
+	lockBy time.Time
 }
 
 func (s *Store) CompleteK6Result(ctx context.Context, lease LeaseRef, attempt Attempt, key ed25519.PublicKey) error {
@@ -330,7 +325,6 @@ func (s *Store) acknowledgeK6Result(ctx context.Context, tx pgx.Tx, input *Resul
 		return err
 	}
 	input.Payload, err = json.Marshal(proof.Receipt)
-	completion.receiptID = proof.Receipt.ApplicationID
 	return err
 }
 

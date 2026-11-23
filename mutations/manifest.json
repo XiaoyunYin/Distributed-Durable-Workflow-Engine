@@ -19240,7 +19240,7 @@
       "id": "k6g3c-owner-class",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/capture_closure.go",
-      "old": "fenced[row[\"transaction_id\"]] || ownerWriteRequired(row)",
+      "old": "fenced[row[\"transaction_id\"]] || c.ownerWriteRequired(row)",
       "new": "fenced[row[\"transaction_id\"]]",
       "command": [
         "go",
@@ -19259,8 +19259,8 @@
       "id": "k6g3c-owner-transaction",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/capture_closure.go",
-      "old": "fenced[row[\"transaction_id\"]] || ownerWriteRequired(row)",
-      "new": "ownerWriteRequired(row)",
+      "old": "fenced[row[\"transaction_id\"]] || c.ownerWriteRequired(row)",
+      "new": "c.ownerWriteRequired(row)",
       "command": [
         "go",
         "test",
@@ -19602,7 +19602,7 @@
       "kind": "behavioral",
       "file": "internal/state/k6_capture.go",
       "old": "os.Getenv(\"DUR053_K6_CAPTURE\") == \"1\" && config.ConnConfig.RuntimeParams[\"durable.k4_campaign\"] == \"on\"",
-      "new": "config.ConnConfig.RuntimeParams[\"durable.k4_campaign\"] == \"on\"",
+      "new": "os.Getenv(\"DUR053_K6_CAPTURE\") != \"1\" && config.ConnConfig.RuntimeParams[\"durable.k4_campaign\"] == \"on\"",
       "command": [
         "go",
         "test",
@@ -19635,6 +19635,25 @@
         "-count=1"
       ],
       "expected": "capture index entry was rejected",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-client-policy",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "return row[\"operation\"] != \"insert\" || !slices.ContainsFunc(c.histories[tx], func(h Row) bool {",
+      "new": "return row[\"operation\"] == \"insert\" || !slices.ContainsFunc(c.histories[tx], func(h Row) bool {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^SubmissionRetryPolicy$",
+        "-count=1"
+      ],
+      "expected": "client retry policy initialization was treated as owner-fenced",
       "requires_database": false
     }
   ]

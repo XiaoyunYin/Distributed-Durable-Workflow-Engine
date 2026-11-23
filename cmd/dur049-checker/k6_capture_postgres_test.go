@@ -52,9 +52,13 @@ func TestK6SourceCaptureParity(t *testing.T) {
 	plan, arrivals := k6Sources(m, time.Now().Add(-time.Minute), "pure.echo")
 	item := plan.Windows[0].Submissions[0]
 	seedCapture(t, engine, item)
-	execK6SQL(t, engine, `CREATE TEMP TABLE clean_capture AS TABLE engine.k6_write_capture;
-		CREATE TEMP TABLE clean_owners AS TABLE engine.k6_owner_write_transactions;
-		ALTER TABLE engine.k6_write_capture DISABLE TRIGGER k6_write_immutable;
+	var cleanCapture, cleanOwners []byte
+	if err := engine.QueryRow(t.Context(), `SELECT
+		(SELECT jsonb_agg(w) FROM engine.k6_write_capture w),
+		(SELECT jsonb_agg(o) FROM engine.k6_owner_write_transactions o)`).Scan(&cleanCapture, &cleanOwners); err != nil {
+		t.Fatal(err)
+	}
+	execK6SQL(t, engine, `ALTER TABLE engine.k6_write_capture DISABLE TRIGGER k6_write_immutable;
 		ALTER TABLE engine.k6_owner_write_transactions DISABLE TRIGGER k6_owner_immutable`)
 
 	for _, tc := range []struct {
@@ -63,27 +67,33 @@ func TestK6SourceCaptureParity(t *testing.T) {
 		{name: "Clean"},
 		{"MissingWrite", "DELETE FROM engine.k6_write_capture WHERE subject='engine.node_instances' AND operation='insert'",
 			"EngineCaptureClosure", "CAPTURE_IMAGE_CHAIN", k6v1.WriteCapture,
-			"SELECT event_order FROM clean_capture WHERE subject='engine.node_instances' AND operation='update' ORDER BY event_order LIMIT 1"},
+			"SELECT event_order FROM engine.k6_write_capture WHERE subject='engine.node_instances' AND operation='update' ORDER BY event_order LIMIT 1"},
 		{"WrongTransaction", "UPDATE engine.k6_write_capture SET transaction_id='999999999' WHERE subject='engine.node_instances' AND operation='insert'",
 			"EngineCaptureClosure", "CAPTURE_NODE_TRANSACTION", k6v1.WriteCapture,
-			"SELECT event_order FROM clean_capture WHERE subject='engine.node_instances' AND operation='insert'"},
+			"SELECT event_order FROM engine.k6_write_capture WHERE subject='engine.node_instances' AND operation='insert'"},
 		{"OmittedOwnerClass", "DELETE FROM engine.k6_owner_write_transactions WHERE subject='engine.timers'",
 			"OwnerAtCommit", "OWNER_INVENTORY_WRITE_MISSING", k6v1.WriteCapture,
-			"SELECT event_order FROM clean_capture WHERE subject='engine.timers'"},
+			"SELECT event_order FROM engine.k6_write_capture WHERE subject='engine.timers'"},
 		{"StaleEpoch", "UPDATE engine.k6_owner_write_transactions SET epoch=epoch-1 WHERE subject='engine.timers'",
 			"OwnerAtCommit", "OWNER_INVENTORY_STALE_EPOCH", k6v1.OwnerWrites,
-			"SELECT event_order FROM clean_owners WHERE subject='engine.timers'"},
+			"SELECT event_order FROM engine.k6_owner_write_transactions WHERE subject='engine.timers'"},
 		{"ResultMismatch", "UPDATE engine.k6_write_capture SET after_image=jsonb_set(after_image,'{token_hash}',to_jsonb(repeat('a',64))) WHERE subject='result_request'",
 			"CurrentClaimWinner", "CAPTURE_RESULT_IDENTITY", k6v1.WriteCapture,
-			"SELECT event_order FROM clean_capture WHERE subject='result_request'"},
+			"SELECT event_order FROM engine.k6_write_capture WHERE subject='result_request'"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			var order int64
 			if tc.change != "" {
+				if err := engine.QueryRow(t.Context(), tc.keyQuery).Scan(&order); err != nil {
+					t.Fatal(err)
+				}
 				execK6SQL(t, engine, tc.change)
 				t.Cleanup(func() {
-					execK6SQL(t, engine, `TRUNCATE engine.k6_owner_write_transactions, engine.k6_write_capture;
-						INSERT INTO engine.k6_write_capture SELECT * FROM clean_capture;
-						INSERT INTO engine.k6_owner_write_transactions SELECT * FROM clean_owners`)
+					execK6SQL(t, engine, "TRUNCATE engine.k6_owner_write_transactions, engine.k6_write_capture")
+					execK6SQL(t, engine, `INSERT INTO engine.k6_write_capture
+						SELECT * FROM jsonb_populate_recordset(NULL::engine.k6_write_capture, $1)`, cleanCapture)
+					execK6SQL(t, engine, `INSERT INTO engine.k6_owner_write_transactions
+						SELECT * FROM jsonb_populate_recordset(NULL::engine.k6_owner_write_transactions, $1)`, cleanOwners)
 				})
 			}
 			cfg := writeK6Sources(t, k6live.Config{Schema: k6live.ConfigVersion, DatabaseURL: dsn, Manifest: m,
@@ -98,10 +108,6 @@ func TestK6SourceCaptureParity(t *testing.T) {
 					t.Fatalf("clean capture fixture: %s", stdout)
 				}
 				return
-			}
-			var order int64
-			if err := engine.QueryRow(t.Context(), tc.keyQuery).Scan(&order); err != nil {
-				t.Fatal(err)
 			}
 			key, _ := json.Marshal(order)
 			requireOrderingFinding(t, r, tc.predicate, tc.code, k6v1.Violation, tc.relation, []any{json.Number(key)})
@@ -164,6 +170,8 @@ func seedCapture(t *testing.T, conn *pgx.Conn, item k6v1.Submission) {
 		VALUES ($1,'episode',$1,$2,'definition',1,0,'RUNNABLE',1);
 		INSERT INTO engine.node_instances(workflow_id,node_id,iteration,state,input)
 		VALUES ($1,'pure.echo',0,'RUNNABLE','{}');
+		INSERT INTO engine.retry_policies(workflow_id,node_id,iteration,max_retries,retries_used,checkpoint_schema_version)
+		VALUES ($1,'pure.echo',0,3,0,1);
 		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,new_state,reason)
 		VALUES (md5('h1')::uuid,$1,1,'client','client','RUNNABLE','WORKFLOW_CREATED');
 		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload)

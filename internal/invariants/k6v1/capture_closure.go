@@ -206,7 +206,7 @@ func (c captureClosure) checkOwnerInventory() {
 		}
 		a := inventory[order]
 		if a == nil {
-			if fenced[row["transaction_id"]] || ownerWriteRequired(row) {
+			if fenced[row["transaction_id"]] || c.ownerWriteRequired(row) {
 				c.violate(predicate, "OWNER_INVENTORY_WRITE_MISSING", WriteCapture, row)
 			}
 			continue
@@ -222,10 +222,15 @@ func (c captureClosure) checkOwnerInventory() {
 	}
 }
 
-func ownerWriteRequired(row Row) bool {
+func (c captureClosure) ownerWriteRequired(row Row) bool {
 	switch row["subject"] {
-	case leases, acquisitions, timers, "engine.retry_policies":
+	case leases, acquisitions, timers:
 		return true
+	case "engine.retry_policies":
+		tx := captureTransaction{row["transaction_id"], row["workflow_id"]}
+		return row["operation"] != "insert" || !slices.ContainsFunc(c.histories[tx], func(h Row) bool {
+			return h["reason"] == "WORKFLOW_CREATED"
+		})
 	case wakeups:
 		return row["operation"] != "insert"
 	case history:

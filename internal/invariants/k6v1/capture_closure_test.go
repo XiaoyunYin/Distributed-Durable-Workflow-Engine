@@ -165,6 +165,17 @@ func TestK6CaptureClosure(t *testing.T) {
 			t.Fatalf("clean result capture: %+v", c.result.Findings)
 		}
 	})
+	t.Run("SubmissionRetryPolicy", func(t *testing.T) {
+		c := newClosureFixture()
+		row := maps.Clone(timer)
+		row["subject"], row["workflow_id"] = "engine.retry_policies", "workflow"
+		c.rows["engine.retry_policies"], c.rows[WriteCapture] = nil, []Row{row}
+		c.histories[captureTransaction{"1", "workflow"}] = []Row{{"reason": "WORKFLOW_CREATED"}}
+		c.checkOwnerInventory()
+		if len(c.result.Findings) != 0 {
+			t.Fatalf("client retry policy initialization was treated as owner-fenced: %+v", c.result.Findings)
+		}
+	})
 }
 
 func newClosureFixture() captureClosure {

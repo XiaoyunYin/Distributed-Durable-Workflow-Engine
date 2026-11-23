@@ -1616,7 +1616,7 @@ func (s *Store) recordResultReceipt(ctx context.Context, input ResultInput, k6 *
 			input.AttemptNumber, input.ClaimToken, reconciliationRef, input.Payload); err != nil {
 			return ResultReceipt{}, err
 		}
-		if err := captureResult(ctx, tx, input, string(ResultRecordedAsEvidence), ""); err != nil {
+		if err := captureResult(ctx, tx, input, string(ResultRecordedAsEvidence), nil); err != nil {
 			return ResultReceipt{}, err
 		}
 		if err := tx.Commit(ctx); err != nil {
@@ -1676,11 +1676,7 @@ func (s *Store) recordResultReceipt(ctx context.Context, input ResultInput, k6 *
 	if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, input.EventType, input.Payload); err != nil {
 		return ResultReceipt{}, err
 	}
-	var receiptID string
-	if k6 != nil {
-		receiptID = k6.receiptID
-	}
-	if err := captureResult(ctx, tx, input, string(ResultAccepted), receiptID); err != nil {
+	if err := captureResult(ctx, tx, input, string(ResultAccepted), nil); err != nil {
 		return ResultReceipt{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {

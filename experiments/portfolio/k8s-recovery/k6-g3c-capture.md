@@ -36,7 +36,7 @@ AtomicHistory still reports an absent committed audit link. The capture closure 
 
 ## Runtime cost
 
-`TestK6SourceCaptureParity` publishes the paired PostgreSQL timings at `TestK6SourceCaptureParity/capture-overhead.json` in the verdict artifact. The benchmark alternates capture off and on on the same connection, with K4 audit enabled on both sides. It measures committed SQL statements, including deferred trigger work, under single-client operation. The result is engineering evidence for the G4/H overhead disclosure alongside the worker ledger’s approximately 0.5–3.4 ms per append.
+`TestK6SourceCaptureParity` publishes the paired PostgreSQL timings at `TestK6SourceCaptureParity/capture-overhead.json` in the verdict artifact. Each class has 20 pairs on one connection, alternating which mode runs first, with K4 audit enabled on both sides. Fenced statements include the inventory insert. The three explicit journal entries use a single round trip with a one-row baseline query. Median paired deltas include the deferred trigger and COMMIT. The test measures single-client overhead for the G4/H disclosure alongside the worker ledger’s approximately 0.5–3.4 ms per append.
 
 ## Replay remainder
 

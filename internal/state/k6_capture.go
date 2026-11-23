@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"os"
 
+	"durable-agent-execution-engine/internal/k6receipt"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -33,16 +34,23 @@ func captureOwner(ctx context.Context, tx pgx.Tx, ref LeaseRef) (bool, error) {
 	return true, err
 }
 
-func captureResult(ctx context.Context, tx pgx.Tx, input ResultInput, disposition, receiptID string) error {
+func captureResult(ctx context.Context, tx pgx.Tx, input ResultInput, disposition string, proof *k6receipt.Proof) error {
 	if !captureEnabled(tx.Conn().Config()) {
 		return nil
+	}
+	var receiptID string
+	if proof != nil {
+		receiptID = proof.Receipt.ApplicationID
 	}
 	token := sha256.Sum256([]byte(input.ClaimToken))
 	_, err := tx.Exec(ctx, `
 		INSERT INTO engine.k6_capture_queue (subject, operation, row_key, workflow_id, partition_id, after_image)
 		SELECT 'result_request', $7, jsonb_build_array(a.workflow_id, a.node_id, a.iteration, a.attempt_number),
 			a.workflow_id, w.partition_id, jsonb_build_object('worker_request_id', a.worker_request_id,
-			'token_hash', $5::text, 'receipt_id', NULLIF($6::text, ''), 'attempt_state', $8::text)
+			'token_hash', $5::text,
+			'receipt_id', COALESCE(NULLIF($6::text, ''),
+				CASE WHEN $7 = 'ACCEPTED' AND a.k6_proof IS NOT NULL THEN a.result->>'application_id' END),
+			'attempt_state', $8::text)
 		FROM engine.activity_attempts a JOIN engine.workflow_executions w USING (workflow_id)
 		WHERE a.workflow_id=$1 AND a.node_id=$2 AND a.iteration=$3 AND a.attempt_number=$4`,
 		input.WorkflowID, input.NodeID, input.Iteration, input.AttemptNumber,
