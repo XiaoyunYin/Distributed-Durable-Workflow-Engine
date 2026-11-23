@@ -1,6 +1,9 @@
 package k6v1
 
-import "slices"
+import (
+	"slices"
+	"strings"
+)
 
 const (
 	replayPredicate      = "LostResultReplay"
@@ -109,19 +112,22 @@ func (e engineOrder) checkCapturedReplayAndUncertainty() {
 			if row["operation"] != "insert" || after["disposition"] != "CONFIRMED_APPLIED" {
 				continue
 			}
-			for _, write := range e.captureWrites[tx] {
-				key := write["row_key"].([]any)
-				if (write["subject"] != "effects.effect_records" && write["subject"] != "engine.effect_records") || key[1] != after["logical_effect_key"] {
+			schema, _, _ := strings.Cut(row["subject"].(string), ".")
+			effect := effectKey{row["workflow_id"], after["logical_effect_key"]}
+			for prior, unresolved := range pending {
+				if unresolved != effect {
 					continue
 				}
-				before, resolved := captureImage(write, "before_image"), captureImage(write, "after_image")
-				if before["outcome"] != "OUTCOME_UNKNOWN" || resolved["outcome"] != "APPLIED" || before["attempt_number"] != resolved["attempt_number"] {
-					continue
-				}
-				for prior, effect := range pending {
-					if effect == (effectKey{row["workflow_id"], after["logical_effect_key"]}) && prior.attempt == number(resolved["attempt_number"]) {
-						delete(pending, prior)
-					}
+				if slices.ContainsFunc(e.captureWrites[tx], func(write Row) bool {
+					key := write["row_key"].([]any)
+					before, resolved := captureImage(write, "before_image"), captureImage(write, "after_image")
+					return write["subject"] == schema+".effect_records" && key[1] == effect.logicalKey &&
+						before["outcome"] == "OUTCOME_UNKNOWN" && resolved["outcome"] == "APPLIED" &&
+						before["attempt_number"] == resolved["attempt_number"] && number(resolved["attempt_number"]) == prior.attempt
+				}) {
+					delete(pending, prior)
+				} else {
+					e.require(uncertaintyPredicate, "effect_uncertainty_resolution_transactions", WriteCapture, row)
 				}
 			}
 		}

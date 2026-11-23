@@ -28,7 +28,11 @@ func (e engineOrder) checkCapturedPublications() {
 				e.violate(dispatchPredicate, "CAPTURE_PUBLICATION_IDENTITY", WriteCapture, row)
 			}
 			if after["publish_state"] == "CLAIMED" && before["relay_attempts"] != after["relay_attempts"] {
-				claims[publicationKey{id, after["relay_attempts"]}] = row
+				attempt := publicationKey{id, after["relay_attempts"]}
+				if before == nil || number(after["relay_attempts"]) != number(before["relay_attempts"])+1 || claims[attempt] != nil {
+					e.violate(dispatchPredicate, "CAPTURE_PUBLICATION_CLAIM", WriteCapture, row)
+				}
+				claims[attempt] = row
 			}
 			if before["publish_state"] == "CLAIMED" && after != nil && after["publish_state"] != "CLAIMED" {
 				published[publicationKey{id, before["relay_attempts"]}] = row
@@ -38,7 +42,8 @@ func (e engineOrder) checkCapturedPublications() {
 			base := captureImage(created[attempt.event], "after_image")
 			claim := captureImage(claims[attempt], "after_image")
 			if row["operation"] != "start" || before != nil || after == nil || starts[attempt] != nil ||
-				claim == nil || claim["claim_owner"] != after["relay_owner"] || base["topic"] != after["topic"] ||
+				claim == nil || claims[attempt]["transaction_id"] == row["transaction_id"] ||
+				claim["claim_owner"] != after["relay_owner"] || base["topic"] != after["topic"] ||
 				created[attempt.event]["workflow_id"] != row["workflow_id"] {
 				e.violate(dispatchPredicate, "CAPTURE_PUBLICATION_START", WriteCapture, row)
 			} else if after["key"] == nil || after["payload_hash"] == nil {
@@ -72,7 +77,7 @@ func (e engineOrder) checkCapturedPublications() {
 			localQuarantine := state == "QUARANTINED" && dispatchTopic(captureImage(end, "after_image")["event_type"]) == ""
 			if end["transaction_id"] != row["transaction_id"] || captureImage(claim, "after_image")["claim_owner"] != after["relay_owner"] ||
 				(state == "PUBLISHED") != (after["broker_acknowledged"] == true) ||
-				!localQuarantine && (start == nil || number(start["event_order"]) >= number(row["event_order"])) {
+				!localQuarantine && (start == nil || start["transaction_id"] == row["transaction_id"] || number(start["event_order"]) >= number(row["event_order"])) {
 				e.violate(dispatchPredicate, "CAPTURE_PUBLICATION_MARK", WriteCapture, row)
 			}
 		}
@@ -107,6 +112,34 @@ func (e engineOrder) checkCapturedDispositions(events map[any]Row) {
 		deliveries := e.checkDispositionTransaction(rows[:end], events, accepted, disposed)
 		e.checkCapturedOffsetAdvance(rows[:end], deliveries, disposed, watermarks)
 		rows = rows[end:]
+	}
+	e.checkCapturedReconciliations()
+}
+
+func (e engineOrder) checkCapturedReconciliations() {
+	obligations := map[string]Row{}
+	for _, row := range e.rows[WriteCapture] {
+		key, after := row["row_key"].([]any), captureImage(row, "after_image")
+		switch row["subject"] {
+		case outbox:
+			obligations["outbox/"+key[0].(string)] = row
+		case wakeups:
+			obligations["wakeup/"+key[0].(string)] = row
+		case quarantine:
+			if after != nil {
+				obligations[transportReference(delivery(after))] = row
+			}
+		case reconciliation:
+			switch after["kind"] {
+			case "PENDING_OUTBOX", "LOST_WAKEUP", "POISON_RECORD":
+				linked := obligations[after["reference"].(string)]
+				image := captureImage(linked, "after_image")
+				if image == nil || linked["workflow_id"] != row["workflow_id"] ||
+					(after["kind"] == "POISON_RECORD" && linked["subject"] == outbox && image["publish_state"] != "QUARANTINED") {
+					e.violate(dispatchPredicate, "CAPTURE_RECONCILIATION_BINDING", WriteCapture, row)
+				}
+			}
+		}
 	}
 }
 
@@ -197,6 +230,10 @@ func (e engineOrder) checkDispositionTransaction(rows []Row, events map[any]Row,
 
 func (e engineOrder) checkCapturedOffsetAdvance(rows []Row, deliveries map[capturedDelivery]Row, disposed map[deliveryPosition]capturedDelivery, watermarks map[consumerPartition]int64) {
 	initial := map[consumerPartition]int64{}
+	observed := map[consumerPartition]bool{}
+	for id := range deliveries {
+		observed[id.position.consumerPartition] = true
+	}
 	for _, row := range rows {
 		if row["subject"] != offsets {
 			continue
@@ -218,6 +255,9 @@ func (e engineOrder) checkCapturedOffsetAdvance(rows []Row, deliveries map[captu
 		}
 		if next < prior {
 			e.violate(dispatchPredicate, "CAPTURE_OFFSET_REGRESSION", WriteCapture, row)
+		}
+		if next > prior && !observed[partition] {
+			e.violate(dispatchPredicate, "CAPTURE_OFFSET_TRANSACTION", WriteCapture, row)
 		}
 		for offset := prior; offset < next; offset++ {
 			pos := deliveryPosition{partition, json.Number(strconv.FormatInt(offset, 10))}

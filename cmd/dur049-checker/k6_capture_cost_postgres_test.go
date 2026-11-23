@@ -55,19 +55,20 @@ func measureCapture(t *testing.T, conn *pgx.Conn) {
 		{"timer", "UPDATE engine.timers SET due_at=due_at", "", true},
 		{"approval_grant", "UPDATE engine.approval_action_intents SET grant_expires_at=grant_expires_at", "", true},
 		{"outbox", "UPDATE engine.outbox SET publish_state=publish_state WHERE aggregate_revision=1", "", true},
-		{"publication_mark", "UPDATE engine.outbox_publications SET broker_acknowledged=broker_acknowledged", "", false},
-		{"inbox", "UPDATE engine.event_inbox SET disposition=disposition", "", false},
-		{"consumer_offset", "UPDATE engine.consumer_offsets SET next_offset=next_offset", "", false},
+		{"publication_mark", "UPDATE engine.outbox_publications SET broker_acknowledged=broker_acknowledged WHERE event_id=md5('o1')::uuid", "", false},
+		{"inbox", "UPDATE engine.event_inbox SET disposition=disposition WHERE consumer_id='runtime-schedulers-v1'", "", false},
+		{"consumer_offset", "UPDATE engine.consumer_offsets SET next_offset=next_offset WHERE consumer_id='runtime-schedulers-v1'", "", false},
 		{"wakeup", "UPDATE engine.scheduler_wakeups SET state=state", "", true},
 		{"quarantine", "UPDATE engine.transport_quarantine SET reason=reason", "", false},
-		{"reconciliation", "UPDATE engine.reconciliation_items SET status=status", "", true},
+		{"reconciliation", "UPDATE engine.reconciliation_items SET status=status WHERE kind='DUE_TIMER'", "", true},
 		{"publication_start", "SELECT 1", `
 			SELECT 'publication_start','start',jsonb_build_array(event_id,relay_attempts),
-				jsonb_build_object('topic',topic,'relay_owner','` + captureOwnerID + `')
+				jsonb_build_object('topic',topic,'relay_owner','` + captureOwnerID + `','key',event_id,
+					'payload_hash',encode(sha256(convert_to(payload::text,'UTF8')),'hex'))
 			FROM engine.outbox WHERE aggregate_revision=1`, false},
 		{"physical_delivery", "SELECT 1", `
 			SELECT 'physical_delivery','ACCEPTED',jsonb_build_array(consumer_id,topic,kafka_partition,kafka_offset),
-				jsonb_build_object('event_id',event_id) FROM engine.event_inbox`, false},
+				jsonb_build_object('event_id',event_id) FROM engine.event_inbox WHERE consumer_id='runtime-schedulers-v1'`, false},
 		{"result_request", "SELECT 1", `
 			SELECT 'result_request','ACCEPTED',jsonb_build_array(workflow_id,node_id,iteration,attempt_number),
 				jsonb_build_object('worker_request_id',worker_request_id,'token_hash',repeat('a',64),

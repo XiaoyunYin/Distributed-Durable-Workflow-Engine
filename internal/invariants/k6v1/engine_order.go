@@ -351,6 +351,10 @@ func (e engineOrder) checkCurrentClaimWinner() {
 			}
 			if !e.captureReady || commit.request == nil {
 				e.require(predicate, "result_commit_identity", history, h)
+			} else if commit.attempt["worker_id"] != h["actor_id"] ||
+				commit.attempt["claim_token_hash"] != claims[dbKey]["token_hash"] ||
+				commit.attempt["worker_request_id"] != claims[dbKey]["worker_request_id"] {
+				e.violate(predicate, "CAPTURE_RESULT_CLAIM", history, h)
 			} else {
 				e.checkWinnerReceipt(h, e.attempts[dbKey], commit, receipts)
 			}
@@ -420,9 +424,10 @@ func (e engineOrder) checkWinnerReceipt(h, attempt Row, commit capturedResult, r
 	id := commit.attempt["receipt_id"]
 	proof, _ := attempt["k6_proof"].(map[string]any)
 	signed, _ := proof["receipt"].(map[string]any)
+	ref := e.witness(activityAttempts, attempt)
 	if id == nil || signed["application_id"] != id || receipts[id] == nil ||
 		slices.ContainsFunc(e.result.Findings, func(f Finding) bool {
-			return f.Predicate == "ReceiptSignature" && f.Witness != nil && f.Witness.SHA256 == e.witness(activityAttempts, attempt).SHA256
+			return f.Predicate == "ReceiptSignature" && f.Witness != nil && f.Witness.Path == ref.Path && f.Witness.SHA256 == ref.SHA256
 		}) {
 		e.require(predicate, "result_receipt_binding", history, h)
 	} else if receipts[id]["workflow_id"] != h["workflow_id"] || receipts[id]["logical_key"] != attempt["logical_effect_key"] {

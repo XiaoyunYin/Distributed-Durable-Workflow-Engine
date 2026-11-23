@@ -14281,7 +14281,13 @@
       "file": "scripts/dur053_k4_evidence.py",
       "old": "        and (bool(c[\"overlap\"]) or (kind == \"scale-down\" and rules is Derivation.CORRECTED)),\n",
       "new": "        and bool(c[\"overlap\"]),\n",
-      "command": ["python", "-m", "pytest", "-q", "tests/test_k4_round311.py::test_idle_scale_down_is_valid_complete"],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_round311.py::test_idle_scale_down_is_valid_complete"
+      ],
       "expected": "R320 idle scale-down retained the nonempty overlap gate",
       "requires_database": false
     },
@@ -14291,7 +14297,13 @@
       "file": "scripts/dur053_k4_evidence.py",
       "old": "    rules = producer_rules(producer)\n    require(reporting_rules(stored) is rules, summary_guard)\n",
       "new": "    rules = reporting_rules(stored)\n    require(reporting_rules(stored) is rules, summary_guard)\n",
-      "command": ["python", "-m", "pytest", "-q", "tests/test_k4_round311.py::test_registered_producer_proof"],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_round311.py::test_registered_producer_proof"
+      ],
       "expected": "DID NOT RAISE",
       "requires_database": false
     },
@@ -14301,7 +14313,13 @@
       "file": "scripts/dur053_k4_evidence.py",
       "old": "            metrics[\"status\"] = \"PASS\" if metrics[\"valid\"] and not outcome else \"FAIL\"\n",
       "new": "            metrics[\"status\"] = m[\"status\"]\n",
-      "command": ["python", "-m", "pytest", "-q", "tests/test_k4_round311.py::test_idle_scale_down_is_valid_complete"],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k4_round311.py::test_idle_scale_down_is_valid_complete"
+      ],
       "expected": "R320 status echoed the recorded FAIL",
       "requires_database": false
     },
@@ -15435,7 +15453,13 @@
       "file": "python/workers/kafka_worker.py",
       "old": "                effect = EffectAdapter.configured()",
       "new": "                effect = EffectAdapter.configured()\n                send = effect.exchange\n\n                def from_broker(operation, scope, request, invocation):\n                    text = json.loads(message.value)\n                    return send(operation, scope, {**request, \"resource_id\": text[\"resource_id\"], \"logical_key\": text[\"logical_key\"]}, invocation)\n\n                effect.exchange = from_broker",
-      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_kafka_uses_claim_envelope_instead_of_broker_target_and_key"],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_worker.py::test_kafka_uses_claim_envelope_instead_of_broker_target_and_key"
+      ],
       "expected": "broker supplied the effect target or key",
       "requires_database": false
     },
@@ -15445,7 +15469,13 @@
       "file": "python/workers/k6_effect.py",
       "old": "        time.sleep(PRE_CALL_SECONDS)",
       "new": "        pass",
-      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_waits_five_seconds_before_first_sink_request"],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_worker.py::test_waits_five_seconds_before_first_sink_request"
+      ],
       "expected": "registered pre-call delay was skipped",
       "requires_database": false
     },
@@ -15455,7 +15485,13 @@
       "file": "python/workers/k6_effect.py",
       "old": "                    or not signature\n                    or not re.fullmatch(r\"[A-Za-z0-9_-]{86}\", signature)",
       "new": "                    or (signature is not None and not re.fullmatch(r\"[A-Za-z0-9_-]{86}\", signature))",
-      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_success_requires_and_passes_detached_sink_signature"],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_worker.py::test_success_requires_and_passes_detached_sink_signature"
+      ],
       "expected": "unsigned sink response succeeded",
       "requires_database": false
     },
@@ -15465,7 +15501,13 @@
       "file": "python/workers/k6_effect.py",
       "old": "        unknown = report(\"OUTCOME_UNKNOWN\", None)\n        proof, _ = exchange(\"lookup\")",
       "new": "        unknown = report(\"OUTCOME_UNKNOWN\", None)\n        proof, _ = exchange(\"apply\")",
-      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_uncertain_apply_reports_unknown_before_same_key_lookup"],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_worker.py::test_uncertain_apply_reports_unknown_before_same_key_lookup"
+      ],
       "expected": "uncertain apply was replayed instead of looked up",
       "requires_database": false
     },
@@ -15475,7 +15517,13 @@
       "file": "python/workers/k6_effect.py",
       "old": "    line = f\"{OBSERVATION_PREFIX}{message}\"\n    with _observation_lock:\n        sys.stdout.write(line + \"\\n\")\n        sys.stdout.flush()",
       "new": "    LOG.info(message)  # mutation: use the root logger's colon-prefixed format",
-      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_observations_parse_with_worker_entrypoint_logging"],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_worker.py::test_observations_parse_with_worker_entrypoint_logging"
+      ],
       "expected": "DUR053_K6_OBSERVATION missing exchange",
       "requires_database": false
     },
@@ -15485,7 +15533,13 @@
       "file": "python/workers/k6_effect.py",
       "old": "    line = f\"{OBSERVATION_PREFIX}{message}\"\n    with _observation_lock:\n        sys.stdout.write(line + \"\\n\")\n        sys.stdout.flush()",
       "new": "    print(f\"{OBSERVATION_PREFIX}{message}\", flush=True)",
-      "command": ["python", "-m", "pytest", "-q", "tests/test_k6_worker.py::test_concurrent_observations_emit_complete_lines"],
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_worker.py::test_concurrent_observations_emit_complete_lines"
+      ],
       "expected": "partial observation write",
       "requires_database": false
     },
@@ -18860,8 +18914,8 @@
       "id": "k6g3a2b-result-replay",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/outside_ceiling.go",
-      "old": "e.violate(replayPredicate, \"RESULT_REAPPLIED\", history, h)",
-      "new": "if false { e.violate(replayPredicate, \"RESULT_REAPPLIED\", history, h) }",
+      "old": "\t\t\t\te.require(replayPredicate, \"result_commit_identity\", history, h)\n\t\t\t\te.violate(replayPredicate, \"RESULT_REAPPLIED\", history, h)",
+      "new": "\t\t\t\te.require(replayPredicate, \"result_commit_identity\", history, h)\n\t\t\t\tif false { e.violate(replayPredicate, \"RESULT_REAPPLIED\", history, h) }",
       "command": [
         "go",
         "test",
@@ -18879,8 +18933,8 @@
       "id": "k6g3a2b-uncertain-reapply",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/outside_ceiling.go",
-      "old": "e.violate(uncertaintyPredicate, \"UNRESOLVED_EFFECT_REAPPLIED\", history, h)",
-      "new": "if false { e.violate(uncertaintyPredicate, \"UNRESOLVED_EFFECT_REAPPLIED\", history, h) }",
+      "old": "\t\t\t\tattempt[\"effect_class\"] == \"NON_COOPERATING_EFFECT\" {\n\t\t\t\te.violate(uncertaintyPredicate, \"UNRESOLVED_EFFECT_REAPPLIED\", history, h)",
+      "new": "\t\t\t\tattempt[\"effect_class\"] == \"NON_COOPERATING_EFFECT\" {\n\t\t\t\tif false { e.violate(uncertaintyPredicate, \"UNRESOLVED_EFFECT_REAPPLIED\", history, h) }",
       "command": [
         "go",
         "test",
@@ -18917,8 +18971,8 @@
       "id": "k6g3a2b-request-receipt",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/outside_ceiling.go",
-      "old": "e.require(replayPredicate, \"result_commit_identity\", history, h)",
-      "new": "if false { e.require(replayPredicate, \"result_commit_identity\", history, h) }",
+      "old": "\t\t\t\t// Rejected or evidence-only requests have no such history.\n\t\t\t\te.require(replayPredicate, \"result_commit_identity\", history, h)",
+      "new": "\t\t\t\t// Rejected or evidence-only requests have no such history.\n\t\t\t\tif false { e.require(replayPredicate, \"result_commit_identity\", history, h) }",
       "command": [
         "go",
         "test",
@@ -18936,8 +18990,8 @@
       "id": "k6g3a2b-uncertainty-resolution",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/outside_ceiling.go",
-      "old": "e.require(uncertaintyPredicate, \"effect_uncertainty_resolution_transactions\", history, h)",
-      "new": "if false { e.require(uncertaintyPredicate, \"effect_uncertainty_resolution_transactions\", history, h) }",
+      "old": "\t\t\tif attempt[\"effect_class\"] == \"NON_COOPERATING_EFFECT\" {\n\t\t\t\te.require(uncertaintyPredicate, \"effect_uncertainty_resolution_transactions\", history, h)",
+      "new": "\t\t\tif attempt[\"effect_class\"] == \"NON_COOPERATING_EFFECT\" {\n\t\t\t\tif false { e.require(uncertaintyPredicate, \"effect_uncertainty_resolution_transactions\", history, h) }",
       "command": [
         "go",
         "test",
@@ -18955,8 +19009,8 @@
       "id": "k6g3a2b-shutdown-receipt",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/outside_ceiling.go",
-      "old": "e.requireWitness(shutdownPredicate, \"shutdown_result_binding\", &ref)",
-      "new": "if false { e.requireWitness(shutdownPredicate, \"shutdown_result_binding\", &ref) }",
+      "old": "\t\t} else {\n\t\t\te.requireWitness(shutdownPredicate, \"shutdown_result_binding\", &ref)",
+      "new": "\t\t} else {\n\t\t\tif false { e.requireWitness(shutdownPredicate, \"shutdown_result_binding\", &ref) }",
       "command": [
         "go",
         "test",
@@ -19449,8 +19503,8 @@
       "id": "k6g3c-result-transaction",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/capture_closure.go",
-      "old": "if !slices.ContainsFunc(histories, func(h Row) bool { return h[\"reason\"] == resultRecorded && captureMatchesAttempt(row, h) })",
-      "new": "if slices.ContainsFunc(histories, func(h Row) bool { return h[\"reason\"] == resultRecorded && captureMatchesAttempt(row, h) })",
+      "old": "if transition == nil || c.resultCommits[transition].request != nil {",
+      "new": "if transition != nil || c.resultCommits[transition].request != nil {",
       "command": [
         "go",
         "test",
@@ -19563,8 +19617,8 @@
       "id": "k6g3c-projection-field",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/capture_schema.go",
-      "old": "if len(image) != len(p.fields) {",
-      "new": "if len(image) < len(p.fields) {",
+      "old": "if len(image) != len(fields) {",
+      "new": "if len(image) < len(fields) {",
       "command": [
         "go",
         "test",
@@ -19654,6 +19708,519 @@
         "-count=1"
       ],
       "expected": "client retry policy initialization was treated as owner-fenced",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-absent-cut",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/barrier.go",
+      "old": "if before.Count == -1 || after.Count == -1 {\n\t\treturn before.Count == after.Count",
+      "new": "if before.Count == -1 || after.Count == -1 {\n\t\treturn true",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureAbsentWatermark$",
+        "-count=1"
+      ],
+      "expected": "absent capture was treated as an empty relation",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-empty-capture",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "e.require(capturePredicate, RelationPath(relation), \"\", nil)",
+      "new": "if false { e.require(capturePredicate, RelationPath(relation), \"\", nil) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureAwards$/^EmptyCapture$",
+        "-count=1"
+      ],
+      "expected": "missing capture relation was not typed",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-history-changes",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "c.violate(\"AtomicHistory\", \"CAPTURE_HISTORY_CHANGES\", history, h)",
+      "new": "if false { c.violate(\"AtomicHistory\", \"CAPTURE_HISTORY_CHANGES\", history, h) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureAwards$/^HistoryChanges$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-claim-transaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "c.violate(\"CurrentClaimWinner\", \"CAPTURE_CLAIM_TRANSACTION\", commitAudit, a)",
+      "new": "if false { c.violate(\"CurrentClaimWinner\", \"CAPTURE_CLAIM_TRANSACTION\", commitAudit, a) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureAwards$/^ClaimTransaction$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_CLAIM_TRANSACTION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-award-atomic",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "e.capture && !e.captureReady {",
+      "new": "e.capture {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureAwards$/^AtomicHistory$",
+        "-count=1"
+      ],
+      "expected": "complete atomic history was blocked",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-award-owner",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "label := &e.result.Labels[2]\n\t\tif e.captureReady {",
+      "new": "label := &e.result.Labels[2]\n\t\tif false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureAwards$/^CompleteAndBound$",
+        "-count=1"
+      ],
+      "expected": "complete capture was not awarded",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-award-winner",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "} else if e.captureReady {\n\t\tlabel.Outcome, label.Reason = \"covered/pass\", \"predicate_satisfied\"",
+      "new": "} else if false {\n\t\tlabel.Outcome, label.Reason = \"covered/pass\", \"predicate_satisfied\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureAwards$/^CompleteAndBound$",
+        "-count=1"
+      ],
+      "expected": "complete capture was not awarded",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-winner-claim",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "e.violate(predicate, \"CAPTURE_RESULT_CLAIM\", history, h)",
+      "new": "if false { e.violate(predicate, \"CAPTURE_RESULT_CLAIM\", history, h) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureAwards$/^CompleteAndBound$",
+        "-count=1"
+      ],
+      "expected": "expected violation CurrentClaimWinner CAPTURE_RESULT_CLAIM",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-receipt-proof",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "id := commit.attempt[\"receipt_id\"]",
+      "new": "id := attempt[\"result\"].(map[string]any)[\"application_id\"]",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureAwards$/^ProofReceipt$",
+        "-count=1"
+      ],
+      "expected": "receipt join ignored the proof identity",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-outbox-proof",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "if !e.captureReady {\n\t\t\te.require(dispatchPredicate, \"outbox_creation_transactions\", history, h)",
+      "new": "if true {\n\t\t\te.require(dispatchPredicate, \"outbox_creation_transactions\", history, h)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureRemainder$",
+        "-count=1"
+      ],
+      "expected": "capture changed the broker-only remainder",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-publication-proof",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "if !e.captureReady {\n\t\t\te.require(dispatchPredicate, \"publication_attempt_identities\", outbox, row)",
+      "new": "if true {\n\t\t\te.require(dispatchPredicate, \"publication_attempt_identities\", outbox, row)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureRemainder$",
+        "-count=1"
+      ],
+      "expected": "capture changed the broker-only remainder",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-disposition-proof",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "if !e.captureReady {\n\t\t\te.require(dispatchPredicate, \"dispatch_disposition_transactions\", outbox, row)",
+      "new": "if true {\n\t\t\te.require(dispatchPredicate, \"dispatch_disposition_transactions\", outbox, row)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureRemainder$",
+        "-count=1"
+      ],
+      "expected": "capture changed the broker-only remainder",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-offset-proof",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if !e.captureReady {\n\t\t\te.requireWitness(lowerOffsetsPredicate, \"offset_disposition_transactions\", first)",
+      "new": "if true {\n\t\t\te.requireWitness(lowerOffsetsPredicate, \"offset_disposition_transactions\", first)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureRemainder$",
+        "-count=1"
+      ],
+      "expected": "capture changed the broker-only remainder",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-stable-publication-retry",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_dispatch.go",
+      "old": "} else if after[\"key\"] != base[\"key\"] || after[\"payload_hash\"] != base[\"payload_hash\"] {",
+      "new": "} else if after[\"key\"] != base[\"key\"] {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedPublication$/^ChangedRetry$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_PUBLICATION_IDENTITY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-publication-claim",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_dispatch.go",
+      "old": "e.violate(dispatchPredicate, \"CAPTURE_PUBLICATION_CLAIM\", WriteCapture, row)",
+      "new": "if false { e.violate(dispatchPredicate, \"CAPTURE_PUBLICATION_CLAIM\", WriteCapture, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedPublication$/^ClaimGap$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_PUBLICATION_CLAIM",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-publication-start",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_dispatch.go",
+      "old": "e.violate(dispatchPredicate, \"CAPTURE_PUBLICATION_START\", WriteCapture, row)",
+      "new": "if false { e.violate(dispatchPredicate, \"CAPTURE_PUBLICATION_START\", WriteCapture, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedPublication$/^UncommittedStart$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_PUBLICATION_START",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-publication-mark",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_dispatch.go",
+      "old": "!localQuarantine && (start == nil || start[\"transaction_id\"] == row[\"transaction_id\"] || number(start[\"event_order\"]) >= number(row[\"event_order\"]))",
+      "new": "!localQuarantine && (start != nil && (start[\"transaction_id\"] == row[\"transaction_id\"] || number(start[\"event_order\"]) >= number(row[\"event_order\"])))",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedPublication$/^MarkWithoutStart$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_PUBLICATION_MARK",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-disposition-inbox",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_dispatch.go",
+      "old": "valid = matchesEvent && inboxes[id] != nil && captureImage(inboxes[id], \"after_image\")[\"disposition\"] == \"ACCEPTED\" &&",
+      "new": "valid = matchesEvent &&",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedDisposition$/^OmittedInbox$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_DELIVERY_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-offset-advance-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_dispatch.go",
+      "old": "if next > prior && !observed[partition] {",
+      "new": "if false && next > prior && !observed[partition] {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedDisposition$/^OffsetWithoutDelivery$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_OFFSET_TRANSACTION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-offset-lower-gap",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_dispatch.go",
+      "old": "e.violate(predicate, \"CAPTURE_OFFSET_DISPOSITION_GAP\", WriteCapture, row)",
+      "new": "if false { e.violate(predicate, \"CAPTURE_OFFSET_DISPOSITION_GAP\", WriteCapture, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedDisposition$/^UncapturedLower$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_OFFSET_DISPOSITION_GAP",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-reconciliation-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_dispatch.go",
+      "old": "e.violate(dispatchPredicate, \"CAPTURE_RECONCILIATION_BINDING\", WriteCapture, row)",
+      "new": "if false { e.violate(dispatchPredicate, \"CAPTURE_RECONCILIATION_BINDING\", WriteCapture, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedDisposition$/^Reconciliation$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_RECONCILIATION_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-captured-result-replay",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "if writes[identity] || id[1] != nil && receipts[id] {",
+      "new": "if id[1] != nil && receipts[id] {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedOutsideCeiling$/^ResultReplay$",
+        "-count=1"
+      ],
+      "expected": "expected violation LostResultReplay RESULT_REAPPLIED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-captured-resolution",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "delete(pending, prior)",
+      "new": "_ = prior",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedOutsideCeiling$/^ResolutionBeforeReplay$",
+        "-count=1"
+      ],
+      "expected": "earlier captured resolution was ignored",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-captured-resolution-proof",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "e.require(uncertaintyPredicate, \"effect_uncertainty_resolution_transactions\", WriteCapture, row)",
+      "new": "if false { e.require(uncertaintyPredicate, \"effect_uncertainty_resolution_transactions\", WriteCapture, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedOutsideCeiling$/^UnboundResolution$",
+        "-count=1"
+      ],
+      "expected": "expected missing UnknownEffectVisible required_proof_missing:effect_uncertainty_resolution_transactions",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-captured-unresolved-replay",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "prior.attempt < key.attempt && attempt[\"effect_class\"] == \"NON_COOPERATING_EFFECT\" {",
+      "new": "prior.attempt > key.attempt && attempt[\"effect_class\"] == \"NON_COOPERATING_EFFECT\" {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedOutsideCeiling$/^LateResolution$",
+        "-count=1"
+      ],
+      "expected": "expected violation UnknownEffectVisible UNRESOLVED_EFFECT_REAPPLIED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-captured-shutdown-disposition",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "state = captureImage(commit.request, \"after_image\")[\"attempt_state\"]",
+      "new": "state = db[\"state\"]",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedOutsideCeiling$/^ShutdownFailure$",
+        "-count=1"
+      ],
+      "expected": "expected violation ShutdownDisposition SHUTDOWN_RECORDED_AS_FAILURE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c2-shutdown-independent-signal",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "e.requireWitness(shutdownPredicate, \"shutdown_signal_or_exit\", &ref)",
+      "new": "if false { e.requireWitness(shutdownPredicate, \"shutdown_signal_or_exit\", &ref) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturedOutsideCeiling$/^ShutdownFailure$",
+        "-count=1"
+      ],
+      "expected": "expected missing ShutdownDisposition required_proof_missing:shutdown_signal_or_exit",
       "requires_database": false
     }
   ]

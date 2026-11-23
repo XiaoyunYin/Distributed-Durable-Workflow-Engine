@@ -13,7 +13,7 @@ func transportOrder(t *testing.T, m Manifest, rows map[string][]Row, run func(en
 	t.Helper()
 	r := newResult(m, "")
 	keys := map[string][]string{}
-	for _, spec := range EngineRelations(false) {
+	for _, spec := range EngineRelations(false, true) {
 		keys[spec.Name] = spec.Keys
 	}
 	witness := func(relation string, row Row) Witness {
