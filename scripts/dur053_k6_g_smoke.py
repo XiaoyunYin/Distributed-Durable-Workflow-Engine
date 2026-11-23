@@ -739,6 +739,21 @@ class Episode(Matrix):
         atomic(self.members, canonical(state))
         return state
 
+    def corroborated_coordinator(self, worker_names: list[str]) -> Json | None:
+        state = self.coordinator_state(worker_names)
+        if state is None:
+            return None
+
+        def matches(folder: Path) -> bool:
+            lines = self.root_read(folder / BROKER_PATH).splitlines()
+            broker = json.loads(lines[-2])["data"] if len(lines) > 2 else {}
+            return (
+                broker.get("state") == "stable"
+                and broker.get("coordinator") == state["coordinator"]
+            )
+
+        return state if self.frame(matches) is not None else None
+
     def frame(self, predicate: Callable[[Path], bool]) -> Path | None:
         require(self.collector_process.poll() is None, "G_COLLECTOR_EXITED")
         current = self.frames / "current"
@@ -786,10 +801,12 @@ class Episode(Matrix):
             self.evidence.write("worker-restart.json", {"before": sessions[0], "after": restarted})
         self.ready("worker")
         names = [runtime["pod_name"] for runtime in initial]
-        state = self.wait_for(
+        self.wait_for(
             lambda: self.coordinator_state(names), "G_COORDINATOR_ASSIGNMENT_MISSING", seconds=70
         )
-        self.wait_for(lambda: self.frame(lambda _: True), "G_COLLECTOR_FRAME_MISSING", seconds=20)
+        state = self.wait_for(
+            lambda: self.corroborated_coordinator(names), "G_COLLECTOR_FRAME_MISSING", seconds=20
+        )
         return names, state["generation"]
 
     def effect_admissions(self, episode: Json) -> tuple[Path, str, AbstractContextManager[None]]:
@@ -1138,7 +1155,7 @@ class Episode(Matrix):
                 with self.evidence.step("deployed-workloads"):
                     self.offers(jail, token)
                     last = self.wait_for(
-                        lambda: self.coordinator_state(names),
+                        lambda: self.corroborated_coordinator(names),
                         "G_FINAL_COORDINATOR_STATE",
                         seconds=20,
                     )

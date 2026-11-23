@@ -62,7 +62,7 @@ func (r *Result) checkGroupMembership(m Manifest, broker *Stream[BrokerRow]) {
 				}
 				continue
 			}
-			if !coordinatorMatches(b) {
+			if !b.CoordinatorMatches() {
 				flagExternal(r, 11, predicate, "GROUP_COORDINATOR_DESCRIPTION_MISMATCH", BrokerPath, record)
 				continue
 			}
@@ -74,8 +74,9 @@ func (r *Result) checkGroupMembership(m Manifest, broker *Stream[BrokerRow]) {
 	}
 }
 
-func coordinatorMatches(b BrokerRow) bool {
-	return b.Generation > 0 && b.Coordinator.Generation == b.Generation &&
+// CoordinatorMatches compares a callback claim with a classic-group description.
+func (b BrokerRow) CoordinatorMatches() bool {
+	return b.Coordinator != nil && b.Generation > 0 && b.Coordinator.Generation == b.Generation &&
 		slices.EqualFunc(b.Coordinator.Members, b.Members, func(claim, observed BrokerMember) bool {
 			return claim.ID == observed.ID && claim.ClientID == observed.ClientID && claim.Generation == b.Generation &&
 				claim.Assignments != nil && slices.Equal(claim.Assignments, observed.Assignments)

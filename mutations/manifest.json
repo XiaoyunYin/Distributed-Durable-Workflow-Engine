@@ -17736,6 +17736,25 @@
       ],
       "expected": "terminal history gap",
       "requires_database": false
+    },
+    {
+      "id": "k6g3a-collector-stale-group",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6collect/broker.go",
+      "old": "if out.State == \"stable\" && observation != nil && !out.CoordinatorMatches() {",
+      "new": "if out.State == \"stable\" && observation != nil && out.CoordinatorMatches() {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6collect",
+        "-run",
+        "^TestK6BrokerCollectorCachedAssignments$",
+        "-count=1"
+      ],
+      "expected": "cached assignments were treated as corroborated",
+      "requires_database": false
     }
   ]
 }
