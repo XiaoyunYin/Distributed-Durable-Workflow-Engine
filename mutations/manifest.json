@@ -17457,7 +17457,7 @@
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/sink.go",
       "old": " || first[\"old_state_hash\"] != emptyState",
-      "new": "",
+      "new": " || first[\"old_state_hash\"] == emptyState",
       "command": [
         "go",
         "test",
@@ -17697,6 +17697,44 @@
         "-count=1"
       ],
       "expected": "group finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-submission-missing-offer",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/submission.go",
+      "old": "if arrivalsOK && !present {",
+      "new": "if arrivalsOK && present {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageSubmissionMissingOffer$",
+        "-count=1"
+      ],
+      "expected": "missing offer verdict",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-terminal-history-gap",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "} else if !contiguous {",
+      "new": "} else if contiguous {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageTerminalHistoryGap$",
+        "-count=1"
+      ],
+      "expected": "terminal history gap",
       "requires_database": false
     }
   ]

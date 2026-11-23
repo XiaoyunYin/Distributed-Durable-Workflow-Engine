@@ -106,8 +106,8 @@ func TestK6SubmissionIdentity(t *testing.T) {
 		observed.Rows = append([]k6v1.Arrival{arrivals.Rows[0]}, arrivals.Rows[2:]...)
 		observed.PlanSHA256 = k6v1.Hash(bundle[k6v1.PlanPath].Data)
 		resealK6File(t, mutant, k6v1.ArrivalsPath, observed)
-		expect(t, mutant, "SUBMISSION_ARRIVAL_MISSING", "SUBMISSION_DURABLE_WITHOUT_SEND")
-		expect(t, acquireK6Fixture(t, config, plan, observed, k6v1.Fail), "SUBMISSION_ARRIVAL_MISSING", "SUBMISSION_DURABLE_WITHOUT_SEND")
+		expect(t, mutant, "required_proof_missing:SubmissionIdentity")
+		expect(t, acquireK6Fixture(t, config, plan, observed, k6v1.Fail), "required_proof_missing:SubmissionIdentity")
 	})
 	t.Run("N3ConsistentSubset", func(t *testing.T) {
 		mutant := cloneBundle(bundle)
@@ -117,7 +117,7 @@ func TestK6SubmissionIdentity(t *testing.T) {
 		resealK6File(t, mutant, k6v1.ArrivalsPath, observed)
 		resealK6Relation(t, mutant, relation, filterRows(mutant[k6v1.RelationPath(relation)].Data, uncertain.Key), 1)
 		resealK6Relation(t, mutant, k6History, filterRows(mutant[k6v1.RelationPath(k6History)].Data, uncertain.Key), 2)
-		expect(t, mutant, "SUBMISSION_ARRIVAL_MISSING", "NAMESPACE_COUNT")
+		expect(t, mutant, "required_proof_missing:SubmissionIdentity", "NAMESPACE_COUNT")
 	})
 	t.Run("UnsentAndRejectedDurables", func(t *testing.T) {
 		minimalExecution(t, engine, unsent)

@@ -245,6 +245,8 @@ func (r *Result) checkSubmissions(m Manifest, rows map[string][]Row, plan Plan, 
 	label := &r.Labels[0]
 	workflows, haveWorkflows := rows[executions]
 	definitions, haveDefinitions := rows["engine.workflow_definitions"]
+	intents, haveIntents := rows["engine.approval_action_intents"]
+	complete := planOK && arrivalsOK && haveWorkflows && haveDefinitions && (m.Sink == nil || haveIntents)
 	byKey := map[string]Row{}
 	failed := false
 	for _, wf := range workflows {
@@ -264,7 +266,7 @@ func (r *Result) checkSubmissions(m Manifest, rows map[string][]Row, plan Plan, 
 	defer func() {
 		if failed {
 			label.Outcome, label.Reason = "covered/fail", "contract_violation"
-		} else if planOK && arrivalsOK && haveWorkflows && haveDefinitions {
+		} else if complete {
 			if label.PopulationCount > 0 {
 				label.Outcome, label.Reason = "covered/pass", "predicate_satisfied"
 			} else {
@@ -272,13 +274,14 @@ func (r *Result) checkSubmissions(m Manifest, rows map[string][]Row, plan Plan, 
 			}
 		}
 	}()
-	if !planOK || !haveWorkflows || !haveDefinitions || !arrivalsOK {
+	if !complete {
 		for _, source := range []struct {
 			ok   bool
 			path string
 		}{
 			{planOK, PlanPath}, {arrivalsOK, ArrivalsPath}, {haveWorkflows, RelationPath(executions)},
 			{haveDefinitions, RelationPath("engine.workflow_definitions")},
+			{m.Sink == nil || haveIntents, RelationPath("engine.approval_action_intents")},
 		} {
 			if !source.ok {
 				label.Reason = "required_proof_missing:" + source.path
@@ -305,7 +308,7 @@ func (r *Result) checkSubmissions(m Manifest, rows map[string][]Row, plan Plan, 
 		knownDefinitions[definition{row["definition_id"].(string), number(row["version"])}] = true
 	}
 	intentsByWorkflow := map[string][]Row{}
-	for _, row := range rows["engine.approval_action_intents"] {
+	for _, row := range intents {
 		id := row["workflow_id"].(string)
 		intentsByWorkflow[id] = append(intentsByWorkflow[id], row)
 	}
@@ -329,7 +332,11 @@ func (r *Result) checkSubmissions(m Manifest, rows map[string][]Row, plan Plan, 
 			plannedIDs[id] = true
 			arrival, present := observed[id]
 			if arrivalsOK && !present {
-				flag("SUBMISSION_ARRIVAL_MISSING", ArrivalsPath)
+				complete = false
+				label.Reason = "required_proof_missing:SubmissionIdentity"
+				raw, _ := Canonical(entry)
+				ref := Witness{Path: PlanPath, RowKey: []any{window.Name, entry.Sequence}, SHA256: Hash(raw)}
+				r.record(MissingProof, predicate, label.Reason, ArrivalsPath, &ref)
 			}
 			if present && arrival.Key != key {
 				flag("SUBMISSION_ARRIVAL_KEY", ArrivalsPath)
@@ -372,7 +379,7 @@ func (r *Result) checkSubmissions(m Manifest, rows map[string][]Row, plan Plan, 
 				violate(predicate, code, executions, wf)
 				failed = true
 			}
-			if (present && !accepted && !uncertain) || (arrivalsOK && !present) {
+			if present && !accepted && !uncertain {
 				check("SUBMISSION_DURABLE_WITHOUT_SEND")
 			}
 			if wf["workflow_id"] != key {

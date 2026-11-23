@@ -1041,6 +1041,7 @@ class Episode(Matrix):
             live,
             "witness/effect-ingress.jsonl" if self.effect else "witness/topology.json",
             offline,
+            idle=self.idle,
         )
         bundle = output / "bundle"
         if not self.effect:

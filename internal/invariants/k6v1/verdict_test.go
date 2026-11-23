@@ -34,6 +34,22 @@ func TestK6CoverageUniqueTerminal(t *testing.T) {
 	}
 }
 
+func TestK6CoverageTerminalHistoryGap(t *testing.T) {
+	m := Manifest{Cell: "hook-0", Namespace: "ns"}
+	wf := Row{"workflow_id": "id", "namespace": "ns", "submission_key": "id", "revision": json.Number("3"), "state": "SUCCEEDED"}
+	start := Row{"workflow_id": "id", "revision": json.Number("1"), "old_state": nil, "new_state": "RUNNABLE",
+		"actor_kind": "client", "actor_id": "actor", "reason": "registered"}
+	end := Row{"workflow_id": "id", "revision": json.Number("3"), "old_state": "RUNNABLE", "new_state": "SUCCEEDED",
+		"actor_kind": "scheduler", "actor_id": "actor", "reason": "finished"}
+	r := evaluate(m, Snapshot{NamespaceCount: 1}, map[string][]Row{executions: {wf}, history: {start, end}},
+		Plan{}, Arrivals{}, false, false, "", nil)
+	if r.Completeness != "FAIL" || !slices.ContainsFunc(r.Findings, func(f Finding) bool {
+		return f.Kind == MissingProof && f.Predicate == "UniqueTerminal" && f.Code == "required_proof_missing:UniqueTerminal"
+	}) {
+		t.Fatalf("terminal history gap: %+v", r.Findings)
+	}
+}
+
 func TestK6CoverageCeiling(t *testing.T) {
 	r := newResult(Manifest{Cell: "hook-0", Ordinal: 0}, "")
 	r.Labels[6].Outcome = "covered/pass"
@@ -43,6 +59,23 @@ func TestK6CoverageCeiling(t *testing.T) {
 	if r.ExitCode() != Fail || r.Safety != "FAIL" || r.Labels[6].Outcome != "NOT COVERED" ||
 		slices.Contains(r.InvariantsCovered, "I7") || len(r.Labels[6].Witnesses) != 1 {
 		t.Fatalf("ceiling verdict: %+v", r.Labels[6])
+	}
+}
+
+func TestK6CoverageSubmissionMissingOffer(t *testing.T) {
+	m := Manifest{Cell: "hook-0", Namespace: "ns", Seed: 530001}
+	body := SubmissionBody{
+		DefinitionID: "test", DefinitionVersion: 1, InitialNodeID: "echo",
+		InitialInput: []byte("{}"), Payload: []byte("{}"),
+	}
+	entry := Submission{Key: "dur053-schedule-530001-000000", Target: "echo", Body: body, BodySHA256: body.Digest()}
+	plan := Plan{Windows: []PlanWindow{{Name: "warmup", LoadRunID: "schedule", Submissions: []Submission{entry}}}}
+	rows := map[string][]Row{executions: {}, history: {}, "engine.workflow_definitions": {}}
+	r := evaluate(m, Snapshot{}, rows, plan, Arrivals{}, true, true, "", nil)
+	if r.ExitCode() != Fail || r.Safety == "FAIL" || r.Completeness != "FAIL" || len(r.Findings) != 1 ||
+		r.Findings[0].Kind != MissingProof || r.Findings[0].Code != "required_proof_missing:SubmissionIdentity" ||
+		r.Labels[0].Outcome != "NOT COVERED" || r.Labels[10].Outcome != "NOT COVERED" {
+		t.Fatalf("missing offer verdict: %+v", r)
 	}
 }
 
@@ -146,7 +179,8 @@ func TestK6PredicateSinkDuplicateMutation(t *testing.T) {
 		{"workflow_id": "workflow", "intent_id": "intent", "target": "resource"},
 	}}
 	r := evaluate(m, Snapshot{}, rows, Plan{}, Arrivals{}, false, false, "", nil)
-	if r.ExitCode() != Fail || len(r.Findings) != 1 || r.Findings[0].Code != "SINK_KEY_MUTATED_TWICE" || r.Labels[7].Outcome != "covered/fail" {
+	if r.ExitCode() != Fail || len(r.Findings) != 1 || r.Findings[0].Code != "SINK_KEY_MUTATED_TWICE" || r.Labels[7].Outcome != "covered/fail" ||
+		r.Findings[0].Witness == nil || !slices.Equal(r.Findings[0].Witness.RowKey, []any{"resource", json.Number("2")}) {
 		t.Fatalf("duplicate write verdict: %+v", r.Findings)
 	}
 }

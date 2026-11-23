@@ -220,8 +220,40 @@ func TestK6CutPairedRetry(t *testing.T) {
 }
 
 func TestK6CutDeadlineSalvageLive(t *testing.T) {
-	_, _, config := newPair(t)
+	engine, _, config := newPair(t)
 	cfg := pairSources(t, config, time.Now().Add(5*time.Second))
+	var plan k6v1.Plan
+	var arrivals k6v1.Arrivals
+	if _, err := loadSource(cfg.PlanFile, &plan); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := loadSource(cfg.ArrivalsFile, &arrivals); err != nil {
+		t.Fatal(err)
+	}
+	pending := plan.Windows[0].Submissions[0]
+	arrivals.Rows[0].Disposition, arrivals.Rows[0].UnsentReason = "sent", nil
+	arrivals.Rows[0].Attempts = []k6v1.Send{{
+		Attempt: 1, SentUTC: pending.ScheduledUTC, ObservedUTC: pending.ScheduledUTC,
+		BodySHA256: pending.BodySHA256, Request: pending.Request, Outcome: "uncertain",
+	}}
+	rawArrivals, err := k6v1.Canonical(arrivals)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(cfg.ArrivalsFile, rawArrivals, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	runSQL(t, engine, `INSERT INTO engine.workflow_definitions(definition_id,version,definition_hash,graph,activity_versions,effect_classes)
+		VALUES ('definition',1,'hash','{"nodes":["pure.echo"]}','{"pure.echo":"v1"}','{"pure.echo":"PURE_ACTIVITY"}')`)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if _, err := engine.Exec(ctx, `WITH pending AS (
+		INSERT INTO engine.workflow_executions(workflow_id,namespace,submission_key,submission_payload_hash,definition_id,definition_version,partition_id,state,revision)
+		VALUES ($1,'episode',$1,$2,'definition',1,0,'RUNNABLE',1) RETURNING workflow_id)
+		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason)
+		SELECT gen_random_uuid(),workflow_id,1,'client','actor',NULL,'RUNNABLE','WORKFLOW_CREATED' FROM pending`, pending.Key, "sub-v1:"+pending.BodySHA256); err != nil {
+		t.Fatal(err)
+	}
 	// Let the deadline elapse after the final DB sample and before recording Finished.
 	if err := acquireObserved(context.Background(), cfg, nil, func(ctx context.Context) {
 		<-ctx.Done()
@@ -249,6 +281,13 @@ func TestK6CutDeadlineSalvageLive(t *testing.T) {
 	}
 	result := k6v1.Verify(root)
 	requireCutCode(t, result, "CUT_DEADLINE")
+	if !slices.ContainsFunc(result.Findings, func(f k6v1.Finding) bool {
+		return f.Kind == k6v1.Censor && f.Predicate == "UniqueTerminal" && f.Code == "TERMINAL_DEADLINE_CENSORED" &&
+			f.Witness != nil && slices.Equal(f.Witness.RowKey, []any{pending.Key})
+	}) {
+		t.Fatalf("deadline salvage lost the pending workflow: %+v", result.Findings)
+	}
+	t.Logf("UniqueTerminal TERMINAL_DEADLINE_CENSORED workflow=%s exit=%d", pending.Key, result.ExitCode())
 	if result.ExitCode() != k6v1.Fail || slices.ContainsFunc(result.Findings, func(f k6v1.Finding) bool {
 		return f.Code == "CUT_NO_GENERATION"
 	}) {

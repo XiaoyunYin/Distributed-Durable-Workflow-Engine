@@ -302,11 +302,13 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 	terminal := &r.Labels[10]
 	terminal.PopulationUnit = "durable_accept"
 	timedOut := slices.ContainsFunc(issues, func(f Finding) bool { return f.Code == "CUT_DEADLINE" })
-	checkHistory := func(group []Row) {
+	checkHistory := func(group []Row) bool {
 		var previous any
+		contiguous := true
 		for i, row := range group {
 			if number(row["revision"]) != int64(i+1) {
 				historyFailed = true
+				contiguous = false
 				violate("AtomicHistory", "HISTORY_REVISION_GAP", history, row)
 			}
 			if row["old_state"] != previous || !legalEdge(row["old_state"], row["new_state"], i == 0) ||
@@ -316,12 +318,13 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 			}
 			previous = row["new_state"]
 		}
+		return contiguous
 	}
 	for _, wf := range workflows {
 		id := wf["workflow_id"].(string)
 		group := groups[id]
 		delete(groups, id)
-		checkHistory(group)
+		contiguous := checkHistory(group)
 		if wf["namespace"] != m.Namespace {
 			continue
 		}
@@ -352,6 +355,8 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 			} else {
 				r.record(MissingProof, "UniqueTerminal", "required_proof_missing:UniqueTerminal", ref.Path, &ref)
 			}
+		} else if !contiguous {
+			r.record(MissingProof, "UniqueTerminal", "required_proof_missing:UniqueTerminal", ref.Path, &ref)
 		}
 	}
 	for _, id := range slices.Sorted(maps.Keys(groups)) {
