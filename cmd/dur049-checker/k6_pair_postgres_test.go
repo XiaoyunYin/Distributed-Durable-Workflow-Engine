@@ -55,9 +55,9 @@ func minimalExecution(t *testing.T, conn *pgx.Conn, entry k6v1.Submission) {
 	execK6SQL(t, conn, `INSERT INTO engine.workflow_executions
 		(workflow_id,namespace,submission_key,submission_payload_hash,definition_id,definition_version,partition_id,state,revision)
 		VALUES ($1,'episode',$1,$2,'definition',1,0,'SUCCEEDED',2)`, entry.Key, "sub-v1:"+entry.BodySHA256)
-	execK6SQL(t, conn, `INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason)
-		VALUES (md5($1::text||'1')::uuid,$1,1,'client','actor',NULL,'RUNNABLE','WORKFLOW_CREATED'),
-			(md5($1::text||'2')::uuid,$1,2,'scheduler','actor','RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED')`, entry.Key)
+	execK6SQL(t, conn, `INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason,scheduler_epoch)
+		VALUES (md5($1::text||'1')::uuid,$1,1,'client','actor',NULL,'RUNNABLE','WORKFLOW_CREATED',NULL),
+			(md5($1::text||'2')::uuid,$1,2,'scheduler','actor','RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED',1)`, entry.Key)
 }
 
 func pairedK6Fixture(t *testing.T) (*pgx.Conn, *pgx.Conn, k6live.Config, k6v1.Plan, k6v1.Arrivals) {
@@ -112,9 +112,7 @@ func acquireK6Fixture(t *testing.T, config k6live.Config, plan k6v1.Plan, arriva
 	bundle := inspectK6Output(t, path, stdout, code)
 	if want == k6v1.Incomplete && config.ExternalDir == "" {
 		result := k6v1.Verify(bundle)
-		if found := databaseFindings(result); len(found) > 0 {
-			t.Fatalf("database fixture has unexpected findings: %+v", found)
-		}
+		requireMinimalHistoryProof(t, result)
 	}
 	return bundle
 }
@@ -129,7 +127,8 @@ func TestK6SinkAndSources(t *testing.T) {
 	_, sink, config, plan, arrivals := pairedK6Fixture(t)
 	bundle := acquireK6Fixture(t, config, plan, arrivals, k6v1.Incomplete)
 	result := k6v1.Verify(bundle)
-	if len(databaseFindings(result)) != 0 || !slices.Equal(result.InvariantsCovered, []string{"I1", "I11"}) {
+	requireMinimalHistoryProof(t, result)
+	if !slices.Equal(result.InvariantsCovered, []string{"I1", "I11"}) {
 		t.Fatalf("clean paired cut: %+v", result.Findings)
 	}
 	for _, spec := range k6v1.SinkRelations() {

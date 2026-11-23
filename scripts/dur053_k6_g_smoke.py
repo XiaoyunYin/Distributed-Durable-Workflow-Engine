@@ -1044,7 +1044,7 @@ class Episode(Matrix):
                 code, live = result.result()
         else:
             code, live = invoke(("sudo", *launch), "live", 140)
-        require(code == 3, f"G_LIVE_EXIT_{code}")
+        require(code == (3 if self.idle else 1), f"G_LIVE_EXIT_{code}")
 
         def offline(directory: Path, name: str, executable: str = checker) -> tuple[int, bytes]:
             return invoke(
@@ -1063,7 +1063,7 @@ class Episode(Matrix):
         bundle = output / "bundle"
         if not self.effect:
             code, default = offline(bundle, "default-offline", str(self.shared / "checker-default"))
-            require(code == 3, f"G_DEFAULT_OFFLINE_EXIT_{code}")
+            require(code == (3 if self.idle else 1), f"G_DEFAULT_OFFLINE_EXIT_{code}")
             require(default == live, "G_DEFAULT_BUILD_PARITY")
         quiet = quiet_summary(bundle)
         self.evidence.write("quiet-generations.json", quiet)

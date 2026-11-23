@@ -53,6 +53,15 @@ func requirePredicateFinding(t *testing.T, result k6v1.Result, kind k6v1.Finding
 	t.Fatalf("wanted %s %s %s, got %+v", kind, predicate, reason, result.Findings)
 }
 
+func requireMinimalHistoryProof(t *testing.T, result k6v1.Result) {
+	t.Helper()
+	findings := databaseFindings(result)
+	if len(findings) != 1 {
+		t.Fatalf("minimal history findings: %+v", findings)
+	}
+	requirePredicateFinding(t, result, k6v1.MissingProof, "AtomicHistory", "required_proof_missing:engine/engine.k4_audit.jsonl")
+}
+
 func verifyVerdictParity(t *testing.T, path string, stdout []byte, code int) k6v1.Result {
 	t.Helper()
 	bundle := inspectK6Output(t, path, stdout, code)
@@ -107,8 +116,16 @@ func TestK6SinkVerdictParity(t *testing.T) {
 		return verifyVerdictParity(t, path, out, code)
 	}
 	t.Run("Clean", func(t *testing.T) {
-		if findings := databaseFindings(verify(t, cfg)); len(findings) != 0 {
-			t.Fatal(findings)
+		requireMinimalHistoryProof(t, verify(t, cfg))
+	})
+	t.Run("ResetResourceMissing", func(t *testing.T) {
+		mutant := cfg
+		mutant.Manifest.SinkResetResources = []k6v1.ResourceBaseline{{ResourceID: "missing-resource", StateHash: k6v1.Hash([]byte("{}"))}}
+		r := verify(t, mutant)
+		requireOrderingFinding(t, r, "RevisionChain", "SINK_RESET_RESOURCE_MISSING", k6v1.Violation,
+			k6v1.ManifestPath, []any{"sink_reset_resources", "missing-resource"})
+		if label := r.Labels[7]; label.Outcome != "covered/fail" || label.Reason != "contract_violation" {
+			t.Fatalf("RevisionChain label: %+v", label)
 		}
 	})
 	t.Run("WrongReceiptKey", func(t *testing.T) {

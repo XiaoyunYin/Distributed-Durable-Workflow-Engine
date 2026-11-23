@@ -10,7 +10,7 @@ func TestK6CoverageUniqueTerminal(t *testing.T) {
 	m := Manifest{Cell: "hook-0", Namespace: "ns", Seed: 530001}
 	wf := Row{"workflow_id": "id", "namespace": "ns", "submission_key": "id", "revision": json.Number("1"), "state": "RUNNABLE"}
 	started := Row{"workflow_id": "id", "revision": json.Number("1"), "old_state": nil, "new_state": "RUNNABLE",
-		"actor_kind": "client", "actor_id": "actor", "reason": "registered"}
+		"actor_kind": "client", "actor_id": "actor", "reason": "WORKFLOW_CREATED"}
 	for _, tc := range []struct {
 		name, reason string
 		issues       []Finding
@@ -182,5 +182,21 @@ func TestK6PredicateSinkDuplicateMutation(t *testing.T) {
 	if r.ExitCode() != Fail || len(r.Findings) != 1 || r.Findings[0].Code != "SINK_KEY_MUTATED_TWICE" || r.Labels[7].Outcome != "covered/fail" ||
 		r.Findings[0].Witness == nil || !slices.Equal(r.Findings[0].Witness.RowKey, []any{"resource", json.Number("2")}) {
 		t.Fatalf("duplicate write verdict: %+v", r.Findings)
+	}
+}
+
+func TestK6PredicateSinkResetResourceMissing(t *testing.T) {
+	m := Manifest{Cell: "medium-12", Workload: "COOPERATING_EFFECT", Sink: &DatabaseIdentity{},
+		SinkResetResources: []ResourceBaseline{{"absent", 0, Hash([]byte("{}"))}}}
+	r := evaluate(m, Snapshot{}, map[string][]Row{SinkResources: {}}, Plan{}, Arrivals{}, false, false, "", nil)
+	raw, _ := Canonical(m)
+	if len(r.Findings) != 1 || r.ExitCode() != Fail || r.Safety != "FAIL" {
+		t.Fatalf("reset inventory verdict: %+v", r.Findings)
+	}
+	f := r.Findings[0]
+	if f.Predicate != "RevisionChain" || f.Kind != Violation || f.Code != "SINK_RESET_RESOURCE_MISSING" ||
+		f.Witness == nil || f.Witness.Path != ManifestPath || f.Witness.SHA256 != Hash(raw) ||
+		!slices.Equal(f.Witness.RowKey, []any{"sink_reset_resources", "absent"}) {
+		t.Fatalf("reset inventory witness: %+v", f)
 	}
 }

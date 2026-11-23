@@ -127,10 +127,15 @@ func seedK6Postgres(t *testing.T, conn *pgx.Conn) {
 		VALUES ('definition',1,'hash','{"nodes":["pure.echo"]}','{"pure.echo":"v1"}','{"pure.echo":"PURE_ACTIVITY"}');
 		INSERT INTO engine.workflow_executions(workflow_id,namespace,submission_key,submission_payload_hash,definition_id,definition_version,partition_id,state,revision)
 		VALUES ('dur053-fixture-warmup-530001-000000','episode','dur053-fixture-warmup-530001-000000','hash','definition',1,0,'SUCCEEDED',1001);
-		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason)
-		SELECT md5(i::text)::uuid,'dur053-fixture-warmup-530001-000000',i,'scheduler','actor',CASE WHEN i>1 THEN 'RUNNABLE' END,
-		       CASE WHEN i=1001 THEN 'SUCCEEDED' ELSE 'RUNNABLE' END, CASE WHEN i=1 THEN 'WORKFLOW_CREATED' ELSE 'WORKFLOW_ADVANCED' END
+		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason,scheduler_epoch)
+		SELECT md5(i::text)::uuid,'dur053-fixture-warmup-530001-000000',i,CASE WHEN i=1 THEN 'client' ELSE 'scheduler' END,'actor',
+		       CASE WHEN i>1 THEN 'RUNNABLE' END, CASE WHEN i=1001 THEN 'SUCCEEDED' ELSE 'RUNNABLE' END,
+		       CASE WHEN i=1 THEN 'WORKFLOW_CREATED' ELSE 'WORKFLOW_ADVANCED' END, CASE WHEN i>1 THEN 1 END
 		FROM generate_series(1,1001) i;
+		INSERT INTO engine.k4_audit(kind,at,partition_id,owner_id,epoch,session_id,pod_uid,container_id,transaction_id,transition_id,finalized_at)
+		SELECT 'history',created_at,0,CASE WHEN scheduler_epoch IS NULL THEN '' ELSE 'owner' END,COALESCE(scheduler_epoch,0),
+		       'session','uid','container',(revision+10)::text,transition_id,clock_timestamp()
+		FROM engine.transition_history ORDER BY revision;
 		INSERT INTO engine.node_instances(workflow_id,node_id,iteration,state,input,accepted_result)
 		VALUES ('dur053-fixture-warmup-530001-000000','pure.echo',0,'SUCCEEDED','{"cell":"hook-0"}','{"position":3,"value":"k6"}');
 		INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class,claim_token,worker_id,worker_request_id,grant_scope_hash)
@@ -288,11 +293,11 @@ func TestK6EngineExport(t *testing.T) {
 	if code != k6v1.Fail || diag != "" {
 		t.Fatalf("clean fixture exit %d: %s %s", code, diag, out)
 	}
+	result := verifyVerdictParity(t, dir, out, code)
 	bundle := inspectK6Output(t, dir, out, code)
-	result := k6v1.Verify(bundle)
 	requireK6Finding(t, result, "required_proof_missing:"+k6v1.RosterPath)
 	if len(result.Labels) != 13 ||
-		!slices.Equal(result.InvariantsCovered, []string{"I1", "I11"}) || len(databaseFindings(result)) != 0 ||
+		!slices.Equal(result.InvariantsCovered, []string{"I1", "I2", "I11"}) || len(databaseFindings(result)) != 1 ||
 		result.Namespace == nil || result.Namespace.NamespaceExecutions != 1 || result.Namespace.SQLNamespaceExecutions != 1 {
 		t.Fatalf("clean fixture: %+v", result)
 	}
@@ -304,8 +309,10 @@ func TestK6EngineExport(t *testing.T) {
 		if label.Registered {
 			reason = "predicate_pending:G3a2"
 		}
-		if i == 0 || i == 10 {
+		if i == 0 || i == 1 || i == 10 {
 			outcome, reason = "covered/pass", "predicate_satisfied"
+		} else if i == 3 {
+			reason = "required_proof_missing:CurrentClaimWinner"
 		}
 		if label.Outcome != outcome || label.Reason != reason {
 			t.Fatalf("unimplemented label: %+v", label)
@@ -411,11 +418,12 @@ func TestK6EngineExport(t *testing.T) {
 		if code != k6v1.Fail || diag != "" {
 			t.Fatalf("live N1 exit %d: %s", code, diag)
 		}
-		verdict := k6v1.Verify(inspectK6Output(t, dir, out, code))
-		requireK6Finding(t, verdict, "HISTORY_FINAL_REVISION")
-		requireK6Finding(t, verdict, "TERMINAL_FINAL_UNIQUE")
-		execK6SQL(t, conn, `INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason)
-			VALUES (md5('1001')::uuid,'dur053-fixture-warmup-530001-000000',1001,'scheduler','actor','RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED')`)
+		verdict := verifyVerdictParity(t, dir, out, code)
+		key := []any{"dur053-fixture-warmup-530001-000000"}
+		requireOrderingFinding(t, verdict, "AtomicHistory", "HISTORY_FINAL_REVISION", k6v1.Violation, "engine.workflow_executions", key)
+		requireOrderingFinding(t, verdict, "UniqueTerminal", "TERMINAL_FINAL_UNIQUE", k6v1.Violation, "engine.workflow_executions", key)
+		execK6SQL(t, conn, `INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason,scheduler_epoch)
+			VALUES (md5('1001')::uuid,'dur053-fixture-warmup-530001-000000',1001,'scheduler','actor','RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED',1)`)
 	})
 	t.Run("LiveIllegalEdge", func(t *testing.T) {
 		execK6SQL(t, conn, "UPDATE engine.transition_history SET new_state='REJECTED' WHERE revision=2")
@@ -424,8 +432,10 @@ func TestK6EngineExport(t *testing.T) {
 		if code != k6v1.Fail || diag != "" {
 			t.Fatalf("live illegal edge exit %d: %s", code, diag)
 		}
-		verdict := k6v1.Verify(inspectK6Output(t, dir, out, code))
-		requireK6Finding(t, verdict, "HISTORY_EDGE")
+		putFile(t, filepath.Join(dir, "checker.json"), []byte("{\"status\":\"PASS\"}\n"))
+		verdict := verifyVerdictParity(t, dir, out, code)
+		requireOrderingFinding(t, verdict, "AtomicHistory", "HISTORY_EDGE", k6v1.Violation, k6History,
+			[]any{"dur053-fixture-warmup-530001-000000", json.Number("2"), "c81e728d-9d4c-2f63-6f06-7f89cc14862c"})
 		if verdict.Labels[1].Outcome != "covered/fail" {
 			t.Fatal("illegal edge did not reach the independent history predicate")
 		}

@@ -124,6 +124,13 @@ func (r *Result) checkSink(m Manifest, rows map[string][]Row, workflows map[stri
 			flag("RevisionChain", "SINK_REVISION_ENDPOINT", SinkResources, row)
 		}
 	}
+	for _, baseline := range m.SinkResetResources {
+		if haveResources && !seen[baseline.ResourceID] {
+			raw, _ := Canonical(m)
+			ref := Witness{Path: ManifestPath, RowKey: []any{"sink_reset_resources", baseline.ResourceID}, SHA256: Hash(raw)}
+			r.record(Violation, "RevisionChain", "SINK_RESET_RESOURCE_MISSING", ManifestPath, &ref)
+		}
+	}
 	for _, row := range journal {
 		resource := row["resource_id"].(string)
 		if haveResources && !seen[resource] {

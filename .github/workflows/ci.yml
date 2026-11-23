@@ -436,21 +436,21 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Could not discover the sink port.' }
             $env:DURABLE_K6_SINK_TEST_URL = "postgresql://postgres:${sinkPassword}@${address}/postgres?sslmode=disable"
             $env:DURABLE_K6_VERDICT_CHECKER = Join-Path $env:RUNNER_TEMP 'k6-verdict-checker'
-            $env:DURABLE_K6_VERDICT_ARTIFACT = Join-Path $env:GITHUB_WORKSPACE 'artifacts/k6-g3a-verdicts'
+            $env:DURABLE_K6_VERDICT_ARTIFACT = Join-Path $env:GITHUB_WORKSPACE 'artifacts/k6-g3a2-verdicts'
             go build -p 1 -o $env:DURABLE_K6_VERDICT_CHECKER ./cmd/dur049-checker
             if ($LASTEXITCODE -ne 0) { throw 'Could not build the K6 verdict checker.' }
-            go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/... -run 'K6Cut|K6Source|K6Sink|K6Submission|K6Census|K6Column|K6Roster|K6Session|K6Ingress|K6Decision|K6Broker|K6Quiet|K6Topology|K6Orphan'
+            go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/... -run 'K6Cut|K6Source|K6Sink|K6EngineExport|K6Submission|K6Census|K6Column|K6Roster|K6Session|K6Ingress|K6Decision|K6Broker|K6Quiet|K6Topology|K6Orphan'
             if ($LASTEXITCODE -ne 0) { throw 'K6 PostgreSQL fixtures failed.' }
           } finally {
             docker rm -f $sink
           }
 
-      - name: Upload K6 G3a verdict evidence
+      - name: Upload K6 G3a2 verdict evidence
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: dur053-k6-g3a-verdicts-${{ github.run_id }}-${{ github.run_attempt }}
-          path: artifacts/k6-g3a-verdicts/
+          name: dur053-k6-g3a2-verdicts-${{ github.run_id }}-${{ github.run_attempt }}
+          path: artifacts/k6-g3a2-verdicts/
 
       - name: Exercise K6 Phase C PostgreSQL startup sampling
         shell: bash
