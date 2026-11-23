@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 	"time"
@@ -88,7 +89,35 @@ func verifyVerdictParity(t *testing.T, path string, stdout []byte, code int) k6v
 			t.Fatalf("network-isolated replay differs: exit %d, want %d: %v %s", exit, code, err, &stderr)
 		}
 	}
-	return k6v1.Verify(bundle)
+	result := k6v1.Verify(bundle)
+	for _, finding := range result.Findings {
+		ref := finding.Witness
+		switch finding.Predicate {
+		case "AtomicHistory", "OwnerAtCommit", "CurrentClaimWinner":
+		case "RevisionChain":
+			if finding.Code != "SINK_RESET_RESOURCE_MISSING" {
+				continue
+			}
+		default:
+			continue
+		}
+		if ref == nil {
+			continue
+		}
+		member := bundle[ref.Path]
+		if member == nil {
+			t.Fatalf("witness path %s is absent from the public bundle", ref.Path)
+		}
+		if ref.Path == k6v1.ManifestPath && k6v1.Hash(member.Data) == ref.SHA256 {
+			continue
+		}
+		if !slices.ContainsFunc(bytes.SplitAfter(member.Data, []byte{'\n'}), func(line []byte) bool {
+			return len(line) > 0 && k6v1.Hash(line) == ref.SHA256
+		}) {
+			t.Fatalf("witness %s %v does not hash to a public row", ref.Path, ref.RowKey)
+		}
+	}
+	return result
 }
 
 func writeVerdictArtifact(t *testing.T, path string, raw []byte) {

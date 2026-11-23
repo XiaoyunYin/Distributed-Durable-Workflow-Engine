@@ -152,7 +152,8 @@ func TestK6PredicateEngineOrder(t *testing.T) {
 				Plan{}, Arrivals{}, false, false, "", nil)
 			found := slices.ContainsFunc(r.Findings, func(f Finding) bool {
 				return f.Predicate == tc.predicate && f.Code == tc.code && f.Kind == tc.kind && f.Witness != nil && len(f.Witness.RowKey) > 0 &&
-					(tc.name != "MissingClaim" || f.Witness.Path == RelationPath(commitAudit))
+					(tc.name != "MissingClaim" || f.Witness.Path == RelationPath(commitAudit)) &&
+					(tc.name != "AttemptMissing" || slices.Equal(f.Witness.RowKey, []any{"wf", json.Number("5"), "result"}))
 			})
 			if !found || r.ExitCode() != Fail {
 				t.Fatalf("ordering verdict %s %s: %+v", tc.predicate, tc.code, r.Findings)

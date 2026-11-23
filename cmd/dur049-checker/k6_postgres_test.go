@@ -422,6 +422,11 @@ func TestK6EngineExport(t *testing.T) {
 		key := []any{"dur053-fixture-warmup-530001-000000"}
 		requireOrderingFinding(t, verdict, "AtomicHistory", "HISTORY_FINAL_REVISION", k6v1.Violation, "engine.workflow_executions", key)
 		requireOrderingFinding(t, verdict, "UniqueTerminal", "TERMINAL_FINAL_UNIQUE", k6v1.Violation, "engine.workflow_executions", key)
+		for _, idx := range []int{1, 10} {
+			if label := verdict.Labels[idx]; label.Outcome != "covered/fail" || label.Reason != "contract_violation" {
+				t.Fatalf("missing final history label: %+v", label)
+			}
+		}
 		execK6SQL(t, conn, `INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,old_state,new_state,reason,scheduler_epoch)
 			VALUES (md5('1001')::uuid,'dur053-fixture-warmup-530001-000000',1001,'scheduler','actor','RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED',1)`)
 	})
@@ -436,7 +441,7 @@ func TestK6EngineExport(t *testing.T) {
 		verdict := verifyVerdictParity(t, dir, out, code)
 		requireOrderingFinding(t, verdict, "AtomicHistory", "HISTORY_EDGE", k6v1.Violation, k6History,
 			[]any{"dur053-fixture-warmup-530001-000000", json.Number("2"), "c81e728d-9d4c-2f63-6f06-7f89cc14862c"})
-		if verdict.Labels[1].Outcome != "covered/fail" {
+		if verdict.Labels[1].Outcome != "covered/fail" || verdict.Labels[1].Reason != "contract_violation" {
 			t.Fatal("illegal edge did not reach the independent history predicate")
 		}
 	})
