@@ -115,7 +115,7 @@ func TestK6SourceTransportParity(t *testing.T) {
 			case "engine.event_inbox":
 				key = []any{"unregistered-consumer", id(tc.witness)}
 			case k6v1.BrokerPath:
-				key = []any{json.Number("3"), "tasks-id", json.Number("0"), json.Number("1")}
+				key = []any{int64(3), "tasks-id", int64(0), int64(1)}
 			}
 			requireOrderingFinding(t, r, tc.predicate, tc.code, k6v1.Violation, tc.relation, key)
 			label := r.Labels[tc.index]
