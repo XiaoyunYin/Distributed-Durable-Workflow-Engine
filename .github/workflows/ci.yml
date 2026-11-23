@@ -344,7 +344,68 @@ jobs:
           }
 
   services-race:
-    name: PostgreSQL race and K6 fixtures
+    name: PostgreSQL service-backed race
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: 1.27.4
+          cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+          enable-cache: true
+          cache-dependency-glob: uv.lock
+
+      - name: Bootstrap the isolated service stack
+        shell: pwsh
+        run: ./scripts/bootstrap.ps1 -StartServices
+
+      - name: Run service-backed race and sink contract checks
+        shell: pwsh
+        run: ./scripts/ci.ps1 -WithServices -RaceOnly
+
+      - name: Collect service diagnostics
+        if: always()
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path artifacts | Out-Null
+          if (Test-Path -LiteralPath .env) {
+            docker compose --env-file .env -f deploy/local/compose.yaml ps > artifacts/compose-ps.txt
+            docker compose --env-file .env -f deploy/local/compose.yaml logs --no-color > artifacts/compose-logs.txt
+          }
+
+      - name: Upload service diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-race-diagnostics-${{ github.run_id }}
+          path: artifacts/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Tear down the isolated service stack
+        if: always()
+        shell: pwsh
+        run: |
+          if (Test-Path -LiteralPath .env) {
+            docker compose --env-file .env -f deploy/local/compose.yaml down --volumes --remove-orphans
+          }
+
+  services-k6:
+    name: PostgreSQL K6 fixtures and parity
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     steps:
@@ -396,12 +457,12 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Could not restore runtime/worker services.' }
           }
 
-      - name: Verify K6 G1 engine evidence on PostgreSQL
+      - name: Verify legacy checker parity on PostgreSQL
         shell: bash
         env:
           DURABLE_REQUIRE_DATABASE: '1'
           GOMAXPROCS: '2'
-        run: go test -p 1 -count=1 -v ./cmd/dur049-checker -run 'K6EngineExport|K6Census|LegacyParityPostgres'
+        run: go test -p 1 -count=1 -v ./cmd/dur049-checker -run '^TestLegacyParityPostgres$'
 
       - name: Verify K6 G2 cuts and external evidence against two PostgreSQL instances
         shell: pwsh
@@ -439,7 +500,7 @@ jobs:
             $env:DURABLE_K6_VERDICT_ARTIFACT = Join-Path $env:GITHUB_WORKSPACE 'artifacts/k6-g3a2-verdicts'
             go build -p 1 -o $env:DURABLE_K6_VERDICT_CHECKER ./cmd/dur049-checker
             if ($LASTEXITCODE -ne 0) { throw 'Could not build the K6 verdict checker.' }
-            go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/... -run 'K6Cut|K6Source|K6Sink|K6EngineExport|K6Submission|K6Census|K6Column|K6Roster|K6Session|K6Ingress|K6Decision|K6Broker|K6Quiet|K6Topology|K6Orphan'
+            go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/... -run '^TestK6(Cut|Source|Sink|EngineExport|Submission|Census|Column|Roster|Session|Ingress|Decision|Broker|Quiet|Topology|Orphan)'
             if ($LASTEXITCODE -ne 0) { throw 'K6 PostgreSQL fixtures failed.' }
           } finally {
             docker rm -f $sink
@@ -485,10 +546,6 @@ jobs:
           export DUR053_PHASE_C_PORT="${address##*:}"
           uv run pytest -q -s tests/test_k6_phase_c_postgres.py
 
-      - name: Run service-backed race and sink contract checks
-        shell: pwsh
-        run: ./scripts/ci.ps1 -WithServices -RaceOnly
-
       - name: Collect service diagnostics
         if: always()
         shell: pwsh
@@ -503,7 +560,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: service-race-diagnostics-${{ github.run_id }}
+          name: service-k6-diagnostics-${{ github.run_id }}
           path: artifacts/
           if-no-files-found: ignore
           retention-days: 14

@@ -99,11 +99,12 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
     services = dict(_job_steps(workflow, "services"))
     race = dict(_job_steps(workflow, "services-race"))
-    k6_g1_step = "Verify K6 G1 engine evidence on PostgreSQL"
+    fixtures = dict(_job_steps(workflow, "services-k6"))
+    legacy_step = "Verify legacy checker parity on PostgreSQL"
     k6_g2_step = "Verify K6 G2 cuts and external evidence against two PostgreSQL instances"
     k6_g3a2_upload = "Upload K6 G3a2 verdict evidence"
     k6_c_step = "Exercise K6 Phase C PostgreSQL startup sampling"
-    for job in ("services", "services-race"):
+    for job in ("services", "services-race", "services-k6"):
         assert "    timeout-minutes: 25\n" in jobs[job]
         assert not re.search(r"^    (needs|if):", jobs[job], re.MULTILINE)
     setup = [
@@ -128,22 +129,27 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     ]
     assert list(race) == [
         *setup,
-        "Run tagged K6 Go tests against PostgreSQL",
-        k6_g1_step,
-        k6_g2_step,
-        k6_g3a2_upload,
-        k6_c_step,
         "Run service-backed race and sink contract checks",
         *cleanup,
     ]
-    for steps in (services, race):
+    assert list(fixtures) == [
+        *setup,
+        "Run tagged K6 Go tests against PostgreSQL",
+        legacy_step,
+        k6_g2_step,
+        k6_g3a2_upload,
+        k6_c_step,
+        *cleanup,
+    ]
+    for steps in (services, race, fixtures):
         assert "./scripts/bootstrap.ps1 -StartServices" in steps[setup[-1]]
         for step in cleanup:
             assert "if: always()" in steps[step]
         assert "down --volumes --remove-orphans" in steps[cleanup[-1]]
     assert "name: service-diagnostics-" in services[cleanup[1]]
     assert "name: service-race-diagnostics-" in race[cleanup[1]]
-    tagged = race["Run tagged K6 Go tests against PostgreSQL"]
+    assert "name: service-k6-diagnostics-" in fixtures[cleanup[1]]
+    tagged = fixtures["Run tagged K6 Go tests against PostgreSQL"]
     assert "shell: pwsh" in tagged
     assert "DURABLE_REQUIRE_DATABASE: '1'" in tagged
     assert (
@@ -154,29 +160,31 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     assert "'TestK6LeaseTakeoverPinsIdleBackendAndFencesOriginalAttempt'" in tagged
     assert "'TestK6RenewalIdleTimeoutTerminatesRealTransaction'" in tagged
     assert "'TestK6SchedulerRenewalDefersFencedReleaseAfterTakeover'" in tagged
-    k6_g1 = race[k6_g1_step]
-    assert "DURABLE_REQUIRE_DATABASE: '1'" in k6_g1
+    legacy = fixtures[legacy_step]
+    assert "DURABLE_REQUIRE_DATABASE: '1'" in legacy
     assert (
-        "go test -p 1 -count=1 -v ./cmd/dur049-checker "
-        "-run 'K6EngineExport|K6Census|LegacyParityPostgres'" in k6_g1
+        "go test -p 1 -count=1 -v ./cmd/dur049-checker -run '^TestLegacyParityPostgres$'" in legacy
     )
-    k6_g2 = race[k6_g2_step]
+    k6_g2 = fixtures[k6_g2_step]
     assert "DURABLE_REQUIRE_K6_PAIR: '1'" in k6_g2
     assert "postgres:18.6-bookworm" in k6_g2
     assert "go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/..." in k6_g2
-    assert "K6Roster|K6Session|K6Ingress|K6Decision|K6Broker|K6Quiet|K6Topology|K6Orphan" in k6_g2
+    assert (
+        "-run '^TestK6(Cut|Source|Sink|EngineExport|Submission|Census|Column|"
+        "Roster|Session|Ingress|Decision|Broker|Quiet|Topology|Orphan)'" in k6_g2
+    )
     assert "finally" in k6_g2 and "docker rm -f $sink" in k6_g2
     assert "go build -p 1 -o $env:DURABLE_K6_VERDICT_CHECKER" in k6_g2
     assert "DURABLE_K6_VERDICT_ARTIFACT" in k6_g2
-    assert "K6Source|K6Sink|K6EngineExport" in k6_g2
-    assert "if: always()" in race[k6_g3a2_upload]
-    assert "path: artifacts/k6-g3a2-verdicts/" in race[k6_g3a2_upload]
-    k6_c = race[k6_c_step]
+    assert "if: always()" in fixtures[k6_g3a2_upload]
+    assert "path: artifacts/k6-g3a2-verdicts/" in fixtures[k6_g3a2_upload]
+    k6_c = fixtures[k6_c_step]
     assert "DUR053_PHASE_C_FIXTURE_REQUIRED: '1'" in k6_c
     assert "deploy/k8s/tools.lock.json" in k6_c and "127.0.0.1::5432" in k6_c
     assert "POSTGRES_HOST_AUTH_METHOD=password" in k6_c
     assert "uv run pytest -q -s tests/test_k6_phase_c_postgres.py" in k6_c
-    assert "artifacts/k6-phase-c-startup" in k6_c and "path: artifacts/" in race[cleanup[1]]
+    assert "artifacts/k6-phase-c-startup" in k6_c
+    assert "path: artifacts/" in fixtures[cleanup[1]]
     assert (
         services["Run service-backed checks"]
         .rstrip()
