@@ -16948,8 +16948,8 @@
       "id": "k6g2a-partial-reason",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "reason = \"predicate_pending:G3a2\"",
-      "new": "reason = \"slice_not_implemented:G2b\"",
+      "old": "return \"G3c\"",
+      "new": "return \"G3a2\"",
       "command": [
         "go",
         "test",
@@ -18305,6 +18305,728 @@
         "-count=1"
       ],
       "expected": "confirmation verdict",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-outbox-missing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_OUTBOX_MISSING\", history, h)",
+      "new": "if false { fail(\"DISPATCH_OUTBOX_MISSING\", history, h) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^MissingOutbox$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_OUTBOX_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-outbox-unmatched",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_OUTBOX_UNMATCHED\", outbox, row)",
+      "new": "if false { fail(\"DISPATCH_OUTBOX_UNMATCHED\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^ExtraOutbox$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_OUTBOX_UNMATCHED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-stable-event",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_MULTIPLE_EVENTS\", outbox, row)",
+      "new": "if false { fail(\"DISPATCH_MULTIPLE_EVENTS\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^RetryEvent$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_MULTIPLE_EVENTS",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-event-type",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_EVENT_TYPE\", outbox, row)",
+      "new": "if false { fail(\"DISPATCH_EVENT_TYPE\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^WrongEventType$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_EVENT_TYPE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-event-topic",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_EVENT_TOPIC\", outbox, row)",
+      "new": "if false { fail(\"DISPATCH_EVENT_TOPIC\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^WrongTopic$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_EVENT_TOPIC",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-event-payload",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_EVENT_PAYLOAD\", outbox, row)",
+      "new": "if false { fail(\"DISPATCH_EVENT_PAYLOAD\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^WrongPayload$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_EVENT_PAYLOAD",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-publication-unmatched",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_PUBLICATION_UNMATCHED\", publications, p)",
+      "new": "if false { fail(\"DISPATCH_PUBLICATION_UNMATCHED\", publications, p) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^ExtraPublication$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_PUBLICATION_UNMATCHED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-publication-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_PUBLICATION_BINDING\", publications, p)",
+      "new": "if false { fail(\"DISPATCH_PUBLICATION_BINDING\", publications, p) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^WrongPublicationAttempt$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_PUBLICATION_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-publication-absent",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_PUBLICATION_MISSING\", outbox, row)",
+      "new": "if false { fail(\"DISPATCH_PUBLICATION_MISSING\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^MissingPublication$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_PUBLICATION_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-inbox-unmatched",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_INBOX_UNMATCHED\", inbox, row)",
+      "new": "if false { fail(\"DISPATCH_INBOX_UNMATCHED\", inbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^ExtraInbox$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_INBOX_UNMATCHED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-durable-watermark",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_OFFSET_MISSING\", inbox, row)",
+      "new": "if false { fail(\"DISPATCH_OFFSET_MISSING\", inbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^MissingOffset$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_OFFSET_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-disposition-missing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_DISPOSITION_MISSING\", outbox, row)",
+      "new": "if false { fail(\"DISPATCH_DISPOSITION_MISSING\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^MissingDisposition$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_DISPOSITION_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-wakeup-unmatched",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_WAKEUP_UNMATCHED\", wakeups, row)",
+      "new": "if false { fail(\"DISPATCH_WAKEUP_UNMATCHED\", wakeups, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^ExtraWakeup$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_WAKEUP_UNMATCHED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-wakeup-missing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_WAKEUP_MISSING\", outbox, row)",
+      "new": "if false { fail(\"DISPATCH_WAKEUP_MISSING\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^MissingWakeup$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_WAKEUP_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-quarantine-unmatched",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_QUARANTINE_UNMATCHED\", quarantine, row)",
+      "new": "if false { fail(\"DISPATCH_QUARANTINE_UNMATCHED\", quarantine, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^ExtraQuarantine$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_QUARANTINE_UNMATCHED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-reconciliation-missing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_RECONCILIATION_MISSING\", outbox, row)",
+      "new": "if false { fail(\"DISPATCH_RECONCILIATION_MISSING\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^MissingReconciliation$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_RECONCILIATION_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-reconciliation-unmatched",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "fail(\"DISPATCH_RECONCILIATION_UNMATCHED\", reconciliation, row)",
+      "new": "if false { fail(\"DISPATCH_RECONCILIATION_UNMATCHED\", reconciliation, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^ExtraReconciliation$",
+        "-count=1"
+      ],
+      "expected": "expected violation DispatchDisposition DISPATCH_RECONCILIATION_UNMATCHED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-proof-outbox-creation-transactions",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "e.require(dispatchPredicate, \"outbox_creation_transactions\", history, h)",
+      "new": "if false { e.require(dispatchPredicate, \"outbox_creation_transactions\", history, h) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "expected missing DispatchDisposition required_proof_missing:outbox_creation_transactions",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-proof-publication-attempt-identities",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "e.require(dispatchPredicate, \"publication_attempt_identities\", outbox, row)",
+      "new": "if false { e.require(dispatchPredicate, \"publication_attempt_identities\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "expected missing DispatchDisposition required_proof_missing:publication_attempt_identities",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-proof-broker-event-copies",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "e.require(dispatchPredicate, \"broker_event_copies\", outbox, row)",
+      "new": "if false { e.require(dispatchPredicate, \"broker_event_copies\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "expected missing DispatchDisposition required_proof_missing:broker_event_copies",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-proof-dispatch-disposition-transactions",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/dispatch.go",
+      "old": "e.require(dispatchPredicate, \"dispatch_disposition_transactions\", outbox, row)",
+      "new": "if false { e.require(dispatchPredicate, \"dispatch_disposition_transactions\", outbox, row) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6DispatchDisposition$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "expected missing DispatchDisposition required_proof_missing:dispatch_disposition_transactions",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-offset-proof-broker-reset-hold-restart-offsets",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "e.requireWitness(lowerOffsetsPredicate, \"broker_reset_hold_restart_offsets\", first)",
+      "new": "if false { e.requireWitness(lowerOffsetsPredicate, \"broker_reset_hold_restart_offsets\", first) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6LowerOffsetsDisposed$/^MissingProof$",
+        "-count=1"
+      ],
+      "expected": "expected missing LowerOffsetsDisposed required_proof_missing:broker_reset_hold_restart_offsets",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-offset-proof-broker-event-copies",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "e.requireWitness(lowerOffsetsPredicate, \"broker_event_copies\", first)",
+      "new": "if false { e.requireWitness(lowerOffsetsPredicate, \"broker_event_copies\", first) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6LowerOffsetsDisposed$/^MissingProof$",
+        "-count=1"
+      ],
+      "expected": "expected missing LowerOffsetsDisposed required_proof_missing:broker_event_copies",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-offset-proof-offset-disposition-transactions",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "e.requireWitness(lowerOffsetsPredicate, \"offset_disposition_transactions\", first)",
+      "new": "if false { e.requireWitness(lowerOffsetsPredicate, \"offset_disposition_transactions\", first) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6LowerOffsetsDisposed$/^MissingProof$",
+        "-count=1"
+      ],
+      "expected": "expected missing LowerOffsetsDisposed required_proof_missing:offset_disposition_transactions",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-broker-watermark",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if haveOffsets && next > covered {",
+      "new": "if haveOffsets && next > covered && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6LowerOffsetsDisposed$/^LowerGap$",
+        "-count=1"
+      ],
+      "expected": "expected violation LowerOffsetsDisposed OFFSET_BEYOND_DURABLE_DISPOSITION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-offset-ceiling",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if e.result.Labels[6].Registered {",
+      "new": "if true {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6LowerOffsetsDisposed$/^OutsideCeiling$",
+        "-count=1"
+      ],
+      "expected": "out-of-ceiling offsets required proof",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-offset-advance-only",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if !seen || p.Committed == nil || next <= prior {",
+      "new": "if !seen || p.Committed == nil {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6LowerOffsetsDisposed$/^NoAdvance$",
+        "-count=1"
+      ],
+      "expected": "legitimate offsets failed safety",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-result-replay",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "e.violate(replayPredicate, \"RESULT_REAPPLIED\", history, h)",
+      "new": "if false { e.violate(replayPredicate, \"RESULT_REAPPLIED\", history, h) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OutsideCeilingSafety$/^ResultReplay$",
+        "-count=1"
+      ],
+      "expected": "RESULT_REAPPLIED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-uncertain-reapply",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "e.violate(uncertaintyPredicate, \"UNRESOLVED_EFFECT_REAPPLIED\", history, h)",
+      "new": "if false { e.violate(uncertaintyPredicate, \"UNRESOLVED_EFFECT_REAPPLIED\", history, h) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OutsideCeilingSafety$/^UnresolvedReapply$",
+        "-count=1"
+      ],
+      "expected": "UNRESOLVED_EFFECT_REAPPLIED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-shutdown-failure",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "e.violate(shutdownPredicate, \"SHUTDOWN_RECORDED_AS_FAILURE\", history, h)",
+      "new": "if false { e.violate(shutdownPredicate, \"SHUTDOWN_RECORDED_AS_FAILURE\", history, h) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OutsideCeilingSafety$/^ShutdownFailure$",
+        "-count=1"
+      ],
+      "expected": "SHUTDOWN_RECORDED_AS_FAILURE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-request-receipt",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "e.require(replayPredicate, \"result_commit_identity\", history, h)",
+      "new": "if false { e.require(replayPredicate, \"result_commit_identity\", history, h) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OutsideCeilingSafety$/^ResultReplay$",
+        "-count=1"
+      ],
+      "expected": "expected missing LostResultReplay required_proof_missing:result_commit_identity",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-uncertainty-resolution",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "e.require(uncertaintyPredicate, \"effect_uncertainty_resolution_transactions\", history, h)",
+      "new": "if false { e.require(uncertaintyPredicate, \"effect_uncertainty_resolution_transactions\", history, h) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OutsideCeilingSafety$/^UnknownEffect$",
+        "-count=1"
+      ],
+      "expected": "expected missing UnknownEffectVisible required_proof_missing:effect_uncertainty_resolution_transactions",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-shutdown-receipt",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "e.requireWitness(shutdownPredicate, \"shutdown_result_binding\", &ref)",
+      "new": "if false { e.requireWitness(shutdownPredicate, \"shutdown_result_binding\", &ref) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OutsideCeilingSafety$/^ShutdownAbort$",
+        "-count=1"
+      ],
+      "expected": "expected missing ShutdownDisposition required_proof_missing:shutdown_result_binding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-resolution-state",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "prior.open && key.attempt > prior.attempt",
+      "new": "key.attempt > prior.attempt",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OutsideCeilingSafety$/^ResolvedLaterAttempt$",
+        "-count=1"
+      ],
+      "expected": "ordinary out-of-ceiling rows failed safety",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-shutdown-effect-ambiguity",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "db[\"effect_class\"] == \"PURE_ACTIVITY\" && h != nil",
+      "new": "h != nil",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OutsideCeilingSafety$/^EffectAbortAmbiguous$",
+        "-count=1"
+      ],
+      "expected": "ordinary out-of-ceiling rows failed safety",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-shutdown-attempt-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "db[\"worker_request_id\"] != a.RequestID ||\n\t\t\tdb[\"claim_token_hash\"] != a.ClaimHash",
+      "new": "db[\"claim_token_hash\"] != a.ClaimHash",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OutsideCeilingSafety$/^UnboundAbort$",
+        "-count=1"
+      ],
+      "expected": "ordinary out-of-ceiling rows failed safety",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-corroborated-shutdown",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "else if death && w.Kind == \"abort\" {",
+      "new": "else if w.Kind == \"abort\" {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownObservation$/^UnboundDeath$",
+        "-count=1"
+      ],
+      "expected": "shutdown abort observation count",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a2b-pending-effects",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "return \"G3a3\"",
+      "new": "return \"G3a2\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6IngressCloseWithoutSinkCall$/^NoConnection$",
+        "-count=1"
+      ],
+      "expected": "call-free ingress terminal changed coverage",
       "requires_database": false
     }
   ]

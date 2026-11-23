@@ -96,44 +96,7 @@ func TestK6QuietLiveParity(t *testing.T) {
 			cfg.Manifest = m
 			cfg.EpisodeDir = filepath.Join(t.TempDir(), "public")
 			cfg = writeK6Sources(t, cfg, plan, arrivals)
-			m = cfg.Manifest
-			ctx, cancel := context.WithCancel(context.Background())
-			done := make(chan error, 1)
-			publish := func(i int64) error {
-				now := k6v1.UTC(time.Now())
-				sources.Roster.Seal.ThroughUTC, sources.Broker.Seal.ThroughUTC = now, now
-				if effect {
-					sources.Ingress.Seal.ThroughUTC, sources.Decisions.Seal.ThroughUTC = now, now
-				} else {
-					sources.Topology.Seal.ThroughUTC = now
-				}
-				return k6collect.Publish(cfg.ExternalDir, i, m, sources)
-			}
-			if err := publish(1); err != nil {
-				t.Fatal(err)
-			}
-			go func() {
-				ticker := time.NewTicker(400 * time.Millisecond)
-				defer ticker.Stop()
-				for i := int64(2); ; i++ {
-					select {
-					case <-ctx.Done():
-						done <- nil
-						return
-					case <-ticker.C:
-						if err := publish(i); err != nil {
-							done <- err
-							return
-						}
-					}
-				}
-			}()
-			t.Cleanup(func() {
-				cancel()
-				if err := <-done; err != nil {
-					t.Error(err)
-				}
-			})
+			publishFixtureFrames(t, cfg, sources)
 			path, stdout, diag, code := invokeLiveK6(t, cfg)
 			if tc.groupFixture != "" {
 				r := verifyVerdictParity(t, path, stdout, code)
@@ -155,6 +118,48 @@ func TestK6QuietLiveParity(t *testing.T) {
 			}
 		})
 	}
+}
+
+func publishFixtureFrames(t *testing.T, cfg k6live.Config, sources k6v1.External) {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	publish := func(i int64) error {
+		now := k6v1.UTC(time.Now())
+		sources.Roster.Seal.ThroughUTC, sources.Broker.Seal.ThroughUTC = now, now
+		if sources.Ingress != nil {
+			sources.Ingress.Seal.ThroughUTC, sources.Decisions.Seal.ThroughUTC = now, now
+		} else {
+			sources.Topology.Seal.ThroughUTC = now
+		}
+		return k6collect.Publish(cfg.ExternalDir, i, cfg.Manifest, sources)
+	}
+	t.Cleanup(func() {
+		cancel()
+		if err := <-done; err != nil {
+			t.Error(err)
+		}
+	})
+	if err := publish(1); err != nil {
+		done <- nil
+		t.Fatal(err)
+	}
+	go func() {
+		ticker := time.NewTicker(400 * time.Millisecond)
+		defer ticker.Stop()
+		for i := int64(2); ; i++ {
+			select {
+			case <-ctx.Done():
+				done <- nil
+				return
+			case <-ticker.C:
+				if err := publish(i); err != nil {
+					done <- err
+					return
+				}
+			}
+		}
+	}()
 }
 
 func requireExternalParityProofGaps(t *testing.T, r k6v1.Result, code int) {

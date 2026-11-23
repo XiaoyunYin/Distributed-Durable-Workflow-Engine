@@ -15,7 +15,7 @@ import (
 func requireOrderingFinding(t *testing.T, r k6v1.Result, predicate, code string, kind k6v1.FindingKind, relation string, key []any) {
 	t.Helper()
 	path := relation
-	if relation != k6v1.ManifestPath {
+	if relation != k6v1.ManifestPath && !k6v1.ExternalPath(relation) {
 		path = k6v1.RelationPath(relation)
 	}
 	for _, finding := range r.Findings {
@@ -81,6 +81,14 @@ func TestK6SourceOrderingVerdictParity(t *testing.T) {
 		       'token_hash',encode(sha256(convert_to(claim_token::text,'UTF8')),'hex'),'worker_id',worker_id,'worker_request_id',worker_request_id),now()
 		FROM engine.activity_attempts;
 		ALTER TABLE engine.k4_audit DISABLE TRIGGER k4_audit_no_mutation`)
+	execK6SQL(t, engine, `INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,topic,payload)
+		SELECT md5('outbox'||revision)::uuid, workflow_id, revision,
+		       CASE revision WHEN 1 THEN 'workflow.created' WHEN 5 THEN 'activity.result'
+		                     WHEN 6 THEN 'workflow.result_consumed' ELSE 'attempt.dispatch' END,
+		       CASE WHEN revision IN (3,4) THEN 'durable-agent.tasks.v1' ELSE 'durable-agent.events.v1' END,
+		       CASE WHEN revision IN (3,4) THEN jsonb_build_object('node_id',node_id,'iteration',iteration,'attempt_number',revision-2)
+		            ELSE '{}'::jsonb END
+		FROM engine.transition_history WHERE revision IN (1,3,4,5,6)`)
 	verify := func(t *testing.T) k6v1.Result {
 		t.Helper()
 		cfg.EpisodeDir = filepath.Join(t.TempDir(), "public")
@@ -148,7 +156,9 @@ func TestK6SourceOrderingVerdictParity(t *testing.T) {
 	t.Run("N6CanceledResult", func(t *testing.T) {
 		execK6SQL(t, engine, `UPDATE engine.transition_history
 			SET new_state='CANCELED',reason='CANCELED_ALL_ACTIVE_NODES',node_id=NULL,iteration=NULL WHERE revision=7;
-			UPDATE engine.workflow_executions SET state='CANCELED'`)
+			UPDATE engine.workflow_executions SET state='CANCELED';
+			INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload)
+			SELECT md5('outbox7')::uuid,workflow_id,7,'workflow.canceled','{}' FROM engine.workflow_executions`)
 		if r := verify(t); r.Safety == "FAIL" {
 			t.Fatalf("result preceding cancellation: %+v", r.Findings)
 		}
