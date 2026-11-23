@@ -60,12 +60,13 @@ func validStructure(kind Kind, value any) bool {
 	case "claim":
 		return object(value, "workflow_id:text node_id:text iteration:int attempt_number:int token_hash:digest worker_id:text worker_request_id:text", true)
 	case "proof":
-		return object(value, "operation:proof_operation receipt:receipt signature:signature", true)
+		return object(value, "operation:proof_operation receipt:receipt signature:signature", true) ||
+			object(value, "operation:proof_operation receipt:receipt", true)
 	case "proof_operation":
 		return value == "apply" || value == "lookup"
 	case "signature":
 		s, ok := value.(string)
-		if !ok || len(s) != base64.RawURLEncoding.EncodedLen(64) {
+		if !ok || (s != "" && len(s) != base64.RawURLEncoding.EncodedLen(64)) {
 			return false
 		}
 		_, err := base64.RawURLEncoding.Strict().DecodeString(s)

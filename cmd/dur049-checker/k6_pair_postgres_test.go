@@ -129,7 +129,7 @@ func TestK6SinkAndSources(t *testing.T) {
 	_, sink, config, plan, arrivals := pairedK6Fixture(t)
 	bundle := acquireK6Fixture(t, config, plan, arrivals, k6v1.Incomplete)
 	result := k6v1.Verify(bundle)
-	if len(databaseFindings(result)) != 0 || len(result.InvariantsCovered) != 0 {
+	if len(databaseFindings(result)) != 0 || !slices.Equal(result.InvariantsCovered, []string{"I1", "I11"}) {
 		t.Fatalf("clean paired cut: %+v", result.Findings)
 	}
 	for _, spec := range k6v1.SinkRelations() {

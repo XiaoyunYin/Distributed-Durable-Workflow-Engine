@@ -19,9 +19,9 @@ type BrokerClient interface {
 	DescribeGroups(context.Context, *kafka.DescribeGroupsRequest) (*kafka.DescribeGroupsResponse, error)
 }
 
-// MemberGenerations reads an independent coordinator witness (classic
-// DescribeGroups omits the generation). Every described member must match.
-type MemberGenerations func(context.Context) (last int64, members map[string]int64, err error)
+// MemberGenerations reads the producer callbacks. Classic DescribeGroups
+// omits the generation. Keep both observations for offline corroboration.
+type MemberGenerations func(context.Context) (last int64, members map[string]int64, observation *k6v1.CoordinatorObservation, err error)
 
 func BrokerSnapshot(ctx context.Context, client BrokerClient, group string, topicIDs map[string]string,
 	generations MemberGenerations) (k6v1.BrokerRow, error) {
@@ -32,7 +32,7 @@ func BrokerSnapshot(ctx context.Context, client BrokerClient, group string, topi
 	ctx, cancel := context.WithTimeout(ctx, 4*time.Second)
 	defer cancel()
 	start := time.Now()
-	firstGeneration, firstMembers, err := generations(ctx)
+	firstGeneration, firstMembers, firstObservation, err := generations(ctx)
 	if err != nil {
 		return k6v1.BrokerRow{}, failure
 	}
@@ -80,12 +80,14 @@ func BrokerSnapshot(ctx context.Context, client BrokerClient, group string, topi
 		!reflect.DeepEqual(groupView(before.Groups[0], topicIDs), groupView(after.Groups[0], topicIDs)) {
 		return k6v1.BrokerRow{}, errors.New("K6_BROKER_GROUP_RACED")
 	}
-	generation, memberGeneration, err := generations(ctx)
-	if err != nil || generation < 0 || generation != firstGeneration || !reflect.DeepEqual(firstMembers, memberGeneration) {
+	generation, memberGeneration, observation, err := generations(ctx)
+	if err != nil || generation < 0 || generation != firstGeneration || !reflect.DeepEqual(firstMembers, memberGeneration) ||
+		!reflect.DeepEqual(firstObservation, observation) {
 		return k6v1.BrokerRow{}, errors.New("K6_BROKER_GENERATION_RACED")
 	}
 	out := groupView(after.Groups[0], topicIDs)
 	out.Cluster, out.Generation, out.BeforeUTC, out.AfterUTC = meta.ClusterID, generation, k6v1.UTC(start), k6v1.UTC(time.Now())
+	out.Coordinator = observation
 	for i := range out.Members {
 		key := out.Members[i].ID
 		g, found := memberGeneration[key]
@@ -96,6 +98,12 @@ func BrokerSnapshot(ctx context.Context, client BrokerClient, group string, topi
 	}
 	if len(memberGeneration) != len(out.Members) {
 		return k6v1.BrokerRow{}, errors.New("K6_BROKER_MEMBERS_UNJOINED")
+	}
+	// A classic-group rebalance may keep every member ID and still change
+	// assignments. A cached callback from the earlier generation cannot
+	// corroborate this bracket, even when both descriptions agree.
+	if out.State == "stable" && observation != nil && !out.CoordinatorMatches() {
+		return k6v1.BrokerRow{}, errors.New("K6_BROKER_ASSIGNMENTS_UNCORROBORATED")
 	}
 	out.Partitions = []k6v1.BrokerPartition{}
 	for _, name := range names {

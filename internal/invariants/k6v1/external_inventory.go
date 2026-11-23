@@ -26,14 +26,61 @@ type PartitionIdentity struct {
 // Versions are observer positions over the group state, separate from Kafka's
 // group generation. Members and broker positions are captured independently.
 type BrokerRow struct {
-	Cluster    string            `json:"cluster"`
-	Group      string            `json:"group"`
-	Generation int64             `json:"generation"`
-	State      string            `json:"state"`
-	BeforeUTC  string            `json:"before_utc"`
-	AfterUTC   string            `json:"after_utc"`
-	Partitions []BrokerPartition `json:"partitions"`
-	Members    []BrokerMember    `json:"members"`
+	Cluster     string                  `json:"cluster"`
+	Group       string                  `json:"group"`
+	Generation  int64                   `json:"generation"`
+	State       string                  `json:"state"`
+	BeforeUTC   string                  `json:"before_utc"`
+	AfterUTC    string                  `json:"after_utc"`
+	Partitions  []BrokerPartition       `json:"partitions"`
+	Members     []BrokerMember          `json:"members"`
+	Coordinator *CoordinatorObservation `json:"coordinator,omitempty"`
+}
+
+// Classic DescribeGroups provides membership and assignments, but no numeric
+// generation. Keep the callbacks used to corroborate it as separate evidence.
+type CoordinatorObservation struct {
+	Generation int64          `json:"generation"`
+	Members    []BrokerMember `json:"members"`
+}
+
+func (r *Result) checkGroupMembership(m Manifest, broker *Stream[BrokerRow]) {
+	const predicate = "GroupMembership"
+	required := m.Cell == "medium-10" || m.Cell == "medium-11"
+	corroborated := false
+	if broker != nil {
+		for _, record := range broker.Rows {
+			b := record.Data
+			if b.State != "stable" {
+				continue
+			}
+			if b.Coordinator == nil || b.Coordinator.Members == nil {
+				if required {
+					raw, _ := Canonical(record)
+					ref := Witness{Path: BrokerPath, RowKey: []any{record.Position.Sequence}, SHA256: Hash(raw)}
+					r.record(MissingProof, predicate, "required_proof_missing:GroupMembership", BrokerPath, &ref)
+				}
+				continue
+			}
+			if !b.CoordinatorMatches() {
+				flagExternal(r, 11, predicate, "GROUP_COORDINATOR_DESCRIPTION_MISMATCH", BrokerPath, record)
+				continue
+			}
+			corroborated = true
+		}
+	}
+	if required && !corroborated && !slices.ContainsFunc(r.Findings, func(f Finding) bool { return f.Predicate == predicate }) {
+		r.record(MissingProof, predicate, "required_proof_missing:GroupMembership", BrokerPath, nil)
+	}
+}
+
+// CoordinatorMatches compares a callback claim with a classic-group description.
+func (b BrokerRow) CoordinatorMatches() bool {
+	return b.Coordinator != nil && b.Generation > 0 && b.Coordinator.Generation == b.Generation &&
+		slices.EqualFunc(b.Coordinator.Members, b.Members, func(claim, observed BrokerMember) bool {
+			return claim.ID == observed.ID && claim.ClientID == observed.ClientID && claim.Generation == b.Generation &&
+				claim.Assignments != nil && slices.Equal(claim.Assignments, observed.Assignments)
+		})
 }
 
 func (b BrokerRow) valid() bool {
@@ -42,6 +89,23 @@ func (b BrokerRow) valid() bool {
 		b.Members == nil || !slices.Contains([]string{"stable", "empty", "preparing_rebalance", "completing_rebalance"}, b.State) ||
 		(b.State == "empty" && len(b.Members) != 0) || (b.State == "stable" && len(b.Members) == 0) {
 		return false
+	}
+	if b.Coordinator != nil {
+		if b.Coordinator.Generation < 0 {
+			return false
+		}
+		lastID := ""
+		for _, member := range b.Coordinator.Members {
+			if !identities(member.ID, member.ClientID) || member.ID <= lastID || member.Generation < 0 {
+				return false
+			}
+			lastID = member.ID
+			for _, assignment := range member.Assignments {
+				if !nonempty(assignment.TopicID) || assignment.Partition < 0 {
+					return false
+				}
+			}
+		}
 	}
 	positions := map[PartitionIdentity]bool{}
 	topics := map[string]string{}

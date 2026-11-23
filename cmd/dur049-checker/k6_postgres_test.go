@@ -292,7 +292,7 @@ func TestK6EngineExport(t *testing.T) {
 	result := k6v1.Verify(bundle)
 	requireK6Finding(t, result, "required_proof_missing:"+k6v1.RosterPath)
 	if len(result.Labels) != 13 ||
-		len(result.InvariantsCovered) != 0 || len(databaseFindings(result)) != 0 ||
+		!slices.Equal(result.InvariantsCovered, []string{"I1", "I11"}) || len(databaseFindings(result)) != 0 ||
 		result.Namespace == nil || result.Namespace.NamespaceExecutions != 1 || result.Namespace.SQLNamespaceExecutions != 1 {
 		t.Fatalf("clean fixture: %+v", result)
 	}
@@ -300,11 +300,14 @@ func TestK6EngineExport(t *testing.T) {
 		if label.ID != "I"+strconv.Itoa(i+1) {
 			t.Fatalf("unexpected label order: %+v", label)
 		}
-		reason := "slice_not_implemented:G2b"
-		if i == 0 || i == 1 || i == 3 || i == 10 {
-			reason = "predicate_partial:G2b"
+		outcome, reason := "NOT COVERED", "outside_registry_ceiling"
+		if label.Registered {
+			reason = "predicate_pending:G3a2"
 		}
-		if label.Outcome != "NOT COVERED" || label.Reason != reason {
+		if i == 0 || i == 10 {
+			outcome, reason = "covered/pass", "predicate_satisfied"
+		}
+		if label.Outcome != outcome || label.Reason != reason {
 			t.Fatalf("unimplemented label: %+v", label)
 		}
 	}

@@ -14,7 +14,6 @@ from dur053_k6_b_smoke import require
 from dur053_k6_g_registration import utc
 
 Json = dict[str, Any]
-LABELS = {"predicate_partial:G2b", "slice_not_implemented:G2b"}
 FENCE_ROLES = {"worker", "relay", "decision", "allocator"}
 BROKER_PATH = "broker/positions.jsonl"
 IDLE_RELATIONS = (
@@ -307,7 +306,12 @@ def verify_retake(quiet: Json, receipts: list[Json], fenced_utc: str) -> None:
 
 
 def replay(
-    directory: Path, live: bytes, source: str, offline: Callable[[Path, str], tuple[int, bytes]]
+    directory: Path,
+    live: bytes,
+    source: str,
+    offline: Callable[[Path, str], tuple[int, bytes]],
+    *,
+    idle: bool,
 ) -> None:
     good = directory / "bundle"
     (directory / "checker-live.json").write_bytes(live)
@@ -317,11 +321,25 @@ def replay(
     require(live == result, "G_CANONICAL_PARITY")
     positive = json.loads(result)
     require(positive["findings"] == [], "G_LIVE_CHECKER_FINDINGS")
+    ids = [f"I{i}" for i in range(1, 14)]
+    completed = ("I1", "I11")
+    covered = [] if idle else list(completed)
+    labels = positive["labels"]
     require(
-        len(positive["labels"]) == 13
-        and all(label["reason"] in LABELS for label in positive["labels"]),
+        [label["id"] for label in labels] == ids
+        and positive["invariants_covered"] == covered
+        and positive["invariants_not_covered"] == [label for label in ids if label not in covered],
         "G_CHECKER_LABELS",
     )
+    for label in labels:
+        if label["id"] in completed:
+            require(label["registered"], "G_CHECKER_LABELS")
+            outcome = "NOT COVERED" if idle else "covered/pass"
+            reason = "no_positive_population" if idle else "predicate_satisfied"
+        else:
+            outcome = "NOT COVERED"
+            reason = "predicate_pending:G3a2" if label["registered"] else "outside_registry_ceiling"
+        require((label["outcome"], label["reason"]) == (outcome, reason), "G_CHECKER_LABELS")
 
     negative = directory / "missing-source"
     shutil.copytree(good, negative)
@@ -343,6 +361,7 @@ def replay(
             {
                 "predicate": "RelationIntegrity",
                 "code": "required_proof_missing:" + source,
+                "kind": "missing",
                 "source": source,
                 "witness": None,
             }

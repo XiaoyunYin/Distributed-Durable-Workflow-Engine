@@ -1,0 +1,24 @@
+{
+  "Key": "iojj3XQJ8ZX9UtstPLpdcspnCb8dlBIb83SIAbQPb1w=",
+  "WrongKey": "gTl3Dqh9F19Wo1Rmw0x+zMuNipG07jeiXfYPW4/Js5Q=",
+  "Claim": {
+    "NodeID": "dur053.cooperating/v1",
+    "Iteration": 2,
+    "Attempt": 3,
+    "Fence": 4
+  },
+  "Receipt": {
+    "workflow_id": "workflow",
+    "logical_key": "k6\u003c\u0026\u003e",
+    "resource_id": "resource",
+    "canonical_hash": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "scope_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "intent_id": "00000000-0000-0000-0000-000000000011",
+    "expected_revision": 7,
+    "applied_revision": 8,
+    "application_id": "00000000-0000-0000-0000-000000000012"
+  },
+  "Apply": "0727uXIeNLoXVPIa_0g-q_RM2YNMh6nLwSnF6OieXB-abe80XVm1hb0kMd2ReIh2pnUoQOlNIuP55O4nBex9BQ",
+  "Lookup": "3hJ0HBzfNLq1ul7IyxqwX2pEgjjiU98JAlZgw_iCK36JijRt6YDnSVushijx1pREe-gYcERsCaZhCKfV594yDg",
+  "NonCanonical": "ae5UbMMmrVVeiI0u4oMriAjXN4UjYjolEYHpWVHWLwfhkI6AhwXvsQy8vYvcReZGrJPyXCFjbF7pHtkOFaUCCQ"
+}

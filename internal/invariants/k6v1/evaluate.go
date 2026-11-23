@@ -22,11 +22,20 @@ type Witness struct {
 }
 
 type Finding struct {
-	Predicate string   `json:"predicate"`
-	Code      string   `json:"code"`
-	Source    string   `json:"source"`
-	Witness   *Witness `json:"witness"`
+	Kind      FindingKind `json:"kind"`
+	Predicate string      `json:"predicate"`
+	Code      string      `json:"code"`
+	Source    string      `json:"source"`
+	Witness   *Witness    `json:"witness"`
 }
+
+type FindingKind string
+
+const (
+	MissingProof FindingKind = "missing"
+	Violation    FindingKind = "violation"
+	Censor       FindingKind = "censor"
+)
 
 type Label struct {
 	ID              string    `json:"id"`
@@ -73,11 +82,11 @@ func (r Result) ExitCode() int {
 }
 
 func integrity(code, source string) *Finding {
-	return &Finding{Predicate: "RelationIntegrity", Code: code, Source: source}
+	return &Finding{Kind: Violation, Predicate: "RelationIntegrity", Code: code, Source: source}
 }
 
 func missing(path string) *Finding {
-	return integrity("required_proof_missing:"+path, path)
+	return &Finding{Kind: MissingProof, Predicate: "RelationIntegrity", Code: "required_proof_missing:" + path, Source: path}
 }
 
 func newResult(m Manifest, indexHash string) Result {
@@ -89,17 +98,18 @@ func newResult(m Manifest, indexHash string) Result {
 	for i, predicates := range [][]string{
 		{"SubmissionIdentity"}, {"AtomicHistory"}, {"OwnerAtCommit", "DeployedStaleChallenge"},
 		{"CurrentClaimWinner", "SessionClosure"}, {"LostResultReplay"}, {"DispatchDisposition"},
-		{"LowerOffsetsDisposed"}, {"OneMutationPerKey", "RevisionChain", "DeliveryClosure"},
-		{"UnknownEffectVisible"}, {"AuthorizedAtWrite", "DispatchAcknowledged"}, {"UniqueTerminal"},
-		{"SignedProcessSkew", "DatabaseDeadline"}, {"ShutdownDisposition"},
+		{"LowerOffsetsDisposed"}, {"OneMutationPerKey", "RevisionChain", "DeliveryClosure", "ReceiptSignature"},
+		{"UnknownEffectVisible"}, {"AuthorizedAtWrite", "DispatchAcknowledged", "ReceiptSignature"}, {"UniqueTerminal"},
+		{"SignedProcessSkew", "DatabaseDeadline", "GroupMembership"}, {"ShutdownDisposition"},
 	} {
 		n := i + 1
-		reason := "slice_not_implemented:G2b"
-		if n == 1 || n == 2 || n == 4 || n == 11 || ((n == 8 || n == 10) && m.Sink != nil) {
-			reason = "predicate_partial:G2b"
+		inCeiling := m.Cell != "" && registered(n, m)
+		reason := "outside_registry_ceiling"
+		if inCeiling {
+			reason = "predicate_pending:G3a2"
 		}
 		r.Labels = append(r.Labels, Label{
-			ID: "I" + strconv.Itoa(n), Registered: m.Cell != "" && registered(n, m), Outcome: "NOT COVERED",
+			ID: "I" + strconv.Itoa(n), Registered: inCeiling, Outcome: "NOT COVERED",
 			Predicates: predicates, Reason: reason, Witnesses: []Witness{},
 		})
 	}
@@ -124,15 +134,53 @@ func registered(n int, m Manifest) bool {
 }
 
 func (r *Result) finish() {
-	for _, label := range r.Labels {
+	for i := range r.Labels {
+		label := &r.Labels[i]
+		for _, f := range r.Findings {
+			if !slices.Contains(label.Predicates, f.Predicate) {
+				continue
+			}
+			if f.Witness != nil && !slices.ContainsFunc(label.Witnesses, func(w Witness) bool {
+				return w.Path == f.Witness.Path && w.SHA256 == f.Witness.SHA256
+			}) {
+				label.Witnesses = append(label.Witnesses, *f.Witness)
+			}
+			if !label.Registered {
+				continue
+			}
+			switch f.Kind {
+			case Violation:
+				label.Outcome, label.Reason = "covered/fail", "contract_violation"
+			case MissingProof:
+				if label.Outcome != "covered/fail" {
+					label.Outcome, label.Reason = "NOT COVERED", f.Code
+				}
+			case Censor:
+				if label.Outcome != "covered/fail" {
+					label.Outcome, label.Reason = "NOT COVERED", "required_proof_missing:"+f.Predicate
+				}
+			}
+		}
+		if !label.Registered {
+			label.Outcome, label.Reason = "NOT COVERED", "outside_registry_ceiling"
+		}
 		if label.Outcome == "NOT COVERED" {
 			r.InvariantsNotCovered = append(r.InvariantsNotCovered, label.ID)
 		} else {
 			r.InvariantsCovered = append(r.InvariantsCovered, label.ID)
 		}
 	}
-	if len(r.Findings) > 0 {
+	if len(r.Findings) > 0 || r.Safety == "FAIL" || r.Completeness == "FAIL" {
 		r.Status = "failed"
+	}
+}
+
+func (r *Result) record(kind FindingKind, predicate, code, source string, ref *Witness) {
+	r.Findings = append(r.Findings, Finding{Kind: kind, Predicate: predicate, Code: code, Source: source, Witness: ref})
+	if kind == Violation {
+		r.Safety = "FAIL"
+	} else {
+		r.Completeness = "FAIL"
 	}
 }
 
@@ -180,8 +228,7 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 	}
 	violate := func(predicate, code, relation string, row Row) {
 		ref := witness(relation, row)
-		r.Findings = append(r.Findings, Finding{Predicate: predicate, Code: code, Source: ref.Path, Witness: &ref})
-		r.Safety = "FAIL"
+		r.record(Violation, predicate, code, ref.Path, &ref)
 	}
 
 	byID := make(map[string]Row, len(workflows))
@@ -242,7 +289,8 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 	}
 	r.checkSubmissions(m, rows, plan, arrivals, planOK, arrivalsOK, witness, violate)
 	if m.Sink != nil {
-		r.checkSink(rows, byID, haveWorkflows, witness, violate)
+		r.checkSink(m, rows, byID, haveWorkflows, witness, violate)
+		r.checkReceiptSignatures(m, rows[activityAttempts], witness)
 	}
 
 	groups := make(map[string][]Row, len(workflows))
@@ -250,12 +298,17 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 		id := row["workflow_id"].(string)
 		groups[id] = append(groups[id], row)
 	}
-	historyFailed, terminalFailed := false, false
-	checkHistory := func(group []Row) {
+	historyFailed := false
+	terminal := &r.Labels[10]
+	terminal.PopulationUnit = "durable_accept"
+	timedOut := slices.ContainsFunc(issues, func(f Finding) bool { return f.Code == "CUT_DEADLINE" })
+	checkHistory := func(group []Row) bool {
 		var previous any
+		contiguous := true
 		for i, row := range group {
 			if number(row["revision"]) != int64(i+1) {
 				historyFailed = true
+				contiguous = false
 				violate("AtomicHistory", "HISTORY_REVISION_GAP", history, row)
 			}
 			if row["old_state"] != previous || !legalEdge(row["old_state"], row["new_state"], i == 0) ||
@@ -265,12 +318,19 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 			}
 			previous = row["new_state"]
 		}
+		return contiguous
 	}
 	for _, wf := range workflows {
 		id := wf["workflow_id"].(string)
 		group := groups[id]
 		delete(groups, id)
-		checkHistory(group)
+		contiguous := checkHistory(group)
+		if wf["namespace"] != m.Namespace {
+			continue
+		}
+		terminal.PopulationCount++
+		ref := witness(executions, wf)
+		terminal.Witnesses = append(terminal.Witnesses, ref)
 		if !haveHistory {
 			continue
 		}
@@ -287,30 +347,50 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 				terminals++
 			}
 		}
-		if terminals != 1 || !aligned || !isTerminal(wf["state"]) {
-			terminalFailed = true
+		if terminals > 1 || !aligned || (terminals != 0) != isTerminal(wf["state"]) {
 			violate("UniqueTerminal", "TERMINAL_FINAL_UNIQUE", executions, wf)
+		} else if terminals == 0 {
+			if timedOut {
+				r.record(Censor, "UniqueTerminal", "TERMINAL_DEADLINE_CENSORED", ref.Path, &ref)
+			} else {
+				r.record(MissingProof, "UniqueTerminal", "required_proof_missing:UniqueTerminal", ref.Path, &ref)
+			}
+		} else if !contiguous {
+			r.record(MissingProof, "UniqueTerminal", "required_proof_missing:UniqueTerminal", ref.Path, &ref)
 		}
 	}
 	for _, id := range slices.Sorted(maps.Keys(groups)) {
 		checkHistory(groups[id])
 	}
-	for _, item := range []struct {
-		index  int
-		failed bool
-	}{{1, historyFailed}, {10, terminalFailed}} {
-		label := &r.Labels[item.index]
-		label.PopulationUnit = "workflow"
-		label.PopulationCount = len(workflows)
-		for _, row := range workflows {
-			label.Witnesses = append(label.Witnesses, witness(executions, row))
+	label := &r.Labels[1]
+	label.PopulationUnit = "workflow"
+	label.PopulationCount = len(workflows)
+	for _, row := range workflows {
+		label.Witnesses = append(label.Witnesses, witness(executions, row))
+	}
+	if historyFailed {
+		label.Outcome, label.Reason = "covered/fail", "contract_violation"
+	}
+	for _, entry := range []*Label{label, terminal} {
+		if entry.Outcome == "covered/fail" {
+			continue
 		}
-		if item.failed {
-			label.Outcome, label.Reason = "covered/fail", "contract_violation"
-		} else if !haveWorkflows {
-			label.Reason = "required_proof_missing:" + RelationPath(executions)
+		if !haveWorkflows {
+			entry.Reason = "required_proof_missing:" + RelationPath(executions)
 		} else if !haveHistory {
-			label.Reason = "required_proof_missing:" + RelationPath(history)
+			entry.Reason = "required_proof_missing:" + RelationPath(history)
+		}
+	}
+	if haveWorkflows && haveHistory {
+		switch {
+		case r.Labels[0].Outcome == "covered/pass" && terminal.PopulationCount > 0:
+			terminal.Outcome, terminal.Reason = "covered/pass", "predicate_satisfied"
+		case r.Labels[0].Outcome == "covered/fail":
+			terminal.Reason = "required_proof_missing:SubmissionIdentity"
+		case r.Labels[0].Reason == "no_positive_population" || terminal.PopulationCount == 0 && r.Labels[0].Outcome == "covered/pass":
+			terminal.Reason = "no_positive_population"
+		default:
+			terminal.Reason = r.Labels[0].Reason
 		}
 	}
 	for _, sources := range external {

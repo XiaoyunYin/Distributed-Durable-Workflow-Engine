@@ -139,7 +139,7 @@ func fixtureExternal(t *testing.T, effect bool) (Manifest, External, map[string]
 	e.Roster = fixtureStream(m, "roster", "watcher", roster...)
 	offset := int64(7)
 	broker := fixtureStream(m, "broker", "broker-reader", BrokerRow{"cluster", "group", 2, "stable", UTC(fixed), UTC(fixed),
-		[]BrokerPartition{{"events", "topic-id", 0, 0, 7, &offset}}, []BrokerMember{{"member", "client", 2, []PartitionIdentity{{"topic-id", 0}}}}})
+		[]BrokerPartition{{"events", "topic-id", 0, 0, 7, &offset}}, []BrokerMember{{"member", "client", 2, []PartitionIdentity{{"topic-id", 0}}}}, nil})
 	e.Broker = &broker
 	return m, e, rows
 }
@@ -332,7 +332,7 @@ func TestK6IngressCloseWithoutSinkCall(t *testing.T) {
 				t.Fatalf("call-free ingress terminal rejected: %+v", r.Findings)
 			}
 			if r.ExitCode() != Incomplete || r.Safety != "NOT COVERED" || len(r.InvariantsCovered) != 0 ||
-				r.Labels[7].Outcome != "NOT COVERED" || r.Labels[7].Reason != "predicate_partial:G2b" {
+				r.Labels[7].Outcome != "NOT COVERED" || r.Labels[7].Reason != "predicate_pending:G3a2" {
 				t.Fatalf("call-free ingress terminal changed coverage: %+v", r)
 			}
 		})

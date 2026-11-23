@@ -95,8 +95,8 @@
       "id": "k6g1-terminal-uniqueness",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "if terminals != 1 || !aligned || !isTerminal(wf[\"state\"]) {",
-      "new": "if terminals < 1 || !aligned || !isTerminal(wf[\"state\"]) { // mutation: accept extra terminal revisions",
+      "old": "if terminals > 1 || !aligned || (terminals != 0) != isTerminal(wf[\"state\"]) {",
+      "new": "if !aligned || (terminals != 0) != isTerminal(wf[\"state\"]) { // mutation: accept extra terminal revisions",
       "command": [
         "go",
         "test",
@@ -16948,7 +16948,7 @@
       "id": "k6g2a-partial-reason",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "reason = \"predicate_partial:G2b\"",
+      "old": "reason = \"predicate_pending:G3a2\"",
       "new": "reason = \"slice_not_implemented:G2b\"",
       "command": [
         "go",
@@ -17317,6 +17317,443 @@
         "tests/test_k6_g_deployed.py::test_idle_sources_must_be_present_and_sealed"
       ],
       "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-receipt-verification",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/receipt.go",
+      "old": "return ed25519.Verify(key, append([]byte(\"dur053-k6-sink-receipt/v1\\x00\"), body...), signature)",
+      "new": "return len(body) > 0 && len(signature) > 0",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ReceiptSignatureVectors$/^WrongKey$",
+        "-count=1"
+      ],
+      "expected": "receipt signature verdict",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-receipt-missing-signature",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/receipt.go",
+      "old": "\t\tcase sig == \"\" || row[\"k6_fence\"] == nil:\n\t\t\tr.record(MissingProof, predicate, \"required_proof_missing:ReceiptSignature\", ref.Path, &ref)",
+      "new": "\t\tcase sig == \"\" || row[\"k6_fence\"] == nil:\n\t\t\tcontinue",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateReceiptSignature$/^SignatureRemoved$",
+        "-count=1"
+      ],
+      "expected": "receipt finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-receipt-missing-proof",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/receipt.go",
+      "old": "row[\"effect_class\"] == \"COOPERATING_EFFECT\" && row[\"state\"] == \"SUCCEEDED\"",
+      "new": "row[\"effect_class\"] == \"COOPERATING_EFFECT\" && row[\"state\"] == \"FAILED\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateReceiptSignature$/^ProofRemoved$",
+        "-count=1"
+      ],
+      "expected": "receipt finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-receipt-missing-key",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/receipt.go",
+      "old": "\t\tcase key == nil:\n\t\t\tr.record(MissingProof, predicate, \"required_proof_missing:receipt_public_key\", ManifestPath, &ref)",
+      "new": "\t\tcase key == nil:\n\t\t\tcontinue",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateReceiptSignature$/^KeyRemoved$",
+        "-count=1"
+      ],
+      "expected": "receipt finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-receipt-attempt-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/receipt.go",
+      "old": "body.WorkflowID != row[\"workflow_id\"] || body.LogicalKey != row[\"logical_effect_key\"]",
+      "new": "false",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateReceiptSignature$/^WrongAttempt$",
+        "-count=1"
+      ],
+      "expected": "receipt finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-receipt-domain",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/receipt.go",
+      "old": "dur053-k6-sink-receipt/v1\\x00",
+      "new": "dur053-k6-sink-receipt/v2\\x00",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ReceiptSignatureVectors$/^Apply$",
+        "-count=1"
+      ],
+      "expected": "receipt signature verdict",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-sink-key-mutation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "if applied[id] {",
+      "new": "if !applied[id] {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateSinkDuplicateMutation$",
+        "-count=1"
+      ],
+      "expected": "duplicate write verdict",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-sink-initial-hash",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": " || first[\"old_state_hash\"] != emptyState",
+      "new": " || first[\"old_state_hash\"] == emptyState",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateSinkRevision$/^PreseededHash$",
+        "-count=1"
+      ],
+      "expected": "revision finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-sink-initial-revision",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "number(first[\"old_revision\"]) != 0 || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateSinkRevision$/^PreseededRevision$",
+        "-count=1"
+      ],
+      "expected": "revision finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-sink-missing-baseline",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "\t\t\tr.record(MissingProof, \"RevisionChain\", \"required_proof_missing:RevisionChain\", ref.Path, &ref)",
+      "new": "\t\t\t_ = ref",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateSinkRevision$/^NoEndpointProof$",
+        "-count=1"
+      ],
+      "expected": "revision finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-sink-reset-inventory",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "revision := baseline.Revision",
+      "new": "revision := baseline.Revision\n\t\tif inventoried { baseline.StateHash = emptyState }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6PredicateSinkRevision$/^ResetInventory$",
+        "-count=1"
+      ],
+      "expected": "revision finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-terminal-censor",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "} else if terminals == 0 {\n\t\t\tif timedOut {",
+      "new": "} else if terminals == 0 {\n\t\t\tif !timedOut {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageUniqueTerminal$/^Censored$",
+        "-count=1"
+      ],
+      "expected": "terminal finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-terminal-missing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "\t\t\t} else {\n\t\t\t\tr.record(MissingProof, \"UniqueTerminal\", \"required_proof_missing:UniqueTerminal\", ref.Path, &ref)\n\t\t\t}",
+      "new": "\t\t\t}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageUniqueTerminal$/^Pending$",
+        "-count=1"
+      ],
+      "expected": "terminal finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-registry-ceiling",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "\t\tif !label.Registered {\n\t\t\tlabel.Outcome, label.Reason = \"NOT COVERED\", \"outside_registry_ceiling\"\n\t\t}\n",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageCeiling$",
+        "-count=1"
+      ],
+      "expected": "ceiling verdict",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-group-generation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_inventory.go",
+      "old": " && b.Coordinator.Generation == b.Generation",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageGroupMembership$/^Generation$",
+        "-count=1"
+      ],
+      "expected": "group finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-group-member",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_inventory.go",
+      "old": "claim.ID == observed.ID && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageGroupMembership$/^MemberID$",
+        "-count=1"
+      ],
+      "expected": "group finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-group-client",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_inventory.go",
+      "old": "claim.ClientID == observed.ClientID && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageGroupMembership$/^ClientID$",
+        "-count=1"
+      ],
+      "expected": "group finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-group-member-generation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_inventory.go",
+      "old": " && claim.Generation == b.Generation",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageGroupMembership$/^MemberGeneration$",
+        "-count=1"
+      ],
+      "expected": "group finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-group-assignment",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_inventory.go",
+      "old": "claim.Assignments != nil && slices.Equal(claim.Assignments, observed.Assignments)",
+      "new": "claim.Assignments != nil",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageGroupMembership$/^Assignment$",
+        "-count=1"
+      ],
+      "expected": "group finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-group-description",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_inventory.go",
+      "old": "if required && !corroborated &&",
+      "new": "if required && corroborated &&",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageGroupMembership$/^NoDescription$",
+        "-count=1"
+      ],
+      "expected": "group finding",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-submission-missing-offer",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/submission.go",
+      "old": "if arrivalsOK && !present {",
+      "new": "if arrivalsOK && present {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageSubmissionMissingOffer$",
+        "-count=1"
+      ],
+      "expected": "missing offer verdict",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-terminal-history-gap",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/evaluate.go",
+      "old": "} else if !contiguous {",
+      "new": "} else if contiguous {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CoverageTerminalHistoryGap$",
+        "-count=1"
+      ],
+      "expected": "terminal history gap",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a-collector-stale-group",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6collect/broker.go",
+      "old": "if out.State == \"stable\" && observation != nil && !out.CoordinatorMatches() {",
+      "new": "if out.State == \"stable\" && observation != nil && out.CoordinatorMatches() {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6collect",
+        "-run",
+        "^TestK6BrokerCollectorCachedAssignments$",
+        "-count=1"
+      ],
+      "expected": "cached assignments were treated as corroborated",
       "requires_database": false
     }
   ]

@@ -495,6 +495,7 @@ class Episode(Matrix):
             "database": self.database,
             "engine_instance": str(engine_instance),
             "sink": sink,
+            **({"receipt_public_key": key} if self.effect else {}),
             "plan_sha256": sha(plan_raw),
             "registry_sha256": sha(REGISTRY.read_bytes()),
             "source_tree_sha256": sha(
@@ -519,6 +520,7 @@ class Episode(Matrix):
                 "binding": self.binding,
                 "engine_instance": str(engine_instance),
                 "sink": sink,
+                **({"receipt_public_key": key} if self.effect else {}),
                 "image_set": image_set,
                 "measurement_claim": False,
                 "charged_seconds": 0,
@@ -611,6 +613,7 @@ class Episode(Matrix):
             .decode()
             .strip()
         )
+        self.coordinator_topics = self.topic_ids()
         config = {
             "manifest": self.manifest,
             "output": str(self.frames),
@@ -621,7 +624,7 @@ class Episode(Matrix):
             "registrations": str(self.registrations),
             "brokers": ["kafka:19092"],
             "group": GROUP,
-            "topics": self.topic_ids(),
+            "topics": self.coordinator_topics,
             "members": str(self.members),
             "rendered": str(self.scratch / "rendered.json") if not self.effect else "",
             "platform": str(self.scratch / "platform.json") if not self.effect else "",
@@ -706,9 +709,50 @@ class Episode(Matrix):
         self.evidence.write(
             "worker-coordinator.json", {"provenance": "producer-side", "rows": rows}
         )
-        state = {"generation": generation, "members": members}
+        assignments = [
+            {
+                "id": row["member_id"],
+                "client_id": row["consumer"],
+                "generation": generation,
+                "assignments": sorted(
+                    (
+                        {
+                            "topic_id": self.coordinator_topics[p["topic"]],
+                            "partition": p["partition"],
+                        }
+                        for p in row["partitions"]
+                    ),
+                    key=lambda p: (p["topic_id"], p["partition"]),
+                ),
+            }
+            for row in latest.values()
+            if row["event"] == "assigned"
+        ]
+        state = {
+            "generation": generation,
+            "members": members,
+            "coordinator": {
+                "generation": generation,
+                "members": sorted(assignments, key=lambda row: row["id"]),
+            },
+        }
         atomic(self.members, canonical(state))
         return state
+
+    def corroborated_coordinator(self, worker_names: list[str]) -> Json | None:
+        state = self.coordinator_state(worker_names)
+        if state is None:
+            return None
+
+        def matches(folder: Path) -> bool:
+            lines = self.root_read(folder / BROKER_PATH).splitlines()
+            broker = json.loads(lines[-2])["data"] if len(lines) > 2 else {}
+            return (
+                broker.get("state") == "stable"
+                and broker.get("coordinator") == state["coordinator"]
+            )
+
+        return state if self.frame(matches) is not None else None
 
     def frame(self, predicate: Callable[[Path], bool]) -> Path | None:
         require(self.collector_process.poll() is None, "G_COLLECTOR_EXITED")
@@ -757,10 +801,12 @@ class Episode(Matrix):
             self.evidence.write("worker-restart.json", {"before": sessions[0], "after": restarted})
         self.ready("worker")
         names = [runtime["pod_name"] for runtime in initial]
-        state = self.wait_for(
+        self.wait_for(
             lambda: self.coordinator_state(names), "G_COORDINATOR_ASSIGNMENT_MISSING", seconds=70
         )
-        self.wait_for(lambda: self.frame(lambda _: True), "G_COLLECTOR_FRAME_MISSING", seconds=20)
+        state = self.wait_for(
+            lambda: self.corroborated_coordinator(names), "G_COLLECTOR_FRAME_MISSING", seconds=20
+        )
         return names, state["generation"]
 
     def effect_admissions(self, episode: Json) -> tuple[Path, str, AbstractContextManager[None]]:
@@ -1012,6 +1058,7 @@ class Episode(Matrix):
             live,
             "witness/effect-ingress.jsonl" if self.effect else "witness/topology.json",
             offline,
+            idle=self.idle,
         )
         bundle = output / "bundle"
         if not self.effect:
@@ -1108,7 +1155,7 @@ class Episode(Matrix):
                 with self.evidence.step("deployed-workloads"):
                     self.offers(jail, token)
                     last = self.wait_for(
-                        lambda: self.coordinator_state(names),
+                        lambda: self.corroborated_coordinator(names),
                         "G_FINAL_COORDINATOR_STATE",
                         seconds=20,
                     )

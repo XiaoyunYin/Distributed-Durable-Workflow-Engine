@@ -185,13 +185,14 @@ func (o *collector) collect(ctx context.Context, client *kafka.Client, generatio
 			o.sources.Sessions[id] = l
 		}
 	}
-	row, err := k6collect.BrokerSnapshot(ctx, client, c.Group, c.Topics, func(context.Context) (int64, map[string]int64, error) {
+	row, err := k6collect.BrokerSnapshot(ctx, client, c.Group, c.Topics, func(context.Context) (int64, map[string]int64, *k6v1.CoordinatorObservation, error) {
 		var state struct {
-			Generation int64            `json:"generation"`
-			Members    map[string]int64 `json:"members"`
+			Generation  int64                        `json:"generation"`
+			Members     map[string]int64             `json:"members"`
+			Coordinator *k6v1.CoordinatorObservation `json:"coordinator,omitempty"`
 		}
 		err := load(c.Members, &state)
-		return state.Generation, state.Members, err
+		return state.Generation, state.Members, state.Coordinator, err
 	})
 	if err != nil {
 		return err

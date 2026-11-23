@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 def test_k6_checker_reports_missing_index_as_versioned_evidence(tmp_path: Path) -> None:
     checker = tmp_path / ("checker.exe" if os.name == "nt" else "checker")
     subprocess.run(
-        ["go", "build", "-o", str(checker), "./cmd/dur049-checker"],
+        ["go", "build", "-p", "1", "-o", str(checker), "./cmd/dur049-checker"],
         cwd=ROOT,
         check=True,
         capture_output=True,
@@ -41,6 +41,7 @@ def test_k6_checker_reports_missing_index_as_versioned_evidence(tmp_path: Path) 
     assert report["findings"] == [
         {
             "code": "required_proof_missing:index.json",
+            "kind": "missing",
             "predicate": "RelationIntegrity",
             "source": "index.json",
             "witness": None,

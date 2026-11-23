@@ -25,29 +25,31 @@ const (
 )
 
 type Manifest struct {
-	Schema           string            `json:"schema"`
-	Campaign         string            `json:"campaign"`
-	Job              string            `json:"job"`
-	RunID            string            `json:"run_id"`
-	Episode          string            `json:"episode"`
-	Ordinal          int               `json:"ordinal"`
-	Seed             int               `json:"seed"`
-	Cell             string            `json:"cell"`
-	Workload         string            `json:"workload"`
-	Namespace        string            `json:"namespace"`
-	ResetID          string            `json:"reset_id"`
-	BarrierID        string            `json:"barrier_id"`
-	Database         string            `json:"database"`
-	EngineInstance   string            `json:"engine_instance"`
-	Sink             *DatabaseIdentity `json:"sink"`
-	PlanSHA256       string            `json:"plan_sha256"`
-	RegistrySHA256   string            `json:"registry_sha256"`
-	SourceTreeSHA256 string            `json:"source_tree_sha256"`
-	ImageSetSHA256   string            `json:"image_set_sha256"`
-	FreezeSHA256     string            `json:"freeze_sha256"`
-	TopologySHA256   string            `json:"topology_sha256"`
-	Instrumentation  []string          `json:"instrumentation"`
-	RequiredSources  []string          `json:"required_sources"`
+	Schema             string             `json:"schema"`
+	Campaign           string             `json:"campaign"`
+	Job                string             `json:"job"`
+	RunID              string             `json:"run_id"`
+	Episode            string             `json:"episode"`
+	Ordinal            int                `json:"ordinal"`
+	Seed               int                `json:"seed"`
+	Cell               string             `json:"cell"`
+	Workload           string             `json:"workload"`
+	Namespace          string             `json:"namespace"`
+	ResetID            string             `json:"reset_id"`
+	BarrierID          string             `json:"barrier_id"`
+	Database           string             `json:"database"`
+	EngineInstance     string             `json:"engine_instance"`
+	Sink               *DatabaseIdentity  `json:"sink"`
+	ReceiptPublicKey   string             `json:"receipt_public_key,omitempty"`
+	SinkResetResources []ResourceBaseline `json:"sink_reset_resources,omitempty"`
+	PlanSHA256         string             `json:"plan_sha256"`
+	RegistrySHA256     string             `json:"registry_sha256"`
+	SourceTreeSHA256   string             `json:"source_tree_sha256"`
+	ImageSetSHA256     string             `json:"image_set_sha256"`
+	FreezeSHA256       string             `json:"freeze_sha256"`
+	TopologySHA256     string             `json:"topology_sha256"`
+	Instrumentation    []string           `json:"instrumentation"`
+	RequiredSources    []string           `json:"required_sources"`
 }
 
 type DatabaseIdentity struct {
@@ -104,6 +106,15 @@ func (m Manifest) Valid() bool {
 	}
 	if (workload == "PURE") != (m.Sink == nil) {
 		return false
+	}
+	if m.ReceiptPublicKey != "" && (m.Sink == nil || decodeReceiptKey(m.ReceiptPublicKey) == nil) {
+		return false
+	}
+	for i, resource := range m.SinkResetResources {
+		if m.Sink == nil || !nonempty(resource.ResourceID) || resource.Revision < 0 || !digest.MatchString(resource.StateHash) ||
+			(i > 0 && resource.ResourceID <= m.SinkResetResources[i-1].ResourceID) {
+			return false
+		}
 	}
 	if m.Sink != nil && (m.Sink.Database == "" || !publicIdentity(m.Sink.Database) ||
 		m.Sink.Instance == "" || !publicIdentity(m.Sink.Instance) || m.Sink.Instance == m.EngineInstance) {

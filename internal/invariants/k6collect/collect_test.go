@@ -78,18 +78,37 @@ func (brokerFixture) DescribeGroups(context.Context, *kafka.DescribeGroupsReques
 func TestK6BrokerCollector(t *testing.T) {
 	ctx := context.Background()
 	ids := map[string]string{"topic": "topic-uuid"}
-	row, err := BrokerSnapshot(ctx, brokerFixture{}, "g", ids, func(context.Context) (int64, map[string]int64, error) {
-		return 4, map[string]int64{"m": 4}, nil
+	row, err := BrokerSnapshot(ctx, brokerFixture{}, "g", ids, func(context.Context) (int64, map[string]int64, *k6v1.CoordinatorObservation, error) {
+		return 4, map[string]int64{"m": 4}, nil, nil
 	})
 	if err != nil || row.Generation != 4 || row.Members[0].Generation != 4 || row.Members[0].Assignments[0].TopicID != "topic-uuid" ||
 		row.Partitions[0].Low != 1 || row.Partitions[0].End != 9 || *row.Partitions[0].Committed != 7 {
 		t.Fatalf("broker observations not joined: %+v, %v", row, err)
 	}
-	_, err = BrokerSnapshot(ctx, brokerFixture{}, "g", ids, func(context.Context) (int64, map[string]int64, error) {
-		return 4, map[string]int64{"wrong-member": 4}, nil
+	_, err = BrokerSnapshot(ctx, brokerFixture{}, "g", ids, func(context.Context) (int64, map[string]int64, *k6v1.CoordinatorObservation, error) {
+		return 4, map[string]int64{"wrong-member": 4}, nil, nil
 	})
 	if err == nil {
 		t.Fatal("unrelated generation witness accepted")
+	}
+}
+
+func TestK6BrokerCollectorCachedAssignments(t *testing.T) {
+	const id = "topic-uuid"
+	observation := &k6v1.CoordinatorObservation{Generation: 4, Members: []k6v1.BrokerMember{
+		{ID: "m", ClientID: "client", Generation: 4, Assignments: []k6v1.PartitionIdentity{{TopicID: id, Partition: 9}}},
+	}}
+	observe := func(context.Context) (int64, map[string]int64, *k6v1.CoordinatorObservation, error) {
+		return observation.Generation, map[string]int64{"m": observation.Generation}, observation, nil
+	}
+	_, err := BrokerSnapshot(context.Background(), brokerFixture{}, "g", map[string]string{"topic": id}, observe)
+	if err == nil || err.Error() != "K6_BROKER_ASSIGNMENTS_UNCORROBORATED" {
+		t.Fatalf("cached assignments were treated as corroborated: %v", err)
+	}
+	observation.Members[0].Assignments[0].Partition = 0
+	got, err := BrokerSnapshot(context.Background(), brokerFixture{}, "g", map[string]string{"topic": id}, observe)
+	if err != nil || !got.CoordinatorMatches() {
+		t.Fatalf("matching refreshed group lost corroboration: %+v, %v", got, err)
 	}
 }
 

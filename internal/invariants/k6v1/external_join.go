@@ -7,8 +7,7 @@ import (
 
 func externalViolation(r *Result, label int, predicate, code, path string, key []any, raw []byte) {
 	ref := Witness{Path: path, RowKey: key, SHA256: Hash(raw)}
-	r.Findings = append(r.Findings, Finding{Predicate: predicate, Code: code, Source: path, Witness: &ref})
-	r.Safety = "FAIL"
+	r.record(Violation, predicate, code, path, &ref)
 	if label >= 0 && r.Labels[label].Registered {
 		entry := &r.Labels[label]
 		entry.Outcome, entry.Reason = "covered/fail", "contract_violation"
@@ -64,6 +63,7 @@ type observedSend struct {
 
 func checkExternal(r *Result, m Manifest, e External, rows map[string][]Row) {
 	traffic := checkSessions(r, m, e, rows)
+	r.checkGroupMembership(m, e.Broker)
 	if e.Broker != nil {
 		if len(e.Broker.Rows) == 0 {
 			r.failIntegrity(integrity("BROKER_BASELINE_MISSING", BrokerPath))

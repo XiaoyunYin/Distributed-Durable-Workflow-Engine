@@ -197,6 +197,7 @@ def test_idle_sources_must_be_present_and_sealed(tmp_path: Path) -> None:
         (1, "FAIL", False, "FAIL", "G_PRODUCER_PASS_RETAINED"),
     ],
 )
+@pytest.mark.parametrize("idle", [False, True])
 def test_negative_replay_retains_pass_summary(
     tmp_path: Path,
     exit_code: int,
@@ -204,6 +205,7 @@ def test_negative_replay_retains_pass_summary(
     extra_finding: bool,
     producer_status: str,
     error: str | None,
+    idle: bool,
 ) -> None:
     bundle = tmp_path / "bundle"
     source = "witness/topology.json"
@@ -213,8 +215,27 @@ def test_negative_replay_retains_pass_summary(
     (bundle / "index.json").write_text(json.dumps({"files": [{"path": source}]}))
     producer = json.dumps({"status": producer_status}).encode()
     (tmp_path / "producer-result.json").write_bytes(producer)
+    ids = [f"I{i}" for i in range(1, 14)]
+    covered = [] if idle else ["I1", "I11"]
     baseline = json.dumps(
-        {"findings": [], "labels": [{"reason": "predicate_partial:G2b"}] * 13}
+        {
+            "findings": [],
+            "labels": [
+                {
+                    "id": identity,
+                    "registered": identity in {"I1", "I2", "I4", "I6", "I11"},
+                    "outcome": "covered/pass" if identity in covered else "NOT COVERED",
+                    "reason": {
+                        "I1": "no_positive_population" if idle else "predicate_satisfied",
+                        "I11": "no_positive_population" if idle else "predicate_satisfied",
+                        **dict.fromkeys(("I2", "I4", "I6"), "predicate_pending:G3a2"),
+                    }.get(identity, "outside_registry_ceiling"),
+                }
+                for identity in ids
+            ],
+            "invariants_covered": covered,
+            "invariants_not_covered": [identity for identity in ids if identity not in covered],
+        }
     ).encode()
 
     def offline(root: Path, name: str) -> tuple[int, bytes]:
@@ -227,6 +248,7 @@ def test_negative_replay_retains_pass_summary(
         assert (root / "producer-result.json").read_bytes() == producer
         finding = {
             "code": "required_proof_missing:" + source,
+            "kind": "missing",
             "source": source,
             "predicate": "RelationIntegrity",
             "witness": None,
@@ -236,7 +258,7 @@ def test_negative_replay_retains_pass_summary(
         ).encode()
 
     if error is None:
-        replay(tmp_path, baseline, source, offline)
+        replay(tmp_path, baseline, source, offline, idle=idle)
     else:
         with pytest.raises(SmokeFailure, match=error):
-            replay(tmp_path, baseline, source, offline)
+            replay(tmp_path, baseline, source, offline, idle=idle)

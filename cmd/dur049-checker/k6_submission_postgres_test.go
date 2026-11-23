@@ -43,7 +43,7 @@ func TestK6SubmissionIdentity(t *testing.T) {
 	minimalExecution(t, engine, warmup)
 	minimalExecution(t, engine, uncertain)
 	bundle := acquireK6Fixture(t, config, plan, arrivals, k6v1.Incomplete)
-	if label := k6v1.Verify(bundle).Labels[0]; label.Outcome != "NOT COVERED" || label.Reason != "predicate_partial:G2b" || label.PopulationCount != 4 {
+	if label := k6v1.Verify(bundle).Labels[0]; label.Outcome != "covered/pass" || label.Reason != "predicate_satisfied" || label.PopulationCount != 4 {
 		t.Fatalf("clean submission label: %+v", label)
 	}
 	const relation = "engine.workflow_executions"
@@ -65,6 +65,17 @@ func TestK6SubmissionIdentity(t *testing.T) {
 		}
 		if result.ExitCode() != k6v1.Fail || result.Safety != "FAIL" || result.Labels[0].Outcome != "covered/fail" {
 			t.Fatalf("submission counterexample failed to reach I1: %+v", result)
+		}
+	}
+	expectMissing := func(t *testing.T, data fstest.MapFS) {
+		t.Helper()
+		result := k6v1.Verify(data)
+		const reason = "required_proof_missing:SubmissionIdentity"
+		requirePredicateFinding(t, result, k6v1.MissingProof, "SubmissionIdentity", reason)
+		label := result.Labels[0]
+		if result.ExitCode() != k6v1.Fail || result.Completeness != "FAIL" || result.Safety == "FAIL" ||
+			label.Outcome != "NOT COVERED" || label.Reason != reason {
+			t.Fatalf("submission missing proof failed to reach I1: %+v", result)
 		}
 	}
 	t.Run("N2RemoveAccepted", func(t *testing.T) {
@@ -106,8 +117,8 @@ func TestK6SubmissionIdentity(t *testing.T) {
 		observed.Rows = append([]k6v1.Arrival{arrivals.Rows[0]}, arrivals.Rows[2:]...)
 		observed.PlanSHA256 = k6v1.Hash(bundle[k6v1.PlanPath].Data)
 		resealK6File(t, mutant, k6v1.ArrivalsPath, observed)
-		expect(t, mutant, "SUBMISSION_ARRIVAL_MISSING", "SUBMISSION_DURABLE_WITHOUT_SEND")
-		expect(t, acquireK6Fixture(t, config, plan, observed, k6v1.Fail), "SUBMISSION_ARRIVAL_MISSING", "SUBMISSION_DURABLE_WITHOUT_SEND")
+		expectMissing(t, mutant)
+		expectMissing(t, acquireK6Fixture(t, config, plan, observed, k6v1.Fail))
 	})
 	t.Run("N3ConsistentSubset", func(t *testing.T) {
 		mutant := cloneBundle(bundle)
@@ -117,7 +128,8 @@ func TestK6SubmissionIdentity(t *testing.T) {
 		resealK6File(t, mutant, k6v1.ArrivalsPath, observed)
 		resealK6Relation(t, mutant, relation, filterRows(mutant[k6v1.RelationPath(relation)].Data, uncertain.Key), 1)
 		resealK6Relation(t, mutant, k6History, filterRows(mutant[k6v1.RelationPath(k6History)].Data, uncertain.Key), 2)
-		expect(t, mutant, "SUBMISSION_ARRIVAL_MISSING", "NAMESPACE_COUNT")
+		expectMissing(t, mutant)
+		requireK6Finding(t, k6v1.Verify(mutant), "NAMESPACE_COUNT")
 	})
 	t.Run("UnsentAndRejectedDurables", func(t *testing.T) {
 		minimalExecution(t, engine, unsent)

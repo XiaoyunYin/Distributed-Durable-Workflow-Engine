@@ -2,8 +2,8 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -20,12 +20,26 @@ const (
 )
 
 func TestK6QuietLiveParity(t *testing.T) {
-	for _, effect := range []bool{false, true} {
-		t.Run(fmt.Sprint(effect), func(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		effect       bool
+		groupFixture string
+	}{
+		{"false", false, ""},
+		{"true", true, ""},
+		{"GroupMembership", false, "valid"},
+		{"GroupAssignmentMismatch", false, "mismatch"},
+		{"GroupMissingProof", false, "missing"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
+			effect := tc.effect
 			engine, dsn := k6TestDatabase(t)
 			bindK6Database(t, engine, "engine-instance", "reset-a")
 			m := k6Manifest(engine.Config().Database, false)
+			if tc.groupFixture != "" {
+				m.Ordinal, m.Seed, m.Cell, m.Episode = 80, 530081, "medium-10", "medium-10-0"
+			}
 			cfg := k6live.Config{Schema: k6live.ConfigVersion, DatabaseURL: dsn}
 			var sink *pgx.Conn
 			if effect {
@@ -61,8 +75,23 @@ func TestK6QuietLiveParity(t *testing.T) {
 			}
 			cfg.ExternalDir = t.TempDir()
 			sources := parityExternal(t, &m, effect, workflow.Key)
+			if tc.groupFixture != "" {
+				broker := &sources.Broker.Rows[0].Data
+				broker.State, broker.Generation = "stable", 2
+				member := k6v1.BrokerMember{ID: "member", ClientID: "worker", Generation: 2,
+					Assignments: []k6v1.PartitionIdentity{{TopicID: "topic", Partition: 0}}}
+				broker.Members = []k6v1.BrokerMember{member}
+				if tc.groupFixture != "missing" {
+					if tc.groupFixture == "mismatch" {
+						member.Assignments = []k6v1.PartitionIdentity{}
+					}
+					broker.Coordinator = &k6v1.CoordinatorObservation{Generation: 2, Members: []k6v1.BrokerMember{member}}
+				}
+				sealFixtureStream(t, sources.Broker, time.Now())
+			}
 			if effect {
 				seedParityEffect(t, engine, sink, workflow.Key, sources)
+				provisionFixtureReceipt(t, engine, sink, &m, workflow.Key)
 			}
 			cfg.Manifest = m
 			cfg.EpisodeDir = filepath.Join(t.TempDir(), "public")
@@ -106,8 +135,23 @@ func TestK6QuietLiveParity(t *testing.T) {
 				}
 			})
 			path, stdout, diag, code := invokeLiveK6(t, cfg)
+			if tc.groupFixture != "" {
+				r := verifyVerdictParity(t, path, stdout, code)
+				switch tc.groupFixture {
+				case "mismatch":
+					requirePredicateFinding(t, r, k6v1.Violation, "GroupMembership", "GROUP_COORDINATOR_DESCRIPTION_MISMATCH")
+				case "missing":
+					requirePredicateFinding(t, r, k6v1.MissingProof, "GroupMembership", "required_proof_missing:GroupMembership")
+				default:
+					if code != k6v1.Incomplete || len(r.Findings) != 0 {
+						t.Fatalf("corroborated group: exit %d %+v", code, r.Findings)
+					}
+				}
+				return
+			}
 			bundle := inspectK6Output(t, path, stdout, code)
-			if r := k6v1.Verify(bundle); code != k6v1.Incomplete || diag != "" || len(r.Findings) != 0 {
+			if r := k6v1.Verify(bundle); code != k6v1.Incomplete || diag != "" || len(r.Findings) != 0 ||
+				!slices.Equal(r.InvariantsCovered, []string{"I1", "I11"}) {
 				t.Fatalf("clean live external cut: exit %d %s %+v", code, diag, r.Findings)
 			}
 		})
