@@ -17551,8 +17551,8 @@
       "id": "k6g3a-terminal-missing",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "r.record(MissingProof, \"UniqueTerminal\", \"required_proof_missing:UniqueTerminal\", ref.Path, &ref)",
-      "new": "// missing terminal treated as complete",
+      "old": "\t\t\t} else {\n\t\t\t\tr.record(MissingProof, \"UniqueTerminal\", \"required_proof_missing:UniqueTerminal\", ref.Path, &ref)\n\t\t\t}",
+      "new": "\t\t\t}",
       "command": [
         "go",
         "test",
