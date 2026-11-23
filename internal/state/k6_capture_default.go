@@ -11,9 +11,7 @@ import (
 
 func configureK6Capture(*pgxpool.Config) {}
 
-func captureEnabled(*pgx.ConnConfig) bool { return false }
-
-func captureOwner(context.Context, pgx.Tx, LeaseRef) error { return nil }
+func captureOwner(context.Context, pgx.Tx, LeaseRef) (bool, error) { return false, nil }
 
 func captureResult(context.Context, pgx.Tx, ResultInput, string, string) error { return nil }
 

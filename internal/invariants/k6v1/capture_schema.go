@@ -89,6 +89,9 @@ var captureProjections = func() map[string]captureProjection {
 		case outbox:
 			p.fields = append(p.fields, Column{Name: "key", Kind: UUID}, Column{Name: "payload_hash", Kind: Digest})
 		}
+		if spec.Name == activityAttempts {
+			p.fields = append(p.fields, Column{Name: "receipt_id", Kind: UUID, Nullable: true})
+		}
 		projections[spec.Name] = p
 	}
 	attempt := projections[activityAttempts].keys

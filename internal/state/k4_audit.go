@@ -55,8 +55,8 @@ func (s *Store) recordK4Lease(ctx context.Context, tx pgx.Tx, kind string, ref L
 }
 
 func recordK4Authorization(ctx context.Context, tx pgx.Tx, ref LeaseRef) error {
-	if captureEnabled(tx.Conn().Config()) {
-		return captureOwner(ctx, tx, ref)
+	if handled, err := captureOwner(ctx, tx, ref); handled {
+		return err
 	}
 	if tx.Conn().Config().RuntimeParams["durable.k4_campaign"] != "on" {
 		return nil

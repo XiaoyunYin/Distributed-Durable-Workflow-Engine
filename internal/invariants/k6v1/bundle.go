@@ -266,7 +266,7 @@ func Verify(bundle fs.FS) Result {
 	}
 	files := map[string]File{}
 	previous := ""
-	allowed := append(RequiredSources(true, true), TopologyPath)
+	allowed := append(RequiredSources(true, true, true), TopologyPath)
 	for _, f := range index.Files {
 		if f.Path <= previous || !(slices.Contains(allowed, f.Path) || isSessionPath(f.Path)) || f.Length < 0 || !digest.MatchString(f.SHA256) {
 			return Failed(integrity("INDEX_ENTRY_SCHEMA", IndexPath))

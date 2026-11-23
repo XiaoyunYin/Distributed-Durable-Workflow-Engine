@@ -352,6 +352,7 @@ class Driver:
         save(self.output / "versions.json", versions)
 
     def build(self, *, runtime_tags: str = "") -> None:
+        build_args = ["--build-arg", f"DUR053_RUNTIME_TAGS={runtime_tags}"] if runtime_tags else []
         name = CLUSTER + "-registry"
         self.created.add(name)
         self.command(
@@ -376,7 +377,7 @@ class Driver:
                     "build",
                     "--provenance=false",
                     "--platform=linux/amd64",
-                    *(["--build-arg", f"DUR053_RUNTIME_TAGS={runtime_tags}"] if runtime_tags else []),
+                    *build_args,
                     "--target",
                     target,
                     "-t",

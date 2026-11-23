@@ -22,12 +22,15 @@ func captureEnabled(conn *pgx.ConnConfig) bool {
 	return conn.RuntimeParams["durable.k6_capture"] == "on"
 }
 
-func captureOwner(ctx context.Context, tx pgx.Tx, ref LeaseRef) error {
+func captureOwner(ctx context.Context, tx pgx.Tx, ref LeaseRef) (bool, error) {
+	if !captureEnabled(tx.Conn().Config()) {
+		return false, nil
+	}
 	_, err := tx.Exec(ctx, `SELECT set_config('durable.k4_owner', $1, true),
 		set_config('durable.k6_owner_partition', $2::smallint::text, true),
 		set_config('durable.k6_owner_epoch', $3::bigint::text, true)`,
 		ref.OwnerID, ref.PartitionID, ref.Epoch)
-	return err
+	return true, err
 }
 
 func captureResult(ctx context.Context, tx pgx.Tx, input ResultInput, disposition, receiptID string) error {

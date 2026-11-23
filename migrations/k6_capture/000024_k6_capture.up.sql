@@ -112,12 +112,14 @@ BEGIN
             b := (b - 'claim_token') || jsonb_build_object('claim_token_hash',
                 encode(sha256(convert_to(b->>'claim_token', 'UTF8')), 'hex'));
             before_image := before_image || jsonb_build_object('claim_token_hash', b->'claim_token_hash',
+                'receipt_id', b#>>'{k6_proof,receipt,application_id}',
                 'image_hash', encode(sha256(convert_to(b::text, 'UTF8')), 'hex'));
         END IF;
         IF a IS NOT NULL THEN
             a := (a - 'claim_token') || jsonb_build_object('claim_token_hash',
                 encode(sha256(convert_to(a->>'claim_token', 'UTF8')), 'hex'));
             after_image := after_image || jsonb_build_object('claim_token_hash', a->'claim_token_hash',
+                'receipt_id', a#>>'{k6_proof,receipt,application_id}',
                 'image_hash', encode(sha256(convert_to(a::text, 'UTF8')), 'hex'));
         END IF;
     WHEN 'partition_leases' THEN

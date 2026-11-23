@@ -106,14 +106,16 @@ func (c captureClosure) checkEndpoints() {
 			switch {
 			case last == nil:
 				c.violate(capturePredicate, "CAPTURE_ROW_MISSING", spec.Name, row)
-			case !captureMatchesEndpoint(spec.Name, captureImage(last, "after_image"), row):
+			case !captureMatchesEndpoint(spec.Name, captureImage(last, "after_image"), row) ||
+				row["workflow_id"] != last["workflow_id"]:
 				c.violate(capturePredicate, "CAPTURE_ENDPOINT", WriteCapture, last)
 			}
 		}
 	}
 	for _, row := range c.rows[WriteCapture] {
 		key := capturedKey(row)
-		if c.last[key]["event_order"] == row["event_order"] && row["after_image"] != nil && !observed[key] {
+		if _, loaded := c.rows[key.subject]; loaded && c.last[key]["event_order"] == row["event_order"] &&
+			row["after_image"] != nil && !observed[key] {
 			c.violate(capturePredicate, "CAPTURE_ORPHAN", WriteCapture, row)
 		}
 	}
@@ -288,6 +290,8 @@ func (c captureClosure) checkTransactionLinks() {
 			if len(histories) == 0 {
 				c.violate(capturePredicate, "CAPTURE_NODE_TRANSACTION", WriteCapture, row)
 			}
+		case activityAttempts:
+			c.checkAttemptTransaction(row, histories)
 		case outbox:
 			if row["operation"] == "insert" && (after["key"] != key[0] ||
 				!slices.ContainsFunc(histories, func(h Row) bool { return h["revision"] == after["aggregate_revision"] })) {
@@ -307,6 +311,18 @@ func (c captureClosure) checkTransactionLinks() {
 		}) {
 			c.violate("CurrentClaimWinner", "CAPTURE_RESULT_MISSING", history, h)
 		}
+	}
+}
+
+func (c captureClosure) checkAttemptTransaction(row Row, histories []Row) {
+	before, after := captureImage(row, "before_image"), captureImage(row, "after_image")
+	// Heartbeats, allocation and proof staging can leave lifecycle state
+	// unchanged. Claims have their own K4 audit rows.
+	if before["state"] == after["state"] || before["state"] == "DISPATCHABLE" && after["state"] == "CLAIMED" {
+		return
+	}
+	if len(histories) == 0 {
+		c.violate(capturePredicate, "CAPTURE_ATTEMPT_TRANSACTION", WriteCapture, row)
 	}
 }
 
@@ -335,7 +351,8 @@ func (c captureClosure) checkCapturedResult(row Row, writes, histories []Row) {
 		if before["state"] != "CLAIMED" || after["state"] != result["attempt_state"] {
 			continue
 		}
-		if before["claim_token_hash"] != result["token_hash"] || before["worker_request_id"] != result["worker_request_id"] {
+		if before["claim_token_hash"] != result["token_hash"] || before["worker_request_id"] != result["worker_request_id"] ||
+			before["receipt_id"] != result["receipt_id"] {
 			c.violate(predicate, "CAPTURE_RESULT_IDENTITY", WriteCapture, row)
 		}
 		return

@@ -19064,6 +19064,578 @@
       ],
       "expected": "call-free ingress terminal changed coverage",
       "requires_database": false
+    },
+    {
+      "id": "k6g3c-deferred-queue",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "range e.rows[CaptureQueue] {",
+      "new": "range e.rows[CaptureQueue][:0] {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^DirtyQueue$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_QUEUE_NOT_DRAINED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-missing-write",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "case last == nil:",
+      "new": "case last == nil && false:",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^MissingWrite$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_ROW_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-image-chain",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "prior != nil && !reflect.DeepEqual(captureImage(prior, \"after_image\"), before)",
+      "new": "prior != nil && reflect.DeepEqual(captureImage(prior, \"after_image\"), before)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^BrokenChain$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_IMAGE_CHAIN",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-insert-image",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "if before != nil || after == nil",
+      "new": "if after == nil",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^InvalidInsert$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_IMAGE_CHAIN",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-operation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "c.violate(capturePredicate, \"CAPTURE_OPERATION\", WriteCapture, row)",
+      "new": "return",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^InvalidOperation$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_OPERATION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-endpoint",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "!captureMatchesEndpoint(spec.Name, captureImage(last, \"after_image\"), row)",
+      "new": "captureMatchesEndpoint(spec.Name, captureImage(last, \"after_image\"), row)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^BadEndpoint$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_ENDPOINT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-orphan-write",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "row[\"after_image\"] != nil && !observed[key]",
+      "new": "row[\"after_image\"] != nil && observed[key]",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^OrphanWrite$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_ORPHAN",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-order-collision",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "if next <= order {",
+      "new": "if next <= order && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^OrderCollision$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_ORDER_COLLISION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-transaction-block",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "if xid == \"\" || seen[xid] {",
+      "new": "if xid == \"\" {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^SplitTransaction$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_TRANSACTION_ORDER",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-owner-class",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "fenced[row[\"transaction_id\"]] || ownerWriteRequired(row)",
+      "new": "fenced[row[\"transaction_id\"]]",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^OmittedOwnerClass$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation OWNER_INVENTORY_WRITE_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-owner-transaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "fenced[row[\"transaction_id\"]] || ownerWriteRequired(row)",
+      "new": "ownerWriteRequired(row)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^OmittedFencedClass$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation OWNER_INVENTORY_WRITE_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-owner-orphan",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "subject, _ := write[\"subject\"].(string)\n\t\tif _, businessRow := c.rows[subject]; !businessRow {",
+      "new": "subject, _ := write[\"subject\"].(string)\n\t\tif _, businessRow := c.rows[subject]; businessRow {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^OrphanInventory$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation OWNER_INVENTORY_ORPHAN",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-inventory-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "if a[\"transaction_id\"] != row[\"transaction_id\"] || a[\"subject\"] != row[\"subject\"] ||",
+      "new": "if a[\"subject\"] != row[\"subject\"] ||",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^WrongOwnerTransaction$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation OWNER_INVENTORY_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-stale-epoch",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "prior[\"owner_id\"] != a[\"owner_id\"] || prior[\"epoch\"] != a[\"epoch\"]",
+      "new": "prior[\"owner_id\"] != a[\"owner_id\"]",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^StaleEpoch$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation OWNER_INVENTORY_STALE_EPOCH",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-lease-audit",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "if audit[\"owner_id\"] != a[\"owner_id\"] || audit[\"epoch\"] != a[\"epoch\"] {",
+      "new": "if audit != nil && (audit[\"owner_id\"] != a[\"owner_id\"] || audit[\"epoch\"] != a[\"epoch\"]) {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^UnboundLease$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation OWNER_LEASE_AUDIT_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-history-transaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "if !committed(a) || a[\"transaction_id\"] != tx.xid {",
+      "new": "if !committed(a) {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^WrongHistoryTransaction$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_TRANSACTION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-node-transaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "case nodeRows:\n\t\t\tif len(histories) == 0 {",
+      "new": "case nodeRows:\n\t\t\tif len(histories) > 0 {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^WrongNodeTransaction$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_NODE_TRANSACTION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-attempt-transaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "if len(histories) == 0 {\n\t\tc.violate(capturePredicate, \"CAPTURE_ATTEMPT_TRANSACTION\"",
+      "new": "if len(histories) > 0 {\n\t\tc.violate(capturePredicate, \"CAPTURE_ATTEMPT_TRANSACTION\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^WrongAttemptTransaction$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_ATTEMPT_TRANSACTION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-outbox-transaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "!slices.ContainsFunc(histories, func(h Row) bool { return h[\"revision\"] == after[\"aggregate_revision\"] })",
+      "new": "slices.ContainsFunc(histories, func(h Row) bool { return h[\"revision\"] == after[\"aggregate_revision\"] })",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^WrongOutboxTransaction$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_OUTBOX_TRANSACTION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-result-missing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "c.violate(\"CurrentClaimWinner\", \"CAPTURE_RESULT_MISSING\", history, h)",
+      "new": "continue",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^MissingResult$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_RESULT_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-result-transaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "if !slices.ContainsFunc(histories, func(h Row) bool { return h[\"reason\"] == resultRecorded && captureMatchesAttempt(row, h) })",
+      "new": "if slices.ContainsFunc(histories, func(h Row) bool { return h[\"reason\"] == resultRecorded && captureMatchesAttempt(row, h) })",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^WrongResultTransaction$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_RESULT_TRANSACTION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-result-attempt",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "c.violate(predicate, \"CAPTURE_RESULT_ATTEMPT_WRITE\", WriteCapture, row)",
+      "new": "return",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^MissingResultAttempt$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_RESULT_ATTEMPT_WRITE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-result-token",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "before[\"claim_token_hash\"] != result[\"token_hash\"] || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^token_hash$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_RESULT_IDENTITY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-result-request",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": "before[\"worker_request_id\"] != result[\"worker_request_id\"] ||\n\t\t\t",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^worker_request_id$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_RESULT_IDENTITY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-result-receipt",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_closure.go",
+      "old": " ||\n\t\t\tbefore[\"receipt_id\"] != result[\"receipt_id\"]",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureClosure$/^receipt_id$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_RESULT_IDENTITY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-projection-key",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_schema.go",
+      "old": "if !validValue(col.Kind, key[i]) || key[i] == \"\" {",
+      "new": "if !validValue(col.Kind, key[i]) && false || key[i] == \"\" {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturePublicShape$/^KeyType$",
+        "-count=1"
+      ],
+      "expected": "capture projection accepted a malformed row",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-projection-field",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/capture_schema.go",
+      "old": "if len(image) != len(p.fields) {",
+      "new": "if len(image) < len(p.fields) {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CapturePublicShape$/^SecretField$",
+        "-count=1"
+      ],
+      "expected": "capture projection accepted a malformed row",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-renewal-only",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/barrier.go",
+      "old": "row[\"subject\"] == \"engine.partition_leases\" && row[\"operation\"] == \"renewal\"",
+      "new": "row[\"subject\"] == \"engine.partition_leases\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureIdlePrefix$",
+        "-count=1"
+      ],
+      "expected": "capture takeover did not invalidate the cut",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-build-gate",
+      "kind": "behavioral",
+      "file": "internal/state/k6_capture.go",
+      "old": "os.Getenv(\"DUR053_K6_CAPTURE\") == \"1\" && config.ConnConfig.RuntimeParams[\"durable.k4_campaign\"] == \"on\"",
+      "new": "config.ConnConfig.RuntimeParams[\"durable.k4_campaign\"] == \"on\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "-tags",
+        "dur053_k6",
+        "./internal/state",
+        "-run",
+        "^TestK6CaptureGate$/^K4Only$",
+        "-count=1"
+      ],
+      "expected": "capture enabled true, want false",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3c-index-path",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "allowed := append(RequiredSources(true, true, true), TopologyPath)",
+      "new": "allowed := append(RequiredSources(true, true), TopologyPath)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureIndexPath$",
+        "-count=1"
+      ],
+      "expected": "capture index entry was rejected",
+      "requires_database": false
     }
   ]
 }

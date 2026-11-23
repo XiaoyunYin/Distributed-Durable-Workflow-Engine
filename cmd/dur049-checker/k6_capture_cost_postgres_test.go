@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"slices"
@@ -74,7 +75,11 @@ func measureCapture(t *testing.T, conn *pgx.Conn) {
 		slices.Sort(delta)
 		timings = append(timings, row{test.class, n, off[n/2], on[n/2], delta[n/2]})
 	}
-	raw := canonical(t, timings)
+	raw, err := json.MarshalIndent(timings, "", "  ")
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw = append(raw, '\n')
 	t.Logf("paired PostgreSQL capture overhead (microseconds): %s", raw)
 	writeVerdictArtifact(t, filepath.Join(os.Getenv("DURABLE_K6_VERDICT_ARTIFACT"), t.Name(), "capture-overhead.json"), raw)
 }
