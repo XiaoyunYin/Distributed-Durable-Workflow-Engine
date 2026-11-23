@@ -327,6 +327,16 @@ func sample(ctx context.Context, db database, m k6v1.Manifest, observe observer)
 		}
 	}
 	for _, spec := range db.specs {
+		if k6v1.IsCaptureRelation(spec.Name) {
+			var present bool
+			if err := tx.QueryRow(ctx, "SELECT to_regclass($1) IS NOT NULL", spec.Name).Scan(&present); err != nil {
+				return mark, errors.New("K6_CAPTURE_CATALOG")
+			}
+			if !present {
+				mark.Relations = append(mark.Relations, k6v1.Watermark{Relation: spec.Name, Count: -1})
+				continue
+			}
+		}
 		value, err := readRelation(ctx, tx, spec, nil)
 		if err != nil {
 			return mark, err
@@ -381,6 +391,11 @@ func capture(ctx context.Context, db database, m k6v1.Manifest, stage, manifestH
 	var watermarks []k6v1.Watermark
 	for _, spec := range db.specs {
 		item := catalog[spec.Name]
+		if item == nil && k6v1.IsCaptureRelation(spec.Name) {
+			snap.Relations = append(snap.Relations, k6v1.Inventory{Relation: spec.Name, Keys: spec.Keys, Count: -1})
+			watermarks = append(watermarks, k6v1.Watermark{Relation: spec.Name, Count: -1})
+			continue
+		}
 		if item == nil || item.Classification != k6v1.Exported {
 			return nil, nil, fmt.Errorf("K6_RELATION_MISSING:%s:%s", db.name, spec.Name)
 		}

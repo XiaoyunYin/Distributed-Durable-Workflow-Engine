@@ -49,7 +49,7 @@ func captureResult(ctx context.Context, tx pgx.Tx, input ResultInput, dispositio
 			a.workflow_id, w.partition_id, jsonb_build_object('worker_request_id', a.worker_request_id,
 			'token_hash', $5::text,
 			'receipt_id', COALESCE(NULLIF($6::text, ''),
-				CASE WHEN $7 = 'ACCEPTED' AND a.k6_proof IS NOT NULL THEN a.result->>'application_id' END),
+				CASE WHEN $7 = 'ACCEPTED' THEN a.k6_proof#>>'{receipt,application_id}' END),
 			'attempt_state', $8::text)
 		FROM engine.activity_attempts a JOIN engine.workflow_executions w USING (workflow_id)
 		WHERE a.workflow_id=$1 AND a.node_id=$2 AND a.iteration=$3 AND a.attempt_number=$4`,
@@ -77,11 +77,12 @@ func (s *Store) CapturePublicationStart(ctx context.Context, event OutboxEvent) 
 	if !captureEnabled(s.pool.Config().ConnConfig) {
 		return nil
 	}
+	payload := sha256.Sum256(event.Payload)
 	_, err := s.pool.Exec(ctx, `
 		INSERT INTO engine.k6_capture_queue (subject, operation, row_key, workflow_id, partition_id, after_image)
 		VALUES ('publication_start', 'start', jsonb_build_array($1::text, $2::integer),
 			$3, (SELECT partition_id FROM engine.workflow_executions WHERE workflow_id=$3),
-			jsonb_build_object('topic', $4::text, 'relay_owner', $5::text))`,
-		event.EventID, event.RelayAttempts, event.WorkflowID, event.Topic, event.ClaimOwner)
+			jsonb_build_object('topic', $4::text, 'relay_owner', $5::text, 'key', $1::text, 'payload_hash', $6::text))`,
+		event.EventID, event.RelayAttempts, event.WorkflowID, event.Topic, event.ClaimOwner, hex.EncodeToString(payload[:]))
 	return err
 }

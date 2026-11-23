@@ -137,7 +137,7 @@ func verifyCensus(entries []CensusEntry, relations []Relation, inventories []Inv
 			i, found := slices.BinarySearchFunc(inventories, entry.Name, func(a Inventory, b string) int {
 				return strings.Compare(a.Relation, b)
 			})
-			if !found || entry.Count == nil || entry.SHA256 == nil ||
+			if !found || inventories[i].Count < 0 || entry.Count == nil || entry.SHA256 == nil ||
 				*entry.Count != inventories[i].Count || *entry.SHA256 != inventories[i].SHA256 {
 				return integrity("CENSUS_BINDING", entry.Name)
 			}
@@ -162,6 +162,11 @@ func verifyCensus(entries []CensusEntry, relations []Relation, inventories []Inv
 			}
 		case entry.Count != nil || entry.SHA256 != nil || entry.Columns != nil:
 			return integrity("CENSUS_SCHEMA", source)
+		}
+	}
+	for i, relation := range relations {
+		if IsCaptureRelation(relation.Name) && inventories[i].Relation == relation.Name && inventories[i].Count == -1 {
+			exported++ // Explicitly absent in the cut. The checker reports the missing source.
 		}
 	}
 	if exported != len(relations) {

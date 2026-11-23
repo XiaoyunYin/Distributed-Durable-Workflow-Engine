@@ -16,6 +16,7 @@ import (
 
 const captureMigration = "../../migrations/k6_capture/000024_k6_capture."
 const captureOwnerID = "00000000-0000-0000-0000-000000000001"
+const takeoverOwnerID = "00000000-0000-0000-0000-000000000002"
 
 func TestK6SourceCaptureParity(t *testing.T) {
 	if os.Getenv("DURABLE_K6_VERDICT_ARTIFACT") == "" {
@@ -51,7 +52,8 @@ func TestK6SourceCaptureParity(t *testing.T) {
 	m.RequiredSources = k6v1.RequiredSources(false, false, true)
 	plan, arrivals := k6Sources(m, time.Now().Add(-time.Minute), "pure.echo")
 	item := plan.Windows[0].Submissions[0]
-	seedCapture(t, engine, item)
+	seedCapture(t, engine, item, false)
+	seedCapturedTransport(t, engine)
 	var cleanCapture, cleanOwners []byte
 	if err := engine.QueryRow(t.Context(), `SELECT
 		(SELECT jsonb_agg(w) FROM engine.k6_write_capture w),
@@ -60,6 +62,13 @@ func TestK6SourceCaptureParity(t *testing.T) {
 	}
 	execK6SQL(t, engine, `ALTER TABLE engine.k6_write_capture DISABLE TRIGGER k6_write_immutable;
 		ALTER TABLE engine.k6_owner_write_transactions DISABLE TRIGGER k6_owner_immutable`)
+	restore := func(t *testing.T) {
+		t.Helper()
+		execK6SQL(t, engine, `INSERT INTO engine.k6_write_capture
+			SELECT * FROM jsonb_populate_recordset(NULL::engine.k6_write_capture, $1)`, cleanCapture)
+		execK6SQL(t, engine, `INSERT INTO engine.k6_owner_write_transactions
+			SELECT * FROM jsonb_populate_recordset(NULL::engine.k6_owner_write_transactions, $1)`, cleanOwners)
+	}
 
 	for _, tc := range []struct {
 		name, change, predicate, code, relation, keyQuery string
@@ -71,15 +80,21 @@ func TestK6SourceCaptureParity(t *testing.T) {
 		{"WrongTransaction", "UPDATE engine.k6_write_capture SET transaction_id='999999999' WHERE subject='engine.node_instances' AND operation='insert'",
 			"EngineCaptureClosure", "CAPTURE_NODE_TRANSACTION", k6v1.WriteCapture,
 			"SELECT event_order FROM engine.k6_write_capture WHERE subject='engine.node_instances' AND operation='insert'"},
-		{"OmittedOwnerClass", "DELETE FROM engine.k6_owner_write_transactions WHERE subject='engine.timers'",
+		{"OmittedOwnerClass", "DELETE FROM engine.k6_owner_write_transactions WHERE subject='engine.timers' AND operation='insert'",
 			"OwnerAtCommit", "OWNER_INVENTORY_WRITE_MISSING", k6v1.WriteCapture,
-			"SELECT event_order FROM engine.k6_write_capture WHERE subject='engine.timers'"},
-		{"StaleEpoch", "UPDATE engine.k6_owner_write_transactions SET epoch=epoch-1 WHERE subject='engine.timers'",
+			"SELECT event_order FROM engine.k6_write_capture WHERE subject='engine.timers' AND operation='insert'"},
+		{"StaleEpoch", "UPDATE engine.k6_owner_write_transactions SET epoch=1,owner_id='" + captureOwnerID + "' WHERE subject='engine.timers' AND operation='update'",
 			"OwnerAtCommit", "OWNER_INVENTORY_STALE_EPOCH", k6v1.OwnerWrites,
-			"SELECT event_order FROM engine.k6_owner_write_transactions WHERE subject='engine.timers'"},
+			"SELECT event_order FROM engine.k6_owner_write_transactions WHERE subject='engine.timers' AND operation='update'"},
 		{"ResultMismatch", "UPDATE engine.k6_write_capture SET after_image=jsonb_set(after_image,'{token_hash}',to_jsonb(repeat('a',64))) WHERE subject='result_request'",
 			"CurrentClaimWinner", "CAPTURE_RESULT_IDENTITY", k6v1.WriteCapture,
 			"SELECT event_order FROM engine.k6_write_capture WHERE subject='result_request'"},
+		{"RetryIdentity", "UPDATE engine.k6_write_capture SET after_image=jsonb_set(after_image,'{payload_hash}',to_jsonb(repeat('b',64))) WHERE subject='publication_start' AND row_key->>1='2'",
+			"DispatchDisposition", "CAPTURE_PUBLICATION_IDENTITY", k6v1.WriteCapture,
+			"SELECT event_order FROM engine.k6_write_capture WHERE subject='publication_start' AND row_key->>1='2'"},
+		{"OmittedDisposition", "DELETE FROM engine.k6_write_capture WHERE subject='engine.event_inbox'",
+			"DispatchDisposition", "CAPTURE_DELIVERY_BINDING", k6v1.WriteCapture,
+			"SELECT event_order FROM engine.k6_write_capture WHERE subject='physical_delivery' AND operation='ACCEPTED'"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var order int64
@@ -90,27 +105,63 @@ func TestK6SourceCaptureParity(t *testing.T) {
 				execK6SQL(t, engine, tc.change)
 				t.Cleanup(func() {
 					execK6SQL(t, engine, "TRUNCATE engine.k6_owner_write_transactions, engine.k6_write_capture")
-					execK6SQL(t, engine, `INSERT INTO engine.k6_write_capture
-						SELECT * FROM jsonb_populate_recordset(NULL::engine.k6_write_capture, $1)`, cleanCapture)
-					execK6SQL(t, engine, `INSERT INTO engine.k6_owner_write_transactions
-						SELECT * FROM jsonb_populate_recordset(NULL::engine.k6_owner_write_transactions, $1)`, cleanOwners)
+					restore(t)
 				})
 			}
-			cfg := writeK6Sources(t, k6live.Config{Schema: k6live.ConfigVersion, DatabaseURL: dsn, Manifest: m,
-				EpisodeDir: filepath.Join(t.TempDir(), "public")}, plan, arrivals)
-			path, stdout, diag, code := invokeLiveK6(t, cfg)
-			if code != k6v1.Fail || diag != "" {
-				t.Fatalf("capture fixture exit %d, diagnostics %s: %s", code, diag, stdout)
+			cfg := captureFixtureConfig(t, dsn, m)
+			if tc.name == "Clean" {
+				cfg.ExternalDir = t.TempDir()
+				sources := parityExternal(t, &cfg.Manifest, false, item.Key)
+				publishFixtureFrames(t, cfg, sources)
 			}
-			r := verifyVerdictParity(t, path, stdout, code)
+			r := captureFixtureVerdict(t, cfg, plan, arrivals)
 			if tc.change == "" {
-				if slices.ContainsFunc(r.Findings, func(f k6v1.Finding) bool { return f.Kind == k6v1.Violation }) {
-					t.Fatalf("clean capture fixture: %s", stdout)
+				for _, i := range []int{1, 2, 3} {
+					if label := r.Labels[i]; label.Outcome != "covered/pass" || label.PopulationCount == 0 {
+						t.Fatalf("missing capture award: %+v, findings %+v", label, r.Findings)
+					}
+				}
+				if len(r.Findings) != 1 || r.Findings[0].Predicate != "DispatchDisposition" ||
+					r.Findings[0].Code != "required_proof_missing:broker_event_copies" || r.Findings[0].Kind != k6v1.MissingProof {
+					t.Fatalf("clean capture remainder: %+v", r.Findings)
 				}
 				return
 			}
 			key, _ := json.Marshal(order)
 			requireOrderingFinding(t, r, tc.predicate, tc.code, k6v1.Violation, tc.relation, []any{json.Number(key)})
+			for _, label := range r.Labels {
+				if label.Registered && slices.Contains(label.Predicates, tc.predicate) && label.Outcome != "covered/fail" {
+					t.Fatalf("registered predicate lost its violation: %+v", label)
+				}
+			}
+		})
+	}
+	for _, name := range []string{"CaptureTablesEmpty", "CaptureObjectsAbsent"} {
+		t.Run(name, func(t *testing.T) {
+			if name == "CaptureObjectsAbsent" {
+				execK6SQL(t, engine, down)
+				assertInstalled(false)
+			} else {
+				execK6SQL(t, engine, "TRUNCATE engine.k6_owner_write_transactions, engine.k6_write_capture")
+			}
+			t.Cleanup(func() {
+				if name == "CaptureObjectsAbsent" {
+					execK6SQL(t, engine, up)
+				}
+				restore(t)
+			})
+			r := captureFixtureVerdict(t, captureFixtureConfig(t, dsn, m), plan, arrivals)
+			for _, relation := range []string{k6v1.WriteCapture, k6v1.OwnerWrites} {
+				requirePredicateFinding(t, r, k6v1.MissingProof, "EngineCaptureClosure", "required_proof_missing:"+k6v1.RelationPath(relation))
+			}
+			for _, label := range r.Labels[1:4] {
+				if label.Outcome != "NOT COVERED" {
+					t.Fatalf("missing capture awarded coverage: %+v", label)
+				}
+			}
+			if slices.ContainsFunc(r.Findings, func(f k6v1.Finding) bool { return f.Kind != k6v1.MissingProof }) {
+				t.Fatalf("absent capture produced something other than missing proof: %+v", r.Findings)
+			}
 		})
 	}
 	var count int
@@ -134,7 +185,112 @@ func assertCaptureCount(t *testing.T, conn *pgx.Conn, want int) {
 	}
 }
 
-func seedCapture(t *testing.T, conn *pgx.Conn, item k6v1.Submission) {
+func captureFixtureConfig(t *testing.T, dsn string, m k6v1.Manifest) k6live.Config {
+	t.Helper()
+	return k6live.Config{Schema: k6live.ConfigVersion, DatabaseURL: dsn, Manifest: m, EpisodeDir: filepath.Join(t.TempDir(), "public")}
+}
+
+func captureFixtureVerdict(t *testing.T, cfg k6live.Config, plan k6v1.Plan, arrivals k6v1.Arrivals) k6v1.Result {
+	t.Helper()
+	path, stdout, diag, code := invokeLiveK6(t, writeK6Sources(t, cfg, plan, arrivals))
+	if code != k6v1.Fail || diag != "" {
+		t.Fatalf("capture fixture exit %d, diagnostics %s: %s", code, diag, stdout)
+	}
+	return verifyVerdictParity(t, path, stdout, code)
+}
+
+func TestK6SourceCapturedJoins(t *testing.T) {
+	if os.Getenv("DURABLE_K6_VERDICT_ARTIFACT") == "" {
+		t.Skip("requires hosted PostgreSQL and network-isolated checker")
+	}
+	for _, name := range []string{"CleanOffsets", "LowerDispositionGap", "ResultReplay"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			engine, dsn := k6TestDatabase(t)
+			bindK6Database(t, engine, "engine-instance", "reset-a")
+			execK6SQL(t, engine, string(getFile(t, captureMigration+"up.sql")))
+			m := k6Manifest(engine.Config().Database, false)
+			m.Cell, m.Episode, m.Ordinal, m.Seed = "hook-3", "hook-3-0", 15, 530016
+			m.Instrumentation = []string{k6v1.WriteCapture}
+			m.RequiredSources = k6v1.RequiredSources(false, false, true)
+			plan, arrivals := k6Sources(m, time.Now().Add(-time.Minute), "pure.echo")
+			item := plan.Windows[0].Submissions[0]
+			seedCapture(t, engine, item, name == "ResultReplay")
+			seedCapturedTransport(t, engine)
+			cfg := captureFixtureConfig(t, dsn, m)
+			if name != "ResultReplay" {
+				cfg.ExternalDir = t.TempDir()
+				sources := parityExternal(t, &cfg.Manifest, false, item.Key)
+				transportParityObservations(t, &sources, "N8LowerGap")
+				publishFixtureFrames(t, cfg, sources)
+			}
+			if name == "LowerDispositionGap" {
+				execK6SQL(t, engine, `ALTER TABLE engine.k6_write_capture DISABLE TRIGGER k6_write_immutable;
+					DELETE FROM engine.k6_write_capture WHERE subject='physical_delivery' AND row_key->>3='1'`)
+			}
+			r := captureFixtureVerdict(t, cfg, plan, arrivals)
+			switch name {
+			case "CleanOffsets":
+				if len(r.Findings) != 3 || r.Labels[6].Outcome != "NOT COVERED" {
+					t.Fatalf("hook-3 remainder: %+v", r.Findings)
+				}
+				for i, code := range []string{"broker_event_copies", "broker_reset_hold_restart_offsets", "broker_event_copies"} {
+					if f := r.Findings[i]; f.Kind != k6v1.MissingProof || f.Code != "required_proof_missing:"+code {
+						t.Fatalf("hook-3 finding %d: %+v", i, f)
+					}
+				}
+			case "LowerDispositionGap":
+				requirePredicateFinding(t, r, k6v1.Violation, "LowerOffsetsDisposed", "CAPTURE_OFFSET_DISPOSITION_GAP")
+				if r.Labels[6].Outcome != "covered/fail" {
+					t.Fatalf("hook-3 offset violation lost: %+v", r.Labels[6])
+				}
+			case "ResultReplay":
+				requirePredicateFinding(t, r, k6v1.Violation, "LostResultReplay", "RESULT_REAPPLIED")
+				requireTransportCeiling(t, r.Labels[4])
+				if slices.ContainsFunc(r.Findings, func(f k6v1.Finding) bool { return f.Predicate == "LostResultReplay" && f.Kind == k6v1.MissingProof }) {
+					t.Fatalf("replay lacked a captured identity: %+v", r.Findings)
+				}
+			}
+		})
+	}
+}
+
+func seedCapturedTransport(t *testing.T, conn *pgx.Conn) {
+	t.Helper()
+	// The first broker call loses its acknowledgement or its mark. The
+	// retry uses the same event and bytes under a second relay claim.
+	for _, attempt := range []string{"1", "2"} {
+		execK6SQL(t, conn, `UPDATE engine.outbox SET publish_state='CLAIMED',claim_owner='`+captureOwnerID+`',
+			claim_expires_at=now(),relay_attempts=`+attempt+` WHERE event_id=md5('o2')::uuid`)
+		execK6SQL(t, conn, `INSERT INTO engine.k6_capture_queue(subject,operation,row_key,workflow_id,partition_id,after_image)
+			SELECT 'publication_start','start',jsonb_build_array(event_id,relay_attempts),workflow_id,0,
+				jsonb_build_object('topic',topic,'relay_owner',claim_owner,'key',event_id,
+				'payload_hash',encode(sha256(convert_to(payload::text,'UTF8')),'hex'))
+			FROM engine.outbox WHERE event_id=md5('o2')::uuid`)
+	}
+	execK6SQL(t, conn, `BEGIN;
+		INSERT INTO engine.outbox_publications(publication_id,event_id,relay_owner,relay_attempt,broker_acknowledged)
+		VALUES (md5('publication-task')::uuid,md5('o2')::uuid,'`+captureOwnerID+`',2,true);
+		UPDATE engine.outbox SET publish_state='PUBLISHED',claim_owner=NULL,claim_expires_at=NULL,published_at=now()
+		WHERE event_id=md5('o2')::uuid;
+		COMMIT;
+		BEGIN;
+		INSERT INTO engine.event_inbox(consumer_id,event_id,disposition,topic,kafka_partition,kafka_offset)
+		VALUES ('runtime-workers-v1',md5('o2')::uuid,'ACCEPTED','durable-agent.tasks.v1',0,0);
+		INSERT INTO engine.consumer_offsets(consumer_id,topic,kafka_partition,next_offset)
+		VALUES ('runtime-workers-v1','durable-agent.tasks.v1',0,0);
+		UPDATE engine.consumer_offsets SET next_offset=1 WHERE consumer_id='runtime-workers-v1';
+		INSERT INTO engine.k6_capture_queue(subject,operation,row_key,after_image)
+		VALUES ('physical_delivery','ACCEPTED','["runtime-workers-v1","durable-agent.tasks.v1",0,0]',jsonb_build_object('event_id',md5('o2')::uuid));
+		COMMIT;
+		BEGIN;
+		UPDATE engine.consumer_offsets SET next_offset=2 WHERE consumer_id='runtime-workers-v1';
+		INSERT INTO engine.k6_capture_queue(subject,operation,row_key,after_image)
+		VALUES ('physical_delivery','ALREADY_HANDLED','["runtime-workers-v1","durable-agent.tasks.v1",0,1]',jsonb_build_object('event_id',md5('o2')::uuid));
+		COMMIT;`)
+}
+
+func seedCapture(t *testing.T, conn *pgx.Conn, item k6v1.Submission, replay bool) {
 	t.Helper()
 	execK6SQL(t, conn, `
 		INSERT INTO engine.workflow_definitions(definition_id,version,definition_hash,graph,activity_versions,effect_classes)
@@ -191,24 +347,35 @@ func seedCapture(t *testing.T, conn *pgx.Conn, item k6v1.Submission) {
 		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,topic,payload)
 		VALUES (md5('o2')::uuid,$1,2,'attempt.dispatch','durable-agent.tasks.v1','{"node_id":"pure.echo","iteration":0,"attempt_number":1}')`, item.Key)
 	inTx(`UPDATE engine.activity_attempts SET state='CLAIMED',claim_token=$1,worker_id='worker',worker_request_id='request'`, claimSecret)
-	inTx(`UPDATE engine.activity_attempts SET state='SUCCEEDED',is_current=false,result='5';
-		UPDATE engine.workflow_executions SET revision=3;
+	const result = `UPDATE engine.activity_attempts SET state='SUCCEEDED',is_current=false,result='5';
+		UPDATE engine.workflow_executions SET revision=$3;
 		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,node_id,iteration,attempt_number,old_state,new_state,reason)
-		VALUES (md5('h3')::uuid,$1,3,'worker','worker','pure.echo',0,1,'WAITING_ACTIVITY','WAITING_ACTIVITY','ATTEMPT_RESULT_RECORDED');
+		VALUES (md5('h'||$3::int::text)::uuid,$1,$3,'worker','worker','pure.echo',0,1,'WAITING_ACTIVITY','WAITING_ACTIVITY','ATTEMPT_RESULT_RECORDED');
 		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload)
-		VALUES (md5('o3')::uuid,$1,3,'activity.result','5');
+		VALUES (md5('o'||$3::int::text)::uuid,$1,$3,'activity.result','5');
 		INSERT INTO engine.k6_capture_queue(subject,operation,row_key,workflow_id,partition_id,after_image)
 		VALUES ('result_request','ACCEPTED',jsonb_build_array($1::text,'pure.echo',0,1),$1,0,
-		        jsonb_build_object('token_hash',$2::text,'worker_request_id','request','receipt_id',NULL,'attempt_state','SUCCEEDED'))`,
-		item.Key, k6v1.Hash([]byte(claimSecret)))
+		        jsonb_build_object('token_hash',$2::text,'worker_request_id','request','receipt_id',NULL,'attempt_state','SUCCEEDED'))`
+	inTx(result, item.Key, k6v1.Hash([]byte(claimSecret)), 3)
+	delta := 0
+	if replay {
+		inTx(`UPDATE engine.activity_attempts SET state='CLAIMED',is_current=true;`+result, item.Key, k6v1.Hash([]byte(claimSecret)), 4)
+		delta = 1
+	}
 	inTx(fence+`
-		UPDATE engine.workflow_executions SET state='RUNNABLE',revision=4;
+		UPDATE engine.workflow_executions SET state='RUNNABLE',revision=4+$2::int;
 		UPDATE engine.node_instances SET state='SUCCEEDED',accepted_result='5',revision=2;
 		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,scheduler_epoch,node_id,iteration,attempt_number,old_state,new_state,reason)
-		VALUES (md5('h4')::uuid,$1,4,'scheduler','actor',1,'pure.echo',0,1,'WAITING_ACTIVITY','RUNNABLE','RESULT_CONSUMED');
+		VALUES (md5('h'||(4+$2::int)::text)::uuid,$1,4+$2::int,'scheduler','actor',1,'pure.echo',0,1,'WAITING_ACTIVITY','RUNNABLE','RESULT_CONSUMED');
 		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload)
-		VALUES (md5('o4')::uuid,$1,4,'workflow.result_consumed','{}')`, item.Key)
-	inTx(fence+`UPDATE engine.workflow_executions SET state='SUCCEEDED',revision=5;
+		VALUES (md5('o'||(4+$2::int)::text)::uuid,$1,4+$2::int,'workflow.result_consumed','{}')`, item.Key, delta)
+	inTx(fence+`UPDATE engine.workflow_executions SET state='SUCCEEDED',revision=5+$2::int;
 		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,scheduler_epoch,old_state,new_state,reason)
-		VALUES (md5('h5')::uuid,$1,5,'scheduler','actor',1,'RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED')`, item.Key)
+		VALUES (md5('h'||(5+$2::int)::text)::uuid,$1,5+$2::int,'scheduler','actor',1,'RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED')`, item.Key, delta)
+	inTx(`UPDATE engine.partition_leases SET owner_id='` + takeoverOwnerID + `', epoch=2, lease_expires_at=now()+interval '1 hour' WHERE partition_id=0;
+		INSERT INTO engine.k4_audit_queue(kind,partition_id,owner_id,epoch,session_id,pod_uid,container_id)
+		VALUES ('acquire',0,'` + takeoverOwnerID + `',2,'session','uid','container')`)
+	inTx(`SET LOCAL durable.k4_owner = '` + takeoverOwnerID + `';
+		SET LOCAL durable.k6_owner_partition = '0'; SET LOCAL durable.k6_owner_epoch = '2';
+		UPDATE engine.timers SET consumed_at=clock_timestamp()`)
 }

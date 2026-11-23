@@ -29,6 +29,10 @@ func CaptureRelations() []Relation {
 	}
 }
 
+func IsCaptureRelation(name string) bool {
+	return name == CaptureQueue || name == WriteCapture || name == OwnerWrites
+}
+
 type captureProjection struct {
 	keys   []Column
 	fields []Column
@@ -100,7 +104,7 @@ var captureProjections = func() map[string]captureProjection {
 		"worker_request_id:text? token_hash:digest receipt_id:uuid? attempt_state:text").Columns}
 	projections[physicalDelivery] = captureProjection{position, relation("", "", "event_id:text?").Columns}
 	projections[publicationStart] = captureProjection{[]Column{{Kind: UUID}, {Kind: Integer}},
-		relation("", "", "topic:text relay_owner:uuid").Columns}
+		relation("", "", "topic:text relay_owner:uuid key:uuid payload_hash:digest").Columns}
 	return projections
 }()
 
@@ -120,10 +124,14 @@ func validateCaptureShape(row Row) error {
 			continue
 		}
 		image := row[name].(map[string]any)
-		if len(image) != len(p.fields) {
+		fields := p.fields
+		if row["subject"] == publicationStart && len(image) == 2 {
+			fields = fields[:2] // G3c1 starts lacked the wire identity.
+		}
+		if len(image) != len(fields) {
 			return fmt.Errorf("%w: %s", errShape, name)
 		}
-		for _, col := range p.fields {
+		for _, col := range fields {
 			value, exists := image[col.Name]
 			if !exists || value == nil && !col.Nullable || value != nil && !validCaptureField(col.Kind, value) {
 				return fmt.Errorf("%w: capture field %s", errShape, col.Name)

@@ -377,12 +377,17 @@ func verifyDatabase(bundle fs.FS, files map[string]File, manifest Manifest, db, 
 	}
 	for i, spec := range specs {
 		path := RelationPath(spec.Name)
+		meta := snap.Relations[i]
 		file, found := files[path]
+		if meta.Count == -1 && IsCaptureRelation(spec.Name) &&
+			(found || meta.Relation != spec.Name || !slices.Equal(meta.Keys, spec.Keys) || meta.Length != 0 || meta.SHA256 != "") {
+			*issues = append(*issues, *integrity("RELATION_INVENTORY", path))
+			continue
+		}
 		if !found {
 			*issues = append(*issues, *missing(path))
 			continue
 		}
-		meta := snap.Relations[i]
 		if meta.Relation != spec.Name || !slices.Equal(meta.Keys, spec.Keys) || meta.Count < 0 {
 			*issues = append(*issues, *integrity("RELATION_INVENTORY", path))
 			continue
