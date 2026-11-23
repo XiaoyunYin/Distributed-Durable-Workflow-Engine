@@ -16840,8 +16840,8 @@
       "id": "k6g2a-idle-watermark",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/barrier.go",
-      "old": "if before.Relation != DeadlineWrites {\n\t\t\treturn before.Count == after.Count && publicEqual && sourceEqual",
-      "new": "if before.Relation != DeadlineWrites {\n\t\t\treturn before.Count == after.Count && sourceEqual",
+      "old": "if !PrefixWatermark(before.Relation) {\n\t\t\treturn before.Count == after.Count && publicEqual && sourceEqual",
+      "new": "if !PrefixWatermark(before.Relation) {\n\t\t\treturn before.Count == after.Count && sourceEqual",
       "command": [
         "go",
         "test",
