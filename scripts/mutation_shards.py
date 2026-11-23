@@ -74,6 +74,7 @@ def split_groups(
         groups[command, env].append(case["id"])
 
     weights = case_weights([case["id"] for case in cases], costs)
+    pinned = {case["id"]: case["ci_shard"] for case in cases if "ci_shard" in case}
     ordered = []
     for group in groups.values():
         measured = [case_id for case_id in group if case_id in costs]
@@ -88,9 +89,13 @@ def split_groups(
         )
     loads = dict.fromkeys(names, 0)
     for _, negative_weight, _, group in sorted(ordered):
-        shard = min(loads, key=loads.__getitem__)
+        pins = {pinned[case_id] for case_id in group if case_id in pinned}
+        if len(pins) > 1 or pins - loads.keys():
+            raise ValueError(f"invalid shard pin for mutation command group {group}")
+        shard = next(iter(pins)) if pins else min(loads, key=loads.__getitem__)
         assigned.update(dict.fromkeys(group, shard))
-        loads[shard] -= negative_weight
+        if not pins:
+            loads[shard] -= negative_weight
 
 
 def verify_reports(manifest: dict[str, Any], reports: Path, suffix: str, commit: str) -> None:
@@ -115,6 +120,8 @@ def verify_reports(manifest: dict[str, Any], reports: Path, suffix: str, commit:
                 if case_id.startswith("k6") and shard not in WITH_K6_SHARDS:
                     raise ValueError(f"{artifact}: misplaced K6 case {case_id}")
                 case = expected[case_id]
+                if case.get("ci_shard", shard) != shard:
+                    raise ValueError(f"{artifact}: misplaced pinned case {case_id}")
                 code = result.get("exit_code")
                 if (
                     result.get("status") != "PASS"

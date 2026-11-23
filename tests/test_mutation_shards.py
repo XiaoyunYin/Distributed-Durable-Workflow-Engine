@@ -14,6 +14,9 @@ import mutation_shards as shards  # noqa: E402
 @pytest.mark.parametrize("platform", shards.REPORT_NAMES)
 def test_all_manifest_cases_are_assigned_even_after_growth(platform: str) -> None:
     cases = shards.read_manifest(shards.MANIFEST)["cases"]
+    unpinned = shards.assign_shards([case for case in cases if "ci_shard" not in case], platform)
+    assignment = shards.assign_shards(cases, platform)
+    assert all(assignment[case_id] == owner for case_id, owner in unpinned.items())
     growth = [
         {"id": "new-unmeasured-case", "command": ["ordinary-test"]},
         {"id": "k6-new-unmeasured-case", "command": ["k6-test"]},
@@ -27,6 +30,9 @@ def test_all_manifest_cases_are_assigned_even_after_growth(platform: str) -> Non
             shard in shards.WITH_K6_SHARDS
             for case_id, shard in assignment.items()
             if case_id.startswith("k6")
+        )
+        assert all(
+            assignment[case["id"]] == case["ci_shard"] for case in source if "ci_shard" in case
         )
 
 
@@ -83,6 +89,7 @@ def test_unmeasured_k6_case_preserves_measured_primary_shard_membership(platform
         ("survived", "lacks its expected detection"),
         ("stale-commit", "invalid report header"),
         ("k6-misplaced", "misplaced K6 case"),
+        ("pinned-misplaced", "misplaced pinned case"),
         ("incomplete-powershell", "powershell: missing 1 cases"),
         ("missing-linux-b", "linux-without-k6-b-123-2"),
         ("missing-powershell-b", "powershell-without-k6-b-123-2"),
@@ -165,4 +172,7 @@ def write_reports(root: Path, fault: str) -> dict[str, Any]:
                 ),
                 encoding="utf-8",
             )
-    return {"cases": [{"id": case_id, "expected": marker} for case_id in [*k6, *ordinary]]}
+    manifest = {"cases": [{"id": case_id, "expected": marker} for case_id in [*k6, *ordinary]]}
+    if fault == "pinned-misplaced":
+        manifest["cases"][0]["ci_shard"] = "with-k6-b"
+    return manifest

@@ -9,10 +9,11 @@ import shutil
 import tempfile
 import threading
 import time
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from contextlib import contextmanager
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Any
 
 from dur053_k3 import LOCK, ROOT, Driver
 from dur053_k6_b_evidence import Evidence, SmokeFailure
@@ -48,26 +49,54 @@ SINK_CLIENTS = {
     (SINK_ROLE, "dur053-k6-sink"): 8,
     (EXPORTER, "dur053-k6-sink-exporter"): 1,
 }
-# Account for the sink sampler within the administration row.
+STARTUP_SECONDS = 2
+STARTUP_GAP_US = 200_000
+STARTUP_INTERVAL = 0.1
+
+# Group counts and backend details from one activity snapshot. The address
+# stays in memory for pod lookup and is omitted from the retained evidence.
 TRACE = """
+WITH activity AS MATERIALIZED (
+    SELECT pid, backend_start, state, usename, application_name,
+           wait_event_type, wait_event, host(client_addr) AS client_addr
+    FROM pg_stat_activity WHERE backend_type = 'client backend'
+)
 SELECT json_build_object(
+  'captured_at_us', (extract(epoch FROM statement_timestamp()) * 1000000)::bigint,
+  'sampler_pid', pg_backend_pid(),
   'limit', current_setting('max_connections')::int,
   'reserved', current_setting('superuser_reserved_connections')::int
               + current_setting('reserved_connections')::int,
   'clients', COALESCE((
     SELECT json_agg(json_build_array(usename,application_name,n) ORDER BY usename,application_name)
-    FROM (SELECT usename, application_name, count(*) AS n FROM pg_stat_activity
-          WHERE backend_type='client backend' GROUP BY usename,application_name) AS counts
+    FROM (SELECT usename, application_name, count(*) AS n FROM activity
+          GROUP BY usename,application_name) AS counts
+  ), '[]'::json),
+  'backends', COALESCE((
+    SELECT json_agg(activity ORDER BY pid) FROM activity
   ), '[]'::json)
 );
 """
+
+TRACE_FILE = "connection-trace.json"
 
 
 class PhaseCEvidence(Evidence):
     schema = "dur053.k6-phase-c-smoke.v1"
 
+    def __init__(self, root: Path) -> None:
+        super().__init__(root)
+        self.write(
+            TRACE_FILE,
+            {"samples": [], "peaks": {"engine": 0, "sink": 0}, "rejections": [], "startups": []},
+        )
 
-def trace_count(server: str, sample: dict) -> int:
+
+def is_starting(user: str | None, application: str | None) -> bool:
+    return user is None and application == ""
+
+
+def trace_count(server: str, sample: dict[str, Any]) -> int:
     sink = server == "sink"
     limits = SINK_CLIENTS if sink else ENGINE_CLIENTS
     require(
@@ -76,9 +105,11 @@ def trace_count(server: str, sample: dict) -> int:
     )
     application_count = 0
     for user, application, count in sample["clients"]:
+        application_count += count
+        if is_starting(user, application):
+            continue
         require((user, application) in limits, "DB_UNACCOUNTED_CLIENT_" + server.upper())
         require(0 < count <= limits[user, application], "DB_CLIENT_BUDGET_" + server.upper())
-        application_count += count
     require(
         application_count + sample["reserved"] <= (19 if sink else 82),
         "DB_TOTAL_BUDGET_" + server.upper(),
@@ -89,32 +120,167 @@ def trace_count(server: str, sample: dict) -> int:
 class Trace:
     def __init__(self, smoke: Deployment) -> None:
         self.smoke = smoke
-        self.rows: list[dict] = []
+        self.rows: list[dict[str, Any]] = []
         self.peaks = {"engine": 0, "sink": 0}
+        self.rejections: list[dict[str, Any]] = []
+        self.startups: list[dict[str, Any]] = []
         self.stop = threading.Event()
         self.initial = threading.Event()
-        self.failure = None
+        self.failure: str | None = None
         self.thread = threading.Thread(target=self.sample, daemon=True)
+
+    def pod_names(self) -> dict[str, str]:
+        pods = json.loads(
+            self.smoke.k(
+                "DB_TRACE_PODS", "-n", self.smoke.namespace, "get", "pods", "-o", "json", timeout=5
+            )
+        )
+        return {
+            address["ip"]: pod["metadata"]["name"]
+            for pod in pods["items"]
+            for address in pod["status"].get("podIPs", [])
+        }
+
+    def record_backends(
+        self, observation: dict[str, Any], pods: Future[dict[str, str]]
+    ) -> dict[str, Any]:
+        record = dict(observation)
+        try:
+            names = pods.result()
+        except Exception as error:
+            names = {}
+            record["pod_lookup_error"] = self.smoke.evidence.safe_reason(error)
+        record["backends"] = [
+            {
+                **{key: value for key, value in backend.items() if key != "client_addr"},
+                "pod_name": names.get(backend["client_addr"]),
+            }
+            for backend in observation["backends"]
+        ]
+        return record
+
+    def sample_server(
+        self, server: str, role: str, index: int, executor: ThreadPoolExecutor
+    ) -> None:
+        row = self.rows[index]
+        suffix = "_" + server.upper()
+        unresolved = "DB_STARTUP_UNRESOLVED" + suffix
+        pending: dict[tuple[int, str], tuple[int, float]] = {}
+        observations = []
+        pods = None
+        followups: list[dict[str, Any]] = []
+        latest: dict[str, Any] = {"captured_at_us": None, "backends": []}
+        previous_us = None
+        outcome = "resolved"
+        try:
+            with self.smoke.trace_session(server, role, TRACE) as query:
+                while True:
+                    started = time.monotonic()
+                    # The host deadline bounds transport waits. PostgreSQL timestamps
+                    # decide whether samples and resolution meet the gate.
+                    remaining = (
+                        min((end for _, end in pending.values()), default=started + 8) - started
+                    )
+                    require(remaining > 0, unresolved)
+                    try:
+                        sample = json.loads(query(remaining))
+                    except SmokeFailure as error:
+                        if pending and str(error) == "PSQL" + suffix + "_TIMEOUT":
+                            raise SmokeFailure(unresolved) from None
+                        raise
+                    received = time.monotonic()
+                    backends = sample.pop("backends")
+                    captured_us = sample["captured_at_us"]
+                    latest = {"captured_at_us": captured_us, "backends": backends}
+                    if previous_us is None:
+                        row[server] = sample
+                    else:
+                        followups.append(sample)
+                        row[server]["followups"] = followups
+                    current = {(b["pid"], b["backend_start"]): b for b in backends}
+                    starting = {
+                        key
+                        for key, b in current.items()
+                        if is_starting(b["usename"], b["application_name"])
+                    }
+                    if pending or starting:
+                        if pods is None:
+                            pods = executor.submit(self.pod_names)
+                        observations.append(
+                            {
+                                "captured_at_us": captured_us,
+                                "backends": [
+                                    b
+                                    for key, b in current.items()
+                                    if key in pending or key in starting
+                                ],
+                            }
+                        )
+
+                    total = trace_count(server, sample)
+                    sample["total"] = total
+                    self.peaks[server] = max(total, self.peaks[server])
+                    if previous_us is not None:
+                        require(
+                            0 < captured_us - previous_us <= STARTUP_GAP_US,
+                            "DB_STARTUP_SAMPLE_GAP" + suffix,
+                        )
+                    for key, (first_us, _) in tuple(pending.items()):
+                        require(key in current, "DB_STARTUP_VANISHED" + suffix)
+                        elapsed_us = captured_us - first_us
+                        require(elapsed_us <= STARTUP_SECONDS * 1_000_000, unresolved)
+                        if key not in starting:
+                            del pending[key]
+                        else:
+                            require(elapsed_us < STARTUP_SECONDS * 1_000_000, unresolved)
+                    for key in starting - pending.keys():
+                        require(key[1] is not None, "DB_STARTUP_IDENTITY" + suffix)
+                        pending[key] = (captured_us, received + STARTUP_SECONDS)
+                    if not pending:
+                        return
+                    previous_us = captured_us
+                    next_poll = min(
+                        started + STARTUP_INTERVAL, min(end for _, end in pending.values())
+                    )
+                    time.sleep(max(0, next_poll - time.monotonic()))
+        except Exception as error:
+            outcome = self.smoke.evidence.safe_reason(error)
+            self.rejections.append(
+                {
+                    "sample": index,
+                    "server": server,
+                    "reason": outcome,
+                    **self.record_backends(latest, executor.submit(self.pod_names)),
+                }
+            )
+            raise
+        finally:
+            if pods is not None:
+                self.startups.append(
+                    {
+                        "sample": index,
+                        "server": server,
+                        "outcome": outcome,
+                        "observations": [self.record_backends(item, pods) for item in observations],
+                    }
+                )
 
     def sample(self) -> None:
         try:
-            with ThreadPoolExecutor(max_workers=2) as executor:
+            with ThreadPoolExecutor(max_workers=4) as executor:
                 previous = None
                 while not self.stop.is_set():
                     started = time.monotonic()
                     require(previous is None or started - previous <= 2.5, "DB_TRACE_SAMPLE_GAP")
                     previous = started
-                    futures = {
-                        name: executor.submit(self.smoke.psql, name, role, TRACE)
+                    index = len(self.rows)
+                    self.rows.append({"time": datetime.now(UTC).isoformat()})
+                    futures = [
+                        executor.submit(self.sample_server, name, role, index, executor)
                         for name, role in (("engine", "monitor"), ("sink", "admin"))
-                    }
-                    row = {"time": datetime.now(UTC).isoformat()}
-                    for name, future in futures.items():
-                        data = json.loads(future.result())
-                        total = trace_count(name, data)
-                        row[name] = {**data, "total": total}
-                        self.peaks[name] = max(total, self.peaks[name])
-                    self.rows.append(row)
+                    ]
+                    for future in futures:
+                        future.result()
                     self.initial.set()
                     self.stop.wait(max(0, 1 - (time.monotonic() - started)))
         except Exception as error:
@@ -132,13 +298,18 @@ class Trace:
 
     def finish(self) -> None:
         self.stop.set()
-        if self.thread.ident is None:
-            return
-        self.thread.join(timeout=10)
-        require(not self.thread.is_alive(), "DB_TRACE_STOP_TIMEOUT")
+        if self.thread.ident is not None:
+            self.thread.join(timeout=10)
         self.smoke.evidence.write(
-            "connection-trace.json", {"samples": self.rows, "peaks": self.peaks}
+            TRACE_FILE,
+            {
+                "samples": self.rows,
+                "peaks": self.peaks,
+                "rejections": self.rejections,
+                "startups": self.startups,
+            },
         )
+        require(not self.thread.is_alive(), "DB_TRACE_STOP_TIMEOUT")
         self.check()
 
 

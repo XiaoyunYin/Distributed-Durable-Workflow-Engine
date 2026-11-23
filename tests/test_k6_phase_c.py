@@ -4,7 +4,12 @@ from __future__ import annotations
 
 import json
 import sys
+from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from pathlib import Path
+from typing import Any
+from unittest.mock import Mock
 
 import pytest
 
@@ -13,6 +18,7 @@ import dur053_k3  # noqa: E402
 import dur053_k6_b_smoke as phase_b  # noqa: E402
 import dur053_k6_c_smoke as phase_c  # noqa: E402
 from dur053_k6_b_evidence import SmokeFailure  # noqa: E402
+from dur053_k6_c_deploy import EXPORTER, NS, SINK_ROLE, Deployment  # noqa: E402
 from dur053_k6_c_render import CLIENT, ENGINE, RELAY, SINK, budget_for, render  # noqa: E402
 from dur053_k6_join import digest, identity, receipt_bytes, verify  # noqa: E402
 from test_k6_phase_b import StubK3Driver  # noqa: E402
@@ -363,7 +369,11 @@ def test_phase_c_render_rejects_unaccounted_sink_db_client() -> None:
 
 
 def test_phase_c_trace_rejects_unaccounted_or_excess_connections() -> None:
-    sample = {"limit": 30, "reserved": 3, "clients": [[phase_c.SINK_ROLE, "dur053-k6-sink", 8]]}
+    sample: dict[str, Any] = {
+        "limit": 30,
+        "reserved": 3,
+        "clients": [[SINK_ROLE, "dur053-k6-sink", 8]],
+    }
     assert phase_c.trace_count("sink", sample) == 8
     sample["clients"][0][2] = 9
     with pytest.raises(SmokeFailure, match="DB_CLIENT_BUDGET_SINK"):
@@ -373,8 +383,330 @@ def test_phase_c_trace_rejects_unaccounted_or_excess_connections() -> None:
         phase_c.trace_count("sink", sample)
 
 
+def trace_backend(
+    pid: int,
+    user: str | None = None,
+    app: str | None = "",
+    *,
+    start: str | None = "2026-11-22T00:00:00Z",
+) -> dict[str, Any]:
+    return {
+        "pid": pid,
+        "backend_start": start,
+        "state": "starting" if user is None else "idle",
+        "usename": user,
+        "application_name": app,
+        "wait_event_type": "Client",
+        "wait_event": "ClientRead",
+        "client_addr": "10.7.0.1",
+    }
+
+
+def trace_snapshot(
+    elapsed_us: int, *backends: dict[str, Any], server: str = "sink"
+) -> dict[str, Any]:
+    counts = Counter((row["usename"], row["application_name"]) for row in backends)
+    return {
+        "captured_at_us": 100_000_000 + elapsed_us,
+        "limit": 30 if server == "sink" else 100,
+        "reserved": 3,
+        "clients": [[user, app, count] for (user, app), count in counts.items()],
+        "backends": backends,
+    }
+
+
+class TraceClock:
+    def __init__(self) -> None:
+        self.now = 10.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+
+def synthetic_trace(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *snapshots: dict[str, Any],
+    clock: TraceClock | None = None,
+) -> tuple[phase_c.Trace, Mock]:
+    monkeypatch.setattr(phase_c, "time", clock or TraceClock())
+    smoke = Mock(spec=Deployment)
+    smoke.evidence = phase_c.PhaseCEvidence(tmp_path)
+    smoke.namespace = NS
+    query = Mock(side_effect=[json.dumps(sample) for sample in snapshots])
+    smoke.trace_session.return_value = nullcontext(query)
+    smoke.k.return_value = json.dumps(
+        {"items": [{"metadata": {"name": "sink-pod"}, "status": {"podIPs": [{"ip": "10.7.0.1"}]}}]}
+    )
+    trace = phase_c.Trace(smoke)
+    trace.rows.append({"time": "2026-11-22T00:00:00Z"})
+    return trace, query
+
+
+def sample_synthetic(trace: phase_c.Trace, server: str = "sink") -> None:
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        trace.sample_server(server, "admin" if server == "sink" else "monitor", 0, executor)
+
+
+@pytest.mark.parametrize(
+    ("server", "user", "app"),
+    [
+        ("sink", SINK_ROLE, "dur053-k6-sink"),
+        ("engine", "durable", "dur053-k6-c-monitor"),
+    ],
+)
+def test_phase_c_starting_trace_resolves_within_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, server: str, user: str, app: str
+) -> None:
+    trace, query = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(0, trace_backend(42), server=server),
+        trace_snapshot(100_000, trace_backend(42, user, app), server=server),
+    )
+    try:
+        sample_synthetic(trace, server)
+    except SmokeFailure:
+        pytest.fail("registered startup failed to resolve")
+    assert query.call_count == 2
+    assert trace.rejections == []
+    assert trace.rows[0][server]["total"] == 1
+    startup = trace.startups[0]
+    assert (startup["outcome"], startup["server"]) == ("resolved", server)
+    initial, resolved = (sample["backends"][0] for sample in startup["observations"])
+    assert initial["usename"] is None and initial["application_name"] == ""
+    assert (initial["pid"], initial["backend_start"]) == (
+        resolved["pid"],
+        resolved["backend_start"],
+    )
+    assert (resolved["usename"], resolved["application_name"], resolved["pod_name"]) == (
+        user,
+        app,
+        "sink-pod",
+    )
+
+
+def test_phase_c_starting_trace_fails_if_unresolved_at_bound(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trace, _ = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        *(trace_snapshot(us, trace_backend(42)) for us in range(0, 2_000_001, 200_000)),
+    )
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == "DB_STARTUP_UNRESOLVED_SINK"
+    else:
+        pytest.fail("accepted startup unresolved at the bound")
+    assert trace.rejections[0]["backends"][0]["usename"] is None
+
+
+@pytest.mark.parametrize(
+    "replacement",
+    [
+        (),
+        (trace_backend(42, SINK_ROLE, "dur053-k6-sink", start="2026-11-22T00:00:01Z"),),
+        (trace_backend(43, SINK_ROLE, "dur053-k6-sink"),),
+    ],
+)
+def test_phase_c_starting_trace_fails_if_backend_vanishes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, replacement: tuple[dict[str, Any], ...]
+) -> None:
+    trace, _ = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(0, trace_backend(42)),
+        trace_snapshot(100_000, *replacement),
+    )
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == "DB_STARTUP_VANISHED_SINK", "lost original startup identity"
+    else:
+        pytest.fail("accepted disappearance of a starting backend")
+    first, second = trace.startups[0]["observations"]
+    assert first["backends"][0]["pid"] == 42
+    assert second["backends"] == []
+
+
+def test_phase_c_starting_trace_requires_backend_start(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trace, query = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(0, trace_backend(42, start=None)),
+        trace_snapshot(100_000, trace_backend(42, SINK_ROLE, "dur053-k6-sink", start=None)),
+    )
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == "DB_STARTUP_IDENTITY_SINK"
+    else:
+        pytest.fail("accepted a starting backend without a start time")
+    assert query.call_count == 1
+    assert trace.rejections[0]["backends"][0]["backend_start"] is None
+
+
+def test_phase_c_starting_trace_fails_late_resolution(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trace, _ = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(0, trace_backend(42)),
+        *(trace_snapshot(us, trace_backend(42)) for us in range(150_000, 2_000_000, 150_000)),
+        trace_snapshot(2_000_001, trace_backend(42, SINK_ROLE, "dur053-k6-sink")),
+    )
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == "DB_STARTUP_UNRESOLVED_SINK"
+    else:
+        pytest.fail("accepted startup resolution after the bound")
+
+
+@pytest.mark.parametrize(("user", "app"), [("unknown", ""), (None, "unknown"), (None, None)])
+def test_phase_c_trace_fails_unknown_pair_immediately(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, user: str | None, app: str | None
+) -> None:
+    trace, query = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(0, trace_backend(42, user, app)),
+        trace_snapshot(100_000, trace_backend(42, SINK_ROLE, "dur053-k6-sink")),
+    )
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == "DB_UNACCOUNTED_CLIENT_SINK"
+    else:
+        pytest.fail("accepted an unregistered pair")
+    assert query.call_count == 1
+    trace.finish()
+    artifact = json.loads((tmp_path / phase_c.TRACE_FILE).read_bytes())
+    assert artifact["samples"][0]["sink"].get("clients") == [[user, app, 1]], (
+        "discarded the rejected sample"
+    )
+    assert artifact["rejections"] == [
+        {
+            "sample": 0,
+            "server": "sink",
+            "reason": "DB_UNACCOUNTED_CLIENT_SINK",
+            "captured_at_us": 100_000_000,
+            "backends": [
+                {
+                    "pid": 42,
+                    "backend_start": "2026-11-22T00:00:00Z",
+                    "state": "starting" if user is None else "idle",
+                    "usename": user,
+                    "application_name": app,
+                    "wait_event_type": "Client",
+                    "wait_event": "ClientRead",
+                    "pod_name": "sink-pod",
+                }
+            ],
+        }
+    ], "rejection record lost backend details or retained the client address"
+
+
+def test_phase_c_starting_trace_counts_toward_total_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clients = [
+        trace_backend(pid, user, app)
+        for pid, (user, app) in enumerate(
+            pair for pair, budget in phase_c.SINK_CLIENTS.items() for _ in range(budget)
+        )
+    ]
+    replaced = next(client for client in clients if client["usename"] == SINK_ROLE)
+    remaining_clients = [client for client in clients if client is not replaced]
+    trace, query = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(0, *clients, trace_backend(42)),
+        trace_snapshot(100_000, *remaining_clients, trace_backend(42, SINK_ROLE, "dur053-k6-sink")),
+    )
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == "DB_TOTAL_BUDGET_SINK"
+    else:
+        pytest.fail("excluded starting backends from the total budget")
+    assert query.call_count == 1
+
+
+def test_phase_c_starting_trace_rejects_resolution_over_pair_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    app = "dur053-k6-sink-exporter"
+    existing = trace_backend(41, EXPORTER, app)
+    trace, _ = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(0, existing, trace_backend(42)),
+        trace_snapshot(100_000, existing, trace_backend(42, EXPORTER, app)),
+    )
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == "DB_CLIENT_BUDGET_SINK"
+    else:
+        pytest.fail("accepted a resolved pair over budget")
+
+
+def test_phase_c_starting_trace_rejects_gap_over_200_ms(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trace, _ = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(0, trace_backend(42)),
+        trace_snapshot(200_001, trace_backend(42, SINK_ROLE, "dur053-k6-sink")),
+    )
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == "DB_STARTUP_SAMPLE_GAP_SINK"
+    else:
+        pytest.fail("accepted a gap over 200 ms")
+
+
+def test_phase_c_trace_paces_followups_in_one_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    clock = TraceClock()
+    trace, query = synthetic_trace(tmp_path, monkeypatch, clock=clock)
+    started = clock.monotonic()
+
+    def snapshot(_timeout: float) -> str:
+        elapsed_us = round((clock.monotonic() - started) * 1_000_000)
+        backend = (
+            trace_backend(42)
+            if elapsed_us < 600_000
+            else trace_backend(42, SINK_ROLE, "dur053-k6-sink")
+        )
+        return json.dumps(trace_snapshot(elapsed_us, backend))
+
+    query.side_effect = snapshot
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        pytest.fail(f"persistent trace missed the server cadence: {error}")
+    observations = trace.startups[0]["observations"]
+    assert len(observations) >= 4
+    assert trace.startups[0]["outcome"] == "resolved"
+
+
 def test_phase_c_credential_scan(tmp_path: Path) -> None:
     evidence = phase_c.PhaseCEvidence(tmp_path)
+    empty_trace = json.loads((tmp_path / phase_c.TRACE_FILE).read_bytes())
+    assert empty_trace["rejections"] == []
     evidence.secret("phase-c-private-password")
     for index, prohibited in enumerate(
         (
@@ -389,7 +721,7 @@ def test_phase_c_credential_scan(tmp_path: Path) -> None:
         (tmp_path / f"unsafe-{index}.json").write_bytes(prohibited)
     with pytest.raises(SmokeFailure, match="CREDENTIAL_SCAN_FAILED"):
         evidence.scan()
-    assert [p.name for p in tmp_path.iterdir()] == ["smoke.json"]
+    assert {p.name for p in tmp_path.iterdir()} == {"smoke.json", phase_c.TRACE_FILE}
 
 
 def test_phase_c_handoff_is_explicit_after_b_and_fail_isolated(

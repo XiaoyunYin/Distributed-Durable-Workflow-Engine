@@ -246,6 +246,38 @@ Claude’s volume-matched cross-check uses 1.391× for short hooks (K4 short had
 
 **Admission remains a separate decision.** Before dispatch and before every episode reconcile verified IDs and sum actual ledger charges, K3 freeze per-episode estimates for unstarted work, measured setup for each remaining job (currently 334.94 s/job replacing 300 s, including each needed continuation), and grant/sink/approval overhead from the Phase D/H hosted smokes for every effect and effect-control episode. Retain the shared allowance. Once K6 episodes exist, substitute their measured per-episode costs for remaining episodes of the same arm, counting overhead already in those costs once. Account for elapsed time in the active job once. The K4 workload multipliers do not govern admission. Reserve 18,900 s against the cumulative ledger per dispatch; count actual time from first owned resource through verified teardown, else full reservation. Within each 350 min workflow, require actual elapsed plus the episode's full warmup, confirmation allowance, W, reconciliation timeout and 60 s reset/export to fit, retaining 300 s diagnostics and at least 600 s closeout. Running late does not reset the clock. If the full remaining schedule exceeds the cap, stop and publish completed, failed, invalid and unperformed IDs/reasons, even if K6 by itself would fit. At the hard stop terminate resources, export censored rows and fail incomplete reconciliation. No shortening/reordering of cells, accelerated arrivals, automatic replays or cap extension follows from this analysis.
 
+## Phase C connection evidence
+
+The hosted Phase C artifact (`dur053-k6-c-<run_id>`) contains
+`connection-trace.json`. The sampler retains the grouped engine and sink
+snapshots in `samples` before applying the settings, pair and total budgets.
+Each entry in `rejections` gives the zero-based sample index, server, failure
+reason, PostgreSQL capture time in epoch microseconds and per-backend
+observations from the rejected snapshot. A backend record contains its PID,
+backend start time, state, role, application, wait-event type, wait event and
+namespace pod name. SQL NULLs and unresolved pod names are recorded as JSON
+`null`. The trace contains no raw client addresses, credentials or SQL query
+text. A run with no rejected observations carries `"rejections": []`.
+
+A backend is starting only when the role is SQL NULL and the application name
+is the empty string. It counts immediately toward the total connection budget.
+The sampler follows that PID and backend start time for up to 2 seconds, with
+at most 200 milliseconds between observations. The backend must resolve to a
+registered pair within that pair's budget. An unresolved, vanished, late or
+over-budget backend fails the gate. Other unknown pairs fail immediately.
+`startups` records the tracked backend before and after each follow-up with the
+outcome, including an empty observation if the backend disappears. Pod names
+are diagnostic fields. The same gate applies to both databases.
+
+Each initial snapshot and its follow-ups use one autocommit `psql` session.
+The trace keeps the sampler's PostgreSQL PID and counts its registered
+application in every snapshot. PostgreSQL statement timestamps govern the
+2-second resolution bound and the 200-millisecond gap bound. In the
+`PostgreSQL race and K6 fixtures` job, a raw TCP client on the isolated pinned
+PostgreSQL 18.6 instance withholds a password, then either authenticates or
+disconnects. Its `connection-trace.json` and `startup-fixture.json` are stored
+under `k6-phase-c-startup/` in the service-race diagnostics artifact.
+
 ## K6a tooling, then K6b campaign
 
 Each letter is a reviewable PR on the last accepted head. K6a uses synthetic fixtures and bounded hosted **engineering** smoke only, labeled `measurement_claim=false`, `charged_seconds=0`; no engineering result contributes a replicate. Commands below specify proposed CLI contracts/targets for implementation. They are future validation commands. Passing a design review does not assert that these commands exist today. Use the project venv as `python` on hosted Linux, PYTHONDONTWRITEBYTECODE=1, GOMAXPROCS=2, Go `-p 1`, distinct RUNNER_TEMP output roots. For the PowerShell commands in the table define `$out = Join-Path $env:RUNNER_TEMP "k6-$env:GITHUB_RUN_ID-$env:GITHUB_JOB"` on that job; each phase/smoke gets a fresh path.

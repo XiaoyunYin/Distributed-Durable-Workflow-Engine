@@ -441,6 +441,39 @@ jobs:
             docker rm -f $sink
           }
 
+      - name: Exercise K6 Phase C PostgreSQL startup sampling
+        shell: bash
+        env:
+          DUR053_PHASE_C_FIXTURE_REQUIRED: '1'
+          DUR053_PHASE_C_STARTUP_OUTPUT: ${{ github.workspace }}/artifacts/k6-phase-c-startup
+        run: |
+          set -euo pipefail
+          export DUR053_PHASE_C_CONTAINER="k6c-startup-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          export POSTGRES_PASSWORD
+          POSTGRES_PASSWORD="$(python3 -c 'import secrets; print(secrets.token_hex(24))')"
+          echo "::add-mask::$POSTGRES_PASSWORD"
+          image="$(python3 -c 'import json; print(json.load(open("deploy/k8s/tools.lock.json"))["postgres"])')"
+          trap 'docker rm -f "$DUR053_PHASE_C_CONTAINER" >/dev/null' EXIT
+          docker run -d --name "$DUR053_PHASE_C_CONTAINER" -p 127.0.0.1::5432 \
+            -e POSTGRES_USER=durable -e POSTGRES_DB=postgres -e POSTGRES_PASSWORD \
+            -e POSTGRES_HOST_AUTH_METHOD=password -e POSTGRES_INITDB_ARGS=--auth-host=password \
+            "$image" -c max_connections=100
+          ready=false
+          for i in {1..30}; do
+            if docker exec "$DUR053_PHASE_C_CONTAINER" pg_isready -q -h 127.0.0.1 -U durable -d postgres; then
+              ready=true
+              break
+            fi
+            sleep 1
+          done
+          if [[ "$ready" != true ]]; then
+            echo "Phase C PostgreSQL did not become ready."
+            exit 1
+          fi
+          address="$(docker port "$DUR053_PHASE_C_CONTAINER" 5432/tcp)"
+          export DUR053_PHASE_C_PORT="${address##*:}"
+          uv run pytest -q -s tests/test_k6_phase_c_postgres.py
+
       - name: Run service-backed race and sink contract checks
         shell: pwsh
         run: ./scripts/ci.ps1 -WithServices -RaceOnly
