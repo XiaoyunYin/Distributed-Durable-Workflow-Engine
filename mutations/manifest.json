@@ -13363,6 +13363,42 @@
       "requires_database": false
     },
     {
+      "id": "k4r327-short-dispatch-lead",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "                time.sleep(max(0, next_at - time.time() - 0.5))",
+      "new": "                time.sleep(max(0, next_at - time.time() - 0.1))",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_eviction_retries_within_bound_despite_sleep_overshoot",
+        "-q"
+      ],
+      "expected": "K3 guard: k4-eviction-retry-gap",
+      "requires_database": false
+    },
+    {
+      "id": "k4r327-loose-retry-gap",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_interventions.py",
+      "old": "                    t0 - previous[\"responded\"] <= record[\"eviction_retry_interval\"],",
+      "new": "                    t0 - previous[\"responded\"] < record[\"eviction_retry_interval\"] + 1,",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_round251.py::test_eviction_retry_gap_guard_retains_late_row",
+        "-q"
+      ],
+      "expected": "DID NOT RAISE",
+      "requires_database": false
+    },
+    {
       "id": "k4r252-incremental-save",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_interventions.py",

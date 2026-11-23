@@ -5,6 +5,7 @@ import hashlib
 import json
 import sys
 import threading
+import time
 from concurrent.futures import Future
 from pathlib import Path
 from types import SimpleNamespace
@@ -17,6 +18,7 @@ import dur053_k4_driver as driver  # noqa: E402
 import dur053_k4_evidence as evidence  # noqa: E402
 import dur053_k4_interventions as interventions  # noqa: E402
 from dur053_k3_policy import require  # noqa: E402
+from dur053_k4_schema import CONFIRMATION  # noqa: E402
 from test_k4_driver import pod  # noqa: E402
 from test_k4_offline import checker as checker_fixture  # noqa: E402
 from test_k4_offline import episode_fixture, write  # noqa: E402
@@ -209,21 +211,25 @@ class ClockPool:
         return f
 
 
-def eviction_fake(tmp_path, monkeypatch):
+def eviction_fake(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *, sleep_overshoot: float = 0.0
+) -> tuple[interventions.Interventions, dict[str, int]]:
     ClockPool.now = 10.0
     monkeypatch.setattr(interventions, "ThreadPoolExecutor", ClockPool)
-    monkeypatch.setattr(interventions.time, "time", lambda: ClockPool.now)
-    monkeypatch.setattr(interventions.time, "monotonic", lambda: ClockPool.now)
-    monkeypatch.setattr(
-        interventions.time, "sleep", lambda delay: setattr(ClockPool, "now", ClockPool.now + delay)
-    )
+    monkeypatch.setattr(time, "time", lambda: ClockPool.now)
+    monkeypatch.setattr(time, "monotonic", lambda: ClockPool.now)
+
+    def sleep(delay: float) -> None:
+        ClockPool.now += delay + sleep_overshoot
+
+    monkeypatch.setattr(time, "sleep", sleep)
     roles = {"api", "scheduler", "worker", "worker-control"}
     initial = {
         role: [pod(role + "1", role), pod(role + "2", role)] if role in roles else [pod(role, role)]
         for role in interventions.ENGINE_ROLES
     }
     live = copy.deepcopy(initial)
-    counts = {}
+    counts: dict[str, int] = {}
 
     def k(*args, **kwargs):
         if "get" in args:
@@ -270,7 +276,7 @@ def eviction_fake(tmp_path, monkeypatch):
     a = interventions.Interventions(
         SimpleNamespace(k=k, until=lambda pred, _: pred()), "ns", tmp_path, {}, {}, "a" * 40
     )
-    a.pods = lambda role: live[role]
+    monkeypatch.setattr(a, "pods", lambda role: live[role])
     return a, counts
 
 
@@ -288,6 +294,41 @@ def test_four_denied_roles_retry_concurrently(tmp_path, monkeypatch):
     assert len([r for r in c["evictions"] if r["replaced_by"]]) == 8
     assert "k4-eviction-retry-gap" in interventions.SAFETY_GUARDS
     assert not interventions.intervention_outcome(ValueError("K3 guard: k4-eviction-retry-gap"))
+
+
+@pytest.mark.parametrize("overshoot", [0.15, 0.25])
+def test_eviction_retries_within_bound_despite_sleep_overshoot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, overshoot: float
+) -> None:
+    a, counts = eviction_fake(tmp_path, monkeypatch, sleep_overshoot=overshoot)
+    c = interventions.empty(CONFIRMATION)
+    a.eviction(10, c)
+
+    retried = [name for name, count in counts.items() if count == 2]
+    assert len(retried) == 4
+    for name in retried:
+        denial, retry = sorted(
+            (row for row in c["evictions"] if row["pod_uid"] == name),
+            key=lambda row: row["requested"],
+        )
+        assert (denial["status"], retry["status"]) == (429, 201)
+        assert retry["requested"] - denial["responded"] <= 5.0
+
+
+def test_eviction_retry_gap_guard_retains_late_row(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    a, _ = eviction_fake(tmp_path, monkeypatch, sleep_overshoot=0.55)
+    with pytest.raises(ValueError, match=r"^K3 guard: k4-eviction-retry-gap$"):
+        a.eviction(10, interventions.empty(CONFIRMATION))
+
+    confirmation = json.loads((tmp_path / "confirmation.json").read_bytes())
+    denial, retry = sorted(
+        (row for row in confirmation["evictions"] if row["pod_uid"] == "worker-control2"),
+        key=lambda row: row["requested"],
+    )
+    assert (denial["status"], retry["status"]) == (429, 201)
+    assert retry["requested"] - denial["responded"] > 5.0
 
 
 def test_eviction_rows_survive_later_guard(tmp_path, monkeypatch):

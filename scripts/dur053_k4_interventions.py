@@ -325,7 +325,8 @@ class Interventions:
             require(role in ENGINE_ROLES, "k4-eviction-harness")
             if previous is not None:
                 next_at = previous["responded"] + record["eviction_retry_interval"]
-                time.sleep(max(0, next_at - time.time() - 0.1))
+                # Leave room for hosted-runner scheduling lag before the retry deadline.
+                time.sleep(max(0, next_at - time.time() - 0.5))
             before = allowed[role]
             t0 = time.time()
             body = {
