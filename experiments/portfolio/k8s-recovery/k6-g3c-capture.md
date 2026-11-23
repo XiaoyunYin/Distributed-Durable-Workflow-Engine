@@ -38,6 +38,27 @@ AtomicHistory still reports an absent committed audit link. The capture closure 
 
 `TestK6SourceCaptureParity` publishes the paired PostgreSQL timings at `TestK6SourceCaptureParity/capture-overhead.json` in the verdict artifact. Each class has 20 pairs on one connection, alternating which mode runs first, with K4 audit enabled on both sides. Fenced statements include the inventory insert. The three explicit journal entries use a single round trip with a one-row baseline query. Median paired deltas include the deferred trigger and COMMIT. The test measures single-client overhead for the G4/H disclosure alongside the worker ledger’s approximately 0.5–3.4 ms per append.
 
+Hosted PostgreSQL engineering sample from run 45205393249. Values are upper medians in microseconds. [Fixture artifact](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/45205393249/artifacts/14833582522)
+
+| Write class | Capture off | Capture on | Paired delta |
+| --- | ---: | ---: | ---: |
+| history | 453.7 | 556.5 | 90.9 |
+| node | 291.1 | 451.0 | 165.2 |
+| attempt | 313.2 | 509.0 | 203.9 |
+| lease | 255.2 | 384.5 | 131.8 |
+| timer | 268.8 | 399.5 | 146.2 |
+| approval grant | 277.7 | 449.9 | 169.1 |
+| outbox | 291.4 | 456.8 | 165.6 |
+| publication mark | 259.4 | 388.0 | 121.7 |
+| inbox | 268.8 | 408.1 | 141.7 |
+| consumer offset | 257.6 | 382.0 | 129.0 |
+| wakeup | 258.7 | 394.2 | 134.6 |
+| quarantine | 262.2 | 373.7 | 117.2 |
+| reconciliation | 278.3 | 419.7 | 132.9 |
+| publication start | 107.7 | 346.2 | 239.3 |
+| physical delivery | 115.3 | 341.0 | 230.6 |
+| result request | 98.8 | 356.5 | 254.4 |
+
 ## Replay remainder
 
 G3c1 retains the deployed G3a2b replay contract while recording the new evidence. On exercised PURE and effect bundles, G3c2 owns the engine-side missing proofs for `node_attempt_write_transactions`, `result_commit_identity`, `outbox_creation_transactions`, `publication_attempt_identities` and `dispatch_disposition_transactions`. It also owns using captured `owner_write_transactions` in the registered cells, engine-side `offset_disposition_transactions` for hook-3, and N21’s result, uncertainty/resolution and shutdown result bindings.
