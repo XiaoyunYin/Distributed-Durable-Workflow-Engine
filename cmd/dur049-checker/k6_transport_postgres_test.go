@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"testing"
@@ -19,6 +20,9 @@ const testTaskTopic = "durable-agent.tasks.v1"
 // These are real live database exports. Each named case alters one visible
 // obligation, mark, disposition, result or broker observation from its twin.
 func TestK6SourceTransportParity(t *testing.T) {
+	if os.Getenv("DURABLE_K6_VERDICT_ARTIFACT") == "" {
+		t.Skip("requires the hosted PostgreSQL verdict artifact and network-isolated replay step")
+	}
 	id := func(n int) string { return fmt.Sprintf("00000000-0000-0000-0000-%012d", n) }
 	for _, tc := range []struct {
 		name, predicate, code, relation string
@@ -162,8 +166,9 @@ func seedTransportParity(t *testing.T, db *pgx.Conn, item k6v1.Submission) {
 		             (5,'scheduler',1,'WAITING_ACTIVITY','WAITING_ACTIVITY','ACTIVITY_WAITING',1),
 		             (6,'scheduler',1,'WAITING_ACTIVITY','FAILED','WORKFLOW_ADVANCED',NULL)) v(rev,actor,epoch,old,new,reason,attempt)`, item.Key)
 	execK6SQL(t, db, `UPDATE engine.workflow_executions SET state='FAILED';
-		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,topic,payload,publish_state,relay_attempts)
-		SELECT ('00000000-0000-0000-0000-00000000001'||rev)::uuid,workflow_id,rev,typ,topic,payload::jsonb,state,attempts
+		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,topic,payload,publish_state,relay_attempts,published_at)
+		SELECT ('00000000-0000-0000-0000-00000000001'||rev)::uuid,workflow_id,rev,typ,topic,payload::jsonb,v.state,attempts,
+		       CASE WHEN v.state='PUBLISHED' THEN clock_timestamp() END
 		FROM engine.workflow_executions CROSS JOIN (VALUES
 		  (1,'workflow.created','durable-agent.events.v1','{}','PUBLISHED',1),
 		  (3,'attempt.dispatch','durable-agent.tasks.v1','{"node_id":"pure.echo","iteration":0,"attempt_number":1}','PUBLISHED',2),
