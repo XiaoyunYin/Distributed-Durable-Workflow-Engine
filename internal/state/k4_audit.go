@@ -38,6 +38,7 @@ func configureK4Audit(config *pgxpool.Config) error {
 	config.ConnConfig.RuntimeParams["durable.k4_session"] = K4Session
 	config.ConnConfig.RuntimeParams["durable.k4_pod_uid"] = os.Getenv("POD_UID")
 	config.ConnConfig.RuntimeParams["durable.k4_container_id"] = os.Getenv("CONTAINER_ID")
+	configureK6Capture(config)
 	return nil
 }
 
@@ -53,11 +54,14 @@ func (s *Store) recordK4Lease(ctx context.Context, tx pgx.Tx, kind string, ref L
 	return err
 }
 
-func recordK4Authorization(ctx context.Context, tx pgx.Tx, owner string) error {
+func recordK4Authorization(ctx context.Context, tx pgx.Tx, ref LeaseRef) error {
+	if handled, err := captureOwner(ctx, tx, ref); handled {
+		return err
+	}
 	if tx.Conn().Config().RuntimeParams["durable.k4_campaign"] != "on" {
 		return nil
 	}
-	_, err := tx.Exec(ctx, `SELECT set_config('durable.k4_owner', $1, true)`, owner)
+	_, err := tx.Exec(ctx, `SELECT set_config('durable.k4_owner', $1, true)`, ref.OwnerID)
 	return err
 }
 

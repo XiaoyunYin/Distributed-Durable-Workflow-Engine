@@ -240,6 +240,12 @@ func (r *Relay) RunOnce(ctx context.Context) (RelayReport, error) {
 			}
 			return report, err
 		}
+		if err := r.Store.CapturePublicationStart(eventCtx, event); err != nil {
+			if span != nil {
+				span.End()
+			}
+			return report, err
+		}
 		publishErr := r.Broker.Publish(eventCtx, event)
 		if publishErr == nil {
 			if err := r.publicationBoundary("after_broker_ack", event); err != nil {

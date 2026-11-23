@@ -46,3 +46,8 @@ function owners. A trusted setup process calls `internal/k6auth.Provision`
 on an isolated episode database cluster to install its cutoff, namespace,
 approver and restricted logins. The numbered migration alone creates no
 login credentials or active episode.
+
+The instrumented Phase G episode applies `k6_capture/000024_k6_capture.up.sql`
+after the regular migrations. The paired down migration removes its capture
+tables, triggers and ledger entry. These files are outside the default migration
+directory scan. See [the capture design](../experiments/portfolio/k8s-recovery/k6-g3c-capture.md).

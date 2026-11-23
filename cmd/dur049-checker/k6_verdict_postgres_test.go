@@ -93,7 +93,7 @@ func verifyVerdictParity(t *testing.T, path string, stdout []byte, code int) k6v
 	for _, finding := range result.Findings {
 		ref := finding.Witness
 		switch finding.Predicate {
-		case "AtomicHistory", "OwnerAtCommit", "CurrentClaimWinner", "DispatchDisposition",
+		case "AtomicHistory", "EngineCaptureClosure", "OwnerAtCommit", "CurrentClaimWinner", "DispatchDisposition",
 			"LowerOffsetsDisposed", "LostResultReplay", "UnknownEffectVisible", "ShutdownDisposition":
 		case "RevisionChain":
 			if finding.Code != "SINK_RESET_RESOURCE_MISSING" {

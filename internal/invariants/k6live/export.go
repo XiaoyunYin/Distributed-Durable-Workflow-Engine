@@ -93,10 +93,10 @@ func readRelation(ctx context.Context, tx pgx.Tx, spec k6v1.Relation, write io.W
 		}
 	}
 	// The additional SQL fingerprint detects changes hidden by public
-	// redaction. Only the rolling digest leaves the live adapter. F3
-	// records are entirely public and use their verifiable prefix instead.
+	// redaction. Only the rolling digest leaves the live adapter. Public
+	// journals with idle churn use their verifiable prefix instead.
 	sourceHash := "''::text"
-	if spec.Name != k6v1.DeadlineWrites {
+	if !k6v1.PrefixWatermark(spec.Name) {
 		sourceHash = "encode(sha256(record_send(ROW(" + strings.Join(stable, ", ") + "))), 'hex')"
 	}
 	projection = append(projection, sourceHash)

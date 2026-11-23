@@ -269,6 +269,9 @@ func (s *Store) StageK6Result(ctx context.Context, input ResultInput, worker str
 	if err != nil {
 		return err
 	}
+	if err := captureResult(ctx, tx, input, "PENDING_VERIFICATION", proof); err != nil {
+		return err
+	}
 	return tx.Commit(ctx)
 }
 

@@ -645,6 +645,9 @@ func (s *Store) RecordInbox(ctx context.Context, message InboxMessage) (InboxRes
 		}
 		commitOffset = true
 	}
+	if err := captureDelivery(ctx, tx, message, existing); err != nil {
+		return InboxResult{}, err
+	}
 	if err := tx.Commit(ctx); err != nil {
 		return InboxResult{}, err
 	}
@@ -718,6 +721,9 @@ func (s *Store) QuarantineMessage(ctx context.Context, message InboxMessage, rea
 	nextOffset, commitOffset, err := advanceConsumerOffset(ctx, tx, message.ConsumerID, message.Topic,
 		message.Partition, message.Offset)
 	if err != nil {
+		return InboxResult{}, err
+	}
+	if err := captureDelivery(ctx, tx, message, InboxQuarantined); err != nil {
 		return InboxResult{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
