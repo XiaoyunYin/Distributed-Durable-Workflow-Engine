@@ -8,7 +8,6 @@ from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
 from pathlib import Path
-from types import SimpleNamespace
 from typing import Any
 from unittest.mock import Mock
 
@@ -416,16 +415,24 @@ def trace_snapshot(
     }
 
 
+class TraceClock:
+    def __init__(self) -> None:
+        self.now = 10.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+
 def synthetic_trace(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, *snapshots: dict[str, Any]
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    *snapshots: dict[str, Any],
+    clock: TraceClock | None = None,
 ) -> tuple[phase_c.Trace, Mock]:
-    now = 10.0
-
-    def sleep(seconds: float) -> None:
-        nonlocal now
-        now += seconds
-
-    monkeypatch.setattr(phase_c, "time", SimpleNamespace(monotonic=lambda: now, sleep=sleep))
+    monkeypatch.setattr(phase_c, "time", clock or TraceClock())
     smoke = Mock(spec=Deployment)
     smoke.evidence = phase_c.PhaseCEvidence(tmp_path)
     smoke.namespace = NS
@@ -673,11 +680,12 @@ def test_phase_c_starting_trace_rejects_gap_over_200_ms(
 def test_phase_c_trace_paces_followups_in_one_session(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    trace, query = synthetic_trace(tmp_path, monkeypatch)
-    started = phase_c.time.monotonic()
+    clock = TraceClock()
+    trace, query = synthetic_trace(tmp_path, monkeypatch, clock=clock)
+    started = clock.monotonic()
 
     def snapshot(_timeout: float) -> str:
-        elapsed_us = round((phase_c.time.monotonic() - started) * 1_000_000)
+        elapsed_us = round((clock.monotonic() - started) * 1_000_000)
         backend = (
             trace_backend(42)
             if elapsed_us < 600_000
