@@ -61,8 +61,8 @@ type observedSend struct {
 	workflow string
 }
 
-func checkExternal(r *Result, m Manifest, e External, rows map[string][]Row) {
-	traffic := checkSessions(r, m, e, rows)
+func checkExternal(r *Result, m Manifest, e External, rows map[string][]Row) []observedWorker {
+	traffic, aborts := checkSessions(r, m, e, rows)
 	r.checkGroupMembership(m, e.Broker)
 	if e.Broker != nil {
 		if len(e.Broker.Rows) == 0 {
@@ -92,12 +92,13 @@ func checkExternal(r *Result, m Manifest, e External, rows map[string][]Row) {
 			send := traffic[binding].sent
 			flagExternal(r, -1, "PureTopology", "PURE_EFFECT_SEND", SessionPath(send.session.ID), send.row)
 		}
-		return
+		return aborts
 	}
 	approved := checkDecisions(r, m, e.Decisions, rows)
 	if e.Ingress != nil {
 		checkDeliveries(r, *e.Ingress, traffic, approved, e.Decisions != nil, rows)
 	}
+	return aborts
 }
 
 func expectedSessions(r *Result, roster Stream[WatchRow]) (map[string]WorkerSession, map[string]Death) {
@@ -172,7 +173,7 @@ func corroboratedDeath(s Stream[WorkerRow], d Death) bool {
 		d.FinalSequence == s.Seal.Last && d.FinalSHA256 == s.Seal.SHA256 && d.ObservedUTC <= s.Seal.ThroughUTC
 }
 
-func checkSessions(r *Result, m Manifest, e External, rows map[string][]Row) map[string]observedSend {
+func checkSessions(r *Result, m Manifest, e External, rows map[string][]Row) (map[string]observedSend, []observedWorker) {
 	expected, deaths := expectedSessions(r, e.Roster)
 	attemptRows, haveAttempts := rows["engine.activity_attempts"]
 	auditRows, haveAudit := rows["engine.k4_audit"]
@@ -190,6 +191,7 @@ func checkSessions(r *Result, m Manifest, e External, rows map[string][]Row) map
 	started := map[attemptKey]bool{}
 	invocations := map[string]bool{}
 	traffic := map[string]observedSend{}
+	var aborts []observedWorker
 	type deadProcess struct{ started, died string }
 	deadClaimants := map[string][]deadProcess{}
 	for _, id := range sortedKeys(e.Sessions) {
@@ -237,6 +239,8 @@ func checkSessions(r *Result, m Manifest, e External, rows map[string][]Row) map
 			case "finish", "abort":
 				if start, ok := active[w.Invocation]; !ok || *start.Data.Attempt != *w.Attempt {
 					flag("SESSION_OUTCOME_WITHOUT_START")
+				} else if death && w.Kind == "abort" {
+					aborts = append(aborts, observedWorker{session, row})
 				}
 				delete(active, w.Invocation)
 			case "send", "receive", "timeout", "close":
@@ -274,7 +278,7 @@ func checkSessions(r *Result, m Manifest, e External, rows map[string][]Row) map
 			}
 		}
 	}
-	return traffic
+	return traffic, aborts
 }
 
 func trafficEqual(a, b Traffic) bool {

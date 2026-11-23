@@ -328,13 +328,22 @@ def replay(
         "I2": ("AtomicHistory", "required_proof_missing:node_attempt_write_transactions"),
         "I4": ("CurrentClaimWinner", "required_proof_missing:result_commit_identity"),
     }
+    dispatch_gaps = (
+        "required_proof_missing:outbox_creation_transactions",
+        "required_proof_missing:publication_attempt_identities",
+        "required_proof_missing:broker_event_copies",
+        "required_proof_missing:dispatch_disposition_transactions",
+    )
     findings = positive["findings"]
+    history = "engine/engine.transition_history.jsonl"
+    outbox = "engine/engine.outbox.jsonl"
+    expected = [] if idle else list(missing_proof.values())
+    if not idle:
+        expected.extend(("DispatchDisposition", gap) for gap in dispatch_gaps)
     require(
-        [(f["predicate"], f["code"]) for f in findings]
-        == ([] if idle else list(missing_proof.values())),
+        [(f["predicate"], f["code"]) for f in findings] == expected,
         "G_LIVE_CHECKER_FINDINGS",
     )
-    history = "engine/engine.transition_history.jsonl"
     require(
         positive["completeness"] == ("incomplete" if idle else "FAIL")
         and positive["safety"] == ("incomplete" if idle else "NOT COVERED")
@@ -344,10 +353,30 @@ def replay(
             and f["witness"]["path"] == history
             and len(f["witness"]["row_key"]) == 3
             and len(f["witness"]["sha256"]) == 64
-            for f in findings
+            for f in findings[:2]
         ),
         "G_LIVE_CHECKER_FINDINGS",
     )
+    if not idle:
+        for finding, path in zip(
+            findings[2:],
+            (history, outbox, outbox, outbox),
+            strict=True,
+        ):
+            raw = (good / path).read_bytes().splitlines(keepends=True)[0]
+            row = json.loads(raw)
+            keys = ("event_id",) if path == outbox else ("workflow_id", "revision", "transition_id")
+            require(
+                finding["kind"] == "missing"
+                and finding["source"] == path
+                and finding["witness"]
+                == {
+                    "path": path,
+                    "row_key": [row[key] for key in keys],
+                    "sha256": sha(raw),
+                },
+                "G_LIVE_CHECKER_DISPATCH_WITNESS",
+            )
     ids = [f"I{i}" for i in range(1, 14)]
     completed = ("I1", "I11")
     covered = [] if idle else list(completed)
@@ -371,9 +400,12 @@ def replay(
             require(label["registered"], "G_CHECKER_LABELS")
             outcome = "NOT COVERED"
             reason = "no_positive_population" if idle else missing_proof[label["id"]][1]
+        elif label["id"] == "I6":
+            outcome = "NOT COVERED"
+            reason = "no_positive_population" if idle else dispatch_gaps[-1]
         else:
             outcome = "NOT COVERED"
-            reason = "predicate_pending:G3a2" if label["registered"] else "outside_registry_ceiling"
+            reason = "predicate_pending:G3a3" if label["registered"] else "outside_registry_ceiling"
         require((label["outcome"], label["reason"]) == (outcome, reason), "G_CHECKER_LABELS")
 
     negative = directory / "missing-source"

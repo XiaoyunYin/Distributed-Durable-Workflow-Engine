@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from dur053_k6_b_evidence import SmokeFailure  # noqa: E402
 from dur053_k6_g_bundle import (  # noqa: E402
     IDLE_RELATIONS,
+    Json,
     canonical,
     idle_sources,
     make_plan,
@@ -24,7 +25,7 @@ from dur053_k6_g_registration import AUDIENCE, bind_registration, observe_runtim
 from dur053_k6_registry import read_registry  # noqa: E402
 
 
-def runtime_inputs() -> tuple[dict, dict, dict]:
+def runtime_inputs() -> tuple[Json, Json, Json]:
     pod = {
         "metadata": {
             "namespace": "g-arm",
@@ -222,6 +223,18 @@ def test_negative_replay_retains_pass_summary(
         "I4": ("CurrentClaimWinner", "required_proof_missing:result_commit_identity"),
     }
     history = "engine/engine.transition_history.jsonl"
+    outbox = "engine/engine.outbox.jsonl"
+    (bundle / history).parent.mkdir()
+    history_row = canonical({"workflow_id": "workflow", "revision": 1, "transition_id": "id"})
+    outbox_row = canonical({"event_id": "event"})
+    (bundle / history).write_bytes(history_row)
+    (bundle / outbox).write_bytes(outbox_row)
+    dispatch_gaps = (
+        "outbox_creation_transactions",
+        "publication_attempt_identities",
+        "broker_event_copies",
+        "dispatch_disposition_transactions",
+    )
     baseline_findings = (
         []
         if idle
@@ -236,6 +249,22 @@ def test_negative_replay_retains_pass_summary(
             for predicate, code in proof.values()
         ]
     )
+    if not idle:
+        for i, gap in enumerate(dispatch_gaps):
+            relation_path, row_key, raw = (
+                (outbox, ["event"], outbox_row)
+                if i
+                else (history, ["workflow", 1, "id"], history_row)
+            )
+            baseline_findings.append(
+                {
+                    "predicate": "DispatchDisposition",
+                    "code": "required_proof_missing:" + gap,
+                    "kind": "missing",
+                    "source": relation_path,
+                    "witness": {"path": relation_path, "row_key": row_key, "sha256": sha(raw)},
+                }
+            )
     baseline = json.dumps(
         {
             "findings": baseline_findings,
@@ -252,7 +281,9 @@ def test_negative_replay_retains_pass_summary(
                         "I11": "no_positive_population" if idle else "predicate_satisfied",
                         "I2": "no_positive_population" if idle else proof["I2"][1],
                         "I4": "no_positive_population" if idle else proof["I4"][1],
-                        "I6": "predicate_pending:G3a2",
+                        "I6": "no_positive_population"
+                        if idle
+                        else f"required_proof_missing:{dispatch_gaps[-1]}",
                     }.get(identity, "outside_registry_ceiling"),
                 }
                 for identity in ids

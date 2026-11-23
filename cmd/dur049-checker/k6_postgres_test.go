@@ -136,6 +136,8 @@ func seedK6Postgres(t *testing.T, conn *pgx.Conn) {
 		SELECT 'history',created_at,0,CASE WHEN scheduler_epoch IS NULL THEN '' ELSE 'owner' END,COALESCE(scheduler_epoch,0),
 		       'session','uid','container',(revision+10)::text,transition_id,clock_timestamp()
 		FROM engine.transition_history ORDER BY revision;
+		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload)
+		VALUES (md5('outbox1')::uuid,'dur053-fixture-warmup-530001-000000',1,'workflow.created','{}');
 		INSERT INTO engine.node_instances(workflow_id,node_id,iteration,state,input,accepted_result)
 		VALUES ('dur053-fixture-warmup-530001-000000','pure.echo',0,'SUCCEEDED','{"cell":"hook-0"}','{"position":3,"value":"k6"}');
 		INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class,claim_token,worker_id,worker_request_id,grant_scope_hash)
@@ -151,7 +153,11 @@ func seedK6Postgres(t *testing.T, conn *pgx.Conn) {
 			jsonb_build_object('workflow_id','dur053-fixture-warmup-530001-000000','node_id','pure.echo','iteration',0,'attempt_number',1,
 			'token_hash',encode(sha256(convert_to('`+claimSecret+`','UTF8')),'hex'),'worker_id','worker','worker_request_id','request'),clock_timestamp());
 		INSERT INTO engine.reconciliation_items(item_id,kind,reference,detail)
-		VALUES ('00000000-0000-0000-0000-000000000004','POISON_RECORD','topic/0/0',jsonb_build_object('reason','`+nestedSecret+`'));
+		VALUES ('00000000-0000-0000-0000-000000000004','POISON_RECORD','transport/fixture/topic/0/0',jsonb_build_object('reason','`+nestedSecret+`'));
+		INSERT INTO engine.transport_quarantine(quarantine_id,consumer_id,topic,kafka_partition,kafka_offset,payload,reason)
+		VALUES (md5('poison')::uuid,'fixture','topic',0,0,''::bytea,'invalid header');
+		INSERT INTO engine.consumer_offsets(consumer_id,topic,kafka_partition,next_offset)
+		VALUES ('fixture','topic',0,1);
 		INSERT INTO source_corpus.documents(document_id,version,source_type,service,title,source_text,corpus_version)
 		VALUES ('doc','1','runbook','fixture','fixture','`+nestedSecret+`','1');
 	`)
@@ -298,7 +304,7 @@ func TestK6EngineExport(t *testing.T) {
 		result := verifyVerdictParity(t, dir, out, code)
 		requireK6Finding(t, result, "required_proof_missing:"+k6v1.RosterPath)
 		if len(result.Labels) != 13 ||
-			!slices.Equal(result.InvariantsCovered, []string{"I1", "I2", "I11"}) || len(databaseFindings(result)) != 1 ||
+			!slices.Equal(result.InvariantsCovered, []string{"I1", "I2", "I11"}) || len(databaseFindings(result)) != 5 ||
 			result.Namespace == nil || result.Namespace.NamespaceExecutions != 1 || result.Namespace.SQLNamespaceExecutions != 1 {
 			t.Fatalf("clean fixture: %+v", result)
 		}
@@ -307,13 +313,12 @@ func TestK6EngineExport(t *testing.T) {
 				t.Fatalf("unexpected label order: %+v", label)
 			}
 			outcome, reason := "NOT COVERED", "outside_registry_ceiling"
-			if label.Registered {
-				reason = "predicate_pending:G3a2"
-			}
 			if i == 0 || i == 1 || i == 10 {
 				outcome, reason = "covered/pass", "predicate_satisfied"
 			} else if i == 3 {
 				reason = "required_proof_missing:CurrentClaimWinner"
+			} else if i == 5 {
+				reason = "required_proof_missing:dispatch_disposition_transactions"
 			}
 			if label.Outcome != outcome || label.Reason != reason {
 				t.Fatalf("unexpected label: %+v", label)

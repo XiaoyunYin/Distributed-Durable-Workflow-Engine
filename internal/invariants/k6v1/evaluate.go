@@ -116,7 +116,7 @@ func newResult(m Manifest, indexHash string) Result {
 		inCeiling := m.Cell != "" && registered(n, m)
 		reason := "outside_registry_ceiling"
 		if inCeiling {
-			reason = "predicate_pending:G3a2"
+			reason = "predicate_pending:" + pendingSlice(n)
 		}
 		r.Labels = append(r.Labels, Label{
 			ID: "I" + strconv.Itoa(n), Registered: inCeiling, Outcome: "NOT COVERED",
@@ -124,6 +124,17 @@ func newResult(m Manifest, indexHash string) Result {
 		})
 	}
 	return r
+}
+
+func pendingSlice(label int) string {
+	switch label {
+	case 8, 10:
+		return "G3a3"
+	case 12:
+		return "G3a4"
+	default:
+		return "G3c"
+	}
 }
 
 func registered(n int, m Manifest) bool {
@@ -406,8 +417,12 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 	ordering.checkAtomicHistory()
 	ordering.checkOwnerAtCommit()
 	ordering.checkCurrentClaimWinner()
+	ordering.checkDispatch()
+	ordering.checkReplayAndUncertainty()
 	for _, sources := range external {
-		checkExternal(&r, m, sources, rows)
+		aborts := checkExternal(&r, m, sources, rows)
+		ordering.checkLowerOffsets(sources.Broker)
+		ordering.checkShutdown(aborts)
 	}
 	if r.Safety != "FAIL" && r.Completeness != "FAIL" {
 		r.Safety = "incomplete"

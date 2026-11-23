@@ -190,6 +190,42 @@ func TestK6RosterPositive(t *testing.T) {
 	}
 }
 
+func TestK6ShutdownObservation(t *testing.T) {
+	m, e, rows := fixtureExternal(t, false)
+	ledger := e.Sessions[firstSession]
+	ledger.Rows[2].Data.Kind = "abort"
+	resealFixture(&ledger)
+	e.Sessions[firstSession] = ledger
+	session := ledger.Rows[0].Data.Session
+	for _, tc := range []struct {
+		name  string
+		death *Death
+		want  int
+	}{
+		{"NoDeath", nil, 0},
+		{"UnboundDeath", &Death{"watcher", UTC(fixed), "receiver", ledger.Seal.Last, Hash(nil)}, 0},
+		{"CorroboratedDeath", &Death{"watcher", UTC(fixed), "receiver", ledger.Seal.Last, ledger.Seal.SHA256}, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			source := e
+			if tc.death != nil {
+				source.Roster.Rows = slices.Clone(e.Roster.Rows)
+				last := source.Roster.Rows[len(source.Roster.Rows)-1]
+				source.Roster.Rows = append(source.Roster.Rows, Record[WatchRow]{
+					Position: Position{last.Position.Sequence + 1, UTC(fixed)},
+					Data:     WatchRow{Kind: "death", From: last.Data.Cursor, Cursor: "999", Session: session, Death: tc.death},
+				})
+				resealFixture(&source.Roster)
+			}
+			r := newResult(m, "")
+			aborts := checkExternal(&r, m, source, rows)
+			if len(aborts) != tc.want {
+				t.Fatalf("shutdown abort observation count: got %d, want %d", len(aborts), tc.want)
+			}
+		})
+	}
+}
+
 func TestK6RosterCompleteness(t *testing.T) {
 	m, e, rows := fixtureExternal(t, false)
 	for _, id := range []string{deadSession, idleSession, restartedSession} {
@@ -332,7 +368,7 @@ func TestK6IngressCloseWithoutSinkCall(t *testing.T) {
 				t.Fatalf("call-free ingress terminal rejected: %+v", r.Findings)
 			}
 			if r.ExitCode() != Incomplete || r.Safety != "NOT COVERED" || len(r.InvariantsCovered) != 0 ||
-				r.Labels[7].Outcome != "NOT COVERED" || r.Labels[7].Reason != "predicate_pending:G3a2" {
+				r.Labels[7].Outcome != "NOT COVERED" || r.Labels[7].Reason != "predicate_pending:G3a3" {
 				t.Fatalf("call-free ingress terminal changed coverage: %+v", r)
 			}
 		})

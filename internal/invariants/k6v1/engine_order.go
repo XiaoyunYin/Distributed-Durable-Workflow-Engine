@@ -66,16 +66,26 @@ func newEngineOrder(r *Result, rows map[string][]Row, workflows map[string]Row, 
 
 // Name the missing collection and retain the first affected row in export order.
 func (e engineOrder) require(predicate, source, relation string, row Row) {
+	if e.missing[[2]string{predicate, source}] {
+		return
+	}
+	var ref *Witness
+	if row != nil {
+		w := e.witness(relation, row)
+		ref = &w
+	}
+	e.requireWitness(predicate, source, ref)
+}
+
+func (e engineOrder) requireWitness(predicate, source string, ref *Witness) {
 	key := [2]string{predicate, source}
 	if e.missing[key] {
 		return
 	}
 	e.missing[key] = true
-	var ref *Witness
 	path := source
-	if row != nil {
-		w := e.witness(relation, row)
-		ref, path = &w, w.Path
+	if ref != nil {
+		path = ref.Path
 	}
 	e.result.record(MissingProof, predicate, "required_proof_missing:"+source, path, ref)
 }
