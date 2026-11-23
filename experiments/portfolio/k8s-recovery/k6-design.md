@@ -269,6 +269,15 @@ over-budget backend fails the gate. Other unknown pairs fail immediately.
 outcome, including an empty observation if the backend disappears. Pod names
 are diagnostic fields. The same gate applies to both databases.
 
+Each initial snapshot and its follow-ups use one autocommit `psql` session.
+The trace keeps the sampler's PostgreSQL PID and counts its registered
+application in every snapshot. PostgreSQL statement timestamps govern the
+2-second resolution bound and the 200-millisecond gap bound. In the
+`PostgreSQL race and K6 fixtures` job, a raw TCP client on the isolated pinned
+PostgreSQL 18.6 instance withholds a password, then either authenticates or
+disconnects. Its `connection-trace.json` and `startup-fixture.json` are stored
+under `k6-phase-c-startup/` in the service-race diagnostics artifact.
+
 ## K6a tooling, then K6b campaign
 
 Each letter is a reviewable PR on the last accepted head. K6a uses synthetic fixtures and bounded hosted **engineering** smoke only, labeled `measurement_claim=false`, `charged_seconds=0`; no engineering result contributes a replicate. Commands below specify proposed CLI contracts/targets for implementation. They are future validation commands. Passing a design review does not assert that these commands exist today. Use the project venv as `python` on hosted Linux, PYTHONDONTWRITEBYTECODE=1, GOMAXPROCS=2, Go `-p 1`, distinct RUNNER_TEMP output roots. For the PowerShell commands in the table define `$out = Join-Path $env:RUNNER_TEMP "k6-$env:GITHUB_RUN_ID-$env:GITHUB_JOB"` on that job; each phase/smoke gets a fresh path.

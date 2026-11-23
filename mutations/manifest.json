@@ -15022,8 +15022,8 @@
       "id": "k6c-r366-accept-unresolved-startup",
       "kind": "behavioral",
       "file": "scripts/dur053_k6_c_smoke.py",
-      "old": "else:\n                        require(elapsed_us < STARTUP_SECONDS * 1_000_000, unresolved)",
-      "new": "elif elapsed_us >= STARTUP_SECONDS * 1_000_000:\n                        return",
+      "old": "else:\n                            require(elapsed_us < STARTUP_SECONDS * 1_000_000, unresolved)",
+      "new": "elif elapsed_us >= STARTUP_SECONDS * 1_000_000:\n                            return",
       "command": [
         "python",
         "-m",
@@ -15040,7 +15040,7 @@
       "kind": "behavioral",
       "file": "scripts/dur053_k6_c_smoke.py",
       "old": "require(key in current, \"DB_STARTUP_VANISHED\" + suffix)",
-      "new": "if key not in current:\n                        del pending[key]\n                        continue",
+      "new": "if key not in current:\n                            del pending[key]\n                            continue",
       "command": [
         "python",
         "-m",
@@ -15253,6 +15253,23 @@
         "tests/test_k6_phase_c.py::test_phase_c_trace_fails_unknown_pair_immediately"
       ],
       "expected": "rejection record lost backend details or retained the client address",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r366-slow-persistent-session",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "STARTUP_INTERVAL = 0.1",
+      "new": "STARTUP_INTERVAL = 0.25",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_trace_paces_followups_in_one_session"
+      ],
+      "expected": "persistent trace missed the server cadence",
       "requires_database": false,
       "ci_shard": "with-k6-b"
     },

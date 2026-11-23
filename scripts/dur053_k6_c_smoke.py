@@ -63,6 +63,7 @@ WITH activity AS MATERIALIZED (
 )
 SELECT json_build_object(
   'captured_at_us', (extract(epoch FROM statement_timestamp()) * 1000000)::bigint,
+  'sampler_pid', pg_backend_pid(),
   'limit', current_setting('max_connections')::int,
   'reserved', current_setting('superuser_reserved_connections')::int
               + current_setting('reserved_connections')::int,
@@ -172,66 +173,76 @@ class Trace:
         previous_us = None
         outcome = "resolved"
         try:
-            while True:
-                started = time.monotonic()
-                remaining = min((end for _, end in pending.values()), default=started + 8) - started
-                require(remaining > 0, unresolved)
-                try:
-                    sample = json.loads(self.smoke.psql(server, role, TRACE, timeout=remaining))
-                except SmokeFailure as error:
-                    if pending and str(error) == "PSQL" + suffix + "_TIMEOUT":
-                        raise SmokeFailure(unresolved) from None
-                    raise
-                backends = sample.pop("backends")
-                captured_us = sample["captured_at_us"]
-                latest = {"captured_at_us": captured_us, "backends": backends}
-                if previous_us is None:
-                    row[server] = sample
-                else:
-                    followups.append(sample)
-                    row[server]["followups"] = followups
-                current = {(b["pid"], b["backend_start"]): b for b in backends}
-                starting = {
-                    key
-                    for key, b in current.items()
-                    if is_starting(b["usename"], b["application_name"])
-                }
-                if pending or starting:
-                    if pods is None:
-                        pods = executor.submit(self.pod_names)
-                    observations.append(
-                        {
-                            "captured_at_us": captured_us,
-                            "backends": [
-                                b for key, b in current.items() if key in pending or key in starting
-                            ],
-                        }
+            with self.smoke.trace_session(server, role, TRACE) as query:
+                while True:
+                    started = time.monotonic()
+                    # The host deadline bounds transport waits. PostgreSQL timestamps
+                    # decide whether samples and resolution meet the gate.
+                    remaining = (
+                        min((end for _, end in pending.values()), default=started + 8) - started
                     )
-
-                total = trace_count(server, sample)
-                sample["total"] = total
-                self.peaks[server] = max(total, self.peaks[server])
-                if previous_us is not None:
-                    require(
-                        0 < captured_us - previous_us <= STARTUP_GAP_US,
-                        "DB_STARTUP_SAMPLE_GAP" + suffix,
-                    )
-                for key, (first_us, _) in tuple(pending.items()):
-                    require(key in current, "DB_STARTUP_VANISHED" + suffix)
-                    elapsed_us = captured_us - first_us
-                    require(elapsed_us <= STARTUP_SECONDS * 1_000_000, unresolved)
-                    if key not in starting:
-                        del pending[key]
+                    require(remaining > 0, unresolved)
+                    try:
+                        sample = json.loads(query(remaining))
+                    except SmokeFailure as error:
+                        if pending and str(error) == "PSQL" + suffix + "_TIMEOUT":
+                            raise SmokeFailure(unresolved) from None
+                        raise
+                    received = time.monotonic()
+                    backends = sample.pop("backends")
+                    captured_us = sample["captured_at_us"]
+                    latest = {"captured_at_us": captured_us, "backends": backends}
+                    if previous_us is None:
+                        row[server] = sample
                     else:
-                        require(elapsed_us < STARTUP_SECONDS * 1_000_000, unresolved)
-                for key in starting - pending.keys():
-                    require(key[1] is not None, "DB_STARTUP_IDENTITY" + suffix)
-                    pending[key] = (captured_us, started + STARTUP_SECONDS)
-                if not pending:
-                    return
-                previous_us = captured_us
-                next_poll = min(started + STARTUP_INTERVAL, min(end for _, end in pending.values()))
-                time.sleep(max(0, next_poll - time.monotonic()))
+                        followups.append(sample)
+                        row[server]["followups"] = followups
+                    current = {(b["pid"], b["backend_start"]): b for b in backends}
+                    starting = {
+                        key
+                        for key, b in current.items()
+                        if is_starting(b["usename"], b["application_name"])
+                    }
+                    if pending or starting:
+                        if pods is None:
+                            pods = executor.submit(self.pod_names)
+                        observations.append(
+                            {
+                                "captured_at_us": captured_us,
+                                "backends": [
+                                    b
+                                    for key, b in current.items()
+                                    if key in pending or key in starting
+                                ],
+                            }
+                        )
+
+                    total = trace_count(server, sample)
+                    sample["total"] = total
+                    self.peaks[server] = max(total, self.peaks[server])
+                    if previous_us is not None:
+                        require(
+                            0 < captured_us - previous_us <= STARTUP_GAP_US,
+                            "DB_STARTUP_SAMPLE_GAP" + suffix,
+                        )
+                    for key, (first_us, _) in tuple(pending.items()):
+                        require(key in current, "DB_STARTUP_VANISHED" + suffix)
+                        elapsed_us = captured_us - first_us
+                        require(elapsed_us <= STARTUP_SECONDS * 1_000_000, unresolved)
+                        if key not in starting:
+                            del pending[key]
+                        else:
+                            require(elapsed_us < STARTUP_SECONDS * 1_000_000, unresolved)
+                    for key in starting - pending.keys():
+                        require(key[1] is not None, "DB_STARTUP_IDENTITY" + suffix)
+                        pending[key] = (captured_us, received + STARTUP_SECONDS)
+                    if not pending:
+                        return
+                    previous_us = captured_us
+                    next_poll = min(
+                        started + STARTUP_INTERVAL, min(end for _, end in pending.values())
+                    )
+                    time.sleep(max(0, next_poll - time.monotonic()))
         except Exception as error:
             outcome = self.smoke.evidence.safe_reason(error)
             self.rejections.append(

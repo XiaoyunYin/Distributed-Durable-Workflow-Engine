@@ -6,6 +6,7 @@ import json
 import sys
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import nullcontext
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
@@ -428,13 +429,14 @@ def synthetic_trace(
     smoke = Mock(spec=Deployment)
     smoke.evidence = phase_c.PhaseCEvidence(tmp_path)
     smoke.namespace = NS
-    smoke.psql.side_effect = [json.dumps(sample) for sample in snapshots]
+    query = Mock(side_effect=[json.dumps(sample) for sample in snapshots])
+    smoke.trace_session.return_value = nullcontext(query)
     smoke.k.return_value = json.dumps(
         {"items": [{"metadata": {"name": "sink-pod"}, "status": {"podIPs": [{"ip": "10.7.0.1"}]}}]}
     )
     trace = phase_c.Trace(smoke)
     trace.rows.append({"time": "2026-11-22T00:00:00Z"})
-    return trace, smoke
+    return trace, query
 
 
 def sample_synthetic(trace: phase_c.Trace, server: str = "sink") -> None:
@@ -452,7 +454,7 @@ def sample_synthetic(trace: phase_c.Trace, server: str = "sink") -> None:
 def test_phase_c_starting_trace_resolves_within_bound(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, server: str, user: str, app: str
 ) -> None:
-    trace, smoke = synthetic_trace(
+    trace, query = synthetic_trace(
         tmp_path,
         monkeypatch,
         trace_snapshot(0, trace_backend(42), server=server),
@@ -462,7 +464,7 @@ def test_phase_c_starting_trace_resolves_within_bound(
         sample_synthetic(trace, server)
     except SmokeFailure:
         pytest.fail("registered startup failed to resolve")
-    assert smoke.psql.call_count == 2
+    assert query.call_count == 2
     assert trace.rejections == []
     assert trace.rows[0][server]["total"] == 1
     startup = trace.startups[0]
@@ -528,7 +530,7 @@ def test_phase_c_starting_trace_fails_if_backend_vanishes(
 def test_phase_c_starting_trace_requires_backend_start(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    trace, smoke = synthetic_trace(
+    trace, query = synthetic_trace(
         tmp_path,
         monkeypatch,
         trace_snapshot(0, trace_backend(42, start=None)),
@@ -540,7 +542,7 @@ def test_phase_c_starting_trace_requires_backend_start(
         assert str(error) == "DB_STARTUP_IDENTITY_SINK"
     else:
         pytest.fail("accepted a starting backend without a start time")
-    assert smoke.psql.call_count == 1
+    assert query.call_count == 1
     assert trace.rejections[0]["backends"][0]["backend_start"] is None
 
 
@@ -566,7 +568,7 @@ def test_phase_c_starting_trace_fails_late_resolution(
 def test_phase_c_trace_fails_unknown_pair_immediately(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, user: str | None, app: str | None
 ) -> None:
-    trace, smoke = synthetic_trace(
+    trace, query = synthetic_trace(
         tmp_path,
         monkeypatch,
         trace_snapshot(0, trace_backend(42, user, app)),
@@ -578,7 +580,7 @@ def test_phase_c_trace_fails_unknown_pair_immediately(
         assert str(error) == "DB_UNACCOUNTED_CLIENT_SINK"
     else:
         pytest.fail("accepted an unregistered pair")
-    assert smoke.psql.call_count == 1
+    assert query.call_count == 1
     trace.finish()
     artifact = json.loads((tmp_path / phase_c.TRACE_FILE).read_bytes())
     assert artifact["samples"][0]["sink"].get("clients") == [[user, app, 1]], (
@@ -617,7 +619,7 @@ def test_phase_c_starting_trace_counts_toward_total_budget(
     ]
     replaced = next(client for client in clients if client["usename"] == SINK_ROLE)
     remaining_clients = [client for client in clients if client is not replaced]
-    trace, smoke = synthetic_trace(
+    trace, query = synthetic_trace(
         tmp_path,
         monkeypatch,
         trace_snapshot(0, *clients, trace_backend(42)),
@@ -629,7 +631,7 @@ def test_phase_c_starting_trace_counts_toward_total_budget(
         assert str(error) == "DB_TOTAL_BUDGET_SINK"
     else:
         pytest.fail("excluded starting backends from the total budget")
-    assert smoke.psql.call_count == 1
+    assert query.call_count == 1
 
 
 def test_phase_c_starting_trace_rejects_resolution_over_pair_budget(
@@ -666,6 +668,31 @@ def test_phase_c_starting_trace_rejects_gap_over_200_ms(
         assert str(error) == "DB_STARTUP_SAMPLE_GAP_SINK"
     else:
         pytest.fail("accepted a gap over 200 ms")
+
+
+def test_phase_c_trace_paces_followups_in_one_session(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trace, query = synthetic_trace(tmp_path, monkeypatch)
+    started = phase_c.time.monotonic()
+
+    def snapshot(_timeout: float) -> str:
+        elapsed_us = round((phase_c.time.monotonic() - started) * 1_000_000)
+        backend = (
+            trace_backend(42)
+            if elapsed_us < 600_000
+            else trace_backend(42, SINK_ROLE, "dur053-k6-sink")
+        )
+        return json.dumps(trace_snapshot(elapsed_us, backend))
+
+    query.side_effect = snapshot
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        pytest.fail(f"persistent trace missed the server cadence: {error}")
+    observations = trace.startups[0]["observations"]
+    assert len(observations) >= 4
+    assert trace.startups[0]["outcome"] == "resolved"
 
 
 def test_phase_c_credential_scan(tmp_path: Path) -> None:

@@ -101,6 +101,7 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     race = dict(_job_steps(workflow, "services-race"))
     k6_g1_step = "Verify K6 G1 engine evidence on PostgreSQL"
     k6_g2_step = "Verify K6 G2 cuts and external evidence against two PostgreSQL instances"
+    k6_c_step = "Exercise K6 Phase C PostgreSQL startup sampling"
     for job in ("services", "services-race"):
         assert "    timeout-minutes: 25\n" in jobs[job]
         assert not re.search(r"^    (needs|if):", jobs[job], re.MULTILINE)
@@ -129,6 +130,7 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
         "Run tagged K6 Go tests against PostgreSQL",
         k6_g1_step,
         k6_g2_step,
+        k6_c_step,
         "Run service-backed race and sink contract checks",
         *cleanup,
     ]
@@ -162,6 +164,12 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     assert "go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/..." in k6_g2
     assert "K6Roster|K6Session|K6Ingress|K6Decision|K6Broker|K6Quiet|K6Topology|K6Orphan" in k6_g2
     assert "finally" in k6_g2 and "docker rm -f $sink" in k6_g2
+    k6_c = race[k6_c_step]
+    assert "DUR053_PHASE_C_FIXTURE_REQUIRED: '1'" in k6_c
+    assert "deploy/k8s/tools.lock.json" in k6_c and "127.0.0.1::5432" in k6_c
+    assert "POSTGRES_HOST_AUTH_METHOD=password" in k6_c
+    assert "uv run pytest -q -s tests/test_k6_phase_c_postgres.py" in k6_c
+    assert "artifacts/k6-phase-c-startup" in k6_c and "path: artifacts/" in race[cleanup[1]]
     assert (
         services["Run service-backed checks"]
         .rstrip()

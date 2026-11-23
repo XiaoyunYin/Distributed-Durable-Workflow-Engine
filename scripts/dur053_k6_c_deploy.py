@@ -6,12 +6,16 @@ import base64
 import hashlib
 import ipaddress
 import json
+import os
 import secrets
 import socket
 import subprocess
 import time
-from contextlib import suppress
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, suppress
+from datetime import UTC, datetime
 from pathlib import Path
+from selectors import EVENT_READ, DefaultSelector
 from urllib.parse import urlencode
 
 from dur053_k3 import CLUSTER, LABEL, LOCK, ROOT
@@ -298,34 +302,92 @@ class Deployment(Smoke):
         )
         return rows
 
-    def psql(self, server: str, role: str, query: str, *, timeout: float = 8) -> str:
+    def _psql_command(self, server: str, role: str) -> tuple[str, ...]:
         sink = server == "sink"
+        return (
+            "docker",
+            "exec",
+            "-i",
+            "-e",
+            "PGAPPNAME=dur053-k6-c-" + role,
+            "-e",
+            "PGOPTIONS=-c statement_timeout=2500 -c lock_timeout=1000",
+            self.sink_container if sink else ENGINE_CONTAINER,
+            "psql",
+            "-X",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-At",
+            "-U",
+            SINK_ADMIN if sink else ENGINE_ROLE,
+            "-d",
+            SINK_DB if sink else "postgres",
+        )
+
+    def psql(self, server: str, role: str, query: str) -> str:
         return (
             self.command(
                 "PSQL_" + server.upper(),
-                "docker",
-                "exec",
-                "-i",
-                "-e",
-                "PGAPPNAME=dur053-k6-c-" + role,
-                "-e",
-                "PGOPTIONS=-c statement_timeout=2500 -c lock_timeout=1000",
-                self.sink_container if sink else ENGINE_CONTAINER,
-                "psql",
-                "-X",
-                "-v",
-                "ON_ERROR_STOP=1",
-                "-At",
-                "-U",
-                SINK_ADMIN if sink else ENGINE_ROLE,
-                "-d",
-                SINK_DB if sink else "postgres",
+                *self._psql_command(server, role),
                 data=query.encode(),
-                timeout=timeout,
+                timeout=8,
             )
             .decode()
             .strip()
         )
+
+    @contextmanager
+    def trace_session(
+        self, server: str, role: str, query: str
+    ) -> Iterator[Callable[[float], bytes]]:
+        """Read one JSON row per autocommit query over a single hosted psql connection."""
+        stage = "PSQL_" + server.upper()
+        require(self.deadline > datetime.now(UTC), "ENGINEERING_DEADLINE")
+        try:
+            process = subprocess.Popen(
+                self._psql_command(server, role),
+                cwd=ROOT,
+                env=self.env,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+            )
+        except OSError:
+            raise SmokeFailure(stage + "_UNAVAILABLE") from None
+        with process, DefaultSelector() as ready:
+            try:
+                stdin, stdout = process.stdin, process.stdout
+                assert stdin is not None and stdout is not None
+                ready.register(stdout, EVENT_READ)
+                statement = query.encode()
+
+                def sample(timeout: float) -> bytes:
+                    remaining = (self.deadline - datetime.now(UTC)).total_seconds()
+                    require(remaining > 0, "ENGINEERING_DEADLINE")
+                    deadline = time.monotonic() + min(timeout, remaining)
+                    try:
+                        stdin.write(statement)
+                        stdin.flush()
+                        output = bytearray()
+                        while not output.endswith(b"\n"):
+                            require(
+                                bool(ready.select(max(0, deadline - time.monotonic()))),
+                                stage + "_TIMEOUT",
+                            )
+                            chunk = os.read(stdout.fileno(), 65536)
+                            require(bool(chunk), stage + "_EXIT")
+                            output.extend(chunk)
+                        return bytes(output)
+                    except OSError:
+                        raise SmokeFailure(stage + "_EXIT") from None
+
+                yield sample
+            finally:
+                try:
+                    process.communicate(timeout=1)
+                except subprocess.TimeoutExpired:
+                    process.kill()
+                    process.communicate()
 
     def migrate_sink(self) -> None:
         for migration in sorted((ROOT / "sink-migrations").glob("*.up.sql")):
