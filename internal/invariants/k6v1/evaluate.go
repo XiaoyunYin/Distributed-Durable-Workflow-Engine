@@ -237,7 +237,7 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 	}
 	workflows, haveWorkflows := rows[executions]
 	histories, haveHistory := rows[history]
-	specs := EngineRelations(m.Instrumented())
+	specs := m.Relations("engine")
 	keys := map[string][]string{}
 	for _, spec := range append(slices.Clone(specs), SinkRelations()...) {
 		keys[spec.Name] = spec.Keys
@@ -415,6 +415,9 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 	}
 	ordering := newEngineOrder(&r, rows, byID, witness, violate)
 	ordering.checkAtomicHistory()
+	if m.CaptureEnabled() {
+		ordering.checkCaptureClosure()
+	}
 	ordering.checkOwnerAtCommit()
 	ordering.checkCurrentClaimWinner()
 	ordering.checkDispatch()

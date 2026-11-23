@@ -75,11 +75,15 @@ func (m Manifest) Relations(db string) []Relation {
 	if db == "sink" {
 		return SinkRelations()
 	}
-	return EngineRelations(m.Instrumented())
+	return EngineRelations(m.Instrumented(), m.CaptureEnabled())
 }
 
 func (m Manifest) Instrumented() bool {
 	return slices.Contains(m.Instrumentation, DeadlineWrites)
+}
+
+func (m Manifest) CaptureEnabled() bool {
+	return slices.Contains(m.Instrumentation, WriteCapture)
 }
 
 func (m Manifest) Valid() bool {
@@ -121,8 +125,11 @@ func (m Manifest) Valid() bool {
 		return false
 	}
 	return m.Cell == cell && m.Episode == cell+"-"+strconv.Itoa(m.Ordinal%5) && m.Workload == workload &&
-		m.Instrumentation != nil && (len(m.Instrumentation) == 0 || slices.Equal(m.Instrumentation, []string{DeadlineWrites})) &&
-		slices.Equal(m.RequiredSources, RequiredSources(m.Instrumented(), m.Sink != nil))
+		m.Instrumentation != nil && (len(m.Instrumentation) == 0 ||
+		slices.Equal(m.Instrumentation, []string{DeadlineWrites}) ||
+		slices.Equal(m.Instrumentation, []string{WriteCapture}) ||
+		slices.Equal(m.Instrumentation, []string{WriteCapture, DeadlineWrites})) &&
+		slices.Equal(m.RequiredSources, RequiredSources(m.Instrumented(), m.Sink != nil, m.CaptureEnabled()))
 }
 
 type Observer struct {
@@ -182,14 +189,14 @@ func RelationPath(name string) string {
 	return "engine/" + name + ".jsonl"
 }
 
-func RequiredSources(instrumented, sink bool) []string {
+func RequiredSources(instrumented, sink bool, capture ...bool) []string {
 	paths := []string{ManifestPath, SnapshotPath, PlanPath, ArrivalsPath, BarrierPath}
 	m := Manifest{}
 	if sink {
 		m.Sink = &DatabaseIdentity{}
 	}
 	paths = append(paths, requiredExternal(m)...)
-	for _, spec := range EngineRelations(instrumented) {
+	for _, spec := range EngineRelations(instrumented, capture...) {
 		paths = append(paths, RelationPath(spec.Name))
 	}
 	if sink {

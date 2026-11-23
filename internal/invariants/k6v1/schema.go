@@ -59,7 +59,7 @@ func relation(name, keys, columns string) Relation {
 	return spec
 }
 
-func EngineRelations(instrumented bool) []Relation {
+func EngineRelations(instrumented bool, capture ...bool) []Relation {
 	relations := []Relation{
 		relation("engine.schema_migrations", "version", "version:int applied_at:time"),
 		relation("engine.workflow_definitions", "definition_id version",
@@ -117,6 +117,9 @@ func EngineRelations(instrumented bool) []Relation {
 		relations = append(relations, relation(DeadlineWrites, "id",
 			"id:int written_at:time application:text session:text? branch:text partition_id:int? owner_id:text? epoch:int? workflow_id:text? node_id:text? iteration:int? attempt_number:int? worker_id:text? token_hash:digest? row_id:text deadline:time? old_deadline:time?"))
 	}
+	if len(capture) != 0 && capture[0] {
+		relations = append(relations, CaptureRelations()...)
+	}
 	slices.SortFunc(relations, func(a, b Relation) int { return strings.Compare(a.Name, b.Name) })
 	return relations
 }
@@ -166,6 +169,9 @@ func ValidateRow(spec Relation, row Row) error {
 		if row[key] == nil || row[key] == "" {
 			return errShape
 		}
+	}
+	if spec.Name == WriteCapture || spec.Name == CaptureQueue {
+		return validateCaptureShape(row)
 	}
 	return nil
 }

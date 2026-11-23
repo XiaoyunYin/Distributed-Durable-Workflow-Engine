@@ -79,6 +79,10 @@ func Classify(entry CensusEntry, relations []Relation, instrumented bool) (strin
 			switch entry.Name {
 			case "engine.k4_audit_queue_id_seq", "engine.k4_commit_order":
 				return Excluded, "allocator_for_exported_audit"
+			case "engine.k6_capture_queue_id_seq":
+				if slices.ContainsFunc(relations, func(spec Relation) bool { return spec.Name == CaptureQueue }) {
+					return Excluded, "allocator_for_exported_audit"
+				}
 			case "k6_f3.deadline_writes_id_seq":
 				if instrumented {
 					return Excluded, "allocator_for_exported_instrumentation"

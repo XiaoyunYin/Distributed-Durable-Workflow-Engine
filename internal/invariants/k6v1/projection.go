@@ -10,6 +10,12 @@ import (
 // In particular a JSON string is never interpreted as a second JSON document.
 func validStructure(kind Kind, value any) bool {
 	switch kind {
+	case "capture_key":
+		_, ok := value.([]any)
+		return ok
+	case "capture_image":
+		_, ok := value.(map[string]any)
+		return ok
 	case "identities", "graph_nodes", "next_nodes", "numbers":
 		items, ok := value.([]any)
 		if !ok {

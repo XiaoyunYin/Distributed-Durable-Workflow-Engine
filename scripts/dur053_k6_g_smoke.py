@@ -374,7 +374,7 @@ class Episode(Matrix):
                     pod["volumes"] = orig["volumes"]
                     container["volumeMounts"] = orig["containers"][0]["volumeMounts"]
             if name in {"api", CONTROL, "scheduler", "relay"}:
-                set_env(container, DUR053_K4_CAMPAIGN="1")
+                set_env(container, DUR053_K4_CAMPAIGN="1", DUR053_K6_CAPTURE="1")
                 # The Go audit tags its process with pod identity, as in Phase F.
                 # The G worker session uses the actual runtime ID and start time.
                 container["env"].extend(
@@ -446,6 +446,7 @@ class Episode(Matrix):
                 ),
             )
         self.migrate(self.namespace, migration, "G_ENGINE_MIGRATE")
+        self.db((ROOT / "migrations/k6_capture/000024_k6_capture.up.sql").read_text())
         self.db(definition_sql())
         reset_id = self.binding["reset_id"]
         self.sql(
@@ -506,10 +507,13 @@ class Episode(Matrix):
             "topology_sha256": sha(
                 canonical(component_list if not self.effect else [*component_list, *self.rendered])
             ),
-            "instrumentation": [],
+            "instrumentation": ["engine.k6_write_capture"],
             "required_sources": json.loads(
                 self.command(
-                    "G_SOURCE_LIST", str(self.shared / "collector"), "--required-sources", self.arm
+                    "G_SOURCE_LIST",
+                    str(self.shared / "collector"),
+                    "--required-sources",
+                    "capture-" + self.arm,
                 )
             ),
         }
@@ -848,6 +852,7 @@ class Episode(Matrix):
         jail.mkdir(mode=0o700)
         shutil.copy2(self.approver, jail / "approver")
         dsn = self.dsn("k6_decision_writer", decision, "verify-full", str(self.ca))
+        dsn += "&durable.k4_campaign=on&durable.k6_capture=on"
         adapter = self.adapter_socket(
             self.scratch,
             jail / "live",
@@ -1249,7 +1254,7 @@ def run(output: Path) -> int:
             nested.mkdir()
             harness = Driver(nested, kind)
             harness.install()
-            harness.build()
+            harness.build(runtime_tags="dur053_k6")
             for name, addon in LOCK["addons"].items():
                 if addon["installed_in_k3a"]:
                     harness.prepare_addon(name)

@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"slices"
+	"strings"
 	"syscall"
 	"time"
 
@@ -255,13 +256,16 @@ func (o *collector) effect(m k6v1.Manifest, drained bool) error {
 }
 
 func main() {
-	if len(os.Args) == 3 && os.Args[1] == "--required-sources" && (os.Args[2] == "pure" || os.Args[2] == "effect") {
-		raw, err := k6v1.Canonical(k6v1.RequiredSources(false, os.Args[2] == "effect"))
-		if err != nil {
-			os.Exit(1)
+	if len(os.Args) == 3 && os.Args[1] == "--required-sources" {
+		arm, capture := strings.CutPrefix(os.Args[2], "capture-")
+		if arm == "pure" || arm == "effect" {
+			raw, err := k6v1.Canonical(k6v1.RequiredSources(false, arm == "effect", capture))
+			if err != nil {
+				os.Exit(1)
+			}
+			_, _ = os.Stdout.Write(raw)
+			return
 		}
-		_, _ = os.Stdout.Write(raw)
-		return
 	}
 	if len(os.Args) != 2 {
 		fmt.Fprintln(os.Stderr, "usage: dur053-k6-collect PRIVATE_CONFIG")

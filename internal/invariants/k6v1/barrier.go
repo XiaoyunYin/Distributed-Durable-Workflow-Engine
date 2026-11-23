@@ -71,7 +71,7 @@ type AuditRow struct {
 
 func WatermarkClass(relation string) string {
 	switch relation {
-	case "engine.partition_leases", DeadlineWrites:
+	case "engine.partition_leases", DeadlineWrites, WriteCapture, OwnerWrites:
 		return IdleChurn
 	case "engine.schema_migrations", "engine.attempt_result_evidence",
 		"engine.transition_history", "engine.lease_acquisitions", "engine.k4_audit", "engine.checkpoints",
@@ -83,6 +83,12 @@ func WatermarkClass(relation string) string {
 	default:
 		return Quiescent
 	}
+}
+
+// The cut can move past an append-only prefix of ordinary lease renewals.
+// Every other captured write, including a takeover, invalidates the cut.
+func PrefixWatermark(relation string) bool {
+	return relation == DeadlineWrites || relation == WriteCapture || relation == OwnerWrites
 }
 
 func IdleColumn(relation, column string) bool {
@@ -116,8 +122,14 @@ func (b *WatermarkBuilder) Add(row Row, sourceDigest string) {
 	if sourceDigest != "" {
 		_, _ = b.source.Write([]byte(sourceDigest))
 	}
-	if b.spec.Name == DeadlineWrites {
-		b.value.Audit = append(b.value.Audit, AuditRow{number(row["id"]), row["branch"].(string), rowHash})
+	if PrefixWatermark(b.spec.Name) {
+		kind := "write"
+		if b.spec.Name == DeadlineWrites {
+			kind = row["branch"].(string)
+		} else if row["subject"] == "engine.partition_leases" && row["operation"] == "renewal" {
+			kind = "renewal"
+		}
+		b.value.Audit = append(b.value.Audit, AuditRow{number(row[b.spec.Keys[0]]), kind, rowHash})
 	}
 	key := make([]any, 0, len(b.spec.Keys))
 	for _, k := range b.spec.Keys {
@@ -153,7 +165,7 @@ func (w Watermark) valid(spec Relation) bool {
 			}
 		}
 	}
-	if spec.Name != DeadlineWrites {
+	if !PrefixWatermark(spec.Name) {
 		return w.Audit == nil
 	}
 	if int64(len(w.Audit)) != w.Count || number(key[0]) != w.Audit[len(w.Audit)-1].ID || w.SourceDigest != Hash(nil) {
@@ -180,7 +192,7 @@ func equalWatermark(before, after Watermark) bool {
 	case Quiescent:
 		return before.Count == after.Count && publicEqual && sourceEqual
 	case IdleChurn:
-		if before.Relation != DeadlineWrites {
+		if !PrefixWatermark(before.Relation) {
 			return before.Count == after.Count && publicEqual && sourceEqual
 		}
 		if len(before.Audit) > len(after.Audit) || !slices.Equal(before.Audit, after.Audit[:len(before.Audit)]) {

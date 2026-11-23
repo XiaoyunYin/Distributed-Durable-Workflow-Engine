@@ -743,7 +743,7 @@ func lockLease(ctx context.Context, tx pgx.Tx, ref LeaseRef) (Lease, error) {
 	if owner == nil || expiry == nil || *owner != ref.OwnerID || epoch != ref.Epoch || !expiry.After(databaseNow) {
 		return Lease{}, ErrLeaseNotOwned
 	}
-	if err := recordK4Authorization(ctx, tx, ref.OwnerID); err != nil {
+	if err := recordK4Authorization(ctx, tx, ref); err != nil {
 		return Lease{}, err
 	}
 	return Lease{PartitionID: ref.PartitionID, OwnerID: *owner, Epoch: epoch, LeaseExpiresAt: *expiry}, nil
@@ -1616,6 +1616,9 @@ func (s *Store) recordResultReceipt(ctx context.Context, input ResultInput, k6 *
 			input.AttemptNumber, input.ClaimToken, reconciliationRef, input.Payload); err != nil {
 			return ResultReceipt{}, err
 		}
+		if err := captureResult(ctx, tx, input, string(ResultRecordedAsEvidence), ""); err != nil {
+			return ResultReceipt{}, err
+		}
 		if err := tx.Commit(ctx); err != nil {
 			return ResultReceipt{}, err
 		}
@@ -1671,6 +1674,13 @@ func (s *Store) recordResultReceipt(ctx context.Context, input ResultInput, k6 *
 		return ResultReceipt{}, err
 	}
 	if err := s.insertOutbox(ctx, tx, input.WorkflowID, newRevision, input.EventType, input.Payload); err != nil {
+		return ResultReceipt{}, err
+	}
+	var receiptID string
+	if k6 != nil {
+		receiptID = k6.receiptID
+	}
+	if err := captureResult(ctx, tx, input, string(ResultAccepted), receiptID); err != nil {
 		return ResultReceipt{}, err
 	}
 	if err := tx.Commit(ctx); err != nil {
