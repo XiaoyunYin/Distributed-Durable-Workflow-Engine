@@ -30,8 +30,8 @@ type signedReceiptBody struct {
 }
 
 func decodeReceiptKey(encoded string) ed25519.PublicKey {
-	key, err := base64.RawURLEncoding.Strict().DecodeString(encoded)
-	if err != nil || len(key) != ed25519.PublicKeySize || base64.RawURLEncoding.EncodeToString(key) != encoded {
+	key, err := base64.StdEncoding.Strict().DecodeString(encoded)
+	if err != nil || len(key) != ed25519.PublicKeySize || base64.StdEncoding.EncodeToString(key) != encoded {
 		return nil
 	}
 	return ed25519.PublicKey(key)

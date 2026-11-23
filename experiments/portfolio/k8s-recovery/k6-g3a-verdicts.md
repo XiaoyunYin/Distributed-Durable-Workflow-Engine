@@ -28,7 +28,7 @@ workflow_id, logical_key, resource_id, canonical_hash, scope_hash, intent_id,
 expected_revision, applied_revision, application_id
 ```
 
-Public keys and signatures are unpadded URL-safe base64 encodings of 32 and 64 bytes respectively. The reset controller generates the key pair, records only the public key in reset evidence and the manifest, and provisions the same key to the verifier. Offline trust relies on the independently retained job index anchoring the manifest. The production signer generates fixed vectors in its own test package. The pure checker reads the committed fixture with its own standard-library decoder and verifier. The vectors cover both operations, Go's default string escaping, wrong key, a changed byte, alternate JSON framing and absent signature.
+The 32-byte manifest public key uses padded standard base64, matching runtime provisioning. The 64-byte signature uses unpadded URL-safe base64. The reset controller generates the key pair, records only the public key in reset evidence and the manifest, and provisions the same key to the verifier. Offline trust relies on the independently retained job index anchoring the manifest. The production signer generates fixed vectors in its own test package. The pure checker reads the committed fixture with its own standard-library decoder and verifier. The vectors cover both operations, Go's default string escaping, wrong key, a changed byte, alternate JSON framing and absent signature.
 
 ## Results and replay
 

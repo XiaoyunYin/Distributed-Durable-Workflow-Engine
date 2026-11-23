@@ -67,6 +67,17 @@ func TestK6SubmissionIdentity(t *testing.T) {
 			t.Fatalf("submission counterexample failed to reach I1: %+v", result)
 		}
 	}
+	expectMissing := func(t *testing.T, data fstest.MapFS) {
+		t.Helper()
+		result := k6v1.Verify(data)
+		const reason = "required_proof_missing:SubmissionIdentity"
+		requirePredicateFinding(t, result, k6v1.MissingProof, "SubmissionIdentity", reason)
+		label := result.Labels[0]
+		if result.ExitCode() != k6v1.Fail || result.Completeness != "FAIL" || result.Safety == "FAIL" ||
+			label.Outcome != "NOT COVERED" || label.Reason != reason {
+			t.Fatalf("submission missing proof failed to reach I1: %+v", result)
+		}
+	}
 	t.Run("N2RemoveAccepted", func(t *testing.T) {
 		mutant := cloneBundle(bundle)
 		resealK6Relation(t, mutant, relation, filterRows(mutant[k6v1.RelationPath(relation)].Data, warmup.Key), 1)
@@ -106,8 +117,8 @@ func TestK6SubmissionIdentity(t *testing.T) {
 		observed.Rows = append([]k6v1.Arrival{arrivals.Rows[0]}, arrivals.Rows[2:]...)
 		observed.PlanSHA256 = k6v1.Hash(bundle[k6v1.PlanPath].Data)
 		resealK6File(t, mutant, k6v1.ArrivalsPath, observed)
-		expect(t, mutant, "required_proof_missing:SubmissionIdentity")
-		expect(t, acquireK6Fixture(t, config, plan, observed, k6v1.Fail), "required_proof_missing:SubmissionIdentity")
+		expectMissing(t, mutant)
+		expectMissing(t, acquireK6Fixture(t, config, plan, observed, k6v1.Fail))
 	})
 	t.Run("N3ConsistentSubset", func(t *testing.T) {
 		mutant := cloneBundle(bundle)
@@ -117,7 +128,8 @@ func TestK6SubmissionIdentity(t *testing.T) {
 		resealK6File(t, mutant, k6v1.ArrivalsPath, observed)
 		resealK6Relation(t, mutant, relation, filterRows(mutant[k6v1.RelationPath(relation)].Data, uncertain.Key), 1)
 		resealK6Relation(t, mutant, k6History, filterRows(mutant[k6v1.RelationPath(k6History)].Data, uncertain.Key), 2)
-		expect(t, mutant, "required_proof_missing:SubmissionIdentity", "NAMESPACE_COUNT")
+		expectMissing(t, mutant)
+		requireK6Finding(t, k6v1.Verify(mutant), "NAMESPACE_COUNT")
 	})
 	t.Run("UnsentAndRejectedDurables", func(t *testing.T) {
 		minimalExecution(t, engine, unsent)

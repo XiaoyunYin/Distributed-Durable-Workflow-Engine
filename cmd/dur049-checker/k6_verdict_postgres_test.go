@@ -22,7 +22,7 @@ import (
 func provisionFixtureReceipt(t *testing.T, engine, sink *pgx.Conn, m *k6v1.Manifest, workflow string) k6receipt.Proof {
 	t.Helper()
 	key := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{1}, ed25519.SeedSize))
-	m.ReceiptPublicKey = base64.RawURLEncoding.EncodeToString(key.Public().(ed25519.PublicKey))
+	m.ReceiptPublicKey = base64.StdEncoding.EncodeToString(key.Public().(ed25519.PublicKey))
 	receipt := k6receipt.Receipt{WorkflowID: workflow, LogicalKey: "key"}
 	if err := sink.QueryRow(context.Background(), `SELECT resource_id,canonical_hash,scope_hash,intent_id,expected_revision,applied_revision,application_id
 		FROM k6_sink.receipts WHERE workflow_id=$1 AND logical_key=$2`, workflow, receipt.LogicalKey).
@@ -114,7 +114,7 @@ func TestK6SinkVerdictParity(t *testing.T) {
 	t.Run("WrongReceiptKey", func(t *testing.T) {
 		mutant := cfg
 		key := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{2}, ed25519.SeedSize))
-		mutant.Manifest.ReceiptPublicKey = base64.RawURLEncoding.EncodeToString(key.Public().(ed25519.PublicKey))
+		mutant.Manifest.ReceiptPublicKey = base64.StdEncoding.EncodeToString(key.Public().(ed25519.PublicKey))
 		requirePredicateFinding(t, verify(t, mutant), k6v1.Violation, "ReceiptSignature", "RECEIPT_SIGNATURE_INVALID")
 	})
 	t.Run("MissingReceiptKey", func(t *testing.T) {

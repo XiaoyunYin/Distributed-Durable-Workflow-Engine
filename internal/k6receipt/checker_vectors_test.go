@@ -31,7 +31,7 @@ func TestCheckerReceiptVectors(t *testing.T) {
 		Lookup       string
 		NonCanonical string
 	}{
-		Key: encode(key.Public().(ed25519.PublicKey)), WrongKey: encode(wrongKey.Public().(ed25519.PublicKey)),
+		Key: base64.StdEncoding.EncodeToString(key.Public().(ed25519.PublicKey)), WrongKey: base64.StdEncoding.EncodeToString(wrongKey.Public().(ed25519.PublicKey)),
 		Claim: claim, Receipt: body, Apply: Sign(key, claim, "apply", body), Lookup: Sign(key, claim, "lookup", body),
 		// A trailing newline changes the bytes while preserving the JSON value.
 		NonCanonical: encode(ed25519.Sign(key, append(message(claim, "apply", body), '\n'))),
