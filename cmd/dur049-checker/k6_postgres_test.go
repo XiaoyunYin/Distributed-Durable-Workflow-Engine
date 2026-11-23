@@ -293,31 +293,33 @@ func TestK6EngineExport(t *testing.T) {
 	if code != k6v1.Fail || diag != "" {
 		t.Fatalf("clean fixture exit %d: %s %s", code, diag, out)
 	}
-	result := verifyVerdictParity(t, dir, out, code)
 	bundle := inspectK6Output(t, dir, out, code)
-	requireK6Finding(t, result, "required_proof_missing:"+k6v1.RosterPath)
-	if len(result.Labels) != 13 ||
-		!slices.Equal(result.InvariantsCovered, []string{"I1", "I2", "I11"}) || len(databaseFindings(result)) != 1 ||
-		result.Namespace == nil || result.Namespace.NamespaceExecutions != 1 || result.Namespace.SQLNamespaceExecutions != 1 {
-		t.Fatalf("clean fixture: %+v", result)
-	}
-	for i, label := range result.Labels {
-		if label.ID != "I"+strconv.Itoa(i+1) {
-			t.Fatalf("unexpected label order: %+v", label)
+	t.Run("Baseline", func(t *testing.T) {
+		result := verifyVerdictParity(t, dir, out, code)
+		requireK6Finding(t, result, "required_proof_missing:"+k6v1.RosterPath)
+		if len(result.Labels) != 13 ||
+			!slices.Equal(result.InvariantsCovered, []string{"I1", "I2", "I11"}) || len(databaseFindings(result)) != 1 ||
+			result.Namespace == nil || result.Namespace.NamespaceExecutions != 1 || result.Namespace.SQLNamespaceExecutions != 1 {
+			t.Fatalf("clean fixture: %+v", result)
 		}
-		outcome, reason := "NOT COVERED", "outside_registry_ceiling"
-		if label.Registered {
-			reason = "predicate_pending:G3a2"
+		for i, label := range result.Labels {
+			if label.ID != "I"+strconv.Itoa(i+1) {
+				t.Fatalf("unexpected label order: %+v", label)
+			}
+			outcome, reason := "NOT COVERED", "outside_registry_ceiling"
+			if label.Registered {
+				reason = "predicate_pending:G3a2"
+			}
+			if i == 0 || i == 1 || i == 10 {
+				outcome, reason = "covered/pass", "predicate_satisfied"
+			} else if i == 3 {
+				reason = "required_proof_missing:CurrentClaimWinner"
+			}
+			if label.Outcome != outcome || label.Reason != reason {
+				t.Fatalf("unexpected label: %+v", label)
+			}
 		}
-		if i == 0 || i == 1 || i == 10 {
-			outcome, reason = "covered/pass", "predicate_satisfied"
-		} else if i == 3 {
-			reason = "required_proof_missing:CurrentClaimWinner"
-		}
-		if label.Outcome != outcome || label.Reason != reason {
-			t.Fatalf("unimplemented label: %+v", label)
-		}
-	}
+	})
 	historyPath := k6v1.RelationPath(k6History)
 	if got := bytes.Count(bundle[historyPath].Data, []byte{'\n'}); got != 1001 {
 		t.Fatalf("got %d history rows", got)
