@@ -43,7 +43,7 @@ func TestK6SubmissionIdentity(t *testing.T) {
 	minimalExecution(t, engine, warmup)
 	minimalExecution(t, engine, uncertain)
 	bundle := acquireK6Fixture(t, config, plan, arrivals, k6v1.Incomplete)
-	if label := k6v1.Verify(bundle).Labels[0]; label.Outcome != "NOT COVERED" || label.Reason != "predicate_partial:G2b" || label.PopulationCount != 4 {
+	if label := k6v1.Verify(bundle).Labels[0]; label.Outcome != "covered/pass" || label.Reason != "predicate_satisfied" || label.PopulationCount != 4 {
 		t.Fatalf("clean submission label: %+v", label)
 	}
 	const relation = "engine.workflow_executions"

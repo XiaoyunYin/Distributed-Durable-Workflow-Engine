@@ -227,6 +227,7 @@ def test_negative_replay_retains_pass_summary(
         assert (root / "producer-result.json").read_bytes() == producer
         finding = {
             "code": "required_proof_missing:" + source,
+            "kind": "missing",
             "source": source,
             "predicate": "RelationIntegrity",
             "witness": None,

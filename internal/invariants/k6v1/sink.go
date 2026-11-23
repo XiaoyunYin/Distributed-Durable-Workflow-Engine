@@ -5,7 +5,13 @@ type resourceRevision struct {
 	revision int64
 }
 
-func (r *Result) checkSink(rows map[string][]Row, workflows map[string]Row, haveWorkflows bool, witness func(string, Row) Witness, violate rowViolation) {
+type ResourceBaseline struct {
+	ResourceID string `json:"resource_id"`
+	Revision   int64  `json:"revision"`
+	StateHash  string `json:"state_hash"`
+}
+
+func (r *Result) checkSink(m Manifest, rows map[string][]Row, workflows map[string]Row, haveWorkflows bool, witness func(string, Row) Witness, violate rowViolation) {
 	resources, haveResources := rows[SinkResources]
 	journal, haveJournal := rows[SinkJournal]
 	receipts, haveReceipts := rows[SinkReceipts]
@@ -40,12 +46,21 @@ func (r *Result) checkSink(rows map[string][]Row, workflows map[string]Row, have
 	byResource := map[string][]Row{}
 	writes := map[resourceRevision]Row{}
 	claims := map[resourceRevision]Row{}
+	type effectKey struct{ workflow, key any }
+	applied := map[effectKey]bool{}
 	for _, row := range journal {
 		resource := row["resource_id"].(string)
 		byResource[resource] = append(byResource[resource], row)
 		writes[resourceRevision{resource, number(row["revision"])}] = row
 		if haveIntents && !joinedIntent(row) {
 			flag("RevisionChain", "SINK_ORPHAN_JOURNAL", SinkJournal, row)
+		}
+		if intent := byIntent[row["intent_id"]]; intent != nil {
+			id := effectKey{intent["workflow_id"], row["logical_key"]}
+			if applied[id] {
+				flag("OneMutationPerKey", "SINK_KEY_MUTATED_TWICE", SinkJournal, row)
+			}
+			applied[id] = true
 		}
 	}
 	for _, row := range receipts {
@@ -65,6 +80,10 @@ func (r *Result) checkSink(rows map[string][]Row, workflows map[string]Row, have
 	}
 	seen := map[string]bool{}
 	emptyState := Hash([]byte("{}"))
+	baselines := make(map[string]ResourceBaseline, len(m.SinkResetResources))
+	for _, baseline := range m.SinkResetResources {
+		baselines[baseline.ResourceID] = baseline
+	}
 	for _, row := range resources {
 		label.Witnesses = append(label.Witnesses, witness(SinkResources, row))
 		resource := row["resource_id"].(string)
@@ -72,15 +91,30 @@ func (r *Result) checkSink(rows map[string][]Row, workflows map[string]Row, have
 		if haveIntents && (!targets[resource] || (row["intent_id"] != nil && !joinedIntent(row))) {
 			flag("RevisionChain", "SINK_ORPHAN_RESOURCE", SinkResources, row)
 		}
-		if row["initial_state_hash"] != emptyState || number(row["revision"]) < 0 || number(row["latest_fence"]) < 0 {
+		if number(row["revision"]) < 0 || number(row["latest_fence"]) < 0 {
 			flag("RevisionChain", "SINK_RESOURCE_BASELINE", SinkResources, row)
 		}
 		if !haveJournal {
 			continue
 		}
-		var revision int64
-		var state, key, intent any = emptyState, nil, nil
-		for _, write := range byResource[resource] {
+		writes := byResource[resource]
+		baseline, inventoried := baselines[resource]
+		if len(writes) == 0 && !inventoried {
+			ref := witness(SinkResources, row)
+			r.record(MissingProof, "RevisionChain", "required_proof_missing:RevisionChain", ref.Path, &ref)
+			continue
+		}
+		if !inventoried {
+			first := writes[0]
+			if number(first["old_revision"]) != 0 || first["old_state_hash"] != emptyState {
+				flag("RevisionChain", "SINK_INITIAL_ENDPOINT", SinkJournal, first)
+			}
+			// Start from the actual endpoint, even after reporting a bad reset.
+			baseline = ResourceBaseline{resource, number(first["old_revision"]), first["old_state_hash"].(string)}
+		}
+		revision := baseline.Revision
+		var state, key, intent any = baseline.StateHash, nil, nil
+		for _, write := range writes {
 			if number(write["old_revision"]) != revision || number(write["revision"]) != revision+1 || write["old_state_hash"] != state {
 				flag("RevisionChain", "SINK_REVISION_GAP", SinkJournal, write)
 			}

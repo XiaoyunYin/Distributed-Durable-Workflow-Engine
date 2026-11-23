@@ -495,6 +495,7 @@ class Episode(Matrix):
             "database": self.database,
             "engine_instance": str(engine_instance),
             "sink": sink,
+            **({"receipt_public_key": key} if self.effect else {}),
             "plan_sha256": sha(plan_raw),
             "registry_sha256": sha(REGISTRY.read_bytes()),
             "source_tree_sha256": sha(
@@ -519,6 +520,7 @@ class Episode(Matrix):
                 "binding": self.binding,
                 "engine_instance": str(engine_instance),
                 "sink": sink,
+                **({"receipt_public_key": key} if self.effect else {}),
                 "image_set": image_set,
                 "measurement_claim": False,
                 "charged_seconds": 0,
@@ -611,6 +613,7 @@ class Episode(Matrix):
             .decode()
             .strip()
         )
+        self.coordinator_topics = self.topic_ids()
         config = {
             "manifest": self.manifest,
             "output": str(self.frames),
@@ -621,7 +624,7 @@ class Episode(Matrix):
             "registrations": str(self.registrations),
             "brokers": ["kafka:19092"],
             "group": GROUP,
-            "topics": self.topic_ids(),
+            "topics": self.coordinator_topics,
             "members": str(self.members),
             "rendered": str(self.scratch / "rendered.json") if not self.effect else "",
             "platform": str(self.scratch / "platform.json") if not self.effect else "",
@@ -706,7 +709,33 @@ class Episode(Matrix):
         self.evidence.write(
             "worker-coordinator.json", {"provenance": "producer-side", "rows": rows}
         )
-        state = {"generation": generation, "members": members}
+        assignments = [
+            {
+                "id": row["member_id"],
+                "client_id": row["consumer"],
+                "generation": generation,
+                "assignments": sorted(
+                    (
+                        {
+                            "topic_id": self.coordinator_topics[p["topic"]],
+                            "partition": p["partition"],
+                        }
+                        for p in row["partitions"]
+                    ),
+                    key=lambda p: (p["topic_id"], p["partition"]),
+                ),
+            }
+            for row in latest.values()
+            if row["event"] == "assigned"
+        ]
+        state = {
+            "generation": generation,
+            "members": members,
+            "coordinator": {
+                "generation": generation,
+                "members": sorted(assignments, key=lambda row: row["id"]),
+            },
+        }
         atomic(self.members, canonical(state))
         return state
 

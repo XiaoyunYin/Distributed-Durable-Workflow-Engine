@@ -207,7 +207,7 @@ func TestK6MissingRequiredProofFails(t *testing.T) {
 			if r.ExitCode() != Fail || r.Status != "failed" || r.Completeness != "FAIL" {
 				t.Fatalf("missing required proof must fail: exit=%d status=%s completeness=%s", r.ExitCode(), r.Status, r.Completeness)
 			}
-			want := []Finding{{Predicate: "RelationIntegrity", Code: "required_proof_missing:" + path, Source: path}}
+			want := []Finding{{Kind: MissingProof, Predicate: "RelationIntegrity", Code: "required_proof_missing:" + path, Source: path}}
 			if !slices.Equal(r.Findings, want) {
 				t.Fatalf("findings = %+v, want %+v", r.Findings, want)
 			}

@@ -258,13 +258,18 @@ func (r *Result) checkSubmissions(m Manifest, rows map[string][]Row, plan Plan, 
 		}
 	}
 	flag := func(code, source string) {
-		r.Safety = "FAIL"
 		failed = true
-		r.Findings = append(r.Findings, Finding{Predicate: predicate, Code: code, Source: source})
+		r.record(Violation, predicate, code, source, nil)
 	}
 	defer func() {
 		if failed {
 			label.Outcome, label.Reason = "covered/fail", "contract_violation"
+		} else if planOK && arrivalsOK && haveWorkflows && haveDefinitions {
+			if label.PopulationCount > 0 {
+				label.Outcome, label.Reason = "covered/pass", "predicate_satisfied"
+			} else {
+				label.Reason = "no_positive_population"
+			}
 		}
 	}()
 	if !planOK || !haveWorkflows || !haveDefinitions || !arrivalsOK {

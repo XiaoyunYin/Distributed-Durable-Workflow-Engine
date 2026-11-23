@@ -101,6 +101,7 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     race = dict(_job_steps(workflow, "services-race"))
     k6_g1_step = "Verify K6 G1 engine evidence on PostgreSQL"
     k6_g2_step = "Verify K6 G2 cuts and external evidence against two PostgreSQL instances"
+    k6_g3a_upload = "Upload K6 G3a verdict evidence"
     k6_c_step = "Exercise K6 Phase C PostgreSQL startup sampling"
     for job in ("services", "services-race"):
         assert "    timeout-minutes: 25\n" in jobs[job]
@@ -130,6 +131,7 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
         "Run tagged K6 Go tests against PostgreSQL",
         k6_g1_step,
         k6_g2_step,
+        k6_g3a_upload,
         k6_c_step,
         "Run service-backed race and sink contract checks",
         *cleanup,
@@ -164,6 +166,10 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
     assert "go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/..." in k6_g2
     assert "K6Roster|K6Session|K6Ingress|K6Decision|K6Broker|K6Quiet|K6Topology|K6Orphan" in k6_g2
     assert "finally" in k6_g2 and "docker rm -f $sink" in k6_g2
+    assert "go build -p 1 -o $env:DURABLE_K6_VERDICT_CHECKER" in k6_g2
+    assert "DURABLE_K6_VERDICT_ARTIFACT" in k6_g2
+    assert "if: always()" in race[k6_g3a_upload]
+    assert "path: artifacts/k6-g3a-verdicts/" in race[k6_g3a_upload]
     k6_c = race[k6_c_step]
     assert "DUR053_PHASE_C_FIXTURE_REQUIRED: '1'" in k6_c
     assert "deploy/k8s/tools.lock.json" in k6_c and "127.0.0.1::5432" in k6_c

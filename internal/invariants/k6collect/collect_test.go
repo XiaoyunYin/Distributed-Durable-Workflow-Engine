@@ -78,15 +78,15 @@ func (brokerFixture) DescribeGroups(context.Context, *kafka.DescribeGroupsReques
 func TestK6BrokerCollector(t *testing.T) {
 	ctx := context.Background()
 	ids := map[string]string{"topic": "topic-uuid"}
-	row, err := BrokerSnapshot(ctx, brokerFixture{}, "g", ids, func(context.Context) (int64, map[string]int64, error) {
-		return 4, map[string]int64{"m": 4}, nil
+	row, err := BrokerSnapshot(ctx, brokerFixture{}, "g", ids, func(context.Context) (int64, map[string]int64, *k6v1.CoordinatorObservation, error) {
+		return 4, map[string]int64{"m": 4}, nil, nil
 	})
 	if err != nil || row.Generation != 4 || row.Members[0].Generation != 4 || row.Members[0].Assignments[0].TopicID != "topic-uuid" ||
 		row.Partitions[0].Low != 1 || row.Partitions[0].End != 9 || *row.Partitions[0].Committed != 7 {
 		t.Fatalf("broker observations not joined: %+v, %v", row, err)
 	}
-	_, err = BrokerSnapshot(ctx, brokerFixture{}, "g", ids, func(context.Context) (int64, map[string]int64, error) {
-		return 4, map[string]int64{"wrong-member": 4}, nil
+	_, err = BrokerSnapshot(ctx, brokerFixture{}, "g", ids, func(context.Context) (int64, map[string]int64, *k6v1.CoordinatorObservation, error) {
+		return 4, map[string]int64{"wrong-member": 4}, nil, nil
 	})
 	if err == nil {
 		t.Fatal("unrelated generation witness accepted")

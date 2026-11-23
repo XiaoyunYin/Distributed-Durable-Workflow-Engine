@@ -343,6 +343,7 @@ def replay(
             {
                 "predicate": "RelationIntegrity",
                 "code": "required_proof_missing:" + source,
+                "kind": "missing",
                 "source": source,
                 "witness": None,
             }
