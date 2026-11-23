@@ -389,8 +389,9 @@ func seedCapture(t *testing.T, conn *pgx.Conn, item k6v1.Submission, variant str
 		VALUES (md5('o'||$3::int::text)::uuid,$1,$3,'activity.result','5');
 		INSERT INTO engine.k6_capture_queue(subject,operation,row_key,workflow_id,partition_id,after_image)
 		VALUES ('result_request','ACCEPTED',jsonb_build_array($1::text,'pure.echo',0,$4::int),$1,0,
-		        jsonb_build_object('token_hash',$2::text,'worker_request_id','request','receipt_id',NULL,'attempt_state',$5::text))`
+		        jsonb_build_object('token_hash',$2::text,'worker_request_id',$6::text,'receipt_id',NULL,'attempt_state',$5::text))`
 	attempt, resultRevision, resultState, token := 1, 3, "SUCCEEDED", claimSecret
+	request := "request"
 	if variant == "ShutdownFailure" {
 		resultState = "FAILED_FINAL"
 	}
@@ -413,12 +414,13 @@ func seedCapture(t *testing.T, conn *pgx.Conn, item k6v1.Submission, variant str
 			INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,topic,payload)
 			VALUES (md5('o5')::uuid,$1,5,'attempt.dispatch','durable-agent.tasks.v1','{"node_id":"pure.echo","iteration":0,"attempt_number":2}')`, item.Key)
 		attempt, resultRevision, token = 2, 6, "00000000-0000-0000-0000-000000000066"
-		inTx(`UPDATE engine.activity_attempts SET state='CLAIMED',claim_token=$1,worker_id='worker',worker_request_id='request' WHERE attempt_number=2`, token)
+		request = "replacement-request"
+		inTx(`UPDATE engine.activity_attempts SET state='CLAIMED',claim_token=$1,worker_id='worker',worker_request_id=$2 WHERE attempt_number=2`, token, request)
 	}
-	inTx(result, item.Key, k6v1.Hash([]byte(token)), resultRevision, attempt, resultState)
+	inTx(result, item.Key, k6v1.Hash([]byte(token)), resultRevision, attempt, resultState, request)
 	if variant == "ResultReplay" {
 		resultRevision++
-		inTx(`UPDATE engine.activity_attempts SET state='CLAIMED',is_current=true;`+result, item.Key, k6v1.Hash([]byte(token)), resultRevision, attempt, resultState)
+		inTx(`UPDATE engine.activity_attempts SET state='CLAIMED',is_current=true;`+result, item.Key, k6v1.Hash([]byte(token)), resultRevision, attempt, resultState, request)
 	}
 	nodeState, workflowState := "SUCCEEDED", "RUNNABLE"
 	if variant == "ShutdownFailure" {
