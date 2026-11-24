@@ -11,7 +11,7 @@ import tempfile
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextlib import contextmanager, suppress
+from contextlib import contextmanager, nullcontext, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -54,6 +54,10 @@ STARTUP_SECONDS = 2
 STARTUP_GAP_US = 200_000
 STARTUP_INTERVAL = 0.1
 STARTUP_VANISH_LIMIT = 2
+AUTHORIZATION = re.compile(
+    r"LOG:\s+connection authorized: user=([\w-]+) database=\S+ application_name=([\w.-]+)(?:\s|$)"
+)
+PASSWORD_REJECTION = re.compile(r'FATAL:\s+password authentication failed for user "([\w-]+)"$')
 
 # Group counts and backend details from one activity snapshot.
 TRACE = """
@@ -206,23 +210,87 @@ class Trace:
         vanished: list[dict[str, Any]],
         pods: Future[dict[str, dict[str, str]]],
         attributed: list[dict[str, Any]],
+        terminal: list[dict[str, Any]],
     ) -> None:
+        logs = ""
+        with suppress(SmokeFailure, TimeoutError):
+            logs = self.smoke.startup_logs(server, min(b["backend_start"] for b in vanished))
+        unresolved = []
+        for backend in vanished:
+            outcome = self.logged_startup(server, backend, logs)
+            if outcome is None:
+                unresolved.append(backend)
+            else:
+                terminal.append({**backend, **outcome})
+        if not unresolved:
+            return
+        require(
+            len(unresolved) <= STARTUP_VANISH_LIMIT, "DB_STARTUP_VANISH_BUDGET_" + server.upper()
+        )
         clients = {}
         with suppress(Exception):
             clients = pods.result()
         translated = {}
         if clients and any(
-            b["client_addr"] not in clients and (b["client_port"] or 0) > 0 for b in vanished
+            b["client_addr"] not in clients and (b["client_port"] or 0) > 0 for b in unresolved
         ):
             with suppress(SmokeFailure):
                 translated = self.translated_clients(server, {p["node"] for p in clients.values()})
-        for backend in vanished:
+        for backend in unresolved:
             addr, port = backend["client_addr"], backend["client_port"]
             ip = translated.get((addr, port), addr)
             if ip not in clients or not (0 < (port or 0) <= 65535):
                 require(False, "DB_STARTUP_VANISHED_" + server.upper())
             else:
                 attributed.append({**backend, "pod_ip": ip, "pod": clients[ip]})
+
+    def logged_startup(
+        self, server: str, backend: dict[str, Any], logs: str
+    ) -> dict[str, str] | None:
+        start = int(datetime.fromisoformat(backend["backend_start"]).timestamp())
+        addr, port = backend["client_addr"], backend["client_port"]
+        peer = "[local]" if addr is None and port == -1 else f"{addr}({port})"
+        session = f"{start:x}.{backend['pid']:x}"
+        limits = SINK_CLIENTS if server == "sink" else ENGINE_CLIENTS
+        for line in logs.splitlines():
+            header, separator, message = line.partition("|")
+            parts = header.split()
+            if not separator or len(parts) != 5 or parts[0] != "dur053-k6":
+                continue
+            _, log_session, log_peer, code, timestamp = parts
+            if log_session != session or log_peer != peer:
+                continue
+            authorization = AUTHORIZATION.match(message)
+            if authorization:
+                user, app = authorization.groups()
+                require((user, app) in limits, "DB_UNACCOUNTED_CLIENT_" + server.upper())
+                return {
+                    "resolution": "authorized",
+                    "role": user,
+                    "application": app,
+                    "log_session": session,
+                    "log_time": timestamp,
+                }
+            rejection = PASSWORD_REJECTION.fullmatch(message)
+            if (
+                code == "28P01"
+                and rejection
+                and addr == self.smoke.trace_host
+                and re.fullmatch(r"\d+\.\d+", timestamp)
+            ):
+                role = rejection[1]
+                if any(
+                    s == server and r == role and first <= float(timestamp) <= last
+                    for s, r, first, last in self.smoke.trace_denials
+                ):
+                    return {
+                        "resolution": "probe_rejected",
+                        "role": role,
+                        "sqlstate": code,
+                        "log_session": session,
+                        "log_time": timestamp,
+                    }
+        return None
 
     def sample_server(
         self, server: str, role: str, index: int, executor: ThreadPoolExecutor
@@ -233,6 +301,7 @@ class Trace:
         pending: dict[tuple[int, str], tuple[int, float, dict[str, Any]]] = {}
         vanished: list[dict[str, Any]] = []
         attributed: list[dict[str, Any]] = []
+        terminal: list[dict[str, Any]] = []
         observations = []
         pods = None
         followups: list[dict[str, Any]] = []
@@ -297,10 +366,6 @@ class Trace:
                         require(elapsed_us <= STARTUP_SECONDS * 1_000_000, unresolved)
                         if key not in current:
                             vanished.append(backend)
-                            require(
-                                len(vanished) <= STARTUP_VANISH_LIMIT,
-                                "DB_STARTUP_VANISH_BUDGET" + suffix,
-                            )
                         if key not in starting:
                             del pending[key]
                         else:
@@ -311,7 +376,7 @@ class Trace:
                     if not pending:
                         if vanished:
                             assert pods is not None
-                            self.attribute_vanishes(server, vanished, pods, attributed)
+                            self.attribute_vanishes(server, vanished, pods, attributed, terminal)
                         return
                     previous_us = captured_us
                     next_poll = min(
@@ -337,6 +402,7 @@ class Trace:
                         "server": server,
                         "outcome": outcome,
                         "attributed_vanishes": attributed,
+                        "terminal_startups": terminal,
                         "observations": [self.record_backends(item, pods) for item in observations],
                     }
                 )
@@ -510,16 +576,25 @@ class Matrix(Deployment):
     def database_denials(self, reader_password: str, grant: dict) -> dict:
         same_engine_user = self.sink_dsn("durable", self.harness.password, self.effect_ca)
         sink_on_engine = self.dsn(SINK_ROLE, self.sink_password, "verify-full", str(self.ca))
-        reader = self.dsn("k6_sink_grant_reader", reader_password, "verify-full", str(self.ca))
+        reader = (
+            self.dsn("k6_sink_grant_reader", reader_password, "verify-full", str(self.ca))
+            + "&application_name=dur053-k6-sink-grant-reader"
+        )
         before = self.snapshot(self.admin_dsn)
         sink_before = self.export_sink()["relations"]
+
+        def rejected(server: str, role: str, dsn: str) -> str:
+            index = len(self.trace_denials)
+            start = time.time()
+            self.trace_denials.append((server, role, start, start + 3))
+            try:
+                return str(self.go("probe", DSN=dsn, Probe="update", Grant=grant)["code"])
+            finally:
+                self.trace_denials[index] = (server, role, start, min(time.time(), start + 3))
+
         roles = {
-            "engine_writer_on_sink": self.go(
-                "probe", DSN=same_engine_user, Probe="update", Grant=grant
-            )["code"],
-            "sink_writer_on_engine": self.go(
-                "probe", DSN=sink_on_engine, Probe="update", Grant=grant
-            )["code"],
+            "engine_writer_on_sink": rejected("sink", "durable", same_engine_user),
+            "sink_writer_on_engine": rejected("engine", SINK_ROLE, sink_on_engine),
             "sink_grant_reader_engine_update": self.go(
                 "probe", DSN=reader, Probe="update", Grant=grant
             )["code"],
@@ -887,7 +962,8 @@ def run(
             row.update(smoke.create_databases())
         with evidence.step("a-private-episode-tls") as row:
             row.update(smoke.tls())
-        smoke.run_matrix()
+        with smoke.trace_authentication() if phase == "c" else nullcontext():
+            smoke.run_matrix()
     except (Exception, KeyboardInterrupt) as error:
         evidence.report["reason"] = next(
             (row["reason"] for row in evidence.report["outcomes"] if row["status"] == "FAIL"),

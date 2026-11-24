@@ -7,6 +7,7 @@ import sys
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock
@@ -442,6 +443,7 @@ def synthetic_trace(
     smoke.k.return_value = registered_sink()
     smoke.endpoint_addresses = ENDPOINTS
     smoke.command.return_value = b""
+    smoke.startup_logs.return_value = ""
     trace = phase_c.Trace(smoke)
     trace.rows.append({"time": "2026-11-22T00:00:00Z"})
     return trace, query
@@ -592,6 +594,73 @@ def test_phase_c_unregistered_pod_cannot_explain_startup(
         assert str(error) == "DB_STARTUP_VANISHED_SINK"
     else:
         pytest.fail("accepted a vanished startup from an unregistered pod")
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "authorized",
+        "probe_rejected",
+        "wrong_port",
+        "wrong_pid",
+        "outside_probe",
+        "other_app",
+        "wrong_host",
+        "wrong_role",
+        "wrong_server",
+        "wrong_sqlstate",
+    ],
+)
+def test_phase_c_startup_server_outcomes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
+    backend = {**trace_backend(42), "client_addr": "172.18.0.1"}
+    trace, _ = synthetic_trace(
+        tmp_path, monkeypatch, trace_snapshot(0, backend), trace_snapshot(100_000)
+    )
+    smoke: Any = trace.smoke
+    seconds = int(datetime.fromisoformat(backend["backend_start"]).timestamp())
+    smoke.trace_host = "192.0.2.8" if variant == "wrong_host" else backend["client_addr"]
+    role = SINK_ROLE if variant == "wrong_role" else "durable"
+    server = "engine" if variant == "wrong_server" else "sink"
+    smoke.trace_denials = [(server, role, seconds + 0.01, seconds + 0.09)]
+    rejection = variant in {
+        "probe_rejected",
+        "outside_probe",
+        "wrong_host",
+        "wrong_role",
+        "wrong_server",
+        "wrong_sqlstate",
+    }
+    app = "other" if variant == "other_app" else "dur053-k6-sink-exporter"
+    code = "28P01" if rejection and variant != "wrong_sqlstate" else "00000"
+    message = (
+        'FATAL:  password authentication failed for user "durable"'
+        if rejection
+        else (
+            f"LOG:  connection authorized: user={EXPORTER} database=effects application_name={app}"
+        )
+    )
+    port = 45679 if variant == "wrong_port" else 45678
+    when = seconds + (0.1 if variant == "outside_probe" else 0.02)
+    pid = "2b" if variant == "wrong_pid" else "2a"
+    smoke.startup_logs.return_value = (
+        f"dur053-k6 {seconds:x}.{pid} 172.18.0.1({port}) {code} {when:.3f}|{message}"
+    )
+    if variant in {"authorized", "probe_rejected"}:
+        sample_synthetic(trace)
+        [outcome] = trace.startups[0]["terminal_startups"]
+        assert outcome["resolution"] == variant and trace.rows[0]["sink"]["total"] == 1
+        return
+    expected = (
+        "DB_UNACCOUNTED_CLIENT_SINK" if variant == "other_app" else "DB_STARTUP_VANISHED_SINK"
+    )
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == expected
+    else:
+        pytest.fail("accepted invalid startup authorization evidence")
 
 
 def test_phase_c_attributed_startup_vanish_budget(

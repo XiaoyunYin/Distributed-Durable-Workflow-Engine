@@ -21054,6 +21054,142 @@
       ],
       "expected": "incorrect shutdown binding for WrongStart",
       "requires_database": false
+    },
+    {
+      "id": "k6c-r371-auth-peer",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "log_session != session or log_peer != peer",
+      "new": "log_session != session",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_port]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-session",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "log_session != session or log_peer != peer",
+      "new": "log_peer != peer",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_pid]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-role-app",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "require((user, app) in limits, \"DB_UNACCOUNTED_CLIENT_\" + server.upper())",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[other_app]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-probe-window",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "and first <= float(timestamp) <= last",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[outside_probe]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-probe-host",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "and addr == self.smoke.trace_host",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_host]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-probe-role",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "and r == role and first",
+      "new": "and first",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_role]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-probe-sqlstate",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "code == \"28P01\"\n                and rejection",
+      "new": "rejection",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_sqlstate]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-probe-server",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "s == server and r == role and first",
+      "new": "r == role and first",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_server]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
     }
   ]
 }
