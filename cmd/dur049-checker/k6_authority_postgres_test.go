@@ -28,12 +28,26 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 		{"WrongKey", "I10_WRONG_KEY", "logical_key='other-key'", ""},
 		{"WrongScope", "I10_WRONG_SCOPE", "scope_hash=repeat('a',64)", ""},
 		{"WrongRevision", "I10_WRONG_REVISION", "expected_revision='1'", ""},
+		{"WrongOperation", "I10_WRONG_OPERATION", "node_id='other-node'", ""},
 		{"StaleFence", "I10_STALE_FENCE", "fence=2", ""},
 		{name: "ReplacedGrant", code: "I10_GRANT_REPLACED"},
+		{name: "LookupGrantChanged", code: "I10_GRANT_CONTINUITY"},
 		{"CancellationOrder", "I10_CANCELLATION_ORDER", "", "INSERT INTO engine.cancellation_requests(request_id,workflow_id,client_key,observed_revision,status,created_at,applied_at) SELECT gen_random_uuid(),workflow_id,'cancel',2,'APPLIED',created_at,created_at FROM engine.workflow_executions"},
 		{name: "Unacknowledged", code: "I10_DISPATCH_UNACKNOWLEDGED"},
 		{"CommitTimeMissing", "required_proof_missing:sink_commit_transaction", "committed_at=NULL", ""},
+		{"ReadMissing", "required_proof_missing:exact_grant_read", "grant_read_at=NULL", ""},
+		{name: "OpenMissing", code: "required_proof_missing:relay_ingress_open"},
 		{"ReadAfterWrite", "I10_WRITE_BRACKET", "grant_read_at=committed_at+interval '1 second'", ""},
+		{"WrongTransaction", "I10_WRITE_TRANSACTION", "transaction_id='999999999'", ""},
+		{"GrantDecisionBinding", "I10_GRANT_DECISION_BINDING", "", `ALTER TABLE engine.k6_write_capture DISABLE TRIGGER k6_write_immutable;
+			UPDATE engine.k6_write_capture SET before_image=jsonb_set(before_image,'{approver_id}','"other-actor"')
+			WHERE subject='engine.approval_action_intents' AND after_image->>'dispatch_status'='GRANTED'`},
+		{"ClaimRetired", "I10_WRITE_CLAIM", "", `ALTER TABLE engine.k6_write_capture DISABLE TRIGGER k6_write_immutable;
+			UPDATE engine.k6_write_capture SET after_image=jsonb_set(after_image,'{is_current}','false')
+			WHERE subject='engine.activity_attempts' AND before_image->>'state'='DISPATCHABLE'`},
+		{name: "AckWrongOrder", code: "I10_DISPATCH_ACK_ORDER"},
+		{"AckWrongReceipt", "I10_DISPATCH_RECEIPT", "", `UPDATE engine.activity_attempts
+			SET k6_proof=jsonb_set(k6_proof,'{receipt,application_id}',to_jsonb(gen_random_uuid()))`},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -77,12 +91,17 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 				t.Fatal("fixture must read the grant before expiry")
 			}
 			apply := &sources.Ingress.Rows[1]
-			apply.Data.OpenSequence, apply.Data.OpenedUTC = 1, k6v1.UTC(opened)
+			if tc.name != "OpenMissing" {
+				apply.Data.OpenSequence, apply.Data.OpenedUTC = 1, k6v1.UTC(opened)
+			}
 			execK6SQL(t, sink, `UPDATE k6_sink.calls SET grant_hash=$1,node_id='pure.echo',iteration=0,scope_hash=$2,
 				expected_revision='0',arguments=$3,fence=1,grant_read_at=$4,committed_at=CASE WHEN outcome='APPLIED' THEN $5::timestamptz END`,
 				apply.Data.Traffic.GrantHash, scope, arguments, read, written)
 			if tc.sinkSQL != "" {
 				execK6SQL(t, sink, "UPDATE k6_sink.calls SET "+tc.sinkSQL+" WHERE outcome='APPLIED'")
+			}
+			if tc.name == "LookupGrantChanged" {
+				execK6SQL(t, sink, "UPDATE k6_sink.calls SET grant_hash=repeat('a',64) WHERE operation='lookup'")
 			}
 			execK6SQL(t, sink, "COMMIT")
 			if shortGrant {
@@ -95,7 +114,10 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 				sources.Ingress.Rows[2].Position.UTC = apply.Position.UTC
 			}
 			proof := provisionFixtureReceipt(t, engine, sink, &m, workflow.Key, operation, 1)
-			finishAuthorityFixture(t, engine, workflow.Key, proof.Receipt.ApplicationID, tc.name != "Unacknowledged")
+			if tc.name == "AckWrongOrder" {
+				execK6SQL(t, engine, "UPDATE engine.approval_action_intents SET dispatch_status='DISPATCHED'")
+			}
+			finishAuthorityFixture(t, engine, workflow.Key, proof.Receipt.ApplicationID, tc.name != "Unacknowledged" && tc.name != "AckWrongOrder")
 			if tc.name == "ReplacedGrant" {
 				execK6SQL(t, engine, "BEGIN;"+fixtureAuthorityOwner+"UPDATE engine.approval_action_intents SET grant_token=gen_random_uuid(),grant_expires_at=clock_timestamp()+interval '1 minute'; COMMIT")
 			}
@@ -123,9 +145,9 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 				t.Fatalf("faulty effect exited %d", code)
 			}
 			switch tc.name {
-			case "Unacknowledged":
+			case "Unacknowledged", "AckWrongOrder", "AckWrongReceipt":
 				requirePredicateFinding(t, r, k6v1.Violation, "DispatchAcknowledged", tc.code)
-			case "CommitTimeMissing":
+			case "CommitTimeMissing", "ReadMissing", "OpenMissing":
 				requirePredicateFinding(t, r, k6v1.MissingProof, "AuthorizedAtWrite", tc.code)
 			default:
 				requirePredicateFinding(t, r, k6v1.Violation, "AuthorizedAtWrite", tc.code)

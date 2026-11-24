@@ -22,7 +22,7 @@ The checker independently hashes number-preserving Go JSON for the no-LF argumen
 
 ## Award and replay
 
-I10 requires a positive applied-key population, registered effect coverage, an I8 pass, closed engine capture, and complete, consistent authority, claim, fence, receipt and acknowledgement joins. A violation fails safety and missing proof fails completeness. The fixture matrix runs the effect and authority parity suites with ten concurrent fixtures. Shared PostgreSQL role changes stay serialized, and the 16m00s job target still applies.
+I10 requires a positive applied-key population, registered effect coverage, an I8 pass, closed engine capture, and complete, consistent authority, claim, fence, receipt and acknowledgement joins. A violation fails safety and missing proof fails completeness. The fixture matrix runs the effect and authority parity suites with twelve concurrent fixtures. Shared PostgreSQL role changes stay serialized, and the 16m00s job target still applies.
 
 | Episode | Ordered findings | Remaining state | Owner |
 | --- | --- | --- | --- |

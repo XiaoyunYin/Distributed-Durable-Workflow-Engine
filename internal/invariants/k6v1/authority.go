@@ -135,8 +135,9 @@ func (a effectAuthority) checkApplications() {
 	for _, row := range a.rows[SinkCalls] {
 		resource := row["resource_id"]
 		i := a.ingress[row["connection_hash"].(string)]
-		if row["outcome"] == "ALLOCATED" && callRequestMatches(row, i.Traffic, row["workflow_id"].(string)) {
-			latest[resource] = max(latest[resource], number(a.allocs[i.Traffic.grantAttempt()]["fence"]))
+		if allocation := a.allocs[i.Traffic.grantAttempt()]; allocation != nil && row["outcome"] == "ALLOCATED" &&
+			callRequestMatches(row, i.Traffic, row["workflow_id"].(string)) {
+			latest[resource] = max(latest[resource], number(allocation["fence"]))
 		}
 		if row["outcome"] == "APPLIED" {
 			calls[row["application_id"]] = append(calls[row["application_id"]], row)
@@ -333,7 +334,7 @@ func (a effectAuthority) checkWriteClaim(call Row, ingress IngressRow, op author
 	read, written := evidenceTime(call["grant_read_at"]), evidenceTime(call["committed_at"])
 	var creation Row
 	for _, h := range a.history[claim.Workflow] {
-		if h["node_id"] == claim.Node && number(h["iteration"]) == claim.Iteration &&
+		if h["node_id"] == claim.Node && h["iteration"] != nil && h["attempt_number"] != nil && number(h["iteration"]) == claim.Iteration &&
 			(h["reason"] == attemptCreated && number(h["attempt_number"]) == claim.Attempt ||
 				h["reason"] == attemptReplaced && number(h["attempt_number"])+1 == claim.Attempt) {
 			creation = a.byTransition[h["transition_id"]]

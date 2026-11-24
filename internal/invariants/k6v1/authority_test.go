@@ -177,6 +177,7 @@ func fixtureAuthority(t *testing.T) (Manifest, External, Plan, engineOrder) {
 		{"kind": "history", "transition_id": "result", "transaction_id": "result", "event_order": json.Number("8"), "finalized_at": authorityAt(8)},
 	}
 	rows[history] = []Row{
+		{"transition_id": "submitted", "workflow_id": "workflow", "reason": "WORKFLOW_CREATED", "node_id": "node"},
 		{"transition_id": "grant", "workflow_id": "workflow", "reason": "APPROVAL_GRANTED", "node_id": "node", "iteration": zero, "revision": json.Number("2"), "actor_kind": "scheduler", "actor_id": "owner", "scheduler_epoch": one},
 		{"transition_id": "created", "workflow_id": "workflow", "reason": attemptCreated, "node_id": "node", "iteration": zero, "attempt_number": one},
 		{"transition_id": "result", "workflow_id": "workflow", "reason": resultRecorded},
