@@ -23,6 +23,7 @@ from dur053_k6_g_bundle import (  # noqa: E402
     write_fence,
 )
 from dur053_k6_g_registration import AUDIENCE, bind_registration, observe_runtime  # noqa: E402
+from dur053_k6_g_smoke import Episode  # noqa: E402
 from dur053_k6_registry import read_registry  # noqa: E402
 
 
@@ -103,6 +104,47 @@ def test_registration_intake_rejects_another_pod() -> None:
     incorrect["status"]["user"]["extra"]["authentication.kubernetes.io/pod-uid"] = ["other-pod"]
     with pytest.raises(SmokeFailure, match="G_REGISTRATION_INTAKE_BINDING"):
         bind_registration(observation, observation, incorrect, "sa-uid", session)
+
+
+def test_control_snapshot_reads_apiserver_lists(monkeypatch: pytest.MonkeyPatch) -> None:
+    episode = object.__new__(Episode)
+    episode.namespace = "g-arm"
+    pod, _, _ = runtime_inputs()
+    pod["metadata"]["labels"] = {"app": "worker"}
+    pod["status"]["phase"] = "Running"
+    pod["spec"] = {"containers": [{"name": "worker", "env": [{"name": "POD_UID"}]}]}
+    lists = {
+        "/apis/apiextensions.k8s.io/v1/customresourcedefinitions": {
+            "metadata": {"resourceVersion": "17"},
+            "items": [],
+        },
+        "/api/v1/namespaces/g-arm/pods": {
+            "metadata": {"resourceVersion": "19"},
+            "items": [pod],
+        },
+    }
+
+    def kubernetes(stage: str, *args: str) -> bytes:
+        assert args[:2] == ("get", "--raw"), "control snapshot must retain raw list metadata"
+        return canonical(lists[args[2]])
+
+    monkeypatch.setattr(episode, "k", kubernetes)
+    snapshot = episode.control_snapshot()
+    assert snapshot["crd_resource_version"] == "17"
+    assert snapshot["pod_resource_version"] == "19"
+    assert snapshot["pods"] == [
+        {
+            "role": "worker",
+            "runtime": {
+                "pod_uid": "pod-uid",
+                "container_id": "old",
+                "restart": 0,
+                "started_utc": "2026-11-22T08:00:01.000000000Z",
+            },
+            "env_names": ["POD_UID"],
+            "env_from": False,
+        }
+    ]
 
 
 def test_fence_requires_all_admission_stops(tmp_path: Path) -> None:

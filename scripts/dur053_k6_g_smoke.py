@@ -1011,10 +1011,25 @@ class Episode(Matrix):
 
     def control_snapshot(self) -> Json:
         before = utc()
-        crds = cast(Json, json.loads(self.k("G_CONTROL_CRDS", "get", "crd", "-o", "json")))
+        # The kubectl printer can replace a server list and omit its resource version.
+        crds = cast(
+            Json,
+            json.loads(
+                self.k(
+                    "G_CONTROL_CRDS",
+                    "get",
+                    "--raw",
+                    "/apis/apiextensions.k8s.io/v1/customresourcedefinitions",
+                )
+            ),
+        )
         pods = cast(
             Json,
-            json.loads(self.k("G_CONTROL_PODS", "-n", self.namespace, "get", "pods", "-o", "json")),
+            json.loads(
+                self.k(
+                    "G_CONTROL_PODS", "get", "--raw", f"/api/v1/namespaces/{self.namespace}/pods"
+                )
+            ),
         )
         after = utc()
         inventory = []
@@ -1028,10 +1043,12 @@ class Episode(Matrix):
                 *spec.get("initContainers", []),
                 *spec.get("ephemeralContainers", []),
             ]
+            runtime = observe_runtime(pod, containers[0]["name"])["identity"]
+            runtime["started_utc"] = runtime.pop("container_started_utc")
             inventory.append(
                 {
                     "role": pod["metadata"].get("labels", {}).get("app", "unclassified"),
-                    "runtime": observe_runtime(pod, containers[0]["name"])["identity"],
+                    "runtime": runtime,
                     "env_names": sorted(
                         {entry["name"] for c in containers for entry in c.get("env", [])}
                     ),

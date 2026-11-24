@@ -17090,11 +17090,13 @@
       "id": "k6g2a-partial-reason",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "return \"predicate_pending\"",
-      "new": "return \"predicate_pending:G3a2\"",
+      "old": "case 3:\n\t\treturn \"required_proof_missing:DeployedStaleChallenge\"",
+      "new": "case 3:\n\t\treturn \"predicate_pending:G3a2\"",
       "command": [
         "go",
         "test",
+        "-p",
+        "1",
         "./internal/invariants/k6v1",
         "-run",
         "^TestK6SubmissionPartialReasons$",
@@ -19873,7 +19875,7 @@
         "^TestK6CaptureAwards$/^CompleteAndBound$",
         "-count=1"
       ],
-      "expected": "complete capture was not awarded",
+      "expected": "I3 owner population or challenge gate",
       "requires_database": false
     },
     {
@@ -23069,7 +23071,7 @@
         "^TestK6CaptureAwards$/^CompleteAndBound$",
         "-count=1"
       ],
-      "expected": "owner writes alone awarded I3",
+      "expected": "I3 owner population or challenge gate",
       "requires_database": false
     },
     {
@@ -23090,6 +23092,46 @@
         "test_negative_replay_retains_pass_summary and False-False-1-FAIL-False-PASS-None"
       ],
       "expected": "assert replays == expected",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-raw-control-list",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_smoke.py",
+      "old": "\"G_CONTROL_PODS\", \"get\", \"--raw\", f\"/api/v1/namespaces/{self.namespace}/pods\"",
+      "new": "\"G_CONTROL_PODS\", \"get\", \"pods\", \"-n\", self.namespace, \"-o\", \"json\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_k6_g_deployed.py",
+        "-k",
+        "test_control_snapshot_reads_apiserver_lists"
+      ],
+      "expected": "control snapshot must retain raw list metadata",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-control-runtime-wire",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_smoke.py",
+      "old": "runtime[\"started_utc\"] = runtime.pop(\"container_started_utc\")",
+      "new": "runtime[\"container_started_utc\"] = runtime[\"container_started_utc\"]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_k6_g_deployed.py",
+        "-k",
+        "test_control_snapshot_reads_apiserver_lists"
+      ],
+      "expected": "assert snapshot[\"pods\"] ==",
       "requires_database": false
     }
   ]

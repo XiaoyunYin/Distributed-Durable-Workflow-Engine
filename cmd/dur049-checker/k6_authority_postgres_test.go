@@ -144,7 +144,11 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 			}
 			sealFixtureStream(t, sources.Decisions, time.Now())
 			changeEffectFixture(t, engine, sink, &sources, tc.name, recovered)
-			seedAuthorityBroker(t, m, &sources)
+			var dispatched *k6v1.BrokerCopy
+			if control {
+				dispatched = seedConfirmationDispatch(t, engine)
+			}
+			seedAuthorityBroker(t, m, &sources, dispatched)
 			cfg := k6live.Config{Schema: k6live.ConfigVersion, Manifest: m, DatabaseURL: dsn, SinkDatabaseURL: sinkDSN,
 				ExternalDir: t.TempDir(), EpisodeDir: filepath.Join(t.TempDir(), "public")}
 			if control {
@@ -248,7 +252,40 @@ func writeConfirmationFixture(t *testing.T, cfg k6live.Config, arrivals *k6v1.Ar
 const fixtureAuthorityOwner = `SET LOCAL durable.k4_owner = '` + captureOwnerID + `';
 	SET LOCAL durable.k6_owner_partition = '0'; SET LOCAL durable.k6_owner_epoch = '1';`
 
-func seedAuthorityBroker(t *testing.T, m k6v1.Manifest, sources *k6v1.External) {
+func seedConfirmationDispatch(t *testing.T, db *pgx.Conn) *k6v1.BrokerCopy {
+	t.Helper()
+	var event, payload string
+	if err := db.QueryRow(t.Context(), `SELECT event_id::text,payload::text FROM engine.outbox
+		WHERE event_type='attempt.dispatch'`).Scan(&event, &payload); err != nil {
+		t.Fatal(err)
+	}
+	execK6SQL(t, db, `UPDATE engine.outbox SET publish_state='CLAIMED',claim_owner='`+captureOwnerID+`',
+		claim_expires_at=now(),relay_attempts=1 WHERE event_id=$1`, event)
+	execK6SQL(t, db, `INSERT INTO engine.k6_capture_queue(subject,operation,row_key,workflow_id,partition_id,after_image)
+		SELECT 'publication_start','start',jsonb_build_array(event_id,relay_attempts),workflow_id,0,
+			jsonb_build_object('topic',topic,'relay_owner',claim_owner,'key',event_id,
+			'payload_hash',encode(sha256(convert_to(payload::text,'UTF8')),'hex'))
+		FROM engine.outbox WHERE event_id=$1`, event)
+	execK6SQL(t, db, `BEGIN;
+		INSERT INTO engine.outbox_publications(publication_id,event_id,relay_owner,relay_attempt,broker_acknowledged)
+		VALUES (gen_random_uuid(),$1,'`+captureOwnerID+`',1,true);
+		UPDATE engine.outbox SET publish_state='PUBLISHED',claim_owner=NULL,claim_expires_at=NULL,published_at=now()
+		WHERE event_id=$1;
+		COMMIT;
+		BEGIN;
+		INSERT INTO engine.event_inbox(consumer_id,event_id,disposition,topic,kafka_partition,kafka_offset)
+		VALUES ('runtime-workers-v1',$1,'ACCEPTED','durable-agent.tasks.v1',0,0);
+		INSERT INTO engine.consumer_offsets(consumer_id,topic,kafka_partition,next_offset)
+		VALUES ('runtime-workers-v1','durable-agent.tasks.v1',0,0);
+		UPDATE engine.consumer_offsets SET next_offset=1 WHERE consumer_id='runtime-workers-v1';
+		INSERT INTO engine.k6_capture_queue(subject,operation,row_key,after_image)
+		VALUES ('physical_delivery','ACCEPTED','["runtime-workers-v1","durable-agent.tasks.v1",0,0]',
+			jsonb_build_object('event_id',$1::uuid));
+		COMMIT;`, pgx.QueryExecModeSimpleProtocol, event)
+	return &k6v1.BrokerCopy{EventID: event, Key: []byte(event), PayloadSHA256: k6v1.Hash([]byte(payload))}
+}
+
+func seedAuthorityBroker(t *testing.T, m k6v1.Manifest, sources *k6v1.External, dispatched *k6v1.BrokerCopy) {
 	t.Helper()
 	at := time.Now()
 	stream := k6collect.NewStream[k6v1.BrokerCopyRow](m, "broker-copies", "fixture-kafka", at)
@@ -256,8 +293,11 @@ func seedAuthorityBroker(t *testing.T, m k6v1.Manifest, sources *k6v1.External) 
 		{Topic: "durable-agent.events.v1", TopicID: "fixture-events"},
 		{Topic: "durable-agent.tasks.v1", TopicID: "fixture-tasks"},
 	}
-	// The outbox was captured with publication admission closed. Both physical
-	// ranges are empty at this cut.
+	if dispatched != nil {
+		parts[1].End = 1
+		key := k6v1.PartitionIdentity{TopicID: parts[1].TopicID}
+		k6collect.Append(&stream, at, k6v1.BrokerCopyRow{PartitionIdentity: key, Copy: dispatched})
+	}
 	for _, p := range parts {
 		k6collect.Append(&stream, at, k6v1.BrokerCopyRow{PartitionIdentity: k6v1.PartitionIdentity{TopicID: p.TopicID}, Range: &p, Complete: true})
 	}
