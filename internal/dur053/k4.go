@@ -74,17 +74,19 @@ func RunK4(ctx context.Context, c Config, database, output, startText, stopFile 
 	}
 
 	send := HTTPWithToken(&http.Client{Timeout: c.Timeout, Transport: k4Transport{base: http.DefaultTransport}, CheckRedirect: func(_ *http.Request, _ []*http.Request) error { return http.ErrUseLastResponse }}, c.URL, c.BearerTokenFile)
-	stop := func() (time.Time, error) {
-		raw, e := os.ReadFile(stopFile)
-		if os.IsNotExist(e) {
-			return time.Time{}, nil
-		}
-		if e != nil {
-			return time.Time{}, e
-		}
-		return time.Parse(time.RFC3339Nano, strings.TrimSpace(string(raw)))
-	}
+	stop := func() (time.Time, error) { return readK4Stop(stopFile) }
 	return runK4Plan(ctx, c, plan, start, j, realClock{}, send, stop)
+}
+
+func readK4Stop(path string) (time.Time, error) {
+	raw, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return time.Time{}, nil
+	}
+	if err != nil {
+		return time.Time{}, err
+	}
+	return time.Parse(time.RFC3339Nano, strings.TrimSpace(string(raw)))
 }
 
 func runK4Plan(ctx context.Context, c Config, plan invariants.Arrivals, start time.Time, j *K4Journal, clock Clock, send Sender, stop func() (time.Time, error)) error {

@@ -13363,6 +13363,24 @@
       "requires_database": false
     },
     {
+      "id": "k6g3a3-r374-direct-stop-write",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k4_driver.py",
+      "old": "            os.replace(temporary, p)",
+      "new": "            p.write_text(value)",
+      "command": [
+        "uv",
+        "run",
+        "python",
+        "-m",
+        "pytest",
+        "tests/test_k4_driver.py::test_stop_file_is_synced_then_atomically_published",
+        "-q"
+      ],
+      "expected": "stop file must be atomically published after fsync",
+      "requires_database": false
+    },
+    {
       "id": "k4r327-short-dispatch-lead",
       "kind": "behavioral",
       "file": "scripts/dur053_k4_interventions.py",

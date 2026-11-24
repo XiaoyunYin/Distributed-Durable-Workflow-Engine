@@ -86,6 +86,52 @@ func TestK4JournalRejectsSyncFailure(t *testing.T) {
 	}
 }
 
+func TestK4ReadStopPublication(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "k4-stop")
+	check := func(want time.Time) {
+		t.Helper()
+		got, err := readK4Stop(path)
+		if err != nil || !got.Equal(want) {
+			t.Fatalf("readK4Stop = %s, %v, want %s", got, err, want)
+		}
+	}
+	var previous time.Time
+	for _, next := range []time.Time{time.Unix(100, 123), time.Unix(200, 456)} {
+		temporary, err := os.CreateTemp(dir, ".k4-stop-")
+		if err != nil {
+			t.Fatal(err)
+		}
+		check(previous)
+		value := next.UTC().Format(time.RFC3339Nano)
+		for _, part := range []string{value[:4], value[4:]} {
+			if _, err = temporary.WriteString(part); err != nil {
+				t.Fatal(err)
+			}
+			check(previous)
+		}
+		if err = temporary.Sync(); err != nil {
+			t.Fatal(err)
+		}
+		if err = temporary.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if err = os.Rename(temporary.Name(), path); err != nil {
+			t.Fatal(err)
+		}
+		check(next)
+		previous = next
+	}
+	for _, malformed := range []string{"", "2026-11"} {
+		if err := os.WriteFile(path, []byte(malformed), 0600); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := readK4Stop(path); err == nil {
+			t.Fatalf("accepted malformed stop value %q", malformed)
+		}
+	}
+}
+
 func TestK4PlanRecordsStopCondition(t *testing.T) {
 	c := testConfig()
 	c.Count = 2

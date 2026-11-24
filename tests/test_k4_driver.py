@@ -7,6 +7,7 @@ import copy
 import hashlib
 import io
 import json
+import os
 import sys
 import tarfile
 import threading
@@ -23,6 +24,45 @@ import dur053_k4_driver as driver  # noqa: E402
 import dur053_k4_interventions as interventions  # noqa: E402
 import dur053_lock_check as locks  # noqa: E402
 from dur053_k4_schema import CONFIRMATION, SESSION  # noqa: E402
+
+
+def test_stop_file_is_synced_then_atomically_published(tmp_path, monkeypatch):
+    path = tmp_path / "k4-stop"
+    first = "2026-11-24T00:00:00Z"
+    second = "2026-11-24T00:00:01Z"
+    events = []
+    sync = os.fsync
+    replace = os.replace
+
+    def observe_sync(fd):
+        events.append(("sync", path.read_text() if path.exists() else None))
+        sync(fd)
+
+    def observe_replace(source, destination):
+        assert source.parent == destination.parent == tmp_path
+        events.append(("replace", source.read_text()))
+        replace(source, destination)
+
+    def run(namespace, role, script):
+        assert (namespace, role) == ("ns", "observer")
+        exec(script.replace("/evidence/k4-stop", path.as_posix()), {})
+
+    monkeypatch.setattr(os, "fsync", observe_sync)
+    monkeypatch.setattr(os, "replace", observe_replace)
+    base = SimpleNamespace(python=run)
+    driver.write_stop_file(base, "ns", first, create_only=True)
+    driver.write_stop_file(base, "ns", first, create_only=True)
+    with pytest.raises(AssertionError, match="k4-stop-file-changed"):
+        driver.write_stop_file(base, "ns", second, create_only=True)
+    driver.write_stop_file(base, "ns", second)
+    assert events == [
+        ("sync", None),
+        ("replace", first),
+        ("sync", first),
+        ("replace", second),
+    ], "stop file must be atomically published after fsync"
+    assert path.read_text() == second
+    assert list(tmp_path.iterdir()) == [path]
 
 
 def pod(uid="old", role="worker", restart=0, cid="containerd://old", ready=True):
