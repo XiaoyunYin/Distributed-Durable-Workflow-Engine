@@ -157,13 +157,13 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	d := delivery{operation, bodyHash, hash(binding), request, auth, cooperating}
-	out, err := h.store.execute(ctx, d, func(ctx context.Context) (time.Time, error) {
+	out, err := h.store.execute(ctx, d, func(ctx context.Context) (authorization, error) {
 		started := time.Now()
 		readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 		defer cancel()
-		deadline, err := recheck(readCtx, h.reader, request, auth, h.cfg.ClockUncertainty)
+		checked, err := recheck(readCtx, h.reader, request, auth, h.cfg.ClockUncertainty)
 		observe("recheck", started)
-		return deadline, err
+		return checked, err
 	})
 	switch {
 	case errors.Is(err, errDenied):

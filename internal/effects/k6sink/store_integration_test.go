@@ -443,8 +443,8 @@ func TestK6SinkSQLWriteCutoff(t *testing.T) {
 		t.Fatal(err)
 	}
 	del := delivery{"apply", hash(asJSON(t, req)), "test-connection", req, auth, false}
-	_, err = (&Store{db.service}).execute(ctx, del, func(context.Context) (time.Time, error) {
-		return auth.deadline, nil
+	_, err = (&Store{db.service}).execute(ctx, del, func(context.Context) (authorization, error) {
+		return auth, nil
 	})
 	if !errors.Is(err, errDenied) || !reflect.DeepEqual(before, db.snapshot(t)) {
 		t.Fatal("sink DB accepted a write at or after its cutoff")

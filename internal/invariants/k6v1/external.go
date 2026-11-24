@@ -349,6 +349,8 @@ func (w WorkerRow) valid() bool {
 
 type IngressRow struct {
 	Traffic        Traffic     `json:"traffic"`
+	OpenSequence   uint64      `json:"open_sequence,omitempty"`
+	OpenedUTC      string      `json:"opened_utc,omitempty"`
 	Ordinal        int64       `json:"ordinal"`
 	Copy           int64       `json:"copy"`
 	PeerHash       string      `json:"peer_hash"`
@@ -363,6 +365,7 @@ type IngressRow struct {
 
 func (r IngressRow) Valid() bool {
 	if !r.Traffic.valid() || r.Ordinal <= 0 || r.Copy <= 0 || !hashes(r.PeerHash, r.Traffic.WorkerBinding) ||
+		(r.OpenSequence != 0 || r.OpenedUTC != "") && (r.OpenSequence == 0 || !validTime(r.OpenedUTC)) ||
 		(r.ConnectionHash == "" && r.Outcome != "denied" && r.Outcome != "timeout" && r.Outcome != "close") ||
 		(r.ConnectionHash != "" && !hashes(r.ConnectionHash)) ||
 		(r.ApplicationID != "" && !uuid.MatchString(r.ApplicationID)) ||

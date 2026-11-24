@@ -502,7 +502,7 @@ jobs:
             if ($LASTEXITCODE -ne 0) { throw 'Could not build the K6 verdict checker.' }
             go test -p 1 -count=1 -v ./cmd/dur049-checker ./internal/invariants/... -run '^TestK6(Cut|Source|Sink|EngineExport|Submission|Census|Column|Roster|Session|Ingress|Decision|Broker|Quiet|Topology|Orphan)'
             if ($LASTEXITCODE -ne 0) { throw 'K6 PostgreSQL fixtures failed.' }
-            go test -p 1 -count=1 -v -parallel 6 ./cmd/dur049-checker -run '^TestK6EffectLiveParity$'
+            go test -p 1 -count=1 -v -parallel 10 ./cmd/dur049-checker -run '^TestK6(Effect|Authority)LiveParity$'
             if ($LASTEXITCODE -ne 0) { throw 'K6 effect parity fixtures failed.' }
           } finally {
             docker rm -f $sink

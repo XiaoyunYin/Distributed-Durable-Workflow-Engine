@@ -26,7 +26,7 @@ type result struct {
 	validUntil time.Time
 }
 
-type grantRecheck func(context.Context) (time.Time, error)
+type grantRecheck func(context.Context) (authorization, error)
 
 type backend interface {
 	execute(context.Context, delivery, grantRecheck) (result, error)
@@ -144,13 +144,14 @@ func perform(ctx context.Context, tx pgx.Tx, d delivery, check grantRecheck) (re
 			return result{}, err
 		}
 	}
-	latest, err := check(ctx)
+	checked, err := check(ctx)
 	if err != nil {
 		return result{}, err
 	}
-	if latest.Before(d.auth.deadline) {
-		d.auth.deadline = latest
+	if checked.deadline.Before(d.auth.deadline) {
+		d.auth.deadline = checked.deadline
 	}
+	d.auth.grant.DBTime = checked.grant.DBTime
 	ctx, cancel := context.WithDeadline(ctx, d.auth.deadline)
 	defer cancel()
 	if !matches {
@@ -319,11 +320,22 @@ func recordCall(ctx context.Context, tx pgx.Tx, d delivery, outcome string, rece
 		digest := hash(body)
 		applicationID, responseHash = &receipt.ApplicationID, &digest
 	}
-	tag, err := tx.Exec(ctx, `INSERT INTO k6_sink.calls (operation, workflow_id, logical_key, attempt,
-		intent_id, resource_id, message_id, request_id, body_hash, connection_hash, outcome, application_id, response_hash)
-		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13 WHERE clock_timestamp() < $14`,
+	// The resource lock orders call IDs. This final insert dates the applied
+	// transaction independently of any subsequent response delivery.
+	var arguments json.RawMessage
+	if d.cooperating {
+		arguments = r.Arguments
+	}
+	tag, err := tx.Exec(ctx, `WITH sampled AS MATERIALIZED (SELECT clock_timestamp() AS at)
+		INSERT INTO k6_sink.calls (operation, workflow_id, logical_key, attempt,
+		intent_id, resource_id, message_id, request_id, body_hash, connection_hash, outcome, application_id, response_hash,
+		committed_at, grant_read_at, grant_hash, node_id, iteration, scope_hash, expected_revision, arguments, fence)
+		SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13,
+		CASE WHEN $11 = 'APPLIED' THEN at END, $15, $16, $17, $18, $19, $20, $21, $22
+		FROM sampled WHERE at < $14`,
 		d.operation, r.WorkflowID, r.LogicalKey, r.Attempt, r.IntentID, r.ResourceID, r.MessageID, r.RequestID,
-		d.bodyHash, d.connectionHash, outcome, applicationID, responseHash, d.auth.sinkCutoff)
+		d.bodyHash, d.connectionHash, outcome, applicationID, responseHash, d.auth.sinkCutoff,
+		d.auth.grant.DBTime, d.auth.grantHash, r.NodeID, r.Iteration, r.ScopeHash, r.ExpectedRevision, arguments, r.Fence)
 	if err != nil {
 		return result{}, err
 	}

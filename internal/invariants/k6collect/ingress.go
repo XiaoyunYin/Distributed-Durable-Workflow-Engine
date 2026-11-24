@@ -117,6 +117,7 @@ func IngressSnapshot(in io.Reader, stream *k6v1.Stream[k6v1.IngressRow], relay, 
 func projectCopy(c relayCopy, ordinal, copy int64) k6v1.IngressRow {
 	o := c.open
 	row := k6v1.IngressRow{Ordinal: ordinal, Copy: copy, PeerHash: k6v1.Hash([]byte(o.RelayPeer)),
+		OpenSequence: o.Sequence, OpenedUTC: k6v1.UTC(o.Time),
 		ConnectionHash: o.ConnectionHash, Acknowledged: true, Outcome: "close", Nondelivery: c.dropped,
 		Traffic: k6v1.Traffic{Method: o.Method, Operation: o.Operation, MessageHash: o.InvocationHash, RequestIDHash: o.RequestIDHash,
 			KeyHash: o.KeyHash, Intent: o.IntentID, ResourceHash: o.ResourceHash, GrantHash: o.GrantHash, Attempt: o.Attempt,

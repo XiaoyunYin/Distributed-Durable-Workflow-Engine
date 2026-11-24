@@ -141,9 +141,9 @@ func SinkRelations() []Relation {
 		relation(SinkAllocations, "intent_id grant_hash attempt",
 			"intent_id:uuid grant_hash:digest attempt:int resource_id:text fence:int"),
 		relation(SinkCalls, "call_id",
-			"call_id:int operation:text workflow_id:text logical_key:text intent_id:uuid resource_id:text message_id:text attempt:int request_id:text body_hash:digest connection_hash:digest outcome:text application_id:uuid? response_hash:digest? observed_at:time"),
+			"call_id:int operation:text workflow_id:text logical_key:text intent_id:uuid resource_id:text message_id:text attempt:int request_id:text body_hash:digest connection_hash:digest outcome:text application_id:uuid? response_hash:digest? observed_at:time transaction_id:text? committed_at:time? grant_read_at:time? grant_hash:digest? node_id:text? iteration:int? scope_hash:digest? expected_revision:text? arguments:arguments? fence:int?"),
 		relation(SinkJournal, "resource_id revision",
-			"resource_id:text old_revision:int revision:int old_state_hash:digest state_hash:digest logical_key:text intent_id:uuid"),
+			"resource_id:text old_revision:int revision:int old_state_hash:digest state_hash:digest logical_key:text intent_id:uuid transaction_id:text?"),
 		relation(SinkLookupMisses, "intent_id grant_hash attempt", "intent_id:uuid grant_hash:digest attempt:int"),
 		relation(SinkReceipts, "workflow_id logical_key",
 			"workflow_id:text logical_key:text resource_id:text canonical_hash:digest scope_hash:digest intent_id:uuid expected_revision:int applied_revision:int application_id:uuid"),
@@ -156,10 +156,18 @@ func SinkRelations() []Relation {
 var errShape = errors.New("K6_PUBLIC_ROW_SCHEMA")
 
 func ValidateRow(spec Relation, row Row) error {
-	if len(row) != len(spec.Columns) {
+	columns := spec.Columns
+	if spec.Name == SinkCalls || spec.Name == SinkJournal {
+		// Earlier bundles ended before the transaction projection. Preserve
+		// their row digests and let the authority predicate report missing proof.
+		if first := slices.IndexFunc(columns, func(c Column) bool { return c.Name == "transaction_id" }); first == len(row) {
+			columns = columns[:first]
+		}
+	}
+	if len(row) != len(columns) {
 		return errShape
 	}
-	for _, col := range spec.Columns {
+	for _, col := range columns {
 		value, exists := row[col.Name]
 		if !exists || (value == nil && !col.Nullable) || (value != nil && !validValue(col.Kind, value)) {
 			return fmt.Errorf("%w: %s", errShape, col.Name)

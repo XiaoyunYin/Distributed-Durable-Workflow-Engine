@@ -130,6 +130,10 @@ def test_registered_smoke_selects_lowest_cost_per_arm() -> None:
     plan, requests, allocator = make_plan(binding, effect["seed"], True)
     assert [row["name"] for row in plan["windows"]] == ["warmup", "measured"]
     assert set(requests) == {row["submission_key"] for row in allocator["operations"]}
+    for window, operation in zip(plan["windows"], allocator["operations"], strict=True):
+        entry = window["submissions"][0]
+        assert entry["target"] == operation["resource"]
+        assert entry["effect"] == {key: operation[key] for key in entry["effect"]}
 
 
 def test_checker_smoke_build_tag_is_confined_to_g_smoke() -> None:
@@ -225,14 +229,14 @@ def test_negative_replay_retains_pass_summary(
     if cell == "hook-3":
         completed.add("I7")
     if cell == "medium-12":
-        completed.add("I8")
-    registered = completed | ({"I10"} if cell == "medium-12" else set())
+        completed.update(("I8", "I10"))
+    registered = completed
     covered = [] if idle else [identity for identity in ids if identity in completed]
 
     def reason(identity: str) -> str:
         if identity in completed:
             return "no_positive_population" if idle else "predicate_satisfied"
-        return "predicate_pending:I10" if identity in registered else "outside_registry_ceiling"
+        return "outside_registry_ceiling"
 
     baseline = json.dumps(
         {
