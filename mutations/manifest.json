@@ -15093,8 +15093,8 @@
       "id": "k6c-r366-accept-vanished-startup",
       "kind": "behavioral",
       "file": "scripts/dur053_k6_c_smoke.py",
-      "old": "require(key in current, \"DB_STARTUP_VANISHED\" + suffix)",
-      "new": "if key not in current:\n                            del pending[key]\n                            continue",
+      "old": "vanished.append(backend)",
+      "new": "pass",
       "command": [
         "python",
         "-m",
@@ -15103,6 +15103,40 @@
         "tests/test_k6_phase_c.py::test_phase_c_starting_trace_fails_if_backend_vanishes"
       ],
       "expected": "accepted disappearance of a starting backend",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-unregistered-startup-pod",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "if pod[\"metadata\"].get(\"labels\", {}).get(\"app\") == SINK\n",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_unregistered_pod_cannot_explain_startup"
+      ],
+      "expected": "accepted a vanished startup from an unregistered pod",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-unbounded-vanished-startup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "STARTUP_VANISH_LIMIT = 2",
+      "new": "STARTUP_VANISH_LIMIT = 100",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_attributed_startup_vanish_budget"
+      ],
+      "expected": "accepted more than two vanished startups in one window",
       "requires_database": false,
       "ci_shard": "with-k6-b"
     },

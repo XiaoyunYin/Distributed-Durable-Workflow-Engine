@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -52,13 +53,13 @@ SINK_CLIENTS = {
 STARTUP_SECONDS = 2
 STARTUP_GAP_US = 200_000
 STARTUP_INTERVAL = 0.1
+STARTUP_VANISH_LIMIT = 2
 
-# Group counts and backend details from one activity snapshot. The address
-# stays in memory for pod lookup and is omitted from the retained evidence.
+# Group counts and backend details from one activity snapshot.
 TRACE = """
 WITH activity AS MATERIALIZED (
     SELECT pid, backend_start, state, usename, application_name,
-           wait_event_type, wait_event, host(client_addr) AS client_addr
+           wait_event_type, wait_event, host(client_addr) AS client_addr, client_port
     FROM pg_stat_activity WHERE backend_type = 'client backend'
 )
 SELECT json_build_object(
@@ -129,20 +130,63 @@ class Trace:
         self.failure: str | None = None
         self.thread = threading.Thread(target=self.sample, daemon=True)
 
-    def pod_names(self) -> dict[str, str]:
+    def client_pods(self) -> dict[str, dict[str, str]]:
         pods = json.loads(
             self.smoke.k(
                 "DB_TRACE_PODS", "-n", self.smoke.namespace, "get", "pods", "-o", "json", timeout=5
             )
         )
         return {
-            address["ip"]: pod["metadata"]["name"]
+            address["ip"]: {
+                "name": pod["metadata"]["name"],
+                "uid": pod["metadata"]["uid"],
+                "node": pod["spec"]["nodeName"],
+            }
             for pod in pods["items"]
+            if pod["metadata"].get("labels", {}).get("app") == SINK
             for address in pod["status"].get("podIPs", [])
         }
 
+    def translated_clients(self, server: str, nodes: set[str]) -> dict[tuple[str, int], str]:
+        destination = self.smoke.endpoint_addresses[server + "_db"]
+        translated: dict[tuple[str, int], str] = {}
+        ambiguous = set()
+        for node in sorted(nodes):
+            raw = self.smoke.command(
+                "DB_TRACE_CONNTRACK",
+                "docker",
+                "exec",
+                node,
+                "conntrack",
+                "-L",
+                "-p",
+                "tcp",
+                "--orig-dst",
+                destination,
+                "--dport",
+                "5432",
+                timeout=3,
+            )
+            for line in raw.decode().splitlines():
+                tuples = re.findall(r"src=(\S+) dst=(\S+) sport=(\d+) dport=(\d+)", line)
+                if len(tuples) != 2:
+                    continue
+                (source, target, _, target_port), (reply, peer, reply_port, port) = tuples
+                if (target, target_port, reply, reply_port) != (
+                    destination,
+                    "5432",
+                    destination,
+                    "5432",
+                ):
+                    continue
+                key = (peer, int(port))
+                if key in translated and translated[key] != source:
+                    ambiguous.add(key)
+                translated[key] = source
+        return {key: ip for key, ip in translated.items() if key not in ambiguous}
+
     def record_backends(
-        self, observation: dict[str, Any], pods: Future[dict[str, str]]
+        self, observation: dict[str, Any], pods: Future[dict[str, dict[str, str]]]
     ) -> dict[str, Any]:
         record = dict(observation)
         try:
@@ -151,13 +195,34 @@ class Trace:
             names = {}
             record["pod_lookup_error"] = self.smoke.evidence.safe_reason(error)
         record["backends"] = [
-            {
-                **{key: value for key, value in backend.items() if key != "client_addr"},
-                "pod_name": names.get(backend["client_addr"]),
-            }
+            {**backend, "pod_name": names.get(backend["client_addr"], {}).get("name")}
             for backend in observation["backends"]
         ]
         return record
+
+    def attribute_vanishes(
+        self,
+        server: str,
+        vanished: list[dict[str, Any]],
+        pods: Future[dict[str, dict[str, str]]],
+        attributed: list[dict[str, Any]],
+    ) -> None:
+        clients = {}
+        with suppress(Exception):
+            clients = pods.result()
+        translated = {}
+        if clients and any(
+            b["client_addr"] not in clients and (b["client_port"] or 0) > 0 for b in vanished
+        ):
+            with suppress(SmokeFailure):
+                translated = self.translated_clients(server, {p["node"] for p in clients.values()})
+        for backend in vanished:
+            addr, port = backend["client_addr"], backend["client_port"]
+            ip = translated.get((addr, port), addr)
+            if ip not in clients or not (0 < (port or 0) <= 65535):
+                require(False, "DB_STARTUP_VANISHED_" + server.upper())
+            else:
+                attributed.append({**backend, "pod_ip": ip, "pod": clients[ip]})
 
     def sample_server(
         self, server: str, role: str, index: int, executor: ThreadPoolExecutor
@@ -165,7 +230,9 @@ class Trace:
         row = self.rows[index]
         suffix = "_" + server.upper()
         unresolved = "DB_STARTUP_UNRESOLVED" + suffix
-        pending: dict[tuple[int, str], tuple[int, float]] = {}
+        pending: dict[tuple[int, str], tuple[int, float, dict[str, Any]]] = {}
+        vanished: list[dict[str, Any]] = []
+        attributed: list[dict[str, Any]] = []
         observations = []
         pods = None
         followups: list[dict[str, Any]] = []
@@ -179,7 +246,7 @@ class Trace:
                     # The host deadline bounds transport waits. PostgreSQL timestamps
                     # decide whether samples and resolution meet the gate.
                     remaining = (
-                        min((end for _, end in pending.values()), default=started + 8) - started
+                        min((end for _, end, _ in pending.values()), default=started + 8) - started
                     )
                     require(remaining > 0, unresolved)
                     try:
@@ -205,7 +272,7 @@ class Trace:
                     }
                     if pending or starting:
                         if pods is None:
-                            pods = executor.submit(self.pod_names)
+                            pods = executor.submit(self.client_pods)
                         observations.append(
                             {
                                 "captured_at_us": captured_us,
@@ -225,22 +292,30 @@ class Trace:
                             0 < captured_us - previous_us <= STARTUP_GAP_US,
                             "DB_STARTUP_SAMPLE_GAP" + suffix,
                         )
-                    for key, (first_us, _) in tuple(pending.items()):
-                        require(key in current, "DB_STARTUP_VANISHED" + suffix)
+                    for key, (first_us, _, backend) in tuple(pending.items()):
                         elapsed_us = captured_us - first_us
                         require(elapsed_us <= STARTUP_SECONDS * 1_000_000, unresolved)
+                        if key not in current:
+                            vanished.append(backend)
+                            require(
+                                len(vanished) <= STARTUP_VANISH_LIMIT,
+                                "DB_STARTUP_VANISH_BUDGET" + suffix,
+                            )
                         if key not in starting:
                             del pending[key]
                         else:
                             require(elapsed_us < STARTUP_SECONDS * 1_000_000, unresolved)
                     for key in starting - pending.keys():
                         require(key[1] is not None, "DB_STARTUP_IDENTITY" + suffix)
-                        pending[key] = (captured_us, received + STARTUP_SECONDS)
+                        pending[key] = (captured_us, received + STARTUP_SECONDS, current[key])
                     if not pending:
+                        if vanished:
+                            assert pods is not None
+                            self.attribute_vanishes(server, vanished, pods, attributed)
                         return
                     previous_us = captured_us
                     next_poll = min(
-                        started + STARTUP_INTERVAL, min(end for _, end in pending.values())
+                        started + STARTUP_INTERVAL, min(end for _, end, _ in pending.values())
                     )
                     time.sleep(max(0, next_poll - time.monotonic()))
         except Exception as error:
@@ -250,7 +325,7 @@ class Trace:
                     "sample": index,
                     "server": server,
                     "reason": outcome,
-                    **self.record_backends(latest, executor.submit(self.pod_names)),
+                    **self.record_backends(latest, executor.submit(self.client_pods)),
                 }
             )
             raise
@@ -261,6 +336,7 @@ class Trace:
                         "sample": index,
                         "server": server,
                         "outcome": outcome,
+                        "attributed_vanishes": attributed,
                         "observations": [self.record_backends(item, pods) for item in observations],
                     }
                 )
