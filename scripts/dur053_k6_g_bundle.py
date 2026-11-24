@@ -317,7 +317,7 @@ def replay(
     (directory / "checker-live.json").write_bytes(live)
     code, result = offline(good, "offline")
     (directory / "checker-offline.json").write_bytes(result)
-    require(code == (3 if idle else 1), f"G_OFFLINE_EXIT_{code}")
+    require(code == 3, f"G_OFFLINE_EXIT_{code}")
     require(live == result, "G_CANONICAL_PARITY")
     positive = json.loads(result)
     require(
@@ -326,69 +326,21 @@ def replay(
     )
     manifest = json.loads((good / "manifest.json").read_bytes())
     cell = manifest["cell"]
-    dispatch_gap = "required_proof_missing:broker_event_copies"
-    offset_gap = "required_proof_missing:broker_reset_hold_restart_offsets"
-    expected: list[tuple[str, str, str, list[Any], bytes]] = []
-    if not idle:
-        outbox = "engine/engine.outbox.jsonl"
-        row = (good / outbox).read_bytes().splitlines(keepends=True)[0]
-        expected.append(
-            ("DispatchDisposition", dispatch_gap, outbox, [json.loads(row)["event_id"]], row)
-        )
-    if not idle and cell == "hook-3":
-        for raw in (good / BROKER_PATH).read_bytes().splitlines(keepends=True):
-            record = json.loads(raw)
-            data = record.get("data", {})
-            if data.get("group") != "runtime-workers-v1":
-                continue
-            partition = next(
-                (p for p in data["partitions"] if p["topic"] == "durable-agent.tasks.v1"), None
-            )
-            if partition is None:
-                continue
-            offset = partition["committed"]
-            key = [
-                record["position"]["sequence"],
-                partition["topic_id"],
-                partition["partition"],
-                partition["low"] if offset is None else offset,
-            ]
-            expected.extend(
-                ("LowerOffsetsDisposed", gap, BROKER_PATH, key, raw)
-                for gap in (offset_gap, dispatch_gap)
-            )
-            break
-        require(
-            any(predicate == "LowerOffsetsDisposed" for predicate, *_ in expected),
-            "G_OFFSET_BRACKET_WITNESS",
-        )
-    findings = positive["findings"]
     require(
-        [(f["predicate"], f["code"]) for f in findings]
-        == [(predicate, code) for predicate, code, *_ in expected],
+        positive["findings"] == []
+        and positive["completeness"] == positive["safety"] == "incomplete",
         "G_LIVE_CHECKER_FINDINGS",
     )
-    require(
-        positive["completeness"] == ("incomplete" if idle else "FAIL")
-        and positive["safety"] == ("incomplete" if idle else "NOT COVERED"),
-        "G_LIVE_CHECKER_FINDINGS",
-    )
-    for finding, (_, _, path, key, raw) in zip(findings, expected, strict=True):
-        require(
-            finding["kind"] == "missing"
-            and finding["source"] == path
-            and finding["witness"] == {"path": path, "row_key": key, "sha256": sha(raw)},
-            "G_LIVE_CHECKER_DISPATCH_WITNESS",
-        )
     ids = [f"I{i}" for i in range(1, 14)]
     labels = positive["labels"]
     registered = {"I1", "I2", "I4", "I6", "I11"}
-    completed = {"I1", "I2", "I4", "I11"}
+    completed = {"I1", "I2", "I4", "I6", "I11"}
     if cell in {"hook-5", "medium-2", "medium-3"}:
         registered.add("I3")
         completed.add("I3")
     if cell == "hook-3":
         registered.add("I7")
+        completed.add("I7")
     covered = [] if idle else [identity for identity in ids if identity in completed]
     if source == "witness/effect-ingress.jsonl":
         registered.update(("I8", "I10"))
@@ -404,9 +356,6 @@ def replay(
             require(label["registered"], "G_CHECKER_LABELS")
             outcome = "NOT COVERED" if idle else "covered/pass"
             reason = "no_positive_population" if idle else "predicate_satisfied"
-        elif label["id"] in {"I6", "I7"} and label["registered"]:
-            outcome = "NOT COVERED"
-            reason = "no_positive_population" if idle else dispatch_gap
         else:
             outcome = "NOT COVERED"
             reason = "predicate_pending:G3a3" if label["registered"] else "outside_registry_ceiling"
@@ -436,8 +385,7 @@ def replay(
                 "source": source,
                 "witness": None,
             }
-        ]
-        + findings,
+        ],
         "G_EXACT_MISSING_SOURCE_REASON",
     )
     require(verdict["completeness"] == "FAIL", "G_MISSING_SOURCE_COMPLETENESS")

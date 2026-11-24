@@ -41,6 +41,49 @@ func BrokerSnapshot(ctx context.Context, client BrokerClient, group string, topi
 	if err != nil || len(before.Groups) != 1 || before.Groups[0].Error != nil {
 		return k6v1.BrokerRow{}, failure
 	}
+	positions, err := BrokerPositions(ctx, client, group, topicIDs)
+	if err != nil {
+		return k6v1.BrokerRow{}, failure
+	}
+	after, err := client.DescribeGroups(ctx, groupReq)
+	if err != nil || len(after.Groups) != 1 || after.Groups[0].Error != nil ||
+		!reflect.DeepEqual(groupView(before.Groups[0], topicIDs), groupView(after.Groups[0], topicIDs)) {
+		return k6v1.BrokerRow{}, errors.New("K6_BROKER_GROUP_RACED")
+	}
+	generation, memberGeneration, observation, err := generations(ctx)
+	if err != nil || generation < 0 || generation != firstGeneration || !reflect.DeepEqual(firstMembers, memberGeneration) ||
+		!reflect.DeepEqual(firstObservation, observation) {
+		return k6v1.BrokerRow{}, errors.New("K6_BROKER_GENERATION_RACED")
+	}
+	out := groupView(after.Groups[0], topicIDs)
+	out.Cluster, out.Generation, out.BeforeUTC, out.AfterUTC = positions.Cluster, generation, k6v1.UTC(start), k6v1.UTC(time.Now())
+	out.Coordinator = observation
+	for i := range out.Members {
+		key := out.Members[i].ID
+		g, found := memberGeneration[key]
+		if !found || g != generation {
+			return k6v1.BrokerRow{}, errors.New("K6_BROKER_GENERATION_UNPROVED")
+		}
+		out.Members[i].Generation = g
+	}
+	if len(memberGeneration) != len(out.Members) {
+		return k6v1.BrokerRow{}, errors.New("K6_BROKER_MEMBERS_UNJOINED")
+	}
+	// A classic-group rebalance may keep every member ID and still change
+	// assignments. A cached callback from the earlier generation cannot
+	// corroborate this bracket, even when both descriptions agree.
+	if out.State == "stable" && observation != nil && !out.CoordinatorMatches() {
+		return k6v1.BrokerRow{}, errors.New("K6_BROKER_ASSIGNMENTS_UNCORROBORATED")
+	}
+	out.Partitions = positions.Partitions
+	return out, nil
+}
+
+// BrokerPositions reads the exact group even when a topic replacement has
+// temporarily invalidated its membership callbacks.
+func BrokerPositions(ctx context.Context, client BrokerClient, group string, topicIDs map[string]string) (k6v1.BrokerRow, error) {
+	failure := errors.New("K6_BROKER_POSITIONS")
+	start := time.Now()
 	names := make([]string, 0, len(topicIDs))
 	for name, id := range topicIDs {
 		if name == "" || id == "" {
@@ -75,36 +118,9 @@ func BrokerSnapshot(ctx context.Context, client BrokerClient, group string, topi
 	if err != nil || commits.Error != nil {
 		return k6v1.BrokerRow{}, failure
 	}
-	after, err := client.DescribeGroups(ctx, groupReq)
-	if err != nil || len(after.Groups) != 1 || after.Groups[0].Error != nil ||
-		!reflect.DeepEqual(groupView(before.Groups[0], topicIDs), groupView(after.Groups[0], topicIDs)) {
-		return k6v1.BrokerRow{}, errors.New("K6_BROKER_GROUP_RACED")
-	}
-	generation, memberGeneration, observation, err := generations(ctx)
-	if err != nil || generation < 0 || generation != firstGeneration || !reflect.DeepEqual(firstMembers, memberGeneration) ||
-		!reflect.DeepEqual(firstObservation, observation) {
-		return k6v1.BrokerRow{}, errors.New("K6_BROKER_GENERATION_RACED")
-	}
-	out := groupView(after.Groups[0], topicIDs)
-	out.Cluster, out.Generation, out.BeforeUTC, out.AfterUTC = meta.ClusterID, generation, k6v1.UTC(start), k6v1.UTC(time.Now())
-	out.Coordinator = observation
-	for i := range out.Members {
-		key := out.Members[i].ID
-		g, found := memberGeneration[key]
-		if !found || g != generation {
-			return k6v1.BrokerRow{}, errors.New("K6_BROKER_GENERATION_UNPROVED")
-		}
-		out.Members[i].Generation = g
-	}
-	if len(memberGeneration) != len(out.Members) {
-		return k6v1.BrokerRow{}, errors.New("K6_BROKER_MEMBERS_UNJOINED")
-	}
-	// A classic-group rebalance may keep every member ID and still change
-	// assignments. A cached callback from the earlier generation cannot
-	// corroborate this bracket, even when both descriptions agree.
-	if out.State == "stable" && observation != nil && !out.CoordinatorMatches() {
-		return k6v1.BrokerRow{}, errors.New("K6_BROKER_ASSIGNMENTS_UNCORROBORATED")
-	}
+
+	out := k6v1.BrokerRow{Cluster: meta.ClusterID, Group: group, State: "membership_unavailable",
+		BeforeUTC: k6v1.UTC(start), Members: []k6v1.BrokerMember{}}
 	out.Partitions = []k6v1.BrokerPartition{}
 	for _, name := range names {
 		slices.Sort(topics[name])
@@ -122,6 +138,7 @@ func BrokerSnapshot(ctx context.Context, client BrokerClient, group string, topi
 			out.Partitions = append(out.Partitions, part)
 		}
 	}
+	out.AfterUTC = k6v1.UTC(time.Now())
 	return out, nil
 }
 
@@ -153,8 +170,11 @@ func RecordBroker(s *k6v1.Stream[k6v1.BrokerRow], row k6v1.BrokerRow, terminal b
 	if err != nil {
 		return errors.New("K6_BROKER_CLOCK")
 	}
-	state := func(v k6v1.BrokerRow) k6v1.BrokerRow { v.BeforeUTC, v.AfterUTC = "", ""; return v }
-	if len(s.Rows) == 0 || !reflect.DeepEqual(state(s.Rows[len(s.Rows)-1].Data), state(row)) {
+	state := func(v k6v1.BrokerRow) k6v1.BrokerRow {
+		v.BeforeUTC, v.AfterUTC, v.OffsetPhase = "", "", nil
+		return v
+	}
+	if len(s.Rows) == 0 || row.OffsetPhase != nil || !reflect.DeepEqual(state(s.Rows[len(s.Rows)-1].Data), state(row)) {
 		Append(s, at, row)
 	}
 	mode := "checkpoint"

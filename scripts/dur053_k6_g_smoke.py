@@ -584,6 +584,27 @@ class Episode(Matrix):
         )
 
     def topic_ids(self) -> dict[str, str]:
+        names = [TASKS, EVENTS]
+        if self.effect:
+            # The barrier's independent write races observation without
+            # injecting an unattempted record into an engine-owned topic.
+            self.command(
+                "G_KAFKA_PROBE_TOPIC",
+                "docker",
+                "exec",
+                KAFKA,
+                "/opt/kafka/bin/kafka-topics.sh",
+                "--bootstrap-server",
+                "localhost:19092",
+                "--create",
+                "--topic",
+                "dur053-g-barrier-probe",
+                "--partitions",
+                "1",
+                "--replication-factor",
+                "1",
+            )
+            names.append("dur053-g-barrier-probe")
         raw = self.command(
             "G_KAFKA_TOPIC_IDS",
             "docker",
@@ -595,7 +616,7 @@ class Episode(Matrix):
             "--describe",
         )
         ids = dict(re.findall(rb"Topic:\s+(\S+)\s+TopicId:\s+(\S+)", raw))
-        topics = {name: ids[name.encode()].decode() for name in (TASKS, EVENTS)}
+        topics = {name: ids[name.encode()].decode() for name in names}
         self.evidence.write("broker-topics.json", topics)
         return topics
 
@@ -1049,7 +1070,7 @@ class Episode(Matrix):
                 code, live = result.result()
         else:
             code, live = invoke(("sudo", *launch), "live", 140)
-        require(code == (3 if self.idle else 1), f"G_LIVE_EXIT_{code}")
+        require(code == 3, f"G_LIVE_EXIT_{code}")
 
         def offline(directory: Path, name: str, executable: str = checker) -> tuple[int, bytes]:
             return invoke(
@@ -1068,7 +1089,7 @@ class Episode(Matrix):
         bundle = output / "bundle"
         if not self.effect:
             code, default = offline(bundle, "default-offline", str(self.shared / "checker-default"))
-            require(code == (3 if self.idle else 1), f"G_DEFAULT_OFFLINE_EXIT_{code}")
+            require(code == 3, f"G_DEFAULT_OFFLINE_EXIT_{code}")
             require(default == live, "G_DEFAULT_BUILD_PARITY")
         quiet = quiet_summary(bundle)
         self.evidence.write("quiet-generations.json", quiet)
@@ -1104,7 +1125,7 @@ class Episode(Matrix):
                 NODE,
                 str(self.shared / "injector"),
                 "kafka:19092",
-                EVENTS,
+                "dur053-g-barrier-probe",
                 marker,
                 timeout=4,
             )

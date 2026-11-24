@@ -15093,8 +15093,8 @@
       "id": "k6c-r366-accept-vanished-startup",
       "kind": "behavioral",
       "file": "scripts/dur053_k6_c_smoke.py",
-      "old": "require(key in current, \"DB_STARTUP_VANISHED\" + suffix)",
-      "new": "if key not in current:\n                            del pending[key]\n                            continue",
+      "old": "vanished.append(backend)",
+      "new": "pass",
       "command": [
         "python",
         "-m",
@@ -15103,6 +15103,40 @@
         "tests/test_k6_phase_c.py::test_phase_c_starting_trace_fails_if_backend_vanishes"
       ],
       "expected": "accepted disappearance of a starting backend",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-unregistered-startup-pod",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "if pod[\"metadata\"].get(\"labels\", {}).get(\"app\") == SINK\n",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_unregistered_pod_cannot_explain_startup"
+      ],
+      "expected": "accepted a vanished startup from an unregistered pod",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-unbounded-vanished-startup",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "STARTUP_VANISH_LIMIT = 2",
+      "new": "STARTUP_VANISH_LIMIT = 100",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_attributed_startup_vanish_budget"
+      ],
+      "expected": "accepted more than two vanished startups in one window",
       "requires_database": false,
       "ci_shard": "with-k6-b"
     },
@@ -15277,11 +15311,11 @@
       "ci_shard": "with-k6-b"
     },
     {
-      "id": "k6c-r366-retain-raw-address",
+      "id": "k6c-r371-omit-socket-evidence",
       "kind": "behavioral",
       "file": "scripts/dur053_k6_c_smoke.py",
-      "old": "if key != \"client_addr\"",
-      "new": "if True",
+      "old": "{**backend, \"pod_name\": names.get(backend[\"client_addr\"], {}).get(\"name\")}",
+      "new": "{**{key: value for key, value in backend.items() if key not in {\"client_addr\", \"client_port\"}}, \"pod_name\": names.get(backend[\"client_addr\"], {}).get(\"name\")}",
       "command": [
         "python",
         "-m",
@@ -15289,7 +15323,7 @@
         "-q",
         "tests/test_k6_phase_c.py::test_phase_c_trace_fails_unknown_pair_immediately"
       ],
-      "expected": "rejection record lost backend details or retained the client address",
+      "expected": "rejection record lost backend or socket details",
       "requires_database": false,
       "ci_shard": "with-k6-b"
     },
@@ -15306,7 +15340,7 @@
         "-q",
         "tests/test_k6_phase_c.py::test_phase_c_trace_fails_unknown_pair_immediately"
       ],
-      "expected": "rejection record lost backend details or retained the client address",
+      "expected": "rejection record lost backend or socket details",
       "requires_database": false,
       "ci_shard": "with-k6-b"
     },
@@ -17038,8 +17072,8 @@
       "id": "k6g2a-partial-reason",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "return \"G3c\"",
-      "new": "return \"G3a2\"",
+      "old": "return \"predicate_pending\"",
+      "new": "return \"predicate_pending:G3a2\"",
       "command": [
         "go",
         "test",
@@ -19104,8 +19138,8 @@
       "id": "k6g3a2b-pending-effects",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "return \"G3a3\"",
-      "new": "return \"G3a2\"",
+      "old": "return \"predicate_pending:G3a3\"",
+      "new": "return \"predicate_pending:G3a2\"",
       "command": [
         "go",
         "test",
@@ -19676,8 +19710,8 @@
       "id": "k6g3c-index-path",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/bundle.go",
-      "old": "allowed := append(RequiredSources(true, true, true), TopologyPath)",
-      "new": "allowed := append(RequiredSources(true, true), TopologyPath)",
+      "old": "allowed := append(RequiredSources(true, true, true), TopologyPath, BrokerCopiesPath)",
+      "new": "allowed := append(RequiredSources(true, true), TopologyPath, BrokerCopiesPath)",
       "command": [
         "go",
         "test",
@@ -20217,7 +20251,7 @@
         "1",
         "./internal/invariants/k6v1",
         "-run",
-        "^TestK6CapturedOutsideCeiling$/^ShutdownFailure$",
+        "^TestK6CapturedOutsideCeiling$/^ShutdownNoObservation$",
         "-count=1"
       ],
       "expected": "expected missing ShutdownDisposition required_proof_missing:shutdown_signal_or_exit",
@@ -20582,6 +20616,750 @@
         "-count=1"
       ],
       "expected": "unknown history reason was not typed missing proof",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-missing-copy",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "row[\"broker_acknowledged\"] == true && found[row[\"event_id\"]] == 0",
+      "new": "false && row[\"broker_acknowledged\"] == true && found[row[\"event_id\"]] == 0",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^MissingCopy$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding BROKER_COPY_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-extra-copy",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "found[id] > attempts[id] || copies.topics[topic][b.Partition] != b.PartitionIdentity",
+      "new": "copies.topics[topic][b.Partition] != b.PartitionIdentity",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^CopiesExceedRelayStarts$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding BROKER_COPY_WITHOUT_ATTEMPT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-key",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "case string(copy.Key) != base[\"key\"]:",
+      "new": "case false:",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^KeyMismatch$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding BROKER_COPY_KEY_MISMATCH",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-payload",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "case base[\"payload_hash\"] != copy.PayloadSHA256:",
+      "new": "case false:",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^PayloadMismatch$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding BROKER_COPY_PAYLOAD_MISMATCH",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-delivery-copy",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "if !ok || copy.EventID != id {",
+      "new": "if false && (!ok || copy.EventID != id) {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^DeliveryWithoutCopy$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding BROKER_DELIVERY_WITHOUT_COPY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-range",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "valid && b.Complete && p.Low == 0",
+      "new": "valid && p.Low == 0",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^CollectionGap$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding required_proof_missing:broker_event_copy_range",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-award-i6",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "if e.captureReady && out.complete && label.PopulationCount > 0 && len(out.byPosition) > 0 {",
+      "new": "if false && e.captureReady && out.complete && label.PopulationCount > 0 && len(out.byPosition) > 0 {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "missing I6 broker award",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-lower-copy",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "!ok || order == 0 || order > hold.Data.OffsetPhase.CaptureThrough",
+      "new": "!ok || order > hold.Data.OffsetPhase.CaptureThrough",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^LowerMissing$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding OFFSET_BRACKET_UNDISPOSED_COPY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-lower-before-hold",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "|| order > hold.Data.OffsetPhase.CaptureThrough",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^LowerLate$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding OFFSET_BRACKET_UNDISPOSED_COPY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-engine-baseline",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "!ok || number(captureImage(row, \"after_image\")[\"next_offset\"]) != effectiveOffset(p)",
+      "new": "!ok && number(captureImage(row, \"after_image\")[\"next_offset\"]) != effectiveOffset(p)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^BaselineMismatch$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding OFFSET_ENGINE_BASELINE_MISMATCH",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-topic-change",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if baseline[p.Partition].TopicID != p.TopicID || (phase.Data.TopicIDsAfter[p.Topic] != \"\" && phase.Data.TopicIDsAfter[p.Topic] != p.TopicID) {",
+      "new": "if false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^TopicIDChange$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding OFFSET_BRACKET_TOPIC_CHANGED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-phase-count",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if len(phases) != 3 {\n\t\treturn false\n\t}",
+      "new": "if len(phases) != 3 {\n\t\treturn true\n\t}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^MissingPhase$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding required_proof_missing:broker_reset_hold_restart_offsets",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-phase-prefix",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "|| !boundaries[p.CaptureThrough]",
+      "new": "|| (false && !boundaries[p.CaptureThrough])",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^WrongBoundary$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding required_proof_missing:broker_reset_hold_restart_offsets",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-award-i7",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if label.PopulationCount > 0 {",
+      "new": "if false && label.PopulationCount > 0 {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "missing I7 bracket award",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-shutdown-invocation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "b.Invocation != abort.Data.Invocation || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ChangedInvocation$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ChangedInvocation",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-shutdown-claim",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "|| b.Attempt != *abort.Data.Attempt",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ChangedClaim$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ChangedClaim",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-shutdown-runtime",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": " && *exit.Data.Runtime == session.Runtime()",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ChangedRuntime$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ChangedRuntime",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-shutdown-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external.go",
+      "old": "abortUTC <= observedUTC && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ObservedExitBeforeAbort$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ObservedExitBeforeAbort",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-index",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "TopologyPath, BrokerCopiesPath)",
+      "new": "TopologyPath)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopyIndex$",
+        "-count=1"
+      ],
+      "expected": "indexed broker source did not reach its decoder",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-declaration",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "!isSessionPath(f.Path) && f.Path != BrokerCopiesPath",
+      "new": "!isSessionPath(f.Path)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopyIndex$",
+        "-count=1"
+      ],
+      "expected": "indexed broker source did not reach its decoder",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-partial-safety",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "e.requireWitness(dispatchPredicate, \"broker_event_copy_range\", gap)",
+      "new": "e.requireWitness(dispatchPredicate, \"broker_event_copy_range\", gap)\n\t\treturn out",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^GapAndKeyMismatch$",
+        "-count=1"
+      ],
+      "expected": "collection gap concealed a witnessed key mismatch",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-interrupted-topic-change",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if len(phases) == 0 || phases[0].Data.OffsetPhase.Name != \"reset\" {",
+      "new": "if len(phases) != 3 || phases[0].Data.OffsetPhase.Name != \"reset\" {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^InterruptedTopicChange$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding OFFSET_BRACKET_TOPIC_CHANGED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-shutdown-start",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "b.StartSequence != startSequence || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^WrongStart$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for WrongStart",
+      "requires_database": false
+    },
+    {
+      "id": "k6c-r371-auth-peer",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "log_session != session or log_peer != peer",
+      "new": "log_session != session",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_port]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-session",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "log_session != session or log_peer != peer",
+      "new": "log_peer != peer",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_pid]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-role-app",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "require((user, app) in limits, \"DB_UNACCOUNTED_CLIENT_\" + server.upper())",
+      "new": "pass",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[other_app]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-probe-window",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "and first <= float(timestamp) <= last",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[outside_probe]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-probe-host",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "and addr == self.smoke.trace_host",
+      "new": "",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_host]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-probe-role",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "and r == role and first",
+      "new": "and first",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_role]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-probe-sqlstate",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "code == \"28P01\"\n                and rejection",
+      "new": "rejection",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_sqlstate]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6c-r371-auth-probe-server",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_c_smoke.py",
+      "old": "s == server and r == role and first",
+      "new": "r == role and first",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "tests/test_k6_phase_c.py::test_phase_c_startup_server_outcomes[wrong_server]"
+      ],
+      "expected": "accepted invalid startup authorization evidence",
+      "requires_database": false,
+      "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6g3d-r372-writer-retries",
+      "kind": "behavioral",
+      "file": "internal/transport/transport.go",
+      "old": "MaxAttempts:  1,",
+      "new": "MaxAttempts:  10,",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/transport",
+        "-run",
+        "^TestKafkaWriterOneProducePerRelayAttempt$",
+        "-count=1"
+      ],
+      "expected": "produce attempts per relay attempt, want 1",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-signal-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "signal.Position.UTC < abort.Position.UTC && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^LateSignal$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for LateSignal",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-exit-finish",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external.go",
+      "old": " && abortUTC[:19] <= e.FinishedUTC[:19]",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ExitBeforeAbort$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ExitBeforeAbort",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-later-start",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": " &&\n\t\t\t!LaterRuntimeStart(sources.Sessions, session, start.Position)",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^LaterStart$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for LaterStart",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-later-session",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "!sameSession && row.Position.UTC >= start.UTC",
+      "new": "false",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^LaterRuntimeSessionStart$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for LaterRuntimeSessionStart",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-signal-runtime",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": " && *signal.Data.Runtime == session.Runtime()",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ChangedSignalRuntime$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ChangedSignalRuntime",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-abort-row",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "b.AbortSequence != abortSequence ||",
+      "new": "false ||",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^WrongAbort$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for WrongAbort",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-roster-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "b.SignalSequence >= b.ExitSequence || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^SignalAfterExitInRoster$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for SignalAfterExitInRoster",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-collector-abort",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6collect/pods.go",
+      "old": "row.Data.Kind == \"abort\" && start.Data.Attempt",
+      "new": "row.Data.Kind == \"finish\" && start.Data.Attempt",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6collect",
+        "-run",
+        "^TestK6CollectedShutdown$/^Matched$",
+        "-count=1"
+      ],
+      "expected": "incorrect collected shutdown for Matched",
       "requires_database": false
     }
   ]

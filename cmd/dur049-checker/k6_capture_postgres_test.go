@@ -7,9 +7,11 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
+	"durable-agent-execution-engine/internal/invariants/k6collect"
 	"durable-agent-execution-engine/internal/invariants/k6live"
 	"durable-agent-execution-engine/internal/invariants/k6v1"
 	"github.com/jackc/pgx/v5"
@@ -208,13 +210,166 @@ func captureFixtureConfig(t *testing.T, dsn string, m k6v1.Manifest) k6live.Conf
 	return k6live.Config{Schema: k6live.ConfigVersion, DatabaseURL: dsn, Manifest: m, EpisodeDir: filepath.Join(t.TempDir(), "public")}
 }
 
-func captureFixtureVerdict(t *testing.T, cfg k6live.Config, plan k6v1.Plan, arrivals k6v1.Arrivals) k6v1.Result {
+func captureFixtureVerdict(t *testing.T, cfg k6live.Config, plan k6v1.Plan, arrivals k6v1.Arrivals, want ...int) k6v1.Result {
 	t.Helper()
 	path, stdout, diag, code := invokeLiveK6(t, writeK6Sources(t, cfg, plan, arrivals))
-	if code != k6v1.Fail || diag != "" {
+	expected := k6v1.Fail
+	if len(want) != 0 {
+		expected = want[0]
+	}
+	if code != expected || diag != "" {
 		t.Fatalf("capture fixture exit %d, diagnostics %s: %s", code, diag, stdout)
 	}
 	return verifyVerdictParity(t, path, stdout, code)
+}
+
+func capturedBrokerCopies(t *testing.T, m k6v1.Manifest, db *pgx.Conn, sources *k6v1.External, variant string) {
+	t.Helper()
+	var id, payload string
+	if err := db.QueryRow(t.Context(), `SELECT event_id::text,payload::text FROM engine.outbox WHERE event_id=md5('o2')::uuid`).Scan(&id, &payload); err != nil {
+		t.Fatal(err)
+	}
+	at := time.Now()
+	stream := k6collect.NewStream[k6v1.BrokerCopyRow](m, "broker-copies", "kafka-fixture", at)
+	positions := sources.Broker
+	events := k6v1.BrokerPartition{Topic: "durable-agent.events.v1", TopicID: "events-id"}
+	for i := range positions.Rows {
+		p := positions.Rows[i].Data.Partitions[0]
+		positions.Rows[i].Data.Partitions = []k6v1.BrokerPartition{events, p}
+	}
+	last := &positions.Rows[len(positions.Rows)-1].Data.Partitions[1]
+	var unattempted k6v1.BrokerCopy
+	if variant == "CopyWithNoRelayStart" {
+		var body string
+		if err := db.QueryRow(t.Context(), `SELECT event_id::text,payload::text FROM engine.outbox WHERE event_id=md5('o1')::uuid`).Scan(&unattempted.EventID, &body); err != nil {
+			t.Fatal(err)
+		}
+		unattempted.Key, unattempted.PayloadSHA256 = []byte(unattempted.EventID), k6v1.Hash([]byte(body))
+		events.End = 1
+		positions.Rows[len(positions.Rows)-1].Data.Partitions[0] = events
+	}
+	tasks := *last
+	end := int64(2)
+	switch variant {
+	case "MissingCopy":
+		end = 0
+	case "DeliveryWithoutCopy":
+		end = 1
+	case "CopiesExceedRelayStarts":
+		end = 3
+	}
+	for i := range positions.Rows {
+		p := &positions.Rows[i].Data.Partitions[1]
+		p.End = min(p.End, end)
+		if p.Committed != nil && *p.Committed > p.End {
+			p.Committed = &p.End
+		}
+	}
+	if variant == "CopiesExceedRelayStarts" {
+		last.End = end
+	}
+	var captureEnd int64
+	if err := db.QueryRow(t.Context(), `SELECT max(event_order) FROM engine.k6_write_capture`).Scan(&captureEnd); err != nil {
+		t.Fatal(err)
+	}
+	for i, name := range []string{"reset", "hold", "restart"} {
+		row := &positions.Rows[i].Data
+		before, err := time.Parse(k6v1.TimeLayout, row.BeforeUTC)
+		if err != nil {
+			t.Fatal(err)
+		}
+		through := captureEnd
+		if i == 0 {
+			through = 0
+		}
+		row.OffsetPhase = &k6v1.OffsetPhase{Name: name, Binding: k6v1.Binding(m),
+			RequestedUTC: k6v1.UTC(before.Add(-time.Microsecond)), CaptureThrough: through}
+	}
+	if variant == "BaselineMismatch" {
+		p := &positions.Rows[0].Data.Partitions[1]
+		p.End = 1
+		p.Committed = &p.End
+	}
+	if variant == "TopicIDChange" {
+		positions.Rows[1].Data.TopicIDsAfter = map[string]string{testTaskTopic: "recreated-task-id"}
+	}
+	tasks.Committed, tasks.End = nil, end
+	for _, part := range []k6v1.BrokerPartition{events, tasks} {
+		key := k6v1.PartitionIdentity{TopicID: part.TopicID, Partition: part.Partition}
+		for offset := int64(0); offset < part.End; offset++ {
+			copy := k6v1.BrokerCopy{Offset: offset, EventID: id, Key: []byte(id), PayloadSHA256: k6v1.Hash([]byte(payload))}
+			if part.Topic == events.Topic {
+				copy = unattempted
+			}
+			if offset == 0 && variant == "KeyMismatch" {
+				copy.Key = []byte("other")
+			}
+			if offset == 0 && variant == "PayloadMismatch" {
+				copy.PayloadSHA256 = k6v1.Hash([]byte("other"))
+			}
+			k6collect.Append(&stream, at, k6v1.BrokerCopyRow{PartitionIdentity: key, Copy: &copy})
+		}
+		k6collect.Append(&stream, at, k6v1.BrokerCopyRow{PartitionIdentity: key, Range: &part,
+			Complete: variant != "CollectionGap" || part.Topic != testTaskTopic})
+	}
+	sealFixtureStream(t, positions, at)
+	sealFixtureStream(t, &stream, at)
+	sources.BrokerCopies = &stream
+}
+
+func capturedShutdown(t *testing.T, m k6v1.Manifest, sources *k6v1.External, withSignal bool) {
+	t.Helper()
+	opened := sources.Roster.Rows[0].Position.UTC
+	at, err := time.Parse(k6v1.TimeLayout, opened)
+	if err != nil {
+		t.Fatal(err)
+	}
+	watch := k6collect.NewPodWatch(m, sources.Roster.Header.Source, at)
+	if err := watch.Baseline([]byte(`{"metadata":{"resourceVersion":"1"},"items":[]}`), "worker", at); err != nil {
+		t.Fatal(err)
+	}
+	for id, ledger := range sources.Sessions {
+		session := ledger.Rows[0].Data.Session
+		read := func(cursor, metadata, state string, at time.Time) {
+			t.Helper()
+			raw := fmt.Sprintf(`{"type":"MODIFIED","object":{"metadata":{"uid":%q,"namespace":%q,"resourceVersion":%q%s},"status":{"containerStatuses":[{"name":"worker","containerID":%q,"restartCount":%d,"state":%s}]}}}`,
+				session.PodUID, m.Namespace, cursor, metadata, "containerd://"+session.ContainerID, session.Restart, state)
+			if err := watch.Read(strings.NewReader(raw), "worker", func() time.Time { return at }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		running := fmt.Sprintf(`{"running":{"startedAt":%q}}`, session.ContainerStartedUTC)
+		read("2", "", running, at)
+		reg := sources.Roster.Rows[2].Data.Registration
+		if err := watch.Register(at, *session, *reg); err != nil {
+			t.Fatal(err)
+		}
+		if withSignal {
+			read("3", fmt.Sprintf(`,"deletionTimestamp":%q`, k6v1.UTC(at.Add(30*time.Second))), running, at.Add(time.Second))
+		}
+		last := &ledger.Rows[len(ledger.Rows)-1]
+		last.Data.Kind = "abort"
+		last.Position.UTC = k6v1.UTC(at.Add(2 * time.Second))
+		finished := at.Add(3 * time.Second)
+		observed := finished.Add(time.Second)
+		terminated := fmt.Sprintf(`{"terminated":{"containerID":%q,"startedAt":%q,"finishedAt":%q,"exitCode":143,"signal":15}}`,
+			"containerd://"+session.ContainerID, session.ContainerStartedUTC, finished.UTC().Format(time.RFC3339))
+		read("4", "", terminated, observed)
+		if err := k6v1.SealStream(&ledger, "checkpoint", k6v1.UTC(observed), int64(len(ledger.Rows)), 0); err != nil {
+			t.Fatal(err)
+		}
+		sources.Sessions[id] = ledger
+		watch.BindShutdown(observed, *session, sources.Sessions)
+		if err := watch.ConfirmDeath(observed, *session, &ledger); err != nil {
+			t.Fatal(err)
+		}
+		sources.Sessions[id] = ledger
+		sources.Roster, err = watch.Snapshot(observed, true)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+	sealFixtureStream(t, &sources.Roster, time.Now())
 }
 
 func TestK6SourceCapturedJoins(t *testing.T) {
@@ -222,6 +377,8 @@ func TestK6SourceCapturedJoins(t *testing.T) {
 		t.Skip("requires hosted PostgreSQL and network-isolated checker")
 	}
 	for _, name := range []string{"CleanOffsets", "LowerDispositionGap", "ResultReplay", "UnresolvedEffect", "ShutdownFailure",
+		"MissingCopy", "CopiesExceedRelayStarts", "CopyWithNoRelayStart", "KeyMismatch", "PayloadMismatch", "DeliveryWithoutCopy", "CollectionGap",
+		"BaselineMismatch", "TopicIDChange", "ShutdownNoObservation",
 		"MissingCancellationChanges", "MissingGraphChanges"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -234,36 +391,51 @@ func TestK6SourceCapturedJoins(t *testing.T) {
 			m.RequiredSources = k6v1.RequiredSources(false, false, true)
 			plan, arrivals := k6Sources(m, time.Now().Add(-time.Minute), "pure.echo")
 			item := plan.Windows[0].Submissions[0]
-			seedCapture(t, engine, item, name)
-			seedCapturedTransport(t, engine)
-			cfg := captureFixtureConfig(t, dsn, m)
-			if name != "ResultReplay" && name != "UnresolvedEffect" {
-				cfg.ExternalDir = t.TempDir()
-				sources := parityExternal(t, &cfg.Manifest, false, item.Key)
-				if name == "ShutdownFailure" {
-					transportParityObservations(t, &sources, "N21ShutdownFailure")
-				} else {
-					transportParityObservations(t, &sources, "N8LowerGap")
-				}
-				publishFixtureFrames(t, cfg, sources)
+			seed := name
+			if name == "ShutdownNoObservation" {
+				seed = "ShutdownFailure"
 			}
+			seedCapture(t, engine, item, seed)
+			seedCapturedTransport(t, engine)
 			if name == "LowerDispositionGap" {
 				execK6SQL(t, engine, `ALTER TABLE engine.k6_write_capture DISABLE TRIGGER k6_write_immutable;
 					DELETE FROM engine.k6_write_capture WHERE subject='physical_delivery' AND row_key->>3='1'`)
 			}
-			r := captureFixtureVerdict(t, cfg, plan, arrivals)
+			cfg := captureFixtureConfig(t, dsn, m)
+			if name != "ResultReplay" && name != "UnresolvedEffect" {
+				cfg.ExternalDir = t.TempDir()
+				sources := parityExternal(t, &cfg.Manifest, false, item.Key)
+				transportParityObservations(t, &sources, "N8LowerGap")
+				capturedBrokerCopies(t, cfg.Manifest, engine, &sources, name)
+				if seed == "ShutdownFailure" {
+					capturedShutdown(t, cfg.Manifest, &sources, name == "ShutdownFailure")
+				}
+				publishFixtureFrames(t, cfg, sources)
+			}
+			exit := k6v1.Fail
+			if name == "CleanOffsets" {
+				exit = k6v1.Incomplete
+			}
+			r := captureFixtureVerdict(t, cfg, plan, arrivals, exit)
 			switch name {
 			case "CleanOffsets":
-				if len(r.Findings) != 3 || r.Labels[6].Outcome != "NOT COVERED" {
+				if len(r.Findings) != 0 || r.Labels[5].Outcome != "covered/pass" || r.Labels[6].Outcome != "covered/pass" {
 					t.Fatalf("hook-3 remainder: %+v", r.Findings)
 				}
-				for i, code := range []string{"broker_event_copies", "broker_reset_hold_restart_offsets", "broker_event_copies"} {
-					if f := r.Findings[i]; f.Kind != k6v1.MissingProof || f.Code != "required_proof_missing:"+code {
-						t.Fatalf("hook-3 finding %d: %+v", i, f)
-					}
-				}
+			case "MissingCopy", "CopiesExceedRelayStarts", "CopyWithNoRelayStart", "KeyMismatch", "PayloadMismatch", "DeliveryWithoutCopy":
+				codes := map[string]string{"MissingCopy": "BROKER_COPY_MISSING", "CopiesExceedRelayStarts": "BROKER_COPY_WITHOUT_ATTEMPT",
+					"CopyWithNoRelayStart": "BROKER_COPY_WITHOUT_ATTEMPT", "KeyMismatch": "BROKER_COPY_KEY_MISMATCH", "PayloadMismatch": "BROKER_COPY_PAYLOAD_MISMATCH",
+					"DeliveryWithoutCopy": "BROKER_DELIVERY_WITHOUT_COPY"}
+				requirePredicateFinding(t, r, k6v1.Violation, "DispatchDisposition", codes[name])
+			case "CollectionGap":
+				requirePredicateFinding(t, r, k6v1.MissingProof, "DispatchDisposition", "required_proof_missing:broker_event_copy_range")
+			case "BaselineMismatch":
+				requirePredicateFinding(t, r, k6v1.Violation, "LowerOffsetsDisposed", "OFFSET_ENGINE_BASELINE_MISMATCH")
+			case "TopicIDChange":
+				requirePredicateFinding(t, r, k6v1.Violation, "LowerOffsetsDisposed", "OFFSET_BRACKET_TOPIC_CHANGED")
 			case "LowerDispositionGap":
 				requirePredicateFinding(t, r, k6v1.Violation, "LowerOffsetsDisposed", "CAPTURE_OFFSET_DISPOSITION_GAP")
+				requirePredicateFinding(t, r, k6v1.Violation, "LowerOffsetsDisposed", "OFFSET_BRACKET_UNDISPOSED_COPY")
 				if r.Labels[6].Outcome != "covered/fail" {
 					t.Fatalf("hook-3 offset violation lost: %+v", r.Labels[6])
 				}
@@ -278,6 +450,8 @@ func TestK6SourceCapturedJoins(t *testing.T) {
 				requireTransportCeiling(t, r.Labels[8])
 			case "ShutdownFailure":
 				requirePredicateFinding(t, r, k6v1.Violation, "ShutdownDisposition", "SHUTDOWN_RECORDED_AS_FAILURE")
+				requireTransportCeiling(t, r.Labels[12])
+			case "ShutdownNoObservation":
 				requirePredicateFinding(t, r, k6v1.MissingProof, "ShutdownDisposition", "required_proof_missing:shutdown_signal_or_exit")
 				requireTransportCeiling(t, r.Labels[12])
 			case "MissingCancellationChanges", "MissingGraphChanges":

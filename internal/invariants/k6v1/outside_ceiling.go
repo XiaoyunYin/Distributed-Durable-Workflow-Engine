@@ -146,7 +146,7 @@ func uncertaintyTransaction(h Row, writes []Row) bool {
 	})
 }
 
-func (e engineOrder) checkShutdown(aborts []observedWorker) {
+func (e engineOrder) checkShutdown(aborts []observedWorker, evidence ...External) {
 	if len(aborts) == 0 {
 		return
 	}
@@ -183,7 +183,10 @@ func (e engineOrder) checkShutdown(aborts []observedWorker) {
 				}
 				state = captureImage(commit.request, "after_image")["attempt_state"]
 			}
-			e.requireWitness(shutdownPredicate, "shutdown_signal_or_exit", &ref)
+			if len(evidence) == 0 || !evidence[0].ShutdownWitnessed(session, row.Position.Sequence, observed.startSequence) {
+				e.requireWitness(shutdownPredicate, "shutdown_signal_or_exit", &ref)
+				continue
+			}
 		} else {
 			e.requireWitness(shutdownPredicate, "shutdown_result_binding", &ref)
 		}
@@ -192,4 +195,60 @@ func (e engineOrder) checkShutdown(aborts []observedWorker) {
 			e.violate(shutdownPredicate, "SHUTDOWN_RECORDED_AS_FAILURE", history, h)
 		}
 	}
+}
+
+// ShutdownWitnessed joins an abort and its matched start to the roster's
+// termination request and exit for the same runtime.
+func (sources External) ShutdownWitnessed(session WorkerSession, abortSequence, startSequence int64) bool {
+	ledger := sources.Sessions[session.ID]
+	if abortSequence <= 0 || abortSequence > int64(len(ledger.Rows)) {
+		return false
+	}
+	abort := ledger.Rows[abortSequence-1]
+	if abort.Data.Kind != "abort" || abort.Data.Attempt == nil {
+		return false
+	}
+	for _, row := range sources.Roster.Rows {
+		b := row.Data.Shutdown
+		if b == nil || row.Data.Session == nil || *row.Data.Session != session ||
+			b.Invocation != abort.Data.Invocation || b.Attempt != *abort.Data.Attempt ||
+			b.StartSequence != startSequence || b.StartSequence <= 0 || b.StartSequence >= abort.Position.Sequence ||
+			b.AbortSequence != abortSequence ||
+			b.SignalSequence <= 0 || b.SignalSequence >= b.ExitSequence || b.ExitSequence >= row.Position.Sequence {
+			continue
+		}
+		start := ledger.Rows[b.StartSequence-1]
+		signal := sources.Roster.Rows[b.SignalSequence-1]
+		exit := sources.Roster.Rows[b.ExitSequence-1]
+		if exit.Data.Kind == "exit" && exit.Data.Exit != nil && exit.Data.Runtime != nil && *exit.Data.Runtime == session.Runtime() &&
+			signal.Data.Kind == "termination_requested" && signal.Data.Runtime != nil && *signal.Data.Runtime == session.Runtime() &&
+			start.Data.Kind == "start" && start.Data.Invocation == b.Invocation && start.Data.Attempt != nil && *start.Data.Attempt == b.Attempt &&
+			signal.Position.UTC < abort.Position.UTC && exit.Data.Exit.Corroborates(abort.Position.UTC, exit.Position.UTC) &&
+			!LaterRuntimeStart(sources.Sessions, session, start.Position) {
+			return true
+		}
+	}
+	return false
+}
+
+// LaterRuntimeStart checks the session's ledger order and also excludes a
+// later (or time-ambiguous) start from another session in the same container.
+func LaterRuntimeStart(ledgers map[string]Stream[WorkerRow], session WorkerSession, start Position) bool {
+	for id, ledger := range ledgers {
+		if len(ledger.Rows) == 0 {
+			continue
+		}
+		sameSession := id == session.ID
+		other := ledger.Rows[0].Data.Session
+		if !sameSession && (other == nil || other.Runtime() != session.Runtime()) {
+			continue
+		}
+		for _, row := range ledger.Rows {
+			if row.Data.Kind == "start" && (sameSession && row.Position.Sequence > start.Sequence ||
+				!sameSession && row.Position.UTC >= start.UTC) {
+				return true
+			}
+		}
+	}
+	return false
 }

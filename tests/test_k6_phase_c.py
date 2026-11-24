@@ -7,6 +7,7 @@ import sys
 from collections import Counter
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import nullcontext
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 from unittest.mock import Mock
@@ -399,6 +400,7 @@ def trace_backend(
         "wait_event_type": "Client",
         "wait_event": "ClientRead",
         "client_addr": "10.7.0.1",
+        "client_port": 45678,
     }
 
 
@@ -438,9 +440,10 @@ def synthetic_trace(
     smoke.namespace = NS
     query = Mock(side_effect=[json.dumps(sample) for sample in snapshots])
     smoke.trace_session.return_value = nullcontext(query)
-    smoke.k.return_value = json.dumps(
-        {"items": [{"metadata": {"name": "sink-pod"}, "status": {"podIPs": [{"ip": "10.7.0.1"}]}}]}
-    )
+    smoke.k.return_value = registered_sink()
+    smoke.endpoint_addresses = ENDPOINTS
+    smoke.command.return_value = b""
+    smoke.startup_logs.return_value = ""
     trace = phase_c.Trace(smoke)
     trace.rows.append({"time": "2026-11-22T00:00:00Z"})
     return trace, query
@@ -520,7 +523,7 @@ def test_phase_c_starting_trace_fails_if_backend_vanishes(
     trace, _ = synthetic_trace(
         tmp_path,
         monkeypatch,
-        trace_snapshot(0, trace_backend(42)),
+        trace_snapshot(0, {**trace_backend(42), "client_addr": "10.7.0.2"}),
         trace_snapshot(100_000, *replacement),
     )
     try:
@@ -532,6 +535,151 @@ def test_phase_c_starting_trace_fails_if_backend_vanishes(
     first, second = trace.startups[0]["observations"]
     assert first["backends"][0]["pid"] == 42
     assert second["backends"] == []
+
+
+def registered_sink() -> str:
+    return json.dumps(
+        {
+            "items": [
+                {
+                    "metadata": {"name": "sink-pod", "uid": "sink-uid", "labels": {"app": SINK}},
+                    "spec": {"nodeName": "kind-node"},
+                    "status": {"podIPs": [{"ip": "10.7.0.1"}]},
+                }
+            ]
+        }
+    )
+
+
+@pytest.mark.parametrize("translated", [False, True])
+def test_phase_c_attributed_startup_can_vanish(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, translated: bool
+) -> None:
+    address = "172.19.0.2" if translated else "10.7.0.1"
+    trace, _ = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(0, {**trace_backend(42), "client_addr": address}),
+        trace_snapshot(100_000),
+    )
+    smoke: Any = trace.smoke
+    smoke.k.return_value = registered_sink()
+    smoke.endpoint_addresses = {"sink_db": "172.19.0.3"}
+    smoke.command.return_value = (
+        b"tcp 6 9 CLOSE src=10.7.0.1 dst=172.19.0.3 sport=54321 dport=5432 "
+        b"src=172.19.0.3 dst=172.19.0.2 sport=5432 dport=45678 [ASSURED]\n"
+    )
+    sample_synthetic(trace)
+    assert trace.rows[0]["sink"]["total"] == 1
+    [record] = trace.startups[0]["attributed_vanishes"]
+    assert (
+        record["client_addr"],
+        record["client_port"],
+        record["pod_ip"],
+        record["pod"]["uid"],
+    ) == (address, 45678, "10.7.0.1", "sink-uid")
+
+
+def test_phase_c_unregistered_pod_cannot_explain_startup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trace, _ = synthetic_trace(
+        tmp_path, monkeypatch, trace_snapshot(0, trace_backend(42)), trace_snapshot(100_000)
+    )
+    smoke: Any = trace.smoke
+    smoke.k.return_value = registered_sink().replace(f'"app": "{SINK}"', '"app": "other"')
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == "DB_STARTUP_VANISHED_SINK"
+    else:
+        pytest.fail("accepted a vanished startup from an unregistered pod")
+
+
+@pytest.mark.parametrize(
+    "variant",
+    [
+        "authorized",
+        "probe_rejected",
+        "wrong_port",
+        "wrong_pid",
+        "outside_probe",
+        "other_app",
+        "wrong_host",
+        "wrong_role",
+        "wrong_server",
+        "wrong_sqlstate",
+    ],
+)
+def test_phase_c_startup_server_outcomes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, variant: str
+) -> None:
+    backend = {**trace_backend(42), "client_addr": "172.18.0.1"}
+    trace, _ = synthetic_trace(
+        tmp_path, monkeypatch, trace_snapshot(0, backend), trace_snapshot(100_000)
+    )
+    smoke: Any = trace.smoke
+    seconds = int(datetime.fromisoformat(backend["backend_start"]).timestamp())
+    smoke.trace_host = "192.0.2.8" if variant == "wrong_host" else backend["client_addr"]
+    role = SINK_ROLE if variant == "wrong_role" else "durable"
+    server = "engine" if variant == "wrong_server" else "sink"
+    smoke.trace_denials = [(server, role, seconds + 0.01, seconds + 0.09)]
+    rejection = variant in {
+        "probe_rejected",
+        "outside_probe",
+        "wrong_host",
+        "wrong_role",
+        "wrong_server",
+        "wrong_sqlstate",
+    }
+    app = "other" if variant == "other_app" else "dur053-k6-sink-exporter"
+    code = "28P01" if rejection and variant != "wrong_sqlstate" else "00000"
+    message = (
+        'FATAL:  password authentication failed for user "durable"'
+        if rejection
+        else (
+            f"LOG:  connection authorized: user={EXPORTER} database=effects application_name={app}"
+        )
+    )
+    port = 45679 if variant == "wrong_port" else 45678
+    when = seconds + (0.1 if variant == "outside_probe" else 0.02)
+    pid = "2b" if variant == "wrong_pid" else "2a"
+    smoke.startup_logs.return_value = (
+        f"dur053-k6 {seconds:x}.{pid} 172.18.0.1({port}) {code} {when:.3f}|{message}"
+    )
+    if variant in {"authorized", "probe_rejected"}:
+        sample_synthetic(trace)
+        [outcome] = trace.startups[0]["terminal_startups"]
+        assert outcome["resolution"] == variant and trace.rows[0]["sink"]["total"] == 1
+        return
+    expected = (
+        "DB_UNACCOUNTED_CLIENT_SINK" if variant == "other_app" else "DB_STARTUP_VANISHED_SINK"
+    )
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == expected
+    else:
+        pytest.fail("accepted invalid startup authorization evidence")
+
+
+def test_phase_c_attributed_startup_vanish_budget(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    trace, _ = synthetic_trace(
+        tmp_path,
+        monkeypatch,
+        trace_snapshot(0, *(trace_backend(pid) for pid in (42, 43, 44))),
+        trace_snapshot(100_000),
+    )
+    smoke: Any = trace.smoke
+    smoke.k.return_value = registered_sink()
+    try:
+        sample_synthetic(trace)
+    except SmokeFailure as error:
+        assert str(error) == "DB_STARTUP_VANISH_BUDGET_SINK"
+    else:
+        pytest.fail("accepted more than two vanished startups in one window")
 
 
 def test_phase_c_starting_trace_requires_backend_start(
@@ -608,11 +756,13 @@ def test_phase_c_trace_fails_unknown_pair_immediately(
                     "application_name": app,
                     "wait_event_type": "Client",
                     "wait_event": "ClientRead",
+                    "client_addr": "10.7.0.1",
+                    "client_port": 45678,
                     "pod_name": "sink-pod",
                 }
             ],
         }
-    ], "rejection record lost backend details or retained the client address"
+    ], "rejection record lost backend or socket details"
 
 
 def test_phase_c_starting_trace_counts_toward_total_budget(

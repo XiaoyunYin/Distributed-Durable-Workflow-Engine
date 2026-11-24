@@ -25,20 +25,22 @@ func fromDBIteration(row Row) iterationKey {
 }
 
 type engineOrder struct {
-	result        *Result
-	rows          map[string][]Row
-	workflows     map[string]Row
-	witness       func(string, Row) Witness
-	violate       rowViolation
-	byTransition  map[any]Row
-	transitions   map[any]Row
-	attempts      map[attemptKey]Row
-	nodes         map[iterationKey]Row
-	missing       map[[2]string]bool
-	capture       bool
-	captureReady  bool
-	resultCommits map[any]capturedResult
-	captureWrites map[captureTransaction][]Row
+	result            *Result
+	rows              map[string][]Row
+	workflows         map[string]Row
+	witness           func(string, Row) Witness
+	violate           rowViolation
+	byTransition      map[any]Row
+	transitions       map[any]Row
+	attempts          map[attemptKey]Row
+	nodes             map[iterationKey]Row
+	missing           map[[2]string]bool
+	capture           bool
+	captureReady      bool
+	brokerCopies      bool
+	dispositionOrders map[deliveryPosition]int64
+	resultCommits     map[any]capturedResult
+	captureWrites     map[captureTransaction][]Row
 }
 
 func newEngineOrder(r *Result, rows map[string][]Row, workflows map[string]Row, witness func(string, Row) Witness, violate rowViolation) engineOrder {
@@ -46,8 +48,9 @@ func newEngineOrder(r *Result, rows map[string][]Row, workflows map[string]Row, 
 		result: r, rows: rows, workflows: workflows, witness: witness, violate: violate,
 		byTransition: map[any]Row{}, transitions: map[any]Row{}, attempts: map[attemptKey]Row{},
 		nodes: map[iterationKey]Row{}, missing: map[[2]string]bool{},
-		resultCommits: map[any]capturedResult{},
-		captureWrites: map[captureTransaction][]Row{},
+		resultCommits:     map[any]capturedResult{},
+		captureWrites:     map[captureTransaction][]Row{},
+		dispositionOrders: map[deliveryPosition]int64{},
 	}
 	for _, row := range rows[history] {
 		e.transitions[row["transition_id"]] = row

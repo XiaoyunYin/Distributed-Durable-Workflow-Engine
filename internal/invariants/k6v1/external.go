@@ -9,12 +9,13 @@ import (
 )
 
 const (
-	RosterPath    = "witness/inventory.json"
-	IngressPath   = "witness/effect-ingress.jsonl"
-	DecisionsPath = "auth/decisions.jsonl"
-	BrokerPath    = "broker/positions.jsonl"
-	TopologyPath  = "witness/topology.json"
-	SamplesPath   = "samples/external.json"
+	RosterPath       = "witness/inventory.json"
+	IngressPath      = "witness/effect-ingress.jsonl"
+	DecisionsPath    = "auth/decisions.jsonl"
+	BrokerPath       = "broker/positions.jsonl"
+	BrokerCopiesPath = "broker/copies.jsonl"
+	TopologyPath     = "witness/topology.json"
+	SamplesPath      = "samples/external.json"
 )
 
 // SourceBinding identifies one acquisition across the independent observers.
@@ -200,6 +201,30 @@ type WatchRow struct {
 	Death        *Death           `json:"death"`
 	Runtime      *RuntimeIdentity `json:"runtime"`
 	Registration *Registration    `json:"registration"`
+	Exit         *RuntimeExit     `json:"exit,omitempty"`
+	Shutdown     *ShutdownBinding `json:"shutdown,omitempty"`
+	DeletionUTC  string           `json:"deletion_utc,omitempty"`
+}
+
+type RuntimeExit struct {
+	FinishedUTC string `json:"finished_utc"`
+	Code        int    `json:"code"`
+	Signal      int    `json:"signal"`
+}
+
+// Corroborates checks the observation order and the kubelet's finish time.
+// Kubernetes reports finishedAt at second precision.
+func (e RuntimeExit) Corroborates(abortUTC, observedUTC string) bool {
+	return abortUTC <= observedUTC && e.FinishedUTC <= observedUTC && abortUTC[:19] <= e.FinishedUTC[:19]
+}
+
+type ShutdownBinding struct {
+	Invocation     string          `json:"invocation"`
+	Attempt        AttemptIdentity `json:"attempt"`
+	StartSequence  int64           `json:"start_sequence"`
+	ExitSequence   int64           `json:"exit_sequence"`
+	SignalSequence int64           `json:"signal_sequence,omitempty"`
+	AbortSequence  int64           `json:"abort_sequence,omitempty"`
 }
 
 type Registration struct {
@@ -227,15 +252,19 @@ func (s WorkerSession) Runtime() RuntimeIdentity {
 }
 
 func (w WatchRow) valid() bool {
-	if !nonempty(w.Cursor) || !publicIdentity(w.From) {
+	if !nonempty(w.Cursor) || !publicIdentity(w.From) ||
+		(w.Exit != nil) != (w.Kind == "exit") || (w.Shutdown != nil) != (w.Kind == "shutdown") ||
+		(w.DeletionUTC != "") != (w.Kind == "termination_requested") {
 		return false
 	}
 	switch w.Kind {
 	case "baseline", "bookmark", "gap":
 		return w.Session == nil && w.Death == nil && w.Runtime == nil && w.Registration == nil
-	case "runtime":
+	case "runtime", "exit", "termination_requested":
 		return w.Session == nil && w.Death == nil && w.Runtime != nil && w.Registration == nil &&
-			identities(w.Runtime.PodUID, w.Runtime.ContainerID) && w.Runtime.Restart >= 0 && validTime(w.Runtime.StartedUTC)
+			identities(w.Runtime.PodUID, w.Runtime.ContainerID) && w.Runtime.Restart >= 0 && validTime(w.Runtime.StartedUTC) &&
+			(w.Exit == nil || validTime(w.Exit.FinishedUTC) && w.Exit.FinishedUTC >= w.Runtime.StartedUTC && w.Exit.Code >= 0 && w.Exit.Signal >= 0) &&
+			(w.DeletionUTC == "" || validTime(w.DeletionUTC) && w.DeletionUTC >= w.Runtime.StartedUTC)
 	case "session":
 		return w.Session != nil && w.Session.valid() && w.Death == nil && w.Runtime == nil &&
 			w.Registration != nil && w.Registration.matches(*w.Session)
@@ -243,6 +272,9 @@ func (w WatchRow) valid() bool {
 		return w.Session != nil && w.Session.valid() && w.Death != nil && w.Runtime == nil && w.Registration == nil &&
 			identities(w.Death.Observer, w.Death.Receiver) && validTime(w.Death.ObservedUTC) &&
 			w.Death.FinalSequence >= 1 && digest.MatchString(w.Death.FinalSHA256)
+	case "shutdown":
+		return w.Session != nil && w.Session.valid() && w.Runtime == nil && w.Registration == nil && w.Death == nil &&
+			nonempty(w.Shutdown.Invocation) && w.Shutdown.Attempt.valid() && w.Shutdown.StartSequence > 1 && w.Shutdown.ExitSequence > 0
 	}
 	return false
 }
@@ -384,12 +416,13 @@ func hashes(values ...string) bool {
 }
 
 type External struct {
-	Roster    Stream[WatchRow]
-	Sessions  map[string]Stream[WorkerRow]
-	Ingress   *Stream[IngressRow]
-	Decisions *Stream[DecisionRow]
-	Broker    *Stream[BrokerRow]
-	Topology  *Stream[TopologyRow]
+	Roster       Stream[WatchRow]
+	Sessions     map[string]Stream[WorkerRow]
+	Ingress      *Stream[IngressRow]
+	Decisions    *Stream[DecisionRow]
+	Broker       *Stream[BrokerRow]
+	BrokerCopies *Stream[BrokerCopyRow]
+	Topology     *Stream[TopologyRow]
 }
 
 func (e External) Files() (map[string][]byte, error) {
@@ -421,6 +454,10 @@ func (e External) Files() (map[string][]byte, error) {
 		raw, err := EncodeStream(*e.Broker)
 		problems = append(problems, add(BrokerPath, raw, err))
 	}
+	if e.BrokerCopies != nil {
+		raw, err := EncodeStream(*e.BrokerCopies)
+		problems = append(problems, add(BrokerCopiesPath, raw, err))
+	}
 	if e.Topology != nil {
 		raw, err := Canonical(e.Topology)
 		problems = append(problems, add(TopologyPath, raw, err))
@@ -451,7 +488,11 @@ func readExternalStream[T any](read externalRead, m Manifest, path, schema strin
 // ReadExternal reads a single collector frame. Bundle verification supplies
 // an indexed reader instead and applies the same decoders.
 func ReadExternal(fsys fs.FS, m Manifest) (External, []Finding) {
-	return readExternal(externalFSReader(fsys), m, workerFiles(fsys))
+	files := workerFiles(fsys)
+	if _, err := fs.Stat(fsys, BrokerCopiesPath); err == nil {
+		files = append(files, File{Path: BrokerCopiesPath})
+	}
+	return readExternal(externalFSReader(fsys), m, files)
 }
 
 func workerFiles(fsys fs.FS) []File {
@@ -500,7 +541,12 @@ func readExternal(read externalRead, m Manifest, indexed []File) (External, []Fi
 		e.Roster = *roster
 	}
 	e.Sessions = readLedgers(read, m, e.Roster, indexed, &issues)
-	e.Broker = readExternalStream(read, m, BrokerPath, "broker", BrokerRow.valid, &issues)
+	e.Broker = readExternalStream(read, m, BrokerPath, "broker", func(b BrokerRow) bool {
+		return b.valid() && (b.OffsetPhase == nil || b.OffsetPhase.Valid(m))
+	}, &issues)
+	if slices.ContainsFunc(indexed, func(f File) bool { return f.Path == BrokerCopiesPath }) {
+		e.BrokerCopies = readExternalStream(read, m, BrokerCopiesPath, "broker-copies", BrokerCopyRow.valid, &issues)
+	}
 	if m.Sink == nil {
 		e.Topology = readExternalStream(read, m, TopologyPath, "topology", TopologyRow.valid, &issues)
 	} else {

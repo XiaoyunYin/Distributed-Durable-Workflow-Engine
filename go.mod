@@ -13,8 +13,8 @@ require (
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
-	github.com/klauspost/compress v1.20.2 // indirect
-	github.com/pierrec/lz4/v4 v4.1.15 // indirect
+	github.com/klauspost/compress v1.20.3 // indirect
+	github.com/pierrec/lz4/v4 v4.1.33 // indirect
 	go.opentelemetry.io/auto/sdk v1.2.1 // indirect
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0 // indirect
 	go.opentelemetry.io/otel/log v1.47.0 // indirect
@@ -32,6 +32,8 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/jackc/pgx/v5 v5.9.2
 	github.com/segmentio/kafka-go v0.4.49
+	github.com/twmb/franz-go v1.22.3
+	github.com/twmb/franz-go/pkg/kmsg v1.15.1
 	go.opentelemetry.io/otel v1.47.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.45.0
 	go.opentelemetry.io/otel/sdk v1.47.0

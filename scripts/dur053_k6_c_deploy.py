@@ -50,6 +50,7 @@ class Deployment(Smoke):
     sink_volume = VOLUME
     live_worker = False
     inputs_schema = "dur053.k6-phase-c-inputs.v1"
+    trace_host = ""
 
     def __init__(self, evidence, scratch, harness):
         super().__init__(evidence, scratch, harness)
@@ -65,6 +66,7 @@ class Deployment(Smoke):
         self.engine_created = False
         self.identity_created = False
         self.provisioned = False
+        self.trace_denials: list[tuple[str, str, float, float]] = []
         self.sink_admin_password = self.password()
         self.sink_password = self.password()
         self.export_password = self.password()
@@ -335,6 +337,51 @@ class Deployment(Smoke):
             .decode()
             .strip()
         )
+
+    @contextmanager
+    def trace_authentication(self) -> Iterator[None]:
+        self.trace_host = (
+            self.command(
+                "DB_TRACE_HOST",
+                "docker",
+                "network",
+                "inspect",
+                "kind",
+                "--format",
+                "{{(index .IPAM.Config 0).Gateway}}",
+            )
+            .decode()
+            .strip()
+        )
+        enabled = []
+        try:
+            for server in ("engine", "sink"):
+                enabled.append(server)
+                self.psql(
+                    server,
+                    "admin",
+                    "ALTER SYSTEM SET log_connections='authorization'; "
+                    "ALTER SYSTEM SET log_line_prefix='dur053-k6 %c %r %e %n|'; "
+                    "SELECT pg_reload_conf();",
+                )
+            yield
+        finally:
+            for server in enabled:
+                self.psql(
+                    server,
+                    "admin",
+                    "ALTER SYSTEM RESET log_connections; "
+                    "ALTER SYSTEM RESET log_line_prefix; SELECT pg_reload_conf();",
+                )
+
+    def startup_logs(self, server: str, earliest: str) -> str:
+        if not self.trace_host:
+            return ""
+        container = self.sink_container if server == "sink" else ENGINE_CONTAINER
+        output = self.harness.command(
+            ["docker", "logs", "--since", earliest, container], timeout=2, record=False
+        )
+        return output.stderr + output.stdout
 
     @contextmanager
     def trace_session(

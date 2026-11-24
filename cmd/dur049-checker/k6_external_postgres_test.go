@@ -127,6 +127,9 @@ func publishFixtureFrames(t *testing.T, cfg k6live.Config, sources k6v1.External
 	publish := func(i int64) error {
 		now := k6v1.UTC(time.Now())
 		sources.Roster.Seal.ThroughUTC, sources.Broker.Seal.ThroughUTC = now, now
+		if sources.BrokerCopies != nil {
+			sources.BrokerCopies.Seal.ThroughUTC = now
+		}
 		if sources.Ingress != nil {
 			sources.Ingress.Seal.ThroughUTC, sources.Decisions.Seal.ThroughUTC = now, now
 		} else {

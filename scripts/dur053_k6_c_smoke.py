@@ -5,12 +5,13 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import tempfile
 import threading
 import time
 from concurrent.futures import Future, ThreadPoolExecutor
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext, suppress
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -52,13 +53,17 @@ SINK_CLIENTS = {
 STARTUP_SECONDS = 2
 STARTUP_GAP_US = 200_000
 STARTUP_INTERVAL = 0.1
+STARTUP_VANISH_LIMIT = 2
+AUTHORIZATION = re.compile(
+    r"LOG:\s+connection authorized: user=([\w-]+) database=\S+ application_name=([\w.-]+)(?:\s|$)"
+)
+PASSWORD_REJECTION = re.compile(r'FATAL:\s+password authentication failed for user "([\w-]+)"$')
 
-# Group counts and backend details from one activity snapshot. The address
-# stays in memory for pod lookup and is omitted from the retained evidence.
+# Group counts and backend details from one activity snapshot.
 TRACE = """
 WITH activity AS MATERIALIZED (
     SELECT pid, backend_start, state, usename, application_name,
-           wait_event_type, wait_event, host(client_addr) AS client_addr
+           wait_event_type, wait_event, host(client_addr) AS client_addr, client_port
     FROM pg_stat_activity WHERE backend_type = 'client backend'
 )
 SELECT json_build_object(
@@ -129,20 +134,63 @@ class Trace:
         self.failure: str | None = None
         self.thread = threading.Thread(target=self.sample, daemon=True)
 
-    def pod_names(self) -> dict[str, str]:
+    def client_pods(self) -> dict[str, dict[str, str]]:
         pods = json.loads(
             self.smoke.k(
                 "DB_TRACE_PODS", "-n", self.smoke.namespace, "get", "pods", "-o", "json", timeout=5
             )
         )
         return {
-            address["ip"]: pod["metadata"]["name"]
+            address["ip"]: {
+                "name": pod["metadata"]["name"],
+                "uid": pod["metadata"]["uid"],
+                "node": pod["spec"]["nodeName"],
+            }
             for pod in pods["items"]
+            if pod["metadata"].get("labels", {}).get("app") == SINK
             for address in pod["status"].get("podIPs", [])
         }
 
+    def translated_clients(self, server: str, nodes: set[str]) -> dict[tuple[str, int], str]:
+        destination = self.smoke.endpoint_addresses[server + "_db"]
+        translated: dict[tuple[str, int], str] = {}
+        ambiguous = set()
+        for node in sorted(nodes):
+            raw = self.smoke.command(
+                "DB_TRACE_CONNTRACK",
+                "docker",
+                "exec",
+                node,
+                "conntrack",
+                "-L",
+                "-p",
+                "tcp",
+                "--orig-dst",
+                destination,
+                "--dport",
+                "5432",
+                timeout=3,
+            )
+            for line in raw.decode().splitlines():
+                tuples = re.findall(r"src=(\S+) dst=(\S+) sport=(\d+) dport=(\d+)", line)
+                if len(tuples) != 2:
+                    continue
+                (source, target, _, target_port), (reply, peer, reply_port, port) = tuples
+                if (target, target_port, reply, reply_port) != (
+                    destination,
+                    "5432",
+                    destination,
+                    "5432",
+                ):
+                    continue
+                key = (peer, int(port))
+                if key in translated and translated[key] != source:
+                    ambiguous.add(key)
+                translated[key] = source
+        return {key: ip for key, ip in translated.items() if key not in ambiguous}
+
     def record_backends(
-        self, observation: dict[str, Any], pods: Future[dict[str, str]]
+        self, observation: dict[str, Any], pods: Future[dict[str, dict[str, str]]]
     ) -> dict[str, Any]:
         record = dict(observation)
         try:
@@ -151,13 +199,98 @@ class Trace:
             names = {}
             record["pod_lookup_error"] = self.smoke.evidence.safe_reason(error)
         record["backends"] = [
-            {
-                **{key: value for key, value in backend.items() if key != "client_addr"},
-                "pod_name": names.get(backend["client_addr"]),
-            }
+            {**backend, "pod_name": names.get(backend["client_addr"], {}).get("name")}
             for backend in observation["backends"]
         ]
         return record
+
+    def attribute_vanishes(
+        self,
+        server: str,
+        vanished: list[dict[str, Any]],
+        pods: Future[dict[str, dict[str, str]]],
+        attributed: list[dict[str, Any]],
+        terminal: list[dict[str, Any]],
+    ) -> None:
+        logs = ""
+        with suppress(SmokeFailure, TimeoutError):
+            logs = self.smoke.startup_logs(server, min(b["backend_start"] for b in vanished))
+        unresolved = []
+        for backend in vanished:
+            outcome = self.logged_startup(server, backend, logs)
+            if outcome is None:
+                unresolved.append(backend)
+            else:
+                terminal.append({**backend, **outcome})
+        if not unresolved:
+            return
+        require(
+            len(unresolved) <= STARTUP_VANISH_LIMIT, "DB_STARTUP_VANISH_BUDGET_" + server.upper()
+        )
+        clients = {}
+        with suppress(Exception):
+            clients = pods.result()
+        translated = {}
+        if clients and any(
+            b["client_addr"] not in clients and (b["client_port"] or 0) > 0 for b in unresolved
+        ):
+            with suppress(SmokeFailure):
+                translated = self.translated_clients(server, {p["node"] for p in clients.values()})
+        for backend in unresolved:
+            addr, port = backend["client_addr"], backend["client_port"]
+            ip = translated.get((addr, port), addr)
+            if ip not in clients or not (0 < (port or 0) <= 65535):
+                require(False, "DB_STARTUP_VANISHED_" + server.upper())
+            else:
+                attributed.append({**backend, "pod_ip": ip, "pod": clients[ip]})
+
+    def logged_startup(
+        self, server: str, backend: dict[str, Any], logs: str
+    ) -> dict[str, str] | None:
+        start = int(datetime.fromisoformat(backend["backend_start"]).timestamp())
+        addr, port = backend["client_addr"], backend["client_port"]
+        peer = "[local]" if addr is None and port == -1 else f"{addr}({port})"
+        session = f"{start:x}.{backend['pid']:x}"
+        limits = SINK_CLIENTS if server == "sink" else ENGINE_CLIENTS
+        for line in logs.splitlines():
+            header, separator, message = line.partition("|")
+            parts = header.split()
+            if not separator or len(parts) != 5 or parts[0] != "dur053-k6":
+                continue
+            _, log_session, log_peer, code, timestamp = parts
+            if log_session != session or log_peer != peer:
+                continue
+            authorization = AUTHORIZATION.match(message)
+            if authorization:
+                user, app = authorization.groups()
+                require((user, app) in limits, "DB_UNACCOUNTED_CLIENT_" + server.upper())
+                return {
+                    "resolution": "authorized",
+                    "role": user,
+                    "application": app,
+                    "log_session": session,
+                    "log_time": timestamp,
+                }
+            rejection = PASSWORD_REJECTION.fullmatch(message)
+            if (
+                code == "28P01"
+                and rejection
+                and addr == self.smoke.trace_host
+                and re.fullmatch(r"\d+\.\d+", timestamp)
+            ):
+                role = rejection[1]
+                if any(
+                    s == server and r == role and first <= float(timestamp) <= last
+                    for s, r, first, last in self.smoke.trace_denials
+                ):
+                    return {
+                        "resolution": "probe_rejected",
+                        "role": role,
+                        "sqlstate": code,
+                        "log_session": session,
+                        "log_time": timestamp,
+                    }
+        return None
 
     def sample_server(
         self, server: str, role: str, index: int, executor: ThreadPoolExecutor
@@ -165,7 +298,10 @@ class Trace:
         row = self.rows[index]
         suffix = "_" + server.upper()
         unresolved = "DB_STARTUP_UNRESOLVED" + suffix
-        pending: dict[tuple[int, str], tuple[int, float]] = {}
+        pending: dict[tuple[int, str], tuple[int, float, dict[str, Any]]] = {}
+        vanished: list[dict[str, Any]] = []
+        attributed: list[dict[str, Any]] = []
+        terminal: list[dict[str, Any]] = []
         observations = []
         pods = None
         followups: list[dict[str, Any]] = []
@@ -179,7 +315,7 @@ class Trace:
                     # The host deadline bounds transport waits. PostgreSQL timestamps
                     # decide whether samples and resolution meet the gate.
                     remaining = (
-                        min((end for _, end in pending.values()), default=started + 8) - started
+                        min((end for _, end, _ in pending.values()), default=started + 8) - started
                     )
                     require(remaining > 0, unresolved)
                     try:
@@ -205,7 +341,7 @@ class Trace:
                     }
                     if pending or starting:
                         if pods is None:
-                            pods = executor.submit(self.pod_names)
+                            pods = executor.submit(self.client_pods)
                         observations.append(
                             {
                                 "captured_at_us": captured_us,
@@ -225,22 +361,26 @@ class Trace:
                             0 < captured_us - previous_us <= STARTUP_GAP_US,
                             "DB_STARTUP_SAMPLE_GAP" + suffix,
                         )
-                    for key, (first_us, _) in tuple(pending.items()):
-                        require(key in current, "DB_STARTUP_VANISHED" + suffix)
+                    for key, (first_us, _, backend) in tuple(pending.items()):
                         elapsed_us = captured_us - first_us
                         require(elapsed_us <= STARTUP_SECONDS * 1_000_000, unresolved)
+                        if key not in current:
+                            vanished.append(backend)
                         if key not in starting:
                             del pending[key]
                         else:
                             require(elapsed_us < STARTUP_SECONDS * 1_000_000, unresolved)
                     for key in starting - pending.keys():
                         require(key[1] is not None, "DB_STARTUP_IDENTITY" + suffix)
-                        pending[key] = (captured_us, received + STARTUP_SECONDS)
+                        pending[key] = (captured_us, received + STARTUP_SECONDS, current[key])
                     if not pending:
+                        if vanished:
+                            assert pods is not None
+                            self.attribute_vanishes(server, vanished, pods, attributed, terminal)
                         return
                     previous_us = captured_us
                     next_poll = min(
-                        started + STARTUP_INTERVAL, min(end for _, end in pending.values())
+                        started + STARTUP_INTERVAL, min(end for _, end, _ in pending.values())
                     )
                     time.sleep(max(0, next_poll - time.monotonic()))
         except Exception as error:
@@ -250,7 +390,7 @@ class Trace:
                     "sample": index,
                     "server": server,
                     "reason": outcome,
-                    **self.record_backends(latest, executor.submit(self.pod_names)),
+                    **self.record_backends(latest, executor.submit(self.client_pods)),
                 }
             )
             raise
@@ -261,6 +401,8 @@ class Trace:
                         "sample": index,
                         "server": server,
                         "outcome": outcome,
+                        "attributed_vanishes": attributed,
+                        "terminal_startups": terminal,
                         "observations": [self.record_backends(item, pods) for item in observations],
                     }
                 )
@@ -434,16 +576,25 @@ class Matrix(Deployment):
     def database_denials(self, reader_password: str, grant: dict) -> dict:
         same_engine_user = self.sink_dsn("durable", self.harness.password, self.effect_ca)
         sink_on_engine = self.dsn(SINK_ROLE, self.sink_password, "verify-full", str(self.ca))
-        reader = self.dsn("k6_sink_grant_reader", reader_password, "verify-full", str(self.ca))
+        reader = (
+            self.dsn("k6_sink_grant_reader", reader_password, "verify-full", str(self.ca))
+            + "&application_name=dur053-k6-sink-grant-reader"
+        )
         before = self.snapshot(self.admin_dsn)
         sink_before = self.export_sink()["relations"]
+
+        def rejected(server: str, role: str, dsn: str) -> str:
+            index = len(self.trace_denials)
+            start = time.time()
+            self.trace_denials.append((server, role, start, start + 3))
+            try:
+                return str(self.go("probe", DSN=dsn, Probe="update", Grant=grant)["code"])
+            finally:
+                self.trace_denials[index] = (server, role, start, min(time.time(), start + 3))
+
         roles = {
-            "engine_writer_on_sink": self.go(
-                "probe", DSN=same_engine_user, Probe="update", Grant=grant
-            )["code"],
-            "sink_writer_on_engine": self.go(
-                "probe", DSN=sink_on_engine, Probe="update", Grant=grant
-            )["code"],
+            "engine_writer_on_sink": rejected("sink", "durable", same_engine_user),
+            "sink_writer_on_engine": rejected("engine", SINK_ROLE, sink_on_engine),
             "sink_grant_reader_engine_update": self.go(
                 "probe", DSN=reader, Probe="update", Grant=grant
             )["code"],
@@ -811,7 +962,8 @@ def run(
             row.update(smoke.create_databases())
         with evidence.step("a-private-episode-tls") as row:
             row.update(smoke.tls())
-        smoke.run_matrix()
+        with smoke.trace_authentication() if phase == "c" else nullcontext():
+            smoke.run_matrix()
     except (Exception, KeyboardInterrupt) as error:
         evidence.report["reason"] = next(
             (row["reason"] for row in evidence.report["outcomes"] if row["status"] == "FAIL"),

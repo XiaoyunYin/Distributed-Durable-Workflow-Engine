@@ -220,7 +220,9 @@ func (e engineOrder) checkDispatchDispositions(events map[any]Row, acknowledged 
 		if !e.captureReady {
 			e.require(dispatchPredicate, "publication_attempt_identities", outbox, row)
 		}
-		e.require(dispatchPredicate, "broker_event_copies", outbox, row)
+		if !e.captureReady || !e.brokerCopies {
+			e.require(dispatchPredicate, "broker_event_copies", outbox, row)
+		}
 		if !e.captureReady {
 			e.require(dispatchPredicate, "dispatch_disposition_transactions", outbox, row)
 		}
