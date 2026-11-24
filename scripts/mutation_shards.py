@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / "mutations/manifest.json"
 COSTS = ROOT / "mutations/ci-case-costs.csv"
 REPORT_NAMES = {"linux": "results-bash.json", "powershell": "results-powershell.json"}
-WITH_K6_SHARDS = ("with-k6-a", "with-k6-b")
+WITH_K6_SHARDS = ("with-k6-a", "with-k6-b", "with-k6-c")
 ORDINARY_SHARDS = ("without-k6-a", "without-k6-b")
 SHARD_NAMES = WITH_K6_SHARDS + ORDINARY_SHARDS
 SHARDS = dict.fromkeys(REPORT_NAMES, SHARD_NAMES)
@@ -64,7 +64,7 @@ def split_groups(
     cases: list[dict[str, Any]],
     assigned: dict[str, str],
     costs: dict[str, int],
-    names: tuple[str, str],
+    names: tuple[str, ...],
 ) -> None:
     # The runner caches by command and environment on the same platform.
     groups: dict[tuple[tuple[str, ...], tuple[tuple[str, str], ...]], list[str]] = defaultdict(list)
