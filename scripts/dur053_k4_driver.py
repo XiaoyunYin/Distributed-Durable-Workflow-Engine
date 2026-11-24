@@ -94,6 +94,30 @@ def stamp(at):
     return datetime.fromtimestamp(at, UTC).isoformat().replace("+00:00", "Z")
 
 
+def write_stop_file(base: Driver, ns: str, value: str, *, create_only: bool = False) -> None:
+    script = f"""import os
+import tempfile
+from pathlib import Path
+
+p = Path('/evidence/k4-stop')
+value = {value!r}
+if {create_only!r} and p.exists():
+    assert p.read_text() == value, 'k4-stop-file-changed'
+else:
+    with tempfile.NamedTemporaryFile(mode='w', dir=p.parent, prefix='.k4-stop-', delete=False) as f:
+        temporary = Path(f.name)
+        try:
+            f.write(value)
+            f.flush()
+            os.fsync(f.fileno())
+            f.close()
+            os.replace(temporary, p)
+        finally:
+            temporary.unlink(missing_ok=True)
+"""
+    base.python(ns, "observer", script)
+
+
 def reconciliation_round(snapshot_read, witness_read, last, quiet):
     """Bracket remote reconciliation reads; t1 bounds everything returned by them."""
     t0 = time.time()
@@ -1775,9 +1799,7 @@ class K4Driver:
             p = dict(parameters(f, "short"), warmup=5, W=60, confirmation=0)
             start = time.time() + 3
             stop = start + p["warmup"] + p["W"]
-            self.base.python(
-                ns, "observer", 'open("/evidence/k4-stop","w").write(' + repr(stamp(stop)) + ")"
-            )
+            write_stop_file(self.base, ns, stamp(stop))
             self.load(ns, cell, p, start)
             deadline = stop + 600
             while True:
@@ -1922,13 +1944,7 @@ print(json.dumps(rows))
             if stop_value is not None:
                 require(stop_value == value, "k4-stop-file-changed")
             stop_value = value
-            script = (
-                "from pathlib import Path; p=Path('/evidence/k4-stop'); value="
-                + repr(value)
-                + "; assert not p.exists() or p.read_text() == value; "
-                "p.write_text(value) if not p.exists() else None"
-            )
-            self.base.python(ns, "observer", script)
+            write_stop_file(self.base, ns, value, create_only=True)
 
         adapter.stop_load = stop_load
         if "rollback" in cell["event"]:
@@ -2113,11 +2129,7 @@ print(json.dumps(rows))
                 self.collector = None
             if not load_future.done():
                 with suppress(Exception):
-                    self.base.python(
-                        ns,
-                        "observer",
-                        'open("/evidence/k4-stop","w").write(' + repr(stamp(time.time())) + ")",
-                    )
+                    write_stop_file(self.base, ns, stamp(time.time()))
             pool.shutdown(wait=True)
             try:
                 self.base.reset_episode(ns, db)

@@ -358,13 +358,15 @@ type IngressRow struct {
 	ResponseWire   *WireDigest `json:"response_wire"`
 	ApplicationID  string      `json:"application_id"`
 	Acknowledged   bool        `json:"acknowledged"`
+	Nondelivery    bool        `json:"nondelivery,omitempty"`
 }
 
 func (r IngressRow) Valid() bool {
 	if !r.Traffic.valid() || r.Ordinal <= 0 || r.Copy <= 0 || !hashes(r.PeerHash, r.Traffic.WorkerBinding) ||
 		(r.ConnectionHash == "" && r.Outcome != "denied" && r.Outcome != "timeout" && r.Outcome != "close") ||
 		(r.ConnectionHash != "" && !hashes(r.ConnectionHash)) ||
-		(r.ApplicationID != "" && !uuid.MatchString(r.ApplicationID)) {
+		(r.ApplicationID != "" && !uuid.MatchString(r.ApplicationID)) ||
+		r.Nondelivery && !slices.Contains([]string{"withheld", "close", "timeout"}, r.Outcome) {
 		return false
 	}
 	switch r.Outcome {

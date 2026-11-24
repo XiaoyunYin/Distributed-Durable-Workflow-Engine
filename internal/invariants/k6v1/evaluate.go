@@ -128,8 +128,10 @@ func newResult(m Manifest, indexHash string) Result {
 
 func pendingReason(label int) string {
 	switch label {
-	case 8, 10:
-		return "predicate_pending:G3a3"
+	case 8:
+		return "required_proof_missing:effect_closure"
+	case 10:
+		return "predicate_pending:I10"
 	case 12:
 		return "predicate_pending:G3a4"
 	default:
@@ -431,6 +433,9 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 		aborts := checkExternal(&r, m, sources, rows)
 		ordering.checkLowerOffsets(sources.Broker, copied)
 		ordering.checkShutdown(aborts, sources)
+		if m.Sink != nil && planOK && sources.Ingress != nil && sources.Decisions != nil {
+			r.awardEffectClosure(rows, plan, sources, witness, violate)
+		}
 	}
 	if ordering.capture && r.Labels[3].Outcome == "covered/pass" {
 		for _, issue := range issues {

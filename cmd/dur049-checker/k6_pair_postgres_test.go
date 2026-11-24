@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -16,6 +17,8 @@ import (
 	"durable-agent-execution-engine/internal/invariants/k6v1"
 	"github.com/jackc/pgx/v5"
 )
+
+var sinkExporterRoleMu sync.Mutex
 
 func k6SinkDatabase(t *testing.T, engine *pgx.Conn) (*pgx.Conn, string) {
 	t.Helper()
@@ -40,7 +43,13 @@ func k6SinkDatabase(t *testing.T, engine *pgx.Conn) (*pgx.Conn, string) {
 	if engineID == sinkID {
 		t.Fatal("paired fixtures must use separate PostgreSQL instances")
 	}
-	execK6SQL(t, admin, "ALTER ROLE k6_sink_exporter LOGIN PASSWORD 'dur053-k6-test'")
+	// Isolated fixture databases share the same PostgreSQL role catalog.
+	sinkExporterRoleMu.Lock()
+	_, err := admin.Exec(ctx, "ALTER ROLE k6_sink_exporter LOGIN PASSWORD 'dur053-k6-test'")
+	sinkExporterRoleMu.Unlock()
+	if err != nil {
+		t.Fatal(err)
+	}
 	bindK6Database(t, admin, "sink-instance", "reset-a")
 	exporter, err := url.Parse(dsn)
 	if err != nil {

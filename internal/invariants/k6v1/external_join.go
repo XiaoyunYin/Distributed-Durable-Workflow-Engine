@@ -57,9 +57,9 @@ type observedWorker struct {
 }
 
 type observedSend struct {
-	sent     observedWorker
-	outcome  *observedWorker
-	workflow string
+	sent    observedWorker
+	outcome *observedWorker
+	attempt attemptKey
 }
 
 func checkExternal(r *Result, m Manifest, e External, rows map[string][]Row) []observedWorker {
@@ -252,7 +252,7 @@ func checkSessions(r *Result, m Manifest, e External, rows map[string][]Row) (ma
 					flag("WORKER_TRAFFIC_INVOCATION")
 					continue
 				}
-				joinWorkerTraffic(r, session, row, start.Data.Attempt.Workflow, traffic)
+				joinWorkerTraffic(r, session, row, start.Data.Attempt.key(), traffic)
 			}
 		}
 		for _, invocation := range sortedKeys(active) {
@@ -294,13 +294,13 @@ func trafficEqual(a, b Traffic) bool {
 
 func (t Traffic) exchange() string { return t.MessageHash + t.RequestIDHash }
 
-func joinWorkerTraffic(r *Result, session WorkerSession, row Record[WorkerRow], workflow string, traffic map[string]observedSend) {
+func joinWorkerTraffic(r *Result, session WorkerSession, row Record[WorkerRow], attempt attemptKey, traffic map[string]observedSend) {
 	w := row.Data
 	binding := w.Traffic.exchange()
 	old, exists := traffic[binding]
 	observation := observedWorker{session: session, row: row}
 	if w.Kind == "send" && !exists {
-		traffic[binding] = observedSend{sent: observation, workflow: workflow}
+		traffic[binding] = observedSend{sent: observation, attempt: attempt}
 		return
 	}
 	if !exists || w.Kind == "send" || old.outcome != nil || old.sent.session != session ||
@@ -355,7 +355,8 @@ func checkDecisions(r *Result, m Manifest, stream *Stream[DecisionRow], rows map
 func callMatches(c Row, i IngressRow, workflow string) bool {
 	return callRequestMatches(c, i.Traffic, workflow) &&
 		(i.Response == nil || c["response_hash"] == nil || c["response_hash"] == i.Response.SHA256) &&
-		(c["application_id"] == nil && i.ApplicationID == "" || c["application_id"] == i.ApplicationID)
+		(c["application_id"] == nil && i.ApplicationID == "" || c["application_id"] == i.ApplicationID ||
+			i.Response == nil && i.Nondelivery && i.ApplicationID == "")
 }
 
 func callRequestMatches(c Row, t Traffic, workflow string) bool {
@@ -402,6 +403,12 @@ func deliveryOutcome(i IngressRow, send observedSend) bool {
 	return false
 }
 
+type effectScope struct{ intent, key, grant, resource string }
+
+func (t Traffic) effectScope() effectScope {
+	return effectScope{t.Intent, t.KeyHash, t.GrantHash, t.ResourceHash}
+}
+
 func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]observedSend, approved map[string]DecisionRow,
 	haveDecisions bool, rows map[string][]Row) {
 	calls, haveCalls := rows[SinkCalls]
@@ -413,28 +420,37 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 		request := hashField(c, "request_id")
 		byRequest[request] = append(byRequest[request], c)
 	}
-	receiptMatches := map[any]bool{}
+	receiptMatches := map[any]int{}
+	receipts := map[any]Row{}
+	for _, row := range rows[SinkReceipts] {
+		receipts[row["application_id"]] = row
+	}
 	type resolvedAttempt struct {
-		workflow, key string
-		attempt       int64
+		attempt        attemptKey
+		key, operation string
 	}
 	resolved := map[resolvedAttempt]bool{}
-	allocations, misses := map[grantAttempt]bool{}, map[grantAttempt]bool{}
+	allocations, misses := map[grantAttempt]Row{}, map[grantAttempt]bool{}
 	fences := map[grantAttempt]int64{}
 	allocRows, haveAlloc := rows[SinkAllocations]
 	missRows, haveMiss := rows[SinkLookupMisses]
 	for _, row := range allocRows {
 		key := dbGrantAttempt(row)
-		allocations[key] = true
+		allocations[key] = row
 		fences[key] = number(row["fence"])
 	}
 	for _, row := range missRows {
 		misses[dbGrantAttempt(row)] = true
 	}
 	requests := map[string]map[any]bool{}
+	bindings := map[string]any{}
+	for _, row := range rows[SinkBindings] {
+		bindings[hashField(row, "request_id")] = row["body_hash"]
+	}
 	matchedAlloc, matchedMiss := map[grantAttempt]bool{}, map[grantAttempt]bool{}
 	type copyKey struct{ ordinal, copy int64 }
-	byCopy, byOrdinal := map[copyKey]bool{}, map[int64]string{}
+	byCopy, byOrdinal := map[copyKey]bool{}, map[int64]Traffic{}
+	joined := map[any]Record[IngressRow]{}
 	first := map[string]bool{}
 	intents := map[string]Row{}
 	for _, intent := range rows[intentsRelation] {
@@ -448,24 +464,25 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 		i, t := row.Data, row.Data.Traffic
 		flag := func(code string) { flagExternal(r, 7, "DeliveryClosure", code, IngressPath, row) }
 		key := copyKey{i.Ordinal, i.Copy}
+		prior, seenOrdinal := byOrdinal[i.Ordinal]
 		if byCopy[key] || i.Copy > 1 && !inventory[copyKey{i.Ordinal, i.Copy - 1}] ||
-			byOrdinal[i.Ordinal] != "" && byOrdinal[i.Ordinal] != t.WorkerBinding ||
+			seenOrdinal && !trafficEqual(prior, t) ||
 			i.Copy == 1 && first[t.exchange()] {
 			flag("INGRESS_COPY_ORDER")
 		}
-		byCopy[key], byOrdinal[i.Ordinal] = true, t.WorkerBinding
+		if !seenOrdinal && i.Ordinal != int64(len(byOrdinal)+1) {
+			flag("INGRESS_ORDINAL_GAP")
+		}
+		byCopy[key], byOrdinal[i.Ordinal] = true, t
 		if i.Copy == 1 {
 			first[t.exchange()] = true
-		}
-		if i.Copy == 1 && i.Ordinal > 1 && !inventory[copyKey{i.Ordinal - 1, 1}] {
-			flag("INGRESS_ORDINAL_GAP")
 		}
 		if !i.Acknowledged {
 			flag("INGRESS_UNACKNOWLEDGED")
 		}
 		sent, ok := traffic[t.exchange()]
 		intent := intents[t.Intent]
-		workflow := sent.workflow
+		workflow := sent.attempt.workflow
 		switch {
 		case t.Operation == "allocate":
 			workflow, _ = intent["workflow_id"].(string)
@@ -477,8 +494,14 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 		case !deliveryOutcome(i, sent):
 			flag("INGRESS_WORKER_OUTCOME")
 		}
-		if want := hashField(intent, "k6_logical_key"); intent != nil && i.Outcome != "denied" && want != t.KeyHash {
+		if want := hashField(intent, "k6_logical_key"); intent != nil && want != t.KeyHash {
 			flag("DELIVERY_LOGICAL_KEY")
+		}
+		if _, haveIntents := rows[intentsRelation]; haveIntents && (intent == nil || intent["workflow_id"] != workflow ||
+			hashField(intent, "target") != t.ResourceHash ||
+			t.Operation != "allocate" && intent["node_id"] != nil &&
+				(intent["node_id"] != sent.attempt.node || number(intent["iteration"]) != sent.attempt.iteration)) {
+			flag("DELIVERY_WITHOUT_ENGINE_KEY")
 		}
 		if haveDecisions && i.Outcome != "denied" && approved[t.GrantHash].Intent != t.Intent {
 			flag("DELIVERY_WITHOUT_GRANT")
@@ -515,18 +538,41 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 		}
 		used[i.ConnectionHash] = true
 		c := matches[0]
+		joined[c["call_id"]] = row
 		if c["response_hash"] == nil && i.Response != nil && !unrecordedReply(c, i, fences) {
 			flag("INGRESS_CALL_RESPONSE")
 		}
 		switch c["outcome"] {
 		case "APPLIED":
-			receiptMatches[c["application_id"]] = true
+			receiptMatches[c["application_id"]]++
+			if receiptMatches[c["application_id"]] > 1 {
+				flag("DELIVERY_DUPLICATE_APPLICATION")
+			}
 			fallthrough
 		case "DUPLICATE", "FOUND":
-			resolved[resolvedAttempt{workflow, t.KeyHash, t.Attempt}] = true
+			expectedOperation := "apply"
+			if c["outcome"] == "FOUND" {
+				expectedOperation = "lookup"
+			}
+			if t.Operation != expectedOperation || c["response_hash"] == nil {
+				flag("DELIVERY_RECEIPT_OUTCOME")
+			}
+			receipt := receipts[c["application_id"]]
+			if _, haveReceipts := rows[SinkReceipts]; haveReceipts && (receipt == nil ||
+				receipt["workflow_id"] != workflow || receipt["intent_id"] != t.Intent ||
+				hashField(receipt, "logical_key") != t.KeyHash || hashField(receipt, "resource_id") != t.ResourceHash) {
+				flag("DELIVERY_RECEIPT_IDENTITY")
+			}
+			if i.Outcome == "delivered" {
+				resolved[resolvedAttempt{sent.attempt, t.KeyHash, t.Operation}] = true
+				resolved[resolvedAttempt{sent.attempt, t.KeyHash, ""}] = true
+			}
 		case "ALLOCATED":
+			if t.Operation != "allocate" {
+				flag("DELIVERY_ALLOCATION_OUTCOME")
+			}
 			matchedAlloc[t.grantAttempt()] = true
-			if haveAlloc && !allocations[t.grantAttempt()] {
+			if haveAlloc && allocations[t.grantAttempt()] == nil {
 				flag("DELIVERY_ALLOCATION_MISSING")
 			}
 		case "MISSING":
@@ -543,7 +589,12 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 			requests[t.RequestIDHash] = hashesForRequest
 		}
 		// The persisted binding commits the operation as well as the request bytes.
-		hashesForRequest[Hash([]byte(t.Operation+"\x00"+t.Request.SHA256))] = true
+		binding := Hash([]byte(t.Operation + "\x00" + t.Request.SHA256))
+		hashesForRequest[binding] = true
+		if _, haveBindings := rows[SinkBindings]; haveBindings && c["outcome"] != "REQUEST_CONFLICT" &&
+			bindings[t.RequestIDHash] != binding {
+			flag("DELIVERY_REQUEST_BINDING")
+		}
 	}
 	for _, id := range sortedKeys(traffic) {
 		if !first[id] {
@@ -559,7 +610,9 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 	if haveCalls {
 		for _, row := range rows["engine.activity_attempts"] {
 			if row["effect_class"] == "COOPERATING_EFFECT" && row["state"] == "SUCCEEDED" {
-				key := resolvedAttempt{row["workflow_id"].(string), hashField(row, "logical_effect_key"), number(row["attempt_number"])}
+				proof, _ := row["k6_proof"].(map[string]any)
+				op, _ := proof["operation"].(string)
+				key := resolvedAttempt{fromDBAttempt(row), hashField(row, "logical_effect_key"), op}
 				if !resolved[key] {
 					databaseOrphan(r, 7, "DeliveryClosure", "EFFECT_SUCCESS_WITHOUT_DELIVERY", "engine.activity_attempts", row)
 				}
@@ -567,7 +620,7 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 		}
 	}
 	for _, row := range rows[SinkReceipts] {
-		if !receiptMatches[row["application_id"]] {
+		if receiptMatches[row["application_id"]] == 0 {
 			databaseOrphan(r, 7, "DeliveryClosure", "SINK_RECEIPT_WITHOUT_APPLICATION", SinkReceipts, row)
 		}
 	}
@@ -584,6 +637,119 @@ func checkDeliveries(r *Result, stream Stream[IngressRow], traffic map[string]ob
 	for _, row := range rows[SinkBindings] {
 		if !requests[hashField(row, "request_id")][row["body_hash"]] {
 			databaseOrphan(r, 7, "DeliveryClosure", "SINK_BINDING_WITHOUT_INGRESS", SinkBindings, row)
+		}
+	}
+	if haveCalls && haveAlloc {
+		checkEffectCallOrder(r, rows, joined, allocations)
+	}
+	if _, fullCut := rows[SinkResources]; fullCut && haveCalls {
+		checkUncommittedDelivery(r, stream.Rows, calls, joined, traffic)
+	}
+}
+
+// Calls are ordered by the sink's identity sequence. For one resource the
+// sequence is assigned under the same resource lock as the write/allocation.
+func checkEffectCallOrder(r *Result, rows map[string][]Row, joined map[any]Record[IngressRow], allocations map[grantAttempt]Row) {
+	type recovery struct {
+		effectScope
+		attempt int64
+	}
+	fence := map[any]int64{}
+	issued := map[grantAttempt]bool{}
+	missing := map[recovery]bool{}
+	found := map[effectScope]map[any]int{}
+	lost := map[int]effectScope{}
+	for order, c := range rows[SinkCalls] {
+		row, ok := joined[c["call_id"]]
+		if !ok {
+			continue
+		}
+		i, resource := row.Data, c["resource_id"]
+		t := i.Traffic
+		key := t.effectScope()
+		attempt := recovery{key, t.Attempt}
+		allocation, grant := allocations[t.grantAttempt()], t.grantAttempt()
+		flag := func(predicate, code string) { flagExternal(r, 7, predicate, code, IngressPath, row) }
+		switch c["outcome"] {
+		case "ALLOCATED":
+			if allocation == nil || issued[grant] {
+				continue
+			}
+			issued[grant] = true
+			next := number(allocation["fence"])
+			if allocation["resource_id"] != resource || next != fence[resource]+1 {
+				flag("RevisionChain", "SINK_FENCE_SEQUENCE")
+			}
+			fence[resource] = next
+		case "MISSING":
+			if t.Operation == "lookup" && i.Outcome == "delivered" {
+				missing[attempt] = true
+			}
+		case "FOUND":
+			if t.Operation == "lookup" && i.Outcome == "delivered" {
+				if found[key] == nil {
+					found[key] = map[any]int{}
+				}
+				found[key][c["application_id"]] = order + 1
+			}
+		case "APPLIED":
+			if _, haveAlloc := rows[SinkAllocations]; haveAlloc && (allocation == nil || !issued[grant] || number(allocation["fence"]) != fence[resource]) {
+				flag("RevisionChain", "SINK_APPLIED_STALE_FENCE")
+			}
+			if t.Attempt > 1 && !missing[attempt] {
+				flag("DeliveryClosure", "SINK_REPLACEMENT_WITHOUT_MISS")
+			}
+			switch i.Outcome {
+			case "withheld", "close", "timeout":
+				if !i.Nondelivery {
+					flag("DeliveryClosure", "COMMITTED_NONDELIVERY_UNPROVEN")
+				}
+				lost[order] = key
+			}
+		}
+	}
+	for order, c := range rows[SinkCalls] {
+		if key, ok := lost[order]; ok && found[key][c["application_id"]] <= order+1 {
+			flagExternal(r, 7, "DeliveryClosure", "LOST_APPLICATION_WITHOUT_LOOKUP", IngressPath, joined[c["call_id"]])
+		}
+	}
+	for _, row := range rows[SinkResources] {
+		if number(row["latest_fence"]) != fence[row["resource_id"]] {
+			databaseOrphan(r, 7, "RevisionChain", "SINK_FENCE_ENDPOINT", SinkResources, row)
+		}
+	}
+}
+
+func checkUncommittedDelivery(r *Result, ingress []Record[IngressRow], calls []Row, joined map[any]Record[IngressRow],
+	traffic map[string]observedSend) {
+	committed := map[string]bool{}
+	lookups := map[effectScope][]observedSend{}
+	for _, c := range calls {
+		row, ok := joined[c["call_id"]]
+		if !ok {
+			continue
+		}
+		i := row.Data
+		if c["outcome"] == "APPLIED" {
+			committed[i.Traffic.exchange()] = true
+		}
+		if i.Traffic.Operation == "lookup" && i.Outcome == "delivered" && (c["outcome"] == "FOUND" || c["outcome"] == "MISSING") {
+			key := i.Traffic.effectScope()
+			lookups[key] = append(lookups[key], traffic[i.Traffic.exchange()])
+		}
+	}
+	for _, row := range ingress {
+		i, t := row.Data, row.Data.Traffic
+		if i.Copy != 1 || t.Operation != "apply" || committed[t.exchange()] ||
+			!slices.Contains([]string{"close", "timeout", "withheld"}, i.Outcome) {
+			continue
+		}
+		send := traffic[t.exchange()]
+		if !i.Nondelivery || send.outcome == nil || !slices.ContainsFunc(lookups[t.effectScope()], func(lookup observedSend) bool {
+			return lookup.attempt.attempt > t.Attempt || lookup.sent.session == send.sent.session &&
+				lookup.sent.row.Position.Sequence > send.outcome.row.Position.Sequence
+		}) {
+			flagExternal(r, 7, "DeliveryClosure", "UNRESOLVED_APPLY_DELIVERY", IngressPath, row)
 		}
 	}
 }

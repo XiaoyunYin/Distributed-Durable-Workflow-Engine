@@ -100,8 +100,9 @@ func fixtureExternal(t *testing.T, effect bool) (Manifest, External, map[string]
 		}
 		s := fixtureStream(m, "ingress", "relay-receiver", ingress...)
 		e.Ingress = &s
-		rows[SinkReceipts] = []Row{{"application_id": fixtureApplication}}
-		rows[SinkAllocations] = []Row{{"intent_id": fixtureIntent, "grant_hash": d.GrantHash, "attempt": json.Number("1"), "fence": json.Number("1")}}
+		rows[SinkReceipts] = []Row{{"application_id": fixtureApplication, "workflow_id": "workflow",
+			"logical_key": "logical", "intent_id": fixtureIntent, "resource_id": "resource"}}
+		rows[SinkAllocations] = []Row{{"intent_id": fixtureIntent, "grant_hash": d.GrantHash, "attempt": json.Number("1"), "fence": json.Number("1"), "resource_id": "resource"}}
 		rows[SinkLookupMisses] = []Row{}
 	} else {
 		components := []Component{{"database", "engine", "engine"}, {"deployment", "worker", "worker"}, {"service", "api", "engine"}}
@@ -369,7 +370,7 @@ func TestK6IngressCloseWithoutSinkCall(t *testing.T) {
 				t.Fatalf("call-free ingress terminal rejected: %+v", r.Findings)
 			}
 			if r.ExitCode() != Incomplete || r.Safety != "NOT COVERED" || len(r.InvariantsCovered) != 0 ||
-				r.Labels[7].Outcome != "NOT COVERED" || r.Labels[7].Reason != "predicate_pending:G3a3" {
+				r.Labels[7].Outcome != "NOT COVERED" || r.Labels[7].Reason != "required_proof_missing:effect_closure" {
 				t.Fatalf("call-free ingress terminal changed coverage: %+v", r)
 			}
 		})
@@ -474,6 +475,192 @@ func TestK6DecisionReverse(t *testing.T) {
 	e.Decisions.Rows = e.Decisions.Rows[:0]
 	resealFixture(e.Decisions)
 	wantExternal(t, externalVerdict(t, m, e, rows, nil), "DECISION_MISSING_FOR_INTENT", RelationPath(intentsRelation))
+}
+
+func TestK6EffectLostResponse(t *testing.T) {
+	for _, tc := range []struct {
+		name, code                string
+		noReply, noDrop, noLookup bool
+	}{
+		{name: "MatchingReply"},
+		{name: "ProvenNondelivery", noReply: true},
+		{name: "ClientTimeoutOnly", code: "COMMITTED_NONDELIVERY_UNPROVEN", noDrop: true},
+		{name: "NoLookup", code: "LOST_APPLICATION_WITHOUT_LOOKUP", noLookup: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, e, rows := fixtureExternal(t, true)
+			apply := &e.Ingress.Rows[1].Data
+			apply.Outcome, apply.Nondelivery = "withheld", !tc.noDrop
+			if tc.noReply {
+				apply.Outcome, apply.Response, apply.ApplicationID = "close", nil, ""
+			}
+			ledger := e.Sessions[firstSession]
+			ledger.Rows[3].Data.Kind, ledger.Rows[3].Data.Response = "timeout", nil
+			if tc.noLookup {
+				ledger.Rows = slices.Delete(ledger.Rows, 4, 6)
+				ledger.Rows[4].Position.Sequence = 5
+				e.Ingress.Rows = e.Ingress.Rows[:2]
+				rows[SinkCalls], rows[SinkBindings] = rows[SinkCalls][:2], rows[SinkBindings][:2]
+			}
+			resealFixture(&ledger)
+			e.Sessions[firstSession] = ledger
+			resealFixture(e.Ingress)
+			r := externalVerdict(t, m, e, rows, nil)
+			if tc.code != "" {
+				wantExternal(t, r, tc.code, IngressPath)
+			} else if len(r.Findings) != 0 {
+				t.Fatalf("closed lost response: %+v", r.Findings)
+			}
+		})
+	}
+}
+
+func TestK6EffectCallFacts(t *testing.T) {
+	for _, tc := range []struct {
+		name, code string
+		change     func(*External, map[string][]Row)
+	}{
+		{"UnrelatedReceipt", "DELIVERY_RECEIPT_IDENTITY", func(_ *External, rows map[string][]Row) {
+			rows[SinkReceipts][0]["resource_id"] = "other"
+		}},
+		{"WrongCallOutcome", "DELIVERY_RECEIPT_OUTCOME", func(_ *External, rows map[string][]Row) {
+			rows[SinkCalls][2]["outcome"] = "DUPLICATE"
+		}},
+		{"DuplicateApplication", "DELIVERY_DUPLICATE_APPLICATION", func(_ *External, rows map[string][]Row) {
+			rows[SinkCalls][2]["outcome"] = "APPLIED"
+		}},
+		{"WrongAllocationOutcome", "DELIVERY_ALLOCATION_OUTCOME", func(_ *External, rows map[string][]Row) {
+			rows[SinkCalls][2]["outcome"] = "ALLOCATED"
+		}},
+		{"FenceGap", "SINK_FENCE_SEQUENCE", func(_ *External, rows map[string][]Row) {
+			rows[SinkAllocations][0]["fence"] = json.Number("2")
+		}},
+		{"UnissuedFence", "SINK_APPLIED_STALE_FENCE", func(_ *External, rows map[string][]Row) {
+			rows[SinkAllocations] = nil
+		}},
+		{"MissingBinding", "DELIVERY_REQUEST_BINDING", func(_ *External, rows map[string][]Row) {
+			rows[SinkBindings] = slices.Delete(rows[SinkBindings], 1, 2)
+		}},
+		{"UnknownDenial", "DELIVERY_WITHOUT_ENGINE_KEY", func(e *External, _ map[string][]Row) {
+			row := &e.Ingress.Rows[1].Data
+			row.Outcome, row.Traffic.Intent = "denied", deadSession
+			resealFixture(e.Ingress)
+		}},
+		{"CloseoutFence", "SINK_FENCE_ENDPOINT", func(_ *External, rows map[string][]Row) {
+			rows[SinkResources] = []Row{{"resource_id": "resource", "latest_fence": json.Number("2")}}
+		}},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, e, rows := fixtureExternal(t, true)
+			tc.change(&e, rows)
+			path := IngressPath
+			if tc.name == "CloseoutFence" {
+				path = RelationPath(SinkResources)
+			}
+			wantExternal(t, externalVerdict(t, m, e, rows, nil), tc.code, path)
+		})
+	}
+}
+
+func TestK6EffectReplacementMiss(t *testing.T) {
+	for _, tc := range []struct {
+		name, outcome, grant string
+		before               bool
+	}{
+		{"Missing", "MISSING", "grant", true},
+		{"Found", "FOUND", "grant", true},
+		{"OtherGrant", "MISSING", "different", true},
+		{"TooLate", "MISSING", "grant", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, _, _ := fixtureExternal(t, true)
+			r := newResult(m, "")
+			traffic := Traffic{Operation: "apply", Intent: fixtureIntent, Attempt: 2, GrantHash: fixtureHash("grant"),
+				KeyHash: fixtureHash("logical"), ResourceHash: fixtureHash("resource")}
+			lookup := traffic
+			lookup.Operation, lookup.GrantHash = "lookup", fixtureHash(tc.grant)
+			rows := map[string][]Row{SinkCalls: {
+				{"call_id": "lookup", "outcome": tc.outcome, "resource_id": "resource"},
+				{"call_id": "apply", "outcome": "APPLIED", "resource_id": "resource"},
+			}}
+			if !tc.before {
+				slices.Reverse(rows[SinkCalls])
+			}
+			matched := map[any]Record[IngressRow]{
+				"lookup": {Data: IngressRow{Traffic: lookup, Outcome: "delivered"}},
+				"apply":  {Data: IngressRow{Traffic: traffic, Outcome: "delivered"}},
+			}
+			checkEffectCallOrder(&r, rows, matched, nil)
+			if tc.name == "Missing" {
+				if len(r.Findings) != 0 {
+					t.Fatalf("same-grant miss rejected: %+v", r.Findings)
+				}
+			} else {
+				wantExternal(t, r, "SINK_REPLACEMENT_WITHOUT_MISS", IngressPath)
+			}
+		})
+	}
+}
+
+func TestK6EffectUncommittedDelivery(t *testing.T) {
+	for _, tc := range []struct {
+		name, code string
+		drop, miss bool
+	}{
+		{"Missing", "", true, true},
+		{"TimeoutOnly", "UNRESOLVED_APPLY_DELIVERY", false, true},
+		{"NoLookup", "UNRESOLVED_APPLY_DELIVERY", true, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, e, rows := fixtureExternal(t, true)
+			apply, lookup := &e.Ingress.Rows[1].Data, &e.Ingress.Rows[2].Data
+			apply.Outcome, apply.Nondelivery, apply.Response, apply.ApplicationID = "close", tc.drop, nil, ""
+			body := "K6_SINK_MISSING\n"
+			lookup.Response, lookup.ApplicationID = &WireDigest{int64(len(body)), fixtureHash(body)}, ""
+			c := rows[SinkCalls][2]
+			c["outcome"], c["application_id"], c["response_hash"] = "MISSING", nil, nil
+			rows[SinkResources] = []Row{{"resource_id": "resource", "latest_fence": json.Number("1")}}
+			rows[SinkReceipts] = nil
+			rows[SinkCalls] = slices.Delete(rows[SinkCalls], 1, 2)
+			rows[SinkBindings] = slices.Delete(rows[SinkBindings], 1, 2)
+			ledger := e.Sessions[firstSession]
+			ledger.Rows[3].Data.Kind, ledger.Rows[3].Data.Response = "timeout", nil
+			ledger.Rows[5].Data.Response = lookup.Response
+			if !tc.miss {
+				ledger.Rows = slices.Delete(ledger.Rows, 4, 6)
+				ledger.Rows[4].Position.Sequence = 5
+				e.Ingress.Rows = e.Ingress.Rows[:2]
+				rows[SinkCalls], rows[SinkBindings] = rows[SinkCalls][:1], rows[SinkBindings][:1]
+			}
+			resealFixture(&ledger)
+			e.Sessions[firstSession] = ledger
+			resealFixture(e.Ingress)
+			r := externalVerdict(t, m, e, rows, nil)
+			if tc.code != "" {
+				wantExternal(t, r, tc.code, IngressPath)
+			} else if len(r.Findings) != 0 {
+				t.Fatalf("non-delivered apply closed by a miss: %+v", r.Findings)
+			}
+		})
+	}
+}
+
+func TestK6EffectSuccessUsesProofOperation(t *testing.T) {
+	m, e, rows := fixtureApply(t, "delivered", "receive")
+	a := rows[activityAttempts][0]
+	a["effect_class"], a["state"], a["logical_effect_key"] = "COOPERATING_EFFECT", "SUCCEEDED", "logical"
+	a["k6_proof"] = map[string]any{"operation": "lookup"}
+	wantExternal(t, externalVerdict(t, m, e, rows, nil), "EFFECT_SUCCESS_WITHOUT_DELIVERY", RelationPath(activityAttempts))
+}
+
+func TestK6EffectCopyIdentity(t *testing.T) {
+	m, e, rows := fixtureExternal(t, true)
+	copy := &e.Ingress.Rows[2].Data
+	copy.Ordinal, copy.Copy = 2, 2
+	copy.Traffic.WorkerBinding = e.Ingress.Rows[1].Data.Traffic.WorkerBinding
+	copy.Outcome = "duplicate_reply"
+	resealFixture(e.Ingress)
+	wantExternal(t, externalVerdict(t, m, e, rows, nil), "INGRESS_COPY_ORDER", IngressPath)
 }
 
 func TestK6BrokerRegression(t *testing.T) {

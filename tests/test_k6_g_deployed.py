@@ -224,13 +224,15 @@ def test_negative_replay_retains_pass_summary(
     completed = {"I1", "I2", "I4", "I6", "I11"}
     if cell == "hook-3":
         completed.add("I7")
-    registered = completed | ({"I8", "I10"} if cell == "medium-12" else set())
+    if cell == "medium-12":
+        completed.add("I8")
+    registered = completed | ({"I10"} if cell == "medium-12" else set())
     covered = [] if idle else [identity for identity in ids if identity in completed]
 
     def reason(identity: str) -> str:
         if identity in completed:
             return "no_positive_population" if idle else "predicate_satisfied"
-        return "predicate_pending:G3a3" if identity in registered else "outside_registry_ceiling"
+        return "predicate_pending:I10" if identity in registered else "outside_registry_ceiling"
 
     baseline = json.dumps(
         {
