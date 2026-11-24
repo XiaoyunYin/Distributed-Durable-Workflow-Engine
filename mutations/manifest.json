@@ -15340,7 +15340,7 @@
         "-q",
         "tests/test_k6_phase_c.py::test_phase_c_trace_fails_unknown_pair_immediately"
       ],
-      "expected": "rejection record lost backend details or retained the client address",
+      "expected": "rejection record lost backend or socket details",
       "requires_database": false,
       "ci_shard": "with-k6-b"
     },
