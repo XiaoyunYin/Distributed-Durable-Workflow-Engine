@@ -156,18 +156,10 @@ func SinkRelations() []Relation {
 var errShape = errors.New("K6_PUBLIC_ROW_SCHEMA")
 
 func ValidateRow(spec Relation, row Row) error {
-	columns := spec.Columns
-	if spec.Name == SinkCalls || spec.Name == SinkJournal {
-		// Earlier bundles ended before the transaction projection. Preserve
-		// their row digests and let the authority predicate report missing proof.
-		if first := slices.IndexFunc(columns, func(c Column) bool { return c.Name == "transaction_id" }); first == len(row) {
-			columns = columns[:first]
-		}
-	}
-	if len(row) != len(columns) {
+	if len(row) != len(spec.Columns) {
 		return errShape
 	}
-	for _, col := range columns {
+	for _, col := range spec.Columns {
 		value, exists := row[col.Name]
 		if !exists || (value == nil && !col.Nullable) || (value != nil && !validValue(col.Kind, value)) {
 			return fmt.Errorf("%w: %s", errShape, col.Name)

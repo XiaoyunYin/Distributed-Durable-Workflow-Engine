@@ -14,6 +14,8 @@ R375 splits the Bash and PowerShell `with-k6` pools into three shards each. Comm
 
 An unavailable operand gives typed `required_proof_missing:<source>` on the first affected public row. This includes `sealed_effect_operation`, `exact_grant_read`, `sink_commit_transaction`, `relay_ingress_open`, `committed_decision_identity`, `owner_grant_transaction`, the attempt and recovery joins, and `dispatch_ack_transaction`. Findings preserve the row key and digest when a row is present.
 
+Earlier effect bundles use the historical sink schema when both catalog projections match. They retain their I8 verdict and report missing proof for I10.
+
 ## Write bracket and trust boundary
 
 The engine’s exact-grant recheck supplies its database time and the sink records the typed request used for that read. The relay’s acknowledged ingress open sequence and timestamp bound the start of the write. The sink inserts its call ID and timestamp under the resource lock in the same database transaction as the journal transition. The checker joins the call to that transition and compares its in-transaction time directly with the grant’s absolute expiry. Reply delivery can be withheld past expiry. A commit at or after expiry is still a safety violation. A missing in-transaction timestamp is missing proof.

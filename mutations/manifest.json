@@ -22595,6 +22595,25 @@
       ],
       "expected": "expected I10 award",
       "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-legacy-partial-schema",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "if !slices.Equal(census[j].Columns, legacy[i].SourceColumns()) {",
+      "new": "if !slices.Equal(census[j].Columns, legacy[i].SourceColumns()) && name != SinkJournal {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6SinkAuthoritySchemaHistory$",
+        "-count=1"
+      ],
+      "expected": "a partial authority schema was admitted as legacy",
+      "requires_database": false
     }
   ]
 }
