@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import re
@@ -12,7 +13,7 @@ import tempfile
 import time
 from collections.abc import Callable, Iterator
 from concurrent.futures import ThreadPoolExecutor
-from contextlib import AbstractContextManager, contextmanager, nullcontext, suppress
+from contextlib import AbstractContextManager, ExitStack, contextmanager, nullcontext, suppress
 from datetime import datetime
 from pathlib import Path
 from typing import cast
@@ -38,6 +39,7 @@ from dur053_k6_e1_join import EVENTS, GROUP, TASKS
 from dur053_k6_g_bundle import (
     BROKER_PATH,
     CONTROL_PATH,
+    STALE_PATH,
     Json,
     canonical,
     idle_sources,
@@ -52,6 +54,7 @@ from dur053_k6_g_bundle import (
     write_fence,
 )
 from dur053_k6_g_registration import AUDIENCE, INTAKE, bind_registration, observe_runtime, utc
+from dur053_k6_g_stale import PEER, StaleDriver
 from dur053_k6_g_timings import ledger_cost
 from dur053_k6_identity import REVIEWER, WORKER, obj
 from dur053_k6_registry import REGISTRY, read_registry
@@ -128,7 +131,8 @@ class Episode(Matrix):
         self.effect = cell["workload"] == "COOPERATING_EFFECT"
         self.idle = idle
         self.arm = "effect" if self.effect else "pure"
-        instance = "idle" if idle else self.arm
+        self.stale: StaleDriver | None = None
+        instance = "idle" if idle else "stale" if cell["cell"] == "hook-5" else self.arm
         self.namespace = "dur053-g-" + instance
         self.database = f"dur053_g_{instance}"
         self.sink_container = CLUSTER + "-g-sink-db"
@@ -488,6 +492,8 @@ class Episode(Matrix):
             ),
         )
         objects = self.engine_manifests(addresses, key, sha(allocator_raw))
+        if self.stale:
+            self.stale.render(objects, self.address)
         self.evidence.write("deployed-topology.json", objects)
         image_set = {**self.harness.images, **({"effect": self.image} if self.effect else {})}
         component_list = components(objects, self.database)
@@ -523,7 +529,7 @@ class Episode(Matrix):
             ),
         }
         self.manifest["required_sources"] = sorted(
-            [*self.manifest["required_sources"], CONTROL_PATH]
+            [*self.manifest["required_sources"], STALE_PATH if self.stale else CONTROL_PATH]
         )
         self.evidence.write(
             "reset-provisioning.json",
@@ -894,10 +900,15 @@ class Episode(Matrix):
 
     def offers(self, jail: Path, token: str) -> None:
         arrivals = []
+        removal = None
+        proof = None
         operations = {row["submission_key"]: row for row in self.allocator_plan["operations"]}
         for window in self.public_plan["windows"] if not self.idle else ():
             [entry] = window["submissions"]
             key = entry["submission_key"]
+            challenge = self.stale if self.stale and self.stale.workflow == key else None
+            if challenge:
+                challenge.arm()
             sent = utc()
             status, body = (
                 self.k(
@@ -946,6 +957,8 @@ class Episode(Matrix):
                     ],
                 }
             )
+            if challenge:
+                proof, removal = challenge.finish()
             if self.effect:
                 operation = operations[key]
 
@@ -986,7 +999,7 @@ class Episode(Matrix):
                     "episode": self.binding["episode"],
                     "reset_id": self.binding["reset_id"],
                     "plan_sha256": self.manifest["plan_sha256"],
-                    "removal_utc": None,
+                    "removal_utc": removal,
                     "sealed_utc": utc(),
                     "rows": arrivals,
                 }
@@ -1006,6 +1019,11 @@ class Episode(Matrix):
             "producer-result.json",
             {"status": "PASS", "outcomes": self.wait_for(terminal, "G_PRODUCER_TERMINAL")},
         )
+        if self.stale and proof is not None:
+            self.stale.complete(proof)
+            path = self.frames / STALE_PATH
+            path.parent.mkdir()
+            atomic(path, canonical(proof))
 
     def outcomes(self) -> Json:
         return {
@@ -1122,9 +1140,13 @@ class Episode(Matrix):
             run = subprocess.run(
                 args, env=self.env, timeout=timeout, check=False, capture_output=True
             )
-            self.evidence.write_bytes(name + ".stdout.json", run.stdout)
-            self.evidence.write_bytes(name + ".stderr.txt", run.stderr)
-            self.evidence.write(name + ".exit.json", {"exit_code": run.returncode})
+            for suffix, data in (
+                (".stdout.json", run.stdout),
+                (".stderr.txt", run.stderr),
+                (".exit.json", canonical({"exit_code": run.returncode})),
+            ):
+                self.evidence.check(data)
+                atomic(self.evidence.root / (name + suffix), data)
             return run.returncode, run.stdout
 
         launch = (checker, "-k6-live-v1", str(path))
@@ -1165,6 +1187,8 @@ class Episode(Matrix):
             code, default = offline(bundle, "default-offline", str(self.shared / "checker-default"))
             require(code == (3 if self.idle else 0), f"G_DEFAULT_OFFLINE_EXIT_{code}")
             require(default == live, "G_DEFAULT_BUILD_PARITY")
+        if self.stale:
+            self.stale_parity(config, checker, invoke)
         quiet = quiet_summary(bundle)
         self.evidence.write("quiet-generations.json", quiet)
         if self.effect:
@@ -1180,6 +1204,61 @@ class Episode(Matrix):
         self.evidence.write(
             "worker-ledger-cost.json", ledger_cost(bundle, timings, effect=self.effect)
         )
+
+    def stale_parity(
+        self,
+        config: Json,
+        checker: str,
+        invoke: Callable[[tuple[str, ...], str, int], tuple[int, bytes]],
+    ) -> None:
+        source = self.frames / STALE_PATH
+        original = read_json(source)
+        for name, section, field, value, reason in (
+            ("N5Harness", "call", "pid", 73, "STALE_CHALLENGE_ORIGIN"),
+            ("WrongOrder", "call", "at_ns", 1, "STALE_CHALLENGE_ORDER"),
+            ("Committed", "call", "outcome", "COMMITTED", "STALE_CHALLENGE_COMMITTED"),
+            ("MissingRejection", "call", "outcome", "OTHER_ERROR", "stale_challenge_rejection"),
+            ("MissingBackend", "hold", "backends", [], "stale_challenge_backend"),
+            ("MissingACK", "", "journal", "", "stale_challenge_ack"),
+            (
+                "MissingProgress",
+                "",
+                "progress_transaction",
+                "",
+                "stale_challenge_successor_progress",
+            ),
+        ):
+            with self.evidence.step("stale-parity-" + name):
+                variant = copy.deepcopy(original)
+                target = variant[section] if section else variant
+                target[field] = value
+                atomic(source, canonical(variant))
+                folder = self.evidence.root / "stale-parity" / name
+                folder.mkdir(parents=True)
+                bundle = folder / "public"
+                private = self.scratch / f"stale-parity-{name}.json"
+                private_file(private, canonical({**config, "episode_dir": str(bundle)}))
+                label = "stale-parity/" + name
+                code, live = invoke(
+                    ("sudo", checker, "-k6-live-v1", str(private)), label + "/live", 140
+                )
+                offline_code, offline = invoke(
+                    ("sudo", "unshare", "--net", "--", checker, "-k6-offline-v1", str(bundle)),
+                    label + "/offline",
+                    20,
+                )
+                kind = "violation" if reason.startswith("STALE_CHALLENGE_") else "missing"
+                expected = reason if kind == "violation" else "required_proof_missing:" + reason
+                require(code == offline_code == 1 and live == offline, "G_STALE_FIXTURE_PARITY")
+                result = json.loads(live)
+                require(
+                    len(result["findings"]) == 1
+                    and result["findings"][0]["code"] == expected
+                    and result["findings"][0]["kind"] == kind
+                    and result["confirmation"]["reason"] == expected,
+                    "G_STALE_FIXTURE_RESULT_" + name,
+                )
+        atomic(source, canonical(original))
 
     def inject(self, gates: Path, phase: str, checker_done: Callable[[], bool]) -> Json:
         request = gates / f"{phase}.json"
@@ -1253,7 +1332,7 @@ class Episode(Matrix):
                 with self.evidence.step("list-watch-runtime-and-registration"):
                     names, generation = self.launch_workers(self.worker)
                 with self.evidence.step("deployed-workloads"):
-                    before = self.control_snapshot()
+                    before = None if self.stale else self.control_snapshot()
                     self.offers(jail, token)
                     last = self.wait_for(
                         lambda: self.corroborated_coordinator(names),
@@ -1261,19 +1340,20 @@ class Episode(Matrix):
                         seconds=20,
                     )
                     generation = last["generation"]
-                    control = self.frames / CONTROL_PATH
-                    control.parent.mkdir()
-                    atomic(
-                        control,
-                        canonical(
-                            {
-                                "schema": "dur053.k6-control-observation.v1",
-                                "binding": self.binding,
-                                "before": before,
-                                "after": self.control_snapshot(),
-                            }
-                        ),
-                    )
+                    if before is not None:
+                        control = self.frames / CONTROL_PATH
+                        control.parent.mkdir()
+                        atomic(
+                            control,
+                            canonical(
+                                {
+                                    "schema": "dur053.k6-control-observation.v1",
+                                    "binding": self.binding,
+                                    "before": before,
+                                    "after": self.control_snapshot(),
+                                }
+                            ),
+                        )
                 with self.evidence.step("stop-worker-relay-and-allocator-admission"):
                     self.stop_roles({"worker": "worker"})
                     stops = {"worker": utc()}
@@ -1281,7 +1361,14 @@ class Episode(Matrix):
                     if self.effect:
                         self.stop_witness()
                     stops["relay"] = utc()
-                    self.stop_roles({CONTROL: CONTROL, "scheduler": "scheduler", "api": "api"})
+                    self.stop_roles(
+                        {
+                            CONTROL: CONTROL,
+                            "scheduler": "scheduler",
+                            "api": "api",
+                            **({PEER: "scheduler"} if self.stale else {}),
+                        }
+                    )
                     stops["allocator"] = utc()
             with self.evidence.step("observe-drained-sources"):
                 stops["decision"] = utc()
@@ -1395,8 +1482,10 @@ def run(output: Path) -> int:
                     env=dict(harness.env, CGO_ENABLED="0", GOFLAGS=""),
                     timeout=300,
                 )
-        pure, effect = select_cells(read_registry())
-        for cell, idle in ((pure, False), (pure, True), (effect, False)):
+        registry = read_registry()
+        pure, effect = select_cells(registry)
+        stale = next(row for row in registry["episodes"] if row["episode"] == "hook-5-0")
+        for cell, idle in ((pure, False), (pure, True), (stale, False), (effect, False)):
             name = cell["episode"] + ("-idle" if idle else "")
             with evidence.step("episode-" + name):
                 episode_path = output / "episodes" / name
@@ -1409,7 +1498,16 @@ def run(output: Path) -> int:
                     if arm.effect:
                         Smoke.build(arm)
                         arm.build_effect()
-                    arm.execute(addresses)
+                    with ExitStack() as stack:
+                        if cell["cell"] == "hook-5":
+                            arm.stale = StaleDriver(arm, stack)
+                        try:
+                            arm.execute(addresses)
+                        finally:
+                            if arm.stale and arm.stale.path.exists():
+                                arm_evidence.write_bytes(
+                                    "host-hook-journal.jsonl", arm.stale.path.read_bytes()
+                                )
                 finally:
                     try:
                         arm.teardown()

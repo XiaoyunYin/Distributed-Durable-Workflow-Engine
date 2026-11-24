@@ -23152,6 +23152,386 @@
       ],
       "expected": "control verdict:",
       "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-journal-shape",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "journal, ok := staleJournal(s.Journal)\n\tif !ok {",
+      "new": "journal, ok := staleJournal(s.Journal)\n\tif !ok {\n\t\treturn \"required_proof_missing:DeployedStaleChallenge\"\n\t}\n\tif !ok {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^MissingACK$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-ack-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "row.ACK != ack ||",
+      "new": "row.ACK.Message != ack.Message ||",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^WrongACKDigest$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-missing-call",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "return \"required_proof_missing:stale_challenge_call\"",
+      "new": "return \"required_proof_missing:DeployedStaleChallenge\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^MissingCall$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-process-origin",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "call.StaleProcess != s.Before || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^N5HarnessPID$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-held-invocation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": " || call.Invocation != old.Fields.Invocation",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^DifferentHeldCall$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-process-continuity",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": " || s.After != s.Before",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^Continuity$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-backend",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "!s.Hold.backend(s.Before, x, true) || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^MissingBackend$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-backend-transaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "b.State == \"idle\" && !b.Transaction",
+      "new": "b.State == \"idle\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^OpenTransaction$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-backend-lifetime",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "b.StartUS == staleObject(objects, \"backend_start_us\") && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^ReusedBackend$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-offer-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "\t\tstaleOffer(plan, arrivals, s.Call.Workflow, x[\"node\"], rows[0].AtNS, rows[2].AtNS) &&\n",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^WrongOffer$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-call-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "rows[9].AtNS < s.Call.AtNS &&",
+      "new": "rows[6].AtNS < s.Call.AtNS &&",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^WrongOrder$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-expiry-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "boot.Expiry <= held.Updated && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^Unexpired$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-acquisition",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "return \"required_proof_missing:stale_challenge_acquisition\"",
+      "new": "return \"required_proof_missing:DeployedStaleChallenge\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^MissingAcquisition$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-commit-outcome",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "if call.Outcome == \"COMMITTED\" {",
+      "new": "if call.Outcome == \"UNEXPECTED_COMMIT\" {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^Committed$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-commit-snapshot",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": " || s.Rejected.Attempts != 0",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^CommittedAttempt$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-typed-rejection",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "if call.Outcome != \"ErrLeaseNotOwned\" {",
+      "new": "if call.Outcome != \"ErrLeaseNotOwned\" && call.Outcome != \"OTHER_ERROR\" {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^MissingRejection$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-successor-transaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "s.Progress != \"\" && a[\"transaction_id\"] == s.Progress && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^MissingProgress$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-successor-workflow",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "h[\"workflow_id\"] == call.Workflow && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^WrongWorkflow$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-owner-award-gate",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": "return f.Predicate == \"OwnerAtCommit\"",
+      "new": "return f.Predicate == \"other\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^OwnerGate$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4b-source-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/stale_challenge.go",
+      "old": " && s.Binding == Binding(m)",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6StaleChallenge$/^SourceBinding$",
+        "-count=1"
+      ],
+      "expected": "stale challenge verdict:",
+      "requires_database": false
     }
   ]
 }

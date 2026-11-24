@@ -138,6 +138,10 @@ func (m Manifest) SourcePaths() []string {
 		paths = append(paths, ControlPath)
 		slices.Sort(paths)
 	}
+	if m.staleChallenge() {
+		paths = append(paths, StalePath)
+		slices.Sort(paths)
+	}
 	return paths
 }
 
@@ -276,6 +280,7 @@ func Verify(bundle fs.FS) Result {
 	files := map[string]File{}
 	previous := ""
 	allowed := append(RequiredSources(true, true, true), TopologyPath, BrokerCopiesPath, ControlPath)
+	allowed = append(allowed, StalePath)
 	for _, f := range index.Files {
 		if f.Path <= previous || !(slices.Contains(allowed, f.Path) || isSessionPath(f.Path)) || f.Length < 0 || !digest.MatchString(f.SHA256) {
 			return Failed(integrity("INDEX_ENTRY_SCHEMA", IndexPath))
@@ -337,6 +342,14 @@ func Verify(bundle fs.FS) Result {
 			return control.valid(manifest)
 		}) {
 			external.Control = &control
+		}
+	}
+	if manifest.staleChallenge() {
+		var stale StaleObservation
+		if readSource(bundle, files, StalePath, &stale, &issues, func([]byte) bool {
+			return stale.valid(manifest)
+		}) {
+			external.Stale = &stale
 		}
 	}
 	var samples ExternalSamples

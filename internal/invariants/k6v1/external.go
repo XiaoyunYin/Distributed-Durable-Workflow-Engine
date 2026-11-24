@@ -430,6 +430,7 @@ type External struct {
 	Topology     *Stream[TopologyRow]
 	// Control is a closed observation, acquired separately before the cut.
 	Control       *ControlObservation
+	Stale         *StaleObservation
 	QuietStartUTC string
 }
 
