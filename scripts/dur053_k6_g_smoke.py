@@ -37,6 +37,7 @@ from dur053_k6_d_smoke import SQL, Matrix, definition_sql
 from dur053_k6_e1_join import EVENTS, GROUP, TASKS
 from dur053_k6_g_bundle import (
     BROKER_PATH,
+    CONTROL_PATH,
     Json,
     canonical,
     idle_sources,
@@ -389,6 +390,10 @@ class Episode(Matrix):
                 set_env(container, RUNTIME_TOKEN_SERVICE_ACCOUNT=WORKER)
             if name == "scheduler":
                 item["spec"]["replicas"] = 2
+            if name in {"worker", OBSERVER}:
+                container["env"] = [
+                    row for row in container["env"] if row["name"] != "DUR048_ACTIVITY_DELAY_MS"
+                ]
             if name == CONTROL and self.effect:
                 mount(
                     pod,
@@ -517,6 +522,9 @@ class Episode(Matrix):
                 )
             ),
         }
+        self.manifest["required_sources"] = sorted(
+            [*self.manifest["required_sources"], CONTROL_PATH]
+        )
         self.evidence.write(
             "reset-provisioning.json",
             {
@@ -1005,6 +1013,72 @@ class Episode(Matrix):
             for row in json.loads(self.db(SQL.replace(D_NAMESPACE, self.namespace)))
         }
 
+    def control_snapshot(self) -> Json:
+        before = utc()
+        # The kubectl printer can replace a server list and omit its resource version.
+        crds = cast(
+            Json,
+            json.loads(
+                self.k(
+                    "G_CONTROL_CRDS",
+                    "get",
+                    "--raw",
+                    "/apis/apiextensions.k8s.io/v1/customresourcedefinitions",
+                )
+            ),
+        )
+        pods = cast(
+            Json,
+            json.loads(
+                self.k(
+                    "G_CONTROL_PODS", "get", "--raw", f"/api/v1/namespaces/{self.namespace}/pods"
+                )
+            ),
+        )
+        after = utc()
+        inventory = []
+        for pod in pods["items"]:
+            if pod["status"]["phase"] == "Succeeded":
+                continue
+            require(pod["metadata"]["namespace"] == self.namespace, "G_CONTROL_NAMESPACE")
+            spec = pod["spec"]
+            init = spec.get("initContainers", [])
+            ephemeral = spec.get("ephemeralContainers", [])
+            require(
+                len(spec["containers"]) == 1
+                and not any(c.get("restartPolicy") == "Always" for c in init)
+                and not ephemeral,
+                "G_CONTROL_CONTAINER_COUNT",
+            )
+            containers = [
+                *spec["containers"],
+                *init,
+            ]
+            runtime = observe_runtime(pod, containers[0]["name"])["identity"]
+            runtime["started_utc"] = runtime.pop("container_started_utc")
+            inventory.append(
+                {
+                    "role": pod["metadata"].get("labels", {}).get("app", "unclassified"),
+                    "runtime": runtime,
+                    "env_names": sorted(
+                        {entry["name"] for c in containers for entry in c.get("env", [])}
+                    ),
+                    "env_from": any(c.get("envFrom") for c in containers),
+                }
+            )
+        return {
+            "before_utc": before,
+            "after_utc": after,
+            "crd_resource_version": crds["metadata"]["resourceVersion"],
+            "pod_resource_version": pods["metadata"]["resourceVersion"],
+            "chaos_crds": sorted(
+                row["metadata"]["name"]
+                for row in crds["items"]
+                if row["spec"]["group"] == "chaos-mesh.org"
+            ),
+            "pods": sorted(inventory, key=lambda row: row["runtime"]["pod_uid"]),
+        }
+
     def stop_roles(self, names: dict[str, str]) -> None:
         if not names:
             return
@@ -1070,7 +1144,7 @@ class Episode(Matrix):
                 code, live = result.result()
         else:
             code, live = invoke(("sudo", *launch), "live", 140)
-        require(code == 3, f"G_LIVE_EXIT_{code}")
+        require(code == (3 if self.idle else 0), f"G_LIVE_EXIT_{code}")
 
         def offline(directory: Path, name: str, executable: str = checker) -> tuple[int, bytes]:
             return invoke(
@@ -1089,7 +1163,7 @@ class Episode(Matrix):
         bundle = output / "bundle"
         if not self.effect:
             code, default = offline(bundle, "default-offline", str(self.shared / "checker-default"))
-            require(code == 3, f"G_DEFAULT_OFFLINE_EXIT_{code}")
+            require(code == (3 if self.idle else 0), f"G_DEFAULT_OFFLINE_EXIT_{code}")
             require(default == live, "G_DEFAULT_BUILD_PARITY")
         quiet = quiet_summary(bundle)
         self.evidence.write("quiet-generations.json", quiet)
@@ -1179,6 +1253,7 @@ class Episode(Matrix):
                 with self.evidence.step("list-watch-runtime-and-registration"):
                     names, generation = self.launch_workers(self.worker)
                 with self.evidence.step("deployed-workloads"):
+                    before = self.control_snapshot()
                     self.offers(jail, token)
                     last = self.wait_for(
                         lambda: self.corroborated_coordinator(names),
@@ -1186,6 +1261,19 @@ class Episode(Matrix):
                         seconds=20,
                     )
                     generation = last["generation"]
+                    control = self.frames / CONTROL_PATH
+                    control.parent.mkdir()
+                    atomic(
+                        control,
+                        canonical(
+                            {
+                                "schema": "dur053.k6-control-observation.v1",
+                                "binding": self.binding,
+                                "before": before,
+                                "after": self.control_snapshot(),
+                            }
+                        ),
+                    )
                 with self.evidence.step("stop-worker-relay-and-allocator-admission"):
                     self.stop_roles({"worker": "worker"})
                     stops = {"worker": utc()}

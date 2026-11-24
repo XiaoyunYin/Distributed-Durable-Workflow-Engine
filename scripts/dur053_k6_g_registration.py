@@ -17,9 +17,9 @@ def utc(at: datetime | None = None) -> str:
     return f"{at:%Y-%m-%dT%H:%M:%S}.{at.microsecond:06d}000Z"
 
 
-def observe_runtime(pod: dict[str, Any]) -> dict[str, Any]:
+def observe_runtime(pod: dict[str, Any], container: str = "worker") -> dict[str, Any]:
     meta = pod["metadata"]
-    [status] = [s for s in pod["status"]["containerStatuses"] if s["name"] == "worker"]
+    [status] = [s for s in pod["status"]["containerStatuses"] if s["name"] == container]
     raw_id = status["containerID"]
     runtime, separator, container_id = raw_id.partition("://")
     started = status["state"]["running"]["startedAt"]

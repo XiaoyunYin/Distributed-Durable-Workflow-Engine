@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -20,6 +22,14 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 	}
 	for _, tc := range []struct{ name, code, sinkSQL, engineSQL string }{
 		{name: "Clean"},
+		{name: "ConfirmationClean"},
+		{name: "ConfirmationWrongUID", code: "required_proof_missing:control_runtime"},
+		{name: "ConfirmationRuntimeChanged", code: "CONTROL_RUNTIME_CHANGED"},
+		{name: "ConfirmationFaultConfigured", code: "required_proof_missing:control_fault_inventory"},
+		{name: "ConfirmationLateOpening", code: "required_proof_missing:control_window"},
+		{name: "ConfirmationStartOutside", code: "required_proof_missing:control_window"},
+		{name: "ConfirmationMissingRole", code: "required_proof_missing:control_runtime"},
+		{name: "ConfirmationSourceDrop", code: "required_proof_missing:" + k6v1.ControlPath},
 		{name: "WithheldPastExpiry"},
 		{name: "ExpiredWithheld", code: "I10_EXPIRED_WRITE"},
 		{"Unapproved", "I10_UNAPPROVED_WRITE", "", "UPDATE engine.approval_action_intents SET decision='PENDING'"},
@@ -63,7 +73,11 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 			m.Ordinal, m.Seed, m.Cell, m.Episode, m.Workload = 90, 530091, "medium-12", "medium-12-0", "COOPERATING_EFFECT"
 			m.Sink = &k6v1.DatabaseIdentity{Database: sink.Config().Database, Instance: "sink-instance"}
 			m.Instrumentation = []string{k6v1.WriteCapture}
-			m.RequiredSources = k6v1.RequiredSources(false, true, true)
+			control := strings.HasPrefix(tc.name, "Confirmation")
+			if control {
+				m.Ordinal, m.Seed, m.Cell, m.Episode = 113, 530114, "medium-16", "medium-16-3"
+			}
+			m.RequiredSources = m.SourcePaths()
 			plan, arrivals := k6Sources(m, time.Now().Add(-time.Minute), "resource")
 			workflow := &plan.Windows[0].Submissions[0]
 			arguments := json.RawMessage(`{"position":3,"value":"k6"}`)
@@ -130,9 +144,16 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 			}
 			sealFixtureStream(t, sources.Decisions, time.Now())
 			changeEffectFixture(t, engine, sink, &sources, tc.name, recovered)
-			seedAuthorityBroker(t, m, &sources)
+			var dispatched *k6v1.BrokerCopy
+			if control {
+				dispatched = seedConfirmationDispatch(t, engine)
+			}
+			seedAuthorityBroker(t, m, &sources, dispatched)
 			cfg := k6live.Config{Schema: k6live.ConfigVersion, Manifest: m, DatabaseURL: dsn, SinkDatabaseURL: sinkDSN,
 				ExternalDir: t.TempDir(), EpisodeDir: filepath.Join(t.TempDir(), "public")}
+			if control {
+				writeConfirmationFixture(t, cfg, &arrivals, &sources, tc.name)
+			}
 			cfg = writeK6Sources(t, cfg, plan, arrivals)
 			publishFixtureFrames(t, cfg, sources)
 			path, stdout, diag, code := invokeLiveK6(t, cfg)
@@ -140,6 +161,19 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 				t.Fatalf("live diagnostics: %s, stdout: %s", diag, stdout)
 			}
 			r := verifyVerdictParity(t, path, stdout, code)
+			if control {
+				if tc.code == "" {
+					want := k6v1.Confirmation{Status: "confirmed", Reason: "cell_predicate_satisfied"}
+					if code != k6v1.Pass || r.Confirmation != want || len(r.Findings) != 0 {
+						t.Fatalf("control did not pass: exit %d, %+v, %+v", code, r.Confirmation, r.Findings)
+					}
+				} else if code != k6v1.Fail || len(r.Findings) != 1 ||
+					r.Findings[0].Source != k6v1.ControlPath || r.Findings[0].Code != tc.code ||
+					r.Confirmation.Reason != tc.code {
+					t.Fatalf("control fault result: exit %d, %+v, %+v", code, r.Confirmation, r.Findings)
+				}
+				return
+			}
 			if tc.code == "" {
 				if code != k6v1.Incomplete || len(r.Findings) != 0 || r.Labels[7].Outcome != "covered/pass" || r.Labels[9].Outcome != "covered/pass" {
 					t.Fatalf("effect awards: %+v, %+v, findings: %+v", r.Labels[7], r.Labels[9], r.Findings)
@@ -161,10 +195,97 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 	}
 }
 
+func writeConfirmationFixture(t *testing.T, cfg k6live.Config, arrivals *k6v1.Arrivals, sources *k6v1.External, variant string) {
+	t.Helper()
+	if variant == "ConfirmationSourceDrop" {
+		return
+	}
+	now := time.Now()
+	workload := k6v1.UTC(now.Add(-5 * time.Second))
+	attempt := &arrivals.Rows[0].Attempts[0]
+	attempt.SentUTC, attempt.ObservedUTC, arrivals.SealedUTC = workload, workload, workload
+	ledger := sources.Sessions[paritySession]
+	for i := 1; i < len(ledger.Rows); i++ {
+		ledger.Rows[i].Position.UTC = workload
+	}
+	if variant == "ConfirmationStartOutside" {
+		ledger.Rows[1].Position.UTC = k6v1.UTC(now.Add(-11 * time.Second))
+	}
+	sealFixtureStream(t, &ledger, now)
+	sources.Sessions[paritySession] = ledger
+	worker := ledger.Rows[0].Data.Session.Runtime()
+	if variant == "ConfirmationWrongUID" {
+		worker.PodUID = "wrong-uid"
+	}
+	pods := []k6v1.ControlPod{{Role: "worker", Runtime: worker, EnvNames: []string{}}}
+	for _, role := range []string{"api", "scheduler", "worker-control", "relay", "k6-sink", "k6-effect-relay"} {
+		if variant == "ConfirmationMissingRole" && role == "scheduler" {
+			continue
+		}
+		pods = append(pods, k6v1.ControlPod{Role: role, EnvNames: []string{},
+			Runtime: k6v1.RuntimeIdentity{PodUID: role, ContainerID: role, StartedUTC: worker.StartedUTC}})
+	}
+	slices.SortFunc(pods, func(a, b k6v1.ControlPod) int { return strings.Compare(a.Runtime.PodUID, b.Runtime.PodUID) })
+	opened := k6v1.UTC(now.Add(-10 * time.Second))
+	if variant == "ConfirmationLateOpening" {
+		opened = k6v1.UTC(now.Add(-time.Second))
+	}
+	before := k6v1.ControlSnapshot{BeforeUTC: opened, AfterUTC: opened, CRDList: "10", PodList: "10",
+		Pods: pods, ChaosCRDs: []string{}}
+	after := before
+	after.BeforeUTC, after.AfterUTC, after.PodList = k6v1.UTC(now), k6v1.UTC(now), "11"
+	after.Pods = slices.Clone(before.Pods)
+	if variant == "ConfirmationRuntimeChanged" {
+		after.Pods[0].Runtime.ContainerID = "replacement"
+	}
+	if variant == "ConfirmationFaultConfigured" {
+		after.ChaosCRDs = []string{"podchaos.chaos-mesh.org"}
+	}
+	control := k6v1.ControlObservation{Schema: k6v1.ControlVersion, Binding: k6v1.Binding(cfg.Manifest), Before: before, After: after}
+	path := filepath.Join(cfg.ExternalDir, k6v1.ControlPath)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	putFile(t, path, canonical(t, control))
+}
+
 const fixtureAuthorityOwner = `SET LOCAL durable.k4_owner = '` + captureOwnerID + `';
 	SET LOCAL durable.k6_owner_partition = '0'; SET LOCAL durable.k6_owner_epoch = '1';`
 
-func seedAuthorityBroker(t *testing.T, m k6v1.Manifest, sources *k6v1.External) {
+func seedConfirmationDispatch(t *testing.T, db *pgx.Conn) *k6v1.BrokerCopy {
+	t.Helper()
+	var event, payload string
+	if err := db.QueryRow(t.Context(), `SELECT event_id::text,payload::text FROM engine.outbox
+		WHERE event_type='attempt.dispatch'`).Scan(&event, &payload); err != nil {
+		t.Fatal(err)
+	}
+	execK6SQL(t, db, `UPDATE engine.outbox SET publish_state='CLAIMED',claim_owner='`+captureOwnerID+`',
+		claim_expires_at=now(),relay_attempts=1 WHERE event_id=$1`, event)
+	execK6SQL(t, db, `INSERT INTO engine.k6_capture_queue(subject,operation,row_key,workflow_id,partition_id,after_image)
+		SELECT 'publication_start','start',jsonb_build_array(event_id,relay_attempts),workflow_id,0,
+			jsonb_build_object('topic',topic,'relay_owner',claim_owner,'key',event_id,
+			'payload_hash',encode(sha256(convert_to(payload::text,'UTF8')),'hex'))
+		FROM engine.outbox WHERE event_id=$1`, event)
+	execK6SQL(t, db, `BEGIN;
+		INSERT INTO engine.outbox_publications(publication_id,event_id,relay_owner,relay_attempt,broker_acknowledged)
+		VALUES (gen_random_uuid(),$1,'`+captureOwnerID+`',1,true);
+		UPDATE engine.outbox SET publish_state='PUBLISHED',claim_owner=NULL,claim_expires_at=NULL,published_at=now()
+		WHERE event_id=$1;
+		COMMIT;
+		BEGIN;
+		INSERT INTO engine.event_inbox(consumer_id,event_id,disposition,topic,kafka_partition,kafka_offset)
+		VALUES ('runtime-workers-v1',$1,'ACCEPTED','durable-agent.tasks.v1',0,0);
+		INSERT INTO engine.consumer_offsets(consumer_id,topic,kafka_partition,next_offset)
+		VALUES ('runtime-workers-v1','durable-agent.tasks.v1',0,0);
+		UPDATE engine.consumer_offsets SET next_offset=1 WHERE consumer_id='runtime-workers-v1';
+		INSERT INTO engine.k6_capture_queue(subject,operation,row_key,after_image)
+		VALUES ('physical_delivery','ACCEPTED','["runtime-workers-v1","durable-agent.tasks.v1",0,0]',
+			jsonb_build_object('event_id',$1::uuid));
+		COMMIT;`, pgx.QueryExecModeSimpleProtocol, event)
+	return &k6v1.BrokerCopy{EventID: event, Key: []byte(event), PayloadSHA256: k6v1.Hash([]byte(payload))}
+}
+
+func seedAuthorityBroker(t *testing.T, m k6v1.Manifest, sources *k6v1.External, dispatched *k6v1.BrokerCopy) {
 	t.Helper()
 	at := time.Now()
 	stream := k6collect.NewStream[k6v1.BrokerCopyRow](m, "broker-copies", "fixture-kafka", at)
@@ -172,8 +293,11 @@ func seedAuthorityBroker(t *testing.T, m k6v1.Manifest, sources *k6v1.External) 
 		{Topic: "durable-agent.events.v1", TopicID: "fixture-events"},
 		{Topic: "durable-agent.tasks.v1", TopicID: "fixture-tasks"},
 	}
-	// The outbox was captured with publication admission closed. Both physical
-	// ranges are empty at this cut.
+	if dispatched != nil {
+		parts[1].End = 1
+		key := k6v1.PartitionIdentity{TopicID: parts[1].TopicID}
+		k6collect.Append(&stream, at, k6v1.BrokerCopyRow{PartitionIdentity: key, Copy: dispatched})
+	}
 	for _, p := range parts {
 		k6collect.Append(&stream, at, k6v1.BrokerCopyRow{PartitionIdentity: k6v1.PartitionIdentity{TopicID: p.TopicID}, Range: &p, Complete: true})
 	}

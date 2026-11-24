@@ -129,7 +129,16 @@ func (m Manifest) Valid() bool {
 		slices.Equal(m.Instrumentation, []string{DeadlineWrites}) ||
 		slices.Equal(m.Instrumentation, []string{WriteCapture}) ||
 		slices.Equal(m.Instrumentation, []string{WriteCapture, DeadlineWrites})) &&
-		slices.Equal(m.RequiredSources, RequiredSources(m.Instrumented(), m.Sink != nil, m.CaptureEnabled()))
+		slices.Equal(m.RequiredSources, m.SourcePaths())
+}
+
+func (m Manifest) SourcePaths() []string {
+	paths := RequiredSources(m.Instrumented(), m.Sink != nil, m.CaptureEnabled())
+	if m.control() {
+		paths = append(paths, ControlPath)
+		slices.Sort(paths)
+	}
+	return paths
 }
 
 type Observer struct {
@@ -266,7 +275,7 @@ func Verify(bundle fs.FS) Result {
 	}
 	files := map[string]File{}
 	previous := ""
-	allowed := append(RequiredSources(true, true, true), TopologyPath, BrokerCopiesPath)
+	allowed := append(RequiredSources(true, true, true), TopologyPath, BrokerCopiesPath, ControlPath)
 	for _, f := range index.Files {
 		if f.Path <= previous || !(slices.Contains(allowed, f.Path) || isSessionPath(f.Path)) || f.Length < 0 || !digest.MatchString(f.SHA256) {
 			return Failed(integrity("INDEX_ENTRY_SCHEMA", IndexPath))
@@ -322,12 +331,24 @@ func Verify(bundle fs.FS) Result {
 		return readIndexed(bundle, files, path)
 	}, manifest, index.Files)
 	issues = append(issues, externalIssues...)
+	if manifest.control() {
+		var control ControlObservation
+		if readSource(bundle, files, ControlPath, &control, &issues, func([]byte) bool {
+			return control.valid(manifest)
+		}) {
+			external.Control = &control
+		}
+	}
 	var samples ExternalSamples
 	if readSource(bundle, files, SamplesPath, &samples, &issues, func([]byte) bool { return true }) &&
 		barrierOK && planOK && arrivalsOK && !slices.ContainsFunc(externalIssues, func(f Finding) bool {
 		return f.Code == "required_proof_missing:"+f.Source
 	}) {
-		issues = append(issues, verifyExternalQuiet(manifest, plan, arrivals, barrier, external, samples, rows)...)
+		quietIssues := verifyExternalQuiet(manifest, plan, arrivals, barrier, external, samples, rows)
+		issues = append(issues, quietIssues...)
+		if len(quietIssues) == 0 {
+			external.QuietStartUTC = samples.Rows[0].At.UTC
+		}
 	}
 	return evaluate(manifest, snaps["engine"], rows, plan, arrivals, planOK, arrivalsOK, Hash(indexBytes), issues, external)
 }

@@ -16,6 +16,7 @@ from dur053_k6_g_registration import utc
 Json = dict[str, Any]
 FENCE_ROLES = {"worker", "relay", "decision", "allocator"}
 BROKER_PATH = "broker/positions.jsonl"
+CONTROL_PATH = "fault/control.json"
 IDLE_RELATIONS = (
     "activity_attempts",
     "attempt_result_evidence",
@@ -48,8 +49,12 @@ def wire(raw: bytes) -> Json:
 def select_cells(registry: Json) -> list[Json]:
     return [
         min(
-            (row for row in registry["episodes"] if row["workload"] == workload),
-            key=lambda row: (sum(row["window_seconds"].values()), row["ordinal"]),
+            (
+                row
+                for row in registry["episodes"]
+                if row["cell"] == "medium-16" and row["workload"] == workload
+            ),
+            key=lambda row: row["ordinal"],
         )
         for workload in ("PURE", "COOPERATING_EFFECT")
     ]
@@ -88,7 +93,7 @@ def make_plan(
                 "iteration": 0,
                 "expected_revision": "0",
                 "logical_key": key + "-effect",
-                "arguments": {"cell": "medium-12"},
+                "arguments": {"cell": "medium-16"},
             }
             allocator_plan["operations"].append(
                 {
@@ -322,34 +327,33 @@ def replay(
     (directory / "checker-live.json").write_bytes(live)
     code, result = offline(good, "offline")
     (directory / "checker-offline.json").write_bytes(result)
-    require(code == 3, f"G_OFFLINE_EXIT_{code}")
+    require(code == (3 if idle else 0), f"G_OFFLINE_EXIT_{code}")
     require(live == result, "G_CANONICAL_PARITY")
     positive = json.loads(result)
     require(
-        positive["confirmation"] == {"status": "pending", "reason": "confirmation_pending:G3a4"},
+        positive["confirmation"]
+        == (
+            {"status": "pending", "reason": "no_positive_population"}
+            if idle
+            else {"status": "confirmed", "reason": "cell_predicate_satisfied"}
+        ),
         "G_CHECKER_CONFIRMATION",
     )
     manifest = json.loads((good / "manifest.json").read_bytes())
-    cell = manifest["cell"]
+    require(manifest["cell"] == "medium-16", "G_CHECKER_CONTROL_CELL")
     require(
         positive["findings"] == []
-        and positive["completeness"] == positive["safety"] == "incomplete",
+        and positive["relation_integrity"] == "covered/pass"
+        and positive["status"] == ("incomplete" if idle else "passed")
+        and positive["completeness"] == positive["safety"] == ("incomplete" if idle else "PASS"),
         "G_LIVE_CHECKER_FINDINGS",
     )
     ids = [f"I{i}" for i in range(1, 14)]
     labels = positive["labels"]
     registered = {"I1", "I2", "I4", "I6", "I11"}
-    completed = {"I1", "I2", "I4", "I6", "I11"}
-    if cell in {"hook-5", "medium-2", "medium-3"}:
-        registered.add("I3")
-        completed.add("I3")
-    if cell == "hook-3":
-        registered.add("I7")
-        completed.add("I7")
     if source == "witness/effect-ingress.jsonl":
         registered.update(("I8", "I10"))
-        completed.update(("I8", "I10"))
-    covered = [] if idle else [identity for identity in ids if identity in completed]
+    covered = [] if idle else [identity for identity in ids if identity in registered]
     require(
         [label["id"] for label in labels] == ids
         and {label["id"] for label in labels if label["registered"]} == registered
@@ -358,7 +362,7 @@ def replay(
         "G_CHECKER_LABELS",
     )
     for label in labels:
-        if label["id"] in completed:
+        if label["id"] in registered:
             require(label["registered"], "G_CHECKER_LABELS")
             outcome = "NOT COVERED" if idle else "covered/pass"
             reason = "no_positive_population" if idle else "predicate_satisfied"
@@ -367,7 +371,19 @@ def replay(
             reason = "outside_registry_ceiling"
         require((label["outcome"], label["reason"]) == (outcome, reason), "G_CHECKER_LABELS")
 
-    negative = directory / "missing-source"
+    replay_missing(directory, good, source, offline, "source")
+    if source == "witness/topology.json" and not idle:
+        replay_missing(directory, good, CONTROL_PATH, offline, "confirmation")
+
+
+def replay_missing(
+    directory: Path,
+    good: Path,
+    source: str,
+    offline: Callable[[Path, str], tuple[int, bytes]],
+    name: str,
+) -> None:
+    negative = directory / f"missing-{name}"
     shutil.copytree(good, negative)
     producer_result = negative / "producer-result.json"
     shutil.copyfile(directory / "producer-result.json", producer_result)
@@ -377,8 +393,8 @@ def replay(
     index = json.loads(index_path.read_bytes())
     index["files"] = [entry for entry in index["files"] if entry["path"] != source]
     index_path.write_bytes(canonical(index))
-    code, output = offline(negative, "missing")
-    (directory / "checker-missing-source.json").write_bytes(output)
+    code, output = offline(negative, "missing" if name == "source" else "missing-confirmation")
+    (directory / f"checker-missing-{name}.json").write_bytes(output)
     require(code == 1, f"G_MISSING_EXIT_{code}")
     verdict = json.loads(output)
     require(

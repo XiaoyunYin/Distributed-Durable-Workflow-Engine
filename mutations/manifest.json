@@ -17090,11 +17090,13 @@
       "id": "k6g2a-partial-reason",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "return \"predicate_pending\"",
-      "new": "return \"predicate_pending:G3a2\"",
+      "old": "case 3:\n\t\treturn \"required_proof_missing:DeployedStaleChallenge\"",
+      "new": "case 3:\n\t\treturn \"predicate_pending:G3a2\"",
       "command": [
         "go",
         "test",
+        "-p",
+        "1",
         "./internal/invariants/k6v1",
         "-run",
         "^TestK6SubmissionPartialReasons$",
@@ -19728,8 +19730,8 @@
       "id": "k6g3c-index-path",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/bundle.go",
-      "old": "allowed := append(RequiredSources(true, true, true), TopologyPath, BrokerCopiesPath)",
-      "new": "allowed := append(RequiredSources(true, true), TopologyPath, BrokerCopiesPath)",
+      "old": "allowed := append(RequiredSources(true, true, true), TopologyPath, BrokerCopiesPath, ControlPath)",
+      "new": "allowed := append(RequiredSources(true, true), TopologyPath, BrokerCopiesPath, ControlPath)",
       "command": [
         "go",
         "test",
@@ -19873,7 +19875,7 @@
         "^TestK6CaptureAwards$/^CompleteAndBound$",
         "-count=1"
       ],
-      "expected": "complete capture was not awarded",
+      "expected": "I3 owner population or challenge gate",
       "requires_database": false
     },
     {
@@ -21457,8 +21459,8 @@
       "id": "k6g3d-copy-index",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/bundle.go",
-      "old": "TopologyPath, BrokerCopiesPath)",
-      "new": "TopologyPath)",
+      "old": "TopologyPath, BrokerCopiesPath, ControlPath)",
+      "new": "TopologyPath, ControlPath)",
       "command": [
         "go",
         "test",
@@ -22653,6 +22655,503 @@
       ],
       "expected": "skew changed outcome",
       "requires_database": true
+    },
+    {
+      "id": "k6g3a4-registry-control",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "return m.Cell == \"medium-16\"",
+      "new": "return true",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^FaultCell$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-required-source",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "paths = append(paths, ControlPath)",
+      "new": "paths = append(paths, TopologyPath)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6SourceRegistryFormulas$",
+        "-count=1"
+      ],
+      "expected": "incorrect control proof inventory",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-source-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": " && c.Binding == Binding(m)",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationSourceBinding$",
+        "-count=1"
+      ],
+      "expected": "foreign control source accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-source-snapshot",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "c.Before.valid() && c.After.valid()",
+      "new": "c.Before.valid()",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationSourceBinding$",
+        "-count=1"
+      ],
+      "expected": "incomplete control snapshot accepted",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-injected-gap",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "if plan.FaultMode == \"injected\" {",
+      "new": "if false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^StaleChallengeMissing$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-preserve-source-drop",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "for _, issue := range issues {",
+      "new": "for _, issue := range []Finding{} {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^RequiredSourceDrop$",
+        "-count=1"
+      ],
+      "expected": "expected single typed failure",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-absent-observation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "missing(ControlPath)",
+      "new": "r.Confirmation = Confirmation{\"confirmed\", \"cell_predicate_satisfied\"}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^MissingSource$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-opposite-plan",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "plan.FaultMode != \"control\" || arrivals.RemovalUTC != nil",
+      "new": "arrivals.RemovalUTC != nil",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^InjectedControl$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-unexpected-removal",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "plan.FaultMode != \"control\" || arrivals.RemovalUTC != nil",
+      "new": "plan.FaultMode != \"control\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^RemovalInControl$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-chaos-api",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "len(s.ChaosCRDs) > 0 || slices.ContainsFunc",
+      "new": "slices.ContainsFunc",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^ChaosAPI$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-hook-route",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "return !controlConfigEnv[name]",
+      "new": "return name != \"DUR053_K6_HOOK_URL\" && !controlConfigEnv[name]",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^ArmedHook$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-opaque-env",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "p.EnvFrom || slices.ContainsFunc",
+      "new": "slices.ContainsFunc",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^OpaqueEnv$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-quiet-cut",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": " || e.QuietStartUTC == \"\" || c.After.AfterUTC > e.QuietStartUTC",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^MissingQuiet$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-arrival-bracket",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "if attempt.SentUTC < c.Before.AfterUTC {",
+      "new": "if attempt.SentUTC == \"\" {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^LateOpening$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-start-bracket",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "if row.Data.Kind == \"start\" &&",
+      "new": "if row.Data.Kind == \"finish\" &&",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^StartOutsideWindow$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-runtime-continuity",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "a.Role == b.Role && a.Runtime == b.Runtime && slices.Equal(a.EnvNames, b.EnvNames)",
+      "new": "a.Role == b.Role && slices.Equal(a.EnvNames, b.EnvNames)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^RuntimeChanged$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-runtime-role",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "if !slices.ContainsFunc(s.Pods, func(p ControlPod) bool { return p.Role == role }) {",
+      "new": "if !slices.ContainsFunc(roles, func(r string) bool { return r == role }) {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^MissingRole$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-runtime-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "if !running[pod.Runtime] || !registered[pod.Runtime] {\n\t\t\treturn false\n\t\t}\n\t\tdelete(running, pod.Runtime)\n\t}\n\treturn len(running) == 0",
+      "new": "if !running[pod.Runtime] || !registered[pod.Runtime] {\n\t\t\treturn len(running) > 0\n\t\t}\n\t\tdelete(running, pod.Runtime)\n\t}\n\treturn len(running) == 0",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^WrongUID$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-runtime-inventory",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "return len(running) == 0",
+      "new": "return true",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^UnlistedWorker$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-positive-population",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "r.Namespace.TerminalExecutions <= r.Namespace.UnsuccessfulTerminalExecutions ||",
+      "new": "false ||",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^Idle$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-proven-progress",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "r.Labels[0].Outcome != \"covered/pass\" || r.Labels[10].Outcome != \"covered/pass\"",
+      "new": "r.Labels[0].Outcome != \"covered/pass\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^UnprovenProgress$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-i3-ceiling",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/engine_order.go",
+      "old": "label.Reason = pendingReason(3)",
+      "new": "label.Outcome, label.Reason = \"covered/pass\", \"predicate_satisfied\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6CaptureAwards$/^CompleteAndBound$",
+        "-count=1"
+      ],
+      "expected": "I3 owner population or challenge gate",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-deployed-source-drop",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_bundle.py",
+      "old": "if source == \"witness/topology.json\" and not idle:",
+      "new": "if False and source == \"witness/topology.json\" and not idle:",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_k6_g_deployed.py",
+        "-k",
+        "test_negative_replay_retains_pass_summary and False-False-1-FAIL-False-PASS-None"
+      ],
+      "expected": "assert replays == expected",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-raw-control-list",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_smoke.py",
+      "old": "\"G_CONTROL_PODS\", \"get\", \"--raw\", f\"/api/v1/namespaces/{self.namespace}/pods\"",
+      "new": "\"G_CONTROL_PODS\", \"get\", \"pods\", \"-n\", self.namespace, \"-o\", \"json\"",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_k6_g_deployed.py",
+        "-k",
+        "test_control_snapshot_reads_apiserver_lists"
+      ],
+      "expected": "control snapshot must retain raw list metadata",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a4-control-runtime-wire",
+      "kind": "behavioral",
+      "file": "scripts/dur053_k6_g_smoke.py",
+      "old": "runtime[\"started_utc\"] = runtime.pop(\"container_started_utc\")",
+      "new": "runtime[\"container_started_utc\"] = runtime[\"container_started_utc\"]",
+      "command": [
+        "python",
+        "-m",
+        "pytest",
+        "-q",
+        "-p",
+        "no:cacheprovider",
+        "tests/test_k6_g_deployed.py",
+        "-k",
+        "test_control_snapshot_reads_apiserver_lists"
+      ],
+      "expected": "assert snapshot[\"pods\"] ==",
+      "requires_database": false
+    },
+    {
+      "id": "k6r378-deny-by-default",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "return !controlConfigEnv[name]",
+      "new": "return len(name) >= len(\"DUR053_K6_\") && name[:len(\"DUR053_K6_\")] == \"DUR053_K6_\" && !controlConfigEnv[name]",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^UnknownEnv$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
+      "requires_database": false
     }
   ]
 }

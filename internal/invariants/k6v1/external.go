@@ -428,6 +428,9 @@ type External struct {
 	Broker       *Stream[BrokerRow]
 	BrokerCopies *Stream[BrokerCopyRow]
 	Topology     *Stream[TopologyRow]
+	// Control is a closed observation, acquired separately before the cut.
+	Control       *ControlObservation
+	QuietStartUTC string
 }
 
 func (e External) Files() (map[string][]byte, error) {

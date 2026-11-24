@@ -102,7 +102,7 @@ func newResult(m Manifest, indexHash string) Result {
 	r := Result{
 		Schema: "dur053.k6-checker.v1", Status: "incomplete", Safety: "NOT COVERED",
 		Completeness: "incomplete", RelationIntegrity: "covered/pass", IndexSHA256: indexHash,
-		Confirmation:      Confirmation{Status: "pending", Reason: "confirmation_pending:G3a4"},
+		Confirmation:      Confirmation{Status: "pending", Reason: "cell_not_exercised"},
 		InvariantsCovered: []string{}, InvariantsNotCovered: []string{}, Findings: []Finding{},
 	}
 	for i, predicates := range [][]string{
@@ -128,12 +128,14 @@ func newResult(m Manifest, indexHash string) Result {
 
 func pendingReason(label int) string {
 	switch label {
+	case 3:
+		return "required_proof_missing:DeployedStaleChallenge"
 	case 8:
 		return "required_proof_missing:effect_closure"
 	case 10:
 		return "required_proof_missing:effect_authority"
 	case 12:
-		return "predicate_pending:G3a4"
+		return "required_proof_missing:SignedProcessSkew"
 	default:
 		return "predicate_pending"
 	}
@@ -436,6 +438,9 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 		if m.Sink != nil && planOK && sources.Ingress != nil && sources.Decisions != nil {
 			r.awardEffectClosure(rows, plan, sources, witness, violate)
 			ordering.checkEffectAuthority(m, plan, sources, observations.traffic)
+		}
+		if planOK || m.control() {
+			r.checkConfirmation(m, plan, arrivals, issues, sources)
 		}
 	}
 	if ordering.capture && r.Labels[3].Outcome == "covered/pass" {

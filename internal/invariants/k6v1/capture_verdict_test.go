@@ -70,7 +70,11 @@ func TestK6CaptureAwards(t *testing.T) {
 				e.checkOwnerAtCommit()
 				e.checkCurrentClaimWinner()
 			})
-			if result.Labels[2].Outcome != "covered/pass" || !stale && result.Labels[3].Outcome != "covered/pass" {
+			if label := result.Labels[2]; label.Outcome != "NOT COVERED" ||
+				label.Reason != "required_proof_missing:DeployedStaleChallenge" || label.PopulationCount != 1 {
+				t.Fatalf("I3 owner population or challenge gate: %+v", label)
+			}
+			if !stale && result.Labels[3].Outcome != "covered/pass" {
 				t.Fatalf("complete capture was not awarded: %+v", result.Labels[2:4])
 			}
 			if stale {
