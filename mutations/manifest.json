@@ -15311,11 +15311,11 @@
       "ci_shard": "with-k6-b"
     },
     {
-      "id": "k6c-r366-retain-raw-address",
+      "id": "k6c-r371-omit-socket-evidence",
       "kind": "behavioral",
       "file": "scripts/dur053_k6_c_smoke.py",
-      "old": "if key != \"client_addr\"",
-      "new": "if True",
+      "old": "{**backend, \"pod_name\": names.get(backend[\"client_addr\"], {}).get(\"name\")}",
+      "new": "{**{key: value for key, value in backend.items() if key not in {\"client_addr\", \"client_port\"}}, \"pod_name\": names.get(backend[\"client_addr\"], {}).get(\"name\")}",
       "command": [
         "python",
         "-m",
@@ -15323,7 +15323,7 @@
         "-q",
         "tests/test_k6_phase_c.py::test_phase_c_trace_fails_unknown_pair_immediately"
       ],
-      "expected": "rejection record lost backend details or retained the client address",
+      "expected": "rejection record lost backend or socket details",
       "requires_database": false,
       "ci_shard": "with-k6-b"
     },
@@ -19710,8 +19710,8 @@
       "id": "k6g3c-index-path",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/bundle.go",
-      "old": "allowed := append(RequiredSources(true, true, true), TopologyPath)",
-      "new": "allowed := append(RequiredSources(true, true), TopologyPath)",
+      "old": "allowed := append(RequiredSources(true, true, true), TopologyPath, BrokerCopiesPath)",
+      "new": "allowed := append(RequiredSources(true, true), TopologyPath, BrokerCopiesPath)",
       "command": [
         "go",
         "test",
