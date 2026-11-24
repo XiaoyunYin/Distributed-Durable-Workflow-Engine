@@ -138,8 +138,9 @@ func fixtureExternal(t *testing.T, effect bool) (Manifest, External, map[string]
 	}
 	e.Roster = fixtureStream(m, "roster", "watcher", roster...)
 	offset := int64(7)
-	broker := fixtureStream(m, "broker", "broker-reader", BrokerRow{"cluster", "group", 2, "stable", UTC(fixed), UTC(fixed),
-		[]BrokerPartition{{"events", "topic-id", 0, 0, 7, &offset}}, []BrokerMember{{"member", "client", 2, []PartitionIdentity{{"topic-id", 0}}}}, nil})
+	broker := fixtureStream(m, "broker", "broker-reader", BrokerRow{Cluster: "cluster", Group: "group", Generation: 2, State: "stable",
+		BeforeUTC: UTC(fixed), AfterUTC: UTC(fixed), Partitions: []BrokerPartition{{"events", "topic-id", 0, 0, 7, &offset}},
+		Members: []BrokerMember{{"member", "client", 2, []PartitionIdentity{{"topic-id", 0}}}}})
 	e.Broker = &broker
 	return m, e, rows
 }

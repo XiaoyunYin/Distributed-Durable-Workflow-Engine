@@ -26,15 +26,34 @@ type PartitionIdentity struct {
 // Versions are observer positions over the group state, separate from Kafka's
 // group generation. Members and broker positions are captured independently.
 type BrokerRow struct {
-	Cluster     string                  `json:"cluster"`
-	Group       string                  `json:"group"`
-	Generation  int64                   `json:"generation"`
-	State       string                  `json:"state"`
-	BeforeUTC   string                  `json:"before_utc"`
-	AfterUTC    string                  `json:"after_utc"`
-	Partitions  []BrokerPartition       `json:"partitions"`
-	Members     []BrokerMember          `json:"members"`
-	Coordinator *CoordinatorObservation `json:"coordinator,omitempty"`
+	Cluster       string                  `json:"cluster"`
+	Group         string                  `json:"group"`
+	Generation    int64                   `json:"generation"`
+	State         string                  `json:"state"`
+	BeforeUTC     string                  `json:"before_utc"`
+	AfterUTC      string                  `json:"after_utc"`
+	Partitions    []BrokerPartition       `json:"partitions"`
+	Members       []BrokerMember          `json:"members"`
+	Coordinator   *CoordinatorObservation `json:"coordinator,omitempty"`
+	TopicIDsAfter map[string]string       `json:"topic_ids_after,omitempty"`
+	OffsetPhase   *OffsetPhase            `json:"offset_phase,omitempty"`
+}
+
+// CaptureThrough is the preceding engine journal prefix observed by the phase
+// controller. The broker observer reads the group only after RequestedUTC.
+type OffsetPhase struct {
+	Name           string        `json:"name"`
+	Binding        SourceBinding `json:"binding"`
+	RequestedUTC   string        `json:"requested_utc"`
+	CaptureThrough int64         `json:"capture_through"`
+}
+
+func (p OffsetPhase) Valid(m Manifest) bool {
+	return m.Cell == "hook-3" && p.Binding == Binding(m) && p.valid()
+}
+
+func (p OffsetPhase) valid() bool {
+	return slices.Contains([]string{"reset", "hold", "restart"}, p.Name) && validTime(p.RequestedUTC) && p.CaptureThrough >= 0
 }
 
 // Classic DescribeGroups provides membership and assignments, but no numeric
@@ -90,6 +109,9 @@ func (b BrokerRow) valid() bool {
 		(b.State == "empty" && len(b.Members) != 0) || (b.State == "stable" && len(b.Members) == 0) {
 		return false
 	}
+	if b.OffsetPhase != nil && (!b.OffsetPhase.valid() || b.OffsetPhase.RequestedUTC > b.BeforeUTC) {
+		return false
+	}
 	if b.Coordinator != nil {
 		if b.Coordinator.Generation < 0 {
 			return false
@@ -121,6 +143,11 @@ func (b BrokerRow) valid() bool {
 			return false
 		}
 		positions[key], topics[p.Topic], prior = true, p.TopicID, p
+	}
+	for name, id := range b.TopicIDsAfter {
+		if topics[name] == "" || !identities(id) {
+			return false
+		}
 	}
 	lastID := ""
 	for _, member := range b.Members {

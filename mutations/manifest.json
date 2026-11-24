@@ -20251,7 +20251,7 @@
         "1",
         "./internal/invariants/k6v1",
         "-run",
-        "^TestK6CapturedOutsideCeiling$/^ShutdownFailure$",
+        "^TestK6CapturedOutsideCeiling$/^ShutdownNoObservation$",
         "-count=1"
       ],
       "expected": "expected missing ShutdownDisposition required_proof_missing:shutdown_signal_or_exit",
@@ -20616,6 +20616,348 @@
         "-count=1"
       ],
       "expected": "unknown history reason was not typed missing proof",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-missing-copy",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "row[\"broker_acknowledged\"] == true && found[row[\"event_id\"]] == 0",
+      "new": "false && row[\"broker_acknowledged\"] == true && found[row[\"event_id\"]] == 0",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^MissingCopy$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding BROKER_COPY_MISSING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-extra-copy",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "found[id] > attempts[id] || copies.topics[topic][b.Partition] != b.PartitionIdentity",
+      "new": "copies.topics[topic][b.Partition] != b.PartitionIdentity",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^ExtraCopy$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding BROKER_COPY_WITHOUT_ATTEMPT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-key",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "case string(copy.Key) != base[\"key\"]:",
+      "new": "case false:",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^KeyMismatch$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding BROKER_COPY_KEY_MISMATCH",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-payload",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "case base[\"payload_hash\"] != copy.PayloadSHA256:",
+      "new": "case false:",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^PayloadMismatch$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding BROKER_COPY_PAYLOAD_MISMATCH",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-delivery-copy",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "if !ok || copy.EventID != id {",
+      "new": "if false && (!ok || copy.EventID != id) {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^DeliveryWithoutCopy$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding BROKER_DELIVERY_WITHOUT_COPY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-range",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "valid && b.Complete && p.Low == 0",
+      "new": "valid && p.Low == 0",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^CollectionGap$",
+        "-count=1"
+      ],
+      "expected": "expected broker finding required_proof_missing:broker_event_copy_range",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-award-i6",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "if e.captureReady && label.PopulationCount > 0 && len(out.byPosition) > 0 {",
+      "new": "if false && e.captureReady && label.PopulationCount > 0 && len(out.byPosition) > 0 {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "missing I6 broker award",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-lower-copy",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "!ok || order == 0 || order > hold.Data.OffsetPhase.CaptureThrough",
+      "new": "!ok || order > hold.Data.OffsetPhase.CaptureThrough",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^LowerMissing$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding OFFSET_BRACKET_UNDISPOSED_COPY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-lower-before-hold",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "|| order > hold.Data.OffsetPhase.CaptureThrough",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^LowerLate$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding OFFSET_BRACKET_UNDISPOSED_COPY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-engine-baseline",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "!ok || number(captureImage(row, \"after_image\")[\"next_offset\"]) != effectiveOffset(p)",
+      "new": "!ok && number(captureImage(row, \"after_image\")[\"next_offset\"]) != effectiveOffset(p)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^BaselineMismatch$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding OFFSET_ENGINE_BASELINE_MISMATCH",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-topic-change",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if baseline[p.Partition].TopicID != p.TopicID || (phase.Data.TopicIDsAfter[p.Topic] != \"\" && phase.Data.TopicIDsAfter[p.Topic] != p.TopicID) {",
+      "new": "if false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^TopicIDChange$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding OFFSET_BRACKET_TOPIC_CHANGED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-phase-count",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if len(phases) != 3 {\n\t\treturn false\n\t}",
+      "new": "if len(phases) != 3 {\n\t\treturn true\n\t}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^MissingPhase$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding required_proof_missing:broker_reset_hold_restart_offsets",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-phase-prefix",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "|| !boundaries[p.CaptureThrough]",
+      "new": "|| (false && !boundaries[p.CaptureThrough])",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^WrongBoundary$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding required_proof_missing:broker_reset_hold_restart_offsets",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-award-i7",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if label.PopulationCount > 0 {",
+      "new": "if false && label.PopulationCount > 0 {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "missing I7 bracket award",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-shutdown-invocation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "b.Invocation != abort.row.Data.Invocation || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ChangedInvocation$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ChangedInvocation",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-shutdown-claim",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "|| b.Attempt != *abort.row.Data.Attempt",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ChangedClaim$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ChangedClaim",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-shutdown-runtime",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": " && *exit.Data.Runtime == abort.session.Runtime()",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ChangedRuntime$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ChangedRuntime",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-shutdown-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "exit.Position.UTC < abort.row.Position.UTC && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ExitAfterAbort$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ExitAfterAbort",
       "requires_database": false
     }
   ]

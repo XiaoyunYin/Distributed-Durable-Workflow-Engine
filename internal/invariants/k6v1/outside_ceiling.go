@@ -146,7 +146,7 @@ func uncertaintyTransaction(h Row, writes []Row) bool {
 	})
 }
 
-func (e engineOrder) checkShutdown(aborts []observedWorker) {
+func (e engineOrder) checkShutdown(aborts []observedWorker, evidence ...External) {
 	if len(aborts) == 0 {
 		return
 	}
@@ -183,7 +183,10 @@ func (e engineOrder) checkShutdown(aborts []observedWorker) {
 				}
 				state = captureImage(commit.request, "after_image")["attempt_state"]
 			}
-			e.requireWitness(shutdownPredicate, "shutdown_signal_or_exit", &ref)
+			if len(evidence) == 0 || !matchedShutdown(evidence[0], observed) {
+				e.requireWitness(shutdownPredicate, "shutdown_signal_or_exit", &ref)
+				continue
+			}
 		} else {
 			e.requireWitness(shutdownPredicate, "shutdown_result_binding", &ref)
 		}
@@ -192,4 +195,25 @@ func (e engineOrder) checkShutdown(aborts []observedWorker) {
 			e.violate(shutdownPredicate, "SHUTDOWN_RECORDED_AS_FAILURE", history, h)
 		}
 	}
+}
+
+func matchedShutdown(sources External, abort observedWorker) bool {
+	ledger := sources.Sessions[abort.session.ID]
+	for _, row := range sources.Roster.Rows {
+		b := row.Data.Shutdown
+		if b == nil || row.Data.Session == nil || *row.Data.Session != abort.session ||
+			b.Invocation != abort.row.Data.Invocation || b.Attempt != *abort.row.Data.Attempt ||
+			b.StartSequence <= 0 || b.StartSequence >= abort.row.Position.Sequence || b.StartSequence > int64(len(ledger.Rows)) ||
+			b.ExitSequence <= 0 || b.ExitSequence >= row.Position.Sequence {
+			continue
+		}
+		start := ledger.Rows[b.StartSequence-1]
+		exit := sources.Roster.Rows[b.ExitSequence-1]
+		if exit.Data.Kind == "exit" && exit.Data.Exit != nil && exit.Data.Runtime != nil && *exit.Data.Runtime == abort.session.Runtime() &&
+			start.Data.Kind == "start" && start.Data.Invocation == b.Invocation && start.Data.Attempt != nil && *start.Data.Attempt == b.Attempt &&
+			start.Position.UTC <= exit.Position.UTC && exit.Position.UTC < abort.row.Position.UTC && exit.Data.Exit.FinishedUTC <= exit.Position.UTC {
+			return true
+		}
+	}
+	return false
 }

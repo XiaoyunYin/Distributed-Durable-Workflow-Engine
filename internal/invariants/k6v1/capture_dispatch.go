@@ -199,6 +199,9 @@ func (e engineOrder) checkDispositionTransaction(rows []Row, events map[any]Row,
 				e.violate(dispatchPredicate, "CAPTURE_DELIVERY_BINDING", WriteCapture, row)
 			} else {
 				disposed[id.position] = id
+				if e.dispositionOrders[id.position] == 0 {
+					e.dispositionOrders[id.position] = number(row["event_order"])
+				}
 			}
 		case inbox, quarantine:
 			if row["operation"] != "insert" {

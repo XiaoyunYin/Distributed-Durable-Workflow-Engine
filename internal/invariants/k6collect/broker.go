@@ -153,8 +153,11 @@ func RecordBroker(s *k6v1.Stream[k6v1.BrokerRow], row k6v1.BrokerRow, terminal b
 	if err != nil {
 		return errors.New("K6_BROKER_CLOCK")
 	}
-	state := func(v k6v1.BrokerRow) k6v1.BrokerRow { v.BeforeUTC, v.AfterUTC = "", ""; return v }
-	if len(s.Rows) == 0 || !reflect.DeepEqual(state(s.Rows[len(s.Rows)-1].Data), state(row)) {
+	state := func(v k6v1.BrokerRow) k6v1.BrokerRow {
+		v.BeforeUTC, v.AfterUTC, v.OffsetPhase = "", "", nil
+		return v
+	}
+	if len(s.Rows) == 0 || row.OffsetPhase != nil || !reflect.DeepEqual(state(s.Rows[len(s.Rows)-1].Data), state(row)) {
 		Append(s, at, row)
 	}
 	mode := "checkpoint"

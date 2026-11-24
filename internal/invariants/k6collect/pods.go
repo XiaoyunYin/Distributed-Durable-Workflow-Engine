@@ -102,6 +102,8 @@ type terminated struct {
 	ID       string    `json:"containerID"`
 	Start    time.Time `json:"startedAt"`
 	Finished time.Time `json:"finishedAt"`
+	ExitCode *int      `json:"exitCode"`
+	Signal   int       `json:"signal"`
 }
 
 type podList struct {
@@ -122,11 +124,14 @@ type PodWatch struct {
 	dead        map[k6v1.RuntimeIdentity]time.Time
 	sessions    map[string]bool
 	deathSealed map[string]bool
+	exits       map[k6v1.RuntimeIdentity]k6v1.Position
+	shutdowns   map[[2]string]bool
 }
 
 func NewPodWatch(m k6v1.Manifest, observer string, started time.Time) *PodWatch {
 	return &PodWatch{Stream: NewStream[k6v1.WatchRow](m, "roster", observer, started), known: map[k6v1.RuntimeIdentity]bool{},
-		dead: map[k6v1.RuntimeIdentity]time.Time{}, sessions: map[string]bool{}, deathSealed: map[string]bool{}}
+		dead: map[k6v1.RuntimeIdentity]time.Time{}, sessions: map[string]bool{}, deathSealed: map[string]bool{},
+		exits: map[k6v1.RuntimeIdentity]k6v1.Position{}, shutdowns: map[[2]string]bool{}}
 }
 
 func (w *PodWatch) Cursor() string {
@@ -222,6 +227,12 @@ func (w *PodWatch) observe(p pod, wanted string, at time.Time) {
 				if w.dead[i].IsZero() {
 					w.dead[i] = at
 				}
+				if t.ExitCode != nil && *t.ExitCode >= 0 && t.Signal >= 0 && w.exits[i].Sequence == 0 && !t.Finished.Before(t.Start) {
+					w.append(at, k6v1.WatchRow{Kind: "exit", Runtime: &i, Exit: &k6v1.RuntimeExit{
+						FinishedUTC: k6v1.UTC(t.Finished), Code: *t.ExitCode, Signal: t.Signal,
+					}})
+					w.exits[i] = w.Stream.Rows[len(w.Stream.Rows)-1].Position
+				}
 			}
 		}
 		termination(status.Last.Terminated, status.Restart-1)
@@ -229,6 +240,39 @@ func (w *PodWatch) observe(p pod, wanted string, at time.Time) {
 		if status.State.Running != nil && status.ContainerID != "" && !status.State.Running.Started.IsZero() {
 			register(status.ContainerID, status.Restart, status.State.Running.Started)
 		}
+	}
+}
+
+// BindShutdown joins the kubelet observation to starts present in the
+// receiver at that time. The checker independently repeats the join.
+func (w *PodWatch) BindShutdown(at time.Time, session k6v1.WorkerSession, ledger k6v1.Stream[k6v1.WorkerRow]) {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	exit := w.exits[session.Runtime()]
+	if exit.Sequence == 0 || !w.sessions[session.ID] || exit.UTC < session.StartedUTC {
+		return
+	}
+	active := map[string]k6v1.Record[k6v1.WorkerRow]{}
+	for _, row := range ledger.Rows {
+		if row.Position.UTC > exit.UTC {
+			break
+		}
+		switch row.Data.Kind {
+		case "start":
+			active[row.Data.Invocation] = row
+		case "finish", "abort":
+			delete(active, row.Data.Invocation)
+		}
+	}
+	for _, row := range ledger.Rows {
+		id := [2]string{session.ID, row.Data.Invocation}
+		if active[id[1]].Position.Sequence != row.Position.Sequence || w.shutdowns[id] {
+			continue
+		}
+		w.append(at, k6v1.WatchRow{Kind: "shutdown", Session: &session, Shutdown: &k6v1.ShutdownBinding{
+			Invocation: id[1], Attempt: *row.Data.Attempt, StartSequence: row.Position.Sequence, ExitSequence: exit.Sequence,
+		}})
+		w.shutdowns[id] = true
 	}
 }
 

@@ -241,6 +241,8 @@ func checkSessions(r *Result, m Manifest, e External, rows map[string][]Row) (ma
 					flag("SESSION_OUTCOME_WITHOUT_START")
 				} else if death && w.Kind == "abort" {
 					aborts = append(aborts, observedWorker{session, row})
+				} else if m.CaptureEnabled() && w.Kind == "abort" {
+					aborts = append(aborts, observedWorker{session, row})
 				}
 				delete(active, w.Invocation)
 			case "send", "receive", "timeout", "close":

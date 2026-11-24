@@ -128,8 +128,6 @@ func newResult(m Manifest, indexHash string) Result {
 
 func pendingSlice(label int) string {
 	switch label {
-	case 6, 7:
-		return "G3d"
 	case 8, 10:
 		return "G3a3"
 	case 12:
@@ -423,12 +421,16 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 	ordering.checkAtomicHistory()
 	ordering.checkOwnerAtCommit()
 	ordering.checkCurrentClaimWinner()
+	for _, sources := range external {
+		ordering.brokerCopies = sources.BrokerCopies != nil && sources.Broker != nil && len(sources.Broker.Rows) > 0
+	}
 	ordering.checkDispatch()
 	ordering.checkReplayAndUncertainty()
 	for _, sources := range external {
+		copied := ordering.checkBrokerCopies(sources.Broker, sources.BrokerCopies)
 		aborts := checkExternal(&r, m, sources, rows)
-		ordering.checkLowerOffsets(sources.Broker)
-		ordering.checkShutdown(aborts)
+		ordering.checkLowerOffsets(sources.Broker, copied)
+		ordering.checkShutdown(aborts, sources)
 	}
 	if ordering.capture && r.Labels[3].Outcome == "covered/pass" {
 		for _, issue := range issues {

@@ -80,6 +80,9 @@ func (e External) prefixes() map[string]prefix {
 	if e.Broker != nil {
 		out[BrokerPath] = makePrefix(BrokerPath, e.Broker, func(BrokerRow) string { return "" })
 	}
+	if e.BrokerCopies != nil {
+		out[BrokerCopiesPath] = makePrefix(BrokerCopiesPath, e.BrokerCopies, func(BrokerCopyRow) string { return "" })
+	}
 	if e.Topology != nil {
 		out[TopologyPath] = makePrefix(TopologyPath, e.Topology, func(TopologyRow) string { return "" })
 	}
@@ -439,5 +442,5 @@ func requiredExternal(m Manifest) []string {
 
 func ExternalPath(path string) bool {
 	return isSessionPath(path) || strings.HasPrefix(path, "witness/") ||
-		path == DecisionsPath || path == BrokerPath
+		path == DecisionsPath || path == BrokerPath || path == BrokerCopiesPath
 }

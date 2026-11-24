@@ -5,6 +5,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -16,6 +17,7 @@ import (
 	"durable-agent-execution-engine/internal/invariants/k6collect"
 	"durable-agent-execution-engine/internal/invariants/k6v1"
 	"github.com/segmentio/kafka-go"
+	"github.com/twmb/franz-go/pkg/kgo"
 )
 
 type config struct {
@@ -39,6 +41,7 @@ type config struct {
 	Decisions       string            `json:"decisions"`
 	Fence           string            `json:"fence"`
 	WatchReady      string            `json:"watch_ready,omitempty"`
+	OffsetPhase     string            `json:"offset_phase,omitempty"`
 }
 
 type processRegistration struct {
@@ -52,6 +55,7 @@ type collector struct {
 	watch      *k6collect.PodWatch
 	sources    k6v1.External
 	registered map[string]bool
+	lastPhase  string
 }
 
 func load(path string, out any) error {
@@ -103,6 +107,11 @@ func run(ctx context.Context, c config) error {
 	transport := &kafka.Transport{DialTimeout: 2 * time.Second, IdleTimeout: 5 * time.Second}
 	defer transport.CloseIdleConnections()
 	client := &kafka.Client{Addr: kafka.TCP(c.Brokers...), Transport: transport, Timeout: 4 * time.Second}
+	metadata, err := kgo.NewClient(kgo.SeedBrokers(c.Brokers...))
+	if err != nil {
+		return errors.New("K6_COLLECT_BROKER_METADATA")
+	}
+	defer metadata.Close()
 	ticker := time.NewTicker(time.Second)
 	defer ticker.Stop()
 	var generation int64
@@ -118,7 +127,7 @@ func run(ctx context.Context, c config) error {
 		case <-ticker.C:
 		}
 		generation++
-		err := observer.collect(ctx, client, generation)
+		err := observer.collect(ctx, client, metadata, generation)
 		if err == nil {
 			published = true
 			failedAt = time.Time{}
@@ -140,7 +149,7 @@ func (o *collector) drained() bool {
 	return load(o.config.Fence, &fence) == nil && fence == k6v1.Binding(o.config.Manifest)
 }
 
-func (o *collector) collect(ctx context.Context, client *kafka.Client, generation int64) error {
+func (o *collector) collect(ctx context.Context, client *kafka.Client, metadata *kgo.Client, generation int64) error {
 	c, m := o.config, o.config.Manifest
 	var registrations []processRegistration
 	if load(c.Registrations, &registrations) != nil || registrations == nil {
@@ -168,7 +177,12 @@ func (o *collector) collect(ctx context.Context, client *kafka.Client, generatio
 		return fmt.Errorf("K6_COLLECT_%s:%s", issues[0].Code, issues[0].Source)
 	}
 	for _, r := range registrations {
-		if l, ok := o.sources.Sessions[r.Session.ID]; ok && l.Seal.Mode == "checkpoint" && o.watch.ConfirmDeath(time.Now(), r.Session, &l) == nil {
+		l, ok := o.sources.Sessions[r.Session.ID]
+		if !ok {
+			continue
+		}
+		o.watch.BindShutdown(time.Now(), r.Session, l)
+		if l.Seal.Mode == "checkpoint" && o.watch.ConfirmDeath(time.Now(), r.Session, &l) == nil {
 			o.sources.Sessions[r.Session.ID] = l
 			// The watch will publish the death after its next progress marker.
 			return errors.New("K6_COLLECT_DEATH_PENDING")
@@ -186,7 +200,16 @@ func (o *collector) collect(ctx context.Context, client *kafka.Client, generatio
 			o.sources.Sessions[id] = l
 		}
 	}
-	row, err := k6collect.BrokerSnapshot(ctx, client, c.Group, c.Topics, func(context.Context) (int64, map[string]int64, *k6v1.CoordinatorObservation, error) {
+	brokerCtx, cancel := context.WithTimeout(ctx, 4*time.Second)
+	defer cancel()
+	var phase k6v1.OffsetPhase
+	phased := c.OffsetPhase != "" && load(c.OffsetPhase, &phase) == nil && phase.Valid(m) && phase.Name != o.lastPhase
+	names := slices.Sorted(maps.Keys(c.Topics))
+	ids, err := k6collect.BrokerTopicIDs(brokerCtx, metadata, names)
+	if err != nil {
+		return err
+	}
+	row, err := k6collect.BrokerSnapshot(brokerCtx, client, c.Group, ids, func(context.Context) (int64, map[string]int64, *k6v1.CoordinatorObservation, error) {
 		var state struct {
 			Generation  int64                        `json:"generation"`
 			Members     map[string]int64             `json:"members"`
@@ -198,8 +221,40 @@ func (o *collector) collect(ctx context.Context, client *kafka.Client, generatio
 	if err != nil {
 		return err
 	}
+	copies := o.sources.BrokerCopies
+	if drained && copies == nil {
+		stream := k6collect.NewStream[k6v1.BrokerCopyRow](m, "broker-copies", "kafka-physical-fetch", time.Now())
+		// Leave time to close the metadata bracket even when a fetch stalls.
+		readCtx, stop := context.WithTimeout(brokerCtx, 2*time.Second)
+		k6collect.ReadBrokerCopies(readCtx, client, &stream, row.Partitions)
+		stop()
+		copies = &stream
+	}
+	idsAfter, err := k6collect.BrokerTopicIDs(brokerCtx, metadata, names)
+	if err != nil {
+		return err
+	}
+	if !maps.Equal(ids, idsAfter) {
+		row.TopicIDsAfter = idsAfter
+	}
+	row.AfterUTC = k6v1.UTC(time.Now())
+	if phased {
+		var current k6v1.OffsetPhase
+		if load(c.OffsetPhase, &current) == nil && current == phase && phase.RequestedUTC <= row.BeforeUTC {
+			row.OffsetPhase = &phase
+		}
+	}
+	if copies != nil {
+		if err := k6v1.SealStream(copies, "terminal", row.AfterUTC, int64(len(copies.Rows)), 0); err != nil {
+			return err
+		}
+		o.sources.BrokerCopies = copies
+	}
 	if err := k6collect.RecordBroker(o.sources.Broker, row, drained); err != nil {
 		return err
+	}
+	if row.OffsetPhase != nil {
+		o.lastPhase = row.OffsetPhase.Name
 	}
 	if m.Sink == nil {
 		var platform k6collect.PlatformInventory

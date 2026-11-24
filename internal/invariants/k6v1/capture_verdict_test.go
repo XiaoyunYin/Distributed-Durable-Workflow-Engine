@@ -4,6 +4,7 @@ import (
 	"maps"
 	"slices"
 	"testing"
+	"time"
 )
 
 func capturedRow(subject, operation, order, tx string, key []any, before, after Row) Row {
@@ -101,7 +102,7 @@ func TestK6CaptureRemainder(t *testing.T) {
 	result := transportOrder(t, Manifest{Cell: "hook-3"}, rows, func(e engineOrder) {
 		e.capture, e.captureReady = true, true
 		e.checkDispatch()
-		e.requireOffsetProof(nil)
+		e.checkLowerOffsets(nil)
 	})
 	want := []string{"broker_event_copies", "broker_reset_hold_restart_offsets", "broker_event_copies"}
 	if len(result.Findings) != len(want) {
@@ -213,11 +214,12 @@ func TestK6CapturedDisposition(t *testing.T) {
 
 func TestK6CapturedOutsideCeiling(t *testing.T) {
 	n := testNumber
-	for _, name := range []string{"ResultReplay", "LateResolution", "ResolutionBeforeReplay", "UnboundResolution", "ShutdownFailure"} {
+	for _, name := range []string{"ResultReplay", "LateResolution", "ResolutionBeforeReplay", "UnboundResolution", "ShutdownFailure", "ShutdownNoObservation"} {
 		t.Run(name, func(t *testing.T) {
 			rows := orderFixture()
 			old, current := rows[activityAttempts][0], rows[activityAttempts][1]
 			var aborts []observedWorker
+			var external External
 			result := transportOrder(t, Manifest{Cell: "hook-0"}, rows, func(e engineOrder) {
 				e.captureReady = true
 				result := capturedResult{Row{"after_image": map[string]any{"worker_request_id": "request-2", "token_hash": "token-2", "attempt_state": "FAILED_FINAL"}}, current}
@@ -233,11 +235,14 @@ func TestK6CapturedOutsideCeiling(t *testing.T) {
 					rows[history][5]["reason"] = resultRecorded
 					e.resultCommits["end"] = result
 					rows[WriteCapture] = []Row{resultHistory, linkedHistory("end", "50", "replay")}
-				case "ShutdownFailure":
+				case "ShutdownFailure", "ShutdownNoObservation":
 					current["effect_class"] = "PURE_ACTIVITY"
 					identity := AttemptIdentity{Workflow: "wf", Node: "node", Attempt: 2, ClaimHash: "token-2", RequestID: "request-2"}
 					aborts = []observedWorker{{session: WorkerSession{ID: "session", Claimant: "worker"},
-						row: Record[WorkerRow]{Position: Position{Sequence: 3}, Data: WorkerRow{Kind: "abort", Attempt: &identity}}}}
+						row: Record[WorkerRow]{Position: Position{Sequence: 3, UTC: UTC(fixed.Add(time.Second))}, Data: WorkerRow{Kind: "abort", Invocation: "invocation", Attempt: &identity}}}}
+					if name == "ShutdownFailure" {
+						external = shutdownFixture(aborts[0])
+					}
 				default:
 					old["effect_class"], current["effect_class"], old["logical_effect_key"] = "NON_COOPERATING_EFFECT", "NON_COOPERATING_EFFECT", "effect"
 					rows[history][3]["reason"] = "TIMEOUT_RECONCILIATION_REQUIRED"
@@ -263,7 +268,7 @@ func TestK6CapturedOutsideCeiling(t *testing.T) {
 					}
 				}
 				e.checkReplayAndUncertainty()
-				e.checkShutdown(aborts)
+				e.checkShutdown(aborts, external)
 			})
 			for _, i := range []int{4, 8, 12} {
 				assertNoPromotion(t, result.Labels[i])
@@ -283,6 +288,7 @@ func TestK6CapturedOutsideCeiling(t *testing.T) {
 				}
 			case "ShutdownFailure":
 				requireTransportFinding(t, result, shutdownPredicate, "SHUTDOWN_RECORDED_AS_FAILURE", Violation, RelationPath(history), []any{"wf", n("5"), "result"})
+			case "ShutdownNoObservation":
 				requireTransportFinding(t, result, shutdownPredicate, "required_proof_missing:shutdown_signal_or_exit", MissingProof, SessionPath("session"), []any{int64(3)})
 			}
 		})

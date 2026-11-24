@@ -198,7 +198,9 @@ def test_idle_sources_must_be_present_and_sealed(tmp_path: Path) -> None:
         (1, "FAIL", False, "FAIL", "G_PRODUCER_PASS_RETAINED"),
     ],
 )
-@pytest.mark.parametrize(("cell", "idle"), [("hook-0", False), ("hook-0", True), ("hook-3", False)])
+@pytest.mark.parametrize(
+    ("cell", "idle"), [("hook-0", False), ("hook-0", True), ("hook-3", False), ("medium-12", False)]
+)
 def test_negative_replay_retains_pass_summary(
     tmp_path: Path,
     exit_code: int,
@@ -210,7 +212,7 @@ def test_negative_replay_retains_pass_summary(
     idle: bool,
 ) -> None:
     bundle = tmp_path / "bundle"
-    source = "witness/topology.json"
+    source = "witness/effect-ingress.jsonl" if cell == "medium-12" else "witness/topology.json"
     path = bundle / source
     path.parent.mkdir(parents=True)
     path.write_bytes(b"source")
@@ -219,78 +221,29 @@ def test_negative_replay_retains_pass_summary(
     producer = json.dumps({"status": producer_status}).encode()
     (tmp_path / "producer-result.json").write_bytes(producer)
     ids = [f"I{i}" for i in range(1, 14)]
-    covered = [] if idle else ["I1", "I2", "I4", "I11"]
-    outbox = "engine/engine.outbox.jsonl"
-    (bundle / outbox).parent.mkdir()
-    outbox_row = canonical({"event_id": "event"})
-    (bundle / outbox).write_bytes(outbox_row)
-    dispatch_gap = "required_proof_missing:broker_event_copies"
-    baseline_findings = []
-    if not idle:
-        baseline_findings.append(
-            {
-                "predicate": "DispatchDisposition",
-                "code": dispatch_gap,
-                "kind": "missing",
-                "source": outbox,
-                "witness": {"path": outbox, "row_key": ["event"], "sha256": sha(outbox_row)},
-            }
-        )
-    registered = {"I1", "I2", "I4", "I6", "I11"}
+    completed = {"I1", "I2", "I4", "I6", "I11"}
     if cell == "hook-3":
-        registered.add("I7")
-        broker = "broker/positions.jsonl"
-        (bundle / broker).parent.mkdir()
-        broker_row = canonical(
-            {
-                "position": {"sequence": 2},
-                "data": {
-                    "group": "runtime-workers-v1",
-                    "partitions": [
-                        {
-                            "topic": "durable-agent.tasks.v1",
-                            "topic_id": "tasks",
-                            "partition": 3,
-                            "low": 4,
-                            "committed": None,
-                        }
-                    ],
-                },
-            }
-        )
-        (bundle / broker).write_bytes(canonical({}) + broker_row)
-        for gap in ("required_proof_missing:broker_reset_hold_restart_offsets", dispatch_gap):
-            baseline_findings.append(
-                {
-                    "predicate": "LowerOffsetsDisposed",
-                    "code": gap,
-                    "kind": "missing",
-                    "source": broker,
-                    "witness": {
-                        "path": broker,
-                        "row_key": [2, "tasks", 3, 4],
-                        "sha256": sha(broker_row),
-                    },
-                }
-            )
+        completed.add("I7")
+    registered = completed | ({"I8", "I10"} if cell == "medium-12" else set())
+    covered = [] if idle else [identity for identity in ids if identity in completed]
+
+    def reason(identity: str) -> str:
+        if identity in completed:
+            return "no_positive_population" if idle else "predicate_satisfied"
+        return "predicate_pending:G3a3" if identity in registered else "outside_registry_ceiling"
+
     baseline = json.dumps(
         {
-            "findings": baseline_findings,
+            "findings": [],
             "confirmation": {"status": "pending", "reason": "confirmation_pending:G3a4"},
-            "safety": "incomplete" if idle else "NOT COVERED",
-            "completeness": "incomplete" if idle else "FAIL",
+            "safety": "incomplete",
+            "completeness": "incomplete",
             "labels": [
                 {
                     "id": identity,
                     "registered": identity in registered,
                     "outcome": "covered/pass" if identity in covered else "NOT COVERED",
-                    "reason": "predicate_satisfied"
-                    if identity in covered
-                    else (
-                        ("no_positive_population" if idle else dispatch_gap)
-                        if identity in registered
-                        else "outside_registry_ceiling"
-                    ),
+                    "reason": reason(identity),
                 }
                 for identity in ids
             ],
@@ -302,7 +255,7 @@ def test_negative_replay_retains_pass_summary(
     def offline(root: Path, name: str) -> tuple[int, bytes]:
         if name == "offline":
             assert root == bundle
-            return (3 if idle else 1), baseline
+            return 3, baseline
         assert name == "missing"
         assert not (root / source).exists()
         assert json.loads((root / "index.json").read_bytes())["files"] == []
@@ -316,7 +269,7 @@ def test_negative_replay_retains_pass_summary(
         }
         return exit_code, json.dumps(
             {
-                "findings": [finding] * (2 if extra_finding else 1) + baseline_findings,
+                "findings": [finding] * (2 if extra_finding else 1),
                 "completeness": completeness,
             }
         ).encode()
