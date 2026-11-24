@@ -19790,7 +19790,7 @@
       "id": "k6g3c2-award-atomic",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/engine_order.go",
-      "old": "e.capture && !e.captureReady {",
+      "old": "e.capture && (!e.captureReady || !committed(a)) {",
       "new": "e.capture {",
       "command": [
         "go",
