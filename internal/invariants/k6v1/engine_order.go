@@ -256,7 +256,8 @@ func (e engineOrder) checkOwnerAtCommit() {
 		label := &e.result.Labels[2]
 		if e.captureReady {
 			label.PopulationUnit, label.PopulationCount = "owner_write", len(e.rows[OwnerWrites])
-			label.Outcome, label.Reason = "covered/pass", "predicate_satisfied"
+			// The positive deployed challenge is a separate I3 obligation.
+			label.Reason = pendingReason(3)
 		} else if e.capture && len(e.rows[OwnerWrites]) > 0 {
 			e.require(predicate, "owner_write_transactions", OwnerWrites, e.rows[OwnerWrites][0])
 		} else if e.capture && len(e.workflows) > 0 {

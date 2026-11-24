@@ -80,9 +80,12 @@ func TestK6SourceRegistryFormulas(t *testing.T) {
 		if e.Workload == "COOPERATING_EFFECT" {
 			m.Sink = &DatabaseIdentity{Database: "sinkdb", Instance: "sink"}
 		}
-		m.RequiredSources = RequiredSources(false, m.Sink != nil)
+		m.RequiredSources = m.SourcePaths()
 		if ordinal != e.Ordinal || e.Repeat != ordinal%5 || !m.Valid() || e.Window.T != reconciliationSeconds {
 			t.Fatalf("ordinal %d disagrees with checker formulas: %+v", ordinal, e)
+		}
+		if slices.Contains(m.RequiredSources, ControlPath) != (ordinal >= 110) {
+			t.Fatalf("ordinal %d has incorrect control proof inventory", ordinal)
 		}
 		i := slices.IndexFunc(registry.Coverage, func(row struct {
 			Arm        string

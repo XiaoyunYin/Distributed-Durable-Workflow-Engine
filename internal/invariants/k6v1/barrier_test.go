@@ -213,7 +213,7 @@ func TestK6SubmissionPartialReasons(t *testing.T) {
 	m := Manifest{Cell: "hook-5", Workload: "PURE"}
 	rows := map[string][]Row{executions: {}, history: {}, "engine.workflow_definitions": {}}
 	r := evaluate(m, Snapshot{}, rows, Plan{}, Arrivals{}, true, true, "", nil)
-	for i, reason := range map[int]string{0: "no_positive_population", 1: "no_positive_population", 2: "predicate_pending", 5: "no_positive_population", 10: "no_positive_population"} {
+	for i, reason := range map[int]string{0: "no_positive_population", 1: "no_positive_population", 2: "required_proof_missing:DeployedStaleChallenge", 5: "no_positive_population", 10: "no_positive_population"} {
 		if label := r.Labels[i]; label.Reason != reason || label.Outcome != "NOT COVERED" {
 			t.Fatalf("clean partial predicate claimed coverage: %+v", label)
 		}

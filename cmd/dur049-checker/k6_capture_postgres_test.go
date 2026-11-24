@@ -128,10 +128,14 @@ func TestK6SourceCaptureParity(t *testing.T) {
 			}
 			r := captureFixtureVerdict(t, cfg, plan, arrivals)
 			if tc.change == "" {
-				for _, i := range []int{1, 2, 3} {
+				for _, i := range []int{1, 3} {
 					if label := r.Labels[i]; label.Outcome != "covered/pass" || label.PopulationCount == 0 {
 						t.Fatalf("missing capture award: %+v, findings %+v", label, r.Findings)
 					}
+				}
+				if label := r.Labels[2]; label.Outcome != "NOT COVERED" ||
+					label.Reason != "required_proof_missing:DeployedStaleChallenge" || label.PopulationCount == 0 {
+					t.Fatalf("I3 must retain the owner population and withhold the challenge award: %+v", label)
 				}
 				if len(r.Findings) != 1 || r.Findings[0].Predicate != "DispatchDisposition" ||
 					r.Findings[0].Code != "required_proof_missing:broker_event_copies" || r.Findings[0].Kind != k6v1.MissingProof {

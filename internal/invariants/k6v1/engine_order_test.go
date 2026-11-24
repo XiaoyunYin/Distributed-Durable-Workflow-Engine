@@ -187,7 +187,7 @@ func TestK6PredicateFailureStrata(t *testing.T) {
 func TestK6ConfirmationAllCoveredPure(t *testing.T) {
 	for _, status := range []string{"pending", "confirmed"} {
 		t.Run(status, func(t *testing.T) {
-			r := newResult(Manifest{Cell: "hook-0", Workload: "PURE"}, "")
+			r := newResult(Manifest{Cell: "medium-16", Workload: "PURE"}, "")
 			for i := range r.Labels {
 				if r.Labels[i].Registered {
 					r.Labels[i].Outcome, r.Labels[i].Reason = "covered/pass", "predicate_satisfied"
@@ -202,7 +202,7 @@ func TestK6ConfirmationAllCoveredPure(t *testing.T) {
 				want = Pass
 			}
 			if r.ExitCode() != want || !slices.Equal(r.InvariantsCovered, []string{"I1", "I2", "I4", "I6", "I11"}) ||
-				(status == "pending" && r.Confirmation != (Confirmation{"pending", "confirmation_pending:G3a4"})) {
+				(status == "pending" && r.Confirmation != (Confirmation{"pending", "cell_not_exercised"})) {
 				t.Fatalf("confirmation verdict: %+v", r)
 			}
 		})

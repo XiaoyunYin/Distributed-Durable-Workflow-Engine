@@ -11,6 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from dur053_k6_b_evidence import SmokeFailure  # noqa: E402
 from dur053_k6_g_bundle import (  # noqa: E402
+    CONTROL_PATH,
     IDLE_RELATIONS,
     Json,
     canonical,
@@ -123,9 +124,9 @@ def test_fence_requires_all_admission_stops(tmp_path: Path) -> None:
     assert json.loads(fence.read_bytes()) == binding
 
 
-def test_registered_smoke_selects_lowest_cost_per_arm() -> None:
+def test_registered_smoke_selects_control_for_each_workload() -> None:
     pure, effect = select_cells(read_registry())
-    assert [pure["episode"], effect["episode"]] == ["hook-0-0", "medium-12-0"]
+    assert [pure["episode"], effect["episode"]] == ["medium-16-0", "medium-16-3"]
     binding = {"episode": effect["episode"], "namespace": "g-arm", "reset_id": "reset"}
     plan, requests, allocator = make_plan(binding, effect["seed"], True)
     assert [row["name"] for row in plan["windows"]] == ["warmup", "measured"]
@@ -202,9 +203,7 @@ def test_idle_sources_must_be_present_and_sealed(tmp_path: Path) -> None:
         (1, "FAIL", False, "FAIL", "G_PRODUCER_PASS_RETAINED"),
     ],
 )
-@pytest.mark.parametrize(
-    ("cell", "idle"), [("hook-0", False), ("hook-0", True), ("hook-3", False), ("medium-12", False)]
-)
+@pytest.mark.parametrize(("effect", "idle"), [(False, False), (False, True), (True, False)])
 def test_negative_replay_retains_pass_summary(
     tmp_path: Path,
     exit_code: int,
@@ -212,23 +211,26 @@ def test_negative_replay_retains_pass_summary(
     extra_finding: bool,
     producer_status: str,
     error: str | None,
-    cell: str,
+    effect: bool,
     idle: bool,
 ) -> None:
     bundle = tmp_path / "bundle"
-    source = "witness/effect-ingress.jsonl" if cell == "medium-12" else "witness/topology.json"
+    source = "witness/effect-ingress.jsonl" if effect else "witness/topology.json"
     path = bundle / source
     path.parent.mkdir(parents=True)
     path.write_bytes(b"source")
-    (bundle / "index.json").write_text(json.dumps({"files": [{"path": source}]}))
-    (bundle / "manifest.json").write_bytes(canonical({"cell": cell}))
+    control = bundle / CONTROL_PATH
+    control.parent.mkdir()
+    control.write_bytes(b"confirmation")
+    (bundle / "index.json").write_bytes(
+        canonical({"files": [{"path": source}, {"path": CONTROL_PATH}]})
+    )
+    (bundle / "manifest.json").write_bytes(canonical({"cell": "medium-16"}))
     producer = json.dumps({"status": producer_status}).encode()
     (tmp_path / "producer-result.json").write_bytes(producer)
     ids = [f"I{i}" for i in range(1, 14)]
     completed = {"I1", "I2", "I4", "I6", "I11"}
-    if cell == "hook-3":
-        completed.add("I7")
-    if cell == "medium-12":
+    if effect:
         completed.update(("I8", "I10"))
     registered = completed
     covered = [] if idle else [identity for identity in ids if identity in completed]
@@ -241,9 +243,15 @@ def test_negative_replay_retains_pass_summary(
     baseline = json.dumps(
         {
             "findings": [],
-            "confirmation": {"status": "pending", "reason": "confirmation_pending:G3a4"},
-            "safety": "incomplete",
-            "completeness": "incomplete",
+            "confirmation": (
+                {"status": "pending", "reason": "no_positive_population"}
+                if idle
+                else {"status": "confirmed", "reason": "cell_predicate_satisfied"}
+            ),
+            "safety": "incomplete" if idle else "PASS",
+            "completeness": "incomplete" if idle else "PASS",
+            "relation_integrity": "covered/pass",
+            "status": "incomplete" if idle else "passed",
             "labels": [
                 {
                     "id": identity,
@@ -258,22 +266,26 @@ def test_negative_replay_retains_pass_summary(
         }
     ).encode()
 
+    replays: list[str] = []
+
     def offline(root: Path, name: str) -> tuple[int, bytes]:
+        replays.append(name)
         if name == "offline":
             assert root == bundle
-            return 3, baseline
-        assert name == "missing"
-        assert not (root / source).exists()
-        assert json.loads((root / "index.json").read_bytes())["files"] == []
+            return (3 if idle else 0), baseline
+        assert name in {"missing", "missing-confirmation"}
+        dropped, retained = (source, CONTROL_PATH) if name == "missing" else (CONTROL_PATH, source)
+        assert not (root / dropped).exists()
+        assert json.loads((root / "index.json").read_bytes())["files"] == [{"path": retained}]
         assert (root / "producer-result.json").read_bytes() == producer
         finding = {
-            "code": "required_proof_missing:" + source,
+            "code": "required_proof_missing:" + dropped,
             "kind": "missing",
-            "source": source,
+            "source": dropped,
             "predicate": "RelationIntegrity",
             "witness": None,
         }
-        return exit_code, json.dumps(
+        return (exit_code if name == "missing" else 1), json.dumps(
             {
                 "findings": [finding] * (2 if extra_finding else 1),
                 "completeness": completeness,
@@ -282,6 +294,10 @@ def test_negative_replay_retains_pass_summary(
 
     if error is None:
         replay(tmp_path, baseline, source, offline, idle=idle)
+        expected = ["offline", "missing"]
+        if not effect and not idle:
+            expected.append("missing-confirmation")
+        assert replays == expected
     else:
         with pytest.raises(SmokeFailure, match=error):
             replay(tmp_path, baseline, source, offline, idle=idle)
