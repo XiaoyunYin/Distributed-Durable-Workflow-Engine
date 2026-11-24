@@ -36,7 +36,7 @@ func TestK6CaptureAwards(t *testing.T) {
 	})
 	t.Run("HistoryChanges", func(t *testing.T) {
 		c := newClosureFixture()
-		c.checkHistoryChanges(orderFixture()[history][2], nil)
+		c.checkHistoryChanges(orderFixture()[history][2], historyChanges{})
 		wantCaptureCode(t, c, "CAPTURE_HISTORY_CHANGES")
 	})
 	t.Run("ClaimTransaction", func(t *testing.T) {

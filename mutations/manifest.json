@@ -19751,7 +19751,7 @@
     {
       "id": "k6g3c2-history-changes",
       "kind": "behavioral",
-      "file": "internal/invariants/k6v1/capture_closure.go",
+      "file": "internal/invariants/k6v1/history_changes.go",
       "old": "c.violate(\"AtomicHistory\", \"CAPTURE_HISTORY_CHANGES\", history, h)",
       "new": "if false { c.violate(\"AtomicHistory\", \"CAPTURE_HISTORY_CHANGES\", history, h) }",
       "command": [
@@ -20221,6 +20221,367 @@
         "-count=1"
       ],
       "expected": "expected missing ShutdownDisposition required_proof_missing:shutdown_signal_or_exit",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-creation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"WORKFLOW_CREATED\":                               createdWorkflow,",
+      "new": "\t\"WORKFLOW_CREATED\":                               func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^Creation$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-attempt-creation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\tattemptCreated:                                   createdAttempt,",
+      "new": "\tattemptCreated:                                   func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^AttemptCreation$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-result-record",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\tresultRecorded:                                   recordedResult,",
+      "new": "\tresultRecorded:                                   func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^ResultRecord$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-result-consume",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\tresultConsumed:                                   consumedResult,",
+      "new": "\tresultConsumed:                                   func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^ResultConsume$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-redispatch",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"REDISPATCH_UNCLAIMED\":                           redispatchedAttempt,",
+      "new": "\t\"REDISPATCH_UNCLAIMED\":                           func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^Redispatch$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-timeout-reconciliation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"TIMEOUT_RECONCILIATION_REQUIRED\":                timedOutUncertain,",
+      "new": "\t\"TIMEOUT_RECONCILIATION_REQUIRED\":                func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^TimeoutReconciliation$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-timeout-replacement",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\tattemptReplaced:                                  replacedAttempt,",
+      "new": "\tattemptReplaced:                                  func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^TimeoutReplacement$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-graph",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"GRAPH_ADVANCED\":                                 advancedGraph,",
+      "new": "\t\"GRAPH_ADVANCED\":                                 func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^Graph$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-cancellation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\tcanceled:                                         canceledWorkflow,",
+      "new": "\tcanceled:                                         func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^Cancellation$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-timer-schedule",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"TIMER_SCHEDULED\":                                scheduledTimer,",
+      "new": "\t\"TIMER_SCHEDULED\":                                func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^TimerSchedule$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-approval-request",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"APPROVAL_REQUESTED\":                             requestedApproval,",
+      "new": "\t\"APPROVAL_REQUESTED\":                             func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^ApprovalRequest$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-approval-grant",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"APPROVAL_GRANTED\":                               grantedApproval,",
+      "new": "\t\"APPROVAL_GRANTED\":                               func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^ApprovalGrant$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-approval-reject",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"APPROVAL_REJECTED\":                              rejectedApproval,",
+      "new": "\t\"APPROVAL_REJECTED\":                              func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^ApprovalReject$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-activity-schedule",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"ACTIVITY_SCHEDULED\":                             scheduledActivity,",
+      "new": "\t\"ACTIVITY_SCHEDULED\":                             func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^ActivitySchedule$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-timer-due",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"TIMER_DUE\":                                      firedTimer,",
+      "new": "\t\"TIMER_DUE\":                                      func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^TimerDue$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-grant-expiry",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"K6_GRANT_EXPIRED_OUTCOME_UNKNOWN\":               expiredGrant,",
+      "new": "\t\"K6_GRANT_EXPIRED_OUTCOME_UNKNOWN\":               func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^GrantExpiry$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-unsupported",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"LOCAL_ACTIVITY_UNSUPPORTED\":                     pausedUnsupported,",
+      "new": "\t\"LOCAL_ACTIVITY_UNSUPPORTED\":                     func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^Unsupported$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-probe",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "\t\"DUR049_SAME_OWNER_STALE_EPOCH_PROBE_CLEANUP\":    canceledProbe,",
+      "new": "\t\"DUR049_SAME_OWNER_STALE_EPOCH_PROBE_CLEANUP\":    func(historyChanges, Row) bool { return true },",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^Probe$",
+        "-count=1"
+      ],
+      "expected": "expected capture violation CAPTURE_HISTORY_CHANGES",
+      "requires_database": false
+    },
+    {
+      "id": "k6r370-unknown",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/history_changes.go",
+      "old": "c.require(\"AtomicHistory\", \"node_attempt_write_transactions\", history, h)",
+      "new": "if false { c.require(\"AtomicHistory\", \"node_attempt_write_transactions\", history, h) }",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6HistoryChanges$/^Unknown$",
+        "-count=1"
+      ],
+      "expected": "unknown history reason was not typed missing proof",
       "requires_database": false
     }
   ]

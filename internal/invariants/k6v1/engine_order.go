@@ -168,7 +168,7 @@ func (e engineOrder) checkAtomicHistory() {
 				e.violate(predicate, "HISTORY_ATTEMPT_MISSING", history, h)
 			}
 		}
-		if !e.capture && (h["node_id"] != nil || h["reason"] == canceled) || e.capture && !e.captureReady {
+		if !e.capture && (h["node_id"] != nil || h["reason"] == canceled) || e.capture && (!e.captureReady || !committed(a)) {
 			e.require(predicate, "node_attempt_write_transactions", history, h)
 		}
 	}

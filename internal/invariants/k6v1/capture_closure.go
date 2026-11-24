@@ -74,11 +74,12 @@ func (e engineOrder) checkCaptureClosure() bool {
 		}
 	}
 	c.checkEndpoints()
-	c.checkOrder()
+	transactions := c.checkOrder()
 	if len(e.rows[OwnerWrites]) > 0 {
 		c.checkOwnerInventory()
 	}
 	c.checkTransactionLinks()
+	c.checkHistoryTransactions(transactions)
 	c.checkCapturedClaims()
 	for _, relation := range []string{CaptureQueue, history, commitAudit, nodeRows, activityAttempts, leases, acquisitions} {
 		if _, present := e.rows[relation]; !present {
@@ -166,7 +167,7 @@ func captureMatchesEndpoint(subject string, image, endpoint Row) bool {
 	return true
 }
 
-func (c captureClosure) checkOrder() {
+func (c captureClosure) checkOrder() []any {
 	type entry struct {
 		row      Row
 		relation string
@@ -181,6 +182,7 @@ func (c captureClosure) checkOrder() {
 		return cmp.Compare(number(a.row["event_order"]), number(b.row["event_order"]))
 	})
 	seen := map[any]bool{}
+	var transactions []any
 	var xid any
 	var order int64
 	for _, e := range entries {
@@ -194,9 +196,13 @@ func (c captureClosure) checkOrder() {
 			if xid == "" || seen[xid] {
 				c.violate(capturePredicate, "CAPTURE_TRANSACTION_ORDER", e.relation, e.row)
 			}
+			if !seen[xid] {
+				transactions = append(transactions, xid)
+			}
 			seen[xid] = true
 		}
 	}
+	return transactions
 }
 
 func (c captureClosure) checkOwnerInventory() {
@@ -328,9 +334,6 @@ func (c captureClosure) checkTransactionLinks() {
 		}
 	}
 	for _, h := range c.rows[history] {
-		if a := c.byTransition[h["transition_id"]]; committed(a) {
-			c.checkHistoryChanges(h, c.writes[captureTransaction{a["transaction_id"], h["workflow_id"]}])
-		}
 		if h["reason"] != resultRecorded || !committed(c.byTransition[h["transition_id"]]) {
 			continue
 		}
@@ -340,32 +343,6 @@ func (c captureClosure) checkTransactionLinks() {
 		}) {
 			c.violate("CurrentClaimWinner", "CAPTURE_RESULT_MISSING", history, h)
 		}
-	}
-}
-
-func (c captureClosure) checkHistoryChanges(h Row, writes []Row) {
-	reason := h["reason"]
-	if reason != attemptCreated && reason != attemptReplaced && reason != resultConsumed {
-		return
-	}
-	var node, attempt bool
-	for _, w := range writes {
-		key := w["row_key"].([]any)
-		switch w["subject"] {
-		case nodeRows:
-			node = node || key[1] == h["node_id"] && key[2] == h["iteration"]
-		case activityAttempts:
-			if w["operation"] == "insert" && h["attempt_number"] != nil && key[1] == h["node_id"] && key[2] == h["iteration"] {
-				n := number(h["attempt_number"])
-				if reason == attemptReplaced {
-					n++
-				}
-				attempt = attempt || number(key[3]) == n
-			}
-		}
-	}
-	if !node || reason != resultConsumed && !attempt {
-		c.violate("AtomicHistory", "CAPTURE_HISTORY_CHANGES", history, h)
 	}
 }
 

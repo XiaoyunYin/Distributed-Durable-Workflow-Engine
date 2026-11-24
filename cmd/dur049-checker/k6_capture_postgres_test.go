@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -220,7 +221,8 @@ func TestK6SourceCapturedJoins(t *testing.T) {
 	if os.Getenv("DURABLE_K6_VERDICT_ARTIFACT") == "" {
 		t.Skip("requires hosted PostgreSQL and network-isolated checker")
 	}
-	for _, name := range []string{"CleanOffsets", "LowerDispositionGap", "ResultReplay", "UnresolvedEffect", "ShutdownFailure"} {
+	for _, name := range []string{"CleanOffsets", "LowerDispositionGap", "ResultReplay", "UnresolvedEffect", "ShutdownFailure",
+		"MissingCancellationChanges", "MissingGraphChanges"} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			engine, dsn := k6TestDatabase(t)
@@ -235,7 +237,7 @@ func TestK6SourceCapturedJoins(t *testing.T) {
 			seedCapture(t, engine, item, name)
 			seedCapturedTransport(t, engine)
 			cfg := captureFixtureConfig(t, dsn, m)
-			if name == "CleanOffsets" || name == "LowerDispositionGap" || name == "ShutdownFailure" {
+			if name != "ResultReplay" && name != "UnresolvedEffect" {
 				cfg.ExternalDir = t.TempDir()
 				sources := parityExternal(t, &cfg.Manifest, false, item.Key)
 				if name == "ShutdownFailure" {
@@ -278,6 +280,21 @@ func TestK6SourceCapturedJoins(t *testing.T) {
 				requirePredicateFinding(t, r, k6v1.Violation, "ShutdownDisposition", "SHUTDOWN_RECORDED_AS_FAILURE")
 				requirePredicateFinding(t, r, k6v1.MissingProof, "ShutdownDisposition", "required_proof_missing:shutdown_signal_or_exit")
 				requireTransportCeiling(t, r.Labels[12])
+			case "MissingCancellationChanges", "MissingGraphChanges":
+				revision := 4
+				if name == "MissingGraphChanges" {
+					revision = 6
+				}
+				var transition string
+				if err := engine.QueryRow(t.Context(), "SELECT transition_id::text FROM engine.transition_history WHERE revision=$1",
+					revision).Scan(&transition); err != nil {
+					t.Fatal(err)
+				}
+				requireOrderingFinding(t, r, "AtomicHistory", "CAPTURE_HISTORY_CHANGES", k6v1.Violation, "engine.transition_history",
+					[]any{item.Key, json.Number(fmt.Sprint(revision)), transition})
+				if r.Labels[1].Outcome != "covered/fail" {
+					t.Fatalf("history violation lost: %+v", r.Labels[1])
+				}
 			}
 		})
 	}
@@ -358,8 +375,8 @@ func seedCapture(t *testing.T, conn *pgx.Conn, item k6v1.Submission, variant str
 		VALUES ($1,'pure.echo',0,'RUNNABLE','{}');
 		INSERT INTO engine.retry_policies(workflow_id,node_id,iteration,max_retries,retries_used,checkpoint_schema_version)
 		VALUES ($1,'pure.echo',0,3,0,1);
-		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,new_state,reason)
-		VALUES (md5('h1')::uuid,$1,1,'client','client','RUNNABLE','WORKFLOW_CREATED');
+		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,node_id,new_state,reason)
+		VALUES (md5('h1')::uuid,$1,1,'client','client','pure.echo','RUNNABLE','WORKFLOW_CREATED');
 		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload)
 		VALUES (md5('o1')::uuid,$1,1,'workflow.created','{}')`, item.Key, "sub-v1:"+item.BodySHA256)
 	const fence = `SET LOCAL durable.k4_owner = '` + captureOwnerID + `';
@@ -371,16 +388,31 @@ func seedCapture(t *testing.T, conn *pgx.Conn, item k6v1.Submission, variant str
 	}
 	inTx(fence+`
 		UPDATE engine.workflow_executions SET state='WAITING_ACTIVITY',revision=2;
-		UPDATE engine.node_instances SET state='WAITING_ACTIVITY',current_attempt_number=1,revision=1;
+		UPDATE engine.node_instances SET state='WAITING_ACTIVITY',revision=1;
+		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,scheduler_epoch,node_id,iteration,old_state,new_state,reason)
+		VALUES (md5('h2')::uuid,$1,2,'scheduler','actor',1,'pure.echo',0,'RUNNABLE','WAITING_ACTIVITY','ACTIVITY_SCHEDULED')`, item.Key)
+	inTx(fence+`
+		UPDATE engine.workflow_executions SET revision=3;
+		UPDATE engine.node_instances SET current_attempt_number=1;
 		INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class)
 		VALUES ($1,'pure.echo',0,1,'DISPATCHABLE',$2);
 		INSERT INTO engine.timers(timer_id,workflow_id,node_id,iteration,due_at,purpose,owning_revision)
 		VALUES (md5('timer')::uuid,$1,'pure.echo',0,now(),'RETRY_BACKOFF',2);
 		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,scheduler_epoch,node_id,iteration,attempt_number,old_state,new_state,reason)
-		VALUES (md5('h2')::uuid,$1,2,'scheduler','actor',1,'pure.echo',0,1,'RUNNABLE','WAITING_ACTIVITY','ATTEMPT_CREATED');
+		VALUES (md5('h3')::uuid,$1,3,'scheduler','actor',1,'pure.echo',0,1,'WAITING_ACTIVITY','WAITING_ACTIVITY','ATTEMPT_CREATED');
 		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,topic,payload)
-		VALUES (md5('o2')::uuid,$1,2,'attempt.dispatch','durable-agent.tasks.v1','{"node_id":"pure.echo","iteration":0,"attempt_number":1}')`, item.Key, effectClass)
+		VALUES (md5('o2')::uuid,$1,3,'attempt.dispatch','durable-agent.tasks.v1','{"node_id":"pure.echo","iteration":0,"attempt_number":1}')`, item.Key, effectClass)
 	inTx(`UPDATE engine.activity_attempts SET state='CLAIMED',claim_token=$1,worker_id='worker',worker_request_id='request'`, claimSecret)
+	if variant == "MissingCancellationChanges" {
+		// The workflow and history commit while the active node and claim remain unchanged.
+		inTx(fence+`
+			UPDATE engine.workflow_executions SET state='CANCELED',revision=4;
+			INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,scheduler_epoch,old_state,new_state,reason)
+			VALUES (md5('h4')::uuid,$1,4,'scheduler','actor',1,'WAITING_ACTIVITY','CANCELED','CANCELED_ALL_ACTIVE_NODES');
+			INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload)
+			VALUES (md5('o4')::uuid,$1,4,'workflow.canceled',jsonb_build_object('workflow_id',$1::text))`, item.Key)
+		return
+	}
 	const result = `UPDATE engine.activity_attempts SET state=$5,is_current=false,result='5' WHERE attempt_number=$4;
 		UPDATE engine.workflow_executions SET revision=$3;
 		INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,node_id,iteration,attempt_number,old_state,new_state,reason)
@@ -390,27 +422,26 @@ func seedCapture(t *testing.T, conn *pgx.Conn, item k6v1.Submission, variant str
 		INSERT INTO engine.k6_capture_queue(subject,operation,row_key,workflow_id,partition_id,after_image)
 		VALUES ('result_request','ACCEPTED',jsonb_build_array($1::text,'pure.echo',0,$4::int),$1,0,
 		        jsonb_build_object('token_hash',$2::text,'worker_request_id',$6::text,'receipt_id',NULL,'attempt_state',$5::text))`
-	attempt, resultRevision, resultState, token := 1, 3, "SUCCEEDED", claimSecret
+	attempt, resultRevision, resultState, token := 1, 4, "SUCCEEDED", claimSecret
 	request := "request"
 	if variant == "ShutdownFailure" {
 		resultState = "FAILED_FINAL"
 	}
 	if variant == "UnresolvedEffect" {
-		inTx(fence+`UPDATE engine.workflow_executions SET state='RECONCILIATION_REQUIRED',revision=3;
+		inTx(fence+`UPDATE engine.workflow_executions SET state='RECONCILIATION_REQUIRED',revision=4;
 			UPDATE engine.activity_attempts SET state='TIMED_OUT',outcome_disposition='OUTCOME_UNKNOWN',is_current=false;
 			INSERT INTO engine.reconciliation_items(item_id,workflow_id,partition_id,node_id,iteration,attempt_number,kind,reference)
 			VALUES (md5('uncertain')::uuid,$1,0,'pure.echo',0,1,'EXPIRED_ATTEMPT','attempt/uncertain');
 			INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,scheduler_epoch,node_id,iteration,attempt_number,old_state,new_state,reason)
-			VALUES (md5('h3')::uuid,$1,3,'scheduler','actor',1,'pure.echo',0,1,'WAITING_ACTIVITY','RECONCILIATION_REQUIRED','TIMEOUT_RECONCILIATION_REQUIRED');
+			VALUES (md5('h4')::uuid,$1,4,'scheduler','actor',1,'pure.echo',0,1,'WAITING_ACTIVITY','RECONCILIATION_REQUIRED','TIMEOUT_RECONCILIATION_REQUIRED');
 			INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload)
-			VALUES (md5('o3')::uuid,$1,3,'reconciliation.required','{}')`, item.Key)
+			VALUES (md5('o4')::uuid,$1,4,'reconciliation.required','{}')`, item.Key)
 		inTx(fence+`UPDATE engine.workflow_executions SET state='WAITING_ACTIVITY',revision=5;
 			UPDATE engine.node_instances SET current_attempt_number=2;
 			INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class)
 			VALUES ($1,'pure.echo',0,2,'DISPATCHABLE','NON_COOPERATING_EFFECT');
 			INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,scheduler_epoch,node_id,iteration,attempt_number,old_state,new_state,reason)
-			VALUES (md5('h4')::uuid,$1,4,'scheduler','actor',1,NULL,NULL,NULL,'RECONCILIATION_REQUIRED','RUNNABLE','WORKFLOW_ADVANCED'),
-			       (md5('h5')::uuid,$1,5,'scheduler','actor',1,'pure.echo',0,2,'RUNNABLE','WAITING_ACTIVITY','ATTEMPT_CREATED');
+			VALUES (md5('h5')::uuid,$1,5,'scheduler','actor',1,'pure.echo',0,2,'RECONCILIATION_REQUIRED','WAITING_ACTIVITY','ATTEMPT_CREATED');
 			INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,topic,payload)
 			VALUES (md5('o5')::uuid,$1,5,'attempt.dispatch','durable-agent.tasks.v1','{"node_id":"pure.echo","iteration":0,"attempt_number":2}')`, item.Key)
 		attempt, resultRevision, token = 2, 6, "00000000-0000-0000-0000-000000000066"
@@ -434,9 +465,15 @@ func seedCapture(t *testing.T, conn *pgx.Conn, item k6v1.Submission, variant str
 		INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload)
 		VALUES (md5('o'||$2::int::text)::uuid,$1,$2,'workflow.result_consumed','{}')`, item.Key, resultRevision+1, workflowState, nodeState, attempt)
 	if workflowState == "RUNNABLE" {
-		inTx(fence+`UPDATE engine.workflow_executions SET state='SUCCEEDED',revision=$2;
-			INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,scheduler_epoch,old_state,new_state,reason)
-			VALUES (md5('h'||$2::int::text)::uuid,$1,$2,'scheduler','actor',1,'RUNNABLE','SUCCEEDED','WORKFLOW_ADVANCED')`, item.Key, resultRevision+2)
+		sourceWrite := `UPDATE engine.node_instances SET revision=revision+1;`
+		if variant == "MissingGraphChanges" {
+			sourceWrite = ""
+		}
+		inTx(fence+sourceWrite+`UPDATE engine.workflow_executions SET state='SUCCEEDED',revision=$2;
+			INSERT INTO engine.transition_history(transition_id,workflow_id,revision,actor_kind,actor_id,scheduler_epoch,node_id,iteration,old_state,new_state,reason)
+			VALUES (md5('h'||$2::int::text)::uuid,$1,$2,'scheduler','actor',1,'pure.echo',0,'RUNNABLE','SUCCEEDED','GRAPH_ADVANCED');
+			INSERT INTO engine.outbox(event_id,workflow_id,aggregate_revision,event_type,payload)
+			VALUES (md5('o'||$2::int::text)::uuid,$1,$2,'graph.advanced',jsonb_build_object('workflow_id',$1::text,'from_node_id','pure.echo','next',NULL))`, item.Key, resultRevision+2)
 	}
 	inTx(`UPDATE engine.partition_leases SET owner_id='` + takeoverOwnerID + `', epoch=2, lease_expires_at=now()+interval '1 hour' WHERE partition_id=0;
 		INSERT INTO engine.k4_audit_queue(kind,partition_id,owner_id,epoch,session_id,pod_uid,container_id)
