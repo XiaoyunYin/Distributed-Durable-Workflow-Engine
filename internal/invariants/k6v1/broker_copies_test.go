@@ -1,6 +1,23 @@
 package k6v1
 
-import "testing"
+import (
+	"testing"
+	"testing/fstest"
+)
+
+func TestK6BrokerCopyIndex(t *testing.T) {
+	m, _ := quietFixture(t, false)
+	bundle := fstest.MapFS{BrokerCopiesPath: {Data: []byte("malformed\n")}}
+	writeFixture(t, bundle, ManifestPath, m)
+	indexFixture(t, bundle)
+	r := Verify(bundle)
+	for _, f := range r.Findings {
+		if f.Source == BrokerCopiesPath && f.Code == "EXTERNAL_SCHEMA" {
+			return
+		}
+	}
+	t.Fatalf("indexed broker source did not reach its decoder: %+v", r.Findings)
+}
 
 func TestK6BrokerCopies(t *testing.T) {
 	const event = "d7dc6717-1b22-459a-b474-dd345bac8b74"
@@ -16,6 +33,7 @@ func TestK6BrokerCopies(t *testing.T) {
 		{"PayloadMismatch", "BROKER_COPY_PAYLOAD_MISMATCH", Violation},
 		{"DeliveryWithoutCopy", "BROKER_DELIVERY_WITHOUT_COPY", Violation},
 		{"CollectionGap", "required_proof_missing:broker_event_copy_range", MissingProof},
+		{"GapAndKeyMismatch", "required_proof_missing:broker_event_copy_range", MissingProof},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			m := Manifest{Cell: "hook-0"}
@@ -41,7 +59,7 @@ func TestK6BrokerCopies(t *testing.T) {
 				second := wire
 				second.Offset = 1
 				copies = append(copies, BrokerCopyRow{PartitionIdentity: key, Copy: &second})
-			case "KeyMismatch":
+			case "KeyMismatch", "GapAndKeyMismatch":
 				wire.Key = []byte("different")
 			case "PayloadMismatch":
 				wire.PayloadSHA256 = Hash([]byte("different"))
@@ -49,7 +67,7 @@ func TestK6BrokerCopies(t *testing.T) {
 				rows[WriteCapture] = append(rows[WriteCapture], Row{"subject": physicalDelivery,
 					"row_key": []any{workerGroup, taskTopic, testNumber("0"), testNumber("1")}, "after_image": map[string]any{"event_id": event}})
 			}
-			copies = append(copies, BrokerCopyRow{PartitionIdentity: key, Range: &tasks, Complete: tc.name != "CollectionGap"},
+			copies = append(copies, BrokerCopyRow{PartitionIdentity: key, Range: &tasks, Complete: tc.kind != MissingProof},
 				BrokerCopyRow{PartitionIdentity: PartitionIdentity{events.TopicID, 0}, Range: &events, Complete: true})
 			stream := fixtureStream(m, "broker-copies", "broker-reader", copies...)
 			broker := fixtureStream(m, "broker", "broker-reader", BrokerRow{Partitions: []BrokerPartition{events, tasks}})
@@ -63,6 +81,12 @@ func TestK6BrokerCopies(t *testing.T) {
 					t.Fatalf("missing I6 broker award: %+v", r.Findings)
 				}
 				return
+			}
+			if tc.name == "GapAndKeyMismatch" {
+				if len(r.Findings) != 2 || r.Findings[1].Code != "BROKER_COPY_KEY_MISMATCH" || r.Safety != "FAIL" {
+					t.Fatalf("collection gap concealed a witnessed key mismatch: %+v", r.Findings)
+				}
+				r.Findings = r.Findings[:1]
 			}
 			if len(r.Findings) != 1 || r.Findings[0].Code != tc.code || r.Findings[0].Kind != tc.kind {
 				t.Fatalf("expected broker finding %s: %+v", tc.code, r.Findings)

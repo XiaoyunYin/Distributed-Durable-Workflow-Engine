@@ -51,8 +51,9 @@ func (a AttemptIdentity) key() attemptKey {
 }
 
 type observedWorker struct {
-	session WorkerSession
-	row     Record[WorkerRow]
+	session       WorkerSession
+	row           Record[WorkerRow]
+	startSequence int64
 }
 
 type observedSend struct {
@@ -240,9 +241,9 @@ func checkSessions(r *Result, m Manifest, e External, rows map[string][]Row) (ma
 				if start, ok := active[w.Invocation]; !ok || *start.Data.Attempt != *w.Attempt {
 					flag("SESSION_OUTCOME_WITHOUT_START")
 				} else if death && w.Kind == "abort" {
-					aborts = append(aborts, observedWorker{session, row})
+					aborts = append(aborts, observedWorker{session, row, start.Position.Sequence})
 				} else if m.CaptureEnabled() && w.Kind == "abort" {
-					aborts = append(aborts, observedWorker{session, row})
+					aborts = append(aborts, observedWorker{session, row, start.Position.Sequence})
 				}
 				delete(active, w.Invocation)
 			case "send", "receive", "timeout", "close":
@@ -297,7 +298,7 @@ func joinWorkerTraffic(r *Result, session WorkerSession, row Record[WorkerRow], 
 	w := row.Data
 	binding := w.Traffic.exchange()
 	old, exists := traffic[binding]
-	observation := observedWorker{session, row}
+	observation := observedWorker{session: session, row: row}
 	if w.Kind == "send" && !exists {
 		traffic[binding] = observedSend{sent: observation, workflow: workflow}
 		return

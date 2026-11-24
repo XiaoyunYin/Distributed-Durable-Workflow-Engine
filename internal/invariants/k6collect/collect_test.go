@@ -36,15 +36,23 @@ func TestK6RosterCollector(t *testing.T) {
 	if err := w.Register(now(), s, reg); err != nil {
 		t.Fatal(err)
 	}
-	termination := `{"type":"MODIFIED","object":{"metadata":{"uid":"pod-uid","namespace":"episode","resourceVersion":"12"},"status":{"containerStatuses":[{"name":"worker","containerID":"containerd://container","restartCount":0,"state":{"terminated":{"containerID":"containerd://container","startedAt":"2026-11-01T12:00:00Z","finishedAt":"2026-11-01T12:00:01Z"}}}]}}}`
+	termination := `{"type":"MODIFIED","object":{"metadata":{"uid":"pod-uid","namespace":"episode","resourceVersion":"12"},"status":{"containerStatuses":[{"name":"worker","containerID":"containerd://container","restartCount":0,"state":{"terminated":{"containerID":"containerd://container","startedAt":"2026-11-01T12:00:00Z","finishedAt":"2026-11-01T12:00:01Z","exitCode":143,"signal":15}}}]}}}`
 	now = func() time.Time { return at.Add(2 * time.Second) }
 	if err := w.Read(strings.NewReader(termination), "worker", now); err != nil {
 		t.Fatal(err)
 	}
 	ledger := NewStream[k6v1.WorkerRow](m, "worker", "receiver", at)
 	Append(&ledger, at, k6v1.WorkerRow{Kind: "session", Session: &s})
-	if err := k6v1.SealStream(&ledger, "checkpoint", k6v1.UTC(at), 1, 0); err != nil {
+	start := k6v1.AttemptIdentity{Workflow: "wf", Node: "node", Attempt: 1, ClaimHash: k6v1.Hash([]byte("token")), RequestID: "request"}
+	Append(&ledger, at.Add(time.Second), k6v1.WorkerRow{Kind: "start", Invocation: "invocation", Attempt: &start})
+	if err := k6v1.SealStream(&ledger, "checkpoint", k6v1.UTC(now()), 2, 0); err != nil {
 		t.Fatal(err)
+	}
+	w.BindShutdown(now(), s, ledger)
+	bound := w.Stream.Rows[len(w.Stream.Rows)-1].Data.Shutdown
+	if bound == nil || bound.Invocation != "invocation" || bound.Attempt != start || bound.StartSequence != 2 ||
+		w.Stream.Rows[bound.ExitSequence-1].Data.Exit.Signal != 15 {
+		t.Fatalf("unbound collector shutdown: %+v", bound)
 	}
 	if err := w.ConfirmDeath(now(), s, &ledger); err != nil {
 		t.Fatal(err)
@@ -109,6 +117,14 @@ func TestK6BrokerCollectorCachedAssignments(t *testing.T) {
 	got, err := BrokerSnapshot(context.Background(), brokerFixture{}, "g", map[string]string{"topic": id}, observe)
 	if err != nil || !got.CoordinatorMatches() {
 		t.Fatalf("matching refreshed group lost corroboration: %+v, %v", got, err)
+	}
+}
+
+func TestK6BrokerPositionsTopicReplacement(t *testing.T) {
+	row, err := BrokerPositions(context.Background(), brokerFixture{}, "g", map[string]string{"topic": "new-id"})
+	if err != nil || row.Group != "g" || row.State != "membership_unavailable" || len(row.Members) != 0 ||
+		row.Partitions[0].TopicID != "new-id" || *row.Partitions[0].Committed != 7 {
+		t.Fatalf("changed topic offsets lost when membership was unavailable: %+v, %v", row, err)
 	}
 }
 

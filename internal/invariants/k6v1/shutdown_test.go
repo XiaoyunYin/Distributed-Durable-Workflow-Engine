@@ -22,9 +22,9 @@ func shutdownFixture(abort observedWorker) External {
 }
 
 func TestK6ShutdownBinding(t *testing.T) {
-	for _, name := range []string{"Matched", "ChangedInvocation", "ChangedClaim", "ChangedRuntime", "ExitAfterAbort", "UnboundExit"} {
+	for _, name := range []string{"Matched", "ChangedInvocation", "ChangedClaim", "ChangedRuntime", "ExitAfterAbort", "UnboundExit", "WrongStart"} {
 		t.Run(name, func(t *testing.T) {
-			abort := observedWorker{session: WorkerSession{ID: "session", Claimant: "worker"}, row: Record[WorkerRow]{
+			abort := observedWorker{session: WorkerSession{ID: "session", Claimant: "worker"}, startSequence: 2, row: Record[WorkerRow]{
 				Position: Position{3, UTC(fixed.Add(time.Second))}, Data: WorkerRow{Kind: "abort", Invocation: "invocation",
 					Attempt: &AttemptIdentity{Workflow: "wf", Node: "node", Attempt: 2, ClaimHash: Hash([]byte("claim")), RequestID: "req"}},
 			}}
@@ -45,6 +45,8 @@ func TestK6ShutdownBinding(t *testing.T) {
 				exit.Position.UTC = UTC(fixed.Add(2 * time.Second))
 			case "UnboundExit":
 				s.Roster.Rows = s.Roster.Rows[:1]
+			case "WrongStart":
+				abort.startSequence = 1
 			}
 			if matchedShutdown(s, abort) != (name == "Matched") {
 				t.Fatalf("incorrect shutdown binding for %s", name)

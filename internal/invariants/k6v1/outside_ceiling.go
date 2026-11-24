@@ -203,7 +203,7 @@ func matchedShutdown(sources External, abort observedWorker) bool {
 		b := row.Data.Shutdown
 		if b == nil || row.Data.Session == nil || *row.Data.Session != abort.session ||
 			b.Invocation != abort.row.Data.Invocation || b.Attempt != *abort.row.Data.Attempt ||
-			b.StartSequence <= 0 || b.StartSequence >= abort.row.Position.Sequence || b.StartSequence > int64(len(ledger.Rows)) ||
+			b.StartSequence != abort.startSequence || b.StartSequence <= 0 || b.StartSequence >= abort.row.Position.Sequence || b.StartSequence > int64(len(ledger.Rows)) ||
 			b.ExitSequence <= 0 || b.ExitSequence >= row.Position.Sequence {
 			continue
 		}

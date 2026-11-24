@@ -105,8 +105,8 @@ func (b BrokerRow) CoordinatorMatches() bool {
 func (b BrokerRow) valid() bool {
 	if !identities(b.Cluster, b.Group) || b.Generation < 0 || len(b.Partitions) == 0 ||
 		!validTime(b.BeforeUTC) || !validTime(b.AfterUTC) || b.BeforeUTC > b.AfterUTC ||
-		b.Members == nil || !slices.Contains([]string{"stable", "empty", "preparing_rebalance", "completing_rebalance"}, b.State) ||
-		(b.State == "empty" && len(b.Members) != 0) || (b.State == "stable" && len(b.Members) == 0) {
+		b.Members == nil || !slices.Contains([]string{"stable", "empty", "preparing_rebalance", "completing_rebalance", "membership_unavailable"}, b.State) ||
+		((b.State == "empty" || b.State == "membership_unavailable") && len(b.Members) != 0) || (b.State == "stable" && len(b.Members) == 0) {
 		return false
 	}
 	if b.OffsetPhase != nil && (!b.OffsetPhase.valid() || b.OffsetPhase.RequestedUTC > b.BeforeUTC) {

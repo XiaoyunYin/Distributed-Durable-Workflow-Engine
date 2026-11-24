@@ -238,7 +238,7 @@ func TestK6CapturedOutsideCeiling(t *testing.T) {
 				case "ShutdownFailure", "ShutdownNoObservation":
 					current["effect_class"] = "PURE_ACTIVITY"
 					identity := AttemptIdentity{Workflow: "wf", Node: "node", Attempt: 2, ClaimHash: "token-2", RequestID: "request-2"}
-					aborts = []observedWorker{{session: WorkerSession{ID: "session", Claimant: "worker"},
+					aborts = []observedWorker{{session: WorkerSession{ID: "session", Claimant: "worker"}, startSequence: 2,
 						row: Record[WorkerRow]{Position: Position{Sequence: 3, UTC: UTC(fixed.Add(time.Second))}, Data: WorkerRow{Kind: "abort", Invocation: "invocation", Attempt: &identity}}}}
 					if name == "ShutdownFailure" {
 						external = shutdownFixture(aborts[0])

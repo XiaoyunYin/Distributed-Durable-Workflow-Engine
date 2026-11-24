@@ -266,7 +266,7 @@ func Verify(bundle fs.FS) Result {
 	}
 	files := map[string]File{}
 	previous := ""
-	allowed := append(RequiredSources(true, true, true), TopologyPath)
+	allowed := append(RequiredSources(true, true, true), TopologyPath, BrokerCopiesPath)
 	for _, f := range index.Files {
 		if f.Path <= previous || !(slices.Contains(allowed, f.Path) || isSessionPath(f.Path)) || f.Length < 0 || !digest.MatchString(f.SHA256) {
 			return Failed(integrity("INDEX_ENTRY_SCHEMA", IndexPath))
@@ -290,7 +290,7 @@ func Verify(bundle fs.FS) Result {
 		return result
 	}
 	for _, f := range index.Files {
-		if _, found := slices.BinarySearch(manifest.RequiredSources, f.Path); !found && !isSessionPath(f.Path) {
+		if _, found := slices.BinarySearch(manifest.RequiredSources, f.Path); !found && !isSessionPath(f.Path) && f.Path != BrokerCopiesPath {
 			return Failed(integrity("INDEX_UNDECLARED_SOURCE", IndexPath))
 		}
 	}

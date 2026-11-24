@@ -96,6 +96,40 @@ func (e engineOrder) checkOffsetBracket(broker *Stream[BrokerRow], copies broker
 			phases = append(phases, row)
 		}
 	}
+	if len(phases) == 0 || phases[0].Data.OffsetPhase.Name != "reset" {
+		return false
+	}
+	reset := phases[0]
+	baseline := workerPartitions(reset.Data)
+	if len(baseline) == 0 {
+		return false
+	}
+	bracketEnd := broker.Rows[len(broker.Rows)-1].Position.Sequence
+	if len(phases) == 3 && phases[2].Data.OffsetPhase.Name == "restart" {
+		bracketEnd = phases[2].Position.Sequence
+	}
+	for _, phase := range broker.Rows {
+		if phase.Position.Sequence < reset.Position.Sequence || phase.Position.Sequence > bracketEnd {
+			continue
+		}
+		if phase.Data.Cluster != reset.Data.Cluster || phase.Data.Group != workerGroup {
+			return false
+		}
+		for _, p := range phase.Data.Partitions {
+			if p.Topic != taskTopic {
+				continue
+			}
+			if baseline[p.Partition].TopicID != p.TopicID || (phase.Data.TopicIDsAfter[p.Topic] != "" && phase.Data.TopicIDsAfter[p.Topic] != p.TopicID) {
+				key := PartitionIdentity{p.TopicID, p.Partition}
+				ref := offsetWitness(phase, key, effectiveOffset(p))
+				e.result.record(Violation, lowerOffsetsPredicate, "OFFSET_BRACKET_TOPIC_CHANGED", BrokerPath, &ref)
+				return false
+			}
+		}
+		if len(workerPartitions(phase.Data)) != len(baseline) {
+			return false
+		}
+	}
 	if len(phases) != 3 {
 		return false
 	}
@@ -113,30 +147,7 @@ func (e engineOrder) checkOffsetBracket(broker *Stream[BrokerRow], copies broker
 			return false
 		}
 	}
-	reset, hold, restart := phases[0], phases[1], phases[2]
-	baseline := workerPartitions(reset.Data)
-	if len(baseline) == 0 {
-		return false
-	}
-	for _, phase := range broker.Rows {
-		if phase.Position.Sequence < reset.Position.Sequence || phase.Position.Sequence > restart.Position.Sequence {
-			continue
-		}
-		if phase.Data.Cluster != reset.Data.Cluster || phase.Data.Group != workerGroup || len(workerPartitions(phase.Data)) != len(baseline) {
-			return false
-		}
-		for _, p := range phase.Data.Partitions {
-			if p.Topic != taskTopic {
-				continue
-			}
-			if baseline[p.Partition].TopicID != p.TopicID || (phase.Data.TopicIDsAfter[p.Topic] != "" && phase.Data.TopicIDsAfter[p.Topic] != p.TopicID) {
-				key := PartitionIdentity{p.TopicID, p.Partition}
-				ref := offsetWitness(phase, key, effectiveOffset(p))
-				e.result.record(Violation, lowerOffsetsPredicate, "OFFSET_BRACKET_TOPIC_CHANGED", BrokerPath, &ref)
-				return false
-			}
-		}
-	}
+	hold, restart := phases[1], phases[2]
 	for _, row := range writes {
 		if row["subject"] != offsets || row["operation"] != "insert" {
 			continue

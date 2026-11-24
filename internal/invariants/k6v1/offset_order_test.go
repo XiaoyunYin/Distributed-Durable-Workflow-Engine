@@ -72,6 +72,7 @@ func TestK6OffsetBracket(t *testing.T) {
 		{"Clean", ""}, {"LowerMissing", "OFFSET_BRACKET_UNDISPOSED_COPY"},
 		{"LowerLate", "OFFSET_BRACKET_UNDISPOSED_COPY"}, {"BaselineMismatch", "OFFSET_ENGINE_BASELINE_MISMATCH"},
 		{"TopicIDChange", "OFFSET_BRACKET_TOPIC_CHANGED"}, {"WrongGroup", "required_proof_missing:broker_reset_hold_restart_offsets"},
+		{"InterruptedTopicChange", "OFFSET_BRACKET_TOPIC_CHANGED"},
 		{"MissingPhase", "required_proof_missing:broker_reset_hold_restart_offsets"},
 		{"WrongBoundary", "required_proof_missing:broker_reset_hold_restart_offsets"},
 	} {
@@ -100,6 +101,9 @@ func TestK6OffsetBracket(t *testing.T) {
 				base = testNumber("1")
 			case "TopicIDChange":
 				stream.Rows[1].Data.TopicIDsAfter = map[string]string{taskTopic: "other"}
+			case "InterruptedTopicChange":
+				stream.Rows[1].Data.TopicIDsAfter = map[string]string{taskTopic: "other"}
+				stream.Rows = stream.Rows[:2]
 			case "WrongGroup":
 				stream.Rows[1].Data.Group = "other"
 			case "MissingPhase":

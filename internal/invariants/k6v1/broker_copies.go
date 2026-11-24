@@ -93,7 +93,10 @@ func (e engineOrder) checkBrokerCopies(broker *Stream[BrokerRow], stream *Stream
 		if b.Copy != nil {
 			valid = valid && b.Copy.Offset == counts[key] && b.Copy.Offset < p.End
 			counts[key]++
-			out.byPosition[brokerPosition{key, b.Copy.Offset}] = *b.Copy
+			position := brokerPosition{key, b.Copy.Offset}
+			if _, found := out.byPosition[position]; exists && !seen[key] && !found && b.Copy.Offset >= p.Low && b.Copy.Offset < p.End {
+				out.byPosition[position] = *b.Copy
+			}
 		} else {
 			valid = valid && b.Complete && p.Low == 0 && b.Range.Low == 0 && b.Range.End == p.End &&
 				b.Range.Topic == p.Topic && counts[key] == p.End
@@ -111,13 +114,13 @@ func (e engineOrder) checkBrokerCopies(broker *Stream[BrokerRow], stream *Stream
 			gap = &Witness{Path: BrokerCopiesPath, RowKey: []any{"seal"}, SHA256: Hash(raw)}
 		}
 		e.requireWitness(dispatchPredicate, "broker_event_copy_range", gap)
-		return out
+	} else {
+		out.complete = true
 	}
-	out.complete = true
 	if e.captureReady || (len(e.rows[outbox]) == 0 && len(e.workflows) == 0) {
 		e.joinBrokerCopies(stream, out)
 	}
-	if e.captureReady && label.PopulationCount > 0 && len(out.byPosition) > 0 {
+	if e.captureReady && out.complete && label.PopulationCount > 0 && len(out.byPosition) > 0 {
 		label.Outcome, label.Reason = "covered/pass", "predicate_satisfied"
 	}
 	return out
@@ -134,11 +137,17 @@ func (e engineOrder) joinBrokerCopies(stream *Stream[BrokerCopyRow], copies brok
 			attempts[row["row_key"].([]any)[0]]++
 		}
 	}
+	joined := map[brokerPosition]bool{}
 	for _, row := range stream.Rows {
 		b := row.Data
 		if b.Copy == nil {
 			continue
 		}
+		position := brokerPosition{b.PartitionIdentity, b.Copy.Offset}
+		if _, known := copies.byPosition[position]; !known || joined[position] {
+			continue
+		}
+		joined[position] = true
 		copy := b.Copy
 		id := copy.EventID
 		base := created[id]
@@ -156,6 +165,9 @@ func (e engineOrder) joinBrokerCopies(stream *Stream[BrokerCopyRow], copies brok
 		case base["payload_hash"] != copy.PayloadSHA256:
 			flag("BROKER_COPY_PAYLOAD_MISMATCH")
 		}
+	}
+	if !copies.complete {
+		return // An unreadable range cannot prove a record's absence.
 	}
 	for _, row := range e.rows[publications] {
 		if row["broker_acknowledged"] == true && found[row["event_id"]] == 0 {

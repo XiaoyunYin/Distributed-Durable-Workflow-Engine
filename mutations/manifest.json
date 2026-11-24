@@ -20736,8 +20736,8 @@
       "id": "k6g3d-award-i6",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/broker_copies.go",
-      "old": "if e.captureReady && label.PopulationCount > 0 && len(out.byPosition) > 0 {",
-      "new": "if false && e.captureReady && label.PopulationCount > 0 && len(out.byPosition) > 0 {",
+      "old": "if e.captureReady && out.complete && label.PopulationCount > 0 && len(out.byPosition) > 0 {",
+      "new": "if false && e.captureReady && out.complete && label.PopulationCount > 0 && len(out.byPosition) > 0 {",
       "command": [
         "go",
         "test",
@@ -20958,6 +20958,101 @@
         "-count=1"
       ],
       "expected": "incorrect shutdown binding for ExitAfterAbort",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-index",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "TopologyPath, BrokerCopiesPath)",
+      "new": "TopologyPath)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopyIndex$",
+        "-count=1"
+      ],
+      "expected": "indexed broker source did not reach its decoder",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-declaration",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "!isSessionPath(f.Path) && f.Path != BrokerCopiesPath",
+      "new": "!isSessionPath(f.Path)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopyIndex$",
+        "-count=1"
+      ],
+      "expected": "indexed broker source did not reach its decoder",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-copy-partial-safety",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/broker_copies.go",
+      "old": "e.requireWitness(dispatchPredicate, \"broker_event_copy_range\", gap)",
+      "new": "e.requireWitness(dispatchPredicate, \"broker_event_copy_range\", gap)\n\t\treturn out",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6BrokerCopies$/^GapAndKeyMismatch$",
+        "-count=1"
+      ],
+      "expected": "collection gap concealed a witnessed key mismatch",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-interrupted-topic-change",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/offset_order.go",
+      "old": "if len(phases) == 0 || phases[0].Data.OffsetPhase.Name != \"reset\" {",
+      "new": "if len(phases) != 3 || phases[0].Data.OffsetPhase.Name != \"reset\" {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6OffsetBracket$/^InterruptedTopicChange$",
+        "-count=1"
+      ],
+      "expected": "expected bracket finding OFFSET_BRACKET_TOPIC_CHANGED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-shutdown-start",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "b.StartSequence != abort.startSequence || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^WrongStart$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for WrongStart",
       "requires_database": false
     }
   ]

@@ -219,7 +219,17 @@ func (o *collector) collect(ctx context.Context, client *kafka.Client, metadata 
 		return state.Generation, state.Members, state.Coordinator, err
 	})
 	if err != nil {
-		return err
+		actual, readErr := k6collect.BrokerTopicIDs(brokerCtx, metadata, names)
+		if readErr != nil || maps.Equal(c.Topics, actual) {
+			return err
+		}
+		// Kafka can report a new topic ID before the group callbacks
+		// converge. Preserve the positions without claiming membership.
+		row, err = k6collect.BrokerPositions(brokerCtx, client, c.Group, actual)
+		if err != nil {
+			return err
+		}
+		ids = actual
 	}
 	copies := o.sources.BrokerCopies
 	if drained && copies == nil {
