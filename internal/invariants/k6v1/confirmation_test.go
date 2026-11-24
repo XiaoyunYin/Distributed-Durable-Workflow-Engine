@@ -1,10 +1,63 @@
 package k6v1
 
 import (
+	"io/fs"
+	"os"
+	"path/filepath"
+	"regexp"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 )
+
+func TestK6ConfirmationEnvReadersClassified(t *testing.T) {
+	actuators := map[string]bool{
+		"DUR053_K6_CHAOS_SMOKE":             true,
+		"DUR053_K6_CLOCK":                   true,
+		"DUR053_K6_CLOCK_CONTROL":           true,
+		"DUR053_K6_CLOCK_WORKFLOW":          true,
+		"DUR053_K6_DEPLOYED_HOOKS":          true,
+		"DUR053_K6_G_OBSERVATION_GATE":      true,
+		"DUR053_K6_HOOK_CA_FILE":            true,
+		"DUR053_K6_HOOK_TOKEN":              true,
+		"DUR053_K6_HOOK_URL":                true,
+		"DUR053_K6_HOOK_WORKLOAD":           true,
+		"DUR053_K6_LEASE_TAKEOVER_ROLE":     true,
+		"DUR053_K6_LEASE_TAKEOVER_WORKFLOW": true,
+		"DUR053_K6_PARTITION_CELL":          true,
+		"DUR053_K6_PARTITION_WORKFLOW":      true,
+		"DUR053_K6_RELAY_STALL":             true,
+	}
+	// Match literal reads in the Go daemons and the Python worker entry points.
+	reader := regexp.MustCompile(`\bos\.(?:(?:Getenv|LookupEnv|getenv|environ\.get)\s*\(|environ\s*\[)\s*["'](DUR053_K6_[A-Z0-9_]+)["']`)
+	for _, directory := range []string{"cmd", "internal", "python", "campaign", "scripts/dur053_k6_g_worker.py"} {
+		root := filepath.Join("../../..", directory)
+		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+			if err != nil {
+				return err
+			}
+			if entry.IsDir() || strings.HasSuffix(path, "_test.go") ||
+				(filepath.Ext(path) != ".go" && filepath.Ext(path) != ".py") {
+				return nil
+			}
+			raw, err := os.ReadFile(path)
+			if err != nil {
+				return err
+			}
+			for _, match := range reader.FindAllStringSubmatch(string(raw), -1) {
+				name := match[1]
+				if controlConfigEnv[name] == actuators[name] {
+					t.Errorf("%s reads %s, which must be classified as either control configuration or a fault actuator", path, name)
+				}
+			}
+			return nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+}
 
 func TestK6ConfirmationSourceBinding(t *testing.T) {
 	at := UTC(time.Unix(1, 0))
@@ -27,6 +80,14 @@ func TestK6ConfirmationSourceBinding(t *testing.T) {
 }
 
 func TestK6ConfirmationControl(t *testing.T) {
+	armedEnv := map[string]string{
+		"ArmedHook":          "DUR053_K6_HOOK_URL",
+		"ArmedClock":         "DUR053_K6_CLOCK",
+		"ArmedPartition":     "DUR053_K6_PARTITION_CELL",
+		"ArmedLeaseTakeover": "DUR053_K6_LEASE_TAKEOVER_ROLE",
+		"ArmedRelayStall":    "DUR053_K6_RELAY_STALL",
+		"UnknownK6Env":       "DUR053_K6_FUTURE_ACTUATOR",
+	}
 	for _, tc := range []struct {
 		name   string
 		status string
@@ -48,6 +109,11 @@ func TestK6ConfirmationControl(t *testing.T) {
 		{"UnlistedWorker", "missing", "required_proof_missing:control_runtime"},
 		{"ChaosAPI", "missing", "required_proof_missing:control_fault_inventory"},
 		{"ArmedHook", "missing", "required_proof_missing:control_fault_inventory"},
+		{"ArmedClock", "missing", "required_proof_missing:control_fault_inventory"},
+		{"ArmedPartition", "missing", "required_proof_missing:control_fault_inventory"},
+		{"ArmedLeaseTakeover", "missing", "required_proof_missing:control_fault_inventory"},
+		{"ArmedRelayStall", "missing", "required_proof_missing:control_fault_inventory"},
+		{"UnknownK6Env", "missing", "required_proof_missing:control_fault_inventory"},
 		{"OpaqueEnv", "missing", "required_proof_missing:control_fault_inventory"},
 		{"InjectedControl", "failed", "CONTROL_PLAN_MISMATCH"},
 		{"RemovalInControl", "failed", "CONTROL_PLAN_MISMATCH"},
@@ -69,7 +135,11 @@ func TestK6ConfirmationControl(t *testing.T) {
 			pods := []ControlPod{}
 			for _, role := range []string{"api", "relay", "scheduler", "worker", "worker-control"} {
 				id := RuntimeIdentity{PodUID: role, ContainerID: role, StartedUTC: at(1)}
-				pods = append(pods, ControlPod{Role: role, Runtime: id, EnvNames: []string{}})
+				env := []string{"DUR053_K6_CAPTURE", "DUR053_K6_ACTIVITY", "POD_UID"}
+				if role == "scheduler" && armedEnv[tc.name] != "" {
+					env = append(env, armedEnv[tc.name])
+				}
+				pods = append(pods, ControlPod{Role: role, Runtime: id, EnvNames: env})
 			}
 			before := ControlSnapshot{BeforeUTC: at(2), AfterUTC: at(2), CRDList: "1", PodList: "2",
 				Pods: pods, ChaosCRDs: []string{}}
@@ -124,8 +194,6 @@ func TestK6ConfirmationControl(t *testing.T) {
 				})
 			case "ChaosAPI":
 				c.After.ChaosCRDs = []string{"podchaos.chaos-mesh.org"}
-			case "ArmedHook":
-				c.After.Pods[0].EnvNames = []string{"DUR053_K6_HOOK_URL"}
 			case "OpaqueEnv":
 				c.After.Pods[0].EnvFrom = true
 			case "InjectedControl":

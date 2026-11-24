@@ -106,13 +106,25 @@ def test_registration_intake_rejects_another_pod() -> None:
         bind_registration(observation, observation, incorrect, "sa-uid", session)
 
 
-def test_control_snapshot_reads_apiserver_lists(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("sidecar", [None, "regular", "restartable-init", "ephemeral"])
+def test_control_snapshot_reads_apiserver_lists(
+    monkeypatch: pytest.MonkeyPatch, sidecar: str | None
+) -> None:
     episode = object.__new__(Episode)
     episode.namespace = "g-arm"
     pod, _, _ = runtime_inputs()
     pod["metadata"]["labels"] = {"app": "worker"}
     pod["status"]["phase"] = "Running"
-    pod["spec"] = {"containers": [{"name": "worker", "env": [{"name": "POD_UID"}]}]}
+    pod["spec"] = {
+        "containers": [{"name": "worker", "env": [{"name": "POD_UID"}]}],
+        "initContainers": [{"name": "setup", "env": [{"name": "DUR053_K6_CONTROL_CA_FILE"}]}],
+    }
+    if sidecar == "regular":
+        pod["spec"]["containers"].append({"name": "sidecar"})
+    elif sidecar == "restartable-init":
+        pod["spec"]["initContainers"].append({"name": "sidecar", "restartPolicy": "Always"})
+    elif sidecar == "ephemeral":
+        pod["spec"]["ephemeralContainers"] = [{"name": "sidecar"}]
     lists = {
         "/apis/apiextensions.k8s.io/v1/customresourcedefinitions": {
             "metadata": {"resourceVersion": "17"},
@@ -129,6 +141,10 @@ def test_control_snapshot_reads_apiserver_lists(monkeypatch: pytest.MonkeyPatch)
         return canonical(lists[args[2]])
 
     monkeypatch.setattr(episode, "k", kubernetes)
+    if sidecar is not None:
+        with pytest.raises(SmokeFailure, match="G_CONTROL_CONTAINER_COUNT"):
+            episode.control_snapshot()
+        return
     snapshot = episode.control_snapshot()
     assert snapshot["crd_resource_version"] == "17"
     assert snapshot["pod_resource_version"] == "19"
@@ -141,7 +157,7 @@ def test_control_snapshot_reads_apiserver_lists(monkeypatch: pytest.MonkeyPatch)
                 "restart": 0,
                 "started_utc": "2026-11-22T08:00:01.000000000Z",
             },
-            "env_names": ["POD_UID"],
+            "env_names": ["DUR053_K6_CONTROL_CA_FILE", "POD_UID"],
             "env_from": False,
         }
     ]

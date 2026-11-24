@@ -22850,8 +22850,8 @@
       "id": "k6g3a4-hook-route",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/confirmation.go",
-      "old": "strings.HasPrefix(name, \"DUR053_K6_HOOK_\") ||",
-      "new": "strings.HasPrefix(name, \"NO_HOOKS_\") ||",
+      "old": "return strings.HasPrefix(name, \"DUR053_K6_\") && !controlConfigEnv[name]",
+      "new": "return name != \"DUR053_K6_HOOK_URL\" && strings.HasPrefix(name, \"DUR053_K6_\") && !controlConfigEnv[name]",
       "command": [
         "go",
         "test",
@@ -23132,6 +23132,25 @@
         "test_control_snapshot_reads_apiserver_lists"
       ],
       "expected": "assert snapshot[\"pods\"] ==",
+      "requires_database": false
+    },
+    {
+      "id": "k6r378-deny-by-default",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/confirmation.go",
+      "old": "return strings.HasPrefix(name, \"DUR053_K6_\") && !controlConfigEnv[name]",
+      "new": "return strings.HasPrefix(name, \"DUR053_K6_HOOK_\")",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ConfirmationControl$/^UnknownK6Env$",
+        "-count=1"
+      ],
+      "expected": "control verdict:",
       "requires_database": false
     }
   ]

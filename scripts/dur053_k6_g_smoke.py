@@ -1038,10 +1038,17 @@ class Episode(Matrix):
                 continue
             require(pod["metadata"]["namespace"] == self.namespace, "G_CONTROL_NAMESPACE")
             spec = pod["spec"]
+            init = spec.get("initContainers", [])
+            ephemeral = spec.get("ephemeralContainers", [])
+            require(
+                len(spec["containers"]) == 1
+                and not any(c.get("restartPolicy") == "Always" for c in init)
+                and not ephemeral,
+                "G_CONTROL_CONTAINER_COUNT",
+            )
             containers = [
                 *spec["containers"],
-                *spec.get("initContainers", []),
-                *spec.get("ephemeralContainers", []),
+                *init,
             ]
             runtime = observe_runtime(pod, containers[0]["name"])["identity"]
             runtime["started_utc"] = runtime.pop("container_started_utc")

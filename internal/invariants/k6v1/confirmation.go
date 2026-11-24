@@ -33,6 +33,27 @@ type ControlPod struct {
 	EnvFrom  bool            `json:"env_from"`
 }
 
+// Only reviewed configuration names may appear in a control.
+var controlConfigEnv = map[string]bool{
+	"DUR053_K6_ACTIVITY":            true, // internal/state/registry.go and python/workers/registry.py enable cooperating activity.
+	"DUR053_K6_CAPTURE":             true, // internal/state/k6_capture.go enables database write capture.
+	"DUR053_K6_CONTROL_CA_FILE":     true, // python/workers/kafka_worker.py loads the worker-control TLS trust root.
+	"DUR053_K6_G_ALLOCATOR_FILE":    true, // cmd/runtime/k6.go opens the allocator evidence journal.
+	"DUR053_K6_G_BARRIER":           true, // cmd/runtime/k6.go and python/workers/k6_evidence.py bind the evidence barrier.
+	"DUR053_K6_G_CLAIMANT":          true, // python/workers/k6_evidence.py identifies the registered claimant.
+	"DUR053_K6_G_EPISODE":           true, // cmd/runtime/k6.go and python/workers/k6_evidence.py bind the evidence episode.
+	"DUR053_K6_G_RESET":             true, // cmd/runtime/k6.go and python/workers/k6_evidence.py bind the evidence reset.
+	"DUR053_K6_G_WORKER_DIR":        true, // python/workers/k6_evidence.py opens the worker ledger directory.
+	"DUR053_K6_OBSERVE":             true, // cmd/runtime/k6.go enables allocator observations.
+	"DUR053_K6_PLAN_FILE":           true, // cmd/runtime/k6.go loads the sealed effect operation plan.
+	"DUR053_K6_PLAN_SHA256":         true, // cmd/runtime/k6.go verifies the sealed effect operation plan.
+	"DUR053_K6_RECEIPT_PUBLIC_KEY":  true, // cmd/runtime/k6.go configures receipt verification.
+	"DUR053_K6_RELAY_CA_FILE":       true, // python/workers/k6_effect.py and campaign/k6 worker.py load relay TLS trust.
+	"DUR053_K6_RELAY_URL":           true, // python/workers/k6_effect.py and campaign/k6 worker.py address the effect relay.
+	"DUR053_K6_SINK_TOKEN_FILE":     true, // python/workers/k6_effect.py and campaign/k6 worker.py read the sink credential.
+	"DUR053_K6_WORKER_CONTROL_FILE": true, // cmd/runtime/k6.go loads the allocator and worker-control TLS configuration.
+}
+
 func (c ControlObservation) valid(m Manifest) bool {
 	return c.Schema == ControlVersion && c.Binding == Binding(m) &&
 		c.Before.valid() && c.After.valid()
@@ -58,8 +79,7 @@ func (s ControlSnapshot) valid() bool {
 func (s ControlSnapshot) faultConfigured() bool {
 	return len(s.ChaosCRDs) > 0 || slices.ContainsFunc(s.Pods, func(p ControlPod) bool {
 		return p.EnvFrom || slices.ContainsFunc(p.EnvNames, func(name string) bool {
-			return strings.HasPrefix(name, "DUR053_K6_HOOK_") ||
-				name == "DUR053_K6_DEPLOYED_HOOKS" || name == "DUR053_K6_RELAY_ARM"
+			return strings.HasPrefix(name, "DUR053_K6_") && !controlConfigEnv[name]
 		})
 	})
 }
