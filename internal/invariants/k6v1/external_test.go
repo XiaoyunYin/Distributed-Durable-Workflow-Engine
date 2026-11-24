@@ -220,7 +220,7 @@ func TestK6ShutdownObservation(t *testing.T) {
 				resealFixture(&source.Roster)
 			}
 			r := newResult(m, "")
-			aborts := checkExternal(&r, m, source, rows)
+			aborts := checkExternal(&r, m, source, rows).aborts
 			if len(aborts) != tc.want {
 				t.Fatalf("shutdown abort observation count: got %d, want %d", len(aborts), tc.want)
 			}

@@ -43,12 +43,13 @@ rerun in the current local environment.
 
 ## Current CI layout and timing
 
-The Bash and PowerShell gates each run four shards, `with-k6-a`, `with-k6-b`,
+The Bash and PowerShell gates each run five shards, `with-k6-a`, `with-k6-b`, `with-k6-c`,
 `without-k6-a` and `without-k6-b`.
 Each shard bootstraps its own Compose stack and mutation database, isolates
 the runtime/worker relays, then drops the database, restores the relays,
 uploads results and diagnostics, and tears down its stack. Each mutation
-step retains its 75-minute limit within a 100-minute job.
+step retains its 75-minute limit within a 100-minute job. The 30m43s split
+threshold measures job wall time, including setup and teardown.
 
 The selector pins all IDs starting with `k6` to the `with-k6` pool. It sorts the
 remaining cases by descending recorded cost and ascending case ID, placing
@@ -60,7 +61,8 @@ rounded up to milliseconds. A case without measurements uses the upper
 median of known costs (one second if none are available). The selector reads
 the manifest on every run, and preserves its order within each shard.
 
-The selector then splits each pool into `-a` and `-b`, keeping each
+The selector then splits the `with-k6` pool into three shards and the
+`without-k6` pool into two, keeping each
 command and environment group within a pool together for baseline reuse. The ordinary split columns
 record the higher case wall time from runs
 [44995155454](https://github.com/XiaoyunYin/Distributed-Durable-Workflow-Engine/actions/runs/44995155454)
@@ -73,10 +75,10 @@ The Phase C connection-trace cases use `ci_shard` to run alongside the Phase C
 connection-budget renderer in `with-k6-b` on both platforms. Pinned groups
 leave the existing automatic split placements in place.
 
-`Mutation gate coverage` requests all eight result artifacts for the current
+`Mutation gate coverage` requests all ten result artifacts for the current
 run and attempt. It requires both matrices to pass and verifies each report
 against the tested checkout. For each shell, every manifest ID must appear
-exactly once across its four reports with a passing baseline and the expected
+exactly once across its five reports with a passing baseline and the expected
 detection.
 
 Result artifacts are `dur046-mutation-results-<platform>-<shard>-<run_id>-<attempt>`

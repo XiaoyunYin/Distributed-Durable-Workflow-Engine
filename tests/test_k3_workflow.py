@@ -211,14 +211,10 @@ def test_postgres_checks_and_race_fixtures_run_in_isolated_jobs() -> None:
 def test_mutation_jobs_are_parallel_isolated_and_keep_both_complete_gates() -> None:
     workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
     jobs = dict(re.findall(r"(?ms)^  ([\w-]+):\n(.*?)(?=^  [\w-]+:\n|\Z)", workflow))
-    for platform, shell, output, matrix in (
-        (
-            "powershell",
-            "PowerShell",
-            "powershell",
-            "with-k6-a, with-k6-b, without-k6-a, without-k6-b",
-        ),
-        ("linux", "Linux", "bash", "with-k6-a, with-k6-b, without-k6-a, without-k6-b"),
+    matrix = "with-k6-a, with-k6-b, with-k6-c, without-k6-a, without-k6-b"
+    for platform, shell, output in (
+        ("powershell", "PowerShell", "powershell"),
+        ("linux", "Linux", "bash"),
     ):
         job = jobs[f"mutation-{platform}"]
         assert f"    name: {shell} mutation gate (${{{{ matrix.shard }}}})\n" in job

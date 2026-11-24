@@ -186,7 +186,7 @@ func TestK6EffectLiveParity(t *testing.T) {
 			}
 			r := verifyVerdictParity(t, path, stdout, code)
 			if tc.code == "" {
-				requireExternalParityProofGaps(t, r, code)
+				requirePredicateFinding(t, r, k6v1.MissingProof, "AuthorizedAtWrite", "required_proof_missing:sealed_effect_operation")
 				if label := r.Labels[7]; label.Outcome != "covered/pass" || label.PopulationCount != 1 {
 					t.Fatalf("I8 award: %+v", label)
 				}
@@ -429,6 +429,11 @@ func seedParityEffect(t *testing.T, engine, sink *pgx.Conn, workflow string, sou
 		valid_until,decision,approver_id,decided_at,grant_token,k6_logical_key)
 		VALUES ($1,$2,'pure.echo',0,$3,'resource','{}',clock_timestamp(),'APPROVED',$4,$5,$6,'key')`,
 		parityIntent, workflow, d.ProposalHash, d.Subject, time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC), grantSecret)
+	seedParitySink(t, sink, workflow, sources)
+}
+
+func seedParitySink(t *testing.T, sink *pgx.Conn, workflow string, sources k6v1.External) {
+	t.Helper()
 	execK6SQL(t, sink, `INSERT INTO k6_sink.resources(resource_id) VALUES ('resource')`)
 	execK6SQL(t, sink, `UPDATE k6_sink.resources SET state='{"value":"k6"}',revision=1,latest_fence=1,logical_key='key',intent_id=$1 WHERE resource_id='resource'`, parityIntent)
 	execK6SQL(t, sink, `INSERT INTO k6_sink.receipts(workflow_id,logical_key,resource_id,canonical_hash,scope_hash,intent_id,expected_revision,applied_revision,application_id)

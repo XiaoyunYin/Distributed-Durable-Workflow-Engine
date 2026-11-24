@@ -60,9 +60,15 @@ type observedSend struct {
 	sent    observedWorker
 	outcome *observedWorker
 	attempt attemptKey
+	claim   AttemptIdentity
 }
 
-func checkExternal(r *Result, m Manifest, e External, rows map[string][]Row) []observedWorker {
+type externalObservations struct {
+	traffic map[string]observedSend
+	aborts  []observedWorker
+}
+
+func checkExternal(r *Result, m Manifest, e External, rows map[string][]Row) externalObservations {
 	traffic, aborts := checkSessions(r, m, e, rows)
 	r.checkGroupMembership(m, e.Broker)
 	if e.Broker != nil {
@@ -93,13 +99,13 @@ func checkExternal(r *Result, m Manifest, e External, rows map[string][]Row) []o
 			send := traffic[binding].sent
 			flagExternal(r, -1, "PureTopology", "PURE_EFFECT_SEND", SessionPath(send.session.ID), send.row)
 		}
-		return aborts
+		return externalObservations{traffic, aborts}
 	}
 	approved := checkDecisions(r, m, e.Decisions, rows)
 	if e.Ingress != nil {
 		checkDeliveries(r, *e.Ingress, traffic, approved, e.Decisions != nil, rows)
 	}
-	return aborts
+	return externalObservations{traffic, aborts}
 }
 
 func expectedSessions(r *Result, roster Stream[WatchRow]) (map[string]WorkerSession, map[string]Death) {
@@ -252,7 +258,7 @@ func checkSessions(r *Result, m Manifest, e External, rows map[string][]Row) (ma
 					flag("WORKER_TRAFFIC_INVOCATION")
 					continue
 				}
-				joinWorkerTraffic(r, session, row, start.Data.Attempt.key(), traffic)
+				joinWorkerTraffic(r, session, row, *start.Data.Attempt, traffic)
 			}
 		}
 		for _, invocation := range sortedKeys(active) {
@@ -294,13 +300,13 @@ func trafficEqual(a, b Traffic) bool {
 
 func (t Traffic) exchange() string { return t.MessageHash + t.RequestIDHash }
 
-func joinWorkerTraffic(r *Result, session WorkerSession, row Record[WorkerRow], attempt attemptKey, traffic map[string]observedSend) {
+func joinWorkerTraffic(r *Result, session WorkerSession, row Record[WorkerRow], claim AttemptIdentity, traffic map[string]observedSend) {
 	w := row.Data
 	binding := w.Traffic.exchange()
 	old, exists := traffic[binding]
 	observation := observedWorker{session: session, row: row}
 	if w.Kind == "send" && !exists {
-		traffic[binding] = observedSend{sent: observation, attempt: attempt}
+		traffic[binding] = observedSend{sent: observation, attempt: claim.key(), claim: claim}
 		return
 	}
 	if !exists || w.Kind == "send" || old.outcome != nil || old.sent.session != session ||

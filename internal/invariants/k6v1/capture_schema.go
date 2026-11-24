@@ -53,7 +53,7 @@ var captureProjections = func() map[string]captureProjection {
 		"engine.dur050_admission_slots":   "",
 		timers:                            "node_id iteration purpose owning_revision consumed_at",
 		"engine.cancellation_requests":    "status",
-		approvalIntents:                   "decision dispatch_status grant_scope_hash node_id iteration grant_expires_at grant_token_hash",
+		approvalIntents:                   "decision dispatch_status grant_scope_hash node_id iteration grant_expires_at grant_token_hash proposal_hash approver_id decided_at",
 		outbox:                            "aggregate_revision topic event_type publish_state relay_attempts claim_owner",
 		publications:                      "event_id relay_owner relay_attempt broker_acknowledged",
 		inbox:                             "topic kafka_partition kafka_offset disposition",
@@ -127,6 +127,9 @@ func validateCaptureShape(row Row) error {
 		fields := p.fields
 		if row["subject"] == publicationStart && len(image) == 2 {
 			fields = fields[:2] // G3c1 starts lacked the wire identity.
+		}
+		if row["subject"] == approvalIntents && len(image) == 7 {
+			fields = fields[:7] // Earlier capture omitted the decision identity.
 		}
 		if len(image) != len(fields) {
 			return fmt.Errorf("%w: %s", errShape, name)

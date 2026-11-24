@@ -182,7 +182,7 @@ BEGIN
         ('engine.dur050_admission_slots', 'workflow_id', ''),
         ('engine.timers', 'timer_id', 'node_id iteration purpose owning_revision consumed_at'),
         ('engine.cancellation_requests', 'request_id', 'status'),
-        ('engine.approval_action_intents', 'intent_id', 'decision dispatch_status grant_scope_hash node_id iteration grant_expires_at'),
+        ('engine.approval_action_intents', 'intent_id', 'decision dispatch_status grant_scope_hash node_id iteration grant_expires_at proposal_hash approver_id decided_at'),
         ('engine.outbox', 'event_id', 'aggregate_revision topic event_type publish_state relay_attempts claim_owner'),
         ('engine.outbox_publications', 'publication_id', 'event_id relay_owner relay_attempt broker_acknowledged'),
         ('engine.event_inbox', 'consumer_id event_id', 'topic kafka_partition kafka_offset disposition'),

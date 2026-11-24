@@ -39,7 +39,8 @@ func provisionFixtureReceipt(t *testing.T, engine, sink *pgx.Conn, m *k6v1.Manif
 	}
 	execK6SQL(t, engine, `INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class,logical_effect_key,k6_fence,k6_proof)
 		VALUES ($1,'pure.echo',0,$3,'SUCCEEDED','COOPERATING_EFFECT','key',1,$2)
-		ON CONFLICT (workflow_id,node_id,iteration,attempt_number) DO UPDATE SET k6_fence=1,k6_proof=EXCLUDED.k6_proof`,
+		ON CONFLICT (workflow_id,node_id,iteration,attempt_number) DO UPDATE
+		SET k6_fence=1,k6_proof=EXCLUDED.k6_proof,updated_at=clock_timestamp()`,
 		workflow, raw, attempt)
 	return proof
 }
@@ -94,7 +95,8 @@ func verifyVerdictParity(t *testing.T, path string, stdout []byte, code int) k6v
 		ref := finding.Witness
 		switch finding.Predicate {
 		case "AtomicHistory", "EngineCaptureClosure", "OwnerAtCommit", "CurrentClaimWinner", "DispatchDisposition",
-			"LowerOffsetsDisposed", "LostResultReplay", "UnknownEffectVisible", "ShutdownDisposition":
+			"LowerOffsetsDisposed", "LostResultReplay", "UnknownEffectVisible", "ShutdownDisposition",
+			"AuthorizedAtWrite", "DispatchAcknowledged":
 		case "RevisionChain":
 			if finding.Code != "SINK_RESET_RESOURCE_MISSING" {
 				continue

@@ -81,18 +81,22 @@ def make_plan(
         )
         requests[key] = request
         resource = key + "-resource"
+        proposal = None
         if effect:
+            proposal = {
+                "node_id": node,
+                "iteration": 0,
+                "expected_revision": "0",
+                "logical_key": key + "-effect",
+                "arguments": {"cell": "medium-12"},
+            }
             allocator_plan["operations"].append(
                 {
                     "submission_key": key,
                     "definition_id": body["definition_id"],
                     "definition_version": 1,
-                    "node_id": node,
-                    "iteration": 0,
-                    "expected_revision": "0",
                     "resource": resource,
-                    "logical_key": key + "-effect",
-                    "arguments": {"cell": "medium-12"},
+                    **proposal,
                 }
             )
         windows.append(
@@ -109,6 +113,7 @@ def make_plan(
                         "body": body,
                         "target": resource if effect else node,
                         "expected": {} if effect else 7,
+                        **({"effect": proposal} if proposal is not None else {}),
                     }
                 ],
             }
@@ -343,7 +348,7 @@ def replay(
         completed.add("I7")
     if source == "witness/effect-ingress.jsonl":
         registered.update(("I8", "I10"))
-        completed.add("I8")
+        completed.update(("I8", "I10"))
     covered = [] if idle else [identity for identity in ids if identity in completed]
     require(
         [label["id"] for label in labels] == ids
@@ -359,7 +364,7 @@ def replay(
             reason = "no_positive_population" if idle else "predicate_satisfied"
         else:
             outcome = "NOT COVERED"
-            reason = "predicate_pending:I10" if label["registered"] else "outside_registry_ceiling"
+            reason = "outside_registry_ceiling"
         require((label["outcome"], label["reason"]) == (outcome, reason), "G_CHECKER_LABELS")
 
     negative = directory / "missing-source"

@@ -197,7 +197,8 @@ func (s *Store) K6ClaimEnvelope(ctx context.Context, input ClaimInput, claim Cla
 	if a.outcome == "OUTCOME_UNKNOWN" || len(a.proof) != 0 || (a.fence != 0 && a.fence != fence) {
 		return K6Dispatch{}, ErrAttemptNotCurrent
 	}
-	tag, err := tx.Exec(ctx, `UPDATE engine.activity_attempts SET k6_fence=$5
+	tag, err := tx.Exec(ctx, `UPDATE engine.activity_attempts SET k6_fence=$5,
+		updated_at=CASE WHEN k6_fence IS DISTINCT FROM $5 THEN clock_timestamp() ELSE updated_at END
 		WHERE workflow_id=$1 AND node_id=$2 AND iteration=$3 AND attempt_number=$4
 		  AND clock_timestamp() < $6 AND heartbeat_deadline > clock_timestamp()`,
 		id.WorkflowID, K6Activity, id.Iteration, id.AttemptNumber, fence, grant.latest)

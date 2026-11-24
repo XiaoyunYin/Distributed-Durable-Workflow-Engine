@@ -41,6 +41,15 @@ type Submission struct {
 	Body         SubmissionBody  `json:"body"`
 	Target       string          `json:"target"`
 	Expected     json.RawMessage `json:"expected"`
+	Effect       *PlannedEffect  `json:"effect,omitempty"`
+}
+
+type PlannedEffect struct {
+	Node             string          `json:"node_id"`
+	Iteration        int64           `json:"iteration"`
+	LogicalKey       string          `json:"logical_key"`
+	ExpectedRevision string          `json:"expected_revision"`
+	Arguments        json.RawMessage `json:"arguments"`
 }
 
 type WireDigest struct {
@@ -145,6 +154,14 @@ func (p Plan) Valid(m Manifest) bool {
 				!nonempty(row.Body.DefinitionID) || row.Body.DefinitionVersion < 1 || !nonempty(row.Body.InitialNodeID) ||
 				!workloadJSON(row.Body.InitialInput) || !workloadJSON(row.Body.Payload) || !workloadJSON(row.Expected) {
 				return false
+			}
+			if effect := row.Effect; effect != nil {
+				args, err := parse(effect.Arguments)
+				if m.Sink == nil || err != nil || !validValue("arguments", args) ||
+					effect.Node != row.Body.InitialNodeID || !nonempty(effect.LogicalKey) || !publicIdentity(effect.LogicalKey) ||
+					!publicIdentity(row.Target) || effect.Iteration < 0 || !validResourceRevision(effect.ExpectedRevision) {
+					return false
+				}
 			}
 			previous = row.ScheduledUTC
 		}

@@ -152,6 +152,9 @@ func captureMatchesEndpoint(subject string, image, endpoint Row) bool {
 		if !exists {
 			continue // A capture-only digest or physical Kafka key.
 		}
+		if _, exists := image[col.Name]; !exists && subject == approvalIntents && len(image) == 7 {
+			continue // The authority predicate reports the missing decision identity.
+		}
 		sampled := image[col.Name]
 		if col.Kind == Timestamp && sampled != nil {
 			t, err := time.Parse(time.RFC3339Nano, sampled.(string))

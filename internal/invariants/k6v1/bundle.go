@@ -371,6 +371,9 @@ func verifyDatabase(bundle fs.FS, files map[string]File, manifest Manifest, db, 
 		*issues = append(*issues, *integrity("SNAPSHOT_COMMIT", snapshotPath))
 	}
 	specs := manifest.Relations(db)
+	if db == "sink" {
+		specs = sinkSnapshotRelations(specs, snap.Census)
+	}
 	if len(snap.Relations) != len(specs) {
 		*issues = append(*issues, *integrity("RELATION_INVENTORY", snapshotPath))
 		return snap
@@ -407,6 +410,28 @@ func verifyDatabase(bundle fs.FS, files map[string]File, manifest Manifest, db, 
 		*issues = append(*issues, *issue)
 	}
 	return snap
+}
+
+// Older sink bundles had neither transaction projection. Require the full
+// historical column lists, and decode each row against the selected list.
+func sinkSnapshotRelations(specs []Relation, census []CensusEntry) []Relation {
+	legacy := slices.Clone(specs)
+	for _, name := range []string{SinkCalls, SinkJournal} {
+		i := slices.IndexFunc(legacy, func(spec Relation) bool { return spec.Name == name })
+		j := slices.IndexFunc(census, func(entry CensusEntry) bool { return entry.Name == name })
+		if i < 0 || j < 0 {
+			return specs
+		}
+		end := slices.IndexFunc(legacy[i].Columns, func(c Column) bool { return c.Name == "transaction_id" })
+		if end < 0 {
+			return specs
+		}
+		legacy[i].Columns = legacy[i].Columns[:end]
+		if !slices.Equal(census[j].Columns, legacy[i].SourceColumns()) {
+			return specs
+		}
+	}
+	return legacy
 }
 
 func readIndexed(bundle fs.FS, files map[string]File, path string) ([]byte, *Finding) {

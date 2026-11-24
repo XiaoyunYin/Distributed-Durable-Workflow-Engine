@@ -164,13 +164,13 @@ func authorize(ctx context.Context, reader GrantReader, request Request, uncerta
 	return authorization{grant, revision, storedHash, hash([]byte(request.GrantToken)), deadline, cutoff}, nil
 }
 
-func recheck(ctx context.Context, reader GrantReader, request Request, auth authorization, uncertainty time.Duration) (time.Time, error) {
+func recheck(ctx context.Context, reader GrantReader, request Request, auth authorization, uncertainty time.Duration) (authorization, error) {
 	next, err := authorize(ctx, reader, request, uncertainty)
 	if err != nil || !next.grant.ExpiresAt.Equal(auth.grant.ExpiresAt) ||
 		next.canonicalHash != auth.canonicalHash || !time.Now().Before(auth.deadline) {
-		return time.Time{}, errDenied
+		return authorization{}, errDenied
 	}
-	return next.deadline, nil
+	return next, nil
 }
 
 var errUnavailable = errors.New("K6_SINK_UNAVAILABLE")

@@ -21854,6 +21854,805 @@
       ],
       "expected": "incorrect collected shutdown for Matched",
       "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-unapproved",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_UNAPPROVED_WRITE\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^Unapproved$",
+        "-count=1"
+      ],
+      "expected": "expected I10_UNAPPROVED_WRITE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-wrongactor",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_WRONG_ACTOR\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^WrongActor$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRONG_ACTOR",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-grantdecisionbinding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_GRANT_DECISION_BINDING\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^GrantDecisionBinding$",
+        "-count=1"
+      ],
+      "expected": "expected I10_GRANT_DECISION_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-wrongtoken",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_WRONG_TOKEN\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^WrongToken$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRONG_TOKEN",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-wrongtarget",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_WRONG_TARGET\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^WrongTarget$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRONG_TARGET",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-wrongargument",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_WRONG_ARGUMENT\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^WrongArgument$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRONG_ARGUMENT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-wrongkey",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_WRONG_KEY\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^WrongKey$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRONG_KEY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-wrongscope",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_WRONG_SCOPE\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^WrongScope$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRONG_SCOPE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-wrongrevision",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_WRONG_REVISION\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^WrongRevision$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRONG_REVISION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-wrongoperation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_WRONG_OPERATION\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^WrongOperation$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRONG_OPERATION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-stalefence",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_STALE_FENCE\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^StaleFence$",
+        "-count=1"
+      ],
+      "expected": "expected I10_STALE_FENCE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-wrongtransaction",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_WRITE_TRANSACTION\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^WrongTransaction$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRITE_TRANSACTION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-readafterwrite",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "flag(\"I10_WRITE_BRACKET\")",
+      "new": "// mutation: omit the authority finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^ReadAfterWrite$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRITE_BRACKET",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-expiredwithheld",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "written >= expires ||",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^ExpiredWithheld$",
+        "-count=1"
+      ],
+      "expected": "expected I10_EXPIRED_WRITE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-commitbeforeopen",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "!callRequestMatches(call, ingress.Traffic, call[\"workflow_id\"].(string)) ||",
+      "new": "false ||",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^OpenWrongRequest$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRITE_BRACKET",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-grantorder",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "issuedAt < d.DecidedUTC ||",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^GrantOrder$",
+        "-count=1"
+      ],
+      "expected": "expected I10_GRANT_ORDER",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-wrongissuerevision",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "issue != nil && number(creation[\"event_order\"]) <= number(issue[\"event_order\"]) {",
+      "new": "false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^WrongIssueRevision$",
+        "-count=1"
+      ],
+      "expected": "expected I10_GRANT_ORDER",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-claimorder",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "&& evidenceTime(row[\"finalized_at\"]) <= read",
+      "new": "&& (evidenceTime(row[\"finalized_at\"]) <= read || true)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^ClaimOrder$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRITE_CLAIM",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-claimretired",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "current[\"is_current\"] != true ||",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^ClaimRetired$",
+        "-count=1"
+      ],
+      "expected": "expected I10_WRITE_CLAIM",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-cancellationorder",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "c[\"status\"] == \"APPLIED\" && applied != \"\" && written != \"\" && applied <= written",
+      "new": "c[\"status\"] == \"APPLIED\" && applied != \"\" && written != \"\" && applied <= written && false",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^CancellationOrder$",
+        "-count=1"
+      ],
+      "expected": "expected I10_CANCELLATION_ORDER",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-ackwrongorder",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "audit[\"transaction_id\"] == ack[\"transaction_id\"] &&",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^AckWrongOrder$",
+        "-count=1"
+      ],
+      "expected": "expected I10_DISPATCH_ACK_ORDER",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-ackwrongreceipt",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "|| string(want) != string(got)",
+      "new": "|| string(want) == \"\" || string(got) == \"\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^AckWrongReceipt$",
+        "-count=1"
+      ],
+      "expected": "expected I10_DISPATCH_RECEIPT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-unacknowledged",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "intent[\"dispatch_status\"] != \"DISPATCHED\" {",
+      "new": "false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^Unacknowledged$",
+        "-count=1"
+      ],
+      "expected": "expected I10_DISPATCH_UNACKNOWLEDGED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-lookupgrantchanged",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "a.violate(writeAuthority, \"I10_GRANT_CONTINUITY\", SinkCalls, row)",
+      "new": "// mutation: ignore recovery grant replacement",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^LookupGrantChanged$",
+        "-count=1"
+      ],
+      "expected": "expected I10_GRANT_CONTINUITY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-replacedgrant",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "a.violate(writeAuthority, \"I10_GRANT_REPLACED\", WriteCapture, row)",
+      "new": "// mutation: allow a second grant",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^ReplacedGrant$",
+        "-count=1"
+      ],
+      "expected": "expected I10_GRANT_REPLACED",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-committimemissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "need(\"sink_commit_transaction\")",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^CommitTimeMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:sink_commit_transaction",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-commitproofmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "a.require(writeAuthority, \"sink_commit\", SinkJournal, write)",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^CommitProofMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:sink_commit",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-readmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "need(\"exact_grant_read\")",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^ReadMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:exact_grant_read",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-openmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "need(\"relay_ingress_open\")",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^OpenMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:relay_ingress_open",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-planproofmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "need(\"sealed_effect_operation\")",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^PlanProofMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:sealed_effect_operation",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-decisionproofmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "need(\"committed_decision_identity\")",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^DecisionProofMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:committed_decision_identity",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-issueproofmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "need(\"owner_grant_transaction\")",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^IssueProofMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:owner_grant_transaction",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-expiryproofmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "need(\"absolute_grant_expiry\")",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^ExpiryProofMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:absolute_grant_expiry",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-creationproofmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "need(\"attempt_creation_transaction\")",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^CreationProofMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:attempt_creation_transaction",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-claimproofmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "need(\"committed_write_claim\")",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^ClaimProofMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:committed_write_claim",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-currentclaimproofmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "need(\"current_claim_at_write\")",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^CurrentClaimProofMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:current_claim_at_write",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-recoverygrantproofmissing",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "a.require(writeAuthority, \"recovery_grant_identity\", SinkCalls, row)",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^RecoveryGrantProofMissing$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:recovery_grant_identity",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-ackmissingproof",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "a.require(dispatchAck, \"dispatch_ack_transaction\", SinkJournal, write)",
+      "new": "// mutation: omit the missing-proof finding",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^AckMissingProof$",
+        "-count=1"
+      ],
+      "expected": "expected required_proof_missing:dispatch_ack_transaction",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-clean",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "label.Outcome, label.Reason = \"covered/pass\", \"predicate_satisfied\"",
+      "new": "label.Outcome, label.Reason = \"NOT COVERED\", \"predicate_pending\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "expected I10 award",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3b-legacy-partial-schema",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/bundle.go",
+      "old": "if !slices.Equal(census[j].Columns, legacy[i].SourceColumns()) {",
+      "new": "if !slices.Equal(census[j].Columns, legacy[i].SourceColumns()) && name != SinkJournal {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6SinkAuthoritySchemaHistory$",
+        "-count=1"
+      ],
+      "expected": "a partial authority schema was admitted as legacy",
+      "requires_database": false
+    },
+    {
+      "id": "k6r376-cancellation-wall-clock",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "if pending || (",
+      "new": "if (pending && false || issuedAt != \"\" && evidenceTime(c[\"created_at\"]) <= issuedAt && (applied == \"\" || applied >= issuedAt)) || (",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^CancellationLosesGrantRace$",
+        "-count=1"
+      ],
+      "expected": "expected I10 award",
+      "requires_database": false
+    },
+    {
+      "id": "k6r377-timer-early",
+      "kind": "behavioral",
+      "file": "internal/engine/engine.go",
+      "old": "if found && !due.After(databaseNow) {",
+      "new": "if found && (!due.After(databaseNow) || true) {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/engine",
+        "-run",
+        "^TestK2SchedulerSkew$/^-30s$/^timer$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "skew changed outcome",
+      "requires_database": true
     }
   ]
 }

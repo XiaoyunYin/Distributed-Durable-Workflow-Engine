@@ -131,7 +131,7 @@ func pendingReason(label int) string {
 	case 8:
 		return "required_proof_missing:effect_closure"
 	case 10:
-		return "predicate_pending:I10"
+		return "required_proof_missing:effect_authority"
 	case 12:
 		return "predicate_pending:G3a4"
 	default:
@@ -430,11 +430,12 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 	ordering.checkReplayAndUncertainty()
 	for _, sources := range external {
 		copied := ordering.checkBrokerCopies(sources.Broker, sources.BrokerCopies)
-		aborts := checkExternal(&r, m, sources, rows)
+		observations := checkExternal(&r, m, sources, rows)
 		ordering.checkLowerOffsets(sources.Broker, copied)
-		ordering.checkShutdown(aborts, sources)
+		ordering.checkShutdown(observations.aborts, sources)
 		if m.Sink != nil && planOK && sources.Ingress != nil && sources.Decisions != nil {
 			r.awardEffectClosure(rows, plan, sources, witness, violate)
+			ordering.checkEffectAuthority(m, plan, sources, observations.traffic)
 		}
 	}
 	if ordering.capture && r.Labels[3].Outcome == "covered/pass" {

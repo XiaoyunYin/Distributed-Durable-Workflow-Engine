@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io/fs"
 	"net/url"
 	"os"
@@ -221,6 +222,22 @@ func TestK6SinkAndSources(t *testing.T) {
 		execK6SQL(t, sink, "ALTER TABLE k6_sink.resources ADD COLUMN hidden_state text")
 		defer execK6SQL(t, sink, "ALTER TABLE k6_sink.resources DROP COLUMN hidden_state")
 		requireK6Finding(t, k6v1.Verify(acquireK6Fixture(t, config, plan, arrivals, k6v1.Fail)), "COLUMN_UNCLASSIFIED")
+	})
+	t.Run("SinkNestedArgument", func(t *testing.T) {
+		execK6SQL(t, sink, `UPDATE k6_sink.calls SET arguments=jsonb_build_object('position',jsonb_build_object('bearer',$1::text))`, nestedSecret)
+		defer execK6SQL(t, sink, "UPDATE k6_sink.calls SET arguments=NULL")
+		cfg := config
+		cfg.EpisodeDir = filepath.Join(t.TempDir(), "public")
+		cfg = writeK6Sources(t, cfg, plan, arrivals)
+		path, out, diag, code := invokeLiveK6(t, cfg)
+		if code != k6v1.Fail || !strings.Contains(diag, "K6_SINK_PUBLIC_ROW_SCHEMA k6_sink.calls") {
+			t.Fatalf("nested argument survived export: exit %d, %s", code, diag)
+		}
+		noK6Secrets(t, out)
+		noK6Secrets(t, []byte(diag))
+		if _, err := os.Stat(filepath.Join(path, k6v1.IndexPath)); !errors.Is(err, os.ErrNotExist) {
+			t.Fatal("invalid sink projection left a sealed bundle")
+		}
 	})
 	t.Run("SwappedReset", func(t *testing.T) {
 		bindK6Database(t, sink, "sink-instance", "other-reset")

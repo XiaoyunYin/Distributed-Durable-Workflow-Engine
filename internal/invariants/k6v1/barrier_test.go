@@ -3,6 +3,7 @@ package k6v1
 import (
 	"encoding/json"
 	"slices"
+	"strings"
 	"testing"
 	"testing/fstest"
 	"time"
@@ -139,6 +140,32 @@ func TestK6ColumnCensus(t *testing.T) {
 	issue := verifyCensus([]CensusEntry{entry}, []Relation{spec}, []Inventory{{Relation: spec.Name, SHA256: hash}}, false, "engine")
 	if issue == nil || issue.Code != "COLUMN_UNCLASSIFIED" {
 		t.Fatalf("column census admitted drift: %+v", issue)
+	}
+}
+
+func TestK6SinkAuthoritySchemaHistory(t *testing.T) {
+	legacy := []CensusEntry{
+		{Name: SinkCalls, Columns: strings.Fields("application_id attempt body_hash call_id connection_hash intent_id logical_key message_id observed_at operation outcome request_id resource_id response_hash workflow_id")},
+		{Name: SinkJournal, Columns: strings.Fields("intent_id logical_key old_revision old_state_hash resource_id revision state_hash")},
+	}
+	current := SinkRelations()
+	columns := func(specs []Relation, name string) []string {
+		for _, spec := range specs {
+			if spec.Name == name {
+				return spec.SourceColumns()
+			}
+		}
+		return nil
+	}
+	decoded := sinkSnapshotRelations(current, legacy)
+	for _, entry := range legacy {
+		if !slices.Equal(columns(decoded, entry.Name), entry.Columns) {
+			t.Fatalf("legacy sink relation lost its column schema: %s", entry.Name)
+		}
+	}
+	legacy[1].Columns = columns(current, SinkJournal)
+	if !slices.Equal(columns(sinkSnapshotRelations(current, legacy), SinkCalls), columns(current, SinkCalls)) {
+		t.Fatal("a partial authority schema was admitted as legacy")
 	}
 }
 

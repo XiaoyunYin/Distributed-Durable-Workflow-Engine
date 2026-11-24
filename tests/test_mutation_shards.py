@@ -41,7 +41,7 @@ def test_shards_preserve_baseline_groups_and_measured_placement(platform: str) -
     cases = shards.read_manifest(shards.MANIFEST)["cases"]
     assignment = shards.assign_shards(cases, platform)
     owners: dict[tuple[tuple[str, ...], tuple[tuple[str, str], ...]], str] = {}
-    existing_cases: dict[tuple[str, str], dict[str, Any]] = {}
+    existing_cases: dict[tuple[str, ...], dict[str, Any]] = {}
     for case in cases:
         shard = assignment[case["id"]]
         family = shards.WITH_K6_SHARDS if shard in shards.WITH_K6_SHARDS else shards.ORDINARY_SHARDS
@@ -59,10 +59,10 @@ def test_shards_preserve_baseline_groups_and_measured_placement(platform: str) -
         shards.read_costs(f"{platform}_with_k6")
     )
     assert all(grown[case_id] == assignment[case_id] for case_id in measured & assignment.keys())
-    for case, family in zip(
+    for case, original_family in zip(
         growth[:2], (shards.ORDINARY_SHARDS, shards.WITH_K6_SHARDS), strict=True
     ):
-        assert grown[case["id"]] == assignment[existing_cases[family]["id"]]
+        assert grown[case["id"]] == assignment[existing_cases[original_family]["id"]]
 
 
 @pytest.mark.parametrize("platform", shards.SHARDS)
@@ -94,6 +94,7 @@ def test_unmeasured_k6_case_preserves_measured_primary_shard_membership(platform
         ("missing-linux-b", "linux-without-k6-b-123-2"),
         ("missing-powershell-b", "powershell-without-k6-b-123-2"),
         ("missing-with-k6-b", "linux-with-k6-b-123-2"),
+        ("missing-with-k6-c", "linux-with-k6-c-123-2"),
     ],
 )
 def test_aggregate_rejects_incomplete_or_invalid_reports(
@@ -111,10 +112,10 @@ def test_aggregate_accepts_both_complete_platforms(tmp_path: Path) -> None:
 
 def write_reports(root: Path, fault: str) -> dict[str, Any]:
     marker = "named failure"
-    k6 = ["k6-one", "other-one"]
+    k6 = ["k6-one", "other-one", "k6-three"]
     ordinary = ["other-two", "other-three", "other-four"]
     groups = dict(
-        zip(shards.SHARD_NAMES, (k6[:1], k6[1:], ordinary[:2], ordinary[2:]), strict=True)
+        zip(shards.SHARD_NAMES, (k6[:1], k6[1:2], k6[2:], ordinary[:2], ordinary[2:]), strict=True)
     )
     for platform, filename in shards.REPORT_NAMES.items():
         for shard, ids in groups.items():
@@ -157,7 +158,7 @@ def write_reports(root: Path, fault: str) -> dict[str, Any]:
                 rows.pop()
             if fault == f"missing-{platform}-b" and shard == "without-k6-b":
                 continue
-            if fault == "missing-with-k6-b" and shard == "with-k6-b" and platform == "linux":
+            if fault == f"missing-{shard}" and platform == "linux":
                 continue
             path = root / f"dur046-mutation-results-{platform}-{shard}-123-2" / filename
             path.parent.mkdir()
