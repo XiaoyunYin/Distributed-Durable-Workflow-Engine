@@ -390,6 +390,10 @@ class Episode(Matrix):
                 set_env(container, RUNTIME_TOKEN_SERVICE_ACCOUNT=WORKER)
             if name == "scheduler":
                 item["spec"]["replicas"] = 2
+            if name in {"worker", OBSERVER}:
+                container["env"] = [
+                    row for row in container["env"] if row["name"] != "DUR048_ACTIVITY_DELAY_MS"
+                ]
             if name == CONTROL and self.effect:
                 mount(
                     pod,

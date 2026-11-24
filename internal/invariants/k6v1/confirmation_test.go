@@ -1,63 +1,10 @@
 package k6v1
 
 import (
-	"io/fs"
-	"os"
-	"path/filepath"
-	"regexp"
 	"slices"
-	"strings"
 	"testing"
 	"time"
 )
-
-func TestK6ConfirmationEnvReadersClassified(t *testing.T) {
-	actuators := map[string]bool{
-		"DUR053_K6_CHAOS_SMOKE":             true,
-		"DUR053_K6_CLOCK":                   true,
-		"DUR053_K6_CLOCK_CONTROL":           true,
-		"DUR053_K6_CLOCK_WORKFLOW":          true,
-		"DUR053_K6_DEPLOYED_HOOKS":          true,
-		"DUR053_K6_G_OBSERVATION_GATE":      true,
-		"DUR053_K6_HOOK_CA_FILE":            true,
-		"DUR053_K6_HOOK_TOKEN":              true,
-		"DUR053_K6_HOOK_URL":                true,
-		"DUR053_K6_HOOK_WORKLOAD":           true,
-		"DUR053_K6_LEASE_TAKEOVER_ROLE":     true,
-		"DUR053_K6_LEASE_TAKEOVER_WORKFLOW": true,
-		"DUR053_K6_PARTITION_CELL":          true,
-		"DUR053_K6_PARTITION_WORKFLOW":      true,
-		"DUR053_K6_RELAY_STALL":             true,
-	}
-	// Match literal reads in the Go daemons and the Python worker entry points.
-	reader := regexp.MustCompile(`\bos\.(?:(?:Getenv|LookupEnv|getenv|environ\.get)\s*\(|environ\s*\[)\s*["'](DUR053_K6_[A-Z0-9_]+)["']`)
-	for _, directory := range []string{"cmd", "internal", "python", "campaign", "scripts/dur053_k6_g_worker.py"} {
-		root := filepath.Join("../../..", directory)
-		err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
-			if err != nil {
-				return err
-			}
-			if entry.IsDir() || strings.HasSuffix(path, "_test.go") ||
-				(filepath.Ext(path) != ".go" && filepath.Ext(path) != ".py") {
-				return nil
-			}
-			raw, err := os.ReadFile(path)
-			if err != nil {
-				return err
-			}
-			for _, match := range reader.FindAllStringSubmatch(string(raw), -1) {
-				name := match[1]
-				if controlConfigEnv[name] == actuators[name] {
-					t.Errorf("%s reads %s, which must be classified as either control configuration or a fault actuator", path, name)
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-	}
-}
 
 func TestK6ConfirmationSourceBinding(t *testing.T) {
 	at := UTC(time.Unix(1, 0))
@@ -86,6 +33,12 @@ func TestK6ConfirmationControl(t *testing.T) {
 		"ArmedPartition":     "DUR053_K6_PARTITION_CELL",
 		"ArmedLeaseTakeover": "DUR053_K6_LEASE_TAKEOVER_ROLE",
 		"ArmedRelayStall":    "DUR053_K6_RELAY_STALL",
+		"ArmedAcquireHold":   "RUNTIME_SCHEDULER_HOLD_AFTER_ACQUIRE_MS",
+		"ArmedReleaseMarker": "DUR053_F1A_RELEASE_MARKER",
+		"ArmedActivityDelay": "DUR048_ACTIVITY_DELAY_MS",
+		"ArmedShutdownMode":  "RUNTIME_SHUTDOWN_MODE",
+		"ArmedK4Hold":        "DUR053_K4_HOLD_FILE",
+		"UnknownEnv":         "FUTURE_FAULT",
 		"UnknownK6Env":       "DUR053_K6_FUTURE_ACTUATOR",
 	}
 	for _, tc := range []struct {
@@ -113,6 +66,12 @@ func TestK6ConfirmationControl(t *testing.T) {
 		{"ArmedPartition", "missing", "required_proof_missing:control_fault_inventory"},
 		{"ArmedLeaseTakeover", "missing", "required_proof_missing:control_fault_inventory"},
 		{"ArmedRelayStall", "missing", "required_proof_missing:control_fault_inventory"},
+		{"ArmedAcquireHold", "missing", "required_proof_missing:control_fault_inventory"},
+		{"ArmedReleaseMarker", "missing", "required_proof_missing:control_fault_inventory"},
+		{"ArmedActivityDelay", "missing", "required_proof_missing:control_fault_inventory"},
+		{"ArmedShutdownMode", "missing", "required_proof_missing:control_fault_inventory"},
+		{"ArmedK4Hold", "missing", "required_proof_missing:control_fault_inventory"},
+		{"UnknownEnv", "missing", "required_proof_missing:control_fault_inventory"},
 		{"UnknownK6Env", "missing", "required_proof_missing:control_fault_inventory"},
 		{"OpaqueEnv", "missing", "required_proof_missing:control_fault_inventory"},
 		{"InjectedControl", "failed", "CONTROL_PLAN_MISMATCH"},

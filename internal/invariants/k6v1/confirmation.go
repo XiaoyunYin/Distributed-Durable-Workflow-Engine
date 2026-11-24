@@ -2,7 +2,6 @@ package k6v1
 
 import (
 	"slices"
-	"strings"
 )
 
 const (
@@ -33,25 +32,53 @@ type ControlPod struct {
 	EnvFrom  bool            `json:"env_from"`
 }
 
-// Only reviewed configuration names may appear in a control.
+// Reviewed PodSpec env names from the medium-16 inventories in runs
+// 45473340210 and 45481123251, with the activity delay removed from G controls.
+// Kubernetes-generated process env is not in these PodSpec lists.
 var controlConfigEnv = map[string]bool{
-	"DUR053_K6_ACTIVITY":            true, // internal/state/registry.go and python/workers/registry.py enable cooperating activity.
-	"DUR053_K6_CAPTURE":             true, // internal/state/k6_capture.go enables database write capture.
-	"DUR053_K6_CONTROL_CA_FILE":     true, // python/workers/kafka_worker.py loads the worker-control TLS trust root.
-	"DUR053_K6_G_ALLOCATOR_FILE":    true, // cmd/runtime/k6.go opens the allocator evidence journal.
-	"DUR053_K6_G_BARRIER":           true, // cmd/runtime/k6.go and python/workers/k6_evidence.py bind the evidence barrier.
-	"DUR053_K6_G_CLAIMANT":          true, // python/workers/k6_evidence.py identifies the registered claimant.
-	"DUR053_K6_G_EPISODE":           true, // cmd/runtime/k6.go and python/workers/k6_evidence.py bind the evidence episode.
-	"DUR053_K6_G_RESET":             true, // cmd/runtime/k6.go and python/workers/k6_evidence.py bind the evidence reset.
-	"DUR053_K6_G_WORKER_DIR":        true, // python/workers/k6_evidence.py opens the worker ledger directory.
-	"DUR053_K6_OBSERVE":             true, // cmd/runtime/k6.go enables allocator observations.
-	"DUR053_K6_PLAN_FILE":           true, // cmd/runtime/k6.go loads the sealed effect operation plan.
-	"DUR053_K6_PLAN_SHA256":         true, // cmd/runtime/k6.go verifies the sealed effect operation plan.
-	"DUR053_K6_RECEIPT_PUBLIC_KEY":  true, // cmd/runtime/k6.go configures receipt verification.
-	"DUR053_K6_RELAY_CA_FILE":       true, // python/workers/k6_effect.py and campaign/k6 worker.py load relay TLS trust.
-	"DUR053_K6_RELAY_URL":           true, // python/workers/k6_effect.py and campaign/k6 worker.py address the effect relay.
-	"DUR053_K6_SINK_TOKEN_FILE":     true, // python/workers/k6_effect.py and campaign/k6 worker.py read the sink credential.
-	"DUR053_K6_WORKER_CONTROL_FILE": true, // cmd/runtime/k6.go loads the allocator and worker-control TLS configuration.
+	"CONTAINER_ID":                     true, // internal/state/k4_audit.go binds the commit-audit identity.
+	"CONTROL_API_URL":                  true, // python/workers/__main__.py addresses the worker-control API.
+	"DATABASE_URL":                     true, // cmd/runtime/lifecycle.go connects to the engine database.
+	"DUR048_ALLOW_FIXTURE_ACTIVITY":    true, // internal/state/registry.go enables the sleep fixture definition.
+	"DUR049_RECORD_LEASE_ACQUISITIONS": true, // internal/state/store.go records lease acquisitions.
+	"DUR053_ALLOW_FIXTURE_ACTIVITY":    true, // internal/state/registry.go and python/workers/registry.py enable the CPU fixture.
+	"DUR053_K4_CAMPAIGN":               true, // internal/state/k4_audit.go enables the engine audit used by K6 write capture.
+	"DUR053_K6_ACTIVITY":               true, // internal/state/registry.go and python/workers/registry.py enable cooperating activity.
+	"DUR053_K6_CAPTURE":                true, // internal/state/k6_capture.go enables database write capture.
+	"DUR053_K6_CONTROL_CA_FILE":        true, // python/workers/kafka_worker.py loads the worker-control TLS trust root.
+	"DUR053_K6_G_ALLOCATOR_FILE":       true, // cmd/runtime/k6.go opens the allocator evidence journal.
+	"DUR053_K6_G_BARRIER":              true, // cmd/runtime/k6.go and python/workers/k6_evidence.py bind the evidence barrier.
+	"DUR053_K6_G_EPISODE":              true, // cmd/runtime/k6.go and python/workers/k6_evidence.py bind the evidence episode.
+	"DUR053_K6_G_RESET":                true, // cmd/runtime/k6.go and python/workers/k6_evidence.py bind the evidence reset.
+	"DUR053_K6_G_WORKER_DIR":           true, // python/workers/k6_evidence.py opens the worker ledger directory.
+	"DUR053_K6_OBSERVE":                true, // cmd/runtime/k6.go enables allocator observations.
+	"DUR053_K6_PLAN_FILE":              true, // cmd/runtime/k6.go loads the sealed effect operation plan.
+	"DUR053_K6_PLAN_SHA256":            true, // cmd/runtime/k6.go verifies the sealed effect operation plan.
+	"DUR053_K6_RECEIPT_PUBLIC_KEY":     true, // cmd/runtime/k6.go configures receipt verification.
+	"DUR053_K6_RELAY_CA_FILE":          true, // python/workers/k6_effect.py and campaign/k6 worker.py load relay TLS trust.
+	"DUR053_K6_RELAY_URL":              true, // python/workers/k6_effect.py and campaign/k6 worker.py address the effect relay.
+	"DUR053_K6_SINK_TOKEN_FILE":        true, // python/workers/k6_effect.py and campaign/k6 worker.py read the sink credential.
+	"DUR053_K6_WORKER_CONTROL_FILE":    true, // cmd/runtime/k6.go loads the allocator and worker-control TLS configuration.
+	"KAFKA_BOOTSTRAP_SERVERS":          true, // cmd/runtime/lifecycle.go and python/workers/__main__.py configure broker endpoints.
+	"POD_NAME":                         true, // python/workers/lifecycle.py derives the worker identity.
+	"POD_UID":                          true, // internal/state/k4_audit.go and python/workers/k6_evidence.py bind records to the pod.
+	"PYTHONDONTWRITEBYTECODE":          true, // The Python interpreter avoids writing bytecode on the read-only image.
+	"RUNTIME_ADDR":                     true, // cmd/runtime/lifecycle.go configures the HTTP listener.
+	"RUNTIME_DB_MAX_CONNS":             true, // internal/state/store.go sets the engine pool ceiling.
+	"RUNTIME_NAMESPACE":                true, // cmd/runtime/lifecycle.go and python/workers/k6_evidence.py bind the workload namespace.
+	"RUNTIME_ROLE":                     true, // cmd/runtime/lifecycle.go names the role.
+	"RUNTIME_ROLES":                    true, // cmd/runtime/lifecycle.go selects the deployed role set.
+	"RUNTIME_TOKEN_AUDIENCE":           true, // internal/api/identity.go binds TokenReview to the expected audience.
+	"RUNTIME_TOKEN_AUTH":               true, // internal/api/identity.go configures token authentication.
+	"RUNTIME_TOKEN_ISSUER":             true, // internal/api/identity.go validates the token issuer.
+	"RUNTIME_TOKEN_NAMESPACE":          true, // internal/api/identity.go binds the authenticated service account namespace.
+	"RUNTIME_TOKEN_REVIEW_CA":          true, // internal/api/identity.go loads the TokenReview trust root.
+	"RUNTIME_TOKEN_REVIEW_TOKEN_FILE":  true, // internal/api/identity.go reads the TokenReview credential.
+	"RUNTIME_TOKEN_REVIEW_URL":         true, // internal/api/identity.go addresses the TokenReview API.
+	"RUNTIME_TOKEN_SERVICE_ACCOUNT":    true, // internal/api/identity.go binds the authenticated service account name.
+	"WORKER_DRAIN_SECONDS":             true, // python/workers/__main__.py uses the registered drain duration.
+	"WORKER_SLOTS":                     true, // python/workers/__main__.py sizes the Kafka worker pool.
+	"WORKER_TOKEN_FILE":                true, // python/workers/control.py reads the worker-control credential.
 }
 
 func (c ControlObservation) valid(m Manifest) bool {
@@ -79,7 +106,7 @@ func (s ControlSnapshot) valid() bool {
 func (s ControlSnapshot) faultConfigured() bool {
 	return len(s.ChaosCRDs) > 0 || slices.ContainsFunc(s.Pods, func(p ControlPod) bool {
 		return p.EnvFrom || slices.ContainsFunc(p.EnvNames, func(name string) bool {
-			return strings.HasPrefix(name, "DUR053_K6_") && !controlConfigEnv[name]
+			return !controlConfigEnv[name]
 		})
 	})
 }
