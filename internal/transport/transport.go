@@ -56,6 +56,8 @@ func NewKafkaBroker(brokers []string, defaultTopic string) (*KafkaBroker, error)
 		Topic:        "",
 		Balancer:     &kafka.Hash{},
 		RequiredAcks: kafka.RequireAll,
+		// The relay retries with a new durable publication start.
+		MaxAttempts:  1,
 		Async:        false,
 		BatchTimeout: 10 * time.Millisecond,
 	}, defaultTopic: defaultTopic}, nil

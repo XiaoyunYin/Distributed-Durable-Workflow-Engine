@@ -28,7 +28,9 @@ func TestK6BrokerCopies(t *testing.T) {
 	}{
 		{"Clean", "", ""},
 		{"MissingCopy", "BROKER_COPY_MISSING", Violation},
-		{"ExtraCopy", "BROKER_COPY_WITHOUT_ATTEMPT", Violation},
+		{"CopiesExceedRelayStarts", "BROKER_COPY_WITHOUT_ATTEMPT", Violation},
+		{"DuplicateWithSeparateRelayStart", "", ""},
+		{"CopyWithNoRelayStart", "BROKER_COPY_WITHOUT_ATTEMPT", Violation},
 		{"KeyMismatch", "BROKER_COPY_KEY_MISMATCH", Violation},
 		{"PayloadMismatch", "BROKER_COPY_PAYLOAD_MISMATCH", Violation},
 		{"DeliveryWithoutCopy", "BROKER_DELIVERY_WITHOUT_COPY", Violation},
@@ -54,11 +56,17 @@ func TestK6BrokerCopies(t *testing.T) {
 			switch tc.name {
 			case "MissingCopy":
 				tasks.End, copies = 0, nil
-			case "ExtraCopy":
+			case "CopiesExceedRelayStarts", "DuplicateWithSeparateRelayStart":
 				tasks.End = 2
 				second := wire
 				second.Offset = 1
 				copies = append(copies, BrokerCopyRow{PartitionIdentity: key, Copy: &second})
+				if tc.name == "DuplicateWithSeparateRelayStart" {
+					rows[WriteCapture] = append(rows[WriteCapture], Row{"subject": publicationStart, "row_key": []any{event, testNumber("2")}})
+				}
+			case "CopyWithNoRelayStart":
+				rows[WriteCapture] = rows[WriteCapture][:1]
+				delete(rows, publications)
 			case "KeyMismatch", "GapAndKeyMismatch":
 				wire.Key = []byte("different")
 			case "PayloadMismatch":

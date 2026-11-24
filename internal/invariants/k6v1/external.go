@@ -203,6 +203,7 @@ type WatchRow struct {
 	Registration *Registration    `json:"registration"`
 	Exit         *RuntimeExit     `json:"exit,omitempty"`
 	Shutdown     *ShutdownBinding `json:"shutdown,omitempty"`
+	DeletionUTC  string           `json:"deletion_utc,omitempty"`
 }
 
 type RuntimeExit struct {
@@ -211,11 +212,19 @@ type RuntimeExit struct {
 	Signal      int    `json:"signal"`
 }
 
+// Corroborates checks the observation order and the kubelet's finish time.
+// Kubernetes reports finishedAt at second precision.
+func (e RuntimeExit) Corroborates(abortUTC, observedUTC string) bool {
+	return abortUTC <= observedUTC && e.FinishedUTC <= observedUTC && abortUTC[:19] <= e.FinishedUTC[:19]
+}
+
 type ShutdownBinding struct {
-	Invocation    string          `json:"invocation"`
-	Attempt       AttemptIdentity `json:"attempt"`
-	StartSequence int64           `json:"start_sequence"`
-	ExitSequence  int64           `json:"exit_sequence"`
+	Invocation     string          `json:"invocation"`
+	Attempt        AttemptIdentity `json:"attempt"`
+	StartSequence  int64           `json:"start_sequence"`
+	ExitSequence   int64           `json:"exit_sequence"`
+	SignalSequence int64           `json:"signal_sequence,omitempty"`
+	AbortSequence  int64           `json:"abort_sequence,omitempty"`
 }
 
 type Registration struct {
@@ -244,16 +253,18 @@ func (s WorkerSession) Runtime() RuntimeIdentity {
 
 func (w WatchRow) valid() bool {
 	if !nonempty(w.Cursor) || !publicIdentity(w.From) ||
-		(w.Exit != nil) != (w.Kind == "exit") || (w.Shutdown != nil) != (w.Kind == "shutdown") {
+		(w.Exit != nil) != (w.Kind == "exit") || (w.Shutdown != nil) != (w.Kind == "shutdown") ||
+		(w.DeletionUTC != "") != (w.Kind == "termination_requested") {
 		return false
 	}
 	switch w.Kind {
 	case "baseline", "bookmark", "gap":
 		return w.Session == nil && w.Death == nil && w.Runtime == nil && w.Registration == nil
-	case "runtime", "exit":
+	case "runtime", "exit", "termination_requested":
 		return w.Session == nil && w.Death == nil && w.Runtime != nil && w.Registration == nil &&
 			identities(w.Runtime.PodUID, w.Runtime.ContainerID) && w.Runtime.Restart >= 0 && validTime(w.Runtime.StartedUTC) &&
-			(w.Exit == nil || validTime(w.Exit.FinishedUTC) && w.Exit.FinishedUTC >= w.Runtime.StartedUTC && w.Exit.Code >= 0 && w.Exit.Signal >= 0)
+			(w.Exit == nil || validTime(w.Exit.FinishedUTC) && w.Exit.FinishedUTC >= w.Runtime.StartedUTC && w.Exit.Code >= 0 && w.Exit.Signal >= 0) &&
+			(w.DeletionUTC == "" || validTime(w.DeletionUTC) && w.DeletionUTC >= w.Runtime.StartedUTC)
 	case "session":
 		return w.Session != nil && w.Session.valid() && w.Death == nil && w.Runtime == nil &&
 			w.Registration != nil && w.Registration.matches(*w.Session)

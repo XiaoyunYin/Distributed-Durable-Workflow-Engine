@@ -116,7 +116,7 @@ func newResult(m Manifest, indexHash string) Result {
 		inCeiling := m.Cell != "" && registered(n, m)
 		reason := "outside_registry_ceiling"
 		if inCeiling {
-			reason = "predicate_pending:" + pendingSlice(n)
+			reason = pendingReason(n)
 		}
 		r.Labels = append(r.Labels, Label{
 			ID: "I" + strconv.Itoa(n), Registered: inCeiling, Outcome: "NOT COVERED",
@@ -126,14 +126,14 @@ func newResult(m Manifest, indexHash string) Result {
 	return r
 }
 
-func pendingSlice(label int) string {
+func pendingReason(label int) string {
 	switch label {
 	case 8, 10:
-		return "G3a3"
+		return "predicate_pending:G3a3"
 	case 12:
-		return "G3a4"
+		return "predicate_pending:G3a4"
 	default:
-		return "G3c"
+		return "predicate_pending"
 	}
 }
 

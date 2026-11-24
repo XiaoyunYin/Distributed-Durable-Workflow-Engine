@@ -76,9 +76,10 @@ func (k Kubernetes) Watch(ctx context.Context, m k6v1.Manifest, selector, contai
 
 type pod struct {
 	Metadata struct {
-		UID             string `json:"uid"`
-		Namespace       string `json:"namespace"`
-		ResourceVersion string `json:"resourceVersion"`
+		UID             string    `json:"uid"`
+		Namespace       string    `json:"namespace"`
+		ResourceVersion string    `json:"resourceVersion"`
+		Deletion        time.Time `json:"deletionTimestamp"`
 	} `json:"metadata"`
 	Status struct {
 		Containers []struct {
@@ -124,14 +125,16 @@ type PodWatch struct {
 	dead        map[k6v1.RuntimeIdentity]time.Time
 	sessions    map[string]bool
 	deathSealed map[string]bool
-	exits       map[k6v1.RuntimeIdentity]k6v1.Position
+	signals     map[k6v1.RuntimeIdentity]k6v1.Position
+	exits       map[k6v1.RuntimeIdentity]k6v1.Record[k6v1.WatchRow]
 	shutdowns   map[[2]string]bool
 }
 
 func NewPodWatch(m k6v1.Manifest, observer string, started time.Time) *PodWatch {
 	return &PodWatch{Stream: NewStream[k6v1.WatchRow](m, "roster", observer, started), known: map[k6v1.RuntimeIdentity]bool{},
 		dead: map[k6v1.RuntimeIdentity]time.Time{}, sessions: map[string]bool{}, deathSealed: map[string]bool{},
-		exits: map[k6v1.RuntimeIdentity]k6v1.Position{}, shutdowns: map[[2]string]bool{}}
+		signals: map[k6v1.RuntimeIdentity]k6v1.Position{}, exits: map[k6v1.RuntimeIdentity]k6v1.Record[k6v1.WatchRow]{},
+		shutdowns: map[[2]string]bool{}}
 }
 
 func (w *PodWatch) Cursor() string {
@@ -227,50 +230,64 @@ func (w *PodWatch) observe(p pod, wanted string, at time.Time) {
 				if w.dead[i].IsZero() {
 					w.dead[i] = at
 				}
-				if t.ExitCode != nil && *t.ExitCode >= 0 && t.Signal >= 0 && w.exits[i].Sequence == 0 && !t.Finished.Before(t.Start) {
+				if t.ExitCode != nil && *t.ExitCode >= 0 && t.Signal >= 0 && w.exits[i].Position.Sequence == 0 && !t.Finished.Before(t.Start) {
 					w.append(at, k6v1.WatchRow{Kind: "exit", Runtime: &i, Exit: &k6v1.RuntimeExit{
 						FinishedUTC: k6v1.UTC(t.Finished), Code: *t.ExitCode, Signal: t.Signal,
 					}})
-					w.exits[i] = w.Stream.Rows[len(w.Stream.Rows)-1].Position
+					w.exits[i] = w.Stream.Rows[len(w.Stream.Rows)-1]
 				}
 			}
 		}
 		termination(status.Last.Terminated, status.Restart-1)
 		termination(status.State.Terminated, status.Restart)
 		if status.State.Running != nil && status.ContainerID != "" && !status.State.Running.Started.IsZero() {
-			register(status.ContainerID, status.Restart, status.State.Running.Started)
+			i := register(status.ContainerID, status.Restart, status.State.Running.Started)
+			if !p.Metadata.Deletion.IsZero() && !p.Metadata.Deletion.Before(status.State.Running.Started) &&
+				w.signals[i].Sequence == 0 && w.dead[i].IsZero() {
+				w.append(at, k6v1.WatchRow{Kind: "termination_requested", Runtime: &i, DeletionUTC: k6v1.UTC(p.Metadata.Deletion)})
+				w.signals[i] = w.Stream.Rows[len(w.Stream.Rows)-1].Position
+			}
 		}
 	}
 }
 
-// BindShutdown joins the kubelet observation to starts present in the
-// receiver at that time. The checker independently repeats the join.
-func (w *PodWatch) BindShutdown(at time.Time, session k6v1.WorkerSession, ledger k6v1.Stream[k6v1.WorkerRow]) {
+// BindShutdown joins persisted worker aborts to the deletion request and
+// subsequent kubelet exit for their runtime.
+func (w *PodWatch) BindShutdown(at time.Time, session k6v1.WorkerSession, ledgers map[string]k6v1.Stream[k6v1.WorkerRow]) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-	exit := w.exits[session.Runtime()]
-	if exit.Sequence == 0 || !w.sessions[session.ID] || exit.UTC < session.StartedUTC {
+	runtime := session.Runtime()
+	signal, exit := w.signals[runtime], w.exits[runtime]
+	if signal.Sequence == 0 || exit.Data.Exit == nil || signal.Sequence >= exit.Position.Sequence || !w.sessions[session.ID] {
 		return
 	}
-	active := map[string]k6v1.Record[k6v1.WorkerRow]{}
+	ledger := ledgers[session.ID]
+	var start k6v1.Record[k6v1.WorkerRow]
+	var abort *k6v1.Record[k6v1.WorkerRow]
+	closed := false
 	for _, row := range ledger.Rows {
-		if row.Position.UTC > exit.UTC {
-			break
-		}
 		switch row.Data.Kind {
 		case "start":
-			active[row.Data.Invocation] = row
+			start, abort, closed = row, nil, false
 		case "finish", "abort":
-			delete(active, row.Data.Invocation)
+			if closed || row.Data.Invocation != start.Data.Invocation {
+				continue
+			}
+			closed = true
+			if row.Data.Kind == "abort" && start.Data.Attempt != nil && row.Data.Attempt != nil && *start.Data.Attempt == *row.Data.Attempt {
+				abort = &row
+			}
 		}
 	}
-	for _, row := range ledger.Rows {
-		id := [2]string{session.ID, row.Data.Invocation}
-		if active[id[1]].Position.Sequence != row.Position.Sequence || w.shutdowns[id] {
-			continue
-		}
+	if abort == nil || signal.UTC >= abort.Position.UTC || !exit.Data.Exit.Corroborates(abort.Position.UTC, exit.Position.UTC) ||
+		k6v1.LaterRuntimeStart(ledgers, session, start.Position) {
+		return
+	}
+	id := [2]string{session.ID, abort.Data.Invocation}
+	if !w.shutdowns[id] {
 		w.append(at, k6v1.WatchRow{Kind: "shutdown", Session: &session, Shutdown: &k6v1.ShutdownBinding{
-			Invocation: id[1], Attempt: *row.Data.Attempt, StartSequence: row.Position.Sequence, ExitSequence: exit.Sequence,
+			Invocation: id[1], Attempt: *abort.Data.Attempt, StartSequence: start.Position.Sequence,
+			SignalSequence: signal.Sequence, AbortSequence: abort.Position.Sequence, ExitSequence: exit.Position.Sequence,
 		}})
 		w.shutdowns[id] = true
 	}

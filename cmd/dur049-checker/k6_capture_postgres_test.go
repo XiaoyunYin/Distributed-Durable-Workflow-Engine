@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -237,6 +238,16 @@ func capturedBrokerCopies(t *testing.T, m k6v1.Manifest, db *pgx.Conn, sources *
 		positions.Rows[i].Data.Partitions = []k6v1.BrokerPartition{events, p}
 	}
 	last := &positions.Rows[len(positions.Rows)-1].Data.Partitions[1]
+	var unattempted k6v1.BrokerCopy
+	if variant == "CopyWithNoRelayStart" {
+		var body string
+		if err := db.QueryRow(t.Context(), `SELECT event_id::text,payload::text FROM engine.outbox WHERE event_id=md5('o1')::uuid`).Scan(&unattempted.EventID, &body); err != nil {
+			t.Fatal(err)
+		}
+		unattempted.Key, unattempted.PayloadSHA256 = []byte(unattempted.EventID), k6v1.Hash([]byte(body))
+		events.End = 1
+		positions.Rows[len(positions.Rows)-1].Data.Partitions[0] = events
+	}
 	tasks := *last
 	end := int64(2)
 	switch variant {
@@ -244,7 +255,7 @@ func capturedBrokerCopies(t *testing.T, m k6v1.Manifest, db *pgx.Conn, sources *
 		end = 0
 	case "DeliveryWithoutCopy":
 		end = 1
-	case "ExtraCopy":
+	case "CopiesExceedRelayStarts":
 		end = 3
 	}
 	for i := range positions.Rows {
@@ -254,7 +265,7 @@ func capturedBrokerCopies(t *testing.T, m k6v1.Manifest, db *pgx.Conn, sources *
 			p.Committed = &p.End
 		}
 	}
-	if variant == "ExtraCopy" {
+	if variant == "CopiesExceedRelayStarts" {
 		last.End = end
 	}
 	var captureEnd int64
@@ -287,6 +298,9 @@ func capturedBrokerCopies(t *testing.T, m k6v1.Manifest, db *pgx.Conn, sources *
 		key := k6v1.PartitionIdentity{TopicID: part.TopicID, Partition: part.Partition}
 		for offset := int64(0); offset < part.End; offset++ {
 			copy := k6v1.BrokerCopy{Offset: offset, EventID: id, Key: []byte(id), PayloadSHA256: k6v1.Hash([]byte(payload))}
+			if part.Topic == events.Topic {
+				copy = unattempted
+			}
 			if offset == 0 && variant == "KeyMismatch" {
 				copy.Key = []byte("other")
 			}
@@ -303,25 +317,56 @@ func capturedBrokerCopies(t *testing.T, m k6v1.Manifest, db *pgx.Conn, sources *
 	sources.BrokerCopies = &stream
 }
 
-func capturedShutdown(t *testing.T, sources *k6v1.External, matched bool) {
+func capturedShutdown(t *testing.T, m k6v1.Manifest, sources *k6v1.External, withSignal bool) {
 	t.Helper()
-	transportParityObservations(t, sources, "N21ShutdownFailure")
-	at := time.Now().Add(-100 * time.Millisecond)
+	opened := sources.Roster.Rows[0].Position.UTC
+	at, err := time.Parse(k6v1.TimeLayout, opened)
+	if err != nil {
+		t.Fatal(err)
+	}
+	watch := k6collect.NewPodWatch(m, sources.Roster.Header.Source, at)
+	if err := watch.Baseline([]byte(`{"metadata":{"resourceVersion":"1"},"items":[]}`), "worker", at); err != nil {
+		t.Fatal(err)
+	}
 	for id, ledger := range sources.Sessions {
+		session := ledger.Rows[0].Data.Session
+		read := func(cursor, metadata, state string, at time.Time) {
+			t.Helper()
+			raw := fmt.Sprintf(`{"type":"MODIFIED","object":{"metadata":{"uid":%q,"namespace":%q,"resourceVersion":%q%s},"status":{"containerStatuses":[{"name":"worker","containerID":%q,"restartCount":%d,"state":%s}]}}}`,
+				session.PodUID, m.Namespace, cursor, metadata, "containerd://"+session.ContainerID, session.Restart, state)
+			if err := watch.Read(strings.NewReader(raw), "worker", func() time.Time { return at }); err != nil {
+				t.Fatal(err)
+			}
+		}
+		running := fmt.Sprintf(`{"running":{"startedAt":%q}}`, session.ContainerStartedUTC)
+		read("2", "", running, at)
+		reg := sources.Roster.Rows[2].Data.Registration
+		if err := watch.Register(at, *session, *reg); err != nil {
+			t.Fatal(err)
+		}
+		if withSignal {
+			read("3", fmt.Sprintf(`,"deletionTimestamp":%q`, k6v1.UTC(at.Add(30*time.Second))), running, at.Add(time.Second))
+		}
 		last := &ledger.Rows[len(ledger.Rows)-1]
-		last.Position.UTC = k6v1.UTC(at.Add(time.Millisecond))
-		sealFixtureStream(t, &ledger, time.Now())
+		last.Data.Kind = "abort"
+		last.Position.UTC = k6v1.UTC(at.Add(2 * time.Second))
+		finished := at.Add(3 * time.Second)
+		observed := finished.Add(time.Second)
+		terminated := fmt.Sprintf(`{"terminated":{"containerID":%q,"startedAt":%q,"finishedAt":%q,"exitCode":143,"signal":15}}`,
+			"containerd://"+session.ContainerID, session.ContainerStartedUTC, finished.UTC().Format(time.RFC3339))
+		read("4", "", terminated, observed)
+		if err := k6v1.SealStream(&ledger, "checkpoint", k6v1.UTC(observed), int64(len(ledger.Rows)), 0); err != nil {
+			t.Fatal(err)
+		}
 		sources.Sessions[id] = ledger
-		death := sources.Roster.Rows[len(sources.Roster.Rows)-1].Data.Death
-		death.FinalSHA256 = ledger.Seal.SHA256
-		if matched {
-			session := ledger.Rows[0].Data.Session
-			runtime := session.Runtime()
-			k6collect.Append(&sources.Roster, at, k6v1.WatchRow{Kind: "exit", From: "3", Cursor: "4", Runtime: &runtime,
-				Exit: &k6v1.RuntimeExit{FinishedUTC: k6v1.UTC(at), Code: 143, Signal: 15}})
-			k6collect.Append(&sources.Roster, at, k6v1.WatchRow{Kind: "shutdown", From: "4", Cursor: "4", Session: session,
-				Shutdown: &k6v1.ShutdownBinding{Invocation: last.Data.Invocation, Attempt: *last.Data.Attempt,
-					StartSequence: 2, ExitSequence: int64(len(sources.Roster.Rows))}})
+		watch.BindShutdown(observed, *session, sources.Sessions)
+		if err := watch.ConfirmDeath(observed, *session, &ledger); err != nil {
+			t.Fatal(err)
+		}
+		sources.Sessions[id] = ledger
+		sources.Roster, err = watch.Snapshot(observed, true)
+		if err != nil {
+			t.Fatal(err)
 		}
 	}
 	sealFixtureStream(t, &sources.Roster, time.Now())
@@ -332,7 +377,7 @@ func TestK6SourceCapturedJoins(t *testing.T) {
 		t.Skip("requires hosted PostgreSQL and network-isolated checker")
 	}
 	for _, name := range []string{"CleanOffsets", "LowerDispositionGap", "ResultReplay", "UnresolvedEffect", "ShutdownFailure",
-		"MissingCopy", "ExtraCopy", "KeyMismatch", "PayloadMismatch", "DeliveryWithoutCopy", "CollectionGap",
+		"MissingCopy", "CopiesExceedRelayStarts", "CopyWithNoRelayStart", "KeyMismatch", "PayloadMismatch", "DeliveryWithoutCopy", "CollectionGap",
 		"BaselineMismatch", "TopicIDChange", "ShutdownNoObservation",
 		"MissingCancellationChanges", "MissingGraphChanges"} {
 		t.Run(name, func(t *testing.T) {
@@ -363,7 +408,7 @@ func TestK6SourceCapturedJoins(t *testing.T) {
 				transportParityObservations(t, &sources, "N8LowerGap")
 				capturedBrokerCopies(t, cfg.Manifest, engine, &sources, name)
 				if seed == "ShutdownFailure" {
-					capturedShutdown(t, &sources, name == "ShutdownFailure")
+					capturedShutdown(t, cfg.Manifest, &sources, name == "ShutdownFailure")
 				}
 				publishFixtureFrames(t, cfg, sources)
 			}
@@ -377,9 +422,9 @@ func TestK6SourceCapturedJoins(t *testing.T) {
 				if len(r.Findings) != 0 || r.Labels[5].Outcome != "covered/pass" || r.Labels[6].Outcome != "covered/pass" {
 					t.Fatalf("hook-3 remainder: %+v", r.Findings)
 				}
-			case "MissingCopy", "ExtraCopy", "KeyMismatch", "PayloadMismatch", "DeliveryWithoutCopy":
-				codes := map[string]string{"MissingCopy": "BROKER_COPY_MISSING", "ExtraCopy": "BROKER_COPY_WITHOUT_ATTEMPT",
-					"KeyMismatch": "BROKER_COPY_KEY_MISMATCH", "PayloadMismatch": "BROKER_COPY_PAYLOAD_MISMATCH",
+			case "MissingCopy", "CopiesExceedRelayStarts", "CopyWithNoRelayStart", "KeyMismatch", "PayloadMismatch", "DeliveryWithoutCopy":
+				codes := map[string]string{"MissingCopy": "BROKER_COPY_MISSING", "CopiesExceedRelayStarts": "BROKER_COPY_WITHOUT_ATTEMPT",
+					"CopyWithNoRelayStart": "BROKER_COPY_WITHOUT_ATTEMPT", "KeyMismatch": "BROKER_COPY_KEY_MISMATCH", "PayloadMismatch": "BROKER_COPY_PAYLOAD_MISMATCH",
 					"DeliveryWithoutCopy": "BROKER_DELIVERY_WITHOUT_COPY"}
 				requirePredicateFinding(t, r, k6v1.Violation, "DispatchDisposition", codes[name])
 			case "CollectionGap":

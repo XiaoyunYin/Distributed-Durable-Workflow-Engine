@@ -181,7 +181,7 @@ func (o *collector) collect(ctx context.Context, client *kafka.Client, metadata 
 		if !ok {
 			continue
 		}
-		o.watch.BindShutdown(time.Now(), r.Session, l)
+		o.watch.BindShutdown(time.Now(), r.Session, o.sources.Sessions)
 		if l.Seal.Mode == "checkpoint" && o.watch.ConfirmDeath(time.Now(), r.Session, &l) == nil {
 			o.sources.Sessions[r.Session.ID] = l
 			// The watch will publish the death after its next progress marker.

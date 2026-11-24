@@ -17072,8 +17072,8 @@
       "id": "k6g2a-partial-reason",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "return \"G3c\"",
-      "new": "return \"G3a2\"",
+      "old": "return \"predicate_pending\"",
+      "new": "return \"predicate_pending:G3a2\"",
       "command": [
         "go",
         "test",
@@ -19138,8 +19138,8 @@
       "id": "k6g3a2b-pending-effects",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "return \"G3a3\"",
-      "new": "return \"G3a2\"",
+      "old": "return \"predicate_pending:G3a3\"",
+      "new": "return \"predicate_pending:G3a2\"",
       "command": [
         "go",
         "test",
@@ -20650,7 +20650,7 @@
         "1",
         "./internal/invariants/k6v1",
         "-run",
-        "^TestK6BrokerCopies$/^ExtraCopy$",
+        "^TestK6BrokerCopies$/^CopiesExceedRelayStarts$",
         "-count=1"
       ],
       "expected": "expected broker finding BROKER_COPY_WITHOUT_ATTEMPT",
@@ -20888,7 +20888,7 @@
       "id": "k6g3d-shutdown-invocation",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/outside_ceiling.go",
-      "old": "b.Invocation != abort.row.Data.Invocation || ",
+      "old": "b.Invocation != abort.Data.Invocation || ",
       "new": "",
       "command": [
         "go",
@@ -20907,7 +20907,7 @@
       "id": "k6g3d-shutdown-claim",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/outside_ceiling.go",
-      "old": "|| b.Attempt != *abort.row.Data.Attempt",
+      "old": "|| b.Attempt != *abort.Data.Attempt",
       "new": "",
       "command": [
         "go",
@@ -20926,7 +20926,7 @@
       "id": "k6g3d-shutdown-runtime",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/outside_ceiling.go",
-      "old": " && *exit.Data.Runtime == abort.session.Runtime()",
+      "old": " && *exit.Data.Runtime == session.Runtime()",
       "new": "",
       "command": [
         "go",
@@ -20944,8 +20944,8 @@
     {
       "id": "k6g3d-shutdown-order",
       "kind": "behavioral",
-      "file": "internal/invariants/k6v1/outside_ceiling.go",
-      "old": "exit.Position.UTC < abort.row.Position.UTC && ",
+      "file": "internal/invariants/k6v1/external.go",
+      "old": "abortUTC <= observedUTC && ",
       "new": "",
       "command": [
         "go",
@@ -20954,10 +20954,10 @@
         "1",
         "./internal/invariants/k6v1",
         "-run",
-        "^TestK6ShutdownBinding$/^ExitAfterAbort$",
+        "^TestK6ShutdownBinding$/^ObservedExitBeforeAbort$",
         "-count=1"
       ],
-      "expected": "incorrect shutdown binding for ExitAfterAbort",
+      "expected": "incorrect shutdown binding for ObservedExitBeforeAbort",
       "requires_database": false
     },
     {
@@ -21040,7 +21040,7 @@
       "id": "k6g3d-shutdown-start",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/outside_ceiling.go",
-      "old": "b.StartSequence != abort.startSequence || ",
+      "old": "b.StartSequence != startSequence || ",
       "new": "",
       "command": [
         "go",
@@ -21190,6 +21190,177 @@
       "expected": "accepted invalid startup authorization evidence",
       "requires_database": false,
       "ci_shard": "with-k6-b"
+    },
+    {
+      "id": "k6g3d-r372-writer-retries",
+      "kind": "behavioral",
+      "file": "internal/transport/transport.go",
+      "old": "MaxAttempts:  1,",
+      "new": "MaxAttempts:  10,",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/transport",
+        "-run",
+        "^TestKafkaWriterOneProducePerRelayAttempt$",
+        "-count=1"
+      ],
+      "expected": "produce attempts per relay attempt, want 1",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-signal-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "signal.Position.UTC < abort.Position.UTC && ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^LateSignal$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for LateSignal",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-exit-finish",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external.go",
+      "old": " && abortUTC[:19] <= e.FinishedUTC[:19]",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ExitBeforeAbort$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ExitBeforeAbort",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-later-start",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": " &&\n\t\t\t!LaterRuntimeStart(sources.Sessions, session, start.Position)",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^LaterStart$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for LaterStart",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-later-session",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "!sameSession && row.Position.UTC >= start.UTC",
+      "new": "false",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^LaterRuntimeSessionStart$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for LaterRuntimeSessionStart",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-signal-runtime",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": " && *signal.Data.Runtime == session.Runtime()",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^ChangedSignalRuntime$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for ChangedSignalRuntime",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-abort-row",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "b.AbortSequence != abortSequence ||",
+      "new": "false ||",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^WrongAbort$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for WrongAbort",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-roster-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/outside_ceiling.go",
+      "old": "b.SignalSequence >= b.ExitSequence || ",
+      "new": "",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6ShutdownBinding$/^SignalAfterExitInRoster$",
+        "-count=1"
+      ],
+      "expected": "incorrect shutdown binding for SignalAfterExitInRoster",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3d-r373-collector-abort",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6collect/pods.go",
+      "old": "row.Data.Kind == \"abort\" && start.Data.Attempt",
+      "new": "row.Data.Kind == \"finish\" && start.Data.Attempt",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6collect",
+        "-run",
+        "^TestK6CollectedShutdown$/^Matched$",
+        "-count=1"
+      ],
+      "expected": "incorrect collected shutdown for Matched",
+      "requires_database": false
     }
   ]
 }

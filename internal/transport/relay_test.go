@@ -9,6 +9,16 @@ import (
 	"durable-agent-execution-engine/internal/state"
 )
 
+func TestKafkaWriterOneProducePerRelayAttempt(t *testing.T) {
+	broker, err := NewKafkaBroker([]string{"localhost:9092"}, DefaultTopic)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := broker.writer.MaxAttempts; got != 1 {
+		t.Fatalf("Kafka writer allows %d produce attempts per relay attempt, want 1", got)
+	}
+}
+
 func TestRelayRunReportsPassErrors(t *testing.T) {
 	callbackCalls := 0
 	relay := NewRelay(nil, nil, RelayConfig{OnError: func(error) { callbackCalls++ }})

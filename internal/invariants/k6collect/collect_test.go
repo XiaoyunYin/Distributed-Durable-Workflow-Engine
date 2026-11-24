@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -43,16 +44,8 @@ func TestK6RosterCollector(t *testing.T) {
 	}
 	ledger := NewStream[k6v1.WorkerRow](m, "worker", "receiver", at)
 	Append(&ledger, at, k6v1.WorkerRow{Kind: "session", Session: &s})
-	start := k6v1.AttemptIdentity{Workflow: "wf", Node: "node", Attempt: 1, ClaimHash: k6v1.Hash([]byte("token")), RequestID: "request"}
-	Append(&ledger, at.Add(time.Second), k6v1.WorkerRow{Kind: "start", Invocation: "invocation", Attempt: &start})
-	if err := k6v1.SealStream(&ledger, "checkpoint", k6v1.UTC(now()), 2, 0); err != nil {
+	if err := k6v1.SealStream(&ledger, "checkpoint", k6v1.UTC(now()), 1, 0); err != nil {
 		t.Fatal(err)
-	}
-	w.BindShutdown(now(), s, ledger)
-	bound := w.Stream.Rows[len(w.Stream.Rows)-1].Data.Shutdown
-	if bound == nil || bound.Invocation != "invocation" || bound.Attempt != start || bound.StartSequence != 2 ||
-		w.Stream.Rows[bound.ExitSequence-1].Data.Exit.Signal != 15 {
-		t.Fatalf("unbound collector shutdown: %+v", bound)
 	}
 	if err := w.ConfirmDeath(now(), s, &ledger); err != nil {
 		t.Fatal(err)
@@ -63,6 +56,71 @@ func TestK6RosterCollector(t *testing.T) {
 	}
 	if err := w.Read(strings.NewReader(`{"type":"ERROR","object":{"code":410}}`), "worker", now); err == nil {
 		t.Fatal("expired Kubernetes watch accepted")
+	}
+}
+
+func TestK6CollectedShutdown(t *testing.T) {
+	at := time.Date(2026, 11, 1, 12, 0, 0, 0, time.UTC)
+	for _, name := range []string{"Matched", "LateSignal", "EarlyExit", "DifferentRuntime", "LaterStart"} {
+		t.Run(name, func(t *testing.T) {
+			m := k6v1.Manifest{Namespace: "episode"}
+			w := NewPodWatch(m, "observer", at)
+			if err := w.Baseline([]byte(`{"metadata":{"resourceVersion":"10"},"items":[]}`), "worker", at); err != nil {
+				t.Fatal(err)
+			}
+			event := func(cursor, metadata, id, state string, seen time.Time) {
+				t.Helper()
+				raw := fmt.Sprintf(`{"type":"MODIFIED","object":{"metadata":{"uid":"pod-uid","namespace":"episode","resourceVersion":%q%s},"status":{"containerStatuses":[{"name":"worker","containerID":%q,"restartCount":0,"state":%s}]}}}`,
+					cursor, metadata, id, state)
+				if err := w.Read(strings.NewReader(raw), "worker", func() time.Time { return seen }); err != nil {
+					t.Fatal(err)
+				}
+			}
+			const running = `{"running":{"startedAt":"2026-11-01T12:00:00Z"}}`
+			event("11", "", "containerd://container", running, at)
+			session := k6v1.WorkerSession{ID: "session", PodUID: "pod-uid", ContainerID: "container", ContainerStartedUTC: k6v1.UTC(at), StartedUTC: k6v1.UTC(at), BootID: "boot", Claimant: "worker"}
+			if err := w.Register(at, session, k6v1.Registration{PodUID: session.PodUID, Claimant: session.Claimant}); err != nil {
+				t.Fatal(err)
+			}
+			ledger := NewStream[k6v1.WorkerRow](m, "worker", "receiver", at)
+			Append(&ledger, at, k6v1.WorkerRow{Kind: "session", Session: &session})
+			attempt := k6v1.AttemptIdentity{Workflow: "wf", Node: "node", Attempt: 1, ClaimHash: k6v1.Hash([]byte("token")), RequestID: "request"}
+			start := k6v1.WorkerRow{Kind: "start", Invocation: "invocation", Attempt: &attempt}
+			Append(&ledger, at.Add(time.Second), start)
+			signal, aborted, finished := at.Add(2*time.Second), at.Add(3*time.Second+time.Millisecond), at.Add(3*time.Second)
+			exitID := "containerd://container"
+			switch name {
+			case "LateSignal":
+				signal = at.Add(4 * time.Second)
+			case "EarlyExit":
+				finished = at.Add(2 * time.Second)
+			case "DifferentRuntime":
+				exitID = "containerd://other"
+			}
+			event("12", `,"deletionTimestamp":"2026-11-01T12:00:30Z"`, "containerd://container", running, signal)
+			abort := start
+			abort.Kind = "abort"
+			Append(&ledger, aborted, abort)
+			if name == "LaterStart" {
+				start.Invocation = "later"
+				Append(&ledger, aborted.Add(time.Millisecond), start)
+			}
+			state := fmt.Sprintf(`{"terminated":{"containerID":%q,"startedAt":"2026-11-01T12:00:00Z","finishedAt":%q,"exitCode":143,"signal":15}}`, exitID, finished.Format(time.RFC3339))
+			observed := at.Add(5 * time.Second)
+			event("13", "", exitID, state, observed)
+			ledgers := map[string]k6v1.Stream[k6v1.WorkerRow]{session.ID: ledger}
+			w.BindShutdown(observed, session, ledgers)
+			roster, err := w.Snapshot(observed, true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			sources := k6v1.External{Roster: roster, Sessions: ledgers}
+			want := name == "Matched"
+			bound := roster.Rows[len(roster.Rows)-1].Data.Shutdown != nil
+			if bound != want || sources.ShutdownWitnessed(session, 3, 2) != want {
+				t.Fatalf("incorrect collected shutdown for %s, binding present: %t", name, bound)
+			}
+		})
 	}
 }
 
