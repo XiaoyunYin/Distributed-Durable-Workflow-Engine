@@ -221,6 +221,39 @@ func TestK6IngressCollector(t *testing.T) {
 	if err := IngressSnapshot(encode(open, sent, worker, closed, seal), &stream, relay, sink, now, nil, true); err == nil {
 		t.Fatal("collector accepted missing durable row")
 	}
+	t.Run("DurableNondelivery", func(t *testing.T) {
+		drop := closed
+		drop.Sequence, drop.Event = 4, "worker_drop"
+		dropped := NewStream[k6v1.IngressRow](k6v1.Manifest{}, "ingress", "receiver", now)
+		err := IngressSnapshot(encode(open, sent, response, drop, closed, seal), &dropped, relay, sink, now, nil, true)
+		if err != nil || len(dropped.Rows) != 1 || dropped.Rows[0].Data.Outcome != "withheld" ||
+			!dropped.Rows[0].Data.Nondelivery || !dropped.Rows[0].Data.Acknowledged {
+			t.Fatalf("durable nondelivery missing: %v %+v", err, dropped.Rows)
+		}
+	})
+	t.Run("DropAfterDelivery", func(t *testing.T) {
+		drop, closing, last := closed, closed, seal
+		drop.Event = "worker_drop"
+		closing.Sequence++
+		last.Sequence++
+		last.HighWater++
+		err := IngressSnapshot(encode(open, sent, response, worker, drop, closing, last), &stream, relay, sink, now, nil, true)
+		if err == nil || err.Error() != "K6_INGRESS_DROP_ORDER" {
+			t.Fatalf("drop after delivery: %v", err)
+		}
+	})
+	t.Run("DeliveryAfterDrop", func(t *testing.T) {
+		drop, delivery, closing, last := closed, worker, closed, seal
+		drop.Sequence, drop.Event = 4, "worker_drop"
+		delivery.Sequence = 5
+		closing.Sequence++
+		last.Sequence++
+		last.HighWater++
+		err := IngressSnapshot(encode(open, sent, response, drop, delivery, closing, last), &stream, relay, sink, now, nil, true)
+		if err == nil || err.Error() != "K6_INGRESS_OUTCOME" {
+			t.Fatalf("delivery after drop: %v", err)
+		}
+	})
 }
 
 func TestK6TopologyList(t *testing.T) {

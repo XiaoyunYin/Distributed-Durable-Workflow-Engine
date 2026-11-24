@@ -200,3 +200,78 @@ func TestK6PredicateSinkResetResourceMissing(t *testing.T) {
 		t.Fatalf("reset inventory witness: %+v", f)
 	}
 }
+
+func TestK6EffectPopulation(t *testing.T) {
+	for _, tc := range []struct {
+		name, code string
+	}{
+		{name: "Clean"},
+		{"NoWinner", "EFFECT_WORKFLOW_WITHOUT_WINNER"},
+		{"NoWrite", "EFFECT_SUCCESS_WITHOUT_MUTATION_RECEIPT"},
+		{"WrongKey", "EFFECT_SUCCESS_WITHOUT_MUTATION_RECEIPT"},
+		{"DifferentReceipt", "EFFECT_RECEIPT_MISMATCH"},
+		{name: "Empty"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			m, e, rows := fixtureExternal(t, true)
+			r := newResult(m, "")
+			r.Labels[0].Outcome = "covered/pass"
+			plan := Plan{Windows: []PlanWindow{{Submissions: []Submission{{Key: "submit", Body: SubmissionBody{InitialNodeID: "node"}}}}}}
+			rows[executions] = []Row{{"workflow_id": "workflow", "submission_key": "submit", "state": "SUCCEEDED"}}
+			rows[SinkResources] = nil
+			rows[SinkJournal] = []Row{{"intent_id": fixtureIntent, "logical_key": "logical"}}
+			attempt := rows[activityAttempts][0]
+			attempt["state"], attempt["effect_class"], attempt["logical_effect_key"] = "SUCCEEDED", "COOPERATING_EFFECT", "logical"
+			intent := rows[intentsRelation][0]
+			intent["node_id"], intent["iteration"] = attempt["node_id"], attempt["iteration"]
+			receipt := rows[SinkReceipts][0]
+			attempt["k6_proof"] = map[string]any{"receipt": receipt}
+			switch tc.name {
+			case "NoWinner":
+				rows[activityAttempts] = nil
+			case "NoWrite":
+				rows[SinkJournal] = nil
+			case "WrongKey":
+				attempt["logical_effect_key"] = "other"
+			case "DifferentReceipt":
+				attempt["k6_proof"] = map[string]any{"receipt": Row{"application_id": deadSession}}
+			case "Empty":
+				rows[executions], rows[activityAttempts] = nil, nil
+			}
+			witness := func(relation string, _ Row) Witness {
+				return Witness{Path: RelationPath(relation), SHA256: Hash(nil)}
+			}
+			violate := func(predicate, code, relation string, row Row) {
+				ref := witness(relation, row)
+				r.record(Violation, predicate, code, ref.Path, &ref)
+			}
+			r.awardEffectClosure(rows, plan, e, witness, violate)
+			r.finish()
+			label := r.Labels[7]
+			switch {
+			case tc.code != "":
+				if len(r.Findings) != 1 || r.Findings[0].Code != tc.code || label.Outcome != "covered/fail" {
+					t.Fatalf("wanted %s, got %+v", tc.code, r)
+				}
+			case tc.name == "Empty":
+				if r.ExitCode() != Incomplete || label.Reason != "no_positive_population" {
+					t.Fatalf("zero population verdict: %+v", r)
+				}
+			default:
+				if r.ExitCode() != Incomplete || label.Outcome != "covered/pass" || label.PopulationCount != 1 {
+					t.Fatalf("effect population verdict: %+v", r)
+				}
+			}
+		})
+	}
+}
+
+func TestK6EffectReverseKey(t *testing.T) {
+	m := Manifest{Cell: "medium-12", Workload: "COOPERATING_EFFECT", Sink: &DatabaseIdentity{}}
+	rows := map[string][]Row{
+		intentsRelation: {{"workflow_id": "workflow", "intent_id": "intent", "target": "resource", "k6_logical_key": "known"}},
+		SinkJournal:     {{"resource_id": "resource", "revision": json.Number("1"), "intent_id": "intent", "logical_key": "foreign"}},
+	}
+	r := evaluate(m, Snapshot{}, rows, Plan{}, Arrivals{}, false, false, "", nil)
+	wantExternal(t, r, "SINK_ORPHAN_JOURNAL", RelationPath(SinkJournal))
+}

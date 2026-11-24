@@ -59,13 +59,16 @@ func IngressSnapshot(in io.Reader, stream *k6v1.Stream[k6v1.IngressRow], relay, 
 			}
 			copy.reply = r
 		case "worker_delivery", "fault_drop", "extra_reply":
-			if copy.result.Sequence != 0 || copy.reply.Sequence == 0 ||
+			if copy.dropped || copy.result.Sequence != 0 || copy.reply.Sequence == 0 ||
 				copy.reply.BodyHash != r.BodyHash || copy.reply.WireHash != r.WireHash ||
 				copy.reply.Status != r.Status || copy.reply.Length != r.Length || copy.reply.WireLength != r.WireLength {
 				return errors.New("K6_INGRESS_OUTCOME")
 			}
 			copy.result = r
 		case "worker_drop":
+			if copy.dropped || copy.result.Event == "worker_delivery" || copy.result.Event == "extra_reply" {
+				return errors.New("K6_INGRESS_DROP_ORDER")
+			}
 			copy.dropped = true
 		case "close":
 			if copy.open.Sequence == 0 {
@@ -114,7 +117,7 @@ func IngressSnapshot(in io.Reader, stream *k6v1.Stream[k6v1.IngressRow], relay, 
 func projectCopy(c relayCopy, ordinal, copy int64) k6v1.IngressRow {
 	o := c.open
 	row := k6v1.IngressRow{Ordinal: ordinal, Copy: copy, PeerHash: k6v1.Hash([]byte(o.RelayPeer)),
-		ConnectionHash: o.ConnectionHash, Acknowledged: true, Outcome: "close",
+		ConnectionHash: o.ConnectionHash, Acknowledged: true, Outcome: "close", Nondelivery: c.dropped,
 		Traffic: k6v1.Traffic{Method: o.Method, Operation: o.Operation, MessageHash: o.InvocationHash, RequestIDHash: o.RequestIDHash,
 			KeyHash: o.KeyHash, Intent: o.IntentID, ResourceHash: o.ResourceHash, GrantHash: o.GrantHash, Attempt: o.Attempt,
 			WorkerBinding: o.WorkerBinding, Request: k6v1.WireDigest{Length: int64(o.Length), SHA256: o.BodyHash},

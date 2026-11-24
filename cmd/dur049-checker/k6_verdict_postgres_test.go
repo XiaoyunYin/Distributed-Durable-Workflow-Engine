@@ -20,7 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func provisionFixtureReceipt(t *testing.T, engine, sink *pgx.Conn, m *k6v1.Manifest, workflow string) k6receipt.Proof {
+func provisionFixtureReceipt(t *testing.T, engine, sink *pgx.Conn, m *k6v1.Manifest, workflow, operation string) k6receipt.Proof {
 	t.Helper()
 	key := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{1}, ed25519.SeedSize))
 	m.ReceiptPublicKey = base64.StdEncoding.EncodeToString(key.Public().(ed25519.PublicKey))
@@ -32,7 +32,7 @@ func provisionFixtureReceipt(t *testing.T, engine, sink *pgx.Conn, m *k6v1.Manif
 		t.Fatal(err)
 	}
 	claim := k6receipt.Claim{NodeID: "pure.echo", Attempt: 1, Fence: 1}
-	proof := k6receipt.Proof{Operation: "apply", Receipt: receipt, Signature: k6receipt.Sign(key, claim, "apply", receipt)}
+	proof := k6receipt.Proof{Operation: operation, Receipt: receipt, Signature: k6receipt.Sign(key, claim, operation, receipt)}
 	raw, err := json.Marshal(proof)
 	if err != nil {
 		t.Fatal(err)
@@ -134,7 +134,7 @@ func writeVerdictArtifact(t *testing.T, path string, raw []byte) {
 func TestK6SinkVerdictParity(t *testing.T) {
 	engine, sink, cfg, plan, arrivals := pairedK6Fixture(t)
 	workflow := plan.Windows[0].Submissions[0].Key
-	proof := provisionFixtureReceipt(t, engine, sink, &cfg.Manifest, workflow)
+	proof := provisionFixtureReceipt(t, engine, sink, &cfg.Manifest, workflow, "apply")
 	verify := func(t *testing.T, config k6live.Config) k6v1.Result {
 		t.Helper()
 		config.EpisodeDir = filepath.Join(t.TempDir(), "public")

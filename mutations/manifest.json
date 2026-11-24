@@ -17162,8 +17162,8 @@
       "id": "k6g2b-ingress-gap",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/external_join.go",
-      "old": "if i.Copy == 1 && i.Ordinal > 1 && !inventory[copyKey{i.Ordinal - 1, 1}] {",
-      "new": "if i.Copy == 1 && i.Ordinal > 1 && !inventory[copyKey{i.Ordinal - 1, 1}] && false {",
+      "old": "if !seenOrdinal && i.Ordinal != int64(len(byOrdinal)+1) {",
+      "new": "if !seenOrdinal && i.Ordinal != int64(len(byOrdinal)+1) && false {",
       "command": [
         "go",
         "test",
@@ -17354,8 +17354,8 @@
       "id": "k6g2c-sink-request-binding-domain",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/external_join.go",
-      "old": "hashesForRequest[Hash([]byte(t.Operation+\"\\x00\"+t.Request.SHA256))] = true",
-      "new": "hashesForRequest[t.Request.SHA256] = true",
+      "old": "binding := Hash([]byte(t.Operation + \"\\x00\" + t.Request.SHA256))",
+      "new": "binding := t.Request.SHA256",
       "command": [
         "go",
         "test",
@@ -19156,8 +19156,8 @@
       "id": "k6g3a2b-pending-effects",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/evaluate.go",
-      "old": "return \"predicate_pending:G3a3\"",
-      "new": "return \"predicate_pending:G3a2\"",
+      "old": "return \"required_proof_missing:effect_closure\"",
+      "new": "return \"predicate_pending:G3a3\"",
       "command": [
         "go",
         "test",
@@ -20634,6 +20634,481 @@
         "-count=1"
       ],
       "expected": "unknown history reason was not typed missing proof",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-reverse-key",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "(intent[\"k6_logical_key\"] == nil || row[\"logical_key\"] == nil || row[\"logical_key\"] == intent[\"k6_logical_key\"])",
+      "new": "(intent[\"k6_logical_key\"] == nil || row[\"logical_key\"] == nil || true)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectReverseKey$",
+        "-count=1"
+      ],
+      "expected": "expected SINK_ORPHAN_JOURNAL",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-winner",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "&& !winningNodes[[2]any{wf[\"workflow_id\"], node}] {",
+      "new": "&& !winningNodes[[2]any{wf[\"workflow_id\"], node}] && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectPopulation$/^NoWinner$",
+        "-count=1"
+      ],
+      "expected": "wanted EFFECT_WORKFLOW_WITHOUT_WINNER",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-journal",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "key.key != i[\"k6_logical_key\"] || journal[key] == 0 {",
+      "new": "key.key != i[\"k6_logical_key\"] || journal[key] == 0 && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectPopulation$/^NoWrite$",
+        "-count=1"
+      ],
+      "expected": "wanted EFFECT_SUCCESS_WITHOUT_MUTATION_RECEIPT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-receipt",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "if string(signed) != string(committed) {",
+      "new": "if string(signed) != string(committed) && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectPopulation$/^DifferentReceipt$",
+        "-count=1"
+      ],
+      "expected": "wanted EFFECT_RECEIPT_MISMATCH",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-population",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "if label.PopulationCount == 0 {",
+      "new": "if label.PopulationCount == 0 && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectPopulation$/^Empty$",
+        "-count=1"
+      ],
+      "expected": "zero population verdict",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-award",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/sink.go",
+      "old": "label.Outcome, label.Reason = \"covered/pass\", \"predicate_satisfied\"",
+      "new": "label.Outcome, label.Reason = \"NOT COVERED\", \"effect_award_omitted\"",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectPopulation$/^Clean$",
+        "-count=1"
+      ],
+      "expected": "effect population verdict",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-copy-identity",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "seenOrdinal && !trafficEqual(prior, t) ||",
+      "new": "seenOrdinal && !trafficEqual(prior, t) && false ||",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectCopyIdentity$",
+        "-count=1"
+      ],
+      "expected": "expected INGRESS_COPY_ORDER",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-denial-key",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "flag(\"DELIVERY_WITHOUT_ENGINE_KEY\")",
+      "new": "_ = flag // omit the reverse join",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectCallFacts$/^UnknownDenial$",
+        "-count=1"
+      ],
+      "expected": "expected DELIVERY_WITHOUT_ENGINE_KEY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-duplicate-application",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if receiptMatches[c[\"application_id\"]] > 1 {",
+      "new": "if receiptMatches[c[\"application_id\"]] > 1 && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectCallFacts$/^DuplicateApplication$",
+        "-count=1"
+      ],
+      "expected": "expected DELIVERY_DUPLICATE_APPLICATION",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-call-operation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if t.Operation != expectedOperation || c[\"response_hash\"] == nil {",
+      "new": "if t.Operation != expectedOperation && false || c[\"response_hash\"] == nil {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectCallFacts$/^WrongCallOutcome$",
+        "-count=1"
+      ],
+      "expected": "expected DELIVERY_RECEIPT_OUTCOME",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-receipt-identity",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "flag(\"DELIVERY_RECEIPT_IDENTITY\")",
+      "new": "_ = flag // omit the receipt join",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectCallFacts$/^UnrelatedReceipt$",
+        "-count=1"
+      ],
+      "expected": "expected DELIVERY_RECEIPT_IDENTITY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-allocation-operation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if t.Operation != \"allocate\" {",
+      "new": "if t.Operation != \"allocate\" && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectCallFacts$/^WrongAllocationOutcome$",
+        "-count=1"
+      ],
+      "expected": "expected DELIVERY_ALLOCATION_OUTCOME",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-forward-binding",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "bindings[t.RequestIDHash] != binding {",
+      "new": "bindings[t.RequestIDHash] != binding && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectCallFacts$/^MissingBinding$",
+        "-count=1"
+      ],
+      "expected": "expected DELIVERY_REQUEST_BINDING",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-fence-order",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if allocation[\"resource_id\"] != resource || next != fence[resource]+1 {",
+      "new": "if allocation[\"resource_id\"] != resource || next != fence[resource]+1 && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectCallFacts$/^FenceGap$",
+        "-count=1"
+      ],
+      "expected": "expected SINK_FENCE_SEQUENCE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-issued-fence",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "flag(\"RevisionChain\", \"SINK_APPLIED_STALE_FENCE\")",
+      "new": "_ = flag // allow unissued fences",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectCallFacts$/^UnissuedFence$",
+        "-count=1"
+      ],
+      "expected": "expected SINK_APPLIED_STALE_FENCE",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-fence-endpoint",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if number(row[\"latest_fence\"]) != fence[row[\"resource_id\"]] {",
+      "new": "if number(row[\"latest_fence\"]) != fence[row[\"resource_id\"]] && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectCallFacts$/^CloseoutFence$",
+        "-count=1"
+      ],
+      "expected": "expected SINK_FENCE_ENDPOINT",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-replacement-miss",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if t.Attempt > 1 && !missing[attempt] {",
+      "new": "if t.Attempt > 1 && !missing[attempt] && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectReplacementMiss$/^OtherGrant$",
+        "-count=1"
+      ],
+      "expected": "expected SINK_REPLACEMENT_WITHOUT_MISS",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-commit-reply",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "i.Response == nil && i.Nondelivery && i.ApplicationID == \"\")",
+      "new": "i.Response == nil && i.Nondelivery && i.ApplicationID == \"\" && false)",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectLostResponse$/^ProvenNondelivery$",
+        "-count=1"
+      ],
+      "expected": "closed lost response",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-nondelivery",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "if !i.Nondelivery {",
+      "new": "if !i.Nondelivery && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectLostResponse$/^ClientTimeoutOnly$",
+        "-count=1"
+      ],
+      "expected": "expected COMMITTED_NONDELIVERY_UNPROVEN",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-lost-lookup",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "ok && found[key][c[\"application_id\"]] <= order+1 {",
+      "new": "ok && found[key][c[\"application_id\"]] <= order+1 && false {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectLostResponse$/^NoLookup$",
+        "-count=1"
+      ],
+      "expected": "expected LOST_APPLICATION_WITHOUT_LOOKUP",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-unresolved-delivery",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "flagExternal(r, 7, \"DeliveryClosure\", \"UNRESOLVED_APPLY_DELIVERY\", IngressPath, row)",
+      "new": "_ = row // accept unresolved delivery",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectUncommittedDelivery$/^NoLookup$",
+        "-count=1"
+      ],
+      "expected": "expected UNRESOLVED_APPLY_DELIVERY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-proof-operation",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/external_join.go",
+      "old": "key := resolvedAttempt{fromDBAttempt(row), hashField(row, \"logical_effect_key\"), op}",
+      "new": "_ = op\n\t\t\t\tkey := resolvedAttempt{fromDBAttempt(row), hashField(row, \"logical_effect_key\"), \"\"}",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectSuccessUsesProofOperation$",
+        "-count=1"
+      ],
+      "expected": "expected EFFECT_SUCCESS_WITHOUT_DELIVERY",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-project-drop",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6collect/ingress.go",
+      "old": "Nondelivery: c.dropped",
+      "new": "Nondelivery: false",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6collect",
+        "-run",
+        "^TestK6IngressCollector$/^DurableNondelivery$",
+        "-count=1"
+      ],
+      "expected": "durable nondelivery missing",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-drop-after-delivery",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6collect/ingress.go",
+      "old": "if copy.dropped || copy.result.Event == \"worker_delivery\" || copy.result.Event == \"extra_reply\" {",
+      "new": "if copy.dropped || copy.result.Event == \"worker_delivery\" && false || copy.result.Event == \"extra_reply\" {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6collect",
+        "-run",
+        "^TestK6IngressCollector$/^DropAfterDelivery$",
+        "-count=1"
+      ],
+      "expected": "drop after delivery",
+      "requires_database": false
+    },
+    {
+      "id": "k6g3a3-delivery-after-drop",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6collect/ingress.go",
+      "old": "if copy.dropped || copy.result.Sequence != 0 || copy.reply.Sequence == 0 ||",
+      "new": "if copy.dropped && false || copy.result.Sequence != 0 || copy.reply.Sequence == 0 ||",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6collect",
+        "-run",
+        "^TestK6IngressCollector$/^DeliveryAfterDrop$",
+        "-count=1"
+      ],
+      "expected": "delivery after drop",
       "requires_database": false
     },
     {

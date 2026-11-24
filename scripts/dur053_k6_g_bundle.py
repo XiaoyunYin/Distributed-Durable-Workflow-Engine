@@ -341,9 +341,10 @@ def replay(
     if cell == "hook-3":
         registered.add("I7")
         completed.add("I7")
-    covered = [] if idle else [identity for identity in ids if identity in completed]
     if source == "witness/effect-ingress.jsonl":
         registered.update(("I8", "I10"))
+        completed.add("I8")
+    covered = [] if idle else [identity for identity in ids if identity in completed]
     require(
         [label["id"] for label in labels] == ids
         and {label["id"] for label in labels if label["registered"]} == registered
@@ -358,7 +359,7 @@ def replay(
             reason = "no_positive_population" if idle else "predicate_satisfied"
         else:
             outcome = "NOT COVERED"
-            reason = "predicate_pending:G3a3" if label["registered"] else "outside_registry_ceiling"
+            reason = "predicate_pending:I10" if label["registered"] else "outside_registry_ceiling"
         require((label["outcome"], label["reason"]) == (outcome, reason), "G_CHECKER_LABELS")
 
     negative = directory / "missing-source"
