@@ -1,9 +1,6 @@
 package k6v1
 
-import (
-	"fmt"
-	"strings"
-)
+import "strings"
 
 const (
 	dispatchPredicate = "DispatchDisposition"
@@ -87,7 +84,9 @@ func (e engineOrder) checkDispatch() {
 			continue
 		}
 		label.PopulationCount++
-		e.require(dispatchPredicate, "outbox_creation_transactions", history, h)
+		if !e.captureReady {
+			e.require(dispatchPredicate, "outbox_creation_transactions", history, h)
+		}
 		if row == nil && haveOutbox {
 			fail("DISPATCH_OUTBOX_MISSING", history, h)
 		}
@@ -108,6 +107,10 @@ func (e engineOrder) checkDispatch() {
 		acknowledged[id] = acknowledged[id] || p["broker_acknowledged"] == true
 	}
 	e.checkDispatchDispositions(events, acknowledged)
+	if len(e.rows[WriteCapture]) > 0 {
+		e.checkCapturedPublications()
+		e.checkCapturedDispositions(events)
+	}
 }
 
 func dispatchPayloadMatches(event, h Row) bool {
@@ -195,7 +198,7 @@ func (e engineOrder) checkDispatchDispositions(events map[any]Row, acknowledged 
 	poison := map[string]bool{}
 	for _, row := range e.rows[quarantine] {
 		id, pos := row["event_id"], delivery(row)
-		ref := fmt.Sprintf("transport/%s/%s/%d/%d", pos.consumer, pos.topic, number(pos.partition), number(pos.offset))
+		ref := transportReference(pos)
 		poison[ref] = true
 		_, haveReconciliation := e.rows[reconciliation]
 		if positions[pos] || haveReconciliation && !poisonItems[ref] {
@@ -214,9 +217,13 @@ func (e engineOrder) checkDispatchDispositions(events map[any]Row, acknowledged 
 	_, havePublications := e.rows[publications]
 	for _, row := range e.rows[outbox] {
 		id := row["event_id"]
-		e.require(dispatchPredicate, "publication_attempt_identities", outbox, row)
+		if !e.captureReady {
+			e.require(dispatchPredicate, "publication_attempt_identities", outbox, row)
+		}
 		e.require(dispatchPredicate, "broker_event_copies", outbox, row)
-		e.require(dispatchPredicate, "dispatch_disposition_transactions", outbox, row)
+		if !e.captureReady {
+			e.require(dispatchPredicate, "dispatch_disposition_transactions", outbox, row)
+		}
 		switch row["publish_state"] {
 		case "PUBLISHED":
 			group := dispatchConsumer(row["topic"])

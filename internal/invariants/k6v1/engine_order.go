@@ -25,16 +25,20 @@ func fromDBIteration(row Row) iterationKey {
 }
 
 type engineOrder struct {
-	result       *Result
-	rows         map[string][]Row
-	workflows    map[string]Row
-	witness      func(string, Row) Witness
-	violate      rowViolation
-	byTransition map[any]Row
-	transitions  map[any]Row
-	attempts     map[attemptKey]Row
-	nodes        map[iterationKey]Row
-	missing      map[[2]string]bool
+	result        *Result
+	rows          map[string][]Row
+	workflows     map[string]Row
+	witness       func(string, Row) Witness
+	violate       rowViolation
+	byTransition  map[any]Row
+	transitions   map[any]Row
+	attempts      map[attemptKey]Row
+	nodes         map[iterationKey]Row
+	missing       map[[2]string]bool
+	capture       bool
+	captureReady  bool
+	resultCommits map[any]capturedResult
+	captureWrites map[captureTransaction][]Row
 }
 
 func newEngineOrder(r *Result, rows map[string][]Row, workflows map[string]Row, witness func(string, Row) Witness, violate rowViolation) engineOrder {
@@ -42,6 +46,8 @@ func newEngineOrder(r *Result, rows map[string][]Row, workflows map[string]Row, 
 		result: r, rows: rows, workflows: workflows, witness: witness, violate: violate,
 		byTransition: map[any]Row{}, transitions: map[any]Row{}, attempts: map[attemptKey]Row{},
 		nodes: map[iterationKey]Row{}, missing: map[[2]string]bool{},
+		resultCommits: map[any]capturedResult{},
+		captureWrites: map[captureTransaction][]Row{},
 	}
 	for _, row := range rows[history] {
 		e.transitions[row["transition_id"]] = row
@@ -162,7 +168,7 @@ func (e engineOrder) checkAtomicHistory() {
 				e.violate(predicate, "HISTORY_ATTEMPT_MISSING", history, h)
 			}
 		}
-		if h["node_id"] != nil || h["reason"] == canceled {
+		if !e.capture && (h["node_id"] != nil || h["reason"] == canceled) || e.capture && (!e.captureReady || !committed(a)) {
 			e.require(predicate, "node_attempt_write_transactions", history, h)
 		}
 	}
@@ -239,8 +245,21 @@ func (e engineOrder) checkOwnerAtCommit() {
 				if !committed(e.byTransition[h["transition_id"]]) {
 					e.require(predicate, RelationPath(commitAudit), history, h)
 				}
-				e.require(predicate, "owner_write_transactions", history, h)
+				if !e.captureReady {
+					e.require(predicate, "owner_write_transactions", history, h)
+				}
 			}
+		}
+		label := &e.result.Labels[2]
+		if e.captureReady {
+			label.PopulationUnit, label.PopulationCount = "owner_write", len(e.rows[OwnerWrites])
+			label.Outcome, label.Reason = "covered/pass", "predicate_satisfied"
+		} else if e.capture && len(e.rows[OwnerWrites]) > 0 {
+			e.require(predicate, "owner_write_transactions", OwnerWrites, e.rows[OwnerWrites][0])
+		} else if e.capture && len(e.workflows) > 0 {
+			e.require(predicate, RelationPath(OwnerWrites), "", nil)
+		} else if e.capture {
+			label.Reason = "no_positive_population"
 		}
 	}
 }
@@ -261,6 +280,10 @@ func (e engineOrder) checkCurrentClaimWinner() {
 	cancellations := map[any]bool{}
 	claims := map[attemptKey]Row{}
 	results := map[attemptKey]bool{}
+	receipts := map[any]Row{}
+	for _, row := range e.rows[SinkReceipts] {
+		receipts[row["application_id"]] = row
+	}
 	for _, a := range e.rows[commitAudit] {
 		if !committed(a) {
 			continue
@@ -307,9 +330,14 @@ func (e engineOrder) checkCurrentClaimWinner() {
 			}
 			// The history names the durable attempt but does not retain the
 			// token submitted by the result request in that transaction.
+			commit := e.resultCommits[h["transition_id"]]
 			if db := e.attempts[dbKey]; db != nil {
 				results[dbKey] = true
-				switch db["state"] {
+				outcome := db["state"]
+				if commit.request != nil {
+					outcome = captureImage(commit.request, "after_image")["attempt_state"]
+				}
+				switch outcome {
 				case "SUCCEEDED":
 					state.successes++
 					state.winner = db
@@ -321,7 +349,15 @@ func (e engineOrder) checkCurrentClaimWinner() {
 					e.violate(predicate, "RESULT_WITHOUT_OUTCOME", history, h)
 				}
 			}
-			e.require(predicate, "result_commit_identity", history, h)
+			if !e.captureReady || commit.request == nil {
+				e.require(predicate, "result_commit_identity", history, h)
+			} else if commit.attempt["worker_id"] != h["actor_id"] ||
+				commit.attempt["claim_token_hash"] != claims[dbKey]["token_hash"] ||
+				commit.attempt["worker_request_id"] != claims[dbKey]["worker_request_id"] {
+				e.violate(predicate, "CAPTURE_RESULT_CLAIM", history, h)
+			} else {
+				e.checkWinnerReceipt(h, e.attempts[dbKey], commit, receipts)
+			}
 		case resultConsumed:
 			dbKey := fromDBAttempt(h)
 			if db := e.attempts[dbKey]; db != nil && results[dbKey] &&
@@ -375,6 +411,27 @@ func (e engineOrder) checkCurrentClaimWinner() {
 	}
 	if label.PopulationCount == 0 {
 		label.Reason = "no_positive_population"
+	} else if e.captureReady {
+		label.Outcome, label.Reason = "covered/pass", "predicate_satisfied"
+	}
+}
+
+func (e engineOrder) checkWinnerReceipt(h, attempt Row, commit capturedResult, receipts map[any]Row) {
+	const predicate = "CurrentClaimWinner"
+	if attempt["effect_class"] != "COOPERATING_EFFECT" || attempt["state"] != "SUCCEEDED" {
+		return
+	}
+	id := commit.attempt["receipt_id"]
+	proof, _ := attempt["k6_proof"].(map[string]any)
+	signed, _ := proof["receipt"].(map[string]any)
+	ref := e.witness(activityAttempts, attempt)
+	if id == nil || signed["application_id"] != id || receipts[id] == nil ||
+		slices.ContainsFunc(e.result.Findings, func(f Finding) bool {
+			return f.Predicate == "ReceiptSignature" && f.Witness != nil && f.Witness.Path == ref.Path && f.Witness.SHA256 == ref.SHA256
+		}) {
+		e.require(predicate, "result_receipt_binding", history, h)
+	} else if receipts[id]["workflow_id"] != h["workflow_id"] || receipts[id]["logical_key"] != attempt["logical_effect_key"] {
+		e.violate(predicate, "RESULT_RECEIPT_BINDING", history, h)
 	}
 }
 

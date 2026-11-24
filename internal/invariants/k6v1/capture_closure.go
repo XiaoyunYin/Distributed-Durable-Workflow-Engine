@@ -35,6 +35,11 @@ func captureImage(row Row, name string) Row {
 
 type captureTransaction struct{ xid, workflow any }
 
+type capturedResult struct {
+	request Row
+	attempt Row // Before-image, including the receipt ID from k6_proof.
+}
+
 type captureClosure struct {
 	engineOrder
 	last      map[captureKey]Row
@@ -42,13 +47,18 @@ type captureClosure struct {
 	histories map[captureTransaction][]Row
 }
 
-func (e engineOrder) checkCaptureClosure() {
-	c := captureClosure{e, map[captureKey]Row{}, map[captureTransaction][]Row{}, map[captureTransaction][]Row{}}
+func (e engineOrder) checkCaptureClosure() bool {
+	c := captureClosure{e, map[captureKey]Row{}, e.captureWrites, map[captureTransaction][]Row{}}
 	for _, row := range e.rows[CaptureQueue] {
 		e.violate(capturePredicate, "CAPTURE_QUEUE_NOT_DRAINED", CaptureQueue, row)
 	}
-	if _, present := e.rows[WriteCapture]; !present {
-		return
+	for _, relation := range []string{WriteCapture, OwnerWrites} {
+		if len(e.rows[relation]) == 0 && len(e.workflows) > 0 {
+			e.require(capturePredicate, RelationPath(relation), "", nil)
+		}
+	}
+	if len(e.rows[WriteCapture]) == 0 {
+		return false
 	}
 	for _, h := range e.rows[history] {
 		if a := e.byTransition[h["transition_id"]]; committed(a) {
@@ -64,9 +74,21 @@ func (e engineOrder) checkCaptureClosure() {
 		}
 	}
 	c.checkEndpoints()
-	c.checkOrder()
-	c.checkOwnerInventory()
+	transactions := c.checkOrder()
+	if len(e.rows[OwnerWrites]) > 0 {
+		c.checkOwnerInventory()
+	}
 	c.checkTransactionLinks()
+	c.checkHistoryTransactions(transactions)
+	c.checkCapturedClaims()
+	for _, relation := range []string{CaptureQueue, history, commitAudit, nodeRows, activityAttempts, leases, acquisitions} {
+		if _, present := e.rows[relation]; !present {
+			return false
+		}
+	}
+	return len(e.rows[OwnerWrites]) > 0 && !slices.ContainsFunc(e.result.Findings, func(f Finding) bool {
+		return f.Predicate == capturePredicate
+	})
 }
 
 func (c captureClosure) checkImageChain(row Row) {
@@ -145,7 +167,7 @@ func captureMatchesEndpoint(subject string, image, endpoint Row) bool {
 	return true
 }
 
-func (c captureClosure) checkOrder() {
+func (c captureClosure) checkOrder() []any {
 	type entry struct {
 		row      Row
 		relation string
@@ -160,6 +182,7 @@ func (c captureClosure) checkOrder() {
 		return cmp.Compare(number(a.row["event_order"]), number(b.row["event_order"]))
 	})
 	seen := map[any]bool{}
+	var transactions []any
 	var xid any
 	var order int64
 	for _, e := range entries {
@@ -173,9 +196,13 @@ func (c captureClosure) checkOrder() {
 			if xid == "" || seen[xid] {
 				c.violate(capturePredicate, "CAPTURE_TRANSACTION_ORDER", e.relation, e.row)
 			}
+			if !seen[xid] {
+				transactions = append(transactions, xid)
+			}
 			seen[xid] = true
 		}
 	}
+	return transactions
 }
 
 func (c captureClosure) checkOwnerInventory() {
@@ -319,6 +346,25 @@ func (c captureClosure) checkTransactionLinks() {
 	}
 }
 
+func (c captureClosure) checkCapturedClaims() {
+	for _, a := range c.rows[commitAudit] {
+		claim, ok := a["claim_identity"].(map[string]any)
+		if a["kind"] != "claim" || !committed(a) || !ok {
+			continue
+		}
+		tx := captureTransaction{a["transaction_id"], claim["workflow_id"]}
+		if !slices.ContainsFunc(c.writes[tx], func(w Row) bool {
+			before, after := captureImage(w, "before_image"), captureImage(w, "after_image")
+			return w["subject"] == activityAttempts && captureMatchesAttempt(w, claim) &&
+				before["state"] == "DISPATCHABLE" && after["state"] == "CLAIMED" &&
+				after["claim_token_hash"] == claim["token_hash"] && after["worker_id"] == claim["worker_id"] &&
+				after["worker_request_id"] == claim["worker_request_id"]
+		}) {
+			c.violate("CurrentClaimWinner", "CAPTURE_CLAIM_TRANSACTION", commitAudit, a)
+		}
+	}
+}
+
 func (c captureClosure) checkAttemptTransaction(row Row, histories []Row) {
 	before, after := captureImage(row, "before_image"), captureImage(row, "after_image")
 	// Heartbeats, allocation and proof staging can leave lifecycle state
@@ -343,7 +389,17 @@ func (c captureClosure) checkCapturedResult(row Row, writes, histories []Row) {
 		return
 	}
 	result := captureImage(row, "after_image")
-	if !slices.ContainsFunc(histories, func(h Row) bool { return h["reason"] == resultRecorded && captureMatchesAttempt(row, h) }) {
+	var transition any
+	for _, h := range histories {
+		if h["reason"] == resultRecorded && captureMatchesAttempt(row, h) {
+			if transition != nil {
+				c.violate(predicate, "CAPTURE_RESULT_TRANSACTION", WriteCapture, row)
+				return
+			}
+			transition = h["transition_id"]
+		}
+	}
+	if transition == nil || c.resultCommits[transition].request != nil {
 		c.violate(predicate, "CAPTURE_RESULT_TRANSACTION", WriteCapture, row)
 		return
 	}
@@ -359,7 +415,9 @@ func (c captureClosure) checkCapturedResult(row Row, writes, histories []Row) {
 		if before["claim_token_hash"] != result["token_hash"] || before["worker_request_id"] != result["worker_request_id"] ||
 			before["receipt_id"] != result["receipt_id"] {
 			c.violate(predicate, "CAPTURE_RESULT_IDENTITY", WriteCapture, row)
+			return
 		}
+		c.resultCommits[transition] = capturedResult{row, before}
 		return
 	}
 	c.violate(predicate, "CAPTURE_RESULT_ATTEMPT_WRITE", WriteCapture, row)

@@ -83,9 +83,11 @@ Result artifacts are `dur046-mutation-results-<platform>-<shard>-<run_id>-<attem
 and contain `results-powershell.json` or `results-bash.json`. Diagnostics
 use `mutation-<platform>-diagnostics-<shard>-<run_id>-<attempt>`.
 The service non-race suite and deployed smoke stay in
-`PostgreSQL, Kafka, and deployed smoke`. `PostgreSQL race and K6 fixtures`
-runs the serial race suite, the sink contract race check, and the K6 G1/G2
-fixtures on a separate stack. Both jobs retain their 25-minute limit.
+`PostgreSQL, Kafka, and deployed smoke`. `PostgreSQL service-backed race`
+runs the serial race suite and the sink contract race check.
+`PostgreSQL K6 fixtures and parity` runs the tagged suite, checker export and
+parity fixtures, and Phase C startup sampling. Each job has an isolated stack,
+a 16m00s timing target and the existing 25-minute timeout.
 
 The standalone shell entry points default to the complete manifest.
 New reports retain the v1 schema

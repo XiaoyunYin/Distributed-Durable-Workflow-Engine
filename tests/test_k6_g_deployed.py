@@ -198,7 +198,7 @@ def test_idle_sources_must_be_present_and_sealed(tmp_path: Path) -> None:
         (1, "FAIL", False, "FAIL", "G_PRODUCER_PASS_RETAINED"),
     ],
 )
-@pytest.mark.parametrize("idle", [False, True])
+@pytest.mark.parametrize(("cell", "idle"), [("hook-0", False), ("hook-0", True), ("hook-3", False)])
 def test_negative_replay_retains_pass_summary(
     tmp_path: Path,
     exit_code: int,
@@ -206,6 +206,7 @@ def test_negative_replay_retains_pass_summary(
     extra_finding: bool,
     producer_status: str,
     error: str | None,
+    cell: str,
     idle: bool,
 ) -> None:
     bundle = tmp_path / "bundle"
@@ -214,55 +215,62 @@ def test_negative_replay_retains_pass_summary(
     path.parent.mkdir(parents=True)
     path.write_bytes(b"source")
     (bundle / "index.json").write_text(json.dumps({"files": [{"path": source}]}))
+    (bundle / "manifest.json").write_bytes(canonical({"cell": cell}))
     producer = json.dumps({"status": producer_status}).encode()
     (tmp_path / "producer-result.json").write_bytes(producer)
     ids = [f"I{i}" for i in range(1, 14)]
-    covered = [] if idle else ["I1", "I11"]
-    proof = {
-        "I2": ("AtomicHistory", "required_proof_missing:node_attempt_write_transactions"),
-        "I4": ("CurrentClaimWinner", "required_proof_missing:result_commit_identity"),
-    }
-    history = "engine/engine.transition_history.jsonl"
+    covered = [] if idle else ["I1", "I2", "I4", "I11"]
     outbox = "engine/engine.outbox.jsonl"
-    (bundle / history).parent.mkdir()
-    history_row = canonical({"workflow_id": "workflow", "revision": 1, "transition_id": "id"})
+    (bundle / outbox).parent.mkdir()
     outbox_row = canonical({"event_id": "event"})
-    (bundle / history).write_bytes(history_row)
     (bundle / outbox).write_bytes(outbox_row)
-    dispatch_gaps = (
-        "outbox_creation_transactions",
-        "publication_attempt_identities",
-        "broker_event_copies",
-        "dispatch_disposition_transactions",
-    )
-    baseline_findings = (
-        []
-        if idle
-        else [
-            {
-                "predicate": predicate,
-                "code": code,
-                "kind": "missing",
-                "source": history,
-                "witness": {"path": history, "row_key": ["workflow", 1, "id"], "sha256": "a" * 64},
-            }
-            for predicate, code in proof.values()
-        ]
-    )
+    dispatch_gap = "required_proof_missing:broker_event_copies"
+    baseline_findings = []
     if not idle:
-        for i, gap in enumerate(dispatch_gaps):
-            relation_path, row_key, raw = (
-                (outbox, ["event"], outbox_row)
-                if i
-                else (history, ["workflow", 1, "id"], history_row)
-            )
+        baseline_findings.append(
+            {
+                "predicate": "DispatchDisposition",
+                "code": dispatch_gap,
+                "kind": "missing",
+                "source": outbox,
+                "witness": {"path": outbox, "row_key": ["event"], "sha256": sha(outbox_row)},
+            }
+        )
+    registered = {"I1", "I2", "I4", "I6", "I11"}
+    if cell == "hook-3":
+        registered.add("I7")
+        broker = "broker/positions.jsonl"
+        (bundle / broker).parent.mkdir()
+        broker_row = canonical(
+            {
+                "position": {"sequence": 2},
+                "data": {
+                    "group": "runtime-workers-v1",
+                    "partitions": [
+                        {
+                            "topic": "durable-agent.tasks.v1",
+                            "topic_id": "tasks",
+                            "partition": 3,
+                            "low": 4,
+                            "committed": None,
+                        }
+                    ],
+                },
+            }
+        )
+        (bundle / broker).write_bytes(canonical({}) + broker_row)
+        for gap in ("required_proof_missing:broker_reset_hold_restart_offsets", dispatch_gap):
             baseline_findings.append(
                 {
-                    "predicate": "DispatchDisposition",
-                    "code": "required_proof_missing:" + gap,
+                    "predicate": "LowerOffsetsDisposed",
+                    "code": gap,
                     "kind": "missing",
-                    "source": relation_path,
-                    "witness": {"path": relation_path, "row_key": row_key, "sha256": sha(raw)},
+                    "source": broker,
+                    "witness": {
+                        "path": broker,
+                        "row_key": [2, "tasks", 3, 4],
+                        "sha256": sha(broker_row),
+                    },
                 }
             )
     baseline = json.dumps(
@@ -274,17 +282,15 @@ def test_negative_replay_retains_pass_summary(
             "labels": [
                 {
                     "id": identity,
-                    "registered": identity in {"I1", "I2", "I4", "I6", "I11"},
+                    "registered": identity in registered,
                     "outcome": "covered/pass" if identity in covered else "NOT COVERED",
-                    "reason": {
-                        "I1": "no_positive_population" if idle else "predicate_satisfied",
-                        "I11": "no_positive_population" if idle else "predicate_satisfied",
-                        "I2": "no_positive_population" if idle else proof["I2"][1],
-                        "I4": "no_positive_population" if idle else proof["I4"][1],
-                        "I6": "no_positive_population"
-                        if idle
-                        else f"required_proof_missing:{dispatch_gaps[-1]}",
-                    }.get(identity, "outside_registry_ceiling"),
+                    "reason": "predicate_satisfied"
+                    if identity in covered
+                    else (
+                        ("no_positive_population" if idle else dispatch_gap)
+                        if identity in registered
+                        else "outside_registry_ceiling"
+                    ),
                 }
                 for identity in ids
             ],

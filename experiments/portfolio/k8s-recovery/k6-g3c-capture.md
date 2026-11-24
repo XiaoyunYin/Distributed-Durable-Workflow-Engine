@@ -1,6 +1,6 @@
 # DUR-053 K6a Phase G3c engine capture
 
-G3c1 installs and exports the engine journal and checks its closure. G3c2 owns the evaluator awards and the exact deployed remainder. Round 451 places independent broker and shutdown collection in G3d.
+G3c1 installs and exports the engine journal and checks its closure. [G3c2](k6-g3c2-awards.md) awards I2, I3 and I4 from that evidence and checks the engine side of I6, I7 and N21. Round 451 places independent broker and shutdown collection in G3d.
 
 ## Installation and commit order
 
@@ -12,7 +12,7 @@ The Phase G deployment builds the runtime with `dur053_k6`, applies the optional
 | `engine.k6_owner_write_transactions` | Partition, owner and epoch from the transaction-local lease fence. The journal order and transaction bind the inventory item to its observed write. Lease acquire, renew, takeover and release carry the lease row’s authority. |
 | `engine.k6_capture_queue` | Pre-commit capture rows. A nonempty committed queue is a closure violation. |
 
-Row triggers pick the columns in the public projection. Claim and grant tokens become SHA-256 digests before the queue write. Result records hash the token presented to the result transaction and resolve the worker request ID through the authenticated attempt. The cooperating receipt ID is the verified receipt’s `application_id`. Ordinary worker result acknowledgements have no receipt identifier.
+Row triggers pick the columns in the public projection. Claim and grant tokens become SHA-256 digests before the queue write. Result records hash the token presented to the result transaction and resolve the worker request ID through the authenticated attempt. The cooperating receipt ID comes from the attempt’s verified `k6_proof.receipt.application_id`. Ordinary worker result acknowledgements have no receipt identifier.
 
 The initially deferred queue trigger takes `pg_advisory_xact_lock(530004, 1)` before allocating from `engine.k4_commit_order`. It writes the journal and inventory and deletes the pending row within the business transaction. Neither finalizer locks a business row. Rollback discards the business and evidence rows together, and event order can contain gaps after rollback. History, node, attempt and outbox rows join on the committed transaction and workflow. Outbox rows additionally join on the revision.
 
@@ -61,7 +61,7 @@ Hosted PostgreSQL engineering sample from run 45205393249. Values are upper medi
 
 ## Replay remainder
 
-G3c1 retains the deployed G3a2b replay contract while recording the new evidence. On exercised PURE and effect bundles, G3c2 owns the engine-side missing proofs for `node_attempt_write_transactions`, `result_commit_identity`, `outbox_creation_transactions`, `publication_attempt_identities` and `dispatch_disposition_transactions`. It also owns using captured `owner_write_transactions` in the registered cells, engine-side `offset_disposition_transactions` for hook-3, and N21’s result, uncertainty/resolution and shutdown result bindings.
+G3c1 retained the deployed G3a2b replay contract while recording the new evidence. [G3c2 pins the remaining findings](k6-g3c2-awards.md#deployed-replay) after checking the engine-side sources.
 
 | G3d evidence | Collector obligation |
 | --- | --- |

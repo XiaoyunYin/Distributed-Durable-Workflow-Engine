@@ -57,9 +57,15 @@ func (e engineOrder) checkLowerOffsets(broker *Stream[BrokerRow]) {
 
 func (e engineOrder) requireOffsetProof(first *Witness) {
 	if e.result.Labels[6].Registered {
+		if e.capture && len(e.workflows) == 0 && len(e.rows[offsets]) == 0 && e.result.Labels[6].PopulationCount == 0 {
+			e.result.Labels[6].Reason = "no_positive_population"
+			return
+		}
 		e.requireWitness(lowerOffsetsPredicate, "broker_reset_hold_restart_offsets", first)
 		e.requireWitness(lowerOffsetsPredicate, "broker_event_copies", first)
-		e.requireWitness(lowerOffsetsPredicate, "offset_disposition_transactions", first)
+		if !e.captureReady {
+			e.requireWitness(lowerOffsetsPredicate, "offset_disposition_transactions", first)
+		}
 	}
 }
 

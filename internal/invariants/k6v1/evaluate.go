@@ -128,6 +128,8 @@ func newResult(m Manifest, indexHash string) Result {
 
 func pendingSlice(label int) string {
 	switch label {
+	case 6, 7:
+		return "G3d"
 	case 8, 10:
 		return "G3a3"
 	case 12:
@@ -414,10 +416,11 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 		}
 	}
 	ordering := newEngineOrder(&r, rows, byID, witness, violate)
-	ordering.checkAtomicHistory()
-	if m.CaptureEnabled() {
-		ordering.checkCaptureClosure()
+	ordering.capture = m.CaptureEnabled()
+	if ordering.capture {
+		ordering.captureReady = ordering.checkCaptureClosure()
 	}
+	ordering.checkAtomicHistory()
 	ordering.checkOwnerAtCommit()
 	ordering.checkCurrentClaimWinner()
 	ordering.checkDispatch()
@@ -426,6 +429,13 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 		aborts := checkExternal(&r, m, sources, rows)
 		ordering.checkLowerOffsets(sources.Broker)
 		ordering.checkShutdown(aborts)
+	}
+	if ordering.capture && r.Labels[3].Outcome == "covered/pass" {
+		for _, issue := range issues {
+			if issue.Source == RosterPath || isSessionPath(issue.Source) {
+				ordering.require("SessionClosure", issue.Source, "", nil)
+			}
+		}
 	}
 	if r.Safety != "FAIL" && r.Completeness != "FAIL" {
 		r.Safety = "incomplete"

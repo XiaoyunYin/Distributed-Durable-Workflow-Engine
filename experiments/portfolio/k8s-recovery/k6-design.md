@@ -273,7 +273,7 @@ Each initial snapshot and its follow-ups use one autocommit `psql` session.
 The trace keeps the sampler's PostgreSQL PID and counts its registered
 application in every snapshot. PostgreSQL statement timestamps govern the
 2-second resolution bound and the 200-millisecond gap bound. In the
-`PostgreSQL race and K6 fixtures` job, a raw TCP client on the isolated pinned
+`PostgreSQL K6 fixtures and parity` job, a raw TCP client on the isolated pinned
 PostgreSQL 18.6 instance withholds a password, then either authenticates or
 disconnects. Its `connection-trace.json` and `startup-fixture.json` are stored
 under `k6-phase-c-startup/` in the service-race diagnostics artifact.

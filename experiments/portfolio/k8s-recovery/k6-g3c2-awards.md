@@ -1,0 +1,61 @@
+# DUR-053 K6a Phase G3c2 capture-backed verdicts
+
+The G3c2 checker evaluates the sealed PostgreSQL journal alongside the K4 audit in commit order. The advisory lock and deferred triggers put every transaction in one contiguous group. The checker verifies source inventory, image closure, same-transaction links and the captured identities before awarding coverage. The journal records engine actions. G3d supplies independent broker and shutdown observations.
+
+| Row | Sources and decision | Findings |
+| --- | --- | --- |
+| I2 AtomicHistory | Verified history and matching K4 audit transactions, closed node and attempt images, and every applicable same-transaction change in the [I2 history table](#i2-history-table). | `CAPTURE_HISTORY_CHANGES` and the [capture closure codes](k6-g3c-capture.md#closure-predicates). An unknown reason or unavailable capture proof yields `required_proof_missing:node_attempt_write_transactions`. |
+| I3 OwnerAtCommit | Captured writes and the owner inventory, joined on order, transaction, class and partition. Acquisitions, takeovers and releases determine epoch currency in commit order. The registered cells are hook-5 and medium-2/3. | `OWNER_INVENTORY_STALE_EPOCH`, `OWNER_INVENTORY_WRITE_MISSING`, `OWNER_INVENTORY_BINDING`, `OWNER_LEASE_AUDIT_BINDING`, `OWNER_INVENTORY_ORPHAN`. An incomplete write inventory blocks `owner_write_transactions`. |
+| I4 CurrentClaimWinner | K4 authenticated claim and its captured attempt update, followed by the result request, exact attempt change and finalized result history in the same transaction. Match the presented token hash and request to the claim. Verify the completed iteration and session closure. For cooperating success, bind the sink receipt via the attempt before-image’s `receipt_id` from `k6_proof`. | `CAPTURE_CLAIM_TRANSACTION`, `CAPTURE_RESULT_CLAIM`, `CAPTURE_RESULT_MISSING`, `CAPTURE_RESULT_TRANSACTION`, `CAPTURE_RESULT_ATTEMPT_WRITE`, `CAPTURE_RESULT_IDENTITY`, `RESULT_RECEIPT_BINDING`, or typed missing proof for the result, receipt or session binding. |
+| I6 DispatchDisposition | Bind outbox creation to the history revision in its commit. Verify relay claims, each publication start’s key, payload hash and topic, and each mark’s closing update. A lost acknowledgement or mark can leave a start without a mark. Join physical deliveries to inbox or quarantine, offsets, wakeups and reconciliation, with earlier captured dispositions for duplicates. | `CAPTURE_OUTBOX_TRANSACTION`, `CAPTURE_PUBLICATION_CLAIM`, `CAPTURE_PUBLICATION_START`, `CAPTURE_PUBLICATION_MARK`, `CAPTURE_PUBLICATION_IDENTITY`, `CAPTURE_DELIVERY_BINDING`, `CAPTURE_DISPOSITION_TRANSACTION`, `CAPTURE_RECONCILIATION_BINDING`, `CAPTURE_OFFSET_TRANSACTION`, `CAPTURE_OFFSET_REGRESSION`. |
+| I7 LowerOffsetsDisposed | Fold durable offset changes against physical positions disposed by earlier commits or within the same transaction. An insert can establish the engine baseline. The broker reset/hold/restart brackets establish the independent baseline and cross-source order in G3d. | `CAPTURE_OFFSET_DISPOSITION_GAP` for the worker topic and group. The closing-watermark check still emits `OFFSET_BEYOND_DURABLE_DISPOSITION`. |
+| N21 LostResultReplay | Compare state-changing commits by captured attempt, worker request and presented token hash, or by the proof-sourced receipt for that workflow. | `RESULT_REAPPLIED`, or `required_proof_missing:result_commit_identity`. |
+| N21 UnknownEffectVisible | Verify the timed-out attempt and open reconciliation in the uncertainty transaction. Fold a matching effect record and confirmed resolution audit in order before evaluating a later non-cooperating result. | `UNRESOLVED_EFFECT_REAPPLIED`, or `required_proof_missing:effect_uncertainty_resolution_transactions`. |
+| N21 ShutdownDisposition | Join the corroborated invocation abort to the captured claim and result disposition for the same attempt. G3d supplies the observed signal or exit. | `SHUTDOWN_RECORDED_AS_FAILURE`, `required_proof_missing:shutdown_result_binding`, or `required_proof_missing:shutdown_signal_or_exit`. |
+
+I2, I3 and I4 need positive populations and complete, consistent capture. I3 evaluates commit-order epoch currency as specified in the design. I4 requires a captured winner and its claim, and checks the independent worker ledger against the authenticated attempt. A covered violation yields `covered/fail`. Missing proof leaves the affected label `NOT COVERED`. The two capture journals receive typed missing findings if absent or empty in an exercised capture-enabled episode. An absent relation has no JSONL inventory member and a count of −1 in the selected cut and its brackets. An installed empty relation has count zero and the empty digest. The idle control can have both journals installed and empty.
+
+I3’s deployed predecessor challenge remains part of G3a4 confirmation. I5, I9 and I13 retain `outside_registry_ceiling`, including when their evidence fails safety. The result-to-receipt join takes its application identity from `k6_proof` captured on the authenticated attempt. Earlier publication-start images with only topic and owner decode, then report the missing wire identity.
+
+## I2 history table
+
+The table covers the 14 `insertHistory` call sites in `internal/state`, including the named callers of the generic and ablation transition paths. The names in the first column are the exact recorded reasons. For capture-enabled episodes, an unlisted reason yields `required_proof_missing:node_attempt_write_transactions` on the history row. A recognized reason with a missing or inconsistent write yields `CAPTURE_HISTORY_CHANGES` on that row.
+
+`N` is the node keyed by the history row’s workflow, node and iteration. `A` is the attempt keyed by `N` and the history’s attempt number. All changes below are net images in the same audited commit. “None” means the reason requires no write to that subject. Node state updates increment node revision by one and preserve the attempt pointer unless the table specifies otherwise.
+
+| History reason | Required node change | Required attempt change | Writer |
+| --- | --- | --- | --- |
+| `WORKFLOW_CREATED` | Insert the named node at iteration zero with state `RUNNABLE`, revision zero and no pointer. History iteration is null. | None | `store.go:430` |
+| `ACTIVITY_SCHEDULED`, `DUR027_FIXTURE_ACTIVITY`, `DUR027_STALE_OWNER`, `M5_FIXTURE_ACTIVITY`, `DUR034_CHECK_TO_COMMIT` | `N`: `RUNNABLE → WAITING_ACTIVITY`. | None | `store.go:925`, `ablation.go:143` |
+| `TIMER_DUE` | `N`: `WAITING_TIMER → RUNNABLE`. | None | `store.go:925` |
+| `K6_GRANT_EXPIRED_OUTCOME_UNKNOWN` | `N`: `RUNNABLE`, `WAITING_APPROVAL` or `WAITING_ACTIVITY → RECONCILIATION_REQUIRED`. The history names the pointer if present. | If the pointed-to `A` is current, `DISPATCHABLE` or `CLAIMED → OUTCOME_UNKNOWN`, with current cleared and disposition `OUTCOME_UNKNOWN`. None with no pointer or an already retired attempt. | `store.go:925`, `k6_dispatch.go:331` |
+| `LOCAL_ACTIVITY_UNSUPPORTED` | None. Workflow-only `RUNNABLE → PAUSED_UNSUPPORTED_VERSION`. | None | `store.go:925` |
+| `STALE_EPOCH_PROBE`, `DUR043_STALE_OWNER_PROBE`, `DUR049_SAME_OWNER_STALE_EPOCH_PROBE_CLEANUP`, `DUR049_SAME_OWNER_STALE_EPOCH_NEGATIVE_CONTROL` | None. The named probe inputs are workflow-only cancellation and cannot use this form from `WAITING_ACTIVITY`. Owner currency is checked separately. | None | `store.go:925` |
+| `RESULT_CONSUMED` | `N`: `WAITING_ACTIVITY → SUCCEEDED`, `WAITING_TIMER` or `FAILED` and its pointer to `A` is cleared. Match the prior result and resulting workflow state. | None. `A` was already retired with `SUCCEEDED`, `FAILED_RETRYABLE` or `FAILED_FINAL`. | `store.go:1092` |
+| `ATTEMPT_CREATED` | `N` stays `WAITING_ACTIVITY` at the same revision and sets its empty pointer to `A`. | Insert `A` as current `DISPATCHABLE`. | `store.go:1298` |
+| `ATTEMPT_RESULT_RECORDED` | None | `A`: current `CLAIMED → SUCCEEDED`, `FAILED_RETRYABLE` or `FAILED_FINAL`, with current cleared. | `store.go:1671` |
+| `REDISPATCH_UNCLAIMED` | None. `N` already points to `A`. | `A` remains current `DISPATCHABLE` with a later heartbeat deadline. | `store.go:2025` |
+| `TIMEOUT_RECONCILIATION_REQUIRED` | None. `N` already points to `A`. | Non-cooperating `A`: current `CLAIMED → TIMED_OUT`, with current cleared and disposition `OUTCOME_UNKNOWN`. | `store.go:2025` |
+| `TIMEOUT_REPLACEMENT` | `N` stays `WAITING_ACTIVITY` at the same revision and switches its pointer from `A` to `A+1`. | Retire `A) from current `CLAIMED → TIMED_OUT`. Insert current `DISPATCHABLE` attempt `A+1` with the same effect class. | `store.go:2025` |
+| `TIMER_SCHEDULED` | `N`: `RUNNABLE → WAITING_TIMER`. | None | `graph.go:405` |
+| `CANCELED_ALL_ACTIVE_NODES` | Every pre-commit nonterminal node of the workflow becomes `CANCELED` and clears its pointer. The terminal states are `SUCCEEDED`, `FAILED`, `REJECTED`, `CANCELED` and `ABANDONED`. | Every pre-commit current `DISPATCHABLE` or `CLAIMED` attempt of the workflow becomes `CANCELED` and clears current. Claimed effects carry `OUTCOME_UNKNOWN` and the others carry `NONE`. | `graph.go:538`, `m4.go:999` |
+| `GRAPH_ADVANCED` | `N`: an activity stays `SUCCEEDED` and a control node goes from `RUNNABLE` to `SUCCEEDED` or `FAILED`. The source has no pointer. Insert every newly selected successor as `RUNNABLE` at the same iteration with revision zero and no pointer. The same commit’s `graph.advanced` payload binds the choice to the sealed graph. An already present successor needs no insert. | None | `graph.go:739` |
+| `APPROVAL_REQUESTED` | `N`: `RUNNABLE` or `WAITING_APPROVAL → WAITING_APPROVAL`. | None | `m4.go:502` |
+| `APPROVAL_REJECTED` | `N`: `WAITING_APPROVAL → REJECTED`. | None | `m4.go:734` |
+| `APPROVAL_GRANTED` | `N`: `WAITING_APPROVAL → RUNNABLE`. | None | `m4.go:778` |
+
+## PostgreSQL jobs
+
+R369 separates **PostgreSQL service-backed race**, which runs `ci.ps1 -WithServices -RaceOnly` and the sink race contract, from **PostgreSQL K6 fixtures and parity**, which runs the `dur053_k6`-tagged suites, the legacy checker parity test, the G1/G2 checker and evidence groups, and the Phase C startup test. The checker selector assigns each fixture group to one step, including the G1 export and census tests in the artifact-enabled step. Each job runs on its own stack and keeps the 16m00s target and existing 25-minute job timeout. Pilot CI proof requires both jobs.
+
+The fixture artifact `dur053-k6-g3a2-verdicts-<run>-<attempt>` contains `TestK6SourceCaptureParity/` and `TestK6SourceCapturedJoins/`. Each variant retains `public/`, `live.json`, `offline.json`, `offline.stderr` and `exit.json`. The offline executable runs in a fresh network namespace. The clean hook-5 fixture exercises all three awards and retains the single I6 gap. The hook-3 twins exercise the captured durable advance and the missing lower disposition against the same closing watermark. `MissingCancellationChanges` commits a cancellation revision with work still active. `MissingGraphChanges` commits graph history and its outbox event while leaving the source node revision unchanged. Both fixtures bind the violation to the history row and return byte-identical stdout with exit 1.
+
+## Deployed replay
+
+| Order | Predicate and code | Witness | Owner |
+| --- | --- | --- | --- |
+| 1 | `DispatchDisposition/required_proof_missing:broker_event_copies` | First row of `engine/engine.outbox.jsonl`, keyed by `[event_id]`. | G3d |
+| 2 (hook-3) | `LowerOffsetsDisposed/required_proof_missing:broker_reset_hold_restart_offsets` | First worker-group task partition observation in `broker/positions.jsonl`, keyed by `[sequence, topic_id, partition, committed-or-low]`. | G3d |
+| 3 (hook-3) | `LowerOffsetsDisposed/required_proof_missing:broker_event_copies` | Same first worker-group task partition observation. | G3d |
+
+`replay` checks the exact sequence, kind `missing`, path, first-row key and SHA-256 of the canonical row bytes. Exercised PURE and effect bundles exit 1. The idle bundle has zero findings and exits 3. A witnessed shutdown would still require G3d’s signal or exit record tied to the invocation. Exit 0 remains unavailable while confirmation is `pending` with `confirmation_pending:G3a4`. The R363 invocation-error exit remains 2.

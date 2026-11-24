@@ -147,6 +147,9 @@ func (b *WatermarkBuilder) Finish() Watermark {
 }
 
 func (w Watermark) valid(spec Relation) bool {
+	if w.Count == -1 && IsCaptureRelation(spec.Name) {
+		return w.Relation == spec.Name && w.MaxKey == "" && w.Digest == "" && w.SourceDigest == "" && w.Audit == nil
+	}
 	if w.Relation != spec.Name || w.Count < 0 || !digest.MatchString(w.Digest) || !digest.MatchString(w.SourceDigest) {
 		return false
 	}
@@ -184,6 +187,9 @@ func (w Watermark) valid(spec Relation) bool {
 }
 
 func equalWatermark(before, after Watermark) bool {
+	if before.Count == -1 || after.Count == -1 {
+		return before.Count == after.Count
+	}
 	publicEqual := before.Digest == after.Digest
 	sourceEqual := before.SourceDigest == after.SourceDigest
 	switch WatermarkClass(before.Relation) {
@@ -327,6 +333,10 @@ func verifyBarrier(m Manifest, plan Plan, arrivals Arrivals, b Barrier, snaps ma
 			lastClose = snap.CommitAfter
 			for k, spec := range specs {
 				raw, ok := rows[spec.Name]
+				if k < len(d.Cut) && k < len(snap.Relations) && IsCaptureRelation(spec.Name) &&
+					(d.Cut[k].Count == -1) != (snap.Relations[k].Count == -1) {
+					add("CUT_WATERMARK_BINDING:" + db + ":" + spec.Name)
+				}
 				if !ok || k >= len(d.Cut) {
 					continue
 				}

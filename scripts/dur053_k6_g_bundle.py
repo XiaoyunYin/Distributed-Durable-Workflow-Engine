@@ -324,64 +324,72 @@ def replay(
         positive["confirmation"] == {"status": "pending", "reason": "confirmation_pending:G3a4"},
         "G_CHECKER_CONFIRMATION",
     )
-    missing_proof = {
-        "I2": ("AtomicHistory", "required_proof_missing:node_attempt_write_transactions"),
-        "I4": ("CurrentClaimWinner", "required_proof_missing:result_commit_identity"),
-    }
-    dispatch_gaps = (
-        "required_proof_missing:outbox_creation_transactions",
-        "required_proof_missing:publication_attempt_identities",
-        "required_proof_missing:broker_event_copies",
-        "required_proof_missing:dispatch_disposition_transactions",
-    )
-    findings = positive["findings"]
-    history = "engine/engine.transition_history.jsonl"
-    outbox = "engine/engine.outbox.jsonl"
-    expected = [] if idle else list(missing_proof.values())
+    manifest = json.loads((good / "manifest.json").read_bytes())
+    cell = manifest["cell"]
+    dispatch_gap = "required_proof_missing:broker_event_copies"
+    offset_gap = "required_proof_missing:broker_reset_hold_restart_offsets"
+    expected: list[tuple[str, str, str, list[Any], bytes]] = []
     if not idle:
-        expected.extend(("DispatchDisposition", gap) for gap in dispatch_gaps)
+        outbox = "engine/engine.outbox.jsonl"
+        row = (good / outbox).read_bytes().splitlines(keepends=True)[0]
+        expected.append(
+            ("DispatchDisposition", dispatch_gap, outbox, [json.loads(row)["event_id"]], row)
+        )
+    if not idle and cell == "hook-3":
+        for raw in (good / BROKER_PATH).read_bytes().splitlines(keepends=True):
+            record = json.loads(raw)
+            data = record.get("data", {})
+            if data.get("group") != "runtime-workers-v1":
+                continue
+            partition = next(
+                (p for p in data["partitions"] if p["topic"] == "durable-agent.tasks.v1"), None
+            )
+            if partition is None:
+                continue
+            offset = partition["committed"]
+            key = [
+                record["position"]["sequence"],
+                partition["topic_id"],
+                partition["partition"],
+                partition["low"] if offset is None else offset,
+            ]
+            expected.extend(
+                ("LowerOffsetsDisposed", gap, BROKER_PATH, key, raw)
+                for gap in (offset_gap, dispatch_gap)
+            )
+            break
+        require(
+            any(predicate == "LowerOffsetsDisposed" for predicate, *_ in expected),
+            "G_OFFSET_BRACKET_WITNESS",
+        )
+    findings = positive["findings"]
     require(
-        [(f["predicate"], f["code"]) for f in findings] == expected,
+        [(f["predicate"], f["code"]) for f in findings]
+        == [(predicate, code) for predicate, code, *_ in expected],
         "G_LIVE_CHECKER_FINDINGS",
     )
     require(
         positive["completeness"] == ("incomplete" if idle else "FAIL")
-        and positive["safety"] == ("incomplete" if idle else "NOT COVERED")
-        and all(
-            f["kind"] == "missing"
-            and f["source"] == history
-            and f["witness"]["path"] == history
-            and len(f["witness"]["row_key"]) == 3
-            and len(f["witness"]["sha256"]) == 64
-            for f in findings[:2]
-        ),
+        and positive["safety"] == ("incomplete" if idle else "NOT COVERED"),
         "G_LIVE_CHECKER_FINDINGS",
     )
-    if not idle:
-        for finding, path in zip(
-            findings[2:],
-            (history, outbox, outbox, outbox),
-            strict=True,
-        ):
-            raw = (good / path).read_bytes().splitlines(keepends=True)[0]
-            row = json.loads(raw)
-            keys = ("event_id",) if path == outbox else ("workflow_id", "revision", "transition_id")
-            require(
-                finding["kind"] == "missing"
-                and finding["source"] == path
-                and finding["witness"]
-                == {
-                    "path": path,
-                    "row_key": [row[key] for key in keys],
-                    "sha256": sha(raw),
-                },
-                "G_LIVE_CHECKER_DISPATCH_WITNESS",
-            )
+    for finding, (_, _, path, key, raw) in zip(findings, expected, strict=True):
+        require(
+            finding["kind"] == "missing"
+            and finding["source"] == path
+            and finding["witness"] == {"path": path, "row_key": key, "sha256": sha(raw)},
+            "G_LIVE_CHECKER_DISPATCH_WITNESS",
+        )
     ids = [f"I{i}" for i in range(1, 14)]
-    completed = ("I1", "I11")
-    covered = [] if idle else list(completed)
     labels = positive["labels"]
     registered = {"I1", "I2", "I4", "I6", "I11"}
+    completed = {"I1", "I2", "I4", "I11"}
+    if cell in {"hook-5", "medium-2", "medium-3"}:
+        registered.add("I3")
+        completed.add("I3")
+    if cell == "hook-3":
+        registered.add("I7")
+    covered = [] if idle else [identity for identity in ids if identity in completed]
     if source == "witness/effect-ingress.jsonl":
         registered.update(("I8", "I10"))
     require(
@@ -396,13 +404,9 @@ def replay(
             require(label["registered"], "G_CHECKER_LABELS")
             outcome = "NOT COVERED" if idle else "covered/pass"
             reason = "no_positive_population" if idle else "predicate_satisfied"
-        elif label["id"] in missing_proof:
-            require(label["registered"], "G_CHECKER_LABELS")
+        elif label["id"] in {"I6", "I7"} and label["registered"]:
             outcome = "NOT COVERED"
-            reason = "no_positive_population" if idle else missing_proof[label["id"]][1]
-        elif label["id"] == "I6":
-            outcome = "NOT COVERED"
-            reason = "no_positive_population" if idle else dispatch_gaps[-1]
+            reason = "no_positive_population" if idle else dispatch_gap
         else:
             outcome = "NOT COVERED"
             reason = "predicate_pending:G3a3" if label["registered"] else "outside_registry_ceiling"
