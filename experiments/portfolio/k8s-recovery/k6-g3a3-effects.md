@@ -23,7 +23,7 @@ The checker uses the sealed plan, typed public database projections, independent
 
 ## Deployed replay
 
-The exact finding sequence is empty in the exercised effect, PURE and idle controls. The effect control awards I8 and retains I10 as `predicate_pending:I10`. PURE is outside the registry ceiling for both labels. Removing a selected ingress or topology source produces a single first finding of kind `missing` at the removed path, with a null witness. There is no row key or digest. The idle control has zero findings and exits 3. Exit 0 remains unavailable while confirmation is `pending` with `confirmation_pending:G3a4`.
+The exact finding sequence is empty in the exercised effect, PURE and idle controls. The effect control awards I8 and retains I10 as `predicate_pending:I10`. PURE is outside the registry ceiling for both labels. The deliberate removal control expects exactly one finding in position 1, of kind `missing`, sourced at `witness/effect-ingress.jsonl` for effect or `witness/topology.json` for PURE. The witness is null and has no row key or digest. The idle control has zero findings and exits 3. Exit 0 remains unavailable while confirmation is `pending` with `confirmation_pending:G3a4`.
 
 | Remaining state | Owner |
 | --- | --- |
@@ -31,3 +31,5 @@ The exact finding sequence is empty in the exercised effect, PURE and idle contr
 | Cell confirmation and registered I12 awards | G3a4 |
 
 The I10 continuation should publish the exact plan operation, the committed grant and claim identities and engine read sample, and the independent sink's matching request projection and bounded write. It should then verify expiry, cancellation and revision order, grant continuity on replacements, and the durable dispatch acknowledgement against the authenticated receipt. G3a4 can use those verdicts for confirmation. G3b and G4 retain the deployed fault and catalogue work.
+
+The PostgreSQL parity artifact retains `TestK6EffectLiveParity/<case>/public/`, both checker outputs and their exit codes. Its clean and recovered-reply twins isolate the effect joins while retaining the legacy synthetic fixture's I2 and I4 proof gaps. The deployed effect control exercises an intact capture-backed bundle.

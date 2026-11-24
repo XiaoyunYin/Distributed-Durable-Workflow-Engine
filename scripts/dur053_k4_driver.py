@@ -94,7 +94,7 @@ def stamp(at):
     return datetime.fromtimestamp(at, UTC).isoformat().replace("+00:00", "Z")
 
 
-def write_stop_file(base, ns, value, *, create_only=False):
+def write_stop_file(base: Driver, ns: str, value: str, *, create_only: bool = False) -> None:
     script = f"""import os
 import tempfile
 from pathlib import Path

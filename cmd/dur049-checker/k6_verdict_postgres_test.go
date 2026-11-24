@@ -20,7 +20,7 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-func provisionFixtureReceipt(t *testing.T, engine, sink *pgx.Conn, m *k6v1.Manifest, workflow, operation string) k6receipt.Proof {
+func provisionFixtureReceipt(t *testing.T, engine, sink *pgx.Conn, m *k6v1.Manifest, workflow, operation string, attempt int64) k6receipt.Proof {
 	t.Helper()
 	key := ed25519.NewKeyFromSeed(bytes.Repeat([]byte{1}, ed25519.SeedSize))
 	m.ReceiptPublicKey = base64.StdEncoding.EncodeToString(key.Public().(ed25519.PublicKey))
@@ -31,16 +31,16 @@ func provisionFixtureReceipt(t *testing.T, engine, sink *pgx.Conn, m *k6v1.Manif
 			&receipt.AppliedRevision, &receipt.ApplicationID); err != nil {
 		t.Fatal(err)
 	}
-	claim := k6receipt.Claim{NodeID: "pure.echo", Attempt: 1, Fence: 1}
+	claim := k6receipt.Claim{NodeID: "pure.echo", Attempt: attempt, Fence: 1}
 	proof := k6receipt.Proof{Operation: operation, Receipt: receipt, Signature: k6receipt.Sign(key, claim, operation, receipt)}
 	raw, err := json.Marshal(proof)
 	if err != nil {
 		t.Fatal(err)
 	}
 	execK6SQL(t, engine, `INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class,logical_effect_key,k6_fence,k6_proof)
-		VALUES ($1,'pure.echo',0,1,'SUCCEEDED','COOPERATING_EFFECT','key',1,$2)
+		VALUES ($1,'pure.echo',0,$3,'SUCCEEDED','COOPERATING_EFFECT','key',1,$2)
 		ON CONFLICT (workflow_id,node_id,iteration,attempt_number) DO UPDATE SET k6_fence=1,k6_proof=EXCLUDED.k6_proof`,
-		workflow, raw)
+		workflow, raw, attempt)
 	return proof
 }
 
@@ -134,7 +134,7 @@ func writeVerdictArtifact(t *testing.T, path string, raw []byte) {
 func TestK6SinkVerdictParity(t *testing.T) {
 	engine, sink, cfg, plan, arrivals := pairedK6Fixture(t)
 	workflow := plan.Windows[0].Submissions[0].Key
-	proof := provisionFixtureReceipt(t, engine, sink, &cfg.Manifest, workflow, "apply")
+	proof := provisionFixtureReceipt(t, engine, sink, &cfg.Manifest, workflow, "apply", 1)
 	verify := func(t *testing.T, config k6live.Config) k6v1.Result {
 		t.Helper()
 		config.EpisodeDir = filepath.Join(t.TempDir(), "public")
