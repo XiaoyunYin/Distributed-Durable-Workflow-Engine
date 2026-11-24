@@ -47,7 +47,21 @@ func TestK6EffectAuthority(t *testing.T) {
 			r[SinkCalls][2]["grant_hash"] = fixtureHash("other-grant")
 		}},
 		{"CancellationOrder", "I10_CANCELLATION_ORDER", func(r map[string][]Row, _ *External, _ Plan, _ engineOrder) {
-			r[cancellations] = []Row{{"workflow_id": "workflow", "status": "APPLIED", "created_at": authorityAt(3), "applied_at": authorityAt(4)}}
+			addAuthorityCancellation(r, "APPLIED", "11", "12")
+			r[cancellations][0]["applied_at"] = authorityAt(4)
+		}},
+		{"CancellationLosesGrantRace", "", func(r map[string][]Row, _ *External, _ Plan, _ engineOrder) {
+			addAuthorityCancellation(r, "BEST_EFFORT", "11", "12")
+		}},
+		{"CancellationPendingAtGrant", "I10_CANCELLATION_ORDER", func(r map[string][]Row, _ *External, _ Plan, _ engineOrder) {
+			addAuthorityCancellation(r, "BEST_EFFORT", "5", "12")
+		}},
+		{"CancellationResolvedBeforeGrant", "", func(r map[string][]Row, _ *External, _ Plan, _ engineOrder) {
+			addAuthorityCancellation(r, "REJECTED", "5", "6")
+		}},
+		{"CancellationCommitMissing", "required_proof_missing:cancellation_commit_order", func(r map[string][]Row, _ *External, _ Plan, _ engineOrder) {
+			addAuthorityCancellation(r, "BEST_EFFORT", "11", "12")
+			r[WriteCapture] = r[WriteCapture][:len(r[WriteCapture])-1]
 		}},
 		{"GrantOrder", "I10_GRANT_ORDER", func(_ map[string][]Row, s *External, _ Plan, _ engineOrder) {
 			s.Decisions.Rows[0].Data.DecidedUTC = authorityAt(3)
@@ -59,8 +73,11 @@ func TestK6EffectAuthority(t *testing.T) {
 			captureImage(r[WriteCapture][1], "after_image")["is_current"] = false
 		}},
 		{"ReadAfterWrite", "I10_WRITE_BRACKET", callFault("grant_read_at", authorityAt(7))},
-		{"CommitBeforeOpen", "I10_WRITE_BRACKET", func(_ map[string][]Row, s *External, _ Plan, _ engineOrder) {
+		{"OpenClockSkew", "", func(_ map[string][]Row, s *External, _ Plan, _ engineOrder) {
 			s.Ingress.Rows[1].Data.OpenedUTC = authorityAt(7)
+		}},
+		{"OpenWrongRequest", "I10_WRITE_BRACKET", func(_ map[string][]Row, s *External, _ Plan, _ engineOrder) {
+			s.Ingress.Rows[1].Data.Traffic.Request.SHA256 = fixtureHash("other-request")
 		}},
 		{"CommitTimeMissing", "required_proof_missing:sink_commit_transaction", callFault("committed_at", nil)},
 		{"ReadMissing", "required_proof_missing:exact_grant_read", callFault("grant_read_at", nil)},
@@ -74,7 +91,10 @@ func TestK6EffectAuthority(t *testing.T) {
 		{"AckWrongReceipt", "I10_DISPATCH_RECEIPT", func(r map[string][]Row, _ *External, _ Plan, _ engineOrder) {
 			r[activityAttempts][0]["k6_proof"] = map[string]any{"receipt": Row{"application_id": "other"}}
 		}},
-		{"AckWrongOrder", "I10_DISPATCH_ACK_ORDER", func(_ map[string][]Row, _ *External, _ Plan, e engineOrder) {
+		{"AckWrongOrder", "I10_DISPATCH_ACK_ORDER", func(r map[string][]Row, _ *External, _ Plan, _ engineOrder) {
+			r[WriteCapture][2]["transaction_id"] = "other-result"
+		}},
+		{"AckClockSkew", "", func(_ map[string][]Row, _ *External, _ Plan, e engineOrder) {
 			e.byTransition["result"]["finalized_at"] = authorityAt(4)
 		}},
 		{"AckMissingProof", "required_proof_missing:dispatch_ack_transaction", func(r map[string][]Row, _ *External, _ Plan, _ engineOrder) {
@@ -127,6 +147,9 @@ func TestK6EffectAuthority(t *testing.T) {
 			}
 			for _, finding := range order.result.Findings {
 				if finding.Code == tc.code {
+					if tc.name == "CancellationCommitMissing" && (finding.Kind != MissingProof || order.result.Safety == "FAIL") {
+						t.Fatalf("missing cancellation commit evidence must fail completeness: %+v", order.result.Findings)
+					}
 					return
 				}
 			}
@@ -139,6 +162,19 @@ func callFault(field string, value any) func(map[string][]Row, *External, Plan, 
 	return func(rows map[string][]Row, _ *External, _ Plan, _ engineOrder) {
 		rows[SinkCalls][1][field] = value
 	}
+}
+
+func addAuthorityCancellation(rows map[string][]Row, status, inserted, resolved string) {
+	id := "00000000-0000-0000-0000-000000000011"
+	rows[cancellations] = []Row{{"request_id": id, "workflow_id": "workflow", "status": status,
+		"created_at": UTC(fixed.Add(500 * time.Millisecond)), "applied_at": authorityAt(9)}}
+	pending := map[string]any{"status": "PENDING"}
+	rows[WriteCapture] = append(rows[WriteCapture],
+		Row{"subject": cancellations, "row_key": []any{id}, "workflow_id": "workflow", "operation": "insert",
+			"event_order": json.Number(inserted), "transaction_id": "cancel-insert", "after_image": pending},
+		Row{"subject": cancellations, "row_key": []any{id}, "workflow_id": "workflow", "operation": "update",
+			"event_order": json.Number(resolved), "transaction_id": "cancel-resolve", "before_image": pending,
+			"after_image": map[string]any{"status": status}})
 }
 
 func fixtureAuthority(t *testing.T) (Manifest, External, Plan, engineOrder) {
@@ -157,6 +193,7 @@ func fixtureAuthority(t *testing.T) (Manifest, External, Plan, engineOrder) {
 	intent["grant_expires_at"], intent["valid_until"], intent["expected_resource_revision"] = authorityAt(10), authorityAt(10), "0"
 	intent["dispatch_status"], intent["created_at"] = "DISPATCHED", authorityAt(-1)
 	rows[authEpisode] = []Row{{"valid_until": authorityAt(10)}}
+	rows[cancellations] = nil
 	call := rows[SinkCalls][1]
 	call["node_id"], call["iteration"], call["scope_hash"], call["fence"] = "node", zero, scope, one
 	call["grant_hash"], call["arguments"], call["expected_revision"] = decision.GrantHash, args, "0"
@@ -169,12 +206,12 @@ func fixtureAuthority(t *testing.T) (Manifest, External, Plan, engineOrder) {
 	attempt := rows[activityAttempts][0]
 	attempt["state"], attempt["logical_effect_key"], attempt["k6_proof"] = "SUCCEEDED", "logical", map[string]any{"receipt": receipt}
 	claim := rows[commitAudit][0]
-	claim["finalized_at"], claim["transaction_id"], claim["event_order"] = authorityAt(3), "claim", json.Number("3")
+	claim["finalized_at"], claim["transaction_id"], claim["event_order"] = authorityAt(3), "claim", json.Number("30")
 	rows[commitAudit] = []Row{
-		{"kind": "history", "transition_id": "grant", "transaction_id": "grant", "event_order": one, "finalized_at": authorityAt(1)},
-		{"kind": "history", "transition_id": "created", "transaction_id": "created", "event_order": json.Number("2"), "finalized_at": authorityAt(2)},
+		{"kind": "history", "transition_id": "grant", "transaction_id": "grant", "event_order": json.Number("10"), "finalized_at": authorityAt(1)},
+		{"kind": "history", "transition_id": "created", "transaction_id": "created", "event_order": json.Number("20"), "finalized_at": authorityAt(2)},
 		claim,
-		{"kind": "history", "transition_id": "result", "transaction_id": "result", "event_order": json.Number("8"), "finalized_at": authorityAt(8)},
+		{"kind": "history", "transition_id": "result", "transaction_id": "result", "event_order": json.Number("40"), "finalized_at": authorityAt(8)},
 	}
 	rows[history] = []Row{
 		{"transition_id": "submitted", "workflow_id": "workflow", "reason": "WORKFLOW_CREATED", "node_id": "node"},

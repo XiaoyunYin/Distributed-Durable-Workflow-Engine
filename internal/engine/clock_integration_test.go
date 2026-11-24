@@ -2,11 +2,12 @@ package engine
 
 import (
 	"context"
-	"durable-agent-execution-engine/internal/partition"
-	"durable-agent-execution-engine/internal/state"
 	"errors"
 	"testing"
 	"time"
+
+	"durable-agent-execution-engine/internal/partition"
+	"durable-agent-execution-engine/internal/state"
 )
 
 func TestK2SchedulerSkew(t *testing.T) {
@@ -51,7 +52,7 @@ func TestK2SchedulerSkew(t *testing.T) {
 				}
 				t.Fatal("skew changed outcome: no terminal progress")
 			}
-			t.Run("timer", func(t *testing.T) {
+			timer := func(t *testing.T, peerAfterDeadline bool) {
 				id, lease := fixture(`{"entry":"root","nodes":[{"id":"root","kind":"timer","delay_ms":500,"next":"done"},{"id":"done","kind":"success"}]}`)
 				e := runner(lease.OwnerID)
 				if r := run(e, id); !r.Blocked || r.Workflow.State != state.StateWaitingTimer {
@@ -66,8 +67,23 @@ func TestK2SchedulerSkew(t *testing.T) {
 				}
 				peer := runner(state.NewID())
 				peer.Clock = func() time.Time { clockCalls++; return time.Now().Add(-skew) }
-				if r := run(peer, id); r.Workflow.State != state.StateWaitingTimer {
-					t.Fatal("skew changed outcome: early timer")
+				if peerAfterDeadline {
+					if _, err := store.Pool().Exec(ctx, `SELECT pg_sleep(GREATEST(0, extract(epoch from due_at - clock_timestamp())))
+						FROM engine.timers WHERE workflow_id=$1`, id); err != nil {
+						t.Fatal(err)
+					}
+				}
+				peerResult := run(peer, id)
+				if peerResult.Workflow.State != state.StateWaitingTimer {
+					var beforeDeadline bool
+					if err := store.Pool().QueryRow(ctx, `SELECT clock_timestamp() < due_at FROM engine.timers WHERE workflow_id=$1`, id).Scan(&beforeDeadline); err != nil {
+						t.Fatal(err)
+					}
+					if beforeDeadline {
+						t.Fatal("skew changed outcome: early timer")
+					}
+				} else if peerAfterDeadline {
+					t.Fatal("skew changed outcome: peer still waiting after the database deadline")
 				}
 				waitSuccess(peer, id)
 				var consumed int
@@ -75,7 +91,9 @@ func TestK2SchedulerSkew(t *testing.T) {
 					t.Fatalf("skew changed outcome: timer consumption %d %v", consumed, err)
 				}
 				assertM1TraceValid(t, ctx, store, id)
-			})
+			}
+			t.Run("timer", func(t *testing.T) { timer(t, false) })
+			t.Run("timer-peer-after-deadline", func(t *testing.T) { timer(t, true) })
 			for _, claimed := range []bool{false, true} {
 				t.Run(map[bool]string{false: "retry", true: "claimed-timeout"}[claimed], func(t *testing.T) {
 					id, lease := fixture(`{"entry":"root","nodes":[{"id":"root","kind":"activity","next":"done"},{"id":"done","kind":"success"}]}`)

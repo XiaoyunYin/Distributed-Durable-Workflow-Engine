@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -34,6 +35,8 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 		{name: "ReplacedGrant", code: "I10_GRANT_REPLACED"},
 		{name: "LookupGrantChanged", code: "I10_GRANT_CONTINUITY"},
 		{"CancellationOrder", "I10_CANCELLATION_ORDER", "", "INSERT INTO engine.cancellation_requests(request_id,workflow_id,client_key,observed_revision,status,created_at,applied_at) SELECT gen_random_uuid(),workflow_id,'cancel',2,'APPLIED',created_at,created_at FROM engine.workflow_executions"},
+		{name: "CancellationLosesGrantRace"},
+		{name: "CancellationPendingAtGrant", code: "I10_CANCELLATION_ORDER"},
 		{name: "Unacknowledged", code: "I10_DISPATCH_UNACKNOWLEDGED"},
 		{"CommitTimeMissing", "required_proof_missing:sink_commit_transaction", "committed_at=NULL", ""},
 		{"ReadMissing", "required_proof_missing:exact_grant_read", "grant_read_at=NULL", ""},
@@ -77,7 +80,7 @@ func TestK6AuthorityLiveParity(t *testing.T) {
 			scope := k6v1.Hash([]byte(proposal + "\x000\x00key\x00resource"))
 			d := &sources.Decisions.Rows[0].Data
 			d.ProposalHash = proposal
-			d.DecidedUTC = seedAuthorityClaim(t, engine, *workflow, proposal, scope, cutoff)
+			d.DecidedUTC = seedAuthorityClaim(t, engine, *workflow, proposal, scope, cutoff, tc.name)
 			sources.Decisions.Rows[0].Position.UTC = d.DecidedUTC
 			execK6SQL(t, sink, "BEGIN")
 			seedParitySink(t, sink, workflow.Key, sources)
@@ -197,7 +200,62 @@ func fixtureAuthorityHistory(t *testing.T, db *pgx.Conn, revision int, reason, s
 		FROM engine.workflow_executions WHERE $5<>''`, pgx.QueryExecModeSimpleProtocol, revision, reason, state, attempt, event)
 }
 
-func seedAuthorityClaim(t *testing.T, db *pgx.Conn, item k6v1.Submission, proposal, scope string, cutoff time.Time) string {
+const insertAuthorityCancellation = `INSERT INTO engine.cancellation_requests(request_id, workflow_id, client_key, observed_revision)
+	VALUES (gen_random_uuid(), $1, 'cancel', 2)`
+
+// Start the actual FK-blocked insert and wait for PostgreSQL to identify the
+// grant transaction as its blocker before allowing the grant to commit.
+func blockedAuthorityCancellation(t *testing.T, grant *pgx.Conn, workflow string) func() {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	t.Cleanup(cancel)
+	peer, err := pgx.ConnectConfig(ctx, grant.Config().Copy())
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = peer.Close(context.Background()) })
+	execK6SQL(t, peer, "SET durable.k4_campaign='on'; SET durable.k6_capture='on'")
+	execK6SQL(t, grant, "SELECT workflow_id FROM engine.workflow_executions WHERE workflow_id=$1 FOR UPDATE", workflow)
+	grantPID, peerPID := int32(grant.PgConn().PID()), int32(peer.PgConn().PID())
+	inserted := make(chan error, 1)
+	go func() {
+		_, err := peer.Exec(ctx, insertAuthorityCancellation, workflow)
+		inserted <- err
+	}()
+	for {
+		var blocked bool
+		if err := grant.QueryRow(ctx, `SELECT $1 = ANY(pg_blocking_pids($2))`, grantPID, peerPID).Scan(&blocked); err != nil {
+			t.Fatalf("observe cancellation blocked by grant: %v", err)
+		}
+		if blocked {
+			break
+		}
+		select {
+		case err := <-inserted:
+			t.Fatalf("cancellation returned before grant released the workflow lock: %v", err)
+		case <-time.After(5 * time.Millisecond):
+		}
+	}
+	return func() {
+		t.Helper()
+		defer cancel()
+		if err := <-inserted; err != nil {
+			t.Fatalf("commit cancellation after grant: %v", err)
+		}
+		execK6SQL(t, grant, "UPDATE engine.cancellation_requests SET status='BEST_EFFORT',applied_at=clock_timestamp()")
+		var ordered bool
+		if err := grant.QueryRow(t.Context(), `SELECT c.created_at < a.finalized_at AND a.event_order < i.event_order AND i.event_order < u.event_order
+			FROM engine.cancellation_requests c
+			JOIN engine.transition_history h ON h.workflow_id=c.workflow_id AND h.reason='APPROVAL_GRANTED'
+			JOIN engine.k4_audit a ON a.transition_id=h.transition_id
+			JOIN engine.k6_write_capture i ON i.subject='engine.cancellation_requests' AND i.row_key=jsonb_build_array(c.request_id) AND i.operation='insert'
+			JOIN engine.k6_write_capture u ON u.subject=i.subject AND u.row_key=i.row_key AND u.operation='update'`).Scan(&ordered); err != nil || !ordered {
+			t.Fatalf("cancellation sample and commit must straddle the grant: ordered=%t, err=%v", ordered, err)
+		}
+	}
+}
+
+func seedAuthorityClaim(t *testing.T, db *pgx.Conn, item k6v1.Submission, proposal, scope string, cutoff time.Time, variant string) string {
 	t.Helper()
 	execK6SQL(t, db, `INSERT INTO engine.workflow_definitions(definition_id,version,definition_hash,graph,activity_versions,effect_classes)
 		VALUES ('definition',1,'hash','{"nodes":["pure.echo"]}','{"pure.echo":"v1"}','{"pure.echo":"COOPERATING_EFFECT"}');
@@ -228,12 +286,23 @@ func seedAuthorityClaim(t *testing.T, db *pgx.Conn, item k6v1.Submission, propos
 		approver_id='system:serviceaccount:episode:k6-approver',decided_at=clock_timestamp() RETURNING decided_at`).Scan(&decided); err != nil {
 		t.Fatal(err)
 	}
+	if variant == "CancellationPendingAtGrant" {
+		execK6SQL(t, db, insertAuthorityCancellation, item.Key)
+	}
 	execK6SQL(t, db, "BEGIN;"+fixtureAuthorityOwner)
+	var finishCancellation func()
+	if variant == "CancellationLosesGrantRace" {
+		finishCancellation = blockedAuthorityCancellation(t, db, item.Key)
+	}
 	execK6SQL(t, db, `UPDATE engine.approval_action_intents SET dispatch_status='GRANTED',grant_token=$1,
 		grant_scope_hash=$2,grant_expires_at=valid_until; UPDATE engine.node_instances SET state='RUNNABLE',revision=2`,
 		pgx.QueryExecModeSimpleProtocol, grantSecret, scope)
 	fixtureAuthorityHistory(t, db, 3, "APPROVAL_GRANTED", "RUNNABLE", "approval.granted", nil)
-	execK6SQL(t, db, "COMMIT; BEGIN;"+fixtureAuthorityOwner+"UPDATE engine.node_instances SET state='WAITING_ACTIVITY',revision=3")
+	execK6SQL(t, db, "COMMIT")
+	if finishCancellation != nil {
+		finishCancellation()
+	}
+	execK6SQL(t, db, "BEGIN;"+fixtureAuthorityOwner+"UPDATE engine.node_instances SET state='WAITING_ACTIVITY',revision=3")
 	fixtureAuthorityHistory(t, db, 4, "ACTIVITY_SCHEDULED", "WAITING_ACTIVITY", "", nil)
 	execK6SQL(t, db, "COMMIT; BEGIN;"+fixtureAuthorityOwner)
 	execK6SQL(t, db, `INSERT INTO engine.activity_attempts(workflow_id,node_id,iteration,attempt_number,state,effect_class,logical_effect_key,grant_scope_hash)

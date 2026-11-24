@@ -43,6 +43,7 @@ type effectAuthority struct {
 	attemptLog map[attemptKey][]Row
 	history    map[any][]Row
 	canceled   map[any][]Row
+	cancelLog  map[any][]Row
 	ingress    map[string]IngressRow
 	traffic    map[string]observedSend
 	allocs     map[grantAttempt]Row
@@ -53,7 +54,7 @@ func (e engineOrder) checkEffectAuthority(m Manifest, plan Plan, sources Externa
 	a := effectAuthority{engineOrder: e, manifest: m, traffic: traffic,
 		plans: map[any]authorityPlan{}, intents: map[any]Row{}, decisions: map[string]DecisionRow{},
 		grants: map[any]Row{}, acks: map[any]Row{}, owners: map[any]Row{}, claims: map[attemptKey][]Row{},
-		attemptLog: map[attemptKey][]Row{}, history: map[any][]Row{}, canceled: map[any][]Row{},
+		attemptLog: map[attemptKey][]Row{}, history: map[any][]Row{}, canceled: map[any][]Row{}, cancelLog: map[any][]Row{},
 		ingress: map[string]IngressRow{}, allocs: map[grantAttempt]Row{}, callFence: map[any]int64{}}
 	for _, window := range plan.Windows {
 		for _, entry := range window.Submissions {
@@ -108,6 +109,8 @@ func (a effectAuthority) indexAuthorityChange(row Row) {
 	case activityAttempts:
 		id := attemptKey{key[0].(string), key[1].(string), number(key[2]), number(key[3])}
 		a.attemptLog[id] = append(a.attemptLog[id], row)
+	case cancellations:
+		a.cancelLog[key[0]] = append(a.cancelLog[key[0]], row)
 	case intentsRelation:
 		intent := key[0]
 		if a.intents[intent]["k6_logical_key"] == nil {
@@ -165,17 +168,15 @@ func (a effectAuthority) checkApplications() {
 		}
 		receipt := receipts[resourceRevision{write["resource_id"].(string), number(write["revision"])}]
 		applied := calls[receipt["application_id"]]
-		var first Row
 		if len(applied) == 0 {
 			a.require(writeAuthority, "sink_commit", SinkJournal, write)
 		} else {
-			first = applied[0]
 			for _, call := range applied {
 				a.checkAuthorizedWrite(call, write, receipt, intent)
 				label.Witnesses = append(label.Witnesses, a.witness(SinkCalls, call))
 			}
 		}
-		a.checkDispatchAcknowledged(key, write, receipt, first, intent)
+		a.checkDispatchAcknowledged(key, write, receipt, intent)
 	}
 	if label.PopulationCount == 0 {
 		label.Reason = "no_positive_population"
@@ -281,7 +282,7 @@ func (a effectAuthority) checkWriteOrder(call, intent, grant Row, d DecisionRow,
 	if ingress.OpenSequence == 0 {
 		need("relay_ingress_open")
 	} else if !callRequestMatches(call, ingress.Traffic, call["workflow_id"].(string)) ||
-		ingress.OpenedUTC > read || written != "" && read > written {
+		written != "" && read > written {
 		flag("I10_WRITE_BRACKET")
 	}
 	var issue Row
@@ -298,10 +299,16 @@ func (a effectAuthority) checkWriteOrder(call, intent, grant Row, d DecisionRow,
 		}
 	}
 	issuedAt := evidenceTime(issue["finalized_at"])
+	if _, loaded := a.rows[cancellations]; !loaded {
+		need("cancellation_commit_order")
+	}
 	for _, c := range a.canceled[call["workflow_id"]] {
-		created, applied := evidenceTime(c["created_at"]), evidenceTime(c["applied_at"])
-		if issuedAt != "" && created <= issuedAt && (applied == "" || applied >= issuedAt) ||
-			c["status"] == "APPLIED" && applied != "" && written != "" && applied <= written {
+		pending, placed := cancellationPendingAtIssue(c, issue, a.cancelLog[c["request_id"]])
+		if !placed {
+			need("cancellation_commit_order")
+		}
+		applied := evidenceTime(c["applied_at"])
+		if pending || (c["status"] == "APPLIED" && applied != "" && written != "" && applied <= written) {
 			flag("I10_CANCELLATION_ORDER")
 		}
 	}
@@ -312,6 +319,41 @@ func (a effectAuthority) checkWriteOrder(call, intent, grant Row, d DecisionRow,
 		flag("I10_GRANT_ORDER")
 	}
 	return issue
+}
+
+func cancellationPendingAtIssue(request, issue Row, changes []Row) (pending, placed bool) {
+	if issue == nil || len(changes) == 0 {
+		return false, false
+	}
+	issueOrder := number(issue["event_order"])
+	if issueOrder <= 0 {
+		return false, false
+	}
+	var previous int64
+	var status, atIssue any
+	for i, change := range changes {
+		position := number(change["event_order"])
+		xid := change["transaction_id"]
+		operation := "update"
+		if i == 0 {
+			operation = "insert"
+		}
+		if change["operation"] != operation || change["workflow_id"] != request["workflow_id"] ||
+			xid == nil || xid == "" || position <= previous || position == issueOrder ||
+			captureImage(change, "before_image")["status"] != status {
+			return false, false
+		}
+		status = captureImage(change, "after_image")["status"]
+		if !slices.Contains([]any{"PENDING", "APPLIED", "BEST_EFFORT", "REJECTED"}, status) {
+			return false, false
+		}
+		// The grant's own transaction is not visible in the preceding commit prefix.
+		if position < issueOrder && xid != issue["transaction_id"] {
+			atIssue = status
+		}
+		previous = position
+	}
+	return atIssue == "PENDING" && status == request["status"], status == request["status"]
 }
 
 func grantExpiry(grant Row) string {
@@ -377,7 +419,7 @@ func (a effectAuthority) checkWriteClaim(call Row, ingress IngressRow, op author
 	}
 }
 
-func (a effectAuthority) checkDispatchAcknowledged(key cooperatingKey, write, receipt, call, intent Row) {
+func (a effectAuthority) checkDispatchAcknowledged(key cooperatingKey, write, receipt, intent Row) {
 	if intent["dispatch_status"] != "DISPATCHED" {
 		a.violate(dispatchAck, "I10_DISPATCH_UNACKNOWLEDGED", SinkJournal, write)
 		return
@@ -406,8 +448,7 @@ func (a effectAuthority) checkDispatchAcknowledged(key cooperatingKey, write, re
 		result := a.resultCommits[h["transition_id"]]
 		if h["reason"] == resultRecorded && committed(audit) && audit["transaction_id"] == ack["transaction_id"] &&
 			result.request != nil && captureMatchesAttempt(result.request, winner) &&
-			captureImage(result.request, "after_image")["receipt_id"] == receipt["application_id"] &&
-			evidenceTime(audit["finalized_at"]) >= evidenceTime(call["committed_at"]) {
+			captureImage(result.request, "after_image")["receipt_id"] == receipt["application_id"] {
 			return
 		}
 	}

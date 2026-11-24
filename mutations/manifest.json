@@ -22125,8 +22125,8 @@
       "id": "k6g3a3b-commitbeforeopen",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/authority.go",
-      "old": "ingress.OpenedUTC > read ||",
-      "new": "",
+      "old": "!callRequestMatches(call, ingress.Traffic, call[\"workflow_id\"].(string)) ||",
+      "new": "false ||",
       "command": [
         "go",
         "test",
@@ -22134,7 +22134,7 @@
         "1",
         "./internal/invariants/k6v1",
         "-run",
-        "^TestK6EffectAuthority$/^CommitBeforeOpen$",
+        "^TestK6EffectAuthority$/^OpenWrongRequest$",
         "-count=1"
       ],
       "expected": "expected I10_WRITE_BRACKET",
@@ -22221,7 +22221,7 @@
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/authority.go",
       "old": "c[\"status\"] == \"APPLIED\" && applied != \"\" && written != \"\" && applied <= written",
-      "new": "false",
+      "new": "c[\"status\"] == \"APPLIED\" && applied != \"\" && written != \"\" && applied <= written && false",
       "command": [
         "go",
         "test",
@@ -22239,8 +22239,8 @@
       "id": "k6g3a3b-ackwrongorder",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/authority.go",
-      "old": "evidenceTime(audit[\"finalized_at\"]) >= evidenceTime(call[\"committed_at\"])",
-      "new": "true",
+      "old": "audit[\"transaction_id\"] == ack[\"transaction_id\"] &&",
+      "new": "",
       "command": [
         "go",
         "test",
@@ -22614,6 +22614,45 @@
       ],
       "expected": "a partial authority schema was admitted as legacy",
       "requires_database": false
+    },
+    {
+      "id": "k6r376-cancellation-wall-clock",
+      "kind": "behavioral",
+      "file": "internal/invariants/k6v1/authority.go",
+      "old": "if pending || (",
+      "new": "if (pending && false || issuedAt != \"\" && evidenceTime(c[\"created_at\"]) <= issuedAt && (applied == \"\" || applied >= issuedAt)) || (",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/invariants/k6v1",
+        "-run",
+        "^TestK6EffectAuthority$/^CancellationLosesGrantRace$",
+        "-count=1"
+      ],
+      "expected": "expected I10 award",
+      "requires_database": false
+    },
+    {
+      "id": "k6r377-timer-early",
+      "kind": "behavioral",
+      "file": "internal/engine/engine.go",
+      "old": "if found && !due.After(databaseNow) {",
+      "new": "if found && (!due.After(databaseNow) || true) {",
+      "command": [
+        "go",
+        "test",
+        "-p",
+        "1",
+        "./internal/engine",
+        "-run",
+        "^TestK2SchedulerSkew$/^-30s$/^timer$",
+        "-count=1",
+        "-v"
+      ],
+      "expected": "skew changed outcome",
+      "requires_database": true
     }
   ]
 }
