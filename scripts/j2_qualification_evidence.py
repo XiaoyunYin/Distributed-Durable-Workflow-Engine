@@ -20,11 +20,25 @@ POPULATION_RATE = 4
 DRAIN_SECONDS = 600
 CLOSEOUT_SECONDS = 1500
 PROFILE = "rebuilt registered profile"
+CAPACITY_EXIT = 3
+
+
+class CapacityFailure(ValueError):
+    """A failed volume criterion with evidence from the qualifier or replay."""
+
+    def __init__(self, criterion, message):
+        super().__init__(message)
+        self.criterion = criterion
 
 
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def require_capacity(condition, criterion, message):
+    if not condition:
+        raise CapacityFailure(criterion, message)
 
 
 def write(path, value):
@@ -59,6 +73,21 @@ def checked_report(path):
     return report
 
 
+def check_replay_verdict(directory):
+    live = checked_report(directory / "live-checker.json")
+    replay = read(directory / "offline-checker.json")
+    require(
+        replay["status"] in {"PASS", "FAIL"}
+        and replay["valid"] is (replay["status"] == "PASS")
+        and type(replay["campaign"]["valid"]) is bool
+        and isinstance(replay["trace"], dict),
+        "offline checker did not emit a complete verdict",
+    )
+    require_capacity(
+        verdict(live) == verdict(replay), "checker_mismatch", "live/offline verdict drift"
+    )
+
+
 def verdict(report):
     campaign = dict(report["campaign"])
     # Go sums durations in map iteration order. Preserve these fields in the
@@ -85,13 +114,17 @@ def verify(directory):
     live_ids = live["workflow_ids"]
     del live
     replay = checked_report(directory / "offline-checker.json")
-    require(expected_verdict == verdict(replay), "live/offline verdict drift")
+    require_capacity(
+        expected_verdict == verdict(replay), "checker_mismatch", "live/offline verdict drift"
+    )
     snapshot = replay["trace"]
     tables = snapshot["Snapshot"]
     count = plan["periods"][0][1]
-    require(
-        count in VOLUMES and arrivals["offered"] == len(arrivals["rows"]) == count, "wrong volume"
+    require(count in VOLUMES and arrivals["offered"] == count, "wrong volume in plan or journal")
+    require_capacity(
+        len(arrivals["rows"]) >= count, "missing_identity", "arrival journal is incomplete"
     )
+    require(len(arrivals["rows"]) == count, "arrival journal exceeds planned volume")
     require(arrivals["status"] == "PASS", "arrival journal failed")
     for sequence, row in enumerate(arrivals["rows"]):
         activity = {8: "pure.echo", 9: "pure.add"}.get(sequence % 10, "dur048.sleep")
@@ -109,12 +142,11 @@ def verify(directory):
     require(delivery["valid"], f"identity/admission reconciliation failed: {delivery['problems']}")
     ids = {key for key, _ in planned}
     terminal = read(directory / "terminals.json")
-    require(
-        set(live_ids) == ids and len(live_ids) == count, "live checker identity list incomplete"
-    )
-    require(
-        set(terminal["ids"]) == ids and len(terminal["ids"]) == count, "DB terminal set differs"
-    )
+    for observed_ids, source in ((live_ids, "live checker"), (terminal["ids"], "DB terminals")):
+        require_capacity(ids <= set(observed_ids), "missing_identity", f"{source} is missing IDs")
+        require(
+            set(observed_ids) == ids and len(observed_ids) == count, f"{source} has unexpected IDs"
+        )
     executed = replay["campaign"]["executions"]
     reconciled = drain_identities(
         (r["WorkflowID"] for r in snapshot["Submissions"]),
@@ -126,11 +158,20 @@ def verify(directory):
         ),
         (r["workflow_id"] for r in executed if r["winners"] == 1 and r["invocations"] == 1),
     )
-    require(reconciled["valid"], f"drain identity mismatch: {reconciled}")
-    require(replay["campaign"]["accepted_results"] == count, "missing checked results")
+    require(
+        not (reconciled["unexpected"] or reconciled["duplicated"]),
+        f"invalid drain identities: {reconciled}",
+    )
+    require_capacity(
+        reconciled["valid"], "missing_identity", f"drain identity mismatch: {reconciled}"
+    )
+    accepted_results = replay["campaign"]["accepted_results"]
+    require_capacity(accepted_results >= count, "missing_identity", "missing checked results")
+    require(accepted_results == count, "unexpected checked results")
     witness = read(directory / "witness.json")
     witnessed = witness_events(witness)
-    require(len(witnessed) == 2 * count, "witness start/end count differs")
+    require_capacity(len(witnessed) >= 2 * count, "truncation", "witness start/end count is short")
+    require(len(witnessed) == 2 * count, "unexpected witness starts or ends")
     probes = read(directory / "clock.json")
     observed = terminal["observed_ns"]
     uncertainty = clock_bounds(probes, planned[0][1], observed)
@@ -198,27 +239,60 @@ def scrape_summary(series, start, end, count):
     }
 
 
+def classify(qualification, result, elapsed):
+    if result.get("cleanup_error") or result.get("diagnostic_error"):
+        return "invalid", result.get("cleanup_error") or result["diagnostic_error"]
+    if result.get("population_started") is not True:
+        return "invalid", result.get("error", "no confirmed submission")
+    if qualification == "success" and result.get("status") == "PASS":
+        if elapsed is None or elapsed < 0:
+            return "invalid", "invalid closeout clock"
+        if elapsed > CLOSEOUT_SECONDS:
+            return "capacity_failure", "closeout exceeded the registered deadline"
+        return "pass", "all registered criteria passed"
+    if qualification == "failure" and result.get("status") == "FAIL":
+        if result.get("capacity_criterion") in {
+            "oom",
+            "restart",
+            "truncation",
+            "drain_deadline",
+            "closeout_deadline",
+            "missing_identity",
+            "checker_mismatch",
+        }:
+            return "capacity_failure", result["error"]
+        return "invalid", result.get("error", "qualification failed without a capacity finding")
+    return "invalid", "inconsistent qualification step and frozen result"
+
+
 def closeout(directory):
-    artifact = os.environ["ARTIFACT_ID"]
-    digest = os.environ["ARTIFACT_DIGEST"]
-    require(
-        artifact.isdecimal() and re.fullmatch("[a-f0-9]{64}", digest), "evidence upload missing"
-    )
-    qualification = os.environ["QUALIFICATION"]
+    artifact = os.environ.get("ARTIFACT_ID", "")
+    digest = os.environ.get("ARTIFACT_DIGEST", "")
+    elapsed = None
+    try:
+        require(
+            artifact.isdecimal() and re.fullmatch("[a-f0-9]{64}", digest),
+            "evidence upload missing",
+        )
+        result = read(directory / "freeze.json")["qualification"]
+        exported = result.get("export_completed_unix_ns")
+        if exported is not None:
+            require(type(exported) is int and exported > 0, "invalid export timestamp")
+            elapsed = (time.time_ns() - exported) / SECOND
+            print(f"Export completion through verified artifact upload: {elapsed:.3f} s")
+        disposition, reason = classify(os.environ["QUALIFICATION"], result, elapsed)
+    except (OSError, ValueError, KeyError, TypeError, AttributeError, OverflowError) as error:
+        disposition, reason = "invalid", str(error)
+
+    with Path(os.environ["GITHUB_OUTPUT"]).open("a", encoding="utf-8") as output:
+        print(f"verdict={disposition}", file=output)
     with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a", encoding="utf-8") as output:
         print(
-            f"Volume {os.environ['J2_VOLUME']} · artifact `{artifact}` · SHA-256 `{digest}`",
+            f"Volume {os.environ['J2_VOLUME']} · **{disposition}** · "
+            f"artifact `{artifact or 'unavailable'}` · SHA-256 `{digest or 'unavailable'}`",
             file=output,
         )
-    require(qualification == "success", f"qualification step {qualification}")
-    freeze = read(directory / "freeze.json")
-    result = freeze["qualification"]
-    elapsed = (time.time_ns() - result["export_completed_unix_ns"]) / SECOND
-    print(f"Export completion through verified artifact upload: {elapsed:.3f} s")
-    require(
-        result["status"] == "PASS" and 0 <= elapsed <= CLOSEOUT_SECONDS,
-        "closeout failed or overran",
-    )
+    print(f"{disposition}: {reason}", flush=True)
 
 
 if __name__ == "__main__":
@@ -227,7 +301,11 @@ if __name__ == "__main__":
     parser.add_argument("directory", type=Path)
     args = parser.parse_args()
     if args.operation == "verify":
-        print(json.dumps(verify(args.directory), sort_keys=True))
+        try:
+            print(json.dumps(verify(args.directory), sort_keys=True))
+        except CapacityFailure as error:
+            print(json.dumps({"capacity_criterion": error.criterion, "error": str(error)}))
+            raise SystemExit(CAPACITY_EXIT) from error
     elif args.operation == "extract":
         extract(args.directory)
     else:

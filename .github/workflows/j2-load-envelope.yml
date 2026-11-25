@@ -85,7 +85,7 @@ jobs:
   fallback:
     needs: qualification
     if: >-
-      ${{ !cancelled() && needs.qualification.outputs.verdict == 'failure'
+      ${{ !cancelled() && needs.qualification.outputs.verdict == 'capacity_failure'
       && needs.qualification.outputs.artifact_id != ''
       }}
     uses: ./.github/workflows/j2-volume-qualification.yml
@@ -98,12 +98,19 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 2
     env:
-      PRIMARY: ${{ needs.qualification.outputs.verdict }}
+      PRIMARY: ${{ needs.qualification.outputs.verdict || 'invalid' }}
       FALLBACK: ${{ needs.fallback.outputs.verdict }}
     steps:
       - run: |
           case "$PRIMARY/$FALLBACK" in
-            success/) echo "26,678 identities qualified for soak A and AB" ;;
-            failure/success) echo "21,002 identities qualified for soak A" ;;
-            *) echo "Volume qualification failed. See archived evidence."; exit 1 ;;
+            pass/) echo "26,678 identities qualified for soak A and AB" ;;
+            capacity_failure/pass) echo "21,002 identities qualified for soak A" ;;
+            capacity_failure/capacity_failure)
+              echo "Both volumes returned capacity_failure. See archived evidence."
+              exit 1
+              ;;
+            *)
+              echo "Qualification halted as invalid (primary=$PRIMARY, fallback=${FALLBACK:-skipped}). See archived evidence."
+              exit 1
+              ;;
           esac

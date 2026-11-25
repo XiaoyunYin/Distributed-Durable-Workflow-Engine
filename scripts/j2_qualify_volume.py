@@ -6,13 +6,14 @@ import argparse
 import hashlib
 import json
 import os
+import re
 import secrets
 import subprocess
 import threading
 import time
 from collections import Counter
 from contextlib import contextmanager, suppress
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from urllib.error import URLError
 from urllib.parse import urlencode
 from urllib.request import urlopen
@@ -23,15 +24,19 @@ from dur053_prerequisites import export_witness
 from j2_offline import SECOND, utc_ns
 from j2_overlay import EXPORTER, J2, PROM, ROOT
 from j2_qualification_evidence import (
+    CAPACITY_EXIT,
     CLOSEOUT_SECONDS,
     DRAIN_SECONDS,
     POPULATION_RATE,
     PROFILE,
     VOLUMES,
+    CapacityFailure,
+    check_replay_verdict,
     extract,
     file_record,
     read,
     require,
+    require_capacity,
     scrape_summary,
     seal,
     write,
@@ -108,11 +113,15 @@ class Qualification(J2Driver):
         self.live_reservation = 300 * 60
         self.monitor_password = secrets.token_hex(32)
         self.deadline = time.monotonic() + BOOTSTRAP_SECONDS
+        self.deadline_criterion = None
+        self.population_started = False
         self.observer = None
         self.workers = []
 
     def time_left(self, maximum):
         remaining = self.deadline - time.monotonic()
+        if self.deadline_criterion:
+            require_capacity(remaining > 0, self.deadline_criterion, "registered deadline exceeded")
         require(remaining > 0, "qualification stage deadline exceeded")
         return min(remaining, maximum)
 
@@ -142,16 +151,18 @@ class Qualification(J2Driver):
             error_path.open("wb") as err,
         ):
             try:
-                deadline = started + self.time_left(timeout)
+                self.time_left(timeout)
+                deadline = min(started + timeout, self.deadline)
                 with subprocess.Popen(
                     args, env=self.env, stdin=stdin, stdout=out, stderr=err
                 ) as process:
                     while True:
                         try:
-                            require(
-                                not monitor_errors, f"resource monitoring failed: {monitor_errors}"
-                            )
+                            if monitor_errors:
+                                raise monitor_errors[0]
                             remaining = deadline - time.monotonic()
+                            if remaining <= 0 and deadline == self.deadline:
+                                self.time_left(timeout)
                             require(remaining > 0, f"{name} timed out")
                             status = process.wait(timeout=min(5, remaining))
                             break
@@ -245,15 +256,17 @@ class Qualification(J2Driver):
                 for name, row in rows.items():
                     require(row["phase"] == expected[name]["phase"], f"pod phase changed: {name}")
                     for container in row["containers"]:
-                        require(
+                        require_capacity(
                             container["restartCount"] == 0,
+                            "restart",
                             f"container restarted: {container['name']}",
                         )
                         states = [container["state"], container.get("lastState", {})]
-                        require(
+                        require_capacity(
                             all(
                                 s.get("terminated", {}).get("reason") != "OOMKilled" for s in states
                             ),
+                            "oom",
                             "OOMKilled",
                         )
                     if row["app"] in {"observer", EXPORTER}:
@@ -327,10 +340,7 @@ class Qualification(J2Driver):
                     if line.startswith("model name")
                 ),
                 "available_cpus": sorted(os.sched_getaffinity(0)),
-                "cgroup": {
-                    key: (Path("/sys/fs/cgroup") / key).read_text().strip()
-                    for key in ("cpu.max", "memory.max", "cpu.pressure", "memory.pressure")
-                },
+                "cgroup": runner_cgroup(),
                 "source": {
                     str(path.relative_to(ROOT)): file_record(path)
                     for path in (
@@ -363,6 +373,11 @@ class Qualification(J2Driver):
     def witness(self, inventories):
         root = self.output / "witness-raw"
         for inv in inventories:
+            require_capacity(
+                inv["written"] >= inv["attempted"],
+                "truncation",
+                f"witness writer dropped events: {inv['pod_name']}",
+            )
             pod = inv["pod_name"]
             require(Path(inv["file"]).name == inv["file"], "unexpected witness filename")
             files = json.loads(
@@ -489,6 +504,22 @@ class Qualification(J2Driver):
             ).stdout
         )
         write(self.output / f"{name}-container.json", state)
+        require_capacity(not state["OOMKilled"], "oom", f"{name} was OOMKilled")
+        if name == "offline-checker" and status != 0:
+            events = {}
+            with suppress(OSError, ValueError, KeyError):
+                memory = marker(self.output / f"{name}.stderr", "J2_CGROUP")
+                events = event_counts(memory["events"].splitlines())
+            require_capacity(
+                not any(n > 0 for k, n in events.items() if k.startswith("oom")),
+                "oom",
+                f"{name} recorded OOM events: {events}",
+            )
+            if state["ExitCode"] == 1:
+                check_replay_verdict(self.output)
+        if name == "offline-replay" and status != 0 and state["ExitCode"] == CAPACITY_EXIT:
+            failure = read(self.output / stdout)
+            raise CapacityFailure(failure["capacity_criterion"], failure["error"])
         require(status == state["ExitCode"] == 0 and not state["OOMKilled"], f"{name} failed")
 
     def clock(self):
@@ -499,16 +530,52 @@ class Qualification(J2Driver):
         )
 
 
+def runner_cgroup(proc=Path("/proc/self"), root=Path("/")):
+    def absolute(path):
+        require(path.startswith("/") and not path.startswith("//"), "invalid cgroup path")
+        require(".." not in path.split("/"), "invalid cgroup path")
+        return PurePosixPath(path)
+
+    def mount_path(field):
+        return absolute(re.sub(r"\\([0-7]{3})", lambda m: chr(int(m[1], 8)), field))
+
+    memberships = [
+        line[3:] for line in (proc / "cgroup").read_text().splitlines() if line.startswith("0::")
+    ]
+    require(len(memberships) == 1, "expected one unified cgroup membership")
+    member = absolute(memberships[0])
+    mounts = []
+    for line in (proc / "mountinfo").read_text().splitlines():
+        before, separator, after = line.partition(" - ")
+        if not after.startswith("cgroup2 "):
+            continue
+        fields = before.split()
+        require(separator and len(fields) >= 6, "invalid cgroup2 mountinfo entry")
+        mount_root, mount = map(mount_path, fields[3:5])
+        if member.is_relative_to(mount_root):
+            mounts.append((mount_root, mount))
+    require(mounts, "no cgroup2 mount covers the unified membership")
+    mount_root, mount = max(mounts, key=lambda item: len(item[0].parts))
+    path = mount / member.relative_to(mount_root)
+    result = {"mount": str(mount), "mount_root": str(mount_root), "path": str(path)}
+    for key in ("cpu.max", "memory.max", "cpu.pressure", "memory.pressure"):
+        try:
+            value = root.joinpath(*path.parts[1:], key).read_text().strip()
+        except FileNotFoundError:
+            result[key] = {"present": False}
+        else:
+            result[key] = {"present": True, "value": value}
+    return result
+
+
 def event_counts(lines):
     return {name: int(n) for name, n in map(str.split, lines)}
 
 
 def require_no_oom(events):
-    require(
-        "oom_kill" in events
-        and "oom" in events
-        and not any(n for k, n in events.items() if k.startswith("oom")),
-        f"OOM event or missing counters: {events}",
+    require("oom_kill" in events and "oom" in events, f"missing OOM counters: {events}")
+    require_capacity(
+        not any(n for k, n in events.items() if k.startswith("oom")), "oom", f"OOM event: {events}"
     )
 
 
@@ -621,16 +688,23 @@ def populate(driver, count, plan, monitor_errors):
     finally:
         with suppress(Exception):
             driver.copy_from_pod(driver.observer, path, "arrivals.json")
+            journal = read(driver.output / "arrivals.json")
+            if journal["run_id"] == plan["run_id"]:
+                driver.population_started = any(
+                    row["sent_at"] is not None for row in journal["rows"]
+                )
     arrivals = read(driver.output / "arrivals.json")
     write(
         driver.output / "arrival-outcomes.json",
         dict(Counter(r["outcome"] for r in arrivals["rows"])),
     )
-    require(not monitor_errors, f"resource monitoring failed: {monitor_errors}")
+    if monitor_errors:
+        raise monitor_errors[0]
     require(status == 0 and arrivals["status"] == "PASS", "stock sender failed")
     start = utc_ns(arrivals["rows"][0]["scheduled_at"]) / SECOND
     stop = start + duration
     driver.deadline = time.monotonic() + (stop + DRAIN_SECONDS - time.time())
+    driver.deadline_criterion = "drain_deadline"
     return start, stop
 
 
@@ -682,9 +756,28 @@ def workload(driver, count, plan, result):
                 retain_scrapes(driver, query, start, time.time(), count)
             raise
         result["resources"] = driver.health(expected)
-        retain_scrapes(driver, query, start, time.time(), count)
-        require(not errors, f"resource monitoring failed: {errors}")
+        if errors:
+            raise errors[0]
+        if status == 1:
+            report = read(driver.output / "live-checker.json")
+            expected_ids = {r["workflow_id"] for r in read(driver.output / "arrivals.json")["rows"]}
+            seen = report.get("workflow_ids", [])
+            seen_ids = set(seen)
+            require(
+                report["status"] == "FAIL"
+                and report["valid"] is False
+                and isinstance(report["trace"], dict)
+                and len(seen_ids) == len(seen)
+                and seen_ids <= expected_ids,
+                "invalid live report",
+            )
+            require_capacity(
+                seen_ids == expected_ids and not report["non_terminal"],
+                "missing_identity",
+                "live checker is missing identities or terminal results",
+            )
         require(status == 0, "in-pod live checker failed")
+        retain_scrapes(driver, query, start, time.time(), count)
         require(
             json.loads(driver.sql(QUIET_SQL, DB)) == state
             and driver.witness_inventories() == witnesses,
@@ -700,12 +793,15 @@ def workload(driver, count, plan, result):
         write(driver.output / "clock.json", probes)
         extract(driver.output)
         exported = time.time_ns()
-        require(
-            time.monotonic() <= driver.deadline, "live export missed the registered drain deadline"
+        require_capacity(
+            time.monotonic() <= driver.deadline,
+            "drain_deadline",
+            "live export missed the registered drain deadline",
         )
         result["export_completed_unix_ns"] = exported
         result["scheduled_end_through_export_seconds"] = exported / SECOND - stop
         driver.deadline = time.monotonic() + CLOSEOUT_SECONDS
+        driver.deadline_criterion = "closeout_deadline"
     driver.offline(
         "offline-checker",
         [
@@ -774,6 +870,8 @@ def diagnostics(driver):
             "SELECT workflow_id, state FROM engine.workflow_executions ORDER BY workflow_id", DB
         )
         (driver.output / "db-at-stop.txt").write_text(rows, encoding="utf-8")
+        if rows.strip():
+            driver.population_started = True
 
 
 def main():
@@ -821,14 +919,19 @@ def main():
         result["status"] = "PASS"
     except Exception as error:
         result["error"] = str(error)
+        if isinstance(error, CapacityFailure):
+            result["capacity_criterion"] = error.criterion
         print(f"Qualification stopped: {error}", flush=True)
     finally:
-        if "export_completed_unix_ns" not in result:
-            driver.deadline = time.monotonic() + CLOSEOUT_SECONDS
+        driver.deadline_criterion = None
+        # Preserve time to archive and clean up after exhausted stage budgets.
+        # The end-to-end closeout still uses the original export timestamp.
+        driver.deadline = time.monotonic() + CLOSEOUT_SECONDS
         try:
             diagnostics(driver)
         except Exception as error:
             result["diagnostic_error"] = str(error)
+        result["population_started"] = driver.population_started
         try:
             write(args.evidence / "cleanup.json", driver.cleanup())
         except Exception as error:

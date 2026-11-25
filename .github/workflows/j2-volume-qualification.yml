@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 300
     outputs:
       artifact_id: ${{ steps.upload.outputs.artifact-id }}
-      verdict: ${{ steps.closeout.outcome }}
+      verdict: ${{ steps.closeout.outputs.verdict || 'invalid' }}
     env:
       J2_VOLUME: ${{ inputs.population }}
       PYTHONDONTWRITEBYTECODE: '1'
@@ -56,10 +56,9 @@ jobs:
           path: ${{ runner.temp }}/j2-volume-evidence/
           if-no-files-found: error
           compression-level: 1
-      - name: Verify the upload and closeout deadline
+      - name: Classify the frozen evidence and verify closeout
         if: always()
         id: closeout
-        continue-on-error: true
         env:
           ARTIFACT_ID: ${{ steps.upload.outputs.artifact-id }}
           ARTIFACT_DIGEST: ${{ steps.upload.outputs.artifact-digest }}
