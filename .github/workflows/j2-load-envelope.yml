@@ -1,0 +1,77 @@
+name: J2 load-envelope tooling
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/j2-load-envelope.yml'
+      - 'experiments/portfolio/load-envelope/**'
+      - 'scripts/j2_*'
+      - 'mutations/j2-manifest.json'
+      - 'deploy/k8s/connection-budget.json'
+      - 'deploy/k8s/tools.lock.json'
+      - 'go.mod'
+      - 'go.sum'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+
+concurrency:
+  group: j2-load-envelope-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  tooling:
+    name: ${{ github.event_name == 'pull_request' && 'J2 tooling smoke' || 'J2 unmeasured overlay pilot' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 10 || 35 }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        if: github.event_name == 'pull_request'
+        with:
+          go-version: '1.27.4'
+      - uses: astral-sh/setup-uv@v6
+        if: github.event_name == 'pull_request'
+        with:
+          version: '0.9.5'
+      - name: Offline and exporter unit tests and decision mutations
+        if: github.event_name == 'pull_request'
+        env:
+          GOMAXPROCS: '2'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          go test -p 1 ./experiments/portfolio/load-envelope/exporter
+          uv run --locked --only-group dev pytest -q -p no:cacheprovider --basetemp "$RUNNER_TEMP/j2-pytest" experiments/portfolio/load-envelope/test_j2_*.py
+      - name: Restore the retained images
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          lock=experiments/portfolio/load-envelope/images.lock.json
+          for kind in images exporter; do
+            lock="experiments/portfolio/load-envelope/$kind.lock.json"
+            artifact=$(jq -er .artifact "$lock")
+            archive="$RUNNER_TEMP/j2-$kind.zip"
+            gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" > "$archive"
+            echo "$(jq -er .artifact_sha256 "$lock")  $archive" | sha256sum -c -
+            unzip -q "$archive" -d "$RUNNER_TEMP/j2-$kind-layouts"
+          done
+      - name: Verify the overlay on a disposable cluster
+        if: github.event_name == 'workflow_dispatch'
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          python3 scripts/j2_verify_overlay.py "$RUNNER_TEMP/j2-overlay-evidence" \
+            "$RUNNER_TEMP/j2-overlay-scratch" "$RUNNER_TEMP/j2-images-layouts" "$RUNNER_TEMP/j2-exporter-layouts"
+      - name: Retain overlay evidence
+        if: always() && github.event_name == 'workflow_dispatch'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: j2-overlay-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-overlay-evidence/
+          if-no-files-found: warn
