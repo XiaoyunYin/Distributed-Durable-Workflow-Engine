@@ -13,9 +13,11 @@ from uuid import UUID
 
 from dur053_k6_b_smoke import private_file, require
 from dur053_k6_c_render import policy, traffic
+from dur053_k6_chaos import Target
 from dur053_k6_d_render import mount, set_env
 from dur053_k6_e1_smoke import e1_receiver_address, e1_receiver_san
 from dur053_k6_g_bundle import Json
+from dur053_k6_g_partition import PartitionDriver
 from dur053_k6_g_registration import observe_runtime, utc
 from dur053_k6_hook import Receiver, serve
 from dur053_k6_identity import obj
@@ -41,6 +43,11 @@ class StaleDriver:
         self.workflow = f"dur053-g-measured-{episode.cell['seed']}-000000"
         self.episode = episode.binding["episode"]
         self.path = episode.scratch / "host-hook-journal.jsonl"
+        self.partition = (
+            PartitionDriver(episode, stack, episode.scratch / "chaos")
+            if episode.cell["cell"] == "medium-3"
+            else None
+        )
 
     def render(self, objects: list[Json], address: str) -> None:
         gateway = e1_receiver_address(self.g.command, address)
@@ -107,6 +114,7 @@ class StaleDriver:
             set_env(
                 container,
                 DUR053_K6_LEASE_TAKEOVER_ROLE=role,
+                DUR053_K6_LEASE_TAKEOVER_CELL=self.g.cell["cell"],
                 DUR053_K6_LEASE_TAKEOVER_WORKFLOW=self.workflow,
                 DUR053_K6_HOOK_URL=f"https://{gateway}:{port}",
                 DUR053_K6_HOOK_CA_FILE="/g-hook/ca.crt",
@@ -123,7 +131,7 @@ class StaleDriver:
         with self.receiver.lock:
             return self.receiver.targets.get(role)
 
-    def process(self, role: str) -> tuple[str, Json]:
+    def process(self, role: str) -> tuple[Target, Json]:
         pods = json.loads(
             self.g.k(
                 "G_STALE_PODS",
@@ -171,7 +179,20 @@ class StaleDriver:
         target = self.registered(role)
         require(target is not None, "G_STALE_REGISTRATION")
         assert target is not None
-        return observed["pod_name"], {
+        deployment = Target(
+            self.g.namespace,
+            observed["pod_name"],
+            identity["pod_uid"],
+            "scheduler",
+            "scheduler",
+            observed["containerID"],
+            identity["restart"],
+            node,
+            cri["info"]["pid"],
+            f"{pid}:{ticks}",
+            target["session"],
+        )
+        return deployment, {
             "pod_uid": identity["pod_uid"],
             "container_id": cid,
             "pid": pid,
@@ -229,10 +250,18 @@ class StaleDriver:
         old = self.g.wait_for(
             lambda: self.state(False, "held"), "G_STALE_PREDECESSOR_ACK", seconds=12
         )
-        pod, before = self.process(PREDECESSOR)
-        partition = int(old["reach"]["fields"]["objects"]["partition"])
+        target, before = self.process(PREDECESSOR)
+        fields = old["reach"]["fields"]["objects"]
+        partition = int(fields["partition"])
         hold = self.cut(partition)
         self.receiver.note(self.episode, old["ack"], "prolonged")
+        if self.partition:
+            self.partition.inject(
+                target,
+                lambda: self.process(PREDECESSOR)[0],
+                partition,
+                int(fields["backend_pid"]),
+            )
         self.g.k(
             "G_STALE_START_PEER",
             "-n",
@@ -257,12 +286,29 @@ class StaleDriver:
         new = self.g.wait_for(lambda: self.state(True, "held"), "G_STALE_PEER_ACK", seconds=25)
         _, peer = self.process(SUCCESSOR)
         takeover = self.cut(partition)
-        self.receiver.authorize(self.episode, old["ack"], "release", evidence={})
+
+        def release() -> None:
+            self.receiver.authorize(self.episode, old["ack"], "release", evidence={})
+            if self.partition:
+                self.g.wait_for(
+                    lambda: self.state(False, "done"),
+                    "G_STALE_PRIMARY_RELEASE",
+                    seconds=3,
+                )
+
+        if self.partition:
+            self.partition.restore()
+            self.partition.observe_call(release)
+        else:
+            release()
         invocation = old["reach"]["fields"]["invocation"]
         call = self.g.wait_for(
-            lambda: self.call(pod, invocation, before["container_id"]), "G_STALE_CALL", seconds=8
+            lambda: self.call(target.pod, invocation, before["container_id"]),
+            "G_STALE_CALL",
+            seconds=8,
         )
-        _, after = self.process(PREDECESSOR)
+        resumed, after = self.process(PREDECESSOR)
+        require(resumed == target, "G_STALE_PROCESS_CONTINUITY")
         rejected = self.cut(partition)
         self.receiver.note(self.episode, new["ack"], "rejection_observed", companion=True)
         self.receiver.authorize(self.episode, new["ack"], "release", evidence={}, companion=True)
@@ -279,6 +325,7 @@ class StaleDriver:
             "takeover": takeover,
             "rejected": rejected,
             "call": call,
+            **({"partition": self.partition.observation} if self.partition else {}),
         }, journal_utc(json.loads(journal.splitlines()[-1])["at_ns"])
 
     def complete(self, observation: Json) -> None:

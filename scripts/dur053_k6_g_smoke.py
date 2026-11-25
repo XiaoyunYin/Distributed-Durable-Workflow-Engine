@@ -32,6 +32,7 @@ from dur053_k6_c_deploy import (
 )
 from dur053_k6_c_render import PORT, RELAY, SINK
 from dur053_k6_c_smoke import make_output
+from dur053_k6_d2b_smoke import Matrix as D2bMatrix
 from dur053_k6_d_render import CONTROL, OBSERVER, ROLES, base, mount, render, set_env
 from dur053_k6_d_render import NS as D_NAMESPACE
 from dur053_k6_d_smoke import SQL, Matrix, definition_sql
@@ -39,6 +40,7 @@ from dur053_k6_e1_join import EVENTS, GROUP, TASKS
 from dur053_k6_g_bundle import (
     BROKER_PATH,
     CONTROL_PATH,
+    STALE_CELLS,
     STALE_PATH,
     Json,
     canonical,
@@ -132,7 +134,7 @@ class Episode(Matrix):
         self.idle = idle
         self.arm = "effect" if self.effect else "pure"
         self.stale: StaleDriver | None = None
-        instance = "idle" if idle else "stale" if cell["cell"] == "hook-5" else self.arm
+        instance = "idle" if idle else "stale" if cell["cell"] in STALE_CELLS else self.arm
         self.namespace = "dur053-g-" + instance
         self.database = f"dur053_g_{instance}"
         self.sink_container = CLUSTER + "-g-sink-db"
@@ -1213,10 +1215,9 @@ class Episode(Matrix):
     ) -> None:
         source = self.frames / STALE_PATH
         original = read_json(source)
-        for name, section, field, value, reason in (
+        cases: list[tuple[str, str, str, object, str]] = [
             ("N5Harness", "call", "pid", 73, "STALE_CHALLENGE_ORIGIN"),
             ("WrongOrder", "call", "at_ns", 1, "STALE_CHALLENGE_ORDER"),
-            ("Committed", "call", "outcome", "COMMITTED", "STALE_CHALLENGE_COMMITTED"),
             ("MissingRejection", "call", "outcome", "OTHER_ERROR", "stale_challenge_rejection"),
             ("MissingBackend", "hold", "backends", [], "stale_challenge_backend"),
             ("MissingACK", "", "journal", "", "stale_challenge_ack"),
@@ -1227,10 +1228,115 @@ class Episode(Matrix):
                 "",
                 "stale_challenge_successor_progress",
             ),
-        ):
+        ]
+        if self.cell["cell"] == "medium-3":
+            part = original["partition"]
+            lock = "stale_challenge_lock_probe"
+            network = "stale_challenge_partition"
+            route = "stale_challenge_route_restoration"
+            active = "stale_challenge_backend_execution"
+            order = "STALE_CHALLENGE_ORDER"
+            old_action = next(
+                row["at_ns"]
+                for line in original["journal"].splitlines()
+                if (row := json.loads(line))["event"] == "action"
+            )
+            cases += [
+                ("Committed", "rejected", "attempts", 1, "STALE_CHALLENGE_COMMITTED"),
+                (
+                    "UncorroboratedCommit",
+                    "call",
+                    "outcome",
+                    "COMMITTED",
+                    "stale_challenge_rejection",
+                ),
+                ("WrongProbeEpoch", "partition.lock", "epoch", -1, lock),
+                ("LockNotAcquired", "partition.lock", "sqlstate", "55P03", lock),
+                ("LockNotRolledBack", "partition.lock", "rollback", "25P02", lock),
+                ("NoRisingCounters", "partition", "rules_during", part["rules_before"], network),
+                (
+                    "WrongDestination",
+                    "partition",
+                    "sets",
+                    part["sets"].replace(part["address"], "192.0.2.199"),
+                    network,
+                ),
+                (
+                    "WrongInjectionOrder",
+                    "partition",
+                    "confirmed_ns",
+                    original["takeover"]["end_ns"],
+                    order,
+                ),
+                ("RuleStillPresent", "partition", "rules_after", part["rules_during"], route),
+                ("RoutingStillBlocked", "partition.restored", "exit", 124, route),
+                ("WrongBackend", "partition.execution", "start_us", 1, active),
+                ("WrongQuery", "partition.execution", "query", "SELECT 1", active),
+                ("UnrelatedBlocker", "partition.execution", "blocked_by", [1], active),
+                ("ObserverDidNotRollback", "partition.execution", "rolled_back", "", active),
+                (
+                    "EarlyExecution",
+                    "partition.execution",
+                    "start_ns",
+                    part["restored"]["end_ns"],
+                    order,
+                ),
+                (
+                    "WrongPartitionTarget",
+                    "partition",
+                    "pod_uid",
+                    "harness",
+                    "STALE_CHALLENGE_ORIGIN",
+                ),
+                ("MissingLockProbe", "partition", "lock", None, "stale_challenge_lock_probe"),
+                (
+                    "UnobservedPartition",
+                    "partition",
+                    "rules_during",
+                    "",
+                    "stale_challenge_partition",
+                ),
+                ("MissingController", "partition", "controller", None, "stale_challenge_partition"),
+                ("MissingDaemon", "partition", "daemon", None, "stale_challenge_partition"),
+                ("MissingFailedRoute", "partition", "failed", None, "stale_challenge_partition"),
+                ("FailedRouteConnects", "partition.failed", "exit", 0, network),
+                (
+                    "MissingRestoration",
+                    "partition",
+                    "restored",
+                    None,
+                    "stale_challenge_route_restoration",
+                ),
+                (
+                    "LateRestoration",
+                    "partition.restored",
+                    "end_ns",
+                    old_action,
+                    "STALE_CHALLENGE_ORDER",
+                ),
+                (
+                    "MissingExecution",
+                    "partition",
+                    "execution",
+                    None,
+                    "stale_challenge_backend_execution",
+                ),
+                (
+                    "IdleBackend",
+                    "partition.execution",
+                    "state",
+                    "idle",
+                    "stale_challenge_backend_execution",
+                ),
+            ]
+        else:
+            cases.append(("Committed", "call", "outcome", "COMMITTED", "STALE_CHALLENGE_COMMITTED"))
+        for name, section, field, value, reason in cases:
             with self.evidence.step("stale-parity-" + name):
                 variant = copy.deepcopy(original)
-                target = variant[section] if section else variant
+                target = variant
+                for key in section.split(".") if section else ():
+                    target = target[key]
                 target[field] = value
                 atomic(source, canonical(variant))
                 folder = self.evidence.root / "stale-parity" / name
@@ -1484,8 +1590,17 @@ def run(output: Path) -> int:
                 )
         registry = read_registry()
         pure, effect = select_cells(registry)
-        stale = next(row for row in registry["episodes"] if row["episode"] == "hook-5-0")
-        for cell, idle in ((pure, False), (pure, True), (stale, False), (effect, False)):
+        hook, partition = (
+            next(row for row in registry["episodes"] if row["episode"] == episode)
+            for episode in ("hook-5-0", "medium-3-0")
+        )
+        for cell, idle in (
+            (pure, False),
+            (pure, True),
+            (hook, False),
+            (effect, False),
+            (partition, False),
+        ):
             name = cell["episode"] + ("-idle" if idle else "")
             with evidence.step("episode-" + name):
                 episode_path = output / "episodes" / name
@@ -1499,7 +1614,9 @@ def run(output: Path) -> int:
                         Smoke.build(arm)
                         arm.build_effect()
                     with ExitStack() as stack:
-                        if cell["cell"] == "hook-5":
+                        if cell["cell"] == "medium-3":
+                            D2bMatrix.chaos(arm)  # type: ignore[arg-type]
+                        if cell["cell"] in STALE_CELLS:
                             arm.stale = StaleDriver(arm, stack)
                         try:
                             arm.execute(addresses)
@@ -1516,7 +1633,7 @@ def run(output: Path) -> int:
                         arm_evidence.scan()
                 arm_evidence.report.update(status="PASS", reason="DEPLOYED_PARITY_VERIFIED")
                 arm_evidence.checkpoint()
-                if not arm.effect:
+                if cell != partition:
                     harness.command(["docker", "rm", "-f", KAFKA])
                     harness.start_kafka(KAFKA)
                     harness.topics("--create")

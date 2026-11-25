@@ -99,16 +99,20 @@ func TestK6StaleChallenge(t *testing.T) {
 }
 
 func staleFixture(t *testing.T) (Manifest, Plan, Arrivals, StaleObservation, engineOrder) {
+	return staleFixtureFor(t, "hook-5")
+}
+
+func staleFixtureFor(t *testing.T, cell string) (Manifest, Plan, Arrivals, StaleObservation, engineOrder) {
 	t.Helper()
-	m := Manifest{Cell: "hook-5", Episode: "hook-5-0", Workload: "PURE", Instrumentation: []string{WriteCapture}}
+	m := Manifest{Cell: cell, Episode: cell + "-0", Namespace: "ns", Workload: "PURE", Instrumentation: []string{WriteCapture}}
 	base := time.Date(2026, 11, 24, 0, 0, 0, 0, time.UTC)
 	at := func(seconds int) time.Time { return base.Add(time.Duration(seconds) * time.Second) }
 	stamp := func(seconds int) string { return UTC(at(seconds)) }
 	n := func(s string) json.Number { return json.Number(s) }
 	start := StaleProcess{"old-pod", "old-container", 1, "1:101", "00000000-0000-0000-0000-000000000001"}
 	peer := StaleProcess{"new-pod", "new-container", 1, "1:102", "00000000-0000-0000-0000-000000000002"}
-	x := map[string]string{"cell": "hook-5", "partition": "0", "owner": "old-owner", "epoch": "1", "node": "pure.echo", "iteration": "0", "revision": "2", "backend_pid": "5", "backend_start_us": "100"}
-	y := map[string]string{"cell": "hook-5", "partition": "0", "owner": "new-owner", "epoch": "2", "revision": "2", "transaction": "2", "backend_pid": "6", "backend_start_us": "110"}
+	x := map[string]string{"cell": cell, "partition": "0", "owner": "old-owner", "epoch": "1", "node": "pure.echo", "iteration": "0", "revision": "2", "backend_pid": "5", "backend_start_us": "100"}
+	y := map[string]string{"cell": cell, "partition": "0", "owner": "new-owner", "epoch": "2", "revision": "2", "transaction": "2", "backend_pid": "6", "backend_start_us": "110"}
 	end := stamp(50)
 	p := Plan{FaultMode: "injected", HoldDeadlineUTC: &end, Windows: []PlanWindow{
 		{Name: "measured", Submissions: []Submission{{Key: "wf", Body: SubmissionBody{InitialNodeID: "pure.echo"}}}},
