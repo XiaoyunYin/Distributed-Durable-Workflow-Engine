@@ -1,0 +1,9 @@
+{
+  "profile": "rebuilt registered profile",
+  "source": "752711cd164c30dbb6da54d4a866f6979998e1b4",
+  "run": 45573063538,
+  "artifact": 15002748377,
+  "artifact_sha256": "4fffbfeef2a00ae1bbfd9f4d49ad92c082756c467a3512f575f027890c52b199",
+  "runtime": "localhost:5001/dur053-runtime@sha256:96d4965f839475190bffcf2c812f19c726b41347bcbb0433eed33970a6a1ef7c",
+  "worker": "localhost:5001/dur053-worker@sha256:139b0cc65e5cc2eefb7442d1129203891733a77b44adf034b493ca9d75485c20"
+}

@@ -1,0 +1,4 @@
+**
+!go.mod
+!go.sum
+!experiments/portfolio/load-envelope/exporter/main.go

@@ -5,38 +5,77 @@ on:
     branches: [codex/j2-slice1]
     paths:
       - '.github/workflows/j2-load-envelope.yml'
-      - 'scripts/j2_build_images.sh'
+      - 'scripts/j2_verify_overlay.py'
+  pull_request:
+    paths:
+      - '.github/workflows/j2-load-envelope.yml'
+      - 'experiments/portfolio/load-envelope/**'
+      - 'scripts/j2_*'
+      - 'mutations/j2-manifest.json'
+      - 'deploy/k8s/connection-budget.json'
+      - 'deploy/k8s/tools.lock.json'
+      - 'go.mod'
+      - 'go.sum'
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: j2-load-envelope-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: false
 
 jobs:
-  image-pair:
-    name: J2 registered image reproduction
+  tooling-smoke:
+    if: github.event_name == 'pull_request'
+    name: J2 tooling smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.27.4'
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: '0.9.5'
+      - name: Offline and exporter unit tests
+        env:
+          GOMAXPROCS: '2'
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: |
+          go test -p 1 ./experiments/portfolio/load-envelope/exporter
+          uv run --locked --only-group dev pytest -q -p no:cacheprovider --basetemp "$RUNNER_TEMP/j2-pytest" experiments/portfolio/load-envelope/test_j2_*.py
+  overlay-pilot:
+    if: github.event_name != 'pull_request'
+    name: J2 unmeasured overlay pilot
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: 752711cd164c30dbb6da54d4a866f6979998e1b4
-          path: k3-source
           persist-credentials: false
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-        with:
-          path: j2-source
-          persist-credentials: false
-      - name: Build and retain the registered pair
-        run: bash j2-source/scripts/j2_build_images.sh k3-source "$RUNNER_TEMP/j2-images"
-      - name: Retain build evidence
+      - name: Restore the retained image pair
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          lock=experiments/portfolio/load-envelope/images.lock.json
+          artifact=$(jq -r .artifact "$lock")
+          gh api "repos/$GITHUB_REPOSITORY/actions/artifacts/$artifact/zip" > "$RUNNER_TEMP/j2-images.zip"
+          echo "$(jq -r .artifact_sha256 "$lock")  $RUNNER_TEMP/j2-images.zip" | sha256sum -c -
+          unzip -q "$RUNNER_TEMP/j2-images.zip" -d "$RUNNER_TEMP/j2-image-layouts"
+      - name: Verify the overlay on a disposable cluster
+        env:
+          PYTHONDONTWRITEBYTECODE: '1'
+        run: python3 scripts/j2_verify_overlay.py "$RUNNER_TEMP/j2-overlay-evidence" "$RUNNER_TEMP/j2-overlay-scratch" "$RUNNER_TEMP/j2-image-layouts"
+      - name: Retain overlay evidence and exporter bytes
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: j2-images-${{ github.run_id }}-${{ github.run_attempt }}
-          path: ${{ runner.temp }}/j2-images/
-          compression-level: 0
-          if-no-files-found: error
+          name: j2-overlay-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/j2-overlay-evidence/
+          if-no-files-found: warn
