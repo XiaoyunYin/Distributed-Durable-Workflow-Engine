@@ -52,7 +52,7 @@ func TestK6SourceCaptureParity(t *testing.T) {
 	m := k6Manifest(engine.Config().Database, false)
 	m.Cell, m.Episode, m.Ordinal, m.Seed = "hook-5", "hook-5-0", 25, 530026
 	m.Instrumentation = []string{k6v1.WriteCapture}
-	m.RequiredSources = k6v1.RequiredSources(false, false, true)
+	m.RequiredSources = m.SourcePaths()
 	plan, arrivals := k6Sources(m, time.Now().Add(-time.Minute), "pure.echo")
 	item := plan.Windows[0].Submissions[0]
 	seedCapture(t, engine, item, "Clean")
@@ -137,10 +137,11 @@ func TestK6SourceCaptureParity(t *testing.T) {
 					label.Reason != "required_proof_missing:DeployedStaleChallenge" || label.PopulationCount == 0 {
 					t.Fatalf("I3 must retain the owner population and withhold the challenge award: %+v", label)
 				}
-				if len(r.Findings) != 1 || r.Findings[0].Predicate != "DispatchDisposition" ||
-					r.Findings[0].Code != "required_proof_missing:broker_event_copies" || r.Findings[0].Kind != k6v1.MissingProof {
+				if len(r.Findings) != 2 {
 					t.Fatalf("clean capture remainder: %+v", r.Findings)
 				}
+				requirePredicateFinding(t, r, k6v1.MissingProof, "RelationIntegrity", "required_proof_missing:"+k6v1.StalePath)
+				requirePredicateFinding(t, r, k6v1.MissingProof, "DispatchDisposition", "required_proof_missing:broker_event_copies")
 				return
 			}
 			key, _ := json.Marshal(order)

@@ -135,7 +135,7 @@ func k6TakeoverAttempt(ctx, scheduler context.Context, store *state.Store, input
 			"event": "k6_lease_takeover_call", "operation": "CreateAttempt",
 			"workflow": fields.Key, "invocation": fields.Invocation, "objects": fields.Objects,
 			"pid": os.Getpid(), "process_start_id": process, "session": state.K4Session,
-			"pod_uid": os.Getenv("POD_UID"), "outcome": outcome,
+			"pod_uid": os.Getenv("POD_UID"), "outcome": outcome, "at_ns": time.Now().UnixNano(),
 		})
 		fmt.Fprintf(os.Stderr, "DUR053_K6_OBSERVATION k6_lease_takeover_call %s\n", line)
 	}

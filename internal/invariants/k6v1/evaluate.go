@@ -439,7 +439,9 @@ func evaluate(m Manifest, s Snapshot, rows map[string][]Row, plan Plan, arrivals
 			r.awardEffectClosure(rows, plan, sources, witness, violate)
 			ordering.checkEffectAuthority(m, plan, sources, observations.traffic)
 		}
-		if planOK || m.control() {
+		if m.staleChallenge() {
+			ordering.checkStaleChallenge(m, plan, arrivals, issues, sources.Stale)
+		} else if planOK || m.control() {
 			r.checkConfirmation(m, plan, arrivals, issues, sources)
 		}
 	}

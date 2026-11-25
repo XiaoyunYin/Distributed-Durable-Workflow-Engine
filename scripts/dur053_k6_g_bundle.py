@@ -6,7 +6,7 @@ import hashlib
 import json
 import shutil
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +17,7 @@ Json = dict[str, Any]
 FENCE_ROLES = {"worker", "relay", "decision", "allocator"}
 BROKER_PATH = "broker/positions.jsonl"
 CONTROL_PATH = "fault/control.json"
+STALE_PATH = "fault/stale-challenge.json"
 IDLE_RELATIONS = (
     "activity_attempts",
     "attempt_result_evidence",
@@ -123,14 +124,15 @@ def make_plan(
                 ],
             }
         )
+    stale = binding["episode"].startswith("hook-5-")
     plan = {
         "schema": "dur053.k6-plan.v1",
         "episode": binding["episode"],
         "namespace": binding["namespace"],
         "reset_id": binding["reset_id"],
         "sealed_utc": sealed,
-        "fault_mode": "control",
-        "hold_deadline_utc": None,
+        "fault_mode": "injected" if stale else "control",
+        "hold_deadline_utc": utc(datetime.now(UTC) + timedelta(minutes=10)) if stale else None,
         "windows": windows,
     }
     return plan, requests, allocator_plan
@@ -340,7 +342,7 @@ def replay(
         "G_CHECKER_CONFIRMATION",
     )
     manifest = json.loads((good / "manifest.json").read_bytes())
-    require(manifest["cell"] == "medium-16", "G_CHECKER_CONTROL_CELL")
+    require(manifest["cell"] in {"medium-16", "hook-5"}, "G_CHECKER_CELL")
     require(
         positive["findings"] == []
         and positive["relation_integrity"] == "covered/pass"
@@ -351,6 +353,8 @@ def replay(
     ids = [f"I{i}" for i in range(1, 14)]
     labels = positive["labels"]
     registered = {"I1", "I2", "I4", "I6", "I11"}
+    if manifest["cell"] == "hook-5":
+        registered.add("I3")
     if source == "witness/effect-ingress.jsonl":
         registered.update(("I8", "I10"))
     covered = [] if idle else [identity for identity in ids if identity in registered]
@@ -373,7 +377,8 @@ def replay(
 
     replay_missing(directory, good, source, offline, "source")
     if source == "witness/topology.json" and not idle:
-        replay_missing(directory, good, CONTROL_PATH, offline, "confirmation")
+        proof = STALE_PATH if manifest["cell"] == "hook-5" else CONTROL_PATH
+        replay_missing(directory, good, proof, offline, "confirmation")
 
 
 def replay_missing(

@@ -219,6 +219,26 @@ func (e *externalObserver) publish(dir string, index *k6v1.Index) error {
 			return err
 		}
 	}
+	if slices.Contains(e.m.RequiredSources, k6v1.StalePath) && e.dir != "" {
+		root, err := os.OpenRoot(e.dir)
+		if err != nil {
+			return err
+		}
+		defer root.Close()
+		raw, err := root.ReadFile(k6v1.StalePath)
+		if err == nil {
+			if err := os.MkdirAll(filepath.Join(dir, "fault"), 0o755); err != nil {
+				return err
+			}
+			entry, err := writePublic(dir, k6v1.StalePath, raw)
+			if err != nil {
+				return err
+			}
+			index.Files = append(index.Files, entry)
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return err
+		}
+	}
 	if len(e.samples.Rows) == 0 {
 		return nil
 	}
