@@ -271,13 +271,13 @@ class StaleDriver:
             "--replicas=1",
             timeout=5,
         )
-        target = self.g.wait_for(
+        peer_registration = self.g.wait_for(
             lambda: self.registered(SUCCESSOR), "G_STALE_PEER_REGISTRATION", seconds=20
         )
         self.receiver.arm(
             self.episode,
             COMPANION,
-            target,
+            peer_registration,
             {"key": self.workflow, "epoch": str(hold["epoch"] + 1)},
             60,
             companion=True,

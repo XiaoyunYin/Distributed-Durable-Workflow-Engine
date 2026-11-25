@@ -56,8 +56,6 @@ class PartitionDriver:
     def inject(
         self, target: Target, observe: Callable[[], Target], partition: int, backend: int
     ) -> None:
-        import yaml
-
         self.target = target
         self.partition = partition
         self.backend = backend
@@ -66,7 +64,7 @@ class PartitionDriver:
             self, self.schema_dir, self.g.cell, target, options={"externalTargets": [address]}
         )
         self.chaos.preflight(
-            list(yaml.safe_load_all((self.schema_dir / "chaos-crds.yaml").read_bytes()))
+            json.loads(self.k("G_STALE_CHAOS_CRDS", "get", "crd", "-o", "json"))["items"]
         )
         start = time.time_ns()
         lock = json.loads(
@@ -200,7 +198,7 @@ class PartitionDriver:
         # pg_stat_activity can observe the actual CreateAttempt SELECT active.
         # The predecessor's own five-second call deadline remains in force.
         with ExitStack() as stack:
-            probe = LineProcess(self.postgres(), self.g.env)  # type: ignore[arg-type]
+            probe = LineProcess(self.postgres(), self.g.env)
             stack.callback(probe.close)
             probe.send(rf"""
                 BEGIN;

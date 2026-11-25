@@ -5,11 +5,13 @@ import subprocess
 import sys
 from copy import deepcopy
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from dur053_k6_b_evidence import SmokeFailure  # noqa: E402
+from dur053_k6_chaos import Target  # noqa: E402
 from dur053_k6_g_bundle import (  # noqa: E402
     CONTROL_PATH,
     IDLE_RELATIONS,
@@ -24,7 +26,63 @@ from dur053_k6_g_bundle import (  # noqa: E402
 )
 from dur053_k6_g_registration import AUDIENCE, bind_registration, observe_runtime  # noqa: E402
 from dur053_k6_g_smoke import Episode  # noqa: E402
+from dur053_k6_g_stale import COMPANION, StaleDriver  # noqa: E402
 from dur053_k6_registry import read_registry  # noqa: E402
+
+
+def test_stale_call_and_continuity_use_predecessor_after_peer_registration(tmp_path: Path) -> None:
+    predecessor = Target(
+        "ns",
+        "old-pod",
+        "old-uid",
+        "scheduler",
+        "scheduler",
+        "containerd://old",
+        0,
+        "node",
+        20,
+        "1:123",
+        "old-session",
+    )
+    old = {"container_id": "old"}
+    peer = {"container_id": "new"}
+    registration = {"uid": "new-uid"}
+    episode = Mock()
+    episode.wait_for.side_effect = lambda condition, *args, **kwargs: condition()
+    driver = object.__new__(StaleDriver)
+    driver.g = episode
+    driver.episode, driver.workflow = "hook-5-0", "workflow"
+    driver.partition = None
+    driver.receiver = Mock()
+    driver.path = tmp_path / "journal"
+    driver.path.write_text('{"at_ns":1}\n', encoding="utf-8")
+    driver.process = Mock(side_effect=[(predecessor, old), (None, peer), (predecessor, old)])
+    driver.registered = Mock(return_value=registration)
+    driver.state = Mock(
+        side_effect=[
+            {
+                "ack": {},
+                "reach": {"fields": {"invocation": "call-1", "objects": {"partition": "5"}}},
+            },
+            {"ack": {}},
+            {"state": "done"},
+        ]
+    )
+    driver.cut = Mock(side_effect=[{"epoch": 1}, {"epoch": 2}, {"epoch": 2}])
+    driver.call = Mock(return_value={"outcome": "ErrLeaseNotOwned"})
+
+    observation, _ = driver.finish()
+    driver.receiver.arm.assert_called_once_with(
+        "hook-5-0",
+        COMPANION,
+        registration,
+        {"key": "workflow", "epoch": "2"},
+        60,
+        companion=True,
+        share_primary_deadline=True,
+    )
+    driver.call.assert_called_once_with("old-pod", "call-1", "old")
+    assert observation["before"] == observation["after"] == old
 
 
 def runtime_inputs() -> tuple[Json, Json, Json]:
