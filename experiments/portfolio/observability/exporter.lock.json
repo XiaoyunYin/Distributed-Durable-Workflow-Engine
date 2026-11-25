@@ -1,0 +1,12 @@
+{
+  "image": "localhost:5001/j3-exporter@sha256:e527482c0f26462e699c56818c8eda0b0465ee3ddf6df8c376aef7005277274e",
+  "platform": "linux/amd64",
+  "build_head": "f169ee25341de0ae8004a3cf7c1942682a8e21df",
+  "build_run": 45617940419,
+  "build_attempt": 1,
+  "builder": "golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea",
+  "build_flags": "CGO_ENABLED=0 GOMAXPROCS=2 go build -p 1 -buildvcs=false -trimpath -ldflags='-s -w'",
+  "artifact": 15022453126,
+  "artifact_sha256": "3a5109fe3d96ee94029187908021bf3e8895f81e9f74476b46b170a0795f8cae",
+  "binary_sha256": "9ccb46853371e8429c6c0d2dc3a96acd51e893c6f823f9f16be0f1e355b70104"
+}

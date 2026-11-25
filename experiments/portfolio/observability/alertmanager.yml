@@ -1,0 +1,11 @@
+route:
+  receiver: j3-test
+  group_by: [campaign, namespace, alertname]
+  group_wait: 0s
+  group_interval: 5s
+  repeat_interval: 1h
+receivers:
+  - name: j3-test
+    webhook_configs:
+      - url: http://j3-receiver:8080/notify
+        send_resolved: true

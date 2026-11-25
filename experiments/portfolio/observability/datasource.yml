@@ -1,0 +1,11 @@
+apiVersion: 1
+datasources:
+  - name: J3 Prometheus
+    uid: j3-prometheus
+    type: prometheus
+    access: proxy
+    url: http://j3-prometheus:9090
+    isDefault: true
+    editable: false
+    jsonData:
+      timeInterval: 1s
