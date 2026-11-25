@@ -25,15 +25,63 @@ The [design document](DESIGN.md) explains committed state and recovery,
 the major trade-offs, and how this engine's semantics compare with Temporal,
 DBOS, Restate and AWS Step Functions.
 
+## Measured results
+
+- **Kubernetes lifecycle recovery.** On single-host, single-node kind on
+  GitHub-hosted runners, the synthetic short- and long-workflow campaign
+  retained 161 episode records, with 160 passing and one invalid. The measured
+  windows contain **118,038 accepted submissions**, summed from the
+  per-episode `accepted` counters. The campaign safety checks recorded
+  **zero lost or duplicated accepted submissions and zero stale result
+  commits**, including in the retained invalid episode. The exercised faults
+  were rollouts, process kills, worker scale-down, and voluntary eviction
+  under a PodDisruptionBudget. [Lifecycle report](experiments/portfolio/k8s-recovery/k4-v1/acceptance/results.md#safety)
+  · [Episode data](experiments/portfolio/k8s-recovery/k4-v1/acceptance/k4-summary.json).
+- **Graceful worker drain.** On the same single-host kind setup, abandoned
+  attempts fell from **39 of 58** active at intervention in the baseline
+  to **0 of 59** with drain enabled. The totals join 15 valid matched pairs
+  to their episode records and sum each arm's abandonment counts and active
+  attempts. The short-workflow comparison used five pairs each for worker
+  rollout, scale-down, and voluntary eviction.
+  [Paired episode data](experiments/portfolio/k8s-recovery/k4-v1/acceptance/k4-summary.json).
+- **Lease recovery.** A single-host Docker Desktop/WSL2 process-fault
+  study recorded **60 takeovers, 60 useful recoveries, 180 fenced stale-owner
+  writes, and zero false takeovers**. The harness had one affected workflow
+  per episode across 60 crash or pause episodes, with 10 episodes per
+  fault and lease-setting combination. Useful recovery meant committing a
+  replacement attempt for the affected work. [Lease study](experiments/m7/dur027/results.json).
+- **Scheduler sweep.** At an offered **2 workflows/s**, one scheduler
+  completed a median 1.37–1.64 workflows/s across the sequential and
+  fan-out/fan-in pure workloads. Two schedulers reached 1.97–1.98
+  workflows/s. The single-host Docker Desktop/WSL2 engine harness used four
+  fixed worker processes and three runs per configuration, with 24 measured
+  workflows per run. The numbers describe this direct engine-path harness.
+  [Scheduler sweep](experiments/m7/dur026/results.json).
+- **Checkpoint trade-off.** After an in-process panic, every-chunk
+  checkpointing took **7.6×** the boundary-only median completion time and
+  cut median replay by **99 chunks**. The single-host Docker Desktop/WSL2
+  harness ran a 200-chunk activity with one SHA-256 work unit per chunk and
+  three panic runs per checkpoint setting.
+  [Checkpoint study](experiments/m7/dur028/results.json).
+- **Dispatch comparison.** Direct PostgreSQL notification had a **35.6 ms**
+  median terminal latency versus **51.4 ms** via Kafka. The ready-to-claim
+  comparison was unresolved. The single-host Docker Desktop/WSL2 study used
+  one pure activity per workflow and three runs per dispatch configuration,
+  with 24 measured workflows per run. [Dispatch comparison](experiments/m7/dur035/results.json).
+- **Safeguard ablations.** Within-profile latency and throughput spreads
+  ranged from **11.7% to 15.8%**, leaving the cost of the safeguards
+  unresolved. The single-host Docker Desktop/WSL2 engine harness ran an
+  eight-step pure workflow, with three runs per profile and 24 measured
+  workflows per run. Separate negative controls exposed missing history, delayed
+  dispatch without the outbox, and stale-owner writes.
+  [Safeguard ablations](experiments/m7/dur034/results.json).
+
+The kind studies cover lifecycle changes on one host. The local engine-path
+studies use bounded fixtures. These measurements leave deployed system
+capacity and independent-host recovery unevaluated.
+
 ## Evidence highlights
 
-- **Kubernetes lifecycle recovery.** The accepted report retained 161 episodes
-  for synthetic short and long workflows on single-node kind on GitHub-hosted
-  runners. The checker marked 160 passing and one invalid. The study
-  covers application rollouts, process kills, worker scale-down and voluntary
-  eviction under a PodDisruptionBudget. Node loss and independent-host
-  recovery are outside this topology.
-  [Kubernetes lifecycle report](experiments/portfolio/k8s-recovery/k4-v1/acceptance/results.md).
 - **Lease fencing.** In the preserved-process network isolation episode of
   the four-arm AWS single-region study, the original worker's late result was
   rejected as `STALE_ATTEMPT`. The campaign used a controller-started cold
