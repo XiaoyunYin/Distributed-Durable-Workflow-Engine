@@ -3,6 +3,7 @@ set -euo pipefail
 
 source_tree=$1
 evidence=$2
+script_dir=$(cd -- "$(dirname -- "$0")" && pwd)
 registry=localhost:5001
 mkdir -p "$evidence"
 exec > >(tee "$evidence/build.log") 2>&1
@@ -26,13 +27,12 @@ for target in runtime worker; do
 done
 set +x
 
-python3 - "$evidence" <<'PY'
-import hashlib
+PYTHONPATH="$script_dir" python3 - "$evidence" <<'PY'
 import json
-import shutil
 import sys
-import urllib.request
 from pathlib import Path
+
+from j2_oci import retain
 
 root = Path(sys.argv[1])
 registered = {
@@ -52,33 +52,5 @@ exact = all(image["exact"] for image in images.values())
 }, indent=2) + "\n")
 
 for target, image in images.items():
-    layout = root / target
-    blobs = layout / "blobs/sha256"
-    blobs.mkdir(parents=True)
-    repository, digest = image["rebuilt"].split("@")
-    host, name = repository.split("/", 1)
-    base = f"http://{host}/v2/{name}"
-    manifest = urllib.request.Request(f"{base}/manifests/{digest}", headers={
-        "Accept": "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json",
-    })
-    with urllib.request.urlopen(manifest, timeout=30) as response:
-        content = response.read()
-        media_type = response.headers.get_content_type()
-    if "sha256:" + hashlib.sha256(content).hexdigest() != digest:
-        raise ValueError(f"{target} manifest digest mismatch")
-    (blobs / digest.removeprefix("sha256:")).write_bytes(content)
-    manifest = json.loads(content)
-    for blob in [manifest["config"], *manifest["layers"]]:
-        path = blobs / blob["digest"].removeprefix("sha256:")
-        with urllib.request.urlopen(f'{base}/blobs/{blob["digest"]}', timeout=30) as response:
-            with path.open("wb") as stream:
-                shutil.copyfileobj(response, stream)
-        with path.open("rb") as stream:
-            actual = "sha256:" + hashlib.file_digest(stream, "sha256").hexdigest()
-        if actual != blob["digest"] or path.stat().st_size != blob["size"]:
-            raise ValueError(f"{target} blob digest or size mismatch")
-    (layout / "oci-layout").write_text('{"imageLayoutVersion":"1.0.0"}\n')
-    (layout / "index.json").write_text(json.dumps({"schemaVersion": 2, "manifests": [{
-        "mediaType": media_type, "digest": digest, "size": len(content),
-    }]}) + "\n")
+    retain(root / target, image["rebuilt"])
 PY

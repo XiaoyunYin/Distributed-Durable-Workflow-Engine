@@ -72,7 +72,7 @@ def transport(row):
 
 
 def sender(plan, journal, submissions):
-    """Plan supplies UTC origin and independently persisted rated periods (first ns, count, rate)."""
+    """Check against the independent UTC origin and rated periods (first ns, count, rate)."""
     origin = utc_ns(plan["origin"])
     rows = index(journal["rows"], lambda r: r["key"])
     commits = index(submissions, lambda r: r["Key"])
@@ -239,7 +239,7 @@ def join(planned, snapshot, starts, observations, uncertainty, last_observation)
         yield {
             **row,
             "status": "observed",
-            "phase_ns": [b - a for a, b in zip(points, points[1:])],
+            "phase_ns": [b - a for a, b in zip(points, points[1:], strict=False)],
             "phase_sensitivity_ns": [uncertainty, uncertainty, uncertainty, 0],
         }
 
@@ -324,12 +324,9 @@ def bins_gate(rows, samples, start, end, sender_valid):
     )
     edges = [start + (end - start) * i // 6 for i in range(7)]
     bins = []
-    for lo, hi in zip(edges, edges[1:]):
-        actual = sorted(
-            (utc_ns(s["observed_at"]), s["outstanding"], s["unpublished"])
-            for s in samples
-            if lo <= utc_ns(s["observed_at"]) < hi
-        )
+    timed = sorted(((utc_ns(s["observed_at"]), s) for s in samples), key=lambda item: item[0])
+    for lo, hi in zip(edges, edges[1:], strict=False):
+        actual = [(t, s["outstanding"], s["unpublished"]) for t, s in timed if lo <= t < hi]
         valid = all(type(n) is int and n >= 0 for _, a, b in actual for n in (a, b))
         bins.append(
             {
@@ -345,11 +342,12 @@ def bins_gate(rows, samples, start, end, sender_valid):
             }
         )
     times = [start, *(t for b in bins for t, _, _ in b["samples"]), end]
-    maximum_gap = max(b - a for a, b in zip(times, times[1:]))
+    maximum_gap = max(b - a for a, b in zip(times, times[1:], strict=False))
     eligible = (
         end > start
         and len(measured) >= 6
         and maximum_gap <= 5 * SECOND
+        and len(times[1:-1]) == len(set(times[1:-1]))
         and all(b["outstanding"] is not None for b in bins)
         and all(row["status"] == "observed" for row in measured)
     )
@@ -368,7 +366,10 @@ def bins_gate(rows, samples, start, end, sender_valid):
     outstanding = [b["outstanding"] for b in bins]
     checks = {
         "4a": 100 * completions >= 95 * arrivals,
-        "4b": all(y <= max(1.25 * x, x + SECOND // 2) for x, y in zip(first_stats, last_stats)),
+        "4b": all(
+            y <= max(1.25 * x, x + SECOND // 2)
+            for x, y in zip(first_stats, last_stats, strict=True)
+        ),
         "4c": outstanding[-1] <= outstanding[0] + 4
         and bins[-1]["unpublished"] <= bins[0]["unpublished"] + 20,
     }
@@ -428,7 +429,7 @@ def replay(plan, journal, snapshot, checker, witness, polls, samples, probes):
         "clock_uncertainty_ns": uncertainty,
         "sender": delivery,
         "drain_identities": drain,
-        "poll_gaps_ns": [b - a for a, b in zip(poll_times, poll_times[1:])],
+        "poll_gaps_ns": [b - a for a, b in zip(poll_times, poll_times[1:], strict=False)],
         "window": summarize(window),
         "rows": rows,
         "gate": bins_gate(rows, samples, start, end, delivery["valid"]),

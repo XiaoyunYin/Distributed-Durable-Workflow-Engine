@@ -23,6 +23,22 @@ DB = "j2_overlay_pilot"
 OTHER = "j2-unrelated"
 
 
+class J2Driver(Driver):
+    def topics(self, action, *, kafka=None):
+        super().topics(action, kafka=kafka or kind_driver.CLUSTER + "-kafka")
+
+    def command_output(self, stdout, stderr):
+        # PostgreSQL may include SQL input in a failed command's diagnostics.
+        def redact(value):
+            return (
+                value.replace(self.monitor_password, "[REDACTED]")
+                if isinstance(value, str)
+                else value
+            )
+
+        return super().command_output(redact(stdout), redact(stderr))
+
+
 def require(condition, message):
     if not condition:
         raise ValueError(message)
@@ -351,7 +367,8 @@ def main():
     args.evidence.mkdir()
     args.scratch.mkdir()
     kind_driver.CLUSTER, kind_driver.LABEL = "j2-overlay", "j2.overlay=owned"
-    driver = Driver(args.evidence, args.scratch)
+    driver = J2Driver(args.evidence, args.scratch)
+    driver.monitor_password = secrets.token_hex(32)
     lock = json.loads((J2 / "images.lock.json").read_bytes())
     driver.images = {name: lock[name] for name in ("runtime", "worker")}
     try:
@@ -408,7 +425,7 @@ def main():
         save(driver.output / "exporter-image.json", {"image": exporter})
         addresses = driver.cluster()
         apply_app(driver, addresses)
-        password = secrets.token_hex(32)
+        password = driver.monitor_password
         db_ip = addresses["192.0.2.1"]
         result = postgres_probe(
             driver,

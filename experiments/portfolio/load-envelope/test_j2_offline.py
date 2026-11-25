@@ -83,7 +83,7 @@ def test_revision_order_and_stage_delay(episode):
     delayed[3]["a"] += 2 * SECOND
     (changed,) = join(*delayed[:-1], delayed[-1] + 2 * SECOND)
     assert changed["workflow_id"] == baseline["workflow_id"]
-    assert [b - a for a, b in zip(baseline["phase_ns"], changed["phase_ns"])] == [
+    assert [b - a for a, b in zip(baseline["phase_ns"], changed["phase_ns"], strict=True)] == [
         0,
         0,
         2 * SECOND,
@@ -98,6 +98,7 @@ def test_revision_order_and_stage_delay(episode):
         ("duplicate_workflow", "duplicate_workflow"),
         ("pending", "censored"),
         ("lost_terminal", "missing_or_duplicate_terminal"),
+        ("wrong_revision", "missing_or_duplicate_terminal"),
         ("poll_before_terminal", "terminal_clock_or_observation"),
         ("failed", "failed"),
         ("duplicate_winner", "missing_or_duplicate_winner"),
@@ -121,6 +122,8 @@ def test_censoring_and_required_boundaries(episode, case, status):
             workflows[0]["state"] = "WAITING_ACTIVITY"
         case "lost_terminal":
             history.pop(2)
+        case "wrong_revision":
+            history[2]["revision"] = 9
         case "poll_before_terminal":
             observed["a"] = 8 * SECOND - 101
         case "failed":
@@ -333,8 +336,36 @@ def test_unpublished_bound_and_missing_samples(gate_input):
     assert bins_gate(*gate_input)["checks"]["4c"] is True
     samples[-1]["unpublished"] = 23
     assert bins_gate(*gate_input)["checks"]["4c"] is False
-    assert bins_gate(rows, samples[3:], start, end, True)["status"] == "invalid_gate_inputs"
+    assert (
+        bins_gate(rows, samples[:1] + samples[3:], start, end, True)["status"]
+        == "invalid_gate_inputs"
+    )
     assert bins_gate(rows, samples, start, end, False)["status"] == "sender_invalid"
+
+
+def test_gate_rejects_duplicate_invalid_and_empty_bin_samples(gate_input):
+    rows, samples, start, end, _ = gate_input
+    assert (
+        bins_gate(rows, [samples[0], *samples], start, end, True)["status"] == "invalid_gate_inputs"
+    )
+    assert (
+        bins_gate(rows, samples[:2] + samples[4:], start, end, True)["status"]
+        == "invalid_gate_inputs"
+    )
+    samples[3]["outstanding"] = -1
+    assert bins_gate(*gate_input)["status"] == "invalid_gate_inputs"
+
+
+def test_sender_refuses_unexpected_or_duplicate_identity(delivery):
+    plan, journal, commits = delivery
+    commits.append(dict(commits[0], Key="extra", WorkflowID="extra"))
+    assert sender(*delivery)[1]["unexpected_keys"] == ["extra"]
+    assert not sender(*delivery)[1]["valid"]
+    journal["rows"].append(journal["rows"][0])
+    assert (
+        sender(plan, journal, commits)[1]["problems"][commits[0]["Key"]]
+        == "missing_or_duplicate_journal"
+    )
 
 
 def test_nanosecond_precision():

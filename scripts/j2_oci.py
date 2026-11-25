@@ -17,7 +17,8 @@ def retain(layout: Path, reference: str) -> None:
     request = Request(
         f"{base}/manifests/{digest}",
         headers={
-            "Accept": "application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json",
+            "Accept": "application/vnd.docker.distribution.manifest.v2+json, "
+            "application/vnd.oci.image.manifest.v1+json",
         },
     )
     with urlopen(request, timeout=30) as response:
