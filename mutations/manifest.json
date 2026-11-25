@@ -23404,8 +23404,8 @@
       "id": "k6g3a4b-commit-outcome",
       "kind": "behavioral",
       "file": "internal/invariants/k6v1/stale_challenge.go",
-      "old": "if call.Outcome == \"COMMITTED\" {",
-      "new": "if call.Outcome == \"UNEXPECTED_COMMIT\" {",
+      "old": "if m.Cell == \"hook-5\" && call.Outcome == \"COMMITTED\" {",
+      "new": "if m.Cell == \"hook-5\" && call.Outcome == \"UNEXPECTED_COMMIT\" {",
       "command": [
         "go",
         "test",
