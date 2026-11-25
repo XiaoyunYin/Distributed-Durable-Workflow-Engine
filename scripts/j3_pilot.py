@@ -631,10 +631,12 @@ def run_overlay(driver, db_ip, pins, target, binary):
         dashboard_evidence(driver, target, accepted)
     sessions = driver.query(
         "SELECT application_name || '|' || count(*) FROM pg_stat_activity "
-        "WHERE usename='j3_exporter' GROUP BY 1;"
+        "WHERE usename='j3_exporter' GROUP BY application_name;"
     )
+    maximum = int(driver.query("SHOW max_connections;"))
+    kind.save(driver.output / "db-sessions.json", {"monitor": sessions, "max_connections": maximum})
     require(
-        sessions == "j3-db-exporter|1" and driver.query("SHOW max_connections;") == "100",
+        sessions == "j3-db-exporter|1" and maximum == 100,
         "live monitor budget differs",
     )
     kind.save(driver.output / "clock.json", {"setup": setup, "closing": clock(driver)})
